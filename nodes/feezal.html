@@ -1,0 +1,158 @@
+<script type="text/javascript">
+    RED.nodes.registerType('feezal', {
+        category: 'feezal',
+        defaults: {
+            name: {value: 'feezal', required: true}
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: 'feezal.png',
+        color: '#4691BA',
+        paletteLabel: 'Feezal',
+        align: 'left',
+        label() {
+            return 'Feezal';
+        },
+        labelStyle() {
+            return this.name ? 'node_label_italic' : '';
+        },
+        oneditprepare() {
+            let views = ['default'];
+            $('#sites').editableList({
+                addItem: (row, index, data) => {
+                    $(row).html(`
+                        <div class="feezal-row">
+                            <input ${data.name === 'default' ? 'disabled' : ''} class="feezal-name" value="${data.name}" data-index="${index}">
+                            <a class="feezal-button editor-button editor-button-small" href="feezal/editor/?/${data.name}/" target="_blank"><i class="fa fa-wrench"></i> Edit</a>
+                            <a class="feezal-button editor-button editor-button-small" href="feezal/viewer/${data.name}/" target="_blank"><i class="fa fa-tv"></i> View</a>
+                            <a class="feezal-button editor-button editor-button-small" href="feezal/viewer/${data.name}/${data.name}.zip"><i class="fa fa-download"></i> Download</a>
+                            <button class="feezal-button feezal-button-clone editor-button editor-button-small" data-index="${index}"><i class="fa fa-clone"></i> Duplicate</button>
+                            <button ${data.name === 'default' ? 'disabled' : ''} class="feezal-button feezal-button-delete editor-button editor-button-small" data-index="${index}"><i class="fa fa-trash"></i> Delete</button>
+                        </div>
+
+                    `);
+                },
+                addButton: false
+            });
+
+            $('#dialog-delete-confirm').dialog({
+                id: 'device-details-ui',
+                autoOpen: false,
+                modal: true,
+                closeOnEscape: true,
+                width: 480,
+                buttons: [
+                    {
+                        text: 'Cancel',
+                        click() {
+                            $(this).dialog('close');
+                        }
+                    },
+                    {
+                        text: 'Delete',
+                        click() {
+                            $.post('feezal/api/view/delete', {view: $('#delete-site-name').html()})
+                                .always(() => {
+                                    getViews();
+                                    $(this).dialog('close');
+                                });
+                        }
+                    }
+                ]
+            });
+
+            function getViews() {
+                $.getJSON('feezal/api/views', data => {
+                    views = data;
+                    $('#sites').editableList('empty');
+                    $('#sites').editableList('addItems', views.map(n => {
+                        return {name: n};
+                    }));
+                });
+            }
+
+            function nextName(name = 'site', count = 1) {
+                const next = name + count;
+                if (views.includes(next)) {
+                    return nextName(name, count + 1);
+                }
+
+                return next;
+            }
+
+            getViews();
+
+            $(document).on('click', '.feezal-button-clone', function () {
+                $.post('feezal/api/view/clone', {view: views[$(this).data('index')], newName: nextName()}).always(getViews);
+            });
+
+            $(document).on('click', '.feezal-button-delete', function () {
+                $('#delete-site-name').html(views[$(this).data('index')]);
+                $('#dialog-delete-confirm').dialog('open');
+            });
+
+            $(document).on('change', '.feezal-name', function () {
+                const index = $(this).data('index');
+                const newName = $(this).val();
+                if (views.includes(newName) && views.indexOf(newName) !== index) {
+                    $(this).addClass('invalid');
+                } else {
+                    $(this).removeClass('invalid');
+                    $.post('feezal/api/view/rename', {view: views[$(this).data('index')], newName}).always(getViews);
+                }
+            });
+
+            $('#add-site').click(() => {
+                $.post('feezal/api/view/new', {view: nextName()}).always(getViews);
+            });
+        },
+        oneditsave() {
+
+        }
+    });
+</script>
+
+<script type="text/x-red" data-template-name="feezal">
+
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-globe"></i> Name</label>
+        <input type="text" id="node-input-name">
+    </div>
+
+    <style>
+        .feezal-row {
+
+        }
+        .feezal-name {
+            width: 25% !important;
+            border-radius: 4px;
+            border: 1px solid lightgray;
+            padding-left: 4px;
+            font-size: 12px;
+        }
+
+        .feezal-name.invalid {
+            border-color: red;
+        }
+        .feezal-button {
+            margin-left: 6px;
+        }
+        #delete-site-name {
+            font-weight: bold;
+        }
+    </style>
+
+    <div class="form-row">
+        <h4>Sites</h4>
+        <ul id="sites"></ul>
+        <a id="add-site" href="#" class="editor-button editor-button-small" style="margin-top: 4px;"><i class="fa fa-plus"></i> Add site</a>
+    </div>
+
+    <div id="dialog-delete-confirm" title="Confirm delete" dialog>
+        Do you really want to delete <span id="delete-site-name"></span>?
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="feezal">
+
+</script>

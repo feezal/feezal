@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <title>Feezal</title>
+    <!--<link rel="manifest" href="manifest.json">-->
+
+    <style>
+        html, body {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+
+            font-family: 'Roboto', sans-serif;
+            font-size: 14px;
+        }
+    </style>
+
+    <link href="https://fonts.googleapis.com/css?family=Material+Icons&display=block" rel="stylesheet">
+
+    <script src="../node_modules/web-animations-js/web-animations-next-lite.min.js"></script>
+    <script src="../node_modules/@webcomponents/webcomponentsjs/webcomponents-loader.js"></script>
+    <script src="../node_modules/interactjs/dist/interact.min.js"></script>
+
+    <script>
+
+        window.feezal = {
+            isEditor: true,
+            siteName: location.search.replace(/^\?\/?([^/]*)\/?$/, '$1') || 'default',
+            get app() {
+                return document.querySelector('feezal-app-editor');
+            },
+            get connection() {
+                return document.querySelector('feezal-connection');
+            },
+            get menu() {
+                return feezal.app.shadowRoot.querySelector('feezal-menu');
+            },
+            get palette() {
+                return feezal.app.shadowRoot.querySelector('feezal-palette');
+            },
+            get site() {
+                return feezal.app.querySelector('feezal-site');
+            },
+            get view() {
+                return feezal.site.querySelector('.iron-selected');
+            },
+            get views() {
+                return feezal.site.querySelectorAll('feezal-view');
+            },
+            get editor() {
+                return feezal.app.shadowRoot.querySelector('feezal-sidebar-inspector');
+            },
+            get container() {
+                return feezal.app.shadowRoot.querySelector('#container');
+            }
+        };
+
+        window.onload = function() {
+            const confirmationMessage = 'Really close editor? There are unsaved changes!';
+            window.addEventListener("beforeunload", function (e) {
+                if (feezal.hasChanges) {
+                    (e || window.event).returnValue = confirmationMessage;
+                    e.preventDefault();
+                    return confirmationMessage;
+                }
+            });
+        };
+
+    </script>
+
+    <script type="module" src="feezal-elements.js"></script>
+    <script type="module" src="../src/feezal-connection.js"></script>
+    <script type="module" src="../src/feezal-app-editor.js"></script>
+</head>
+
+<body>
+    <feezal-connection editor></feezal-connection>
+    <feezal-app-editor></feezal-app-editor>
+</body>
+
+</html>
