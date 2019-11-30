@@ -59,7 +59,7 @@ class FeezalSidebarInspectorAttribute extends PolymerElement {
             </template>
             
             <template is="dom-if" if="[[item.elem.dropdown]]">
-                <paper-dropdown-menu label="[[item.label]]" value="[[item.value]]" on-value-changed="_change" apply-immediatly>
+                <paper-dropdown-menu label="[[item.label]]" value="[[item.value]]" on-value-changed="_change" apply-immediately>
                     <paper-listbox slot="dropdown-content">
                          <template is="dom-repeat" items="[[item.elem.data]]">
                             <paper-item>[[item]]</paper-item>
@@ -75,7 +75,7 @@ class FeezalSidebarInspectorAttribute extends PolymerElement {
             
             <template is="dom-if" if="[[item.elem.checkbox]]">
                 <div class="toggle-button-container">
-                    <paper-toggle-button class$="[[item.class]]" label="[[item.label]]" checked="[[_boolean(item.value)]]" on-checked-changed="_change" apply-immediatly>[[item.label]]</paper-toggle-button>
+                    <paper-toggle-button class$="[[item.class]]" label="[[item.label]]" checked="[[_boolean(item.value)]]" on-checked-changed="_change" apply-immediately>[[item.label]]</paper-toggle-button>
                 </div>
             </template>
         `;
@@ -102,11 +102,9 @@ class FeezalSidebarInspectorAttribute extends PolymerElement {
         feezal.editor.selectedElems.forEach(elem => {
             const elemClass = window.customElements.get(elem.localName);
             const attrOptions = elemClass.feezal.attributes.find(a => a.name === attr);
-            if (attrOptions && attrOptions.validator) {
-                if (!attrOptions.validator(event.detail.value)) {
-                    invalid = true;
-                    return;
-                }
+            if (attrOptions && attrOptions.validator && !attrOptions.validator(event.detail.value)) {
+                invalid = true;
+                return;
             }
             if (typeof event.detail.value === 'boolean') {
                 if (elem.hasAttribute(attr) !== event.detail.value) {
@@ -123,7 +121,7 @@ class FeezalSidebarInspectorAttribute extends PolymerElement {
             }
         });
         event.target.hasChange = change;
-        if (change && event.target.hasAttribute('apply-immediatly')) {
+        if (change && event.target.hasAttribute('apply-immediately')) {
             feezal.app.change();
         }
 
