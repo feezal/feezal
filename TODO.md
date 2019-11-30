@@ -4,11 +4,12 @@
 * [x] Viewer: direct MQTT/ws connection
 * [ ] Preview
 * [ ] Editor Widgets
-* [ ] Custom Editor
+* [ ] Custom Editor (Elements include an extra-element that gets injected in the sidebar inspector)
 * [x] Collapsible Palette and Sidebar
 * [ ] Editor Auth
-* [ ] Palette Manager
-* [ ] Attribute Help
+* [ ] Palette Manager (install additional feezal-element-* via UI)
+* [ ] Attribute Help Tooltips
+* [ ] Element Help
 * [x] Persist Editor settings
 * [x] Publish Local
 * [ ] Class Attribute
@@ -22,10 +23,16 @@
 
 * [ ] Dialog Element
 * [ ] Countdown Dialog Element
-* [ ] Basic Elements: Number formatting
+* [x] Basic Elements: Number formatting
 * [ ] Paper Elements: FAB, Toast, Badge
-* [ ] Date/Time Element
+* [x] Date/Time Element
 
 * [ ] Example Vue based Element
-* [ ] Example Stencil based Element
-* [ ] Example SkateJS based Element
+* [ ] Example Stencil based Element?
+* [ ] Example SkateJS based Element?
+
+* [ ] Standalone Mode (Run Editor without Node-RED)
+* [ ] feezal-connection-iobroker?
+* [ ] feezal-connection-home-assistant?
+* [ ] feezal-connection-openhab?
+* [ ] Meta-data API (define api to inject meta-data that can be used in custom editors)
