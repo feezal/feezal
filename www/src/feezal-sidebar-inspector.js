@@ -134,9 +134,7 @@ class FeezalSidebarInspector extends PolymerElement {
     restoreViews(data) {
         this.dragselect = {};
 
-        const pages = feezal.app.innerHTML = data;
-
-        pages.querySelectorAll('.dragselect-rectangle').forEach(el => {
+        feezal.site.querySelectorAll('.dragselect-rectangle').forEach(el => {
             el.remove();
         });
 
@@ -255,9 +253,9 @@ class FeezalSidebarInspector extends PolymerElement {
 
     _keyboard() {
         console.log('keyboard');
-        window.addEventListener('keyup', event => {
+        window.addEventListener('keydown', event => {
             if (feezal.app.querySelector('feezal-site:focus')) {
-                // Console.log(event)
+                console.log(event)
                 switch (event.key) {
                     case 'Delete':
                         if (!this.viewSelected) {
@@ -269,7 +267,6 @@ class FeezalSidebarInspector extends PolymerElement {
                         if (!this.viewSelected) {
                             this.selectElement(this.currentView);
                         }
-
                         break;
                     case 'ArrowRight':
                         if (!this.viewSelected) {
@@ -293,14 +290,14 @@ class FeezalSidebarInspector extends PolymerElement {
                         if (!this.viewSelected) {
                             this._moveElems(0, event.altKey ? this.gridSize : 1, true);
                         }
-
                         break;
+
                     case 'z':
-                        if (event.ctrlKey && !this.viewSelected) {
+                        if ((event.metaKey || event.ctrlKey) && !this.viewSelected) {
                             feezal.app._undo();
                         }
-
                         break;
+                    /*
                     case 'c':
                         if (event.ctrlKey && !this.viewSelected) {
                             feezal.app._copy();
@@ -317,8 +314,14 @@ class FeezalSidebarInspector extends PolymerElement {
                         if (event.ctrlKey && !this.viewSelected) {
                             feezal.app._cut();
                         }
+                    */
 
-                        break;
+                    case 'a':
+                        if (event.metaKey || event.ctrlKey) {
+                            console.log('selectAll', feezal.view.querySelectorAll('.feezal-element'));
+                            this.selectElement(feezal.view.querySelectorAll('.feezal-element'));
+                        }
+                    break;
                     default:
                         return;
                 }
@@ -511,7 +514,7 @@ class FeezalSidebarInspector extends PolymerElement {
 
         el.feezalEditable = true;
         el.classList.add('feezal-editable');
-        const editorOptions = window.customElements.get(el.localName).editorOptions || window.customElements.get(el.localName).feezal;
+        const editorOptions = window.customElements.get(el.localName).editorOptions || window.customElements.get(el.localName).feezal || {};
 
         if (created && editorOptions.defaultStyle) {
             Object.assign(el.style, editorOptions.defaultStyle);

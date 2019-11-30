@@ -61,7 +61,7 @@ class FeezalSidebarInspectorAttribute extends PolymerElement {
             <template is="dom-if" if="[[item.elem.dropdown]]">
                 <paper-dropdown-menu label="[[item.label]]" value="[[item.value]]" on-value-changed="_change" apply-immediately>
                     <paper-listbox slot="dropdown-content">
-                         <template is="dom-repeat" items="[[item.elem.data]]">
+                         <template is="dom-repeat" items="[[item.elem.options]]">
                             <paper-item>[[item]]</paper-item>
                          </template>
                     </paper-listbox>
@@ -185,13 +185,22 @@ class FeezalSidebarInspectorAttributes extends PolymerElement {
             attribute = attr;
         }
 
-        // Console.log('_attributes', attribute)
-
         const type = properties[attribute] && properties[attribute].type;
 
-        if (attribute.dropdown) {
+        if (attr.dropdown) {
             elem.dropdown = true;
-            elem.data = attribute.dropdown;
+            if (Array.isArray(attr.dropdown)) {
+                elem.options = attr.dropdown;
+            } else {
+                switch (attr.dropdown) {
+                    case 'views':
+                        elem.options = Array.from(feezal.site.querySelectorAll('feezal-view')).map(el => el.name);
+                        break;
+
+                }
+            }
+            console.log('dropdown options', elem.options)
+
         } else {
             switch (type) {
                 case Boolean:

@@ -476,7 +476,6 @@ class FeezalAppEditor extends PolymerElement {
     }
 
     _changesChanged(changes) {
-        console.log('changes', changes)
         feezal.hasChanges = changes;
         this.$.deploy.style.color = changes ? 'white' : '#444';
     }
@@ -496,13 +495,11 @@ class FeezalAppEditor extends PolymerElement {
     _undo() {
         if (this._hasHistory()) {
             this.pop('history');
-
             this.shadowRoot.querySelector('feezal-sidebar-inspector').restoreViews(this.history[this.history.length - 1]);
         }
     }
 
     _removeClassesFromChildren(parent, classes) {
-        console.log(parent);
         classes.forEach(cl => {
             parent.querySelectorAll('.' + cl).forEach(el => {
                 el.classList.remove(cl);
