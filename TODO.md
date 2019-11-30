@@ -12,10 +12,10 @@
 * [ ] Element Help
 * [x] Persist Editor settings
 * [x] Publish Local
-* [ ] Class Attribute
+* [x] Class Attribute
 * [x] Sidebar Header
 * [ ] Asset Manager for Icons, Images, ...
-* [ ] Copy/Cut/Paste Views
+* [ ] Copy/Cut/Paste Views ... ?
 * [ ] Viewer Download
 * [ ] Style Mixins
 * [ ] Pin-protected Views

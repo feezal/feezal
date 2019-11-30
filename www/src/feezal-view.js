@@ -55,6 +55,18 @@ class FeezalView extends PolymerElement {
             }
         });
     }
+
+    connectedCallback() {
+        super.connectedCallback();
+        if (!feezal.isEditor && this.subscribeTopic) {
+            feezal.connection.subscribe(this.subscribeTopic + '/addclass', msg => {
+                this.classList.add(msg.payload);
+            });
+            feezal.connection.subscribe(this.subscribeTopic + '/removeclass', msg => {
+                this.classList.remove(msg.payload);
+            });
+        }
+    }
 }
 
 window.customElements.define('feezal-view', FeezalView);

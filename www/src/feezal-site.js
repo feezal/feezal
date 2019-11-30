@@ -99,6 +99,12 @@ class FeezalSite extends PolymerElement {
             feezal.connection.subscribe(this.subscribeTopic + '/view', msg => {
                 location.hash = '/' + msg.payload;
             });
+            feezal.connection.subscribe(this.subscribeTopic + '/addclass', msg => {
+                this.classList.add(msg.payload);
+            });
+            feezal.connection.subscribe(this.subscribeTopic + '/removeclass', msg => {
+                this.classList.remove(msg.payload);
+            });
         }
     }
 
