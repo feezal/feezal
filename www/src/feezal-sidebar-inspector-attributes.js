@@ -96,11 +96,18 @@ class FeezalSidebarInspectorAttribute extends PolymerElement {
     }
 
     _change(event) {
-        // Console.log('feezal-editor-attribute _change')
         const attr = event.target.label;
-        const invalid = false;
+        let invalid = false;
         let change = false;
         feezal.editor.selectedElems.forEach(elem => {
+            const elemClass = window.customElements.get(elem.localName);
+            const attrOptions = elemClass.feezal.attributes.find(a => a.name === attr);
+            if (attrOptions && attrOptions.validator) {
+                if (!attrOptions.validator(event.detail.value)) {
+                    invalid = true;
+                    return;
+                }
+            }
             if (typeof event.detail.value === 'boolean') {
                 if (elem.hasAttribute(attr) !== event.detail.value) {
                     change = true;
@@ -120,7 +127,6 @@ class FeezalSidebarInspectorAttribute extends PolymerElement {
             feezal.app.change();
         }
 
-        //
         event.target.invalid = invalid;
     }
 }
@@ -166,7 +172,8 @@ class FeezalSidebarInspectorAttributes extends PolymerElement {
     _attributes(attr) {
         const {properties} = window.customElements.get(this.element.name ? 'feezal-view' : this.element.localName);
 
-        const options = window.customElements.get(this.element.name ? 'feezal-view' : this.element.localName).feezal;
+        const elemClass = window.customElements.get(this.element.name ? 'feezal-view' : this.element.localName);
+        const options = elemClass.feezal;
 
         let attribute;
         const elem = {};
