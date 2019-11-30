@@ -32,7 +32,6 @@ class Conn extends EventEmitter {
 }
 
 module.exports = function (RED) {
-    console.log('feezal init');
 
     const defaultSite = `<feezal-site><feezal-view class="iron-selected" name="view1" style="
             width: 100%;
@@ -44,6 +43,12 @@ module.exports = function (RED) {
     let cache = {};
 
     const {log, server} = RED;
+    const logger = {
+        debug: str => log.debug.call(this, '[feezal] ' + str),
+        info: str => log.info.call(this, '[feezal] ' + str),
+        warn: str => log.warn.call(this, '[feezal] ' + str),
+        error: str => log.error.call(this, '[feezal] ' + str),
+    };
     const app = RED.httpNode || RED.httpAdmin;
 
     const feezalPath = path.join(RED.settings.userDir, 'feezal');
@@ -51,7 +56,7 @@ module.exports = function (RED) {
 
     const fullPath = join(RED.settings.httpNodeRoot, 'feezal');
     const socketIoPath = join(fullPath, 'socket.io');
-    console.log('feezal socket.io path', socketIoPath);
+    logger.debug('feezal socket.io path', socketIoPath);
     const io = socketio(server, {path: socketIoPath});
 
     app.use(esModuleMiddleware.middleware({
@@ -71,7 +76,7 @@ module.exports = function (RED) {
     });
 
     app.post('/feezal/api/view/new', (req, res) => {
-        console.log('new view', req.body.view);
+        logger.debug('new view', req.body.view);
         mkdirp(path.join(feezalPath, req.body.view), err => {
             if (err) {
                 res.status(500).send(err.message);
@@ -82,7 +87,7 @@ module.exports = function (RED) {
     });
 
     app.post('/feezal/api/view/clone', (req, res) => {
-        console.log('clone view', req.body.view);
+        logger.debug('clone view', req.body.view);
         cpy(path.join(feezalPath, req.body.view), path.join(feezalPath, req.body.newName))
             .then(() => {
                 res.status(200).send('ok');
@@ -92,7 +97,7 @@ module.exports = function (RED) {
     });
 
     app.post('/feezal/api/view/delete', (req, res) => {
-        console.log('delete view', req.body.view);
+        logger.debug('delete view', req.body.view);
         rimraf(path.join(feezalPath, req.body.view), err => {
             if (err) {
                 res.status(500).send(err.message);
@@ -103,7 +108,7 @@ module.exports = function (RED) {
     });
 
     app.post('/feezal/api/view/rename', (req, res) => {
-        console.log('rename view', req.body.view, req.body.newName);
+        logger.debug('rename view', req.body.view, req.body.newName);
         fs.rename(path.join(feezalPath, req.body.view), path.join(feezalPath, req.body.newName))
             .then(() => {
                 res.status(200).send('ok');
@@ -112,11 +117,11 @@ module.exports = function (RED) {
             });
     });
 
-    log.info('Feezal started at ' + fullPath);
+    logger.info('Feezal started at ' + fullPath);
 
     io.on('connection', socket => {
         const address = socket.request.connection.remoteAddress;
-        log.debug('Feezal connect from ' + address);
+        logger.debug('Feezal connect from ' + address);
         const subscriptions = new Set();
 
         socket.on('deploy', (data, callback) => {
@@ -126,7 +131,7 @@ module.exports = function (RED) {
             const viewerJson = path.join(feezalPath, data.site.name, 'viewer.json');
             const feezalFile = path.join(feezalPath, data.site.name, viewsFile);
             fs.writeFile(viewerJson, JSON.stringify({viewer: data.viewer, connection: data.connection})).then(() => {
-                log.info('saved ' + viewerJson);
+                logger.info('saved ' + viewerJson);
                 return fs.writeFile(feezalFile, prettyHtml(data.html, {
                     tabWidth: 4,
                     prettier: {
@@ -134,18 +139,18 @@ module.exports = function (RED) {
                     }
                 }));
             }).then(() => {
-                log.info('saved ' + feezalFile);
-                return build(data);
+                logger.info('saved ' + feezalFile);
+                return build(data, {debug: logger.debug, info: logger.info, warn: logger.warn, error: logger.error});
             }).then(() => {
-                log.info('build done');
+                logger.info('build done');
                 io.emit('reload');
             }).catch(error => {
-                log.error('deploy error ' + error.message);
+                logger.error('deploy error ' + error.message);
             }).finally(callback);
         });
 
         function msgHandler(msg) {
-            console.log('input', msg);
+            logger.debug('input', msg);
             if (msg && [...subscriptions].filter(topic => topicMatch(msg.topic, topic)).length > 0) {
                 socket.emit('input', msg);
             }
@@ -155,7 +160,7 @@ module.exports = function (RED) {
 
         socket.on('subscribe', topics => {
             topics.forEach(topic => {
-                console.log('subscribe', topic);
+                logger.debug('subscribe', topic);
                 subscriptions.add(topic);
                 Object.keys(cache).filter(t => topicMatch(t, topic)).forEach(t => {
                     socket.emit('input', cache[t]);
@@ -165,52 +170,48 @@ module.exports = function (RED) {
 
         socket.on('getSite', (site, callback) => {
             site = site || 'default';
-            console.log('getSite', site);
+            logger.debug('getSite', site);
             let views = defaultSite;
             let viewer = {};
             const feezalFile = path.join(feezalPath, site, viewsFile);
             fs.readFile(feezalFile).then(data => {
                 views = data.toString();
-                log.info('loaded ' + viewsFile);
+                logger.info('loaded ' + viewsFile);
             }).then(() => {
                 return fs.readFile(path.join(feezalPath, site, 'viewer.json')).then(data => {
                     viewer = JSON.parse(data.toString());
-                    log.info('loaded ' + feezalFile);
+                    logger.info('loaded ' + feezalFile);
                 });
             }).catch(() => {
-                log.warn('error loading site', site);
+                logger.warn('error loading site', site);
             }).finally(() => {
                 callback({views, viewer});
             });
         });
 
         socket.on('send', msg => {
-            console.log('socket on send', msg);
+            logger.debug('socket on send', msg);
             conn.emit('send', msg);
             socket.emit('input', msg); // Todo: Reflect makes sense? TBD...
         });
 
         socket.on('disconnect', () => {
-            console.log('disconnect', address);
+            logger.debug('disconnect', address);
             conn.removeListener('input', msgHandler);
         });
     });
 
     io.on('connect_error', error => {
-        console.log('connect_error', error);
+        logger.debug('connect_error', error);
     });
 
     class Feezal {
         constructor(config) {
             RED.nodes.createNode(this, config);
 
-            console.log('feezal constructor');
-
             cache = {};
 
-            findElements().then(() => {
-                console.log('created element imports');
-            });
+            findElements(logger);
 
             // This.send.bind(this);
 
