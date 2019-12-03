@@ -54,6 +54,8 @@ module.exports = function (RED) {
     const feezalPath = path.join(RED.settings.userDir, 'feezal');
     const viewsFile = 'views.html';
 
+    findElements(logger);
+
     const fullPath = join(RED.settings.httpNodeRoot, 'feezal');
     const socketIoPath = join(fullPath, 'socket.io');
     logger.debug('feezal socket.io path', socketIoPath);
@@ -176,11 +178,12 @@ module.exports = function (RED) {
             const feezalFile = path.join(feezalPath, site, viewsFile);
             fs.readFile(feezalFile).then(data => {
                 views = data.toString();
-                logger.info('loaded ' + viewsFile);
+                logger.info('loaded ' + feezalFile);
             }).then(() => {
-                return fs.readFile(path.join(feezalPath, site, 'viewer.json')).then(data => {
+                const metaFile = path.join(feezalPath, site, 'viewer.json');
+                return fs.readFile(metaFile).then(data => {
                     viewer = JSON.parse(data.toString());
-                    logger.info('loaded ' + feezalFile);
+                    logger.info('loaded ' + metaFile);
                 });
             }).catch(() => {
                 logger.warn('error loading site', site);
@@ -211,7 +214,6 @@ module.exports = function (RED) {
 
             cache = {};
 
-            findElements(logger);
 
             // This.send.bind(this);
 

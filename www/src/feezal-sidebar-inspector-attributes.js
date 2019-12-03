@@ -1,11 +1,129 @@
 import {PolymerElement, html} from '@polymer/polymer/polymer-element';
 import {camelToDashCase} from '@polymer/polymer/lib/utils/case-map.js';
+import {afterNextRender} from '@polymer/polymer/lib/utils/render-status.js';
 
 import '@polymer/paper-input/paper-input';
 import '@polymer/paper-toggle-button/paper-toggle-button';
+import '@polymer/paper-checkbox/paper-checkbox';
 import '@polymer/paper-input/paper-textarea';
+import '@polymer/paper-icon-button/paper-icon-button';
+import '@polymer/paper-tooltip/paper-tooltip';
+import '@polymer/iron-icons/editor-icons';
 
-import materialDesignIcons from './material-design-icons';
+import Sortable from 'sortablejs';
+
+//import materialDesignIcons from './material-design-icons';
+
+class FeezalEditableList extends PolymerElement {
+    static get template() {
+        return html`
+            <style>
+                ul {
+                    list-style-type: none;
+                    margin: 0;
+                    display: block;
+                    border-bottom: 1px solid var(--paper-input-container-color, var(--secondary-text-color));
+                    padding: 0 6px 6px;
+                }
+                ul li {
+                    display: flex;
+                    height: 62px;
+                }
+                ul li paper-input {
+                    margin: 6px;
+                    flex-grow: 1;
+                }
+                ul li iron-icon {
+                    padding-top: 28px;
+                }
+                ul li paper-icon-button {
+                    margin-top: 20px;
+                    flex-shrink: 0;
+                }
+                .drag-handle {
+                    cursor: move;
+                }
+                #label, #add {
+                    display: inline-block;
+                }
+                #label {
+                    font-size: var(--paper-font-caption_-_font-size);
+                    color: var(--secondary-text-color);
+                }
+            </style>
+            <span id="label">[[label]]</span>
+            <paper-icon-button id="add" raised on-click="_add" icon="add"></paper-icon-button>
+            <ul id="list">
+                <template id="rows" is="dom-repeat" items="[[value]]">
+                    <li data-row="[[index]]">
+                        <iron-icon class="drag-handle" icon="editor:drag-handle"></iron-icon>
+                        <template is="dom-repeat" items="[[columns]]" as="col" index-as="colIndex">
+                            <paper-input value="[[_getProp(item, col)]]" label="[[col]]" on-value-changed="_propChanged"></paper-input>
+                        </template>
+                        <paper-icon-button data-index$="[[index]]" icon="delete" class="remove" raised on-click="_remove"></paper-icon-button>            
+                    </li>
+                </template>
+            </ul>
+        `;
+    }
+    static get properties() {
+        return {
+            value: {
+                type: Array,
+                notify: true
+            },
+            columns: {
+                type: Array
+            },
+            label: {
+                type: String,
+                value: 'items',
+                reflectToAttribute: true
+            }
+        }
+    }
+    connectedCallback() {
+        super.connectedCallback();
+        this.sortable = Sortable.create(this.$.list, {
+            handle: '.drag-handle',
+            onEnd: () => {
+                const elems = [...this.$.list.querySelectorAll('li')];
+                let newValue = [];
+                elems.map(el => el.dataRow).forEach(i => {
+                     newValue.push(Object.assign({}, this.value[i]));
+                });
+                this.value = [];
+                afterNextRender(this, () => {
+                    this.set('value', newValue);
+                });
+            }
+        });
+    }
+    _add() {
+        this.value = this.value || [];
+        this.push('value', Object.fromEntries(this.columns.map(key => [key, ''])))
+    }
+    _remove(e) {
+        this.splice('value', e.target.dataset.index, 1);
+    }
+    _getProp(item, col) {
+        console.log('_getProp', item, col);
+        return item[col];
+    }
+    _propChanged(e) {
+        console.log('set', 'value.' + e.model.parentModel.index + '.' + e.model.col, e.detail.value);
+        if (typeof this.value[e.model.parentModel.index] !== 'object') {
+            this.value[e.model.parentModel.index] = {};
+        }
+        this.value[e.model.parentModel.index][e.model.col] = e.detail.value;
+
+        this.value = this.value.slice();
+        console.log(this.value)
+        //this.set('value.' + e.model.parentModel.index + '.' + e.model.col, e.detail.value);
+    }
+}
+
+window.customElements.define('feezal-editable-list', FeezalEditableList);
 
 class FeezalSidebarInspectorAttribute extends PolymerElement {
     static get properties() {
@@ -14,7 +132,11 @@ class FeezalSidebarInspectorAttribute extends PolymerElement {
                 type: Boolean,
                 reflectToAttribute: true
             },
-            item: Object
+            item: {
+                type: Object,
+                observer: '_itemChange'
+            },
+
         };
     }
 
@@ -22,7 +144,7 @@ class FeezalSidebarInspectorAttribute extends PolymerElement {
         return html`
             <style>
                 :host {
-                    overflow: hidden;
+                    overflow: visible;
                     display: inline-block;
                     width: 100%;
                 }
@@ -52,37 +174,83 @@ class FeezalSidebarInspectorAttribute extends PolymerElement {
                  paper-dropdown-menu {
                     width: 100%;
                  }
+
             </style>
-            
-            <template is="dom-if" if="[[item.elem.input]]">
-                <paper-input type="[[item.elem.inputType]]" class$="[[item.class]]" label="[[item.label]]" value="[[item.value]]" min="[[item.elem.min]]" max="[[item.elem.max]]" step="[[item.elem.step]]" on-value-changed="_change" on-blur="_blur"</paper-input>
-            </template>
-            
-            <template is="dom-if" if="[[item.elem.dropdown]]">
-                <paper-dropdown-menu label="[[item.label]]" value="[[item.value]]" on-value-changed="_change" apply-immediately>
-                    <paper-listbox slot="dropdown-content">
-                         <template is="dom-repeat" items="[[item.elem.options]]">
-                            <paper-item>[[item]]</paper-item>
-                         </template>
-                    </paper-listbox>
-                </paper-dropdown-menu>
-                   
-            </template>
-            
-             <template is="dom-if" if="[[item.elem.textarea]]">
-                <paper-textarea rows="8" label="[[item.label]]" value="[[item.value]]" on-value-changed="_change" on-blur="_blur"></paper-textarea>
-            </template>
-            
-            <template is="dom-if" if="[[item.elem.checkbox]]">
-                <div class="toggle-button-container">
-                    <paper-toggle-button class$="[[item.class]]" label="[[item.label]]" checked="[[_boolean(item.value)]]" on-checked-changed="_change" apply-immediately>[[item.label]]</paper-toggle-button>
-                </div>
+            <div id="input">
+                <template is="dom-if" if="[[item.elem.input]]">
+                    <paper-input type="[[item.elem.inputType]]" class$="[[item.class]]" label="[[item.label]]" value="[[item.value]]" min="[[item.elem.min]]" max="[[item.elem.max]]" step="[[item.elem.step]]" on-value-changed="_change" on-blur="_blur"</paper-input>
+                </template>
+                
+                <template is="dom-if" if="[[item.elem.list]]">
+                    <feezal-editable-list value="[[item.value]]" columns="[[item.elem.columns]]" on-value-changed="_change" apply-immediately></feezal-editable-list>
+                </template>
+                
+                <template is="dom-if" if="[[item.elem.dropdown]]">
+                    <paper-dropdown-menu label="[[item.label]]" value="[[item.value]]" on-value-changed="_change" apply-immediately>
+                        <paper-listbox slot="dropdown-content">
+                             <template is="dom-repeat" items="[[item.elem.options]]">
+                                <paper-item>[[item]]</paper-item>
+                             </template>
+                        </paper-listbox>
+                    </paper-dropdown-menu>
+                </template>
+                
+                <template is="dom-if" if="[[item.elem.textarea]]">
+                    <paper-textarea rows="8" label="[[item.label]]" value="[[item.value]]" on-value-changed="_change" on-blur="_blur"></paper-textarea>
+                </template>
+                
+                <template is="dom-if" if="[[item.elem.checkbox]]">
+                    <div class="toggle-button-container">
+                        <paper-checkbox class$="[[item.class]]" label="[[item.label]]" checked="[[_boolean(item.value)]]" on-checked-changed="_change" apply-immediately>[[item.label]]</paper-checkbox>
+                    </div>
+                </template>
+            </div>
+            <template is="dom-if" if="[[item.elem.tooltip]]">
+                <paper-tooltip for="input" offset="0">[[item.label]]: [[item.elem.tooltip]]</paper-tooltip>
             </template>
         `;
+
     }
 
     connectedCallback() {
         super.connectedCallback();
+
+
+    }
+
+    _itemChange(item) {
+        afterNextRender(this, function() {
+            /*if (item.elem.list) {
+                const grid = this.shadowRoot.querySelector('vaadin-grid');
+
+                let draggedItem;
+                grid.addEventListener('grid-dragstart', e => {
+                    draggedItem = e.detail.draggedItems[0];
+                    grid.dropMode = 'between';
+                });
+                grid.addEventListener('grid-dragend', e => {
+                    draggedItem = grid.dropMode = null;
+                });
+
+                grid.addEventListener('grid-drop', e => {
+                    const dropTargetItem = e.detail.dropTargetItem;
+                    if (draggedItem && draggedItem !== dropTargetItem) {
+                        // Reorder the items
+                        const items = grid.items.filter(function (i) {
+                            return i !== draggedItem;
+                        });
+                        const dropIndex = items.indexOf(dropTargetItem)
+                            + (e.detail.dropLocation === 'below' ? 1 : 0);
+                        items.splice(dropIndex, 0, draggedItem);
+                        grid.items = items;
+                    }
+                });
+
+                this.$.add.addEventListener('click', e => {
+                    console.log('add');
+                })
+            }*/
+        })
     }
 
     _boolean(val) {
@@ -96,6 +264,7 @@ class FeezalSidebarInspectorAttribute extends PolymerElement {
     }
 
     _change(event) {
+        console.log('_change', event)
         const attr = event.target.label;
         let invalid = false;
         let change = false;
@@ -106,6 +275,12 @@ class FeezalSidebarInspectorAttribute extends PolymerElement {
                 invalid = true;
                 return;
             }
+            let value;
+            if (event.detail.path) {
+                value = event.target.value;
+            } else {
+                value = event.detail.value;
+            }
             if (typeof event.detail.value === 'boolean') {
                 if (elem.hasAttribute(attr) !== event.detail.value) {
                     change = true;
@@ -115,9 +290,15 @@ class FeezalSidebarInspectorAttribute extends PolymerElement {
                         elem.removeAttribute(attr);
                     }
                 }
-            } else if (elem.getAttribute(attr) !== event.detail.value) {
+            } else if (typeof value === 'object') {
+                console.log('change object', attr, value)
+                elem.setAttribute(attr, elem._serializeValue(value));
                 change = true;
-                elem.setAttribute(attr, event.detail.value);
+
+            } else if (elem.getAttribute(attr) !== value) {
+                change = true;
+                console.log('change', attr, value)
+                elem.setAttribute(attr, value);
             }
         });
         event.target.hasChange = change;
@@ -187,6 +368,10 @@ class FeezalSidebarInspectorAttributes extends PolymerElement {
 
         const type = properties[attribute] && properties[attribute].type;
 
+        if (attr.tooltip) {
+            elem.tooltip = attr.tooltip;
+        }
+
         if (attr.dropdown) {
             elem.dropdown = true;
             if (Array.isArray(attr.dropdown)) {
@@ -203,6 +388,10 @@ class FeezalSidebarInspectorAttributes extends PolymerElement {
 
         } else {
             switch (type) {
+                case Array:
+                    elem.list = true;
+                    elem.columns = attr.elemProperties || ['item'];
+                    break;
                 case Boolean:
                     elem.checkbox = true;
                     break;

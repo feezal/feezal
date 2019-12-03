@@ -193,7 +193,7 @@ class FeezalSidebarInspector extends PolymerElement {
             location.hash = '/' + this.view;
         }
 
-        const view = feezal.site.querySelector('feezal-view[name="' + this.view + '"]');
+        const view = feezal.getView(this.view);
 
         if (!this.dragselect) {
             this.dragselect = {};
@@ -410,7 +410,7 @@ class FeezalSidebarInspector extends PolymerElement {
             return;
         }
 
-        const view = feezal.site.querySelector('feezal-view[name="' + this.view + '"]');
+        const view = feezal.getView(this.view);
         const viewRect = view.getBoundingClientRect();
 
         if (this.snapping === 'grid') {
@@ -514,10 +514,15 @@ class FeezalSidebarInspector extends PolymerElement {
 
         el.feezalEditable = true;
         el.classList.add('feezal-editable');
-        const editorOptions = window.customElements.get(el.localName).editorOptions || window.customElements.get(el.localName).feezal || {};
+        const elemOptions = window.customElements.get(el.localName) && window.customElements.get(el.localName).feezal || {};
 
-        if (created && editorOptions.defaultStyle) {
-            Object.assign(el.style, editorOptions.defaultStyle);
+        if (!elemOptions) {
+            console.error(el.localName, 'feezal property missing')
+            return;
+        }
+
+        if (created && elemOptions.defaultStyle) {
+            Object.assign(el.style, elemOptions.defaultStyle);
         }
 
         interact(el)
@@ -546,8 +551,8 @@ class FeezalSidebarInspector extends PolymerElement {
                 margin: 5,
                 restrictSize: {
                     min: {
-                        width: editorOptions.restrict.minWidth | 12,
-                        height: editorOptions.restrict.minHeight | 12
+                        width: (elemOptions.restrict && elemOptions.restrict.minWidth) || 12,
+                        height: (elemOptions.restrict && elemOptions.restrict.minHeight) || 12
                     }
                 },
                 snapSize: {
@@ -557,7 +562,7 @@ class FeezalSidebarInspector extends PolymerElement {
                 }
             })
             .on('dragstart', event => {
-                const view = feezal.app.querySelector('feezal-site').querySelector('feezal-view[name="' + this.view + '"]');
+                const view = feezal.getView(this.view);
                 const viewRect = view.getBoundingClientRect();
                 const targetRect = event.target.getBoundingClientRect();
                 this.dragElement = event.target;

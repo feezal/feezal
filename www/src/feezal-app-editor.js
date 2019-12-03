@@ -461,7 +461,7 @@ class FeezalAppEditor extends PolymerElement {
     }
 
     _tabClick(e) {
-        feezal.editor.selectedElems = [feezal.site.querySelector('feezal-view[name="' + e.model.item.name + '"]')];
+        feezal.editor.selectedElems = [feezal.getView(e.model.item.name)];
     }
 
     _navChanged(d) {

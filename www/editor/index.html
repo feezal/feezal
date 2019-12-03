@@ -54,6 +54,9 @@
             },
             get container() {
                 return feezal.app.shadowRoot.querySelector('#container');
+            },
+            getView(name) {
+                return feezal.site.querySelector('feezal-view[name="' + name + '"]')
             }
         };
 

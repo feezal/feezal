@@ -8,7 +8,7 @@
 * [x] Collapsible Palette and Sidebar
 * [ ] Editor Auth
 * [ ] Palette Manager (install additional feezal-element-* via UI)
-* [ ] Attribute Help Tooltips
+* [x] Attribute Help Tooltips
 * [ ] Element Help
 * [x] Persist Editor settings
 * [x] Publish Local
@@ -20,16 +20,18 @@
 * [ ] Style Mixins
 * [ ] Pin-protected Views
 
+* [ ] Cleanup event listeners and subscriptions on disconnectedCallback
 
-* [ ] Dialog Element
+* [x] Dropdown Element
+* [x] Dialog Element
 * [ ] Countdown Dialog Element
 * [x] Basic Elements: Number formatting
 * [ ] Paper Elements: FAB, Toast, Badge
 * [x] Date/Time Element
 
 * [ ] Example Vue based Element
-* [ ] Example Stencil based Element?
-* [ ] Example SkateJS based Element?
+* [ ] Example Stencil based Element ... ?
+* [ ] Example SkateJS based Element ... ?
 
 * [ ] Standalone Mode (Run Editor without Node-RED)
 * [ ] feezal-connection-iobroker?

@@ -127,10 +127,11 @@ class FeezalConnection extends PolymerElement {
     }
 
     subscribe(topic, options, callback) {
-        console.log('subscribe', topic);
         if (feezal.isEditor || !topic) {
             return;
         }
+
+        console.log('subscribe', topic);
 
         if (typeof options === 'function') {
             callback = options;
