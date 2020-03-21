@@ -12,6 +12,7 @@
   "dependencies": {
     "@feezal/feezal-element-basic-datetime": "*",
     "@feezal/feezal-element-basic-iframe": "*",
+    "@feezal/feezal-element-basic-number": "*",
     "@feezal/feezal-element-basic-template": "*",
     "@feezal/feezal-element-basic-view": "*",
     "@feezal/feezal-element-paper-app-layout": "*",
@@ -25,6 +26,10 @@
     "@feezal/feezal-element-paper-slider": "*",
     "@feezal/feezal-element-paper-switch": "*",
     "@feezal/feezal-element-paper-tabs": "*",
+    "@feezal/feezal-theme-blue-night": "*",
+    "@feezal/feezal-theme-dark-mint": "*",
+    "@feezal/feezal-theme-midnight-blue": "*",
+    "@feezal/feezal-theme-solarized-light": "*",
     "@polymer/app-layout": "^3.1.0",
     "@polymer/app-route": "^3.0.2",
     "@polymer/app-storage": "^3.0.2",
