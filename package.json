@@ -1,6 +1,6 @@
 {
   "name": "feezal",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Web Components based Dashboard UI with WYSIWYG Editor",
   "main": "none",
   "scripts": {
@@ -15,6 +15,16 @@
       "feezal": "nodes/feezal.js"
     }
   },
+  "keywords": [
+    "node-red",
+    "dashboard",
+    "wysiwyg",
+    "editor",
+    "visualiziation",
+    "iot",
+    "smart-home",
+    "mqtt"
+  ],
   "dependencies": {
     "@adobe/es-modules-middleware": "^1.1.0",
     "@babel/core": "^7.1.6",
