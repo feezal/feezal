@@ -344,7 +344,7 @@ class FeezalAppEditor extends PolymerElement {
                       <paper-icon-button icon="menu" slot="dropdown-trigger" alt="menu"></paper-icon-button>
                       <paper-listbox id="sidebarmenu" style="min-width: 300px;" slot="dropdown-content" selected="{{sidebar}}" attr-for-selected="value">
                         <paper-item value="inspector"><iron-icon icon="zoom-in" class="feezal-menu-icon"></iron-icon>Element/View Inspector</paper-item>
-                        <paper-item value="themes"><iron-icon icon="image:palette" class="feezal-menu-icon"></iron-icon>Theme Editor</paper-item>
+                        <paper-item value="themes"><iron-icon icon="image:palette" class="feezal-menu-icon"></iron-icon>Theme</paper-item>
                         <paper-item value="viewer"><iron-icon icon="hardware:tv" class="feezal-menu-icon"></iron-icon>Viewer Settings</paper-item>
                         <paper-item value="editor"><iron-icon icon="settings" class="feezal-menu-icon"></iron-icon>Editor Settings</paper-item>
                         <paper-item value="assets"><iron-icon icon="folder-open" class="feezal-menu-icon"></iron-icon>Asset Manager</paper-item>
@@ -557,9 +557,6 @@ class FeezalAppEditor extends PolymerElement {
             connection,
             site
         }, () => {
-            if (this.viewer) {
-                this.viewer.location.reload();
-            }
             this.changes = false;
             this.deploying = false;
         });

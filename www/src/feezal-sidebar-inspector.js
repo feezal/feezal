@@ -157,6 +157,8 @@ class FeezalSidebarInspector extends PolymerElement {
         });
         feezal.ready = true;
 
+        feezal.app.shadowRoot.querySelector('feezal-sidebar-themes').siteReady();
+
         feezal.app.addHistory();
 
         this._viewChanged();

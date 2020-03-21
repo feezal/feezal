@@ -36,7 +36,7 @@ module.exports = function (RED) {
     const defaultSite = `<feezal-site><feezal-view class="iron-selected" name="view1" style="
             width: 100%;
             height: 100%;
-            background: white;
+            background: var(--primary-background-color);
         "></feezal-view></feezal-site>`;
 
     const conn = new Conn();

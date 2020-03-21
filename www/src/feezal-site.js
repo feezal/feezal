@@ -44,6 +44,19 @@ class FeezalSite extends PolymerElement {
         };
     }
 
+    static get feezal() {
+        return {
+            styles: [
+                '--primary-text-color',
+                '--primary-background-color',
+                '--secondary-text-color',
+                '--disabled-text-color',
+                '--divider-color',
+                '--error-color',
+            ]
+        }
+    }
+
     static get template() {
         return html`
             <style>
@@ -59,6 +72,13 @@ class FeezalSite extends PolymerElement {
                 feezal-view {
                     margin: var(--feezal-view-margin);
                 }
+                
+                :host(.dark) {
+                    --primary-background-color: black
+                }
+                    
+                
+                
             </style>
             <iron-pages id="pages" attr-for-selected="name" selected="[[view]]" items="{{views}}">
                 <slot></slot>
@@ -66,8 +86,10 @@ class FeezalSite extends PolymerElement {
         `;
     }
 
+
     connectedCallback() {
         super.connectedCallback();
+
         if (feezal.app.nav) {
             this.view = feezal.app.nav.view;
         }

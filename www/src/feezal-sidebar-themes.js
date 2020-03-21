@@ -1,14 +1,19 @@
 import {PolymerElement, html} from '@polymer/polymer/polymer-element';
 
-import '@polymer/iron-pages/iron-pages';
-import '@polymer/paper-tabs/paper-tabs';
-import '@polymer/paper-tabs/paper-tab';
-import '@polymer/paper-input/paper-input';
+import '@polymer/paper-dropdown-menu/paper-dropdown-menu';
+import '@polymer/paper-item/paper-item';
 
 class FeezalSidebarThemes extends PolymerElement {
     static get properties() {
         return {
-
+            currentTheme: {
+                type: String,
+                value: 'default',
+                observer: '_currentThemeChanged'
+            },
+            themes: {
+                type: Array
+            }
         };
     }
 
@@ -40,11 +45,40 @@ class FeezalSidebarThemes extends PolymerElement {
                 paper-tab {
                     --paper-tab-ink: gray;
                 }
+                
+
             </style>
             <div class="paper-form" id="editor-form">
-                
-            </div>    
+                 <paper-dropdown-menu label="Theme" value="{{currentTheme}}">
+                    <paper-listbox slot="dropdown-content">
+                        <template is="dom-repeat" items="[[themes]]">
+                            <paper-item>[[item]]</paper-item>
+                        </template>
+                    </paper-listbox>
+                 </paper-dropdown-menu>
+               
+            </div>
+
         `;
+    }
+
+    connectedCallback() {
+        super.connectedCallback();
+        this.themes = ['default', ...feezal.themes];
+    }
+
+    _currentThemeChanged(val) {
+        if (feezal.ready) {
+            const classes = feezal.site.className.split(" ").filter(c => !c.startsWith('feezal-theme-'));
+            feezal.site.className = (val === 'default' ? classes : [val, ...classes]).join(' ').trim();
+        }
+    }
+
+    siteReady() {
+        const match = feezal.site.className.match(/(feezal-theme-[^\s]+)/);
+        if (match) {
+            this.currentTheme = match[1];
+        }
     }
 }
 

@@ -32,19 +32,19 @@ class FeezalSidebarInspectorStyles extends PolymerElement {
                 }
                 paper-input {
                     display: inline-block;
-                    width: calc(100% - 60px);
+                    width: calc(100% - 64px);
                 }
                 paper-swatch-picker {
                     display: inline-block;
-                    border: 1px solid #444;
+                   
                 }
             </style>
             
             <template is="dom-repeat" items="[[items]]">
                 <div>
-                    <paper-input invalid="[[item.invalid]]" class$="[[item.class]]" css-property="[[item.property]]" label="[[item.property]]" value="[[item.value]]" on-value-changed="_change" on-blur="_blur"></paper-input>
+                    <paper-input invalid="[[item.invalid]]" class$="[[item.class]]" css-property="[[item.property]]" label="[[item.property]]" value="{{item.value}}" on-value-changed="_change" on-blur="_blur"></paper-input>
                     <template is="dom-if" if="[[item.color]]">
-                        <paper-swatch-picker horizontal-align="right" css-property="[[item.property]]" label="[[item.property]]" color="[[item.value]]" on-color-picker-selected="_colorSelected"></paper-swatch-picker>
+                        <paper-swatch-picker horizontal-align="right" css-property="[[item.property]]" label="[[item.property]]" color="{{item.value}}" on-color-picker-selected="_colorSelected"></paper-swatch-picker>
                     </template>
                 </div>
             </template>
@@ -104,6 +104,9 @@ class FeezalSidebarInspectorStyles extends PolymerElement {
         }
 
         item.value = this.selectedElems[0].style.getPropertyValue(property.property);
+
+        item.color = property.type === 'color';
+
         this.selectedElems.forEach(el => {
             if (item.value !== el.style.getPropertyValue(property.property)) {
                 delete item.value;
