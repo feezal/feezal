@@ -1,5 +1,5 @@
 * [x] Sites
-* [ ] Themes
+* [x] Themes
 * [ ] Non-Absolute Positioning
 * [x] Viewer: direct MQTT/ws connection
 * [ ] Preview
