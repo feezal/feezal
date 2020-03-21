@@ -10,6 +10,10 @@
   },
   "author": "Sebastian Raff <hobbyquaker@gmail.com>",
   "license": "GPLv3",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/feezal/feezal.git"
+  },
   "node-red": {
     "nodes": {
       "feezal": "nodes/feezal.js"
