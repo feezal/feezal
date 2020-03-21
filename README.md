@@ -1,4 +1,4 @@
-# node-red-contrib-feezal
+# feezal
 
 > Web Components based Dashboard UI with WYSIWYG Editor
 
