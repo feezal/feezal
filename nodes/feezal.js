@@ -134,12 +134,15 @@ module.exports = function (RED) {
             const feezalFile = path.join(feezalPath, data.site.name, viewsFile);
             fs.writeFile(viewerJson, JSON.stringify({viewer: data.viewer, connection: data.connection})).then(() => {
                 logger.info('saved ' + viewerJson);
+
+
                 return fs.writeFile(feezalFile, prettyHtml(data.html, {
                     tabWidth: 4,
                     prettier: {
                         jsxBracketSameLine: true
                     }
-                }));
+                }).toString());
+
             }).then(() => {
                 logger.info('saved ' + feezalFile);
                 return build(data, {debug: logger.debug, info: logger.info, warn: logger.warn, error: logger.error});

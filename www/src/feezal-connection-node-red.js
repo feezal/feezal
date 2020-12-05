@@ -70,7 +70,7 @@ class FeezalConnectionNodeRed extends PolymerElement {
     }
 
     connect() {
-        const url = feezal.isEditor ? '../socket.io/socket.io.js' : 'node_modules/socket.io-client/dist/socket.io.slim.js';
+        const url = feezal.isEditor ? '../socket.io/socket.io.js' : 'node_modules/socket.io-client/dist/socket.io.js';
         getScript(url, () => {
             console.log('socket.io loaded!');
             console.log('socketPath', this.socketPath);

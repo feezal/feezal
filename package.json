@@ -31,22 +31,22 @@
   ],
   "dependencies": {
     "@adobe/es-modules-middleware": "^1.1.0",
-    "@babel/core": "^7.1.6",
-    "@open-wc/building-rollup": "^0.12.2",
-    "@starptech/prettyhtml": "^0.9.0",
-    "cpy": "^7.3.0",
-    "mkdirp": "^0.5.1",
-    "node-fetch": "^2.6.0",
-    "rimraf": "^3.0.0",
-    "rollup": "^1.25.2",
+    "@babel/core": "^7.12.9",
+    "@open-wc/building-rollup": "^1.9.4",
+    "@starptech/prettyhtml": "^0.10.0",
+    "cpy": "^8.1.1",
+    "mkdirp": "^1.0.4",
+    "node-fetch": "^2.6.1",
+    "rimraf": "^3.0.2",
+    "rollup": "^2.34.1",
     "rollup-plugin-cpy": "^2.0.1",
-    "rollup-plugin-workbox": "^4.0.0",
-    "serve-static": "^1.13.2",
-    "socket.io": "^2.1.1"
+    "rollup-plugin-workbox": "^6.0.0",
+    "serve-static": "^1.14.1",
+    "socket.io": "^3.0.3"
   },
   "devDependencies": {
-    "eslint-plugin-html": "^6.0.0",
-    "xo": "^0.25.3"
+    "eslint-plugin-html": "^6.1.1",
+    "xo": "^0.35.0"
   },
   "xo": {
     "space": 4,
