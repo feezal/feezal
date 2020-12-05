@@ -39,7 +39,7 @@ class FeezalSite extends PolymerElement {
             publishTopic: {
                 type: String,
                 reflectToAttribute: true
-            },
+            }
 
         };
     }
@@ -52,9 +52,9 @@ class FeezalSite extends PolymerElement {
                 '--secondary-text-color',
                 '--disabled-text-color',
                 '--divider-color',
-                '--error-color',
+                '--error-color'
             ]
-        }
+        };
     }
 
     static get template() {
@@ -86,25 +86,25 @@ class FeezalSite extends PolymerElement {
         `;
     }
 
-
     connectedCallback() {
         super.connectedCallback();
 
         if (feezal.app.nav) {
             this.view = feezal.app.nav.view;
         }
+
         if (!feezal.isEditor && this.subscribeTopic) {
-            feezal.connection.subscribe(this.subscribeTopic + '/view', msg => {
-                this.view = msg.payload;
+            feezal.connection.subscribe(this.subscribeTopic + '/view', message => {
+                this.view = message.payload;
             });
-            feezal.connection.subscribe(this.subscribeTopic + '/reload', msg => {
+            feezal.connection.subscribe(this.subscribeTopic + '/reload', message => {
                 window.location.reload();
             });
         }
+
         if (this.title) {
             document.querySelector('title').innerHTML = this.pageTitle;
         }
-
     }
 
     get currentView() {
@@ -117,15 +117,16 @@ class FeezalSite extends PolymerElement {
         if (!feezal.isEditor && this.publishTopic) {
             feezal.connection.publish(this.publishTopic + '/view', this.view);
         }
+
         if (!feezal.isEditor && this.subscribeTopic) {
-            feezal.connection.subscribe(this.subscribeTopic + '/view', msg => {
-                location.hash = '/' + msg.payload;
+            feezal.connection.subscribe(this.subscribeTopic + '/view', message => {
+                location.hash = '/' + message.payload;
             });
-            feezal.connection.subscribe(this.subscribeTopic + '/addclass', msg => {
-                this.classList.add(msg.payload);
+            feezal.connection.subscribe(this.subscribeTopic + '/addclass', message => {
+                this.classList.add(message.payload);
             });
-            feezal.connection.subscribe(this.subscribeTopic + '/removeclass', msg => {
-                this.classList.remove(msg.payload);
+            feezal.connection.subscribe(this.subscribeTopic + '/removeclass', message => {
+                this.classList.remove(message.payload);
             });
         }
     }

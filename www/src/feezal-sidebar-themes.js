@@ -67,15 +67,15 @@ class FeezalSidebarThemes extends PolymerElement {
         this.themes = ['default', ...feezal.themes];
     }
 
-    _currentThemeChanged(val) {
+    _currentThemeChanged(value) {
         if (feezal.ready) {
-            const classes = feezal.site.className.split(" ").filter(c => !c.startsWith('feezal-theme-'));
-            feezal.site.className = (val === 'default' ? classes : [val, ...classes]).join(' ').trim();
+            const classes = feezal.site.className.split(' ').filter(c => !c.startsWith('feezal-theme-'));
+            feezal.site.className = (value === 'default' ? classes : [value, ...classes]).join(' ').trim();
         }
     }
 
     siteReady() {
-        const match = feezal.site.className.match(/(feezal-theme-[^\s]+)/);
+        const match = feezal.site.className.match(/(feezal-theme-\S+)/);
         if (match) {
             this.currentTheme = match[1];
         }

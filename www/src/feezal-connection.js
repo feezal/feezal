@@ -87,7 +87,7 @@ class FeezalConnection extends PolymerElement {
     }
 
     connect() {
-        this.shadowRoot.appendChild(this.conn);
+        this.shadowRoot.append(this.conn);
         this.conn.connect();
 
         this.conn.addEventListener('connected', () => {
@@ -109,12 +109,12 @@ class FeezalConnection extends PolymerElement {
         }
     }
 
-    spreadMessage(msg) {
+    spreadMessage(message) {
         this.subscriptions
-            .filter(s => FeezalConnection.topicMatch(msg.topic, s.topic))
+            .filter(s => FeezalConnection.topicMatch(message.topic, s.topic))
             .forEach(s => {
                 // Console.log('callback!')
-                s.callback(msg);
+                s.callback(message);
             });
     }
 

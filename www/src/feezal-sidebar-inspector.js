@@ -134,8 +134,8 @@ class FeezalSidebarInspector extends PolymerElement {
     restoreViews(data) {
         this.dragselect = {};
 
-        feezal.site.querySelectorAll('.dragselect-rectangle').forEach(el => {
-            el.remove();
+        feezal.site.querySelectorAll('.dragselect-rectangle').forEach(element => {
+            element.remove();
         });
 
         this._viewChanged();
@@ -152,8 +152,8 @@ class FeezalSidebarInspector extends PolymerElement {
             'feezal-selected'
         ]);
 
-        feezal.site.querySelectorAll('.dragselect-rectangle').forEach(el => {
-            el.remove();
+        feezal.site.querySelectorAll('.dragselect-rectangle').forEach(element => {
+            element.remove();
         });
         feezal.ready = true;
 
@@ -178,8 +178,8 @@ class FeezalSidebarInspector extends PolymerElement {
         });
     }
 
-    _gridVisibleChanged(val) {
-        feezal.app.shadowRoot.querySelector('#grid').style.display = val ? 'block' : 'none';
+    _gridVisibleChanged(value) {
+        feezal.app.shadowRoot.querySelector('#grid').style.display = value ? 'block' : 'none';
     }
 
     _viewChanged() {
@@ -242,11 +242,11 @@ class FeezalSidebarInspector extends PolymerElement {
 
         this.currentView = [view];
 
-        [...view.children].forEach(el => {
-            if (el.localName.startsWith('feezal-element-') && !el.feezalEditable) {
-                this.initElem(el);
+        [...view.children].forEach(element => {
+            if (element.localName.startsWith('feezal-element-') && !element.feezalEditable) {
+                this.initElem(element);
             } else {
-                this.dragselect[this.view].removeSelection(el);
+                this.dragselect[this.view].removeSelection(element);
             }
         });
 
@@ -257,7 +257,7 @@ class FeezalSidebarInspector extends PolymerElement {
         console.log('keyboard');
         window.addEventListener('keydown', event => {
             if (feezal.app.querySelector('feezal-site:focus')) {
-                console.log(event)
+                console.log(event);
                 switch (event.key) {
                     case 'Delete':
                         if (!this.viewSelected) {
@@ -269,6 +269,7 @@ class FeezalSidebarInspector extends PolymerElement {
                         if (!this.viewSelected) {
                             this.selectElement(this.currentView);
                         }
+
                         break;
                     case 'ArrowRight':
                         if (!this.viewSelected) {
@@ -292,14 +293,16 @@ class FeezalSidebarInspector extends PolymerElement {
                         if (!this.viewSelected) {
                             this._moveElems(0, event.altKey ? this.gridSize : 1, true);
                         }
+
                         break;
 
                     case 'z':
                         if ((event.metaKey || event.ctrlKey) && !this.viewSelected) {
                             feezal.app._undo();
                         }
+
                         break;
-                    /*
+                        /*
                     case 'c':
                         if (event.ctrlKey && !this.viewSelected) {
                             feezal.app._copy();
@@ -323,7 +326,8 @@ class FeezalSidebarInspector extends PolymerElement {
                             console.log('selectAll', feezal.view.querySelectorAll('.feezal-element'));
                             this.selectElement(feezal.view.querySelectorAll('.feezal-element'));
                         }
-                    break;
+
+                        break;
                     default:
                         return;
                 }
@@ -334,8 +338,8 @@ class FeezalSidebarInspector extends PolymerElement {
     }
 
     _deleteElems() {
-        this.selectedElems.forEach(el => {
-            feezal.view.removeChild(el);
+        this.selectedElems.forEach(element => {
+            element.remove();
         });
         this.selectedElems = [];
         feezal.app.change();
@@ -355,24 +359,24 @@ class FeezalSidebarInspector extends PolymerElement {
 
     _moveElems(dx, dy, restrict) {
         const changes = [];
-        this.selectedElems.forEach(el => {
+        this.selectedElems.forEach(element => {
             if (dx) {
-                const x = (parseFloat(el.style.left.replace('px', '')) || 0) + parseFloat(dx);
-                el.style.left = x + 'px';
+                const x = (Number.parseFloat(element.style.left.replace('px', '')) || 0) + Number.parseFloat(dx);
+                element.style.left = x + 'px';
                 changes.push('left');
             }
 
             if (dy) {
-                const y = (parseFloat(el.style.top.replace('px', '')) || 0) + parseFloat(dy);
-                el.style.top = y + 'px';
+                const y = (Number.parseFloat(element.style.top.replace('px', '')) || 0) + Number.parseFloat(dy);
+                element.style.top = y + 'px';
                 changes.push('top');
             }
 
-            if (event.dx && this.selectedElems.map(el => el.style.left).every(val => val === this.selectedElems[0].style.left)) {
+            if (event.dx && this.selectedElems.map(element => element.style.left).every(value => value === this.selectedElems[0].style.left)) {
                 changes.push('left');
             }
 
-            if (event.dy && this.selectedElems.map(el => el.style.top).every(val => val === this.selectedElems[0].style.top)) {
+            if (event.dy && this.selectedElems.map(element => element.style.top).every(value => value === this.selectedElems[0].style.top)) {
                 changes.push('top');
             }
 
@@ -389,20 +393,20 @@ class FeezalSidebarInspector extends PolymerElement {
     _snapSize(x, y) {
         if (this.resizeElement) {
             const rect = this.resizeElement.getBoundingClientRect();
-            const elX = parseFloat(this.resizeElement.style.left.replace('px', ''));
-            const elY = parseFloat(this.resizeElement.style.top.replace('px', ''));
+            const elementX = Number.parseFloat(this.resizeElement.style.left.replace('px', ''));
+            const elementY = Number.parseFloat(this.resizeElement.style.top.replace('px', ''));
             const snap = this._snap(x + rect.x, y + rect.y);
             if (snap) {
-                const obj = {range: snap.range};
+                const object = {range: snap.range};
                 if (snap.x) {
-                    obj.width = snap.x - rect.x;
+                    object.width = snap.x - rect.x;
                 }
 
                 if (snap.y) {
-                    obj.height = snap.y - rect.y;
+                    object.height = snap.y - rect.y;
                 }
 
-                return obj;
+                return object;
             }
         }
     }
@@ -434,8 +438,8 @@ class FeezalSidebarInspector extends PolymerElement {
         let range;
 
         if (false && this.dragElement) {
-            const elemRect = this.dragElement.getBoundingClientRect();
-            range = Math.round((elemRect.width > elemRect.height ? elemRect.width : elemRect.height) / 2);
+            const elementRect = this.dragElement.getBoundingClientRect();
+            range = Math.round((elementRect.width > elementRect.height ? elementRect.width : elementRect.height) / 2);
         } else {
             range = 24;
         }
@@ -443,13 +447,13 @@ class FeezalSidebarInspector extends PolymerElement {
         let nearX = 10000;
         let nearY = 10000;
 
-        const obj = {};
+        const object = {};
 
-        [...view.children].forEach(el => {
+        [...view.children].forEach(element => {
             let snapX;
             let snapY;
-            if (el.localName.startsWith('feezal-element-') && el !== this.resizeElement && el !== this.dragElement) {
-                const rect = el.getBoundingClientRect();
+            if (element.localName.startsWith('feezal-element-') && element !== this.resizeElement && element !== this.dragElement) {
+                const rect = element.getBoundingClientRect();
 
                 const tx = rect.x - viewRect.x;
                 const ty = rect.y + 48 - viewRect.y;
@@ -491,43 +495,43 @@ class FeezalSidebarInspector extends PolymerElement {
                 this.vsnapSwap = !this.vsnapSwap;
                 Object.assign((this.vsnapSwap ? vsnap1 : vsnap2).style, {left: snapX + 'px', display: 'block'});
 
-                obj.x = snapX + viewRect.x;
-                obj.range = range;
+                object.x = snapX + viewRect.x;
+                object.range = range;
             }
 
             if (typeof snapY !== 'undefined') {
                 this.hsnapSwap = !this.hsnapSwap;
                 Object.assign((this.hsnapSwap ? hsnap1 : hsnap2).style, {top: snapY + 'px', display: 'block'});
 
-                obj.y = snapY + viewRect.y - 48;
-                obj.range = range;
+                object.y = snapY + viewRect.y - 48;
+                object.range = range;
             }
         });
 
-        if (obj.range) {
-            return obj;
+        if (object.range) {
+            return object;
         }
     }
 
-    initElem(el, created) {
-        if (el.feezalEditable) {
+    initElem(element, created) {
+        if (element.feezalEditable) {
             return;
         }
 
-        el.feezalEditable = true;
-        el.classList.add('feezal-editable');
-        const elemOptions = window.customElements.get(el.localName) && window.customElements.get(el.localName).feezal || {};
+        element.feezalEditable = true;
+        element.classList.add('feezal-editable');
+        const elementOptions = window.customElements.get(element.localName) && window.customElements.get(element.localName).feezal || {};
 
-        if (!elemOptions) {
-            console.error(el.localName, 'feezal property missing')
+        if (!elementOptions) {
+            console.error(element.localName, 'feezal property missing');
             return;
         }
 
-        if (created && elemOptions.defaultStyle) {
-            Object.assign(el.style, elemOptions.defaultStyle);
+        if (created && elementOptions.defaultStyle) {
+            Object.assign(element.style, elementOptions.defaultStyle);
         }
 
-        interact(el)
+        interact(element)
             .draggable({
                 restrict: {
                     restriction: () => this.dragRect,
@@ -553,8 +557,8 @@ class FeezalSidebarInspector extends PolymerElement {
                 margin: 5,
                 restrictSize: {
                     min: {
-                        width: (elemOptions.restrict && elemOptions.restrict.minWidth) || 12,
-                        height: (elemOptions.restrict && elemOptions.restrict.minHeight) || 12
+                        width: (elementOptions.restrict && elementOptions.restrict.minWidth) || 12,
+                        height: (elementOptions.restrict && elementOptions.restrict.minHeight) || 12
                     }
                 },
                 snapSize: {
@@ -580,23 +584,23 @@ class FeezalSidebarInspector extends PolymerElement {
                     right: targetRect.right
                 };
 
-                this.selectedElems.forEach(el => {
-                    if (event.target !== el) {
-                        const elRect = el.getBoundingClientRect();
-                        if (elRect.top < groupRect.top) {
-                            groupRect.top = elRect.top;
+                this.selectedElems.forEach(element_ => {
+                    if (event.target !== element_) {
+                        const elementRect = element_.getBoundingClientRect();
+                        if (elementRect.top < groupRect.top) {
+                            groupRect.top = elementRect.top;
                         }
 
-                        if (elRect.left < groupRect.left) {
-                            groupRect.left = elRect.left;
+                        if (elementRect.left < groupRect.left) {
+                            groupRect.left = elementRect.left;
                         }
 
-                        if (elRect.bottom > groupRect.bottom) {
-                            groupRect.bottom = elRect.bottom;
+                        if (elementRect.bottom > groupRect.bottom) {
+                            groupRect.bottom = elementRect.bottom;
                         }
 
-                        if (elRect.right > groupRect.right) {
-                            groupRect.right = elRect.right;
+                        if (elementRect.right > groupRect.right) {
+                            groupRect.right = elementRect.right;
                         }
                     }
                 });
@@ -641,8 +645,8 @@ class FeezalSidebarInspector extends PolymerElement {
 
                 const changes = [];
 
-                let x = parseFloat(target.style.left.replace('px', '')) || 0; // Target.xCoord || 0;
-                let y = parseFloat(target.style.top.replace('px', '')) || 0; // Target.yCoord || 0;
+                let x = Number.parseFloat(target.style.left.replace('px', '')) || 0; // Target.xCoord || 0;
+                let y = Number.parseFloat(target.style.top.replace('px', '')) || 0; // Target.yCoord || 0;
 
                 const {width} = event.rect;
                 const {height} = event.rect;
@@ -682,7 +686,7 @@ class FeezalSidebarInspector extends PolymerElement {
                 feezal.app.change();
             });
 
-        this.dragselect[this.view].addSelectables(el);
+        this.dragselect[this.view].addSelectables(element);
     }
 
     selectElement(element) {
@@ -694,6 +698,7 @@ class FeezalSidebarInspector extends PolymerElement {
         if (!feezal.view) {
             return;
         }
+
         const selectedElems = [...feezal.view.querySelectorAll('.feezal-selected')];
         if (selectedElems.length > 0) {
             this.set('selectedElems', selectedElems);

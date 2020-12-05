@@ -124,22 +124,22 @@ const Paho = {
          * @throws {Error} Invalid option parameter found.
          * @private
          */
-        const validate = function (obj, keys) {
-            for (const key in obj) {
-                if (obj.hasOwnProperty(key)) {
+        const validate = function (object, keys) {
+            for (const key in object) {
+                if (object.hasOwnProperty(key)) {
                     if (keys.hasOwnProperty(key)) {
-                        if (typeof obj[key] !== keys[key]) {
-                            throw new TypeError(format(ERROR.INVALID_TYPE, [typeof obj[key], key]));
+                        if (typeof object[key] !== keys[key]) {
+                            throw new TypeError(format(ERROR.INVALID_TYPE, [typeof object[key], key]));
                         }
                     } else {
-                        let errorStr = 'Unknown property, ' + key + '. Valid properties are:';
+                        let errorString = 'Unknown property, ' + key + '. Valid properties are:';
                         for (const validKey in keys) {
                             if (keys.hasOwnProperty(validKey)) {
-                                errorStr = errorStr + ' ' + validKey;
+                                errorString = errorString + ' ' + validKey;
                             }
                         }
 
-                        throw new Error(errorStr);
+                        throw new Error(errorString);
                     }
                 }
             }
@@ -211,8 +211,8 @@ const Paho = {
                     field = '{' + i + '}';
                     start = text.indexOf(field);
                     if (start > 0) {
-                        const part1 = text.substring(0, start);
-                        const part2 = text.substring(start + field.length);
+                        const part1 = text.slice(0, Math.max(0, start));
+                        const part2 = text.slice(Math.max(0, start + field.length));
                         text = part1 + element + part2;
                     }
                 }
@@ -269,7 +269,7 @@ const Paho = {
              */
 
             let remLength = 0;
-            const topicStrLength = [];
+            const topicStringLength = [];
             let destinationNameLength = 0;
             let willMessagePayloadBytes;
 
@@ -316,8 +316,8 @@ const Paho = {
                 case MESSAGE_TYPE.SUBSCRIBE:
                     first |= 0x02; // Qos = 1;
                     for (var i = 0; i < this.topics.length; i++) {
-                        topicStrLength[i] = UTF8Length(this.topics[i]);
-                        remLength += topicStrLength[i] + 2;
+                        topicStringLength[i] = UTF8Length(this.topics[i]);
+                        remLength += topicStringLength[i] + 2;
                     }
 
                     remLength += this.requestedQos.length; // 1 byte for each topic's Qos
@@ -327,8 +327,8 @@ const Paho = {
                 case MESSAGE_TYPE.UNSUBSCRIBE:
                     first |= 0x02; // Qos = 1;
                     for (var i = 0; i < this.topics.length; i++) {
-                        topicStrLength[i] = UTF8Length(this.topics[i]);
-                        remLength += topicStrLength[i] + 2;
+                        topicStringLength[i] = UTF8Length(this.topics[i]);
+                        remLength += topicStringLength[i] + 2;
                     }
 
                     break;
@@ -459,7 +459,7 @@ const Paho = {
                 case MESSAGE_TYPE.SUBSCRIBE:
                     // SUBSCRIBE has a list of topic strings and request QoS
                     for (var i = 0; i < this.topics.length; i++) {
-                        pos = writeString(this.topics[i], topicStrLength[i], byteStream, pos);
+                        pos = writeString(this.topics[i], topicStringLength[i], byteStream, pos);
                         byteStream[pos++] = this.requestedQos[i];
                     }
 
@@ -468,7 +468,7 @@ const Paho = {
                 case MESSAGE_TYPE.UNSUBSCRIBE:
                     // UNSUBSCRIBE has a list of topic strings
                     for (var i = 0; i < this.topics.length; i++) {
-                        pos = writeString(this.topics[i], topicStrLength[i], byteStream, pos);
+                        pos = writeString(this.topics[i], topicStringLength[i], byteStream, pos);
                     }
 
                     break;
@@ -521,10 +521,10 @@ const Paho = {
                 case MESSAGE_TYPE.PUBLISH:
                     var qos = (messageInfo >> 1) & 0x03;
 
-                    var len = readUint16(input, pos);
+                    var length = readUint16(input, pos);
                     pos += 2;
-                    var topicName = parseUTF8(input, pos, len);
-                    pos += len;
+                    var topicName = parseUTF8(input, pos, length);
+                    pos += length;
                     // If QoS 1 or 2 there will be a messageIdentifier
                     if (qos > 0) {
                         wireMessage.messageIdentifier = readUint16(input, pos);
@@ -588,7 +588,7 @@ const Paho = {
          */
         function encodeMBI(number) {
             const output = new Array(1);
-            let numBytes = 0;
+            let numberBytes = 0;
 
             do {
                 let digit = number % 128;
@@ -597,8 +597,8 @@ const Paho = {
                     digit |= 0x80;
                 }
 
-                output[numBytes++] = digit;
-            } while ((number > 0) && (numBytes < 4));
+                output[numberBytes++] = digit;
+            } while ((number > 0) && (numberBytes < 4));
 
             return output;
         }
@@ -735,7 +735,7 @@ const Paho = {
             this._keepAliveInterval = keepAliveInterval * 1000;
             this.isReset = false;
 
-            const pingReq = new WireMessage(MESSAGE_TYPE.PINGREQ).encode();
+            const pingRequest = new WireMessage(MESSAGE_TYPE.PINGREQ).encode();
 
             const doTimeout = function (pinger) {
                 return function () {
@@ -751,7 +751,7 @@ const Paho = {
                 } else {
                     this.isReset = false;
                     this._client._trace('Pinger.doPing', 'send PINGREQ');
-                    this._client.socket.send(pingReq);
+                    this._client.socket.send(pingRequest);
                     this.timeout = this._window.setTimeout(doTimeout(this), this._keepAliveInterval);
                 }
             };
@@ -1202,7 +1202,7 @@ const Paho = {
                     var byteStream = new Uint8Array(buffer);
                     var i = 0;
                     while (hex.length >= 2) {
-                        const x = parseInt(hex.substring(0, 2), 16);
+                        const x = Number.parseInt(hex.slice(0, 2), 16);
                         hex = hex.substring(2, hex.length);
                         byteStream[i++] = x;
                     }
@@ -1379,20 +1379,20 @@ const Paho = {
 
                         // Resend messages.
                         var sequencedMessages = [];
-                        for (const msgId in this._sentMessages) {
-                            if (this._sentMessages.hasOwnProperty(msgId)) {
-                                sequencedMessages.push(this._sentMessages[msgId]);
+                        for (const messageId in this._sentMessages) {
+                            if (this._sentMessages.hasOwnProperty(messageId)) {
+                                sequencedMessages.push(this._sentMessages[messageId]);
                             }
                         }
 
                         // Also schedule qos 0 buffered messages if any
                         if (this._buffered_msg_queue.length > 0) {
-                            let msg = null;
+                            let message = null;
                             const fifo = this._buffered_msg_queue.reverse();
-                            while ((msg = fifo.pop())) {
-                                sequencedMessages.push(msg);
+                            while ((message = fifo.pop())) {
+                                sequencedMessages.push(message);
                                 if (this.onMessageDelivered) {
-                                    this._notify_msg_sent[msg] = this.onMessageDelivered(msg.payloadMessage);
+                                    this._notify_msg_sent[message] = this.onMessageDelivered(message.payloadMessage);
                                 }
                             }
                         }
@@ -1401,7 +1401,7 @@ const Paho = {
                         var sequencedMessages = sequencedMessages.sort((a, b) => {
                             return a.sequence - b.sequence;
                         });
-                        for (let i = 0, len = sequencedMessages.length; i < len; i++) {
+                        for (let i = 0, length = sequencedMessages.length; i < length; i++) {
                             var sentMessage = sequencedMessages[i];
                             if (sentMessage.type == MESSAGE_TYPE.PUBLISH && sentMessage.pubRecReceived) {
                                 var pubRelMessage = new WireMessage(MESSAGE_TYPE.PUBREL, {messageIdentifier: sentMessage.messageIdentifier});
@@ -1855,10 +1855,10 @@ const Paho = {
                 // port: clientId
                 clientId = port;
                 uri = host;
-                const match = uri.match(/^(wss?):\/\/((\[(.+)\])|([^\/]+?))(:(\d+))?(\/.*)$/);
+                const match = uri.match(/^(wss?):\/\/((\[(.+)])|([^/]+?))(:(\d+))?(\/.*)$/);
                 if (match) {
                     host = match[4] || match[2];
-                    port = parseInt(match[7]);
+                    port = Number.parseInt(match[7]);
                     path = match[8];
                 } else {
                     throw new Error(format(ERROR.INVALID_ARGUMENT, [host, 'host']));
@@ -2147,7 +2147,7 @@ const Paho = {
                             throw new TypeError(format(ERROR.INVALID_TYPE, [typeof connectOptions.hosts[i], 'connectOptions.hosts[' + i + ']']));
                         }
 
-                        if (/^(wss?):\/\/((\[(.+)\])|([^\/]+?))(:(\d+))?(\/.*)$/.test(connectOptions.hosts[i])) {
+                        if (/^(wss?):\/\/((\[(.+)])|([^/]+?))(:(\d+))?(\/.*)$/.test(connectOptions.hosts[i])) {
                             if (i === 0) {
                                 usingURIs = true;
                             } else if (!usingURIs) {

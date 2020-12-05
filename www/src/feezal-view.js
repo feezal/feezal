@@ -49,9 +49,9 @@ class FeezalView extends PolymerElement {
 
     _visibleChange(visible) {
         const elems = this.querySelectorAll('*');
-        elems.forEach(el => {
-            if (el.tagName.startsWith('FEEZAL-ELEMENT-')) {
-                el.visible = visible;
+        elems.forEach(element => {
+            if (element.tagName.startsWith('FEEZAL-ELEMENT-')) {
+                element.visible = visible;
             }
         });
     }
@@ -59,11 +59,11 @@ class FeezalView extends PolymerElement {
     connectedCallback() {
         super.connectedCallback();
         if (!feezal.isEditor && this.subscribeTopic) {
-            feezal.connection.subscribe(this.subscribeTopic + '/addclass', msg => {
-                this.classList.add(msg.payload);
+            feezal.connection.subscribe(this.subscribeTopic + '/addclass', message => {
+                this.classList.add(message.payload);
             });
-            feezal.connection.subscribe(this.subscribeTopic + '/removeclass', msg => {
-                this.classList.remove(msg.payload);
+            feezal.connection.subscribe(this.subscribeTopic + '/removeclass', message => {
+                this.classList.remove(message.payload);
             });
         }
     }

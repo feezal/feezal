@@ -399,7 +399,7 @@ class FeezalAppEditor extends PolymerElement {
 
     connectedCallback() {
         super.connectedCallback();
-        document.addEventListener('copy', (e) => {
+        document.addEventListener('copy', e => {
             if (this.querySelectorAll('feezal-site:focus').length > 0) {
                 this._copy(e);
             }
@@ -414,7 +414,6 @@ class FeezalAppEditor extends PolymerElement {
                 this._cut(e);
             }
         });
-
     }
 
     _sidebarChanged() {
@@ -501,8 +500,8 @@ class FeezalAppEditor extends PolymerElement {
 
     _removeClassesFromChildren(parent, classes) {
         classes.forEach(cl => {
-            parent.querySelectorAll('.' + cl).forEach(el => {
-                el.classList.remove(cl);
+            parent.querySelectorAll('.' + cl).forEach(element => {
+                element.classList.remove(cl);
             });
         });
     }
@@ -525,9 +524,9 @@ class FeezalAppEditor extends PolymerElement {
             'iron-selected',
             'ds-selectable'
         ]);
-        container.querySelectorAll('.dragselect-rectangle').forEach(el => {
+        container.querySelectorAll('.dragselect-rectangle').forEach(element => {
             // Console.log('remove dragselect')
-            el.remove();
+            element.remove();
         });
     }
 
@@ -546,7 +545,7 @@ class FeezalAppEditor extends PolymerElement {
         this._clean(this.$.deploycontainer.content);
 
         const {connection, site} = this.shadowRoot.querySelector('feezal-sidebar-viewer');
-        const elements = [...this.$.deploycontainer.content.querySelectorAll('*')].map(el => el.tagName);
+        const elements = [...this.$.deploycontainer.content.querySelectorAll('*')].map(element => element.tagName);
         const html = [...this.$.deploycontainer.content.childNodes].map(n => n.outerHTML).join('\n');
 
         site.name = feezal.siteName;
@@ -562,15 +561,15 @@ class FeezalAppEditor extends PolymerElement {
         });
     }
 
-    _clone(el) {
-        const clone = el.cloneNode(false);
+    _clone(element) {
+        const clone = element.cloneNode(false);
         clone.style.cursor = '';
         return clone;
     }
 
     _clearTemplate(tpl) {
         while (tpl.firstChild) {
-            tpl.removeChild(tpl.firstChild);
+            tpl.firstChild.remove();
         }
     }
 
@@ -578,8 +577,8 @@ class FeezalAppEditor extends PolymerElement {
         console.log('_copy');
         this._clearTemplate(this.$.clipboard.content);
 
-        feezal.editor.selectedElems.forEach(el => {
-            this.$.clipboard.content.append(this._clone(el));
+        feezal.editor.selectedElems.forEach(element => {
+            this.$.clipboard.content.append(this._clone(element));
         });
 
         this._clean(this.$.clipboard.content);
@@ -592,14 +591,14 @@ class FeezalAppEditor extends PolymerElement {
 
     _pasteInternal() {
         const newSelection = [];
-        this.$.clipboard.content.childNodes.forEach(el => {
+        this.$.clipboard.content.childNodes.forEach(element => {
             const moveX = 25;
             const moveY = 25;
 
-            el.style.left = (Number(el.style.left.replace('px', '')) + moveX) + 'px';
-            el.style.top = (Number(el.style.top.replace('px', '')) + moveY) + 'px';
+            element.style.left = (Number(element.style.left.replace('px', '')) + moveX) + 'px';
+            element.style.top = (Number(element.style.top.replace('px', '')) + moveY) + 'px';
 
-            const clone = this._clone(el);
+            const clone = this._clone(element);
             newSelection.push(clone);
             feezal.view.append(clone);
             feezal.editor.initElem(clone);
@@ -645,6 +644,7 @@ class FeezalAppEditor extends PolymerElement {
         if (!this.views) {
             return;
         }
+
         const oldName = this.editViewName;
         const name = this.$.viewdialog.querySelector('paper-input').value;
         const valid = true;
@@ -684,27 +684,27 @@ class FeezalAppEditor extends PolymerElement {
         this.$.viewdialog.open();
     }
 
-    _nextView(name, num) {
-        const n = name + (num || '');
+    _nextView(name, number) {
+        const n = name + (number || '');
         if (this.views.map(v => v.name).includes(n)) {
-            return this._nextView(name, (num || 0) + 1);
+            return this._nextView(name, (number || 0) + 1);
         }
 
         return n;
     }
 
     _addView() {
-        const el = document.createElement('feezal-view');
+        const element = document.createElement('feezal-view');
         const name = this._nextView('view', 1);
-        el.setAttribute('name', name);
-        el.style.width = '100%';
-        el.style.height = '100%';
-        el.style.background = 'white';
-        feezal.site.appendChild(el);
+        element.setAttribute('name', name);
+        element.style.width = '100%';
+        element.style.height = '100%';
+        element.style.background = 'white';
+        feezal.site.append(element);
         const currentView = feezal.site.querySelector('.iron-selected');
         if (currentView) {
             console.log(currentView);
-            el.style.cssText = currentView.style.cssText;
+            element.style.cssText = currentView.style.cssText;
         }
 
         this.set('nav.view', name);

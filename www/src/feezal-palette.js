@@ -115,13 +115,13 @@ class FeezalPalette extends PolymerElement {
                     onmove: event => {
                         const changes = [];
                         if (event.dx) {
-                            const x = (parseFloat(this.newElem.style.left.replace('px', '')) || 0) + event.dx;
+                            const x = (Number.parseFloat(this.newElem.style.left.replace('px', '')) || 0) + event.dx;
                             this.newElem.style.left = x + 'px';
                             changes.push('left');
                         }
 
                         if (event.dy) {
-                            const y = (parseFloat(this.newElem.style.top.replace('px', '')) || 0) + event.dy;
+                            const y = (Number.parseFloat(this.newElem.style.top.replace('px', '')) || 0) + event.dy;
                             this.newElem.style.top = y + 'px';
                             changes.push('top');
                         }
@@ -133,8 +133,8 @@ class FeezalPalette extends PolymerElement {
                         const viewRect = feezal.view.getBoundingClientRect();
                         const containerRect = feezal.container.getBoundingClientRect();
 
-                        let x = parseFloat(this.newElem.style.left.replace('px', ''));
-                        const y = parseFloat(this.newElem.style.top.replace('px', ''));
+                        let x = Number.parseFloat(this.newElem.style.left.replace('px', ''));
+                        const y = Number.parseFloat(this.newElem.style.top.replace('px', ''));
                         if (event.restrict) {
                             if (event.restrict.dx > 0) {
                                 x -= event.restrict.dx;
@@ -144,7 +144,7 @@ class FeezalPalette extends PolymerElement {
                         }
 
                         if (x + this.newElem.getBoundingClientRect().width < 0) {
-                            feezal.view.removeChild(this.newElem);
+                            this.newElem.remove();
                             delete this.newElem;
                             return;
                         }
@@ -165,13 +165,13 @@ class FeezalPalette extends PolymerElement {
                         console.log(event.target.dataEl);
                         this.newElem = document.createElement(event.target.dataEl);
                         // Feezal.view.appendChild(this.dragEl);
-                        feezal.view.appendChild(this.newElem);
-                        const newElemRect = this.newElem.getBoundingClientRect();
+                        feezal.view.append(this.newElem);
+                        const newElementRect = this.newElem.getBoundingClientRect();
                         feezal.editor.initElem(this.newElem, true);
                         this.newElem.style.outlineWidth = '2px';
 
-                        this.newElem.style.top = (event.clientY - viewRect.y - (newElemRect.height / 2)) + 'px';
-                        this.newElem.style.left = (event.clientX - viewRect.x - containerRect.x - (newElemRect.width / 2)) + 'px';
+                        this.newElem.style.top = (event.clientY - viewRect.y - (newElementRect.height / 2)) + 'px';
+                        this.newElem.style.left = (event.clientX - viewRect.x - containerRect.x - (newElementRect.width / 2)) + 'px';
                     }
                 })
                 .dropzone({
@@ -186,21 +186,21 @@ class FeezalPalette extends PolymerElement {
         this.filter = event ? event.target.value : '';
         const categories = {};
         // Console.log('feezal.elements', feezal.elements)
-        feezal.elements.forEach(el => {
-            const config = window.customElements.get(el).paletteOptions || window.customElements.get(el).feezal.palette;
+        feezal.elements.forEach(element => {
+            const config = window.customElements.get(element).paletteOptions || window.customElements.get(element).feezal.palette;
             if (!this.filter || config.name.toLowerCase().includes(this.filter.toLowerCase())) {
                 if (!categories[config.category]) {
                     categories[config.category] = [];
                 }
 
-                categories[config.category].push(Object.assign({el}, config));
+                categories[config.category].push({el: element, ...config});
             }
         });
-        const arr = [];
+        const array = [];
         Object.keys(categories).forEach(category => {
-            arr.push({name: category, elements: categories[category]});
+            array.push({name: category, elements: categories[category]});
         });
-        this.categories = arr;
+        this.categories = array;
     }
 }
 

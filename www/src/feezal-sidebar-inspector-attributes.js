@@ -66,6 +66,7 @@ class FeezalEditableList extends PolymerElement {
             </ul>
         `;
     }
+
     static get properties() {
         return {
             value: {
@@ -80,17 +81,18 @@ class FeezalEditableList extends PolymerElement {
                 value: 'items',
                 reflectToAttribute: true
             }
-        }
+        };
     }
+
     connectedCallback() {
         super.connectedCallback();
         this.sortable = Sortable.create(this.$.list, {
             handle: '.drag-handle',
             onEnd: () => {
                 const elems = [...this.$.list.querySelectorAll('li')];
-                let newValue = [];
-                elems.map(el => el.dataRow).forEach(i => {
-                     newValue.push(Object.assign({}, this.value[i]));
+                const newValue = [];
+                elems.map(element => element.dataRow).forEach(i => {
+                    newValue.push({...this.value[i]});
                 });
                 this.value = [];
                 afterNextRender(this, () => {
@@ -99,26 +101,31 @@ class FeezalEditableList extends PolymerElement {
             }
         });
     }
+
     _add() {
         this.value = this.value || [];
-        this.push('value', Object.fromEntries(this.columns.map(key => [key, ''])))
+        this.push('value', Object.fromEntries(this.columns.map(key => [key, ''])));
     }
+
     _remove(e) {
         this.splice('value', e.target.dataset.index, 1);
     }
+
     _getProp(item, col) {
         console.log('_getProp', item, col);
         return item[col];
     }
+
     _propChanged(e) {
         console.log('set', 'value.' + e.model.parentModel.index + '.' + e.model.col, e.detail.value);
         if (typeof this.value[e.model.parentModel.index] !== 'object') {
             this.value[e.model.parentModel.index] = {};
         }
+
         this.value[e.model.parentModel.index][e.model.col] = e.detail.value;
 
         this.value = this.value.slice();
-        console.log(this.value)
+        console.log(this.value);
         //this.set('value.' + e.model.parentModel.index + '.' + e.model.col, e.detail.value);
     }
 }
@@ -135,7 +142,7 @@ class FeezalSidebarInspectorAttribute extends PolymerElement {
             item: {
                 type: Object,
                 observer: '_itemChange'
-            },
+            }
 
         };
     }
@@ -209,17 +216,14 @@ class FeezalSidebarInspectorAttribute extends PolymerElement {
                 <paper-tooltip for="input" offset="0">[[item.label]]: [[item.elem.tooltip]]</paper-tooltip>
             </template>
         `;
-
     }
 
     connectedCallback() {
         super.connectedCallback();
-
-
     }
 
     _itemChange(item) {
-        afterNextRender(this, function() {
+        afterNextRender(this, () => {
             /*if (item.elem.list) {
                 const grid = this.shadowRoot.querySelector('vaadin-grid');
 
@@ -250,11 +254,11 @@ class FeezalSidebarInspectorAttribute extends PolymerElement {
                     console.log('add');
                 })
             }*/
-        })
+        });
     }
 
-    _boolean(val) {
-        return Boolean(val);
+    _boolean(value) {
+        return Boolean(value);
     }
 
     _blur(event) {
@@ -264,41 +268,37 @@ class FeezalSidebarInspectorAttribute extends PolymerElement {
     }
 
     _change(event) {
-        console.log('_change', event)
+        console.log('_change', event);
         const attr = event.target.label;
         let invalid = false;
         let change = false;
-        feezal.editor.selectedElems.forEach(elem => {
-            const elemClass = window.customElements.get(elem.localName);
-            const attrOptions = elemClass.feezal.attributes.find(a => a.name === attr);
+        feezal.editor.selectedElems.forEach(element => {
+            const elementClass = window.customElements.get(element.localName);
+            const attrOptions = elementClass.feezal.attributes.find(a => a.name === attr);
             if (attrOptions && attrOptions.validator && !attrOptions.validator(event.detail.value)) {
                 invalid = true;
                 return;
             }
+
             let value;
-            if (event.detail.path) {
-                value = event.target.value;
-            } else {
-                value = event.detail.value;
-            }
+            value = event.detail.path ? event.target.value : event.detail.value;
             if (typeof event.detail.value === 'boolean') {
-                if (elem.hasAttribute(attr) !== event.detail.value) {
+                if (element.hasAttribute(attr) !== event.detail.value) {
                     change = true;
                     if (event.detail.value) {
-                        elem.setAttribute(attr, event.detail.value);
+                        element.setAttribute(attr, event.detail.value);
                     } else {
-                        elem.removeAttribute(attr);
+                        element.removeAttribute(attr);
                     }
                 }
             } else if (typeof value === 'object') {
-                console.log('change object', attr, value)
-                elem.setAttribute(attr, elem._serializeValue(value));
+                console.log('change object', attr, value);
+                element.setAttribute(attr, element._serializeValue(value));
                 change = true;
-
-            } else if (elem.getAttribute(attr) !== value) {
+            } else if (element.getAttribute(attr) !== value) {
                 change = true;
-                console.log('change', attr, value)
-                elem.setAttribute(attr, value);
+                console.log('change', attr, value);
+                element.setAttribute(attr, value);
             }
         });
         event.target.hasChange = change;
@@ -351,16 +351,16 @@ class FeezalSidebarInspectorAttributes extends PolymerElement {
     _attributes(attr) {
         const {properties} = window.customElements.get(this.element.name ? 'feezal-view' : this.element.localName);
 
-        const elemClass = window.customElements.get(this.element.name ? 'feezal-view' : this.element.localName);
-        const options = elemClass.feezal;
+        const elementClass = window.customElements.get(this.element.name ? 'feezal-view' : this.element.localName);
+        const options = elementClass.feezal;
 
         let attribute;
-        const elem = {};
+        const element = {};
 
         if (typeof attr === 'object') {
             attribute = attr.name;
             if (attr.size === 'half') {
-                elem.half = true;
+                element.half = true;
             }
         } else {
             attribute = attr;
@@ -369,38 +369,37 @@ class FeezalSidebarInspectorAttributes extends PolymerElement {
         const type = properties[attribute] && properties[attribute].type;
 
         if (attr.tooltip) {
-            elem.tooltip = attr.tooltip;
+            element.tooltip = attr.tooltip;
         }
 
         if (attr.dropdown) {
-            elem.dropdown = true;
+            element.dropdown = true;
             if (Array.isArray(attr.dropdown)) {
-                elem.options = attr.dropdown;
+                element.options = attr.dropdown;
             } else {
                 switch (attr.dropdown) {
                     case 'views':
-                        elem.options = Array.from(feezal.site.querySelectorAll('feezal-view')).map(el => el.name);
+                        element.options = Array.from(feezal.site.querySelectorAll('feezal-view')).map(element_ => element_.name);
                         break;
-
                 }
             }
-            console.log('dropdown options', elem.options)
 
+            console.log('dropdown options', element.options);
         } else {
             switch (type) {
                 case Array:
-                    elem.list = true;
-                    elem.columns = attr.elemProperties || ['item'];
+                    element.list = true;
+                    element.columns = attr.elemProperties || ['item'];
                     break;
                 case Boolean:
-                    elem.checkbox = true;
+                    element.checkbox = true;
                     break;
                 case Number:
-                    elem.input = true;
-                    elem.inputType = 'number';
+                    element.input = true;
+                    element.inputType = 'number';
                     break;
                 default:
-                    elem.input = true;
+                    element.input = true;
             }
         }
 
@@ -423,7 +422,7 @@ class FeezalSidebarInspectorAttributes extends PolymerElement {
         const item = {
             label: camelToDashCase(attribute),
             value: this.element[attribute],
-            elem
+            elem: element
         };
         // Console.log(item)
         return item;
@@ -436,10 +435,10 @@ class FeezalSidebarInspectorAttributes extends PolymerElement {
         } else {
             this.element = this.selectedElems[0];
             // Todo restrict to poperties available in all selected elems
-            const elemClass = window.customElements.get(this.element.name ? 'feezal-view' : this.element.localName);
+            const elementClass = window.customElements.get(this.element.name ? 'feezal-view' : this.element.localName);
             // Console.log('attribute editor', this.element.localName, elemClass.properties)
-            const {properties} = elemClass;
-            const editorOptions = elemClass.feezal || {};
+            const {properties} = elementClass;
+            const editorOptions = elementClass.feezal || {};
             const attributeOptions = editorOptions.attributes || [];
             const attributes = [
                 ...Object.keys(properties).filter(property => ['subscribeTopic', 'publishTopic', 'label'].includes(property)),

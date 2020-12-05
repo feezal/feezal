@@ -3,8 +3,6 @@ import {PolymerElement, html} from '@polymer/polymer/polymer-element';
 import '@polymer/paper-input/paper-input';
 import '@polymer/paper-swatch-picker';
 
-
-
 class FeezalSidebarInspectorStyles extends PolymerElement {
     static get properties() {
         return {
@@ -59,9 +57,9 @@ class FeezalSidebarInspectorStyles extends PolymerElement {
     _blur(event) {
         if (this.selectedElems.length > 0) {
             const attr = event.target.label;
-            const elem = this.selectedElems[0];
-            if (!event.target.invalid && elem.style[attr] !== event.detail.value) {
-                event.target.value = elem.style[attr];
+            const element = this.selectedElems[0];
+            if (!event.target.invalid && element.style[attr] !== event.detail.value) {
+                event.target.value = element.style[attr];
             }
         }
     }
@@ -70,11 +68,11 @@ class FeezalSidebarInspectorStyles extends PolymerElement {
         if (event.target.focused) {
             const attr = event.target.cssProperty;
             let invalid = false;
-            this.selectedElems.forEach(elem => {
-                const prev = elem.style.getPropertyValue(attr);
-                if (prev !== event.detail.value) {
-                    elem.style.setProperty(attr, event.detail.value);
-                    invalid = invalid || prev === elem.style.getPropertyValue(attr); // (prev.replace(/\s*,\s*/g, ',') === elem.style[attr].replace(/\s*,\s*/g, ','));
+            this.selectedElems.forEach(element => {
+                const previous = element.style.getPropertyValue(attr);
+                if (previous !== event.detail.value) {
+                    element.style.setProperty(attr, event.detail.value);
+                    invalid = invalid || previous === element.style.getPropertyValue(attr); // (prev.replace(/\s*,\s*/g, ',') === elem.style[attr].replace(/\s*,\s*/g, ','));
                 }
             });
             if (!invalid) {
@@ -88,7 +86,7 @@ class FeezalSidebarInspectorStyles extends PolymerElement {
     setStyle(target, changes) {
         if (target.classList.contains('feezal-selected')) {
             changes.forEach(property => {
-                const allEqual = this.selectedElems.map(el => el.style.getPropertyValue(property)).every(val => val === target.style.getPropertyValue(property));
+                const allEqual = this.selectedElems.map(element => element.style.getPropertyValue(property)).every(value => value === target.style.getPropertyValue(property));
                 this.set('items.' + this.options.styles.indexOf(property) + '.value', allEqual ? target.style.getPropertyValue(property) : '');
             });
         }
@@ -107,8 +105,8 @@ class FeezalSidebarInspectorStyles extends PolymerElement {
 
         item.color = property.type === 'color';
 
-        this.selectedElems.forEach(el => {
-            if (item.value !== el.style.getPropertyValue(property.property)) {
+        this.selectedElems.forEach(element => {
+            if (item.value !== element.style.getPropertyValue(property.property)) {
                 delete item.value;
             }
         });

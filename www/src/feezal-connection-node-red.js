@@ -44,9 +44,9 @@ class FeezalConnectionNodeRed extends PolymerElement {
         console.log('feezal-connection-node-red connect', this.socketPath);
         this.socket = io.connect({path: this.socketPath, secure: false, reconnect: true, rejectUnauthorized: false});
 
-        this.socket.on('input', msg => {
-            console.log('input', msg);
-            const event = new CustomEvent('message', {detail: msg});
+        this.socket.on('input', message => {
+            console.log('input', message);
+            const event = new CustomEvent('message', {detail: message});
             this.dispatchEvent(event);
         });
 
@@ -92,8 +92,8 @@ class FeezalConnectionNodeRed extends PolymerElement {
         this.socket.emit('unsubscribe', topics);
     }
 
-    publish(msg) {
-        this.socket.emit('send', msg);
+    publish(message) {
+        this.socket.emit('send', message);
     }
 
     deploy(data, callback) {

@@ -125,8 +125,8 @@ class FeezalSidebarViewer extends PolymerElement {
                 }
             }
         }
-
     }
+
     _connectionChanged() {
         this.$.mqtt.style.display = this.connection.backend === 'mqtt' ? 'block' : 'none';
         feezal.app.change(true);

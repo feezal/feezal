@@ -32,7 +32,6 @@ class Conn extends EventEmitter {
 }
 
 module.exports = function (RED) {
-
     const defaultSite = `<feezal-site><feezal-view class="iron-selected" name="view1" style="
             width: 100%;
             height: 100%;
@@ -44,10 +43,10 @@ module.exports = function (RED) {
 
     const {log, server} = RED;
     const logger = {
-        debug: str => log.debug.call(this, '[feezal] ' + str),
-        info: str => log.info.call(this, '[feezal] ' + str),
-        warn: str => log.warn.call(this, '[feezal] ' + str),
-        error: str => log.error.call(this, '[feezal] ' + str),
+        debug: string => log.debug.call(this, '[feezal] ' + string),
+        info: string => log.info.call(this, '[feezal] ' + string),
+        warn: string => log.warn.call(this, '[feezal] ' + string),
+        error: string => log.error.call(this, '[feezal] ' + string)
     };
     const app = RED.httpNode || RED.httpAdmin;
 
@@ -71,15 +70,15 @@ module.exports = function (RED) {
 
     app.use('/feezal', serveStatic(path.join(__dirname, '..', 'www')));
 
-    app.get('/feezal/api/views', (req, res) => {
+    app.get('/feezal/api/views', (request, res) => {
         fs.readdir(feezalPath).then(dir => {
             res.json(dir);
         });
     });
 
-    app.post('/feezal/api/view/new', (req, res) => {
-        logger.debug('new view', req.body.view);
-        mkdirp(path.join(feezalPath, req.body.view), err => {
+    app.post('/feezal/api/view/new', (request, res) => {
+        logger.debug('new view', request.body.view);
+        mkdirp(path.join(feezalPath, request.body.view), err => {
             if (err) {
                 res.status(500).send(err.message);
             } else {
@@ -88,9 +87,9 @@ module.exports = function (RED) {
         });
     });
 
-    app.post('/feezal/api/view/clone', (req, res) => {
-        logger.debug('clone view', req.body.view);
-        cpy(path.join(feezalPath, req.body.view), path.join(feezalPath, req.body.newName))
+    app.post('/feezal/api/view/clone', (request, res) => {
+        logger.debug('clone view', request.body.view);
+        cpy(path.join(feezalPath, request.body.view), path.join(feezalPath, request.body.newName))
             .then(() => {
                 res.status(200).send('ok');
             }).catch(error => {
@@ -98,9 +97,9 @@ module.exports = function (RED) {
             });
     });
 
-    app.post('/feezal/api/view/delete', (req, res) => {
-        logger.debug('delete view', req.body.view);
-        rimraf(path.join(feezalPath, req.body.view), err => {
+    app.post('/feezal/api/view/delete', (request, res) => {
+        logger.debug('delete view', request.body.view);
+        rimraf(path.join(feezalPath, request.body.view), err => {
             if (err) {
                 res.status(500).send(err.message);
             } else {
@@ -109,9 +108,9 @@ module.exports = function (RED) {
         });
     });
 
-    app.post('/feezal/api/view/rename', (req, res) => {
-        logger.debug('rename view', req.body.view, req.body.newName);
-        fs.rename(path.join(feezalPath, req.body.view), path.join(feezalPath, req.body.newName))
+    app.post('/feezal/api/view/rename', (request, res) => {
+        logger.debug('rename view', request.body.view, request.body.newName);
+        fs.rename(path.join(feezalPath, request.body.view), path.join(feezalPath, request.body.newName))
             .then(() => {
                 res.status(200).send('ok');
             }).catch(error => {
@@ -135,14 +134,12 @@ module.exports = function (RED) {
             fs.writeFile(viewerJson, JSON.stringify({viewer: data.viewer, connection: data.connection})).then(() => {
                 logger.info('saved ' + viewerJson);
 
-
                 return fs.writeFile(feezalFile, prettyHtml(data.html, {
                     tabWidth: 4,
                     prettier: {
                         jsxBracketSameLine: true
                     }
                 }).toString());
-
             }).then(() => {
                 logger.info('saved ' + feezalFile);
                 return build(data, {debug: logger.debug, info: logger.info, warn: logger.warn, error: logger.error});
@@ -154,14 +151,14 @@ module.exports = function (RED) {
             }).finally(callback);
         });
 
-        function msgHandler(msg) {
-            logger.debug('input', msg);
-            if (msg && [...subscriptions].filter(topic => topicMatch(msg.topic, topic)).length > 0) {
-                socket.emit('input', msg);
+        function messageHandler(message) {
+            logger.debug('input', message);
+            if (message && [...subscriptions].filter(topic => topicMatch(message.topic, topic)).length > 0) {
+                socket.emit('input', message);
             }
         }
 
-        conn.on('input', msgHandler);
+        conn.on('input', messageHandler);
 
         socket.on('subscribe', topics => {
             topics.forEach(topic => {
@@ -195,15 +192,15 @@ module.exports = function (RED) {
             });
         });
 
-        socket.on('send', msg => {
-            logger.debug('socket on send', msg);
-            conn.emit('send', msg);
-            socket.emit('input', msg); // Todo: Reflect makes sense? TBD...
+        socket.on('send', message => {
+            logger.debug('socket on send', message);
+            conn.emit('send', message);
+            socket.emit('input', message); // Todo: Reflect makes sense? TBD...
         });
 
         socket.on('disconnect', () => {
             logger.debug('disconnect', address);
-            conn.removeListener('input', msgHandler);
+            conn.removeListener('input', messageHandler);
         });
     });
 
@@ -217,7 +214,6 @@ module.exports = function (RED) {
 
             cache = {};
 
-
             // This.send.bind(this);
 
             this.on('close', done => {
@@ -225,13 +221,13 @@ module.exports = function (RED) {
                 done();
             });
 
-            this.on('input', msg => {
-                cache[msg.topic] = Object.assign({cached: true}, msg);
-                conn.emit('input', msg);
+            this.on('input', message => {
+                cache[message.topic] = {cached: true, ...message};
+                conn.emit('input', message);
             });
 
-            conn.on('send', msg => {
-                this.send(msg);
+            conn.on('send', message => {
+                this.send(message);
             });
         }
     }

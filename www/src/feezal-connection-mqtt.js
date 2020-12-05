@@ -4,8 +4,8 @@ import {Paho} from './paho-mqtt.js';
 function random32bit() {
     const u = new Uint32Array(1);
     window.crypto.getRandomValues(u);
-    const str = u[0].toString(16).toUpperCase();
-    return '00000000'.slice(str.length) + str;
+    const string = u[0].toString(16).toUpperCase();
+    return '00000000'.slice(string.length) + string;
 }
 
 class FeezalConnectionMqtt extends PolymerElement {
@@ -43,12 +43,12 @@ class FeezalConnectionMqtt extends PolymerElement {
 
         this.client.onMessageArrived = message => {
             //console.log('feezal-connection-mqtt onMessageArrived', message);
-            const msg = {
+            const message_ = {
                 topic: message.destinationName,
                 payload: message.payloadString,
                 cached: message.retained
             };
-            const event = new CustomEvent('message', {detail: msg});
+            const event = new CustomEvent('message', {detail: message_});
             this.dispatchEvent(event);
         };
 
@@ -75,10 +75,10 @@ class FeezalConnectionMqtt extends PolymerElement {
         });
     }
 
-    publish(msg, options = {}) {
-        if (this.connected && msg.topic) {
-            const message = new Paho.MQTT.Message(String(msg.payload));
-            message.destinationName = msg.topic;
+    publish(message_, options = {}) {
+        if (this.connected && message_.topic) {
+            const message = new Paho.MQTT.Message(String(message_.payload));
+            message.destinationName = message_.topic;
             this.client.send(message);
         }
     }
