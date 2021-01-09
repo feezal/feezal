@@ -55,6 +55,13 @@ module.exports = function (RED) {
 
     findElements(logger);
 
+    console.log('httpAdminRoot', RED.settings.httpAdminRoot);
+    console.log('httpRoot', RED.settings.httpRoot);
+
+
+    const adminPath = path.join(RED.settings.httpAdminRoot, 'feezal');
+    const wwwPath = path.join(RED.settings.httpRoot, 'feezal');
+
     const fullPath = join(RED.settings.httpNodeRoot, 'feezal');
     const socketIoPath = join(fullPath, 'socket.io');
     logger.debug('feezal socket.io path', socketIoPath);
@@ -68,15 +75,17 @@ module.exports = function (RED) {
         }
     }));
 
-    app.use('/feezal', serveStatic(path.join(__dirname, '..', 'www')));
+    app.use(path.join(RED.settings.httpRoot, 'feezal'), serveStatic(path.join(__dirname, '..', 'www')));
 
-    app.get('/feezal/api/views', (request, res) => {
+
+
+    app.get(path.join(adminPath, 'api/views'), (request, res) => {
         fs.readdir(feezalPath).then(dir => {
-            res.json(dir);
+            res.json({path: wwwPath, views: dir});
         });
     });
 
-    app.post('/feezal/api/view/new', (request, res) => {
+    app.post(path.join(adminPath, 'api/view/new'), (request, res) => {
         logger.debug('new view ' + request.body.view);
         mkdirp(path.join(feezalPath, request.body.view)).then(() => {
             res.status(200).send('ok');
@@ -85,7 +94,7 @@ module.exports = function (RED) {
         });
     });
 
-    app.post('/feezal/api/view/clone', (request, res) => {
+    app.post(path.join(adminPath, 'api/view/clone'), (request, res) => {
         logger.debug('clone view', request.body.view);
         cpy(path.join(feezalPath, request.body.view), path.join(feezalPath, request.body.newName))
             .then(() => {
@@ -95,7 +104,7 @@ module.exports = function (RED) {
             });
     });
 
-    app.post('/feezal/api/view/delete', (request, res) => {
+    app.post(path.join(adminPath, 'api/view/delete'), (request, res) => {
         logger.debug('delete view', request.body.view);
         rimraf(path.join(feezalPath, request.body.view), err => {
             if (err) {
@@ -106,7 +115,7 @@ module.exports = function (RED) {
         });
     });
 
-    app.post('/feezal/api/view/rename', (request, res) => {
+    app.post(path.join(adminPath, 'api/view/rename'), (request, res) => {
         logger.debug('rename view', request.body.view, request.body.newName);
         fs.rename(path.join(feezalPath, request.body.view), path.join(feezalPath, request.body.newName))
             .then(() => {
