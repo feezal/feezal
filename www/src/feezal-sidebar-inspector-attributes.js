@@ -10,8 +10,6 @@ import '@polymer/paper-icon-button/paper-icon-button';
 import '@polymer/paper-tooltip/paper-tooltip';
 import '@polymer/iron-icons/editor-icons';
 
-import Sortable from 'sortablejs';
-
 //import materialDesignIcons from './material-design-icons';
 
 class FeezalEditableList extends PolymerElement {
@@ -292,13 +290,20 @@ class FeezalSidebarInspectorAttribute extends PolymerElement {
                     }
                 }
             } else if (typeof value === 'object') {
-                console.log('change object', attr, value);
                 element.setAttribute(attr, element._serializeValue(value));
                 change = true;
             } else if (element.getAttribute(attr) !== value) {
                 change = true;
-                console.log('change', attr, value);
-                element.setAttribute(attr, value);
+                if (attrOptions && attrOptions.template) {
+                    let template = element.querySelector('template');
+                    if (!template) {
+                        template = document.createElement('template');
+                        element.appendChild(template);
+                    }
+                    template.innerHTML = value;
+                } else {
+                    element.setAttribute(attr, value);
+                }
             }
         });
         event.target.hasChange = change;
@@ -399,7 +404,11 @@ class FeezalSidebarInspectorAttributes extends PolymerElement {
                     element.inputType = 'number';
                     break;
                 default:
-                    element.input = true;
+                    if (attr.textarea) {
+                        element.textarea = true;
+                    } else {
+                        element.input = true;
+                    }
             }
         }
 
@@ -419,11 +428,20 @@ class FeezalSidebarInspectorAttributes extends PolymerElement {
 
         */
 
+
+
         const item = {
             label: camelToDashCase(attribute),
-            value: this.element[attribute],
             elem: element
         };
+
+        if (attr.template) {
+            const template = this.element.querySelector('template');
+            item.value = template ? template.innerHTML : '';
+        } else {
+            item.value = this.element[attribute];
+        }
+
         // Console.log(item)
         return item;
     }
@@ -440,10 +458,12 @@ class FeezalSidebarInspectorAttributes extends PolymerElement {
             const {properties} = elementClass;
             const editorOptions = elementClass.feezal || {};
             const attributeOptions = editorOptions.attributes || [];
+            console.log(Object.keys(properties));
             const attributes = [
-                ...Object.keys(properties).filter(property => ['subscribeTopic', 'publishTopic', 'label'].includes(property)),
+                'name',
                 ...attributeOptions
             ];
+            console.log(attributes);
             const items = attributes.map(attribute => {
                 return this._attributes(attribute);
             });
