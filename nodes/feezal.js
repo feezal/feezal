@@ -77,13 +77,11 @@ module.exports = function (RED) {
     });
 
     app.post('/feezal/api/view/new', (request, res) => {
-        logger.debug('new view', request.body.view);
-        mkdirp(path.join(feezalPath, request.body.view), err => {
-            if (err) {
-                res.status(500).send(err.message);
-            } else {
-                res.status(200).send('ok');
-            }
+        logger.debug('new view ' + request.body.view);
+        mkdirp(path.join(feezalPath, request.body.view)).then(() => {
+            res.status(200).send('ok');
+        }).catch(err => {
+            res.status(500).send(err.message);
         });
     });
 
@@ -118,7 +116,8 @@ module.exports = function (RED) {
             });
     });
 
-    logger.info('Feezal started at ' + fullPath);
+    logger.info('server path ' + fullPath);
+    logger.info('persistence path ' + feezalPath);
 
     io.on('connection', socket => {
         const address = socket.request.connection.remoteAddress;
@@ -127,7 +126,9 @@ module.exports = function (RED) {
 
         socket.on('deploy', (data, callback) => {
             data.site = data.site || {name: 'default'};
-            mkdirp(path.join(feezalPath, data.site.name));
+            mkdirp(path.join(feezalPath, data.site.name)).catch(err => {
+                logger.error(err.message);
+            });
 
             const viewerJson = path.join(feezalPath, data.site.name, 'viewer.json');
             const feezalFile = path.join(feezalPath, data.site.name, viewsFile);
