@@ -48,6 +48,15 @@ class FeezalConnectionMqtt extends PolymerElement {
                 payload: message.payloadString,
                 cached: message.retained
             };
+
+            if (message_.payload.startsWith('{') || message_.payload.startsWith('[')) {
+                try {
+                    message_.payload = JSON.parse(message_.payload);
+                } catch {}
+            }
+
+
+
             const event = new CustomEvent('message', {detail: message_});
             this.dispatchEvent(event);
         };
