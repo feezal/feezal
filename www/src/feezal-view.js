@@ -25,7 +25,11 @@ class FeezalView extends PolymerElement {
                 :host([child-position="absolute"]) ::slotted(*) {
                     position: absolute;
                 }
-               
+               ::slotted(.feezal-placeholder) {
+                    display: block;
+                    background-color: rgba(250, 120, 0, 0.2);
+                    border: 1px dashed rgba(250, 120, 0, 0.4);
+                }
             </style>
             <slot></slot>
         `;
@@ -36,7 +40,7 @@ class FeezalView extends PolymerElement {
             attributes: [
                 {
                     name: 'childPosition',
-                    dropdown: ['absolute', 'relative']
+                    dropdown: ['absolute', 'static']
                 }
             ],
             styles: [
