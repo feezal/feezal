@@ -21,7 +21,7 @@ specific html attribute of the element append that to the topic (e.g. you config
 if you want to disable it send a msg like this: `{"topic":"button/disabled","payload":true}`)
 
 Another Example:
-Put a Template Element on your view, use `template` as topic and `Hello ${payload}` as content. Now send a message
+Put a "basic template" element on your view, use `template` as topic and `Hello ${msg.payload}` as template. Now send a message
 to the feezal node: `{"topic":"template","payload":"world"}`. To change a style attribute you could just send a message
 like `{"topic":"template/style","payload":{"color":"green"}}`.
 
