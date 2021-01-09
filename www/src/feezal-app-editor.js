@@ -399,6 +399,11 @@ class FeezalAppEditor extends PolymerElement {
 
     connectedCallback() {
         super.connectedCallback();
+
+        if (!location.hash) {
+            location.hash = '/';
+        }
+
         document.addEventListener('copy', e => {
             if (this.querySelectorAll('feezal-site:focus').length > 0) {
                 this._copy(e);
