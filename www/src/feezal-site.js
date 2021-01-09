@@ -89,8 +89,11 @@ class FeezalSite extends PolymerElement {
     connectedCallback() {
         super.connectedCallback();
 
-        if (feezal.app.nav) {
+        if (feezal.app.nav && feezal.app.nav.view) {
             this.view = feezal.app.nav.view;
+        } else {
+            this.view = feezal.views[0].getAttribute('name');
+            location.hash = '/' + this.view;
         }
 
         if (!feezal.isEditor && this.subscribeTopic) {
