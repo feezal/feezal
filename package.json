@@ -1,6 +1,6 @@
 {
   "name": "feezal",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Web Components based Dashboard UI with WYSIWYG Editor",
   "main": "none",
   "scripts": {
