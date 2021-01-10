@@ -183,7 +183,7 @@ class FeezalSidebarInspectorAttribute extends PolymerElement {
             </style>
             <div id="input">
                 <template is="dom-if" if="[[item.elem.input]]">
-                    <paper-input type="[[item.elem.inputType]]" class$="[[item.class]]" label="[[item.label]]" value="[[item.value]]" min="[[item.elem.min]]" max="[[item.elem.max]]" step="[[item.elem.step]]" on-value-changed="_change" on-blur="_blur"</paper-input>
+                    <paper-input type="[[item.elem.inputType]]" class$="[[item.class]]" label="[[item.label]]" value="[[item.value]]" min="[[item.elem.min]]" max="[[item.elem.max]]" step="[[item.elem.step]]" on-value-changed="_change" on-blur="_blur"></paper-input>
                 </template>
                 
                 <template is="dom-if" if="[[item.elem.list]]">
@@ -372,6 +372,10 @@ class FeezalSidebarInspectorAttributes extends PolymerElement {
         }
 
         const type = properties[attribute] && properties[attribute].type;
+        const min = properties[attribute] && properties[attribute].min;
+        const max = properties[attribute] && properties[attribute].max;
+        const step = properties[attribute] && properties[attribute].step;
+
 
         if (attr.tooltip) {
             element.tooltip = attr.tooltip;
@@ -402,6 +406,9 @@ class FeezalSidebarInspectorAttributes extends PolymerElement {
                 case Number:
                     element.input = true;
                     element.inputType = 'number';
+                    element.min = min;
+                    element.max = max;
+                    element.step = step;
                     break;
                 default:
                     if (attr.textarea) {
