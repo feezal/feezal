@@ -1,39 +1,38 @@
-import {PolymerElement, html} from '@polymer/polymer/polymer-element';
+import {LitElement, html, css} from 'lit';
 
-class FeezalView extends PolymerElement {
-    static get properties() {
-        return {
-            name: {
-                type: String,
-                reflectToAttribute: true
-            },
-            visible: {
-                type: Boolean,
-                observer: '_visibleChange'
-            },
-            childPosition: {
-                type: String,
-                value: 'absolute',
-                reflectToAttribute: true
-            }
-        };
-    }
+/**
+ * feezal-view
+ *
+ * A single page/view within a feezal-site. Contains dashboard elements.
+ * Replaces the Polymer implementation.
+ */
+class FeezalView extends LitElement {
+    static properties = {
+        name: {type: String, reflect: true},
+        visible: {type: Boolean},
+        childPosition: {type: String, attribute: 'child-position', reflect: true}
+    };
 
-    static get template() {
-        return html`
-            <style>
-                :host([child-position="absolute"]) ::slotted(*) {
-                    position: absolute;
-                }
-               ::slotted(.feezal-placeholder) {
-                    display: block;
-                    background-color: rgba(250, 120, 0, 0.2);
-                    border: 1px dashed rgba(250, 120, 0, 0.4);
-                }
-            </style>
-            <slot></slot>
-        `;
-    }
+    static styles = css`
+        :host([child-position="absolute"]) ::slotted(*) {
+            position: absolute;
+        }
+        ::slotted(.feezal-placeholder) {
+            display: block;
+            background-color: rgba(var(--feezal-selection-rgb, 2,132,199), 0.1);
+            border: 1px dashed rgba(var(--feezal-selection-rgb, 2,132,199), 0.4);
+        }
+        ::slotted(.feezal-editable) {
+            cursor: move;
+        }
+        ::slotted(.feezal-editable[locked]) {
+            cursor: default;
+        }
+        ::slotted(.feezal-selected) {
+            outline: 2px solid rgba(var(--feezal-selection-rgb, 2,132,199), 0.9) !important;
+            outline-offset: 1px;
+        }
+    `;
 
     static get feezal() {
         return {
@@ -43,17 +42,30 @@ class FeezalView extends PolymerElement {
                     dropdown: ['absolute', 'static']
                 }
             ],
-            styles: [
-                'width',
-                'height',
-                'background'
-            ]
+            styles: ['width', 'height', 'background']
         };
     }
 
+    constructor() {
+        super();
+        this.childPosition = 'absolute';
+    }
+
+    render() {
+        return html`<slot></slot>`;
+    }
+
+    updated(changed) {
+        if (changed.has('visible')) {
+            this._visibleChange(this.visible);
+        }
+    }
+
     _visibleChange(visible) {
-        const elems = this.querySelectorAll('*');
-        elems.forEach(element => {
+        // Hide/show the view itself so inactive views don't stack on screen.
+        this.style.display = visible ? '' : 'none';
+
+        this.querySelectorAll('*').forEach(element => {
             if (element.tagName.startsWith('FEEZAL-ELEMENT-')) {
                 element.visible = visible;
             }
@@ -62,11 +74,11 @@ class FeezalView extends PolymerElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (!feezal.isEditor && this.subscribeTopic) {
-            feezal.connection.subscribe(this.subscribeTopic + '/addclass', message => {
+        if (!feezal.isEditor && this.subscribe) {
+            feezal.connection.sub(this.subscribe + '/addclass', message => {
                 this.classList.add(message.payload);
             });
-            feezal.connection.subscribe(this.subscribeTopic + '/removeclass', message => {
+            feezal.connection.sub(this.subscribe + '/removeclass', message => {
                 this.classList.remove(message.payload);
             });
         }

@@ -1,0 +1,100 @@
+/* global feezal */
+import {FeezalElement, html} from '@feezal/feezal-element';
+
+class FeezalElementBasicTemplate extends FeezalElement {
+    static get feezal() {
+        return {
+            palette: {
+                category: 'Basic',
+                name: 'Template',
+                color: '#4a6080'
+            },
+            attributes: [
+                'topic',
+                {name: 'template', textarea: true, template: true}
+            ],
+            styles: [
+                'top', 'left', 'width', 'height',
+                'font', 'color', 'text-align', 'background', 'border', 'overflow'
+            ],
+            restrict: {minWidth: 12, minHeight: 12},
+            defaultStyle: {
+                width: '60px',
+                height: '20px',
+                color: 'var(--primary-text-color)'
+            }
+        };
+    }
+
+    static properties = {
+        topic: {type: String, reflect: true},
+        msg:   {state: true},
+    };
+
+    constructor() {
+        super();
+        this.topic = '';
+        this.msg   = {};
+    }
+
+    render() {
+        return html`<div id="content"></div>`;
+    }
+
+    updated(changed) {
+        super.updated(changed);
+        if (changed.has('topic')) {
+            this._topicChanged();
+        }
+        if (changed.has('msg')) {
+            this._msgChanged();
+        }
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        if (this._topicSubscription) {
+            feezal.connection.unsubscribe(this._topicSubscription);
+            this._topicSubscription = null;
+        }
+    }
+
+    _topicChanged() {
+        if (this._topicSubscription) {
+            feezal.connection.unsubscribe(this._topicSubscription);
+            this._topicSubscription = null;
+        }
+        if (this.topic) {
+            this._topicSubscription = feezal.connection.sub(
+                this.topic,
+                msg => { this.msg = msg; }
+            );
+        }
+    }
+
+    _msgChanged() {
+        if (!this._processTemplate && this.querySelector('template')) {
+            // Build the template function from the light-DOM <template> child.
+            // eslint-disable-next-line no-new-func
+            this._processTemplate = new Function(
+                'msg',
+                'return `' + this.querySelector('template').innerHTML + '`;'
+            );
+        }
+        if (!this.msg || Object.keys(this.msg).length === 0) {
+            return;
+        }
+        try {
+            const content = this.renderRoot.querySelector('#content');
+            if (content && this._processTemplate) {
+                content.innerHTML = this._processTemplate(this.msg);
+            }
+        } catch (error) {
+            console.error(error.message);
+        }
+    }
+}
+
+window.customElements.define('feezal-element-basic-template', FeezalElementBasicTemplate);
+
+export {FeezalElementBasicTemplate};

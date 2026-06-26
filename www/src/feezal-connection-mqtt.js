@@ -1,5 +1,5 @@
-import {PolymerElement} from '@polymer/polymer/polymer-element';
-import {Paho} from './paho-mqtt.js';
+import {LitElement} from 'lit';
+import mqtt from 'mqtt';
 
 function random32bit() {
     const u = new Uint32Array(1);
@@ -8,61 +8,69 @@ function random32bit() {
     return '00000000'.slice(string.length) + string;
 }
 
-class FeezalConnectionMqtt extends PolymerElement {
-    static get properties() {
-        return {
-            connected: {
-                type: Boolean,
-                reflectToAttribute: true,
-                value: false
-            },
-            config: {
-                type: Object
-            }
-        };
+/**
+ * feezal-connection-mqtt
+ *
+ * Direct MQTT-over-WebSocket connection for the viewer (and optionally the editor preview).
+ * Replaces the previous Paho-based implementation with mqtt.js v5.
+ */
+class FeezalConnectionMqtt extends LitElement {
+    static properties = {
+        connected: {type: Boolean, reflect: true},
+        config: {type: Object}
+    };
+
+    constructor() {
+        super();
+        this.connected = false;
     }
 
     connect() {
-        console.log('feezal-connection-mqtt connecting...', this.config.uri);
+        const cfg = this.config || {};
+        const clientId = cfg.clientId || ('feezal-' + random32bit());
 
-        this.client = new Paho.MQTT.Client(this.config.uri, this.config.clientId || ('feezal-' + random32bit()));
+        console.log('feezal-connection-mqtt connecting to', cfg.uri);
 
-        this.client.onConnected = reconnect => {
-            console.log('feezal-connection-mqtt connected reconnect=' + reconnect);
+        const options = {clientId};
+
+        if (cfg.lwt && cfg.lwp) {
+            options.will = {topic: cfg.lwt, payload: cfg.lwp, retain: false, qos: 0};
+        }
+
+        this.client = mqtt.connect(cfg.uri, options);
+
+        this.client.on('connect', () => {
+            console.log('feezal-connection-mqtt connected');
             this.connected = true;
-            const event = new Event('connected');
-            this.dispatchEvent(event);
-        };
+            if (cfg.oct && cfg.ocp) {
+                this.client.publish(cfg.oct, cfg.ocp);
+            }
 
-        this.client.onConnectionLost = responseObject => {
-            console.error('feezal-connection-mqtt disconnected', responseObject);
+            this.dispatchEvent(new Event('connected'));
+        });
+
+        this.client.on('close', () => {
+            console.log('feezal-connection-mqtt disconnected');
             this.connected = false;
-            const event = new Event('disconnected');
-            this.dispatchEvent(event);
-        };
+            this.dispatchEvent(new Event('disconnected'));
+        });
 
-        this.client.onMessageArrived = message => {
-            //console.log('feezal-connection-mqtt onMessageArrived', message);
-            const message_ = {
-                topic: message.destinationName,
-                payload: message.payloadString,
-                cached: message.retained
-            };
+        this.client.on('error', err => {
+            console.error('feezal-connection-mqtt error', err.message);
+        });
 
-            if (message_.payload.startsWith('{') || message_.payload.startsWith('[')) {
+        this.client.on('message', (topic, payload) => {
+            let payloadStr = payload.toString();
+            let parsed = payloadStr;
+            if (payloadStr.startsWith('{') || payloadStr.startsWith('[')) {
                 try {
-                    message_.payload = JSON.parse(message_.payload);
+                    parsed = JSON.parse(payloadStr);
                 } catch {}
             }
 
-
-
-            const event = new CustomEvent('message', {detail: message_});
-            this.dispatchEvent(event);
-        };
-
-        this.client.connect({
-            uris: [this.config.uri]
+            this.dispatchEvent(new CustomEvent('message', {
+                detail: {topic, payload: parsed}
+            }));
         });
     }
 
@@ -78,17 +86,14 @@ class FeezalConnectionMqtt extends PolymerElement {
     unsubscribe(topics) {
         topics.forEach(topic => {
             if (topic) {
-                console.log('feezal-connection-mqtt unsubscribe', topic);
                 this.client.unsubscribe(topic);
             }
         });
     }
 
-    publish(message_, options = {}) {
-        if (this.connected && message_.topic) {
-            const message = new Paho.MQTT.Message(String(message_.payload));
-            message.destinationName = message_.topic;
-            this.client.send(message);
+    publish(message, _options = {}) {
+        if (this.connected && message.topic) {
+            this.client.publish(message.topic, String(message.payload));
         }
     }
 }

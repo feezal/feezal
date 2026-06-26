@@ -17,12 +17,7 @@
         }
     </style>
 
-    <link href="https://fonts.googleapis.com/css?family=Material+Icons&display=block" rel="stylesheet">
-
-
-    <script src="../node_modules/web-animations-js/web-animations-next-lite.min.js"></script>
-    <script src="../node_modules/@webcomponents/webcomponentsjs/webcomponents-loader.js"></script>
-    <script src="../node_modules/interactjs/dist/interact.min.js"></script>
+    <link href="https://fonts.googleapis.com/css?family=Roboto|Material+Icons&display=block" rel="stylesheet">
 
     <script>
 
@@ -45,7 +40,7 @@
                 return feezal.app.querySelector('feezal-site');
             },
             get view() {
-                return feezal.site.querySelector('.iron-selected');
+                return feezal.getView(feezal.site && feezal.site.view);
             },
             get views() {
                 return feezal.site.querySelectorAll('feezal-view');
@@ -57,26 +52,30 @@
                 return feezal.app.shadowRoot.querySelector('#container');
             },
             getView(name) {
-                return feezal.site.querySelector('feezal-view[name="' + name + '"]')
+                if (!feezal.site) return null;
+                if (!name) return feezal.site.querySelector('feezal-view');
+                return feezal.site.querySelector('feezal-view[name="' + name + '"]');
             }
         };
 
-        window.onload = function() {
-            const confirmationMessage = 'Really close editor? There are unsaved changes!';
-            window.addEventListener("beforeunload", function (e) {
-                if (feezal.hasChanges) {
-                    (e || window.event).returnValue = confirmationMessage;
-                    e.preventDefault();
-                    return confirmationMessage;
-                }
-            });
-        };
+        window.addEventListener('beforeunload', function (e) {
+            if (feezal.hasChanges) {
+                const msg = 'Really close editor? There are unsaved changes!';
+                (e || window.event).returnValue = msg;
+                e.preventDefault();
+                return msg;
+            }
+        });
 
     </script>
 
-    <script type="module" src="feezal-elements.js"></script>
     <script type="module" src="../src/feezal-connection.js"></script>
+    <script type="module">
+        import { setBasePath } from '@shoelace-style/shoelace/dist/utilities/base-path.js';
+        setBasePath('https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.1/dist');
+    </script>
     <script type="module" src="../src/feezal-app-editor.js"></script>
+    <script type="module" src="feezal-elements.js"></script>
 </head>
 
 <body>

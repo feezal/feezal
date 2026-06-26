@@ -1,84 +1,18 @@
 {
   "name": "feezal",
-  "version": "0.8.1",
-  "description": "Web Components based Dashboard UI with WYSIWYG Editor",
-  "main": "none",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WYSIWYG dashboard builder powered by Web Components and MQTT",
   "scripts": {
-    "install": "cd www && npm install && npm dedupe",
-    "lint": "xo",
-    "lintfix": "xo --fix"
+    "start": "node server/bin/feezal.js --www-dir ./www",
+    "install": "cd server && npm install && cd ../www && npm install && cd .. && node scripts/generate-elements.js && cd www && npm run build && cd .. ",
+    "test": "cd server && npm test && cd ../www && npm test && cd ..",
+    "create-element": "node packages/create-feezal-element/index.js"
   },
   "author": "Sebastian Raff <hobbyquaker@gmail.com>",
   "license": "GPLv3",
   "repository": {
     "type": "git",
     "url": "https://github.com/feezal/feezal.git"
-  },
-  "node-red": {
-    "nodes": {
-      "feezal": "nodes/feezal.js"
-    }
-  },
-  "keywords": [
-    "node-red",
-    "dashboard",
-    "wysiwyg",
-    "editor",
-    "visualiziation",
-    "iot",
-    "smart-home",
-    "mqtt"
-  ],
-  "dependencies": {
-    "@adobe/es-modules-middleware": "^1.1.0",
-    "@babel/core": "^7.12.9",
-    "@open-wc/building-rollup": "^1.9.4",
-    "@starptech/prettyhtml": "^0.10.0",
-    "cpy": "^8.1.1",
-    "mkdirp": "^1.0.4",
-    "node-fetch": "^2.6.1",
-    "rimraf": "^3.0.2",
-    "rollup": "^2.34.1",
-    "rollup-plugin-cpy": "^2.0.1",
-    "rollup-plugin-workbox": "^6.0.0",
-    "serve-static": "^1.14.1",
-    "socket.io": "^3.0.3"
-  },
-  "devDependencies": {
-    "eslint-plugin-html": "^6.1.1",
-    "xo": "^0.35.0"
-  },
-  "xo": {
-    "space": 4,
-    "plugin": "html",
-    "global": [
-      "$",
-      "RED",
-      "document",
-      "window",
-      "location",
-      "feezal",
-      "io",
-      "CustomEvent",
-      "interact"
-    ],
-    "extensions": [
-      "js",
-      "html"
-    ],
-    "rules": {
-      "no-template-curly-in-string": "warn",
-      "camelcase": "warn",
-      "capitalized-comments": 0,
-      "spaced-comment": 0,
-      "unicorn/catch-error-name": "warn",
-      "unicorn/prefer-string-slice": "warn",
-      "valid-jsdoc": 0,
-      "eslint-comments/no-unused-disable": 0,
-      "promise/prefer-await-to-then": "warn",
-      "prefer-object-spread": "warn",
-      "import/no-unassigned-import": "warn",
-      "import/no-extraneous-dependencies": "warn"
-    }
   }
 }

@@ -1,80 +1,100 @@
-import {PolymerElement, html} from '@polymer/polymer/polymer-element';
+import {LitElement, html, css} from 'lit';
 
-import '@polymer/iron-pages/iron-pages';
-import '@polymer/paper-tabs/paper-tabs';
-import '@polymer/paper-tabs/paper-tab';
-import '@polymer/paper-input/paper-input';
+import '@shoelace-style/shoelace/dist/components/select/select.js';
+import '@shoelace-style/shoelace/dist/components/option/option.js';
+import '@shoelace-style/shoelace/dist/components/input/input.js';
+import '@shoelace-style/shoelace/dist/components/switch/switch.js';
 
-class FeezalSidebarEditor extends PolymerElement {
-    static get properties() {
-        return {
-            gridSize: {
-                type: Number,
-                value: 24,
-                reflectToAttribute: true,
-                notify: true
-            },
-            gridVisible: {
-                type: Boolean,
-                value: false,
-                reflectToAttribute: true,
-                notify: true
-            },
-            snapping: {
-                type: String,
-                value: 'off',
-                reflectToAttribute: true,
-                notify: true
-            }
-        };
+class FeezalSidebarEditor extends LitElement {
+    static properties = {
+        themeMode:      {type: String, reflect: true},
+        selectionColor: {type: String, reflect: true},
+        gridColor:      {type: String, reflect: true},
+        gridSize:       {type: Number, reflect: true},
+        gridVisible:    {type: Boolean, reflect: true},
+        snapping:       {type: String, reflect: true}
+    };
+
+    static styles = css`
+        :host { display: block; height: 100%; background-color: var(--feezal-bg, white); box-sizing: border-box; }
+        .form { margin: 12px; display: flex; flex-direction: column; gap: 12px; }
+        .row { display: flex; gap: 12px; align-items: flex-end; }
+        .row > * { flex: 1; }
+        sl-select, sl-input { width: 100%; }
+        sl-input::part(form-control-label), sl-select::part(form-control-label) { color: var(--sl-input-label-color, inherit); }
+        sl-input::part(base), sl-select::part(combobox) { background: var(--feezal-bg, #fff); border-color: var(--feezal-border, #ccc); color: var(--feezal-color, #333); }
+        sl-input::part(input) { background: var(--feezal-bg, #fff); color: var(--sl-input-color, #333); }
+        .color-label {
+            display: flex; flex-direction: column; gap: 4px; flex: 1;
+            font-size: var(--sl-input-label-font-size-small, 12px);
+            color: var(--sl-input-label-color, inherit);
+        }
+        input[type="color"] {
+            width: 100%; height: 28px; padding: 2px 3px;
+            border: 1px solid var(--feezal-border, #ccc); border-radius: 4px;
+            background: var(--feezal-bg, white); cursor: pointer;
+            box-sizing: border-box;
+        }
+    `;
+
+    constructor() {
+        super();
+        this.themeMode = 'os';
+        this.selectionColor = '#0284c7';
+        this.gridColor = '#cccccc';
+        this.gridSize = 24;
+        this.gridVisible = false;
+        this.snapping = 'elements';
     }
 
-    static get template() {
+    render() {
         return html`
-            <style>
-                :host {
-                    display: block;
-                    height: 100%;
-                    max-height: 100%;
-                    background-color: white;
-
-                    box-sizing: border-box;
-                    
-                }
-                iron-pages {
-                    height: calc(100% - 48px);
-                }
-                .paper-form {
-                    height: 100%;
-                    margin: 12px;
-                    overflow: scroll;
-                }
-                paper-tabs {
-                    --paper-tabs-selection-bar-color: var(--paper-indigo-700);
-              
-                    background-color: #eee;
-                }
-                paper-tab {
-                    --paper-tab-ink: gray;
-                }
-            </style>
-            <div class="paper-form" id="editor-form">
-                <div>
-                    <paper-dropdown-menu label="snapping" value="{{snapping}}" style="width: 100%">
-                        <paper-listbox slot="dropdown-content">
-                            <paper-item>off</paper-item>
-                            <paper-item>elements</paper-item>
-                            <paper-item>grid</paper-item>
-                        </paper-listbox>
-                    </paper-dropdown-menu>
+            <div class="form">
+                <sl-select label="Color theme" size="small"
+                    .value="${this.themeMode}"
+                    @sl-change="${e => { this.themeMode = e.target.value; this._notify('theme-mode'); }}">
+                    <sl-option value="os">OS preference</sl-option>
+                    <sl-option value="light">Light</sl-option>
+                    <sl-option value="dark">Dark</sl-option>
+                </sl-select>
+                <div class="row">
+                    <label class="color-label">
+                        Selection color
+                        <input type="color" .value="${this.selectionColor}"
+                            @input="${e => { this.selectionColor = e.target.value; this._notify('selection-color'); }}">
+                    </label>
+                    <label class="color-label">
+                        Grid color
+                        <input type="color" .value="${this.gridColor}"
+                            @input="${e => { this.gridColor = e.target.value; this._notify('grid-color'); }}">
+                    </label>
                 </div>
-                <div>
-                    <paper-input style="display: inline-block; width: calc(50% - 6px)" type="number" label="grid size" value="{{gridSize}}"></paper-input>
-                    <paper-checkbox style="margin-left: 6px; font-size: 15px; height: 31px; width: calc(50% - 6px); vertical-align: bottom;" checked="{{gridVisible}}">Show Grid</paper-checkbox>
+                <sl-select label="Snapping" size="small"
+                    .value="${this.snapping}"
+                    @sl-change="${e => { this.snapping = e.target.value; this._notify('snapping'); }}">
+                    <sl-option value="off">off</sl-option>
+                    <sl-option value="elements">elements</sl-option>
+                    <sl-option value="grid">grid</sl-option>
+                </sl-select>
+                <div class="row">
+                    <sl-input label="Grid size" size="small" type="number"
+                        .value="${String(this.gridSize)}"
+                        @sl-change="${e => { this.gridSize = Number(e.target.value); this._notify('grid-size'); }}">
+                    </sl-input>
+                    <sl-switch size="small"
+                        .checked="${this.gridVisible}"
+                        @sl-change="${e => { this.gridVisible = e.target.checked; this._notify('grid-visible'); }}">
+                        Show Grid
+                    </sl-switch>
                 </div>
-            </div>    
+            </div>
         `;
+    }
+
+    _notify(attr) {
+        this.dispatchEvent(new CustomEvent(attr + '-changed', {bubbles: true, composed: true, detail: {value: this[attr.replace(/-([a-z])/g, (_, c) => c.toUpperCase())]}}));
     }
 }
 
 window.customElements.define('feezal-sidebar-editor', FeezalSidebarEditor);
+

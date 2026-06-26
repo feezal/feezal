@@ -1,48 +1,46 @@
-import {PolymerElement, html} from '@polymer/polymer/polymer-element';
-import '@polymer/iron-pages';
+import {LitElement, html, css} from 'lit';
 
-class FeezalSite extends PolymerElement {
-    static get properties() {
-        return {
-            view: {
-                type: String,
-                observer: '_viewChanged',
-                reflectToAttribute: true,
-                notify: true
-            },
-            views: {
-                type: Array,
-                notify: true
-            },
-            viewRole: {
-                type: String,
-                reflectToAttribute: true
-            },
-            childPosition: {
-                type: String,
-                reflectToAttribute: true
-            },
+/**
+ * feezal-site
+ *
+ * Top-level site container. Manages which feezal-view is currently visible.
+ * Replaces the Polymer/iron-pages implementation.
+ */
+class FeezalSite extends LitElement {
+    static properties = {
+        view: {type: String, reflect: true},
+        persistant: {type: Boolean, reflect: true},
+        pageTitle: {type: String, attribute: 'page-title', reflect: true},
+        subscribe: {type: String, attribute: 'subscribe', reflect: true},
+        publish: {type: String, attribute: 'publish', reflect: true}
+    };
 
-            persistant: {
-                type: Boolean,
-                reflectToAttribute: true,
-                value: false
-            },
-            pageTitle: {
-                type: String,
-                reflectToAttribute: true
-            },
-            subscribeTopic: {
-                type: String,
-                reflectToAttribute: true
-            },
-            publishTopic: {
-                type: String,
-                reflectToAttribute: true
-            }
-
-        };
-    }
+    static styles = css`
+        :host {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            padding: 0;
+            margin: 0;
+            /* background synced at runtime to the current view's background;
+               background-attachment:local extends the color across the full
+               scrollable canvas area (beyond the view's explicit dimensions). */
+            background: var(--feezal-canvas-bg, grey);
+            background-attachment: local;
+            /* Standard scrollbar-color (Chrome 121+, Firefox): thumb over canvas bg.
+               When set, Chrome ignores ::-webkit-scrollbar pseudo-element rules,
+               so the feezal-site rules in the global stylesheet take over instead. */
+            scrollbar-color: rgba(128,128,128,0.5) var(--feezal-canvas-bg, grey);
+            scrollbar-width: thin;
+        }
+        feezal-view {
+            margin: var(--feezal-view-margin);
+        }
+        :host(.dark) {
+            --primary-background-color: black;
+        }
+    `;
 
     static get feezal() {
         return {
@@ -57,33 +55,8 @@ class FeezalSite extends PolymerElement {
         };
     }
 
-    static get template() {
-        return html`
-            <style>
-                iron-pages {
-                    display: flex;
-                    width: 100%;
-                    height: 100%;
-                    overflow: scroll;
-                    padding: 0;
-                    margin: 0;
-                    background-color: grey;
-                }
-                feezal-view {
-                    margin: var(--feezal-view-margin);
-                }
-                
-                :host(.dark) {
-                    --primary-background-color: black
-                }
-                    
-                
-                
-            </style>
-            <iron-pages id="pages" attr-for-selected="name" selected="[[view]]" items="{{views}}">
-                <slot></slot>
-            </iron-pages>
-        `;
+    render() {
+        return html`<slot></slot>`;
     }
 
     connectedCallback() {
@@ -96,50 +69,76 @@ class FeezalSite extends PolymerElement {
             location.hash = '/' + this.view;
         }
 
-        if (!feezal.isEditor && this.subscribeTopic) {
-            feezal.connection.subscribe(this.subscribeTopic + '/view', message => {
+        if (!feezal.isEditor && this.subscribe) {
+            feezal.connection.sub(this.subscribe + '/view', message => {
                 this.view = message.payload;
             });
-            feezal.connection.subscribe(this.subscribeTopic + '/reload', message => {
+            feezal.connection.sub(this.subscribe + '/reload', () => {
                 window.location.reload();
             });
         }
 
-        if (this.title) {
+        if (this.pageTitle) {
             document.querySelector('title').innerHTML = this.pageTitle;
         }
     }
 
-    get currentView() {
-        return this.$.pages.shadowRoot.selectedItem;
+    updated(changed) {
+        if (changed.has('view')) {
+            this._viewChanged(this.view);
+        }
     }
 
-    _viewChanged(e) {
-        // Console.log('view._viewChanged', e);
+    _viewChanged(view) {
         this.updateVisibility();
-        if (!feezal.isEditor && this.publishTopic) {
-            feezal.connection.publish(this.publishTopic + '/view', this.view);
+        this._syncViewBackground();
+
+        if (!feezal.isEditor && this.publish) {
+            feezal.connection.pub(this.publish + '/view', view);
         }
 
-        if (!feezal.isEditor && this.subscribeTopic) {
-            feezal.connection.subscribe(this.subscribeTopic + '/view', message => {
-                location.hash = '/' + message.payload;
-            });
-            feezal.connection.subscribe(this.subscribeTopic + '/addclass', message => {
+        if (!feezal.isEditor && this.subscribe) {
+            feezal.connection.sub(this.subscribe + '/addclass', message => {
                 this.classList.add(message.payload);
             });
-            feezal.connection.subscribe(this.subscribeTopic + '/removeclass', message => {
+            feezal.connection.sub(this.subscribe + '/removeclass', message => {
                 this.classList.remove(message.payload);
             });
         }
     }
 
     updateVisibility() {
-        const views = [...feezal.views];
-        views.forEach(v => {
-            const name = v.getAttribute('name');
-            v.visible = name === this.view;
+        [...feezal.views].forEach(v => {
+            v.visible = v.getAttribute('name') === this.view;
         });
+    }
+
+    _syncViewBackground() {
+        if (this._bgObserver) {
+            this._bgObserver.disconnect();
+            this._bgObserver = null;
+        }
+        const currentView = [...feezal.views].find(v => v.getAttribute('name') === this.view);
+        if (!currentView) return;
+        const sync = () => {
+            const bg = currentView.style.background || currentView.style.backgroundColor || '';
+            if (bg) {
+                this.style.setProperty('--feezal-canvas-bg', bg);
+            } else {
+                this.style.removeProperty('--feezal-canvas-bg');
+            }
+        };
+        sync();
+        this._bgObserver = new MutationObserver(sync);
+        this._bgObserver.observe(currentView, {attributes: true, attributeFilter: ['style']});
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        if (this._bgObserver) {
+            this._bgObserver.disconnect();
+            this._bgObserver = null;
+        }
     }
 }
 

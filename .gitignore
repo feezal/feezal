@@ -1,7 +1,10 @@
 .idea
 /node_modules/*
+/server/node_modules/*
 /www/node_modules/*
+!/www/node_modules/@feezal
+/www/dist/*
 /www/viewer
 /www/viewer-src/feezal-elements.js
 /www/viewer-src/index.html
-/www/editor/feezal-elements.js
+

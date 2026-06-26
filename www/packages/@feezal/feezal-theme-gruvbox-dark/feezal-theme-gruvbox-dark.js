@@ -1,0 +1,26 @@
+const styleElement = document.createElement('style');
+styleElement.innerHTML = `.feezal-theme-gruvbox-dark {
+    --primary-background-color: #282828;
+    --secondary-background-color: #3c3836;
+    --primary-text-color: #ebdbb2;
+    --secondary-text-color: #d5c4a1;
+    --disabled-text-color: #928374;
+    --divider-color: #504945;
+    --error-color: #fb4934;
+    --primary-color: #b8bb26;
+    --accent-color: #fe8019;
+    --paper-listbox-background-color: var(--secondary-background-color);
+    --paper-input-container-color: var(--secondary-text-color);
+    --paper-input-container-focus-color: var(--primary-color);
+    --paper-input-container-input-color: var(--primary-text-color);
+    --paper-slider-active-color: var(--primary-color);
+    --paper-slider-secondary-color: var(--primary-color);
+    --paper-toggle-button-checked-bar-color: var(--primary-color);
+    --paper-toggle-button-checked-button-color: var(--primary-color);
+    --paper-toggle-button-checked-ink-color: var(--primary-color);
+    --paper-checkbox-checked-color: var(--primary-color);
+    --paper-checkbox-checked-ink-color: var(--primary-color);
+    --paper-tabs-selection-bar-color: var(--primary-color);
+    --paper-tab-ink: var(--primary-color);
+}`;
+document.head.appendChild(styleElement);

@@ -1,0 +1,8 @@
+{
+    "name":  "@feezal/feezal-theme-solarized-dark",
+    "version":  "1.0.0",
+    "main":  "feezal-theme-solarized-dark.js",
+    "feezal":  {
+                   "type":  "theme"
+               }
+}

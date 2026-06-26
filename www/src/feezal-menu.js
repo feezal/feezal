@@ -1,15 +1,12 @@
-import {PolymerElement, html} from '@polymer/polymer/polymer-element';
+import {LitElement, html, css} from 'lit';
 
-class FeezalMenu extends PolymerElement {
-    static get template() {
+class FeezalMenu extends LitElement {
+    static styles = css`
+        :host { width: 100%; display: block; box-sizing: border-box; }
+    `;
+
+    render() {
         return html`
-            <style>
-                :host {
-                    width: 100%;
-                    display: block;
-                    box-sizing: border-box;
-                }
-            </style>
             <div id="logo">Feezal</div>
             <div id="deploy"></div>
         `;
@@ -17,3 +14,4 @@ class FeezalMenu extends PolymerElement {
 }
 
 window.customElements.define('feezal-menu', FeezalMenu);
+

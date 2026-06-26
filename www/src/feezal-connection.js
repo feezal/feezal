@@ -1,37 +1,30 @@
-import {PolymerElement, html} from '@polymer/polymer/polymer-element';
+import {LitElement} from 'lit';
 
-class FeezalConnection extends PolymerElement {
-    static get properties() {
-        return {
-            connected: {
-                type: Boolean,
-                reflectToAttribute: true
-            },
-            subscriptions: {
-                type: Array,
-                value: []
-            },
-            backend: {
-                type: String,
-                default: 'node-red',
-                reflectToAttribute: true
-            },
-            config: {
-                type: Object
-            }
-        };
+/**
+ * feezal-connection
+ *
+ * Connection abstraction. Delegates to a backend implementation:
+ *   backend="feezal" (default) — Socket.IO to the standalone feezal server (editor use)
+ *   backend="mqtt"             — Direct MQTT-WS to a broker (viewer use)
+ *
+ * Manages subscriptions and fans out incoming messages to registered callbacks
+ * using MQTT-style topic matching.
+ */
+class FeezalConnection extends LitElement {
+    static properties = {
+        connected: {type: Boolean, reflect: true},
+        backend: {type: String, reflect: true},
+        config: {type: Object}
+    };
+
+    constructor() {
+        super();
+        this.connected = false;
+        this.backend = 'feezal';
+        this.subscriptions = [];
     }
 
-    static get template() {
-        return html``;
-    }
-
-    /**
-     * Match a (mqtt) topic against a wildcard
-     * @param topic
-     * @param wildcard
-     * @returns {*}
-     */
+    /** MQTT wildcard topic matching */
     static topicMatch(topic, wildcard) {
         if (topic === wildcard) {
             return [];
@@ -42,7 +35,6 @@ class FeezalConnection extends PolymerElement {
         }
 
         const res = [];
-
         const t = String(topic).split('/');
         const w = String(wildcard).split('/');
 
@@ -68,83 +60,89 @@ class FeezalConnection extends PolymerElement {
     connectedCallback() {
         super.connectedCallback();
 
-        switch (this.backend) {
-            case 'mqtt':
-                import('./feezal-connection-mqtt.js').then(() => {
-                    this.conn = document.createElement('feezal-connection-mqtt');
-                    this.conn.config = this.config;
-                    this.connect();
-                });
-                break;
-
-            default:
-                import('./feezal-connection-node-red.js').then(() => {
-                    this.conn = document.createElement('feezal-connection-node-red');
-                    this.connect();
-                });
-                break;
+        // Flush subscriptions queued before this element was upgraded
+        // (Polymer elements call feezal.connection.subscribe in connectedCallback;
+        // if feezal-connection wasn't upgraded yet a stub queued them here).
+        if (feezal._subQueue && feezal._subQueue.length) {
+            feezal._subQueue.forEach(({topic, options, callback}) => this.sub(topic, options, callback));
+            feezal._subQueue = null;
         }
-    }
 
-    connect() {
-        this.shadowRoot.append(this.conn);
-        this.conn.connect();
+        const backend = this.getAttribute('backend') || 'feezal';
 
-        this.conn.addEventListener('connected', () => {
-            console.log('connected');
-            this.connected = true;
-            this.conn.subscribe([...new Set(this.subscriptions.map(s => s.topic))]);
-        });
+        // Use explicit string literals in import() so Rollup emits proper lazy chunks.
+        // A variable-based import() cannot be statically analysed and produces 404s.
+        const importPromise = backend === 'mqtt'
+            ? import('./feezal-connection-mqtt.js')
+            : import('./feezal-connection-feezal.js');
 
-        this.conn.addEventListener('disconnected', () => {
-            console.log('disconnected');
-            this.connected = false;
-        });
+        importPromise.then(() => {
+            const tagName = backend === 'mqtt'
+                ? 'feezal-connection-mqtt'
+                : 'feezal-connection-feezal';
 
-        if (!feezal.isEditor) {
-            this.conn.addEventListener('message', event => {
-                console.log('message', event.detail.topic, event.detail.payload);
-                this.spreadMessage(event.detail);
+            this.conn = document.createElement(tagName);
+            if (backend === 'mqtt' && this.config) {
+                this.conn.config = this.config;
+            }
+
+            this.shadowRoot.append(this.conn);
+            this.conn.connect();
+
+            this.conn.addEventListener('connected', e => {
+                console.log('feezal-connection: connected');
+                this.connected = true;
+                if (this.subscriptions.length > 0) {
+                    this.conn.subscribe([...new Set(this.subscriptions.map(s => s.topic))]);
+                }
+
+                this.dispatchEvent(new CustomEvent('connected', {
+                    bubbles: true,
+                    composed: true,
+                    detail: e.detail || {}
+                }));
             });
-        }
+
+            this.conn.addEventListener('disconnected', () => {
+                console.log('feezal-connection: disconnected');
+                this.connected = false;
+                this.dispatchEvent(new Event('disconnected'));
+            });
+
+            if (!feezal.isEditor) {
+                this.conn.addEventListener('message', event => {
+                    this._spreadMessage(event.detail);
+                });
+            }
+        });
     }
 
-    spreadMessage(message) {
+    _spreadMessage(message) {
         this.subscriptions
-            .filter(s => FeezalConnection.topicMatch(message.topic, s.topic))
-            .forEach(s => {
-                // Console.log('callback!')
-                s.callback(message);
-            });
-    }
-
-    getViews(callback) {
-        this.conn.getViews(callback);
+            .filter(s => FeezalConnection.topicMatch(message.topic, s.topic) !== null)
+            .forEach(s => s.callback(message));
     }
 
     getSite(site, callback) {
         this.conn.getSite(site, callback);
     }
 
-    subscribe(topic, options, callback) {
+    sub(topic, options, callback) {
         if (feezal.isEditor || !topic) {
             return;
         }
-
-        console.log('subscribe', topic);
 
         if (typeof options === 'function') {
             callback = options;
             options = {};
         }
 
-        if (this.conn && this.connected && this.subscriptions.filter(s => topic === s.topic).length === 0) {
+        if (this.conn && this.connected && !this.subscriptions.some(s => s.topic === topic)) {
             this.conn.subscribe([topic]);
         }
 
         const subscription = {topic, options, callback};
         this.subscriptions.push(subscription);
-        //console.log('connection.subscribe', topic, this.subscriptions.length);
         return subscription;
     }
 
@@ -153,25 +151,23 @@ class FeezalConnection extends PolymerElement {
             return;
         }
 
-        this.subscriptions = this.subscriptions.filter(s => subscription !== s);
-        if (this.conn && this.subscriptions.filter(s => subscription.topic === s.topic).length === 0) {
+        this.subscriptions = this.subscriptions.filter(s => s !== subscription);
+        if (this.conn && !this.subscriptions.some(s => s.topic === subscription.topic)) {
             this.conn.unsubscribe([subscription.topic]);
         }
     }
 
-    publish(topic, payload, options = {}) {
-        console.log('publish', topic, payload, options);
+    pub(topic, payload, options = {}) {
         if (options.local) {
-            this.spreadMessage({topic, payload});
+            this._spreadMessage({topic, payload});
         } else if (this.conn && this.connected) {
             this.conn.publish({topic, payload}, options);
         } else {
-            console.error('could not publish', Boolean(this.conn), this.connected, topic, payload);
+            console.error('feezal-connection: could not publish', topic);
         }
     }
 
     deploy(data, callback) {
-        console.log('deploy', data);
         this.conn.deploy(data, callback);
     }
 }
