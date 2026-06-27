@@ -1432,6 +1432,54 @@ The light element currently has **30 flat attributes** — far too many for the 
 
 ---
 
+#### Real-world reference (this device)
+
+Grounded in a real **Philips Hue white and color ambiance E27** exposed via **zigbee2mqtt** (base topic `zigbee2mqtt/licht_hobbyraum`). This one device exhibits every nuance the retrofit must handle.
+
+**(a) Separate-topic stream** — zigbee2mqtt publishes each property on its own retained sub-topic:
+
+```
+zigbee2mqtt/licht_hobbyraum/state             ON
+zigbee2mqtt/licht_hobbyraum/brightness        254
+zigbee2mqtt/licht_hobbyraum/color_mode        color_temp
+zigbee2mqtt/licht_hobbyraum/color_temp        262
+zigbee2mqtt/licht_hobbyraum/color-x           0.3892     ← dash, not slash
+zigbee2mqtt/licht_hobbyraum/color-y           0.382
+zigbee2mqtt/licht_hobbyraum/color-hue         39
+zigbee2mqtt/licht_hobbyraum/color-saturation  54
+zigbee2mqtt/licht_hobbyraum/color-h           39         ← alias of color-hue
+zigbee2mqtt/licht_hobbyraum/color-s           54         ← alias of color-saturation
+```
+Commands go to `…/set` (whole JSON) or `…/set/<property>` (single property).
+
+**(b) JSON message** — the *same* device also publishes one consolidated JSON object on the **base** topic `zigbee2mqtt/licht_hobbyraum`, with `color` as a **nested object**:
+```json
+{"state":"ON","brightness":254,"color_mode":"color_temp","color_temp":262,
+ "color":{"x":0.3892,"y":0.382,"hue":39,"saturation":54,"h":39,"s":54}}
+```
+Commands: publish a partial JSON to `…/set`, e.g. `{"color_temp":262}` or `{"color":{"x":0.39,"y":0.38}}`.
+
+**(c) Auto-discovery config** — `homeassistant/light/0x001788010c00d534/light/config` (abridged):
+```json
+{"schema":"json",
+ "state_topic":"zigbee2mqtt/licht_hobbyraum",
+ "command_topic":"zigbee2mqtt/licht_hobbyraum/set",
+ "brightness":true,"brightness_scale":254,
+ "supported_color_modes":["xy","color_temp"],
+ "min_mireds":153,"max_mireds":500,
+ "effect":true,"effect_list":["blink","breathe","okay","channel_change","candle","fireplace","colorloop","finish_effect","stop_effect","stop_hue_effect"],
+ "device":{"manufacturer":"Philips","model":"Hue white and color ambiance E27 1100lm"}}
+```
+
+**Key insights this drives:**
+1. **Both wiring styles exist for the same device** — separate per-property topics *and* the base-topic JSON. The retrofit's `separate` / `json` `payload-mode` maps exactly onto these two real shapes.
+2. **Discovery always points at the JSON form** (`state_topic` = base topic, `command_topic` = `…/set`, `schema: json`). An auto-configured light therefore defaults to `payload-mode: json` with `subscribe = zigbee2mqtt/licht_hobbyraum`, `publish = …/set`.
+3. **Colour is shaped differently per mode** — nested `color:{x,y,hue,saturation,h,s}` in JSON, but **dash-flattened** `color-x` / `color-hue` (with `color-h` / `color-s` aliases) as separate topics. Separate-mode colour wiring must use the dash form, never `color_x`.
+4. **`color_mode`** (here `color_temp`) tells which control reflects the live state; **`supported_color_modes`** (`["xy","color_temp"]`) tells which inspector sections to enable — this device has no RGB-white or RGBWW channel, so those sections stay collapsed.
+5. **Concrete conversions:** `brightness_scale 254` → 0–100 %; `min_mireds 153` → 6536 K and `max_mireds 500` → 2000 K (kelvin = 1 000 000 / mired, so the *smallest* mired is the *highest* kelvin); `effect_list` → the Effects section options.
+
+---
+
 #### 1. N6 Custom Inspector
 
 **Problem:** 30 attributes in a flat list is unusable. Every feature group (brightness, colour temperature, RGB, white channels, effects) is always shown in full, regardless of whether the light actually supports it.
@@ -1448,22 +1496,25 @@ Feature groups are shown as **collapsible sections with a header toggle**. A sec
 
 ```
 ━━ State (always enabled) ━━━━━━━━━━━━━━━━━━━━
-Subscribe  [ zigbee2mqtt/Lamp           ↓ ]
-Publish    [ zigbee2mqtt/Lamp/set       ↑ ]
+Subscribe  [ zigbee2mqtt/licht_hobbyraum             ↓ ]
+Publish    [ zigbee2mqtt/licht_hobbyraum/set         ↑ ]
 
 [⬤ ON ] Brightness ━━━━━━━━━━━━━━━━━━━━━━━━━━   ← toggle → expands/collapses + clears on off
-         Subscribe  [ zigbee2mqtt/Lamp/brightness ↓ ]
-         Publish    [ zigbee2mqtt/Lamp/set        ↑ ]
+         Subscribe  [ zigbee2mqtt/licht_hobbyraum/brightness ↓ ]
+         Publish    [ zigbee2mqtt/licht_hobbyraum/set        ↑ ]
 
 [⬤ ON ] Color Temperature ━━━━━━━━━━━━━━━━━━━━
-         Subscribe  [ zigbee2mqtt/Lamp/color_temp ↓ ]
-         Publish    [ zigbee2mqtt/Lamp/set        ↑ ]
+         Subscribe  [ zigbee2mqtt/licht_hobbyraum/color_temp ↓ ]
+         Publish    [ zigbee2mqtt/licht_hobbyraum/set        ↑ ]
 
-[○ OFF] Color — RGB / HS ━━━━━━━━━━━━━━━━━━━━━  ← collapsed, no topic fields shown
+[⬤ ON ] Color — XY / HS ━━━━━━━━━━━━━━━━━━━━━━   dash-flattened: color-x, color-y, color-hue, color-saturation
+         Subscribe x  [ zigbee2mqtt/licht_hobbyraum/color-x ↓ ]
+         Subscribe y  [ zigbee2mqtt/licht_hobbyraum/color-y ↓ ]
+         Publish      [ zigbee2mqtt/licht_hobbyraum/set     ↑ ]
 
-[○ OFF] White / RGBW / RGBWW ━━━━━━━━━━━━━━━━━
+[○ OFF] White / RGBW / RGBWW ━━━━━━━━━━━━━━━━━   not supported by this device
 
-[○ OFF] Effects ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[⬤ ON ] Effects ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 **Auto-configure interaction:** when N12 applies a discovery entity, the topics it sets cause the relevant sections to automatically appear expanded on the next inspector render. The user immediately sees only the sections that are wired, not all 30 attributes.
@@ -1517,14 +1568,16 @@ Label  [ Living Room ]
 Add the `json` mode alongside the existing `separate` mode:
 
 - **`separate` (current/default):** per-topic wiring — `subscribe-state`, `subscribe-brightness`, etc. Unchanged; remains the default for back-compat.
-- **`json` (new):** a single `subscribe` / `publish` topic pair. Incoming: parse the JSON object, map keys to internal state. Outgoing: build a single JSON object from changed properties, publish to `publish`. Default JSON key map:
+- **`json` (new):** a single `subscribe` / `publish` topic pair. Incoming: parse the JSON object, map keys to internal state. Outgoing: build a single JSON object from changed properties, publish to `publish`. Default JSON key map (zigbee2mqtt default schema — `color` is a **nested object**):
 
   ```js
-  { state: 'state', brightness: 'brightness', color_temp: 'color_temp',
-    color: { rgb: 'color.{r,g,b}', hs: 'color.{h,s}' }, effect: 'effect' }
+  { state: 'state', brightness: 'brightness',
+    color_mode: 'color_mode', color_temp: 'color_temp',
+    color: { xy: ['color.x', 'color.y'], hs: ['color.hue', 'color.saturation'] },
+    effect: 'effect' }
   ```
 
-  A `json-map` attribute (JSON string) overrides these defaults for non-standard brokers.
+  A `json-map` attribute (JSON string) overrides these defaults for non-standard brokers. In **separate** mode the same colour sub-properties are **dash-flattened** topics — `<base>/color-x`, `<base>/color-y`, `<base>/color-hue`, `<base>/color-saturation` (with `<base>/color-h` / `<base>/color-s` aliases) — **not** `color_x`. Outgoing commands in either mode target `<base>/set` (whole JSON) or `<base>/set/<property>`.
 
 When `payload-mode` is `json`, the Topics tab replaces the per-feature groups with a single **State & Control** section (just `subscribe` + `publish`) and hides all capability toggles — because one JSON envelope carries everything. The Config tab remains unchanged.
 
@@ -1534,20 +1587,31 @@ The `payload-mode` attribute is exposed as a `select` in the Config tab inspecto
 
 #### 3. Extended auto-discovery descriptor
 
-The discovery descriptor already present covers separate-mode topics. Extend it to also map `schema: json` → `payload-mode: json`:
+The discovery descriptor already present covers separate-mode topics. Extend it to also map `schema: json` → `payload-mode: json`, plus the capability and range keys (all confirmed against the real Hue config above):
 
 ```js
 discovery: {
     component: 'light',
     map: {
-        // existing separate-mode mappings …
-        schema: { attr: 'payload-mode', valueMap: { json: 'json', _default: 'separate' } },
-        // json-mode single topics (only written when schema=json)
-        state_topic:   { attr: 'subscribe', onlyWhen: { schema: 'json' } },
-        command_topic: { attr: 'publish',   onlyWhen: { schema: 'json' } },
+        // wiring
+        schema:        { attr: 'payload-mode', valueMap: { json: 'json', _default: 'separate' } },
+        state_topic:   { attr: 'subscribe', onlyWhen: { schema: 'json' } }, // base topic
+        command_topic: { attr: 'publish',   onlyWhen: { schema: 'json' } }, // …/set
+        // capabilities → which inspector sections are enabled
+        brightness:            { attr: 'has-brightness' },        // true
+        brightness_scale:      { attr: 'brightness-max' },        // 254 → scale max
+        supported_color_modes: { attr: 'color-modes' },          // ["xy","color_temp"]
+        // colour-temperature range — mireds → kelvin (K = 1e6 / mired); note the cross-over
+        min_mireds: { attr: 'color-temp-max-kelvin', transform: 'mired→kelvin' }, // 153 → 6536 K
+        max_mireds: { attr: 'color-temp-min-kelvin', transform: 'mired→kelvin' }, // 500 → 2000 K
+        // effects
+        effect:      { attr: 'has-effects' },                     // true
+        effect_list: { attr: 'effects' },                         // → Effects section options
     }
 }
 ```
+
+`supported_color_modes` decides which colour sections light up (this device: `xy` colour + `color_temp`, no RGBW/RGBWW). `name: null` in discovery means "use the device name" — fall back to the `device.name` / `object_id` (`licht_hobbyraum`) for the element `label`. The discovery `availability` topic(s) are **out of scope** for this retrofit (feezal has a dedicated connection-status element).
 
 ---
 
