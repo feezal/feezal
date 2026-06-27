@@ -8,7 +8,7 @@ feezal is a browser-based MQTT dashboard editor + viewer.
 - **`www/`** — Vite front-end. Editor UI (`editor/index.html`) + viewer bundle (`src/viewer-main.js`). Framework: **Lit 3** + **Shoelace 2.20.1**. Build: `cd www && npm run build`.
 - **`www/src/`** — Built-in UI components (`feezal-sidebar-*.js`, `feezal-app-*.js`, etc.) and built-in elements (`feezal-element-connection-status.js`). These are part of the editor bundle.
 - **`www/node_modules/@feezal/`** — Third-party and locally-developed feezal element/theme packages. This is also where new elements are created (see below).
-- **`element-spec.md`** — Full element authoring specification. **Always read this before working on any element.**
+- **`docs/element-spec.md`** — Full element authoring specification. **Always read this before working on any element.**
 
 ---
 
@@ -53,7 +53,7 @@ New elements **must** be created as packages under `www/node_modules/@feezal/`, 
    }
    ```
 
-4. **Create the element file** `feezal-element-<category>-<name>.js`. Follow the full spec in `element-spec.md` — minimal skeleton:
+4. **Create the element file** `feezal-element-<category>-<name>.js`. Follow the full spec in `docs/element-spec.md` — minimal skeleton:
 
    ```js
    /* global feezal */
@@ -63,7 +63,7 @@ New elements **must** be created as packages under `www/node_modules/@feezal/`, 
        static get feezal() {
            return {
                palette: { name: 'Display Name', category: 'Category', color: '#4a6080' },
-               attributes: [ /* see element-spec.md §3.2 */ ],
+               attributes: [ /* see docs/element-spec.md §3.2 */ ],
                styles: ['top', 'left', 'width', 'height'],
                defaultStyle: { width: '80px', height: '40px' }
            };
@@ -99,7 +99,7 @@ New elements **must** be created as packages under `www/node_modules/@feezal/`, 
 
 ### Element spec reference
 
-See `element-spec.md` for:
+See `docs/element-spec.md` for:
 - Full `static get feezal()` descriptor (`palette`, `attributes`, `styles`, `description`, `links`, `restrict`, `defaultStyle`)
 - All `attribute` descriptor fields and supported `type` values (`string`, `number`, `boolean`, `color`, `select`, `mqttTopic`)
 - `help` property on attribute descriptors → ℹ tooltip in the inspector

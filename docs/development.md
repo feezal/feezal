@@ -249,7 +249,7 @@ All official elements and themes live in `www/packages/@feezal/`. They are decla
 npm run create-element
 ```
 
-This runs the scaffolder (`packages/create-feezal-element/index.js`). For elements intended to ship with feezal, place the new package in `www/packages/@feezal/` and add it to the `dependencies` in `www/package.json`. See [element-spec.md](../element-spec.md) for the full authoring specification.
+This runs the scaffolder (`packages/create-feezal-element/index.js`). For elements intended to ship with feezal, place the new package in `www/packages/@feezal/` and add it to the `dependencies` in `www/package.json`. See [element-spec.md](element-spec.md) for the full authoring specification.
 
 ---
 

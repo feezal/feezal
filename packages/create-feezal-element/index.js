@@ -174,7 +174,7 @@ it directly into the feezal www workspace.
 Edit \`${tag}.js\`, then run \`cd www && npm run build\` inside your
 feezal installation to rebuild the editor bundle.
 
-Refer to [element-spec.md](https://github.com/feezal/feezal/blob/master/element-spec.md)
+Refer to [element-spec.md](https://github.com/feezal/feezal/blob/master/docs/element-spec.md)
 for the full authoring guide.
 `;
 }
