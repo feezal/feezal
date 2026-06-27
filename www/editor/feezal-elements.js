@@ -8,20 +8,34 @@ import '@feezal/feezal-element-basic-repeater';
 import '@feezal/feezal-element-basic-template';
 import '@feezal/feezal-element-basic-view';
 import '@feezal/feezal-element-connection-status';
+import '@feezal/feezal-element-material-badge';
 import '@feezal/feezal-element-material-button';
 import '@feezal/feezal-element-material-camera';
+import '@feezal/feezal-element-material-checkbox';
+import '@feezal/feezal-element-material-chip';
 import '@feezal/feezal-element-material-climate';
 import '@feezal/feezal-element-material-clock';
+import '@feezal/feezal-element-material-computer-stats';
 import '@feezal/feezal-element-material-contact';
 import '@feezal/feezal-element-material-cover';
 import '@feezal/feezal-element-material-door-lock';
+import '@feezal/feezal-element-material-energy-flow';
+import '@feezal/feezal-element-material-fab';
 import '@feezal/feezal-element-material-fan';
 import '@feezal/feezal-element-material-gauge';
+import '@feezal/feezal-element-material-icon-button';
 import '@feezal/feezal-element-material-light';
+import '@feezal/feezal-element-material-map';
+import '@feezal/feezal-element-material-motion';
 import '@feezal/feezal-element-material-plant';
+import '@feezal/feezal-element-material-progress-circular';
+import '@feezal/feezal-element-material-progress-linear';
+import '@feezal/feezal-element-material-radio';
+import '@feezal/feezal-element-material-select';
 import '@feezal/feezal-element-material-slider';
 import '@feezal/feezal-element-material-switch';
 import '@feezal/feezal-element-material-tank';
+import '@feezal/feezal-element-material-text-field';
 import '@feezal/feezal-element-material-value';
 import '@feezal/feezal-element-paper-app-layout';
 import '@feezal/feezal-element-paper-badge';
@@ -55,20 +69,34 @@ window.feezal.elements = [
   "@feezal/feezal-element-basic-template",
   "@feezal/feezal-element-basic-view",
   "@feezal/feezal-element-connection-status",
+  "@feezal/feezal-element-material-badge",
   "@feezal/feezal-element-material-button",
   "@feezal/feezal-element-material-camera",
+  "@feezal/feezal-element-material-checkbox",
+  "@feezal/feezal-element-material-chip",
   "@feezal/feezal-element-material-climate",
   "@feezal/feezal-element-material-clock",
+  "@feezal/feezal-element-material-computer-stats",
   "@feezal/feezal-element-material-contact",
   "@feezal/feezal-element-material-cover",
   "@feezal/feezal-element-material-door-lock",
+  "@feezal/feezal-element-material-energy-flow",
+  "@feezal/feezal-element-material-fab",
   "@feezal/feezal-element-material-fan",
   "@feezal/feezal-element-material-gauge",
+  "@feezal/feezal-element-material-icon-button",
   "@feezal/feezal-element-material-light",
+  "@feezal/feezal-element-material-map",
+  "@feezal/feezal-element-material-motion",
   "@feezal/feezal-element-material-plant",
+  "@feezal/feezal-element-material-progress-circular",
+  "@feezal/feezal-element-material-progress-linear",
+  "@feezal/feezal-element-material-radio",
+  "@feezal/feezal-element-material-select",
   "@feezal/feezal-element-material-slider",
   "@feezal/feezal-element-material-switch",
   "@feezal/feezal-element-material-tank",
+  "@feezal/feezal-element-material-text-field",
   "@feezal/feezal-element-material-value",
   "@feezal/feezal-element-paper-app-layout",
   "@feezal/feezal-element-paper-badge",
