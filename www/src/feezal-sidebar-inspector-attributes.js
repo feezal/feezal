@@ -266,6 +266,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         const links = feezalInfo?.links;
         const hasHelp = desc || (links && links.length > 0);
         return html`
+            ${this._renderDiscoveryPicker()}
             ${this._discoveryMatch ? html`
                 <div class="discovery-banner">
                     <span class="disc-label">⚡ <span class="disc-name">${this._discoveryMatch.name}</span> detected</span>

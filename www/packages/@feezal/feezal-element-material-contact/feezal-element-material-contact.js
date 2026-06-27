@@ -51,6 +51,55 @@ function genericSvg(isOpen) {
         ` : ''}`;
 }
 
+function waterleakSvg(isOpen) {
+    const c = isOpen ? 'var(--feezal-contact-open-color)' : 'currentColor';
+    return svg`
+        <path d="M30,6 C24,16 10,28 10,40 C10,50 19,56 30,56 C41,56 50,50 50,40 C50,28 36,16 30,6 Z"
+              fill="${isOpen ? 'var(--feezal-contact-open-color)' : 'none'}"
+              fill-opacity="${isOpen ? 0.35 : 0}"
+              stroke="${c}" stroke-width="3" stroke-linejoin="round"/>
+        ${isOpen ? svg`
+            <path d="M20,50 Q25,45 30,50 Q35,55 40,50"
+                  fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round"/>
+        ` : svg`
+            <line x1="30" y1="35" x2="30" y2="47" stroke="${c}" stroke-width="2.5" stroke-linecap="round" opacity="0.45"/>
+        `}`;
+}
+
+function fireAlarmSvg(isOpen) {
+    const c = isOpen ? 'var(--feezal-contact-open-color)' : 'currentColor';
+    return svg`
+        <path d="M30,5 C24,14 16,24 16,35 C16,45 22,54 30,57 C38,54 44,45 44,35 C44,24 36,14 30,5 Z"
+              fill="${isOpen ? 'var(--feezal-contact-open-color)' : 'none'}"
+              fill-opacity="${isOpen ? 0.3 : 0}"
+              stroke="${c}" stroke-width="3" stroke-linejoin="round"/>
+        ${isOpen ? svg`
+            <path d="M30,22 C27,26 22,32 24,39 C25,43 28,47 30,49 C32,47 35,43 36,39 C38,32 33,26 30,22 Z"
+                  fill="white" fill-opacity="0.55" stroke="none"/>
+        ` : svg`
+            <circle cx="30" cy="38" r="4" fill="${c}" opacity="0.4"/>
+            <line x1="30" y1="20" x2="30" y2="31" stroke="${c}" stroke-width="3" stroke-linecap="round" opacity="0.4"/>
+        `}`;
+}
+
+function garageDoorSvg(isOpen) {
+    return svg`
+        <rect x="5" y="5" width="50" height="52" rx="1"
+              fill="none" stroke="currentColor" stroke-width="3.5"/>
+        ${isOpen ? svg`
+            <line x1="5"  y1="13" x2="55" y2="13" stroke="currentColor" stroke-width="2" opacity="0.6"/>
+            <line x1="5"  y1="19" x2="55" y2="19" stroke="currentColor" stroke-width="2" opacity="0.6"/>
+            <path d="M14,57 L30,43 L46,57"
+                  fill="var(--feezal-contact-open-color)" fill-opacity="0.45"
+                  stroke="var(--feezal-contact-open-color)" stroke-width="1.5" stroke-linejoin="round"/>
+        ` : svg`
+            <line x1="5"  y1="19" x2="55" y2="19" stroke="currentColor" stroke-width="2"/>
+            <line x1="5"  y1="31" x2="55" y2="31" stroke="currentColor" stroke-width="2"/>
+            <line x1="5"  y1="43" x2="55" y2="43" stroke="currentColor" stroke-width="2"/>
+            <circle cx="30" cy="38" r="3" fill="none" stroke="currentColor" stroke-width="2"/>
+        `}`;
+}
+
 // ── Element ───────────────────────────────────────────────────────────────────
 class FeezalElementMaterialContact extends FeezalElement {
     static get feezal() {
@@ -63,7 +112,7 @@ class FeezalElementMaterialContact extends FeezalElement {
                     state_topic:           {attr: 'subscribe'},
                     payload_on:            {attr: 'payload-open'},
                     payload_off:           {attr: 'payload-closed'},
-                    device_class:          {attr: 'type', valueMap: {window: 'window', door: 'door', _default: 'window'}},
+                    device_class:          {attr: 'type', valueMap: {window: 'window', door: 'door', moisture: 'waterleak', smoke: 'firealarm', garage_door: 'garagedoor', _default: 'window'}},
                     availability_topic:    {attr: 'subscribe-availability'},
                     payload_available:     {attr: 'payload-available'},
                     payload_not_available: {attr: 'payload-unavailable'},
@@ -74,8 +123,8 @@ class FeezalElementMaterialContact extends FeezalElement {
                 {name: 'subscribe',              type: 'mqttTopic', help: 'State topic (single-contact mode).'},
                 {name: 'payload-open',           type: 'string',    default: 'ON',    help: 'Payload value meaning the contact is open.'},
                 {name: 'payload-closed',         type: 'string',    default: 'OFF',   help: 'Payload value meaning the contact is closed.'},
-                {name: 'type',                   type: 'select',    options: ['window', 'door', 'generic'], default: 'window',
-                    help: 'Visual style — window frame (2×2 panes), door outline, or generic open/close symbol.'},
+                {name: 'type',                   type: 'select',    options: ['window', 'door', 'generic', 'waterleak', 'firealarm', 'garagedoor'], default: 'window',
+                    help: 'Visual style — window frame, door, generic circle, water droplet (leak), flame (fire/smoke alarm), or garage door.'},
                 {name: 'contacts',               type: 'string',    default: '[]',
                     help: 'JSON array of {subscribe, label} for multi-contact mode (up to 8). Overrides single subscribe.'},
                 {name: 'label',                  type: 'string',    default: '',      help: 'Optional card label shown below the visual.'},
@@ -216,8 +265,11 @@ class FeezalElementMaterialContact extends FeezalElement {
     }
 
     _shapeSvg(isOpen) {
-        if (this.type === 'door')    return doorSvg(isOpen);
-        if (this.type === 'generic') return genericSvg(isOpen);
+        if (this.type === 'door')       return doorSvg(isOpen);
+        if (this.type === 'generic')    return genericSvg(isOpen);
+        if (this.type === 'waterleak')  return waterleakSvg(isOpen);
+        if (this.type === 'firealarm')  return fireAlarmSvg(isOpen);
+        if (this.type === 'garagedoor') return garageDoorSvg(isOpen);
         return windowSvg(isOpen);
     }
 
