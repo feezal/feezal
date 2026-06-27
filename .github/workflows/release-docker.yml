@@ -89,14 +89,11 @@ jobs:
             echo ""
             echo "## Update"
             echo ""
-            echo "**Docker Compose** (recommended):"
-            echo '```sh'
-            echo "docker compose pull && docker compose up -d"
-            echo '```'
-            echo ""
             echo "**Docker (manual):**"
             echo '```sh'
             echo "docker pull ghcr.io/feezal/feezal:latest"
+            echo "docker rm -f feezal"
+            echo "docker run -d --name feezal -p 3000:3000 -v feezal-data:/data ghcr.io/feezal/feezal:latest" 
             echo '```'
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"

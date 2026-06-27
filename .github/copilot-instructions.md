@@ -163,6 +163,8 @@ Build output goes to `www/dist/`. The chunk-size warning for chunks >500 kB is e
 
 - The `feezal` server package and all `@feezal/*` element/theme packages use **lockstep major versions**: a major bump must be applied to every package in the same release.
 - Minor and patch versions are **independent** — element packages may be at different minor/patch versions than the server.
+- Always keep verisions in sync between package.json www/package.json and server/package.json
+
 
 ---
 
