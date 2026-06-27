@@ -818,11 +818,21 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                     placeholder="Link a discovered device\u2026"
                     value="${linkedId}"
                     @sl-change="${e => this._onPickDiscovery(e.target.value)}">
-                    ${matches.map(m => html`<sl-option value="${m.discovery_id}">${m.name}</sl-option>`)}
+                    ${matches.map(m => html`<sl-option value="${m.discovery_id}">${this._discoveryOptionLabel(m)}</sl-option>`)}
                 </sl-select>
                 ${linkedId ? html`<button class="dp-clear" title="Unlink device" @click="${this._onClearDiscovery}">&#x2715;</button>` : ''}
             </div>
         `;
+    }
+
+    // Build a meaningful option label from the discovery payload. The entity
+    // `name` is often just the component type ("light"), so prefer the status
+    // topic(s) found in the config, falling back to the name.
+    _discoveryOptionLabel(entity) {
+        const cfg = entity.config || {};
+        const topic = cfg.state_topic || cfg.position_topic || cfg.percentage_state_topic ||
+            cfg.current_temperature_topic || cfg.command_topic || '';
+        return topic || entity.name || entity.discovery_id;
     }
 
     _onPickDiscovery(id) {
