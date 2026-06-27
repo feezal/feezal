@@ -14,6 +14,19 @@ const mqttBridge = require('./mqtt/bridge.js');
 const createHub = require('./socket/hub.js');
 const {discoverElements, generateElementsModule} = require('./build/elements.js');
 
+/** Format a git commit message for display in the historical-preview banner. */
+function _fmtCommitLabel(msg) {
+    if (!msg) return 'Auto-save';
+    if (msg.startsWith('init:'))    return 'Initial version';
+    if (msg.startsWith('restore:')) return msg.replace(/^restore:\s*/, '').replace(/\s*\([a-f0-9]{7}\)$/, '');
+    if (msg.startsWith('save:'))    return 'Auto-save';
+    if (/^\d{4}-\d{2}-\d{2}T/.test(msg)) {
+        try { return new Date(msg).toLocaleString('en-US', {month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit'}); }
+        catch { return msg; }
+    }
+    return msg;
+}
+
 /**
  * Creates the feezal Express application and Socket.IO server.
  *
@@ -153,6 +166,24 @@ async function createApp(config) {
                     historicalHtml = v.html;
                 } catch { /* sha not found or git unavailable — fall through to current */ }
             }
+
+            // Fetch commit list for prev/next navigation in the preview banner.
+            let prevSha = null, nextSha = null, commitLabel = shaParam ? shaParam.slice(0, 7) : '';
+            if (historicalHtml && storage.dataDir) {
+                try {
+                    const {listCommits} = require('./build/git.js');
+                    const commits = await listCommits(path.join(storage.dataDir, siteName));
+                    const idx = commits.findIndex(c =>
+                        c.sha === shaParam || c.sha.startsWith(shaParam) || shaParam.startsWith(c.sha.slice(0, 7))
+                    );
+                    if (idx !== -1) {
+                        // commits[0] = newest; older = higher index, newer = lower index
+                        if (idx + 1 < commits.length) prevSha = commits[idx + 1].sha;
+                        if (idx - 1 >= 0)             nextSha = commits[idx - 1].sha;
+                        commitLabel = _fmtCommitLabel(commits[idx].message);
+                    }
+                } catch { /* non-fatal — prev/next stay null */ }
+            }
             // config is stored as {viewer, connection}; feezal-connection expects
             // the inner connection object (with uri, clientId, etc.), not the wrapper.
             const connectionConfig = (config && config.connection) || null;
@@ -267,10 +298,16 @@ window.feezal = {
 <\/script>${userThemeLink}${overrideStyle}${classesStyle}
 </head>
 <body>
-${historicalHtml ? `<div style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#1565c0;color:#fff;padding:8px 16px;display:flex;align-items:center;gap:12px;font-family:sans-serif;font-size:13px">
-  <span style="flex:1">⏱ Previewing historical version — <strong>${shaParam}</strong></span>
-  <a href="/viewer/${siteName}" style="color:#fff;text-decoration:underline">Close preview</a>
-</div><div style="margin-top:37px;height:calc(100%-37px)">` : ''}
+${historicalHtml ? `<div style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#1565c0;color:#fff;padding:6px 14px;display:flex;align-items:center;gap:10px;font-family:sans-serif;font-size:13px;box-sizing:border-box">
+  ${prevSha
+      ? `<a href="/viewer/${siteName}?sha=${prevSha}" style="color:#fff;padding:3px 10px;border:1px solid rgba(255,255,255,0.5);border-radius:4px;text-decoration:none;font-size:12px;white-space:nowrap">&#8592; Older</a>`
+      : `<span style="padding:3px 10px;border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:rgba(255,255,255,0.35);font-size:12px;cursor:default;white-space:nowrap">&#8592; Older</span>`}
+  ${nextSha
+      ? `<a href="/viewer/${siteName}?sha=${nextSha}" style="color:#fff;padding:3px 10px;border:1px solid rgba(255,255,255,0.5);border-radius:4px;text-decoration:none;font-size:12px;white-space:nowrap">Newer &#8594;</a>`
+      : `<span style="padding:3px 10px;border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:rgba(255,255,255,0.35);font-size:12px;cursor:default;white-space:nowrap">Newer &#8594;</span>`}
+  <span style="flex:1;text-align:center;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:0.95">${commitLabel}</span>
+  <a href="/viewer/${siteName}" style="color:#fff;padding:3px 10px;border:1px solid rgba(255,255,255,0.5);border-radius:4px;text-decoration:none;font-size:12px;white-space:nowrap">&#10005; Close</a>
+</div><div style="margin-top:43px;height:calc(100% - 43px)">` : ''}
 <feezal-connection backend="${backendValue}"${connectionAttr}></feezal-connection>
 <feezal-app-viewer>${themedHtml}</feezal-app-viewer>
 ${historicalHtml ? '</div>' : ''}
