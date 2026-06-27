@@ -37,7 +37,7 @@ let latestVersion = null;
  * @param {object} logger
  * @returns {express.Router}
  */
-function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null} = {}) {
+function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, getDiscoveredEntities = null, getDiscoveredEntity = null} = {}) {
     const router = express.Router();
 
     // Version info + npm update check
@@ -201,6 +201,22 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null} =
         const prefix = typeof req.query.prefix === 'string' ? req.query.prefix : '';
         const completions = getTopicCompletions ? getTopicCompletions(prefix) : [];
         res.json({completions});
+    });
+
+    // ── Auto-discovery (N12) ───────────────────────────────────────────────
+    // Returns the flat list of all discovered MQTT entities.
+    router.get('/discovery/devices', (_req, res) => {
+        const devices = getDiscoveredEntities ? getDiscoveredEntities() : [];
+        res.json({devices});
+    });
+
+    // Returns a single discovered entity by discovery_id.
+    // The ID contains slashes (e.g. "light/0x00158d/lamp"), so use a wildcard param.
+    router.get('/discovery/devices/*', (req, res) => {
+        const id = req.params[0];
+        const device = getDiscoveredEntity ? getDiscoveredEntity(id) : null;
+        if (!device) return res.status(404).json({error: 'not found'});
+        res.json(device);
     });
 
     // ── User themes ────────────────────────────────────────────────────────

@@ -10,6 +10,7 @@ const session = require('express-session');
 const {Server: SocketIO} = require('socket.io');
 const createAuthMiddleware = require('./auth/middleware.js');
 const createApiRouter = require('./routes/api.js');
+const mqttBridge = require('./mqtt/bridge.js');
 const createHub = require('./socket/hub.js');
 const {discoverElements, generateElementsModule} = require('./build/elements.js');
 
@@ -103,7 +104,11 @@ async function createApp(config) {
     const {getTopicCompletions} = createHub(io, {storage, logger});
 
     // --- Protected API routes ---
-    app.use('/api', editorAuth, createApiRouter(storage, wwwDir, logger, {getTopicCompletions}));
+    app.use('/api', editorAuth, createApiRouter(storage, wwwDir, logger, {
+        getTopicCompletions,
+        getDiscoveredEntities: mqttBridge.getDiscoveredEntities,
+        getDiscoveredEntity:   mqttBridge.getDiscoveredEntity,
+    }));
 
     // --- Editor route (protected) ---
     // The editor SPA is served from dist/editor/index.html.
