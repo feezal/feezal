@@ -186,13 +186,12 @@ class FeezalElementMaterialLight extends FeezalElement {
                 // Theme-aware colour tokens — editable in the Style inspector.
                 // The `default` is shown as the field placeholder so the active
                 // mapping is visible; leave a field blank to inherit it.
-                {property: '--feezal-light-ring-color',    type: 'color', default: 'var(--primary-text-color)'},
-                {property: '--feezal-light-track-color',   type: 'color', default: 'var(--secondary-text-color)'},
+                // on-color  → filled brightness arc, drag knob, centre tint/outline while ON
+                // off-color → unfilled ring groove + centre outline while OFF
+                {property: '--feezal-light-on-color',      type: 'color', default: 'var(--primary-text-color)'},
+                {property: '--feezal-light-off-color',     type: 'color', default: 'var(--secondary-text-color)'},
                 {property: '--feezal-light-surface-color', type: 'color', default: 'var(--primary-background-color)'},
                 {property: '--feezal-light-text-color',    type: 'color', default: 'var(--primary-text-color)'},
-                {property: '--feezal-light-label-color',   type: 'color', default: 'var(--secondary-text-color)'},
-                {property: '--feezal-light-off-color',     type: 'color', default: 'var(--disabled-text-color)'},
-                {property: '--feezal-light-button-color',  type: 'color', default: 'var(--secondary-background-color)'},
                 {property: '--feezal-light-error-color',   type: 'color', default: 'var(--error-color)'}
             ],
             restrict: {minWidth: 120, minHeight: 140},
@@ -261,23 +260,23 @@ class FeezalElementMaterialLight extends FeezalElement {
             gap: 4px;
             position: relative;
 
-            /* ── Theme-aware colour tokens ──────────────────────────────────
-               Every colour the control draws is exposed as a custom property
-               and defaults to a feezal/HA theme variable (with a literal
-               fallback). Override any of them per-element (inline style or a
-               theme rule) to restyle the light. Physical light colours — the
-               colour-temperature gradient and the hue wheel — intentionally
-               stay fixed, as they represent the actual light output. */
-            --feezal-light-ring-color:    var(--primary-text-color, var(--accent-color, var(--primary-color, var(--sl-color-primary-600, #0284c7))));
-            --feezal-light-track-color:   var(--secondary-text-color, var(--divider-color, var(--feezal-border, #e0e0e0)));
+            /* ── Theme-aware colour tokens (state-aware) ────────────────────
+               Five overridable colours, each defaulting to a feezal/HA theme
+               variable (with a literal fallback). Override per-element via the
+               Style inspector or a theme rule.
+                 on-color  → filled brightness arc + drag knob + centre
+                             tint/outline while the lamp is ON
+                 off-color → unfilled ring groove + centre outline while OFF
+               In colour-temperature / RGB / HS modes the ring and centre show
+               the live light colour, which overrides on-color. The CT gradient
+               and hue wheel stay fixed — they represent the real light output. */
+            --feezal-light-on-color:      var(--primary-text-color, var(--primary-color, var(--sl-color-primary-600, #0284c7)));
+            --feezal-light-off-color:     var(--secondary-text-color, var(--divider-color, var(--feezal-border, #e0e0e0)));
             --feezal-light-surface-color: var(--primary-background-color, var(--feezal-bg, #fff));
             --feezal-light-text-color:    var(--primary-text-color, var(--feezal-color, #333));
-            --feezal-light-label-color:   var(--secondary-text-color, var(--feezal-color, #777));
-            --feezal-light-off-color:     var(--disabled-text-color, #bdbdbd);
-            --feezal-light-button-color:  var(--secondary-background-color, rgba(0, 0, 0, 0.3));
             --feezal-light-error-color:   var(--error-color, #b00020);
 
-            --md-sys-color-primary:    var(--feezal-light-ring-color);
+            --md-sys-color-primary:    var(--feezal-light-on-color);
             --md-sys-color-surface:    var(--feezal-light-surface-color);
             --md-sys-color-on-surface: var(--feezal-light-text-color);
         }
@@ -305,7 +304,7 @@ class FeezalElementMaterialLight extends FeezalElement {
         .controls { width: 100%; display: flex; flex-direction: column; gap: 4px; }
         .ctrl-label {
             font-size: 10px; opacity: 0.55;
-            color: var(--feezal-light-label-color);
+            color: var(--feezal-light-text-color);
             margin-bottom: -2px;
         }
         .ct-track {
@@ -325,7 +324,7 @@ class FeezalElementMaterialLight extends FeezalElement {
         md-outlined-select { width: 100%; }
         .label {
             font-size: 11px; opacity: 0.65; text-align: center;
-            color: var(--feezal-light-label-color);
+            color: var(--feezal-light-text-color);
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;
         }
     `];
@@ -675,15 +674,15 @@ class FeezalElementMaterialLight extends FeezalElement {
         if (mode === 'rgb' && this._rgb) return rgbToHex(...this._rgb);
         if (mode === 'hs'  && this._hs)  return rgbToHex(...hsvToRgb(this._hs[0], this._hs[1] / 100, 1));
         if (mode === 'color_temp' && this._colorTemp) return rgbToHex(...kelvinToRgb(this._colorTemp));
-        return 'var(--feezal-light-ring-color)';
+        return 'var(--feezal-light-on-color)';
     }
 
     // ─── SVG content ─────────────────────────────────────────────────────────
     _svgContent() {
         const isOn   = feezal.isEditor ? true : this._on;
         const brt    = feezal.isEditor ? 60   : this._dispBrt;
-        const accent = feezal.isEditor ? 'var(--feezal-light-ring-color)' : this._accentColor;
-        const trackC = 'var(--feezal-light-track-color)';
+        const accent = feezal.isEditor ? 'var(--feezal-light-on-color)' : this._accentColor;
+        const trackC = 'var(--feezal-light-off-color)';
         const mode   = this.mode || 'brightness';
 
         const arcEndAngle = (ARC_START + ARC_SWEEP) % 360; // 135°
@@ -709,12 +708,18 @@ class FeezalElementMaterialLight extends FeezalElement {
                 stroke="${isOn ? accent : trackC}" stroke-width="1.5"
                 pointer-events="none"/>
 
+            <!-- On-state tint (visible in brightness mode; CT/colour modes draw over it) -->
+            ${isOn ? svg`
+                <circle cx="${CX}" cy="${CY}" r="${CENTER_R - 1.5}"
+                    fill="${accent}" opacity="0.14" pointer-events="none"/>
+            ` : ''}
+
             <!-- Centre content -->
             ${isOn
                 ? this._svgCenter(mode, brt, accent)
                 : svg`<text x="${CX}" y="${CY}" text-anchor="middle"
                         dominant-baseline="middle" font-size="9"
-                        opacity="0.35" fill="var(--feezal-light-text-color)"
+                        opacity="0.55" fill="var(--feezal-light-off-color)"
                         pointer-events="none">off</text>`}
 
             <!-- Drag handle on ring (shown when on) -->
@@ -805,7 +810,7 @@ class FeezalElementMaterialLight extends FeezalElement {
                         pointer-events="none"/>
                     <!-- Inner power-toggle zone -->
                     <circle cx="${CX}" cy="${CY}" r="${POWER_R}"
-                        fill="var(--feezal-light-button-color)" pointer-events="none"/>
+                        fill="rgba(0,0,0,0.3)" pointer-events="none"/>
                     <text x="${CX}" y="${CY + 0.5}" text-anchor="middle"
                         dominant-baseline="middle" font-size="11"
                         fill="white" pointer-events="none">⏻</text>
