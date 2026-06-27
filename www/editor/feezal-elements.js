@@ -11,6 +11,7 @@ import '@feezal/feezal-element-connection-status';
 import '@feezal/feezal-element-material-button';
 import '@feezal/feezal-element-material-gauge';
 import '@feezal/feezal-element-material-light';
+import '@feezal/feezal-element-material-shutter';
 import '@feezal/feezal-element-material-slider';
 import '@feezal/feezal-element-material-switch';
 import '@feezal/feezal-element-material-value';
@@ -49,6 +50,7 @@ window.feezal.elements = [
   "@feezal/feezal-element-material-button",
   "@feezal/feezal-element-material-gauge",
   "@feezal/feezal-element-material-light",
+  "@feezal/feezal-element-material-shutter",
   "@feezal/feezal-element-material-slider",
   "@feezal/feezal-element-material-switch",
   "@feezal/feezal-element-material-value",
