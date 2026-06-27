@@ -71,8 +71,56 @@ Each repeater child becomes individually selectable and configurable on the edit
 Install additional `@feezal/feezal-element-*` packages from the editor UI without touching the terminal. Requires a backend endpoint that runs `pnpm add` in the `www/` workspace.
 
 ### N6 — Custom element inspectors
-An element package can ship an additional Web Component that renders inside the sidebar inspector when that element is selected. This replaces the generic attribute form with a fully custom editor UI — useful for complex elements like charts or maps.
-*(was "Editor Widgets / Custom Editor" in TODO.md)*
+
+An element package can ship a Web Component that **fully replaces** the generic attribute form in the sidebar inspector when that element is selected. The style section (position, size, background, etc.) remains below it, unchanged.
+
+#### Declaration
+
+The element declares the custom inspector by adding an `inspector` key to `static get feezal()`:
+
+```js
+static get feezal() {
+    return {
+        palette: { … },
+        inspector: 'feezal-element-basic-chart-inspector',  // custom element tag name
+        attributes: [ … ],
+        styles: [ … ]
+    };
+}
+```
+
+The tag must be defined and registered (via `customElements.define`) in the same element package file. No separate discovery, no extra files.
+
+#### Rendering
+
+When an element with `feezal().inspector` set is selected, `feezal-sidebar-inspector-attributes.js` renders the named custom element in place of the standard attribute form:
+
+```html
+<feezal-element-basic-chart-inspector></feezal-element-basic-chart-inspector>
+```
+
+The selected element's DOM reference is passed directly to the inspector component as its `.element` property immediately after insertion (same render cycle). The inspector can read any attribute or property from this reference.
+
+#### Writing changes back
+
+The inspector dispatches a standard `feezal-attribute-changed` CustomEvent (bubbles, composed) with `detail: { name, value }` — the same event shape that the built-in attribute controls already use:
+
+```js
+this.dispatchEvent(new CustomEvent('feezal-attribute-changed', {
+    bubbles: true,
+    composed: true,
+    detail: { name: 'series', value: JSON.stringify(newSeries) }
+}));
+```
+
+The sidebar listens for this event and applies it to the selected element exactly as it does for built-in controls. No other API is needed.
+
+#### Lifecycle
+
+- `.element` is set after the inspector is connected to the DOM; the inspector should react to it via a Lit reactive property.
+- When the selection changes to a different element (or the inspector's own element type), the sidebar replaces the inspector component with a fresh instance.
+- When selection is cleared, the inspector is removed.
+
 
 ### N8 — MQTT TLS certificate management
 
