@@ -347,14 +347,6 @@ The Light element (`feezal-element-material-light`) was the first device-control
 7. **Availability badge, controls never disabled.** Optional `subscribe-availability` (+ `payload-available` / `payload-unavailable`) drives a small corner badge when the device is unavailable. **Never disable the controls** — the card stays usable regardless of availability.
 8. **Ground the design in a real device.** Light was built against a real Philips Hue via zigbee2mqtt, which surfaced every nuance (separate stream, nested-`color` JSON, mireds, effect list). Do the same for each new card — pick a concrete climate / cover / lock device and model its real topic shapes.
 
-### E4 — Camera element
-Renders a live camera stream on the dashboard canvas. Targets three source types:
-- **MJPEG**: a plain `<img>` with a streaming URL — works anywhere, no codec negotiation.
-- **WebRTC**: for low-latency feeds from cameras that support it (Frigate, go2rtc, etc.). Requires an SDP/signalling integration.
-- **HLS / RTSP-over-HTTP**: via a `<video>` element with an HLS.js adapter for browsers that don't natively support HLS.
-
-Configurable attributes: `src`, `type` (mjpeg / webrtc / hls), `fit` (cover / contain), `muted`, `autoplay`. Falls back to a placeholder frame when the stream is unreachable.
-
 ### E9 — Flexbox layout element *(backlog, depends on N6)*
 
 A canvas element that acts as a **visual flexbox container** for sub-views or child elements. Unlike the free-form absolute-position canvas, this element enforces a flex layout so the user can build structured page regions (sidebars, grids, responsive rows) without manually positioning every child.
@@ -413,156 +405,6 @@ The existing material element set covers `button`, `switch`, `slider`, `gauge`, 
 - Elements with no direct MD3 analogue (gauge, value) remain custom Lit — do not duplicate them.
 
 > **Conventions:** auto-discovery — `checkbox`, `chip`, and `icon-button` (toggle mode) map to the discovery `switch` component; `select` maps to `select`; `text-field` maps to `text`. Each declares a `discovery` descriptor per [Element platform conventions](#element-platform-conventions). These are single-value controls, so dual-payload mode does not apply.
-
-### E11 — Climate element (`feezal-element-material-climate`)
-
-A self-contained climate control that wraps several sub-elements into a single cohesive canvas element. Targets typical smart-home thermostats and HVAC devices (e.g. Homematic, Z-Wave, MQTT climate, ESPHome climate, zigbee2mqtt TRVs). **Palette category: `Device`** (sibling of Light).
-
-> **Conventions:** dual-payload ✓ (`json` is the discovery default) · auto-discovery: `climate` · custom inspector: **N6 required** (two-tab Topics/Config, capability-gated sections). See [Element platform conventions](#element-platform-conventions) and **[Lessons from the Light element](#lessons-from-the-light-element-e16--e35) — all eight apply here.** Element-specific discovery conversions: `schema` → `payload-mode`, `temperature_state_topic`/`temperature_command_topic` → `subscribe`/`publish` (json mode), `modes` (string array) → `modes` attribute (auto-coerced to `[{value,label}]`), `temp_step` → `step`, `min_temp`/`max_temp` → `min`/`max`, `temperature_unit` (C/F) → `unit` (°C/°F), `availability_topic` → `subscribe-availability`, `payload_available`/`payload_not_available` mapped, `name` → `label`.
-
-> **Real-device grounding (do this first):** model a concrete climate device — e.g. a **zigbee2mqtt TRV** (Sonoff TRVZB / Eurotronic Spirit) — which emits a consolidated base-topic JSON object (`local_temperature`, `current_heating_setpoint`, `system_mode`, `running_state`, `position` for valve %) *and* a `schema: json` `climate` discovery config. Discovery points at the JSON form, so an auto-configured climate element defaults to `payload-mode: json`.
-
-**Visual concept:** a large circular arc slider (custom SVG/Canvas, similar to the Nest/ecobee UI) for setting the target temperature. Current actual temperature shown prominently in the centre of the arc. Supporting data rendered below or around the circle. An availability badge appears in a corner when the device is unavailable; **controls stay enabled** regardless.
-
-**Sub-elements composed internally (not separate canvas elements):**
-- **Set-temperature arc slider** — circular arc spanning ~240°. Drag handle on the arc sets `setpoint`. Min/max configurable (e.g. 5 °C – 30 °C). Snaps to `step` increments. Publishes to the setpoint topic on pointer release.
-- **Actual temperature display** — large text in the arc centre. Subscribes to `subscribe-actual`. Unit shown below (°C / °F, configurable).
-- **Mode selector** — optional horizontal radio chip row (uses `md-filter-chip` internally). Modes are configurable via a JSON `modes` attribute (e.g. `[{"value":"heat","label":"Heat","icon":"local_fire_department"},...]`). Selected mode published to the mode topic; current mode read back. Hidden when `modes` is empty.
-- **Valve opening** — optional small percentage bar or arc segment fill (e.g. amber fill on the arc proportional to valve %). Subscribes to `subscribe-valve`. Hidden when its topic is absent.
-- **Humidity** — optional secondary value row below the arc (`subscribe-humidity`). Shown as `💧 52%`.
-
-**Payload mode:**
-- **`separate` (default for hand-wiring):** the per-topic attributes below.
-- **`json`:** a single `subscribe` / `publish` topic pair carrying the climate JSON object; an optional `json-map` overrides the default key map. Override the base `_subscribe()` as a no-op and manage subscriptions directly (single JSON topic in `json` mode, per-topic in `separate`, availability always).
-
-**N6 inspector (required):** two tabs. **Topics** — an always-on Setpoint/Actual section plus capability-gated, collapsible sections (Mode, Valve, Humidity, Availability); each enabled when its topic(s) are non-empty, toggling off clears them; in `json` mode the per-feature groups collapse to a single State & Control section (`subscribe` + `publish`). **Config** — Payload mode, Min/Max/Step, Unit, Modes builder, colours, Display. Replicate the standard inspector's `::part()` Shoelace theming and `autocomplete="off"`; the shell adds the discovery device picker automatically.
-
-**Attributes:**
-
-| Attribute | Type | Default | Description |
-|---|---|---|---|
-| `payload-mode` | select | `separate` | `separate` (per-topic) or `json` (single object) |
-| `subscribe` | mqttTopic | — | *(json mode)* topic carrying the climate JSON object |
-| `publish` | mqttTopic | — | *(json mode)* topic to publish merged climate JSON to |
-| `json-map` | string | `""` | *(json mode)* JSON key-map override |
-| `subscribe-setpoint` | mqttTopic | — | *(separate)* topic to read current setpoint from |
-| `publish-setpoint` | mqttTopic | — | *(separate)* topic to publish new setpoint to |
-| `subscribe-actual` | mqttTopic | — | Topic for actual measured temperature |
-| `subscribe-mode` | mqttTopic | — | Topic for current mode (e.g. `"heat"`) |
-| `publish-mode` | mqttTopic | — | Topic to publish selected mode to |
-| `subscribe-valve` | mqttTopic | — | Topic for valve opening percentage (0–100) |
-| `subscribe-humidity` | mqttTopic | — | Topic for relative humidity (0–100) |
-| `subscribe-availability` | mqttTopic | — | *Optional* — device availability topic |
-| `payload-available` | string | `online` | Availability "online" payload |
-| `payload-unavailable` | string | `offline` | Availability "offline" payload |
-| `min` | number | `5` | Minimum setpoint value |
-| `max` | number | `30` | Maximum setpoint value |
-| `step` | number | `0.5` | Setpoint step size |
-| `unit` | string | `°C` | Temperature unit label |
-| `modes` | string | `""` | JSON array of `{value, label, icon}` mode objects |
-| `label` | string | — | Optional card title |
-| `discovery-id` | string | — | *(reflected)* linked auto-discovery entity id |
-
-**Colour tokens (theme-aware, state-aware):** instead of fixed colour attributes, expose CSS custom properties that default to theme vars and appear in the style inspector as placeholders — e.g. `--feezal-thermostat-heat-color` (heating), `--feezal-thermostat-cool-color` (cooling / below setpoint), `--feezal-thermostat-idle-color`, `--feezal-thermostat-text-color`, `--feezal-thermostat-error-color`. Keep the set minimal.
-
-**Editor preview:** renders the arc with a static midpoint handle and placeholder temperature labels; modes shown as non-interactive chips.
-
-**Default size:** 240×280 px.
-
-*Research note: HA's built-in thermostat card and Mushroom's climate card (5k ★) both confirm this pattern. The key differentiator for feezal is the larger circular arc UI — HA's cards use a simpler radial dial; Mushroom uses a compact icon chip. A full arc slider is more appropriate for wall-mounted dashboards where precision matters over screen real estate.*
-
-### E12 — Shutter / Blinds element (`feezal-element-material-shutter`)
-
-A window-visualisation element for controlling roller shutters, blinds, or awnings. Targets cover/shutter devices (e.g. Homematic, MQTT Shelly, Zigbee covers). **Palette category: `Device`** (sibling of Light).
-
-> **Conventions:** dual-payload ✓ (`json` is the discovery default) · auto-discovery: `cover` · custom inspector: **N6 recommended** (tames the topic count, gates the optional tilt/slat section). See [Element platform conventions](#element-platform-conventions) and **[Lessons from the Light element](#lessons-from-the-light-element-e16--e35).** Element-specific discovery conversions: `position_topic`/`set_position_topic` → position topics, `command_topic` + `payload_open`/`payload_close`/`payload_stop` → command + payloads, `position_open`/`position_closed` → position scale, `tilt_*` → slat-angle topics/range, `availability_topic` → `subscribe-availability`, `name` → `label`.
-
-> **Real-device grounding (do this first):** model a concrete cover device — e.g. a **zigbee2mqtt venetian blind** (Zemismart / Tuya) that reports `position` (0–100) and `tilt`, or a **Shelly 2.5 in roller mode** — and a `schema: json` `cover` discovery config. Discovery points at the JSON form, so an auto-configured shutter defaults to `payload-mode: json`.
-
-**Visual concept:** a stylised window outline (SVG) with a shutter panel that slides up and down proportionally to the current opening percentage. The shutter slats are rendered as horizontal lines whose density can be configured. Touch/mouse drag directly on the shutter panel sets a new position. An availability badge appears in a corner when unavailable; **controls stay enabled**.
-
-**Controls:**
-- **Up / Stop / Down button row** — three `md-icon-button` elements (`keyboard_arrow_up`, `stop`, `keyboard_arrow_down`) that publish configurable payloads to `publish-command`.
-- **Opening percentage display** — numeric label below the window showing the current position (from `subscribe-position`).
-- **Direct position input** — optional: tap the percentage label to open a small inline `md-slider` overlay (0–100 %) for precise setting.
-
-**Payload mode:**
-- **`separate` (default for hand-wiring):** the per-topic attributes below.
-- **`json`:** a single `subscribe` / `publish` topic pair carrying the cover JSON object (`position`, `tilt`, `state`); an optional `json-map` overrides the default key map. Override the base `_subscribe()` as a no-op and manage subscriptions directly.
-
-**N6 inspector (recommended):** two tabs. **Topics** — an always-on Position/Command section plus a capability-gated, collapsible **Tilt/Slat** section (enabled when a tilt topic is set, toggling off clears it) and an Availability section; in `json` mode the groups collapse to a single State & Control section. **Config** — Payload mode, command payloads, invert, slat count, colours, Display. Replicate the standard inspector's `::part()` theming and `autocomplete="off"`; the shell adds the discovery device picker automatically.
-
-**Attributes:**
-
-| Attribute | Type | Default | Description |
-|---|---|---|---|
-| `payload-mode` | select | `separate` | `separate` (per-topic) or `json` (single object) |
-| `subscribe` | mqttTopic | — | *(json mode)* topic carrying the cover JSON object |
-| `publish` | mqttTopic | — | *(json mode)* topic to publish merged cover JSON to |
-| `json-map` | string | `""` | *(json mode)* JSON key-map override |
-| `subscribe-position` | mqttTopic | — | *(separate)* current position (0 = closed, 100 = fully open) |
-| `publish-position` | mqttTopic | — | *(separate)* topic to publish a target position to |
-| `publish-command` | mqttTopic | — | Topic for up/stop/down commands |
-| `payload-up` | string | `UP` | Payload sent by the Up button |
-| `payload-stop` | string | `STOP` | Payload sent by the Stop button |
-| `payload-down` | string | `DOWN` | Payload sent by the Down button |
-| `invert` | boolean | `false` | Invert position scale (0 = fully open instead of closed) |
-| `show-position` | boolean | `true` | Show the numeric position label |
-| `slat-count` | number | `6` | Number of shutter slat lines rendered in the SVG |
-| `slat-angle` | mqttTopic | — | *Optional* — venetian-blind tilt: topic carrying slat angle (0–100 or 0–180°) |
-| `publish-slat-angle` | mqttTopic | — | Topic to publish a new slat angle to |
-| `subscribe-availability` | mqttTopic | — | *Optional* — device availability topic |
-| `payload-available` | string | `online` | Availability "online" payload |
-| `payload-unavailable` | string | `offline` | Availability "offline" payload |
-| `label` | string | — | Optional card title |
-| `discovery-id` | string | — | *(reflected)* linked auto-discovery entity id |
-
-**Colour tokens (theme-aware):** replace the fixed `color-frame` / `color-shutter` attributes with CSS custom properties that default to theme vars and appear in the style inspector as placeholders — e.g. `--feezal-shutter-frame-color` (defaults to `--primary-text-color`), `--feezal-shutter-panel-color` (defaults to `--secondary-background-color`), `--feezal-shutter-error-color`.
-
-**Touch optimisation:** the shutter SVG panel itself is a drag target — dragging up/down sets a proportional position without needing the slider overlay. Supports both pointer and touch events.
-
-**Slat angle:** when `slat-angle` (subscribe) is configured, the SVG slat lines rotate to reflect the current tilt, and a second horizontal drag gesture (left/right) on the shutter panel adjusts the angle. ioBroker Jaeger Design and Homematic venetian blind actuators use this feature extensively.
-
-**Default size:** 120×160 px.
-
-### E13 — Door lock element (`feezal-element-material-door-lock`)
-
-A door / lock control element for smart locks and door entry systems. Targets lock devices (e.g. Nuki, Danalock, Yale, Zigbee door locks).
-
-> **Conventions:** dual-payload ✓ · auto-discovery: `lock` · custom inspector: not required. See [Element platform conventions](#element-platform-conventions). Element-specific: discovery `payload_lock`/`payload_unlock`/`state_locked`/`state_unlocked` → the payload attributes.
-
-**Visual concept:** a front-door silhouette SVG with a large lock icon (`lock` / `lock_open`) in the centre. The door outline changes colour based on state (locked / unlocked / open / jammed). Primary action is a single prominent `md-fab`-style button that toggles the lock.
-
-**States and colours:**
-
-| State payload | Icon | Door colour |
-|---|---|---|
-| `locked` | `lock` | `--primary-color` (teal/blue) |
-| `unlocked` | `lock_open` | `--accent-color` (amber/orange) |
-| `open` | `door_open` | `#4caf50` (green) |
-| `jammed` | `error` | `#f44336` (red) |
-
-**Controls:**
-- **Primary action button** — large central tap area. In locked state publishes `payload-unlock`; in unlocked state publishes `payload-lock`. Renders as `md-fab` with appropriate icon.
-- **Open fully button** — optional secondary `md-icon-button` (`door_open`); publishes `payload-open`. Visible only when `show-open-button` is true.
-- **Status label** — text below the door showing the current state label (configurable via `state-labels` JSON map).
-
-**Attributes:**
-
-| Attribute | Type | Default | Description |
-|---|---|---|---|
-| `subscribe-state` | mqttTopic | — | Topic for current lock state |
-| `publish-command` | mqttTopic | — | Topic to publish lock commands to |
-| `payload-lock` | string | `lock` | Payload to send for locking |
-| `payload-unlock` | string | `unlock` | Payload to send for unlocking |
-| `payload-open` | string | `open` | Payload to send for opening fully |
-| `show-open-button` | boolean | `false` | Show the "open fully" secondary button |
-| `state-labels` | string | `{}` | JSON map of `{statepayload: "display label"}` overrides |
-| `confirm-unlock` | boolean | `false` | Show a confirmation dialog before sending unlock/open commands |
-
-**Security note:** the `confirm-unlock` attribute adds a Shoelace `sl-dialog` confirmation step before publishing unlock or open commands — recommended for publicly accessible dashboards.
-
-**Default size:** 120×160 px.
 
 ### E14 — Energy flow element (`feezal-element-material-energy-flow`)
 
@@ -735,45 +577,6 @@ All state payloads and labels are configurable via `state-labels` JSON.
 | `label` | string | `Alarm` | Panel title label |
 
 **Default size:** 220×320 px.
-
-### E18 — Fan control element (`feezal-element-material-fan`)
-
-A fan control element for smart fans and air circulators. Covers on/off, speed percentage, preset mode (low/medium/high/auto), and optional oscillation and direction.
-
-> **Conventions:** dual-payload ✓ · auto-discovery: `fan` · custom inspector: N6 (preset-mode list). See [Element platform conventions](#element-platform-conventions). Element-specific: discovery `percentage_command_topic`/`preset_modes` → speed ring and preset chips.
-
-**Visual concept:** a circular SVG fan blade illustration that rotates continuously when the fan is on (CSS animation speed proportional to the current percentage). A large central toggle. Speed shown as a percentage arc ring (same as E16 brightness ring) or as a preset-mode chip row. The rotation animation pauses when off.
-
-**Controls:**
-- **On/Off** — tap/click the centre of the fan SVG. Publishes to `publish-state`.
-- **Speed percentage ring** — drag handle on the outer arc; publishes to `publish-percentage` on release. Shown only when `show-percentage` is true.
-- **Preset mode chips** — `md-filter-chip` row (low / medium / high / auto or configurable); publishes to `publish-preset`. Shown when `modes` is non-empty.
-- **Oscillation toggle** — `md-icon-button` (`air`) that toggles oscillation; publishes `on`/`off` to `publish-oscillation`.
-- **Direction toggle** — `md-icon-button` (`sync_alt`) that publishes `forward`/`reverse` to `publish-direction`. Optional, hidden by default.
-
-**Attributes:**
-
-| Attribute | Type | Default | Description |
-|---|---|---|---|
-| `subscribe-state` | mqttTopic | — | On/off state (`on`/`off`) |
-| `publish-state` | mqttTopic | — | Topic for on/off |
-| `payload-on` | string | `on` | — |
-| `payload-off` | string | `off` | — |
-| `subscribe-percentage` | mqttTopic | — | Current speed (0–100 %) |
-| `publish-percentage` | mqttTopic | — | Topic to publish speed |
-| `subscribe-preset` | mqttTopic | — | Current preset mode |
-| `publish-preset` | mqttTopic | — | Topic to publish preset |
-| `modes` | string | `""` | Comma-separated preset mode names |
-| `subscribe-oscillation` | mqttTopic | — | Oscillation state (`on`/`off`) |
-| `publish-oscillation` | mqttTopic | — | Topic for oscillation toggle |
-| `subscribe-direction` | mqttTopic | — | Direction (`forward`/`reverse`) |
-| `publish-direction` | mqttTopic | — | Topic for direction |
-| `show-percentage` | boolean | `true` | Show the speed percentage ring |
-| `show-oscillation` | boolean | `true` | Show oscillation toggle button |
-| `show-direction` | boolean | `false` | Show direction toggle button |
-| `label` | string | `""` | Optional label below the icon |
-
-**Default size:** 160×200 px.
 
 ### E19 — Humidifier / dehumidifier element (`feezal-element-material-humidifier`)
 
@@ -1085,39 +888,6 @@ A single-marker shorthand via top-level `subscribe-lat` / `subscribe-lon` (or `s
 
 **Default size:** 320×240 px.
 
-### E24 — Clock element (`feezal-element-material-clock`)
-
-A dedicated clock display element. Distinct from `feezal-element-basic-datetime` (which renders a formatted text string) — this element renders a visual clock face: either an **analog SVG clock** or a **7-segment digital display**. Popular in ioBroker.vis material widgets (analog 1, analog 2, digital 1, digital 2 variants).
-
-**Modes** (controlled by `mode` attribute):
-
-| Mode | Appearance |
-|---|---|
-| `analog` | Classic round clock face, SVG hands (hour, minute, optional second), configurable face style |
-| `analog-minimal` | Hands only, no face/numerals — just the dial outline and tick marks |
-| `digital` | 7-segment LCD-style display — hours:minutes[:seconds], optional AM/PM |
-| `digital-clean` | Clean sans-serif digital readout — uses MD3 typography |
-
-By default the clock shows the **browser's local time**. Optionally it can subscribe to an MQTT topic carrying a Unix timestamp or ISO 8601 string to display a remote device's time (e.g. a server in a different timezone).
-
-**Attributes:**
-
-| Attribute | Type | Default | Description |
-|---|---|---|---|
-| `mode` | select | `analog` | Clock display mode |
-| `subscribe-time` | mqttTopic | — | Optional: MQTT topic carrying a timestamp; overrides local time |
-| `timezone` | string | `""` | IANA timezone string (e.g. `America/New_York`) for display offset |
-| `show-seconds` | boolean | `false` | Show the seconds hand (analog) or seconds digits (digital) |
-| `show-date` | boolean | `false` | Show today's date below the clock face |
-| `color-face` | color | `--secondary-background-color` | Analog clock face fill |
-| `color-hands` | color | `--primary-text-color` | Hour/minute hands colour |
-| `color-second` | color | `--accent-color` | Second hand / digit colour |
-| `color-digits` | color | `--primary-text-color` | 7-segment digit colour |
-| `color-background` | color | `--primary-background-color` | 7-segment background colour |
-| `label` | string | `""` | Optional timezone or location label below the clock |
-
-**Default size:** 160×160 px (analog); 200×80 px (digital).
-
 ### E25 — Time picker element (`feezal-element-material-time-picker`)
 
 An interactive time input that publishes a selected time value to MQTT. Used for scheduling automations — e.g. "turn on lights at …", "start heating at …". Common in ioBroker.vis dashboards for timer/schedule widgets.
@@ -1137,72 +907,6 @@ An interactive time input that publishes a selected time value to MQTT. Used for
 | `publish-on-change` | boolean | `false` | Publish on every wheel-picker step rather than only on confirm |
 
 **Default size:** 160×60 px.
-
-### E26 — Fluid level / tank element (`feezal-element-material-tank`)
-
-An SVG tank / fluid-level visualisation. Popular in ioBroker.vis for water tanks, heating oil tanks, rain-water collectors, and swimming pool fill levels. Shows fill as a rising animated fluid body inside a configurable tank outline.
-
-**Visual concept:** a vertically-oriented SVG container (rectangular or cylindrical profile). The fluid fill rises/falls with animated CSS transition as the MQTT value changes. Configurable fill colour (can change at threshold levels — e.g. blue → amber → red as level drops). Numeric level label inside or below the tank. Optional wave animation on the fluid surface.
-
-**Tank shapes** (controlled by `shape`):
-- `rect` — rectangular tank with flat top
-- `cylinder` — rounded top/bottom caps (ellipses) for a barrel look
-- `round` — fully circular tank (for round cisterns)
-
-**Attributes:**
-
-| Attribute | Type | Default | Description |
-|---|---|---|---|
-| `subscribe` | mqttTopic | — | Current fill level topic |
-| `min` | number | `0` | Value at 0 % fill |
-| `max` | number | `100` | Value at 100 % fill |
-| `unit` | string | `%` | Unit label shown with the numeric value |
-| `shape` | `rect` \| `cylinder` \| `round` | `rect` | Tank outline shape |
-| `color-fluid` | color | `#42a5f5` | Normal fill colour |
-| `color-warn` | color | `#ff9800` | Fill colour when level ≤ `warn-threshold` |
-| `color-crit` | color | `#f44336` | Fill colour when level ≤ `crit-threshold` |
-| `warn-threshold` | number | `25` | Level (in value units) below which warn colour applies |
-| `crit-threshold` | number | `10` | Level below which critical colour applies |
-| `color-tank` | color | `--primary-text-color` | Tank outline/stroke colour |
-| `animate-wave` | boolean | `true` | Animate a gentle wave on the fluid surface |
-| `show-value` | boolean | `true` | Show numeric value inside the tank |
-| `show-percent` | boolean | `false` | Show percentage instead of raw value |
-| `label` | string | `""` | Label below the tank (e.g. "Rainwater") |
-
-**Default size:** 80×180 px.
-
-### E27 — Window / door contact element (`feezal-element-material-contact`)
-
-A simple SVG sensor indicator for window and door contacts (reed switches, magnetic sensors). Shows open/closed state with a clear visual — a stylised window or door outline that "opens" when the sensor fires. Very widely used in ioBroker and HA security dashboards for a room-overview panel.
-
-> **Conventions:** dual-payload — (per-topic only) · auto-discovery: `binary_sensor` (device_class `window`/`door` → `type`) · custom inspector: N6 (multi-contact list builder). See [Element platform conventions](#element-platform-conventions).
-
-**Visual concept:** a minimal SVG of a window frame (two panes + frame outline) or a door outline. When the contact is `open`, the window/door visually ajar with an amber or red fill; when `closed`, the outline is closed and coloured normally. Optional alarm/alert animation (pulsing red glow) when a configured alarm state is active.
-
-**Display types** (`type` attribute):
-- `window` — two-pane window frame SVG; one pane rotates open
-- `door` — door outline SVG with handle; door swings open
-- `generic` — a simple coloured icon (`sensor_window` / `door_open`) using MD3 icon — less visual but more compact
-
-**Multi-contact mode:** a single element can display up to 8 contacts from separate topics (e.g. all windows in one room). Each contact is a dot/icon in a grid; the overall element background turns amber if any contact is open. Useful for a compact room-security overview without placing 8 separate elements.
-
-**Attributes:**
-
-| Attribute | Type | Default | Description |
-|---|---|---|---|
-| `subscribe` | mqttTopic | — | Contact state topic (`open`/`closed` or configurable) |
-| `payload-open` | string | `open` | Payload value meaning open |
-| `payload-closed` | string | `closed` | Payload value meaning closed |
-| `type` | `window` \| `door` \| `generic` | `window` | Visual type |
-| `alarm-state` | string | `""` | Payload value (on `subscribe`) that triggers alarm animation (e.g. `alarm`) |
-| `contacts` | string | `[]` | JSON array of `{subscribe, label}` for multi-contact mode |
-| `color-open` | color | `#ff9800` | SVG accent colour when open |
-| `color-closed` | color | `--primary-text-color` | SVG outline colour when closed |
-| `label` | string | `""` | Label below the element |
-
-**Default size:** 60×80 px (single contact); 160×80 px (multi-contact grid of 4).
-
-*Research note: ioBroker.vis-2-widgets-material includes Buttons/Switches, Clock (4 variants), Simple state, Thermostat, Actual value with chart, Security control, Player, Map, Camera, HTML, Blinds, Color Lamp (RGBW), Door lock, and Vacuum. The Map and Clock widgets fill genuine gaps in the feezal roadmap. The fluid-level tank and window/door contact patterns are ubiquitous across all ioBroker vis widget sets (jqui-mfd, basic, material) and represent a clear demand. The Time picker is unique to scheduling dashboards.*
 
 ### E28 — Grafana integration
 
@@ -1349,38 +1053,6 @@ A lightweight inline trend chart driven by **live MQTT values buffered in the br
 **Editor preview:** renders a static dummy waveform (sine-ish) so the author can see the style without a live feed.
 
 **Default size:** 160×60 px.
-
-### E31 — Plant / flower monitor (`feezal-element-material-plant`)
-
-A plant-health element modelled on the popular flower-card pattern. Shows a plant's current sensor readings against configured healthy ranges, with a clear at-a-glance "needs attention" state. Targets soil/plant sensors (e.g. Xiaomi/MiFlora via MQTT, Ecowitt, custom ESPHome soil probes).
-
-**Visual concept:** a header row with an optional plant photo/icon and name, followed by a compact row of metric badges — **moisture**, **light/illuminance**, **temperature**, **conductivity/fertility**, **humidity** — each shown as a small bar or pill that turns amber/red when the reading falls outside its `min`/`max` range. An overall status dot summarises (green = all OK, amber = one out of range, red = critical).
-
-**Metric slots** (each optional, enabled by setting its topic):
-
-| Slot | Topic attr | Range attrs | Unit |
-|---|---|---|---|
-| Moisture | `subscribe-moisture` | `moisture-min`/`max` | % |
-| Illuminance | `subscribe-light` | `light-min`/`max` | lx |
-| Temperature | `subscribe-temperature` | `temp-min`/`max` | °C |
-| Conductivity | `subscribe-conductivity` | `cond-min`/`max` | µS/cm |
-| Humidity | `subscribe-humidity` | `humidity-min`/`max` | % |
-| Battery | `subscribe-battery` | — | % |
-
-**Attributes (in addition to the slot topics/ranges above):**
-
-| Attribute | Type | Default | Description |
-|---|---|---|---|
-| `name` | string | `""` | Plant name |
-| `image-url` | string | `""` | Optional plant photo URL (falls back to a leaf icon) |
-| `layout` | `compact` \| `detailed` | `compact` | Badges row only, or labelled rows with values |
-| `show-battery` | boolean | `true` | Show the battery badge |
-
-> **Conventions:** dual-payload ✓ (each metric can come from separate topics **or** one JSON payload, e.g. a MiFlora JSON message) · auto-discovery: consumes multiple `sensor` entities grouped by device · custom inspector: not required (slots are fixed). See [Element platform conventions](#element-platform-conventions).
-
-**Editor preview:** leaf icon, "Plant name", and placeholder badges at healthy values.
-
-**Default size:** 200×120 px.
 
 ### E32 — Logbook / event list (`feezal-element-basic-logbook`)
 
