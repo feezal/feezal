@@ -8,6 +8,8 @@ class FeezalElementBasicChart extends FeezalElement {
             description: 'Buffers incoming MQTT numeric values and renders them as a sparkline chart.',
             attributes: [
                 'subscribe',
+                {name: 'subscribe-json-path', type: 'string', default: '',
+                    help: 'JSON key to extract from a JSON payload. E.g. "power" reads from {"power":1500}.'},
                 {name: 'history',   type: 'number',  help: 'Number of data points to keep in the buffer (oldest are dropped). Minimum 2.', default: 50},
                 {name: 'color',     type: 'color',   help: 'Line and fill colour. Accepts any CSS colour value or a theme variable like var(--primary-color).', default: ''},
                 {name: 'label',     type: 'string',  help: 'Optional text caption shown below the chart.'},
@@ -28,7 +30,8 @@ class FeezalElementBasicChart extends FeezalElement {
         min:      {type: Number,  reflect: true},
         max:      {type: Number,  reflect: true},
         showDots: {type: Boolean, reflect: true, attribute: 'show-dots'},
-        fill:     {type: Boolean, reflect: true},
+        fill:              {type: Boolean, reflect: true},
+        subscribeJsonPath: {type: String,  reflect: true, attribute: 'subscribe-json-path'},
         _values:  {state: true}
     };
 
@@ -59,7 +62,8 @@ class FeezalElementBasicChart extends FeezalElement {
         this.min      = undefined;
         this.max      = undefined;
         this.showDots = true;
-        this.fill     = false;
+        this.fill             = false;
+        this.subscribeJsonPath = '';
         this._values  = [];
     }
 
@@ -70,8 +74,19 @@ class FeezalElementBasicChart extends FeezalElement {
         }
     }
 
+    _extractPayload(msg) {
+        let v = this.getProperty(msg, this.messageProperty);
+        if (this.subscribeJsonPath && typeof v === 'string') {
+            try {
+                const obj = JSON.parse(v);
+                v = this.getProperty(obj, this.subscribeJsonPath);
+            } catch { /* not JSON */ }
+        }
+        return v;
+    }
+
     _onMessage(msg) {
-        const v = Number(this.getProperty(msg, this.messageProperty));
+        const v = Number(this._extractPayload(msg));
         if (isNaN(v)) return;
         const limit = Math.max(2, this.history || 50);
         this._values = [...this._values, v].slice(-limit);

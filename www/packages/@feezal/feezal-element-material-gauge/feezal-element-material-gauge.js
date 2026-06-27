@@ -30,6 +30,8 @@ class FeezalElementMaterialGauge extends FeezalElement {
             description: 'Circular arc gauge. Subscribes to an MQTT numeric value and visualises it as a colour-filled arc.',
             attributes: [
                 'subscribe',
+                {name: 'subscribe-json-path', type: 'string', default: '',
+                    help: 'JSON key to extract from a JSON payload. E.g. "temperature" reads from {"temperature":22}.'},
                 {name: 'min',    type: 'number', help: 'Minimum value (arc start).', default: 0},
                 {name: 'max',    type: 'number', help: 'Maximum value (arc end).', default: 100},
                 {name: 'unit',   type: 'string', help: 'Unit string shown below the value inside the arc.'},
@@ -50,7 +52,8 @@ class FeezalElementMaterialGauge extends FeezalElement {
         label:     {type: String, reflect: true},
         color:     {type: String, reflect: true},
         digits:    {type: Number, reflect: true},
-        thickness: {type: Number, reflect: true},
+        thickness:         {type: Number, reflect: true},
+        subscribeJsonPath: {type: String, reflect: true, attribute: 'subscribe-json-path'},
         _value:    {state: true}
     };
 
@@ -80,15 +83,27 @@ class FeezalElementMaterialGauge extends FeezalElement {
         this.label     = '';
         this.color     = '';
         this.digits    = 0;
-        this.thickness = 12;
+        this.thickness        = 12;
+        this.subscribeJsonPath = '';
         this._value    = null;
+    }
+
+    _extractPayload(msg) {
+        let v = this.getProperty(msg, this.messageProperty);
+        if (this.subscribeJsonPath && typeof v === 'string') {
+            try {
+                const obj = JSON.parse(v);
+                v = this.getProperty(obj, this.subscribeJsonPath);
+            } catch { /* not JSON */ }
+        }
+        return v;
     }
 
     connectedCallback() {
         super.connectedCallback();
         if (!feezal.isEditor && this.subscribe) {
             this.addSubscription(this.subscribe, msg => {
-                const v = Number(this.getProperty(msg, this.messageProperty));
+                const v = Number(this._extractPayload(msg));
                 if (!isNaN(v)) this._value = v;
             });
         }
