@@ -334,6 +334,19 @@ The N12 framework reads this descriptor to pre-wire the element; no framework ch
 
 Elements with **dynamic, repeating, or visual-layout configuration** (lists of modes, rings, nodes, persons, slots, contacts) should ship an N6 custom inspector instead of relying on the flat attribute form. Elements that benefit are tagged below. The standard flat inspector remains the default for simple elements.
 
+#### Lessons from the Light element (E16 → E35)
+
+The Light element (`feezal-element-material-light`) was the first device-control card to go end-to-end (basic element → dual-payload → N6 inspector → auto-discovery → theming). The refinements it needed are now **standing requirements for every device-control card** (Thermostat E11, Shutter E12, Door-lock E13, …). Build them in from the start instead of retrofitting:
+
+1. **Palette category `Device`, not `Material`.** Device-control cards live in the `Device` palette category (the element *tag* keeps its `feezal-element-material-*` name; only the `palette.category` string is `Device`). The palette groups dynamically, so a new category needs no other code.
+2. **Ship the N6 inspector with the element, never retrofit it.** The flat form exploded to ~30 attributes and became unusable. A two-tab inspector (**Topics** + **Config**) with **capability-gated, collapsible sections** is the baseline. A section is enabled when any of its topic attributes is non-empty; toggling it off clears those topics. Don't add `has-*` capability booleans — **derive section enablement from topic presence**.
+3. **Discovery is JSON-first.** zigbee2mqtt / HA emit a `schema: json` config pointing at the consolidated JSON form, so an auto-configured card must **default `payload-mode: json`**. The discovery descriptor maps **only the attributes the element actually consumes**, using `onlyWhen` guards and transforms (`mired→kelvin`, scale, `valueMap`, `join`, `colorMode`, …) added to `_applyDiscovery()` in `feezal-sidebar-inspector-attributes.js`. `discovery-id` is a `reflect: true` property.
+4. **Dual payload, element-managed subscriptions.** Override the base `_subscribe()` as a no-op and manage subscriptions directly: a single JSON topic in `json` mode, per-topic wiring in `separate` mode. `payload-mode` defaults to `separate` for hand-wired back-compat, but discovery flips it to `json`.
+5. **Theme-aware, state-aware colour tokens — a *small* set.** Don't hardcode colour attributes. Expose CSS custom properties (`--feezal-<el>-*`) that **default to theme vars**, surface them in the **style inspector**, and show those defaults as **placeholders** (the inspector reads inline style only). Keep the set minimal and state-aware — Light consolidated 8 tokens down to 5 (on / off / surface / text / error).
+6. **The N6 inspector must match the standard inspector.** Custom inspectors don't inherit the shell's Shoelace theming, so replicate the standard `::part(base|combobox|input|form-control-label)` rules (dark-mode bg/border/label) and set `autocomplete="off"` on every `sl-input`. In return, the shell renders a **generic discovery device picker** above any N6 inspector automatically — the element just needs a `discovery` descriptor.
+7. **Availability badge, controls never disabled.** Optional `subscribe-availability` (+ `payload-available` / `payload-unavailable`) drives a small corner badge when the device is unavailable. **Never disable the controls** — the card stays usable regardless of availability.
+8. **Ground the design in a real device.** Light was built against a real Philips Hue via zigbee2mqtt, which surfaced every nuance (separate stream, nested-`color` JSON, mireds, effect list). Do the same for each new card — pick a concrete climate / cover / lock device and model its real topic shapes.
+
 ### E4 — Camera element
 Renders a live camera stream on the dashboard canvas. Targets three source types:
 - **MJPEG**: a plain `<img>` with a streaming URL — works anywhere, no codec negotiation.
@@ -403,38 +416,54 @@ The existing material element set covers `button`, `switch`, `slider`, `gauge`, 
 
 ### E11 — Thermostat element (`feezal-element-material-thermostat`)
 
-A self-contained thermostat control that wraps several sub-elements into a single cohesive canvas element. Targets typical smart-home thermostats (e.g. Homematic, Z-Wave, MQTT thermostats, ESPHome climate).
+A self-contained thermostat control that wraps several sub-elements into a single cohesive canvas element. Targets typical smart-home thermostats (e.g. Homematic, Z-Wave, MQTT thermostats, ESPHome climate). **Palette category: `Device`** (sibling of Light).
 
-> **Conventions:** dual-payload ✓ · auto-discovery: `climate` · custom inspector: N6 (mode-list builder). See [Element platform conventions](#element-platform-conventions). Element-specific conversions: `temp_step` → `step`, `min/max_temp` → `min`/`max`.
+> **Conventions:** dual-payload ✓ (`json` is the discovery default) · auto-discovery: `climate` · custom inspector: **N6 required** (two-tab Topics/Config, capability-gated sections). See [Element platform conventions](#element-platform-conventions) and **[Lessons from the Light element](#lessons-from-the-light-element-e16--e35) — all eight apply here.** Element-specific discovery conversions: `temperature_command_topic`/`temperature_state_topic` → setpoint topics, `current_temperature_topic` → `subscribe-actual`, `mode_*_topic` + `modes` → mode selector, `temp_step` → `step`, `min_temp`/`max_temp` → `min`/`max`, `temperature_unit` → `unit`, `availability_topic` → `subscribe-availability`, `name` → `label`.
 
-**Visual concept:** a large circular arc slider (custom SVG/Canvas, similar to the Nest/ecobee UI) for setting the target temperature. Current actual temperature shown prominently in the centre of the arc. Supporting data rendered below or around the circle.
+> **Real-device grounding (do this first):** model a concrete climate device — e.g. a **zigbee2mqtt TRV** (Sonoff TRVZB / Eurotronic Spirit) — which emits a consolidated base-topic JSON object (`local_temperature`, `current_heating_setpoint`, `system_mode`, `running_state`, `position` for valve %) *and* a `schema: json` `climate` discovery config. Discovery points at the JSON form, so an auto-configured thermostat defaults to `payload-mode: json`.
+
+**Visual concept:** a large circular arc slider (custom SVG/Canvas, similar to the Nest/ecobee UI) for setting the target temperature. Current actual temperature shown prominently in the centre of the arc. Supporting data rendered below or around the circle. An availability badge appears in a corner when the device is unavailable; **controls stay enabled** regardless.
 
 **Sub-elements composed internally (not separate canvas elements):**
-- **Set-temperature arc slider** — circular arc spanning ~240°. Drag handle on the arc sets `setpoint`. Min/max configurable (e.g. 5 °C – 30 °C). Snaps to 0.5° increments. Publishes to `publish-setpoint` on pointer release.
+- **Set-temperature arc slider** — circular arc spanning ~240°. Drag handle on the arc sets `setpoint`. Min/max configurable (e.g. 5 °C – 30 °C). Snaps to `step` increments. Publishes to the setpoint topic on pointer release.
 - **Actual temperature display** — large text in the arc centre. Subscribes to `subscribe-actual`. Unit shown below (°C / °F, configurable).
-- **Mode selector** — optional horizontal radio chip row (uses `md-filter-chip` internally). Modes are configurable via a JSON `modes` attribute (e.g. `[{"value":"heat","label":"Heat","icon":"local_fire_department"},...]`). Selected mode published to `publish-mode`; current mode read from `subscribe-mode`. Hidden when `modes` is empty.
-- **Valve opening** — optional small percentage bar or arc segment fill (e.g. amber fill on the arc proportional to valve %). Subscribes to `subscribe-valve`. Hidden when attribute absent.
+- **Mode selector** — optional horizontal radio chip row (uses `md-filter-chip` internally). Modes are configurable via a JSON `modes` attribute (e.g. `[{"value":"heat","label":"Heat","icon":"local_fire_department"},...]`). Selected mode published to the mode topic; current mode read back. Hidden when `modes` is empty.
+- **Valve opening** — optional small percentage bar or arc segment fill (e.g. amber fill on the arc proportional to valve %). Subscribes to `subscribe-valve`. Hidden when its topic is absent.
 - **Humidity** — optional secondary value row below the arc (`subscribe-humidity`). Shown as `💧 52%`.
+
+**Payload mode:**
+- **`separate` (default for hand-wiring):** the per-topic attributes below.
+- **`json`:** a single `subscribe` / `publish` topic pair carrying the climate JSON object; an optional `json-map` overrides the default key map. Override the base `_subscribe()` as a no-op and manage subscriptions directly (single JSON topic in `json` mode, per-topic in `separate`, availability always).
+
+**N6 inspector (required):** two tabs. **Topics** — an always-on Setpoint/Actual section plus capability-gated, collapsible sections (Mode, Valve, Humidity, Availability); each enabled when its topic(s) are non-empty, toggling off clears them; in `json` mode the per-feature groups collapse to a single State & Control section (`subscribe` + `publish`). **Config** — Payload mode, Min/Max/Step, Unit, Modes builder, colours, Display. Replicate the standard inspector's `::part()` Shoelace theming and `autocomplete="off"`; the shell adds the discovery device picker automatically.
 
 **Attributes:**
 
 | Attribute | Type | Default | Description |
 |---|---|---|---|
-| `subscribe-setpoint` | mqttTopic | — | Topic to read current setpoint from |
-| `publish-setpoint` | mqttTopic | — | Topic to publish new setpoint to |
+| `payload-mode` | select | `separate` | `separate` (per-topic) or `json` (single object) |
+| `subscribe` | mqttTopic | — | *(json mode)* topic carrying the climate JSON object |
+| `publish` | mqttTopic | — | *(json mode)* topic to publish merged climate JSON to |
+| `json-map` | string | `""` | *(json mode)* JSON key-map override |
+| `subscribe-setpoint` | mqttTopic | — | *(separate)* topic to read current setpoint from |
+| `publish-setpoint` | mqttTopic | — | *(separate)* topic to publish new setpoint to |
 | `subscribe-actual` | mqttTopic | — | Topic for actual measured temperature |
 | `subscribe-mode` | mqttTopic | — | Topic for current mode (e.g. `"heat"`) |
 | `publish-mode` | mqttTopic | — | Topic to publish selected mode to |
 | `subscribe-valve` | mqttTopic | — | Topic for valve opening percentage (0–100) |
 | `subscribe-humidity` | mqttTopic | — | Topic for relative humidity (0–100) |
+| `subscribe-availability` | mqttTopic | — | *Optional* — device availability topic |
+| `payload-available` | string | `online` | Availability "online" payload |
+| `payload-unavailable` | string | `offline` | Availability "offline" payload |
 | `min` | number | `5` | Minimum setpoint value |
 | `max` | number | `30` | Maximum setpoint value |
 | `step` | number | `0.5` | Setpoint step size |
 | `unit` | string | `°C` | Temperature unit label |
 | `modes` | string | `""` | JSON array of `{value, label, icon}` mode objects |
-| `color-heat` | color | `#e57373` | Arc colour when heating |
-| `color-cool` | color | `#64b5f6` | Arc colour when cooling / below setpoint |
-| `color-idle` | color | `#90a4ae` | Arc colour when idle |
+| `label` | string | — | Optional card title |
+| `discovery-id` | string | — | *(reflected)* linked auto-discovery entity id |
+
+**Colour tokens (theme-aware, state-aware):** instead of fixed colour attributes, expose CSS custom properties that default to theme vars and appear in the style inspector as placeholders — e.g. `--feezal-thermostat-heat-color` (heating), `--feezal-thermostat-cool-color` (cooling / below setpoint), `--feezal-thermostat-idle-color`, `--feezal-thermostat-text-color`, `--feezal-thermostat-error-color`. Keep the set minimal.
 
 **Editor preview:** renders the arc with a static midpoint handle and placeholder temperature labels; modes shown as non-interactive chips.
 
@@ -444,23 +473,35 @@ A self-contained thermostat control that wraps several sub-elements into a singl
 
 ### E12 — Shutter / Blinds element (`feezal-element-material-shutter`)
 
-A window-visualisation element for controlling roller shutters, blinds, or awnings. Targets cover/shutter devices (e.g. Homematic, MQTT Shelly, Zigbee covers).
+A window-visualisation element for controlling roller shutters, blinds, or awnings. Targets cover/shutter devices (e.g. Homematic, MQTT Shelly, Zigbee covers). **Palette category: `Device`** (sibling of Light).
 
-> **Conventions:** dual-payload ✓ · auto-discovery: `cover` · custom inspector: not required. See [Element platform conventions](#element-platform-conventions). Element-specific conversions: discovery `position_open`/`position_closed` → position scale; tilt range → `slat-angle`.
+> **Conventions:** dual-payload ✓ (`json` is the discovery default) · auto-discovery: `cover` · custom inspector: **N6 recommended** (tames the topic count, gates the optional tilt/slat section). See [Element platform conventions](#element-platform-conventions) and **[Lessons from the Light element](#lessons-from-the-light-element-e16--e35).** Element-specific discovery conversions: `position_topic`/`set_position_topic` → position topics, `command_topic` + `payload_open`/`payload_close`/`payload_stop` → command + payloads, `position_open`/`position_closed` → position scale, `tilt_*` → slat-angle topics/range, `availability_topic` → `subscribe-availability`, `name` → `label`.
 
-**Visual concept:** a stylised window outline (SVG) with a shutter panel that slides up and down proportionally to the current opening percentage. The shutter slats are rendered as horizontal lines whose density can be configured. Touch/mouse drag directly on the shutter panel sets a new position.
+> **Real-device grounding (do this first):** model a concrete cover device — e.g. a **zigbee2mqtt venetian blind** (Zemismart / Tuya) that reports `position` (0–100) and `tilt`, or a **Shelly 2.5 in roller mode** — and a `schema: json` `cover` discovery config. Discovery points at the JSON form, so an auto-configured shutter defaults to `payload-mode: json`.
+
+**Visual concept:** a stylised window outline (SVG) with a shutter panel that slides up and down proportionally to the current opening percentage. The shutter slats are rendered as horizontal lines whose density can be configured. Touch/mouse drag directly on the shutter panel sets a new position. An availability badge appears in a corner when unavailable; **controls stay enabled**.
 
 **Controls:**
 - **Up / Stop / Down button row** — three `md-icon-button` elements (`keyboard_arrow_up`, `stop`, `keyboard_arrow_down`) that publish configurable payloads to `publish-command`.
 - **Opening percentage display** — numeric label below the window showing the current position (from `subscribe-position`).
 - **Direct position input** — optional: tap the percentage label to open a small inline `md-slider` overlay (0–100 %) for precise setting.
 
+**Payload mode:**
+- **`separate` (default for hand-wiring):** the per-topic attributes below.
+- **`json`:** a single `subscribe` / `publish` topic pair carrying the cover JSON object (`position`, `tilt`, `state`); an optional `json-map` overrides the default key map. Override the base `_subscribe()` as a no-op and manage subscriptions directly.
+
+**N6 inspector (recommended):** two tabs. **Topics** — an always-on Position/Command section plus a capability-gated, collapsible **Tilt/Slat** section (enabled when a tilt topic is set, toggling off clears it) and an Availability section; in `json` mode the groups collapse to a single State & Control section. **Config** — Payload mode, command payloads, invert, slat count, colours, Display. Replicate the standard inspector's `::part()` theming and `autocomplete="off"`; the shell adds the discovery device picker automatically.
+
 **Attributes:**
 
 | Attribute | Type | Default | Description |
 |---|---|---|---|
-| `subscribe-position` | mqttTopic | — | Topic for current position (0 = closed, 100 = fully open) |
-| `publish-position` | mqttTopic | — | Topic to publish a target position to |
+| `payload-mode` | select | `separate` | `separate` (per-topic) or `json` (single object) |
+| `subscribe` | mqttTopic | — | *(json mode)* topic carrying the cover JSON object |
+| `publish` | mqttTopic | — | *(json mode)* topic to publish merged cover JSON to |
+| `json-map` | string | `""` | *(json mode)* JSON key-map override |
+| `subscribe-position` | mqttTopic | — | *(separate)* current position (0 = closed, 100 = fully open) |
+| `publish-position` | mqttTopic | — | *(separate)* topic to publish a target position to |
 | `publish-command` | mqttTopic | — | Topic for up/stop/down commands |
 | `payload-up` | string | `UP` | Payload sent by the Up button |
 | `payload-stop` | string | `STOP` | Payload sent by the Stop button |
@@ -468,10 +509,15 @@ A window-visualisation element for controlling roller shutters, blinds, or awnin
 | `invert` | boolean | `false` | Invert position scale (0 = fully open instead of closed) |
 | `show-position` | boolean | `true` | Show the numeric position label |
 | `slat-count` | number | `6` | Number of shutter slat lines rendered in the SVG |
-| `slat-angle` | mqttTopic | — | *Optional* — for venetian blinds with tilt control: topic carrying slat angle (0–100 or 0–180°); subscribes and publishes separately from position |
+| `slat-angle` | mqttTopic | — | *Optional* — venetian-blind tilt: topic carrying slat angle (0–100 or 0–180°) |
 | `publish-slat-angle` | mqttTopic | — | Topic to publish a new slat angle to |
-| `color-frame` | color | — | SVG window frame colour (defaults to `--primary-text-color`) |
-| `color-shutter` | color | — | Shutter panel fill colour (defaults to `--secondary-background-color`) |
+| `subscribe-availability` | mqttTopic | — | *Optional* — device availability topic |
+| `payload-available` | string | `online` | Availability "online" payload |
+| `payload-unavailable` | string | `offline` | Availability "offline" payload |
+| `label` | string | — | Optional card title |
+| `discovery-id` | string | — | *(reflected)* linked auto-discovery entity id |
+
+**Colour tokens (theme-aware):** replace the fixed `color-frame` / `color-shutter` attributes with CSS custom properties that default to theme vars and appear in the style inspector as placeholders — e.g. `--feezal-shutter-frame-color` (defaults to `--primary-text-color`), `--feezal-shutter-panel-color` (defaults to `--secondary-background-color`), `--feezal-shutter-error-color`.
 
 **Touch optimisation:** the shutter SVG panel itself is a drag target — dragging up/down sets a proportional position without needing the slider overlay. Supports both pointer and touch events.
 
