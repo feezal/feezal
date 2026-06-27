@@ -18,6 +18,8 @@ class FeezalElementBasicRepeater extends FeezalElement {
                     type: 'mqttTopic',
                     help: 'MQTT topic that publishes a JSON array. Each item in the array becomes one child element.'
                 },
+                {name: 'message-property', type: 'string', default: 'payload',
+                    help: 'Dot-notation path to the array within the MQTT message. Default "payload" uses msg.payload; use e.g. "payload.items" to navigate into a JSON payload.'},
                 {
                     name: 'child-element',
                     type: 'string',

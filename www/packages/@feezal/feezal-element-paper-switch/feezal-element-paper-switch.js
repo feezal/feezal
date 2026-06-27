@@ -68,6 +68,7 @@ class FeezalElementPaperSwitch extends FeezalPolymerElement {
             attributes: [
                 'label',
                 'subscribe',
+                'messageProperty',
                 'publish',
                 {name: 'noink'},
                 {name: 'invalid'},

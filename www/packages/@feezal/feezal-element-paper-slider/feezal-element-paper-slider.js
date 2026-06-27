@@ -83,6 +83,7 @@ class FeezalElementPaperSlider extends FeezalPolymerElement {
             },
             attributes: [
                 'subscribe',
+                'messageProperty',
                 'publish',
                 {name: 'min', size: 'half'},
                 {name: 'max', size: 'half'},

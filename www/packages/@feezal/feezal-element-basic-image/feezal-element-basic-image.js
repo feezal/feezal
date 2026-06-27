@@ -24,7 +24,9 @@ class FeezalElementBasicImage extends FeezalElement {
                     default: 'contain',
                     help: 'CSS object-fit value controlling how the image is scaled to fill the element.'
                 },
-                'subscribe'
+                'subscribe',
+                {name: 'message-property', type: 'string', default: 'payload',
+                    help: 'Dot-notation path to the value within the MQTT message. Default "payload" uses msg.payload; use e.g. "payload.url" to navigate into a JSON payload.'}
             ],
             styles: ['top', 'left', 'width', 'height', 'border', 'border-radius', 'padding', 'background'],
             defaultStyle: {width: '100px', height: '80px'}

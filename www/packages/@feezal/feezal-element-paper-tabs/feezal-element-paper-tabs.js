@@ -68,6 +68,7 @@ class FeezalElementPaperTabs extends FeezalPolymerElement {
             },
             attributes: [
                 'subscribe',
+                'messageProperty',
                 'publish',
                 'publishLocal',
                 {name: 'items', help: 'Slash-separated list of tab names'},

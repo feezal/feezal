@@ -62,6 +62,7 @@ class FeezalElementPaperDropdown extends FeezalPolymerElement {
             },
             attributes: [
                 'subscribe',
+                'messageProperty',
                 'publish',
                 'label',
                 'placeholder',
