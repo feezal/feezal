@@ -168,7 +168,7 @@ Build output goes to `www/dist/`. The chunk-size warning for chunks >500 kB is e
 
 ## Roadmap maintenance
 
-- Open items live in `ROADMAP.md`.
-- Completed items live in `ROADMAP-ARCHIVE.md`.
-- **Whenever you mark a roadmap item as done** (add `✅` to its heading), **immediately move the entire section** — from its `### Hx —` heading line down to (but not including) the next `###` heading — to the appropriate section in `ROADMAP-ARCHIVE.md`. Remove it from `ROADMAP.md` entirely.
-- Do not leave `✅ done` / `✅ fixed` / `✅ implemented` sections in `ROADMAP.md`.
+- Open items live in `docs/ROADMAP.md`.
+- Completed items live in `docs/ROADMAP-ARCHIVE.md`.
+- **Whenever you mark a roadmap item as done** (add `✅` to its heading), **immediately move the entire section** — from its `### Hx —` heading line down to (but not including) the next `###` heading — to the appropriate section in `docs/ROADMAP-ARCHIVE.md`. Remove it from `docs/ROADMAP.md` entirely.
+- Do not leave `✅ done` / `✅ fixed` / `✅ implemented` sections in `docs/ROADMAP.md`.
