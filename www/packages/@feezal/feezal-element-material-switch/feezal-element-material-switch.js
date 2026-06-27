@@ -22,7 +22,17 @@ class FeezalElementMaterialSwitch extends FeezalElement {
                 {name: 'icons',          type: 'boolean', help: 'Show check / x icons inside the thumb.', default: false}
             ],
             styles: ['top', 'left', 'width', 'height'],
-            defaultStyle: {width: '80px', height: '32px'}
+            defaultStyle: {width: '80px', height: '32px'},
+            discovery: {
+                component: 'switch',
+                map: {
+                    state_topic:   'subscribe',
+                    command_topic: 'publish',
+                    payload_on:    'payload-on',
+                    payload_off:   'payload-off',
+                    name:          'label'
+                }
+            }
         };
     }
 
