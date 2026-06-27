@@ -961,6 +961,12 @@ class FeezalElementMaterialLightInspector extends LitElement {
         .field { display: flex; flex-direction: column; gap: 2px; }
         .field > label { font-size: 10px; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.04em; }
         sl-input, sl-select { width: 100%; }
+        /* Match the standard attribute/style inspector Shoelace theming
+           (input/select background, border and label colours for dark mode). */
+        sl-input::part(form-control-label), sl-select::part(form-control-label) { color: var(--sl-input-label-color, inherit); font-size: 12px; }
+        sl-input::part(base), sl-select::part(combobox) { background: var(--feezal-bg, #fff); border-color: var(--feezal-border, #ccc); color: var(--feezal-color, #333); }
+        sl-input::part(input) { background: var(--feezal-bg, #fff); color: var(--sl-input-color, #333); }
+        sl-switch { color: var(--feezal-color, inherit); }
         .row { display: flex; gap: 6px; }
         .row > .field { flex: 1; }
         .hint { font-size: 10px; opacity: 0.55; padding: 0 2px 4px; }
