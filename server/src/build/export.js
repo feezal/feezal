@@ -1,9 +1,126 @@
 ﻿'use strict';
 
 const path = require('path');
+const fs   = require('fs').promises;
 const {Writable} = require('stream');
+const crypto = require('node:crypto');
 
 const {ZipArchive} = require('archiver');
+const {extractUsedElements, tagsToPackages, partitionPackages} = require('./extract-elements.js');
+
+/**
+ * In-memory cache: sorted-package-list hash  →  {code, sizeKb, elemCount}
+ * Cleared on server restart.  Keyed by a SHA-256 of the element+theme list.
+ */
+const _bundleCache = new Map();
+
+/**
+ * Build a minimal IIFE bundle containing only the feezal packages actually
+ * used in the given site HTML.  Results are cached in-memory by a hash of
+ * the resolved package list; the cache persists for the lifetime of the
+ * server process.
+ *
+ * Throws if the Vite build fails — callers should catch and fall back.
+ *
+ * @param {string}      wwwDir     Absolute path to www/.
+ * @param {string}      siteHtml   Raw views.html content (parsed for element tags).
+ * @param {string|null} theme      Active theme name (e.g. 'feezal-theme-dark-mint')
+ *                                 or null for the default theme.
+ * @param {object}      logger
+ * @returns {Promise<string>}  Minified IIFE JS string.
+ */
+async function buildFilteredBundle(wwwDir, siteHtml, theme, logger) {
+    const nodeModulesDir = path.join(wwwDir, 'node_modules');
+
+    // Determine which element packages the site actually needs.
+    const usedTags = extractUsedElements(siteHtml);
+    const usedPackages = tagsToPackages(usedTags);
+
+    // Add the active theme package if it is a built-in one (i.e. package exists).
+    const themePackage = theme ? `@feezal/${theme}` : null;
+    if (themePackage && !usedPackages.includes(themePackage)) {
+        usedPackages.push(themePackage);
+    }
+
+    const {resolvable, missing} = partitionPackages(nodeModulesDir, usedPackages);
+
+    if (missing.length) {
+        logger.debug(`export: ${missing.length} package(s) not found, will be skipped: ${missing.join(', ')}`);
+    }
+
+    logger.debug(`export: building filtered bundle with ${resolvable.length} package(s): ${resolvable.join(', ')}`);
+
+    // Stable cache key from the exact resolved package list.
+    const cacheKey = crypto
+        .createHash('sha256')
+        .update(resolvable.slice().sort().join('\n'))
+        .digest('hex')
+        .slice(0, 16);
+
+    if (_bundleCache.has(cacheKey)) {
+        const cached = _bundleCache.get(cacheKey);
+        logger.debug(`export: cache hit (${cached.sizeKb} kB, ${cached.elemCount} elements)`);
+        return cached.code;
+    }
+
+    // Generate a temporary entry file that imports only the needed packages.
+    // feezal-app-viewer.js already imports feezal-site.js and feezal-view.js.
+    const entryLines = [
+        "import './feezal-connection.js';",
+        "import './feezal-app-viewer.js';",
+        ...resolvable.map(pkg => `import '${pkg}';`)
+    ];
+    const entryPath = path.join(wwwDir, 'src', '_export-entry.js');
+    await fs.writeFile(entryPath, entryLines.join('\n') + '\n', 'utf8');
+
+    try {
+        // Load Vite via dynamic import (Vite 6 is ESM-only; we are in CJS).
+        const vitePath = path.join(nodeModulesDir, 'vite', 'dist', 'node', 'index.js');
+        const {build: viteBuild} = await import(vitePath);
+
+        logger.debug('export: starting Vite build...');
+        const t0 = Date.now();
+
+        const result = await viteBuild({
+            root: wwwDir,
+            logLevel: 'silent',
+            configFile: false,            // don't load www/vite.config.js
+            build: {
+                write: false,             // in-memory output only
+                minify: 'esbuild',
+                reportCompressedSize: false,
+                rollupOptions: {
+                    input: {'viewer-bundle': entryPath},
+                    output: {
+                        format: 'iife',
+                        name: '_feezal',
+                        inlineDynamicImports: true,
+                        entryFileNames: '[name].js'
+                    },
+                    onwarn(w) {
+                        if (w.code !== 'CIRCULAR_DEPENDENCY') {
+                            logger.debug(`export: rollup ${w.code}: ${w.message}`);
+                        }
+                    }
+                }
+            }
+        });
+
+        // result may be a single output object or an array (multi-config).
+        const outputs = Array.isArray(result) ? result : [result];
+        const chunk = outputs[0].output.find(c => c.type === 'chunk' && c.isEntry);
+        if (!chunk) throw new Error('Vite build produced no entry chunk');
+
+        const elapsed = Date.now() - t0;
+        const sizeKb = Math.round(chunk.code.length / 1024);
+        logger.debug(`export: filtered bundle built in ${elapsed} ms — ${sizeKb} kB (${resolvable.length} elements)`);
+
+        _bundleCache.set(cacheKey, {code: chunk.code, sizeKb, elemCount: resolvable.length});
+        return chunk.code;
+    } finally {
+        await fs.unlink(entryPath).catch(() => {});
+    }
+}
 
 /**
  * Composes the static index.html with all viewer JS inlined as a plain
@@ -100,9 +217,12 @@ window.feezal = {
  * separate script files. This means the file works from a file:// URL
  * (no CORS) and on any static host with no further configuration.
  *
- * The JS is assembled by running the pre-built Vite output through Rollup
- * (available in www/node_modules as a Vite peer dep) with
- * inlineDynamicImports:true, producing one self-contained IIFE.
+ * The JS is assembled by running a per-site Vite build that only includes
+ * the element packages actually referenced in the site HTML (tree-shaking).
+ * Output is minified with esbuild and cached in-memory by a hash of the
+ * resolved package list.  If the Vite build fails for any reason the
+ * function falls back to wrapping the full pre-built viewer-bundle.js with
+ * Rollup (same behaviour as before A8).
  *
  * @param {string} wwwDir    Absolute path to the www/ directory.
  * @param {string} siteName  Used in the page title.
@@ -130,10 +250,8 @@ async function createExport(wwwDir, siteName, {html: siteHtml, config}, logger =
     if (theme) {
         siteHtml = siteHtml.replace(/(<feezal-site\b)([^>]*)(>)/, (_, tag, attrs, end) => {
             if (/\bclass="/.test(attrs)) {
-                // quoted class="..." → prepend theme
                 attrs = attrs.replace(/\bclass="/, `class="${theme} `);
             } else if (/\bclass[\s>]/.test(attrs + end)) {
-                // bare class attribute (no value) → replace with proper value
                 attrs = attrs.replace(/\bclass\b/, `class="${theme}"`);
             } else {
                 attrs += ` class="${theme}"`;
@@ -142,36 +260,47 @@ async function createExport(wwwDir, siteName, {html: siteHtml, config}, logger =
         });
     }
 
-    // Rollup lives in www/node_modules (installed as a Vite peer dep).
-    // Require the CJS entry directly — avoids package exports-map resolution
-    // issues when require() is called with a directory path.
-    const rollupPath = path.join(wwwDir, 'node_modules', 'rollup', 'dist', 'rollup.js');
-    logger.debug(`export: loading Rollup from ${rollupPath}`);
-    const {rollup} = require(rollupPath);
+    // ------------------------------------------------------------------
+    // Option A: per-site filtered Vite build (tree-shaking + minification)
+    // ------------------------------------------------------------------
+    let inlineJs = await buildFilteredBundle(wwwDir, siteHtml, theme, logger)
+        .catch(err => {
+            logger.warn(`export: filtered Vite build failed (${err.message}), falling back to full bundle`);
+            return null;
+        });
 
-    const inputPath = path.join(distDir, 'viewer-bundle.js');
-    logger.debug(`export: bundling ${inputPath}`);
-    const bundle = await rollup({
-        input: inputPath,
-        onwarn(w) { logger.debug(`export: rollup warn: ${w.message}`); }
-    });
+    // ------------------------------------------------------------------
+    // Fallback: full viewer-bundle.js wrapped as IIFE by Rollup.
+    // The source is already minified by Vite so no extra minifier needed.
+    // ------------------------------------------------------------------
+    if (!inlineJs) {
+        const rollupPath = path.join(wwwDir, 'node_modules', 'rollup', 'dist', 'rollup.js');
+        logger.debug(`export: loading Rollup fallback from ${rollupPath}`);
+        const {rollup} = require(rollupPath);
 
-    logger.debug('export: generating IIFE output (inlineDynamicImports)...');
-    const {output} = await bundle.generate({
-        format: 'iife',
-        name: '_feezal',           // IIFE wrapper name -- unused at runtime
-        inlineDynamicImports: true // fold every dynamic import() into the bundle
-    });
+        const inputPath = path.join(distDir, 'viewer-bundle.js');
+        logger.debug(`export: bundling ${inputPath} via Rollup`);
+        const bundle = await rollup({
+            input: inputPath,
+            onwarn(w) { logger.debug(`export: rollup warn: ${w.message}`); }
+        });
 
-    await bundle.close();
+        const {output} = await bundle.generate({
+            format: 'iife',
+            name: '_feezal',
+            inlineDynamicImports: true
+        });
+        await bundle.close();
 
-    logger.debug(`export: JS inlined (${output[0].code.length} chars), composing HTML...`);
-    const inlineJs = output[0].code;
+        inlineJs = output[0].code;
+        logger.debug(`export: full bundle size: ${Math.round(inlineJs.length / 1024)} kB`);
+    }
+
+    logger.debug('export: composing HTML...');
     const indexHtml = composeIndexHtml(siteName, siteHtml, connectionConfig, inlineJs, themeOverrides, userThemeCss, classes);
 
     logger.debug('export: creating ZIP...');
 
-    // Gather assets before entering the Promise constructor (can't use await inside it).
     let assetFiles = null;
     if (storage) {
         try {
@@ -181,7 +310,6 @@ async function createExport(wwwDir, siteName, {html: siteHtml, config}, logger =
         }
     }
 
-    // Package into a ZIP -- single index.html, no separate JS assets needed.
     return new Promise((resolve, reject) => {
         const chunks = [];
         const sink = new Writable({
@@ -195,7 +323,6 @@ async function createExport(wwwDir, siteName, {html: siteHtml, config}, logger =
 
         archive.append(indexHtml, {name: 'index.html'});
 
-        // Bundle assets into the ZIP
         if (assetFiles) {
             for (const file of assetFiles.global.files) {
                 archive.file(path.join(assetFiles.global.base, file), {name: 'global/' + file});

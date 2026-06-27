@@ -195,11 +195,6 @@ This actually *works* — and is the right answer for static exports. When the b
 
 The private key remains exclusively in `dataDir/certs/` on the feezal server (N8). For the live-viewer path it is used directly by the Node.js MQTT client; for static export the user installs it alongside the cert in their OS store (standard operational practice for mTLS deployments).
 
-### N12 — MQTT Auto-Discovery (config-topic import)
-
-A general framework that reads the widely-adopted MQTT **auto-discovery** config-topic convention (popularised by Home Assistant and emitted by zigbee2mqtt, ESPHome, Tasmota, Zigbee2MQTT, WLED, and many others) and uses it to **pre-wire feezal elements automatically**. The user points feezal at their broker; feezal already knows the device's topics, payload schema, value ranges, and units — so dropping a light, thermostat, or shutter onto the canvas can be a single click instead of a dozen manual topic entries.
-
-> **Wording / branding.** This feature is **brand-neutral** in the UI. The use case is *zigbee2mqtt → feezal* (and any other publisher of the same topic format); it does not require or involve a Home Assistant instance. The UI never says "Home Assistant". Terms used: **Auto-Discovery** (the feature), **config topics** (the scanned retained messages), **Auto-configure** (the apply action), **Discovered devices** (the browser).
 
 ---
 
@@ -934,51 +929,6 @@ A view can require a PIN to enter (rendered in the viewer). Useful for settings 
 Define multiple layouts per view (e.g. desktop / tablet / mobile) that activate based on viewport width. Editor shows a breakpoint switcher toolbar. See design exploration in ROADMAP (Open Questions).
 
 
-
-### A8 — Per-site tree-shaking for static HTML export ⚡ high priority
-
-**Problem:** the static export (`/api/sites/:name/export`) currently produces an HTML file of ~1.2 MB regardless of site content. The entire element ecosystem — including Polymer and all paper elements — is bundled into every export, even for a site that uses only basic Lit elements.
-
-**Root cause:** the export reads the pre-built `dist/viewer-bundle.js`, which was built by Vite with *all* elements imported unconditionally via `editor/feezal-elements.js`. Rollup's `inlineDynamicImports: true` then folds every chunk (824 KB element chunk + 365 KB mqtt.js + 42 KB feezal-connection) into one IIFE and inlines it into the HTML. No per-site filtering happens at any stage.
-
-The old Rollup pipeline (`server/src/build/build.js`) had a `filterElements()` function that did filter imports to only the elements used by the site, but that code is bypassed by the current export path.
-
-**Size composition of the current bundle:**
-- `feezal-view-*.js` — ~824 KB (all elements baked in: Polymer paper set, @material/web, basic Lit elements)
-- `feezal-connection-mqtt-*.js` — ~365 KB (mqtt.js client)
-- `feezal-connection-feezal-*.js` — ~42 KB
-
-**Goal:** a site that uses no Polymer elements should produce an export with no Polymer code; a site that uses only one or two elements should produce a proportionally smaller file.
-
-**Recommended approach — pre-built per-element IIFE chunks (Option B):**
-
-During `npm run build`, in addition to the current outputs, emit a standalone self-contained IIFE per element package (and one for the base viewer runtime without any elements). This adds a per-element build pass but keeps export time fast.
-
-At export time:
-1. Parse the exported site's `views.html` for custom element tag names (e.g. `feezal-element-basic-number`, `feezal-element-paper-switch`).
-2. Concatenate: `viewer-runtime-base.iife.js` + only the IIFE chunks for tags actually present.
-3. mqtt.js is only included when the connection backend is `mqtt` (already known from `config.connection.backend`).
-4. Inline the concatenated JS into the HTML as before.
-5. Special case: Elements that render elements (until now only feezal-element-basic-repeater) - it carries information of the element it needs to render in attribute "child-element", this has to be taken in account also. 
-
-**Alternative — per-export Rollup build from source (Option A):**
-
-Generate a temporary entry file with only the needed `import` lines, run a fresh Rollup/Vite build per export, inline the output. Optimal result, but adds 10–30 s to every export. Acceptable if exports are infrequent.
-
-**Quick win (Option D) — ensure export step minifies:**
-
-Verify that the Rollup `generate()` call in `createExport()` passes `compact: true` / `plugins: [terser()]`. The Vite build already minifies, but Rollup's IIFE re-wrapping step may undo some of that. Easy to add, ~20–30% size reduction for free.
-
-**Themes — user-selectable at export time:**
-
-Themes cannot be filtered the same way as elements. A site's active theme is set in `viewer.json`, but themes can also be switched dynamically at runtime via MQTT messages — so any theme the user might want to switch to at runtime must be present in the export bundle. Statically scanning the site HTML or config is therefore insufficient.
-
-The right model: when triggering an export the user is shown a **theme selection dialog** listing all installed themes (npm + user-defined). The currently configured theme is pre-checked; the user can additionally check any other themes they want reachable at runtime (e.g. a "dark mode" theme toggled via an MQTT automation). Only the checked themes are included in the export bundle.
-
-Implementation notes:
-- The export API endpoint (`POST /api/sites/:name/export`) accepts a `themes: string[]` body parameter (array of theme slugs to bundle).
-- If `themes` is absent or empty, fall back to only including the currently configured theme — a safe default that matches the current behaviour for static sites without dynamic switching.
-- The export UI (wherever the download button lives) must surface the theme picker before triggering the download.
 
 ### A7 — Git versioning for data directory
 

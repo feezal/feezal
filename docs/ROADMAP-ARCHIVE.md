@@ -1142,6 +1142,20 @@ The current update indicator compares the npm `latest` tag string directly again
 
 ## Architecture & Infrastructure
 
+### A8 — Per-site tree-shaking for static HTML export ✅ implemented
+
+**Approach used:** Option A (per-export Vite build) with graceful Rollup fallback.
+
+At export time:
+1. `server/src/build/extract-elements.js` parses the site's `views.html` for all `feezal-element-*` and `feezal-theme-*` tag names (including `child-element="…"` attributes on the repeater element).
+2. Resolved package names are checked against `www/node_modules/@feezal/` — missing packages are silently skipped.
+3. A temporary entry file (`www/src/_export-entry.js`) is generated importing only the needed packages plus the active theme.
+4. `vite.build()` (called via dynamic `import()` from CJS) produces a minified IIFE; the entry file is deleted after the build.
+5. Results are cached in-memory by a SHA-256 hash of the sorted package list for the lifetime of the server process.
+6. If the Vite build fails for any reason the existing Rollup path (full `viewer-bundle.js`) is used as a fallback.
+
+**Files changed:** `server/src/build/extract-elements.js` (new), `server/src/build/export.js`.
+
 ### A2 — Site management UI in editor  ✅ implemented
 **Decided:**
 
