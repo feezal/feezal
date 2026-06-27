@@ -14,7 +14,7 @@ import '@feezal/feezal-element-material-gauge';
 import '@feezal/feezal-element-material-light';
 import '@feezal/feezal-element-material-slider';
 import '@feezal/feezal-element-material-switch';
-import '@feezal/feezal-element-material-thermostat';
+import '@feezal/feezal-element-material-climate';
 import '@feezal/feezal-element-material-value';
 import '@feezal/feezal-element-paper-app-layout';
 import '@feezal/feezal-element-paper-badge';
@@ -54,7 +54,7 @@ window.feezal.elements = [
   "@feezal/feezal-element-material-light",
   "@feezal/feezal-element-material-slider",
   "@feezal/feezal-element-material-switch",
-  "@feezal/feezal-element-material-thermostat",
+  "@feezal/feezal-element-material-climate",
   "@feezal/feezal-element-material-value",
   "@feezal/feezal-element-paper-app-layout",
   "@feezal/feezal-element-paper-badge",

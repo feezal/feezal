@@ -29,7 +29,7 @@
                          "@feezal/feezal-element-material-light":  "*",
                          "@feezal/feezal-element-material-cover": "*",
                          "@feezal/feezal-element-material-slider":  "*",
-                         "@feezal/feezal-element-material-thermostat": "*",
+                         "@feezal/feezal-element-material-climate": "*",
                          "@feezal/feezal-element-material-switch":  "*",
                          "@feezal/feezal-element-material-value":  "*",
                          "@feezal/feezal-element-paper-app-layout":  "*",

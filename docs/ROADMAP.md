@@ -257,7 +257,7 @@ For each supported `component` type there is a mapping table: discovery keys →
 | Discovery component | feezal element | Notable conversions |
 |---|---|---|
 | `light` *(first)* | `feezal-element-material-light` | `brightness_scale` (often 254/255) → 0–100 %; mireds ↔ kelvin; `supported_color_modes` → element colour mode |
-| `climate` | `feezal-element-material-thermostat` (E11) | `temp_step`, `min/max_temp`, mode lists |
+| `climate` | `feezal-element-material-climate` (E11) | `temp_step`, `min/max_temp`, mode lists |
 | `cover` | `feezal-element-material-shutter` (E12) | position scale, tilt range |
 | `switch` | `feezal-element-material-switch` | payload on/off |
 | `fan` | `feezal-element-material-fan` (E18) | percentage range, preset modes |
@@ -414,13 +414,13 @@ The existing material element set covers `button`, `switch`, `slider`, `gauge`, 
 
 > **Conventions:** auto-discovery — `checkbox`, `chip`, and `icon-button` (toggle mode) map to the discovery `switch` component; `select` maps to `select`; `text-field` maps to `text`. Each declares a `discovery` descriptor per [Element platform conventions](#element-platform-conventions). These are single-value controls, so dual-payload mode does not apply.
 
-### E11 — Thermostat element (`feezal-element-material-thermostat`)
+### E11 — Climate element (`feezal-element-material-climate`)
 
-A self-contained thermostat control that wraps several sub-elements into a single cohesive canvas element. Targets typical smart-home thermostats (e.g. Homematic, Z-Wave, MQTT thermostats, ESPHome climate). **Palette category: `Device`** (sibling of Light).
+A self-contained climate control that wraps several sub-elements into a single cohesive canvas element. Targets typical smart-home thermostats and HVAC devices (e.g. Homematic, Z-Wave, MQTT climate, ESPHome climate, zigbee2mqtt TRVs). **Palette category: `Device`** (sibling of Light).
 
-> **Conventions:** dual-payload ✓ (`json` is the discovery default) · auto-discovery: `climate` · custom inspector: **N6 required** (two-tab Topics/Config, capability-gated sections). See [Element platform conventions](#element-platform-conventions) and **[Lessons from the Light element](#lessons-from-the-light-element-e16--e35) — all eight apply here.** Element-specific discovery conversions: `temperature_command_topic`/`temperature_state_topic` → setpoint topics, `current_temperature_topic` → `subscribe-actual`, `mode_*_topic` + `modes` → mode selector, `temp_step` → `step`, `min_temp`/`max_temp` → `min`/`max`, `temperature_unit` → `unit`, `availability_topic` → `subscribe-availability`, `name` → `label`.
+> **Conventions:** dual-payload ✓ (`json` is the discovery default) · auto-discovery: `climate` · custom inspector: **N6 required** (two-tab Topics/Config, capability-gated sections). See [Element platform conventions](#element-platform-conventions) and **[Lessons from the Light element](#lessons-from-the-light-element-e16--e35) — all eight apply here.** Element-specific discovery conversions: `schema` → `payload-mode`, `temperature_state_topic`/`temperature_command_topic` → `subscribe`/`publish` (json mode), `modes` (string array) → `modes` attribute (auto-coerced to `[{value,label}]`), `temp_step` → `step`, `min_temp`/`max_temp` → `min`/`max`, `temperature_unit` (C/F) → `unit` (°C/°F), `availability_topic` → `subscribe-availability`, `payload_available`/`payload_not_available` mapped, `name` → `label`.
 
-> **Real-device grounding (do this first):** model a concrete climate device — e.g. a **zigbee2mqtt TRV** (Sonoff TRVZB / Eurotronic Spirit) — which emits a consolidated base-topic JSON object (`local_temperature`, `current_heating_setpoint`, `system_mode`, `running_state`, `position` for valve %) *and* a `schema: json` `climate` discovery config. Discovery points at the JSON form, so an auto-configured thermostat defaults to `payload-mode: json`.
+> **Real-device grounding (do this first):** model a concrete climate device — e.g. a **zigbee2mqtt TRV** (Sonoff TRVZB / Eurotronic Spirit) — which emits a consolidated base-topic JSON object (`local_temperature`, `current_heating_setpoint`, `system_mode`, `running_state`, `position` for valve %) *and* a `schema: json` `climate` discovery config. Discovery points at the JSON form, so an auto-configured climate element defaults to `payload-mode: json`.
 
 **Visual concept:** a large circular arc slider (custom SVG/Canvas, similar to the Nest/ecobee UI) for setting the target temperature. Current actual temperature shown prominently in the centre of the arc. Supporting data rendered below or around the circle. An availability badge appears in a corner when the device is unavailable; **controls stay enabled** regardless.
 
@@ -990,7 +990,7 @@ A geographic map widget that displays one or more tracked positions on an OpenSt
 
 ---
 
-#### OwnTracks integration — the killer feature
+#### OwnTracks integration 
 
 [OwnTracks](https://owntracks.org/) is an open-source mobile app (iOS + Android) that publishes the device's location to a private MQTT broker. It follows a well-documented JSON protocol:
 

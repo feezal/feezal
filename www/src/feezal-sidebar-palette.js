@@ -7,7 +7,7 @@ import '@shoelace-style/shoelace/dist/components/input/input.js';
 // (disabled) to give users a preview of what's coming.
 const COMPONENT_ELEMENT_MAP = {
     light:         'feezal-element-material-light',
-    climate:       'feezal-element-material-thermostat',
+    climate:       'feezal-element-material-climate',
     cover:         'feezal-element-material-shutter',
     switch:        'feezal-element-material-switch',
     fan:           'feezal-element-material-fan',

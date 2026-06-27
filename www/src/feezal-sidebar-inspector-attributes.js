@@ -909,6 +909,8 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                     value = Array.isArray(raw) ? raw[0] : raw;
                 } else if (spec.transform === 'join') {
                     value = Array.isArray(raw) ? raw.join(',') : raw;
+                } else if (spec.transform === 'jsonStringify') {
+                    value = JSON.stringify(raw);
                 } else if (spec.transform === 'colorMode') {
                     // supported_color_modes array → a single feezal centre control
                     const modeMap = {
