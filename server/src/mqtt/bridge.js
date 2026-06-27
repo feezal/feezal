@@ -12,6 +12,7 @@
  */
 
 const mqtt = require('mqtt');
+const discovery = require('./discovery.js');
 
 // ── Trie ───────────────────────────────────────────────────────────────────
 const topicTrie = {};
@@ -82,6 +83,7 @@ function connect(config, logger) {
 
     disconnect();
     _clearTrie();
+    discovery.clearEntities();
     activeUri = uri;
 
     _logger?.info('mqtt-bridge: connecting to ' + uri);
@@ -110,6 +112,7 @@ function connect(config, logger) {
 
     client.on('message', (topic, payload) => {
         insertTopic(topic);
+        discovery.handleMessage(topic, payload);
         if (_relayCallback) {
             let payloadStr = payload ? payload.toString() : '';
             let parsed = payloadStr;
@@ -137,4 +140,4 @@ function disconnect() {
     }
 }
 
-module.exports = { connect, disconnect, insertTopic, getTopicCompletions, setRelayCallback };
+module.exports = { connect, disconnect, insertTopic, getTopicCompletions, setRelayCallback, getDiscoveredEntities: discovery.getDiscoveredEntities, getDiscoveredEntity: discovery.getDiscoveredEntity };
