@@ -285,11 +285,11 @@ ${historicalHtml ? '</div>' : ''}
     };
 
     if (publicViewer) {
-        app.get('/view/', viewerHandler);
-        app.get('/view/:site', viewerHandler);
+        app.get('/viewer/', viewerHandler);
+        app.get('/viewer/:site', viewerHandler);
     } else {
-        app.get('/view/', editorAuth, viewerHandler);
-        app.get('/view/:site', editorAuth, viewerHandler);
+        app.get('/viewer/', editorAuth, viewerHandler);
+        app.get('/viewer/:site', editorAuth, viewerHandler);
     }
 
     // --- Element discovery & dynamic element module ---
