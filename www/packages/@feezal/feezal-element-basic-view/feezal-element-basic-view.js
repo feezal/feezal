@@ -27,7 +27,7 @@ class FeezalElementBasicView extends FeezalElement {
             palette: {
                 category: 'Basic',
                 name: 'View',
-                color: '#4a6080'
+                color: '#4a7080'
             },
             attributes: [
                 {name: 'view', dropdown: 'views', label: 'View'},

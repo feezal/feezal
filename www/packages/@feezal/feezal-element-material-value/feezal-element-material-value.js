@@ -14,7 +14,7 @@ class FeezalElementMaterialValue extends FeezalElement {
             palette: {
                 name: 'Value',
                 category: 'Material',
-                color: '#1565c0'
+                color: '#4a6080'
             },
             description: 'Material Design 3 styled value tile. Shows a large numeric or text value from an MQTT topic.',
             attributes: [

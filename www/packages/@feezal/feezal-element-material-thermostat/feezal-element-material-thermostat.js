@@ -61,7 +61,7 @@ function fmtTemp(val, unit) {
 class FeezalElementMaterialThermostat extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Thermostat', category: 'Device', color: '#e65100', icon: 'thermostat'},
+            palette: {name: 'Thermostat', category: 'Device', color: '#1565c0', icon: 'thermostat'},
             description: 'Smart thermostat card — circular arc setpoint slider, actual temperature, optional mode chips, valve indicator, and humidity display.',
             // ── N6 custom inspector ───────────────────────────────────────────
             inspector: 'feezal-element-material-thermostat-inspector',
