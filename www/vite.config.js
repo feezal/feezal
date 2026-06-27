@@ -102,6 +102,7 @@ export default defineConfig({
             '@feezal/feezal-element-basic-view',
             '@feezal/feezal-element-material-button',
             '@feezal/feezal-element-material-gauge',
+            '@feezal/feezal-element-material-light',
             '@feezal/feezal-element-material-slider',
             '@feezal/feezal-element-material-switch',
             '@feezal/feezal-element-material-value',

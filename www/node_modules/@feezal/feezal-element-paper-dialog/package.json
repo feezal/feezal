@@ -1,0 +1,31 @@
+{
+    "author":  {
+                   "name":  "Sebastian Raff",
+                   "email":  "hobbyquaker@gmail.com"
+               },
+    "bugs":  {
+                 "url":  "https://github.com/feezal/node-red-contrib-feezal/issues"
+             },
+    "dependencies":  {
+                         "@feezal/feezal-element":  "*",
+                         "@polymer/paper-dialog":  "^3.0.1",
+                         "@polymer/paper-dialog-scrollable":  "^3.0.1"
+                     },
+    "deprecated":  false,
+    "description":  "",
+    "feezal":  {
+                   "type":  "element"
+               },
+    "homepage":  "https://github.com/feezal/node-red-contrib-feezal#readme",
+    "license":  "MIT",
+    "main":  "feezal-element-paper-dialog.js",
+    "name":  "@feezal/feezal-element-paper-dialog",
+    "repository":  {
+                       "type":  "git",
+                       "url":  "git+https://github.com/feezal/node-red-contrib-feezal.git"
+                   },
+    "scripts":  {
+                    "test":  "echo \"Error: no test specified\" \u0026\u0026 exit 1"
+                },
+    "version":  "1.0.0"
+}

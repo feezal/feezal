@@ -154,6 +154,18 @@ Configurable attributes:
 
 Each view entry in `views` can carry an optional icon name (Material icon or URL). The element highlights the currently active view and updates when the view changes by any means (swipe, URL hash change, programmatic switch).
 
+### E16 — Light control element (`feezal-element-material-light`) ✅ implemented
+
+A rich light-control element covering the full range of smart-light capabilities: on/off, brightness, colour temperature, and RGB colour.
+
+**Visual concept:** a circular control combining a brightness arc (outer ring, draggable) with a colour temperature or RGB area in the centre. The ring colour tints to reflect the current light colour. A tap/click area in the centre toggles on/off. For lights that support only brightness (no colour), the centre shows the brightness percentage as text.
+
+**Control modes (via `mode` attribute):** `brightness` / `color_temp` / `rgb` / `hs`.
+
+**Controls implemented:** on/off toggle (centre tap), brightness ring drag (publishes on release), colour temperature gradient slider below circle (draggable, publishes on release), RGB/HS colour wheel in centre (tap to pick colour), RGBW/RGBWW white sliders (`md-slider`), effect selector (`md-outlined-select`).
+
+**Default size:** 180×220 px.
+
 ---
 
 ## Editor UX

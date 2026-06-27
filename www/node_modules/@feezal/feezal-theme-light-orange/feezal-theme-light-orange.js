@@ -1,0 +1,26 @@
+const styleElement = document.createElement('style');
+styleElement.innerHTML = `.feezal-theme-light-orange {
+    --primary-background-color: #fafafa;
+    --secondary-background-color: #f5f5f5;
+    --primary-text-color: #212121;
+    --secondary-text-color: #616161;
+    --disabled-text-color: #9e9e9e;
+    --divider-color: #e0e0e0;
+    --error-color: #c62828;
+    --primary-color: #ff6d00;
+    --accent-color: #ff9100;
+    --paper-listbox-background-color: #f5f5f5;
+    --paper-input-container-color: #616161;
+    --paper-input-container-focus-color: #ff6d00;
+    --paper-input-container-input-color: #212121;
+    --paper-slider-active-color: var(--primary-color);
+    --paper-slider-secondary-color: var(--primary-color);
+    --paper-toggle-button-checked-bar-color: var(--primary-color);
+    --paper-toggle-button-checked-button-color: var(--primary-color);
+    --paper-toggle-button-checked-ink-color: var(--primary-color);
+    --paper-checkbox-checked-color: var(--primary-color);
+    --paper-checkbox-checked-ink-color: var(--primary-color);
+    --paper-tabs-selection-bar-color: var(--primary-color);
+    --paper-tab-ink: var(--primary-color);
+}`;
+document.head.appendChild(styleElement);

@@ -457,65 +457,6 @@ Each button publishes a configurable payload to `publish-command`. Play/pause to
 
 **Default size:** 320×180 px.
 
-### E16 — Light control element (`feezal-element-material-light`) ⚡ high priority
-
-A rich light-control element covering the full range of smart-light capabilities: on/off, brightness, colour temperature, and RGB colour. This is the most-used device card in every major HA dashboard (built-in light card, Mushroom light card) and a high-value addition for feezal.
-
-**Visual concept:** a circular control combining a brightness arc (outer ring, draggable) with a colour temperature or RGB area in the centre. The ring colour tints to reflect the current light colour. A large tap/click area in the centre toggles on/off. For lights that support only brightness (no colour), the centre shows the brightness percentage as text.
-
-**Control modes (auto-detected from attributes, or forced via `mode` attribute):**
-
-| Mode | Center content | Ring |
-|---|---|---|
-| `brightness` | `%` text | Brightness arc |
-| `color_temp` | Warm→Cool gradient arc | Brightness arc |
-| `rgb` | Hue colour wheel (SVG) | Brightness arc |
-| `hs` | Hue–Saturation wheel (SVG) | Brightness arc |
-
-**Controls:**
-- **On/Off toggle** — tap/click the centre area. The ring collapses to a dot when off.
-- **Brightness ring** — drag handle on the outer arc (same mechanic as E11 thermostat setpoint ring). Publishes to `publish-brightness` on release.
-- **Colour temperature slider** — rendered as a horizontal gradient bar below the circle when mode is `color_temp`. Dragging publishes to `publish-color-temp` (in Kelvin or mireds, configurable).
-- **RGB/HS colour wheel** — SVG wheel rendered in the circle centre when mode is `rgb` or `hs`. Tap position maps to hue+saturation; publishes to `publish-rgb` or `publish-hs`.
-- **Effect selector** — optional `md-outlined-select` row below the circle listing configurable effect names. Publishes selected effect to `publish-effect`.
-
-**Attributes:**
-
-| Attribute | Type | Default | Description |
-|---|---|---|---|
-| `subscribe-state` | mqttTopic | — | On/off state topic (`on`/`off` or configurable) |
-| `publish-state` | mqttTopic | — | Topic to publish on/off toggle |
-| `payload-on` | string | `on` | Payload to publish when turning on |
-| `payload-off` | string | `off` | Payload to publish when turning off |
-| `subscribe-brightness` | mqttTopic | — | Current brightness (0–100 %) |
-| `publish-brightness` | mqttTopic | — | Topic to publish brightness value |
-| `subscribe-color-temp` | mqttTopic | — | Current colour temperature |
-| `publish-color-temp` | mqttTopic | — | Topic to publish colour temperature |
-| `color-temp-unit` | `kelvin` \| `mired` | `kelvin` | Unit for colour temperature |
-| `color-temp-min` | number | `2700` | Minimum colour temperature (warm white, K) |
-| `color-temp-max` | number | `6500` | Maximum colour temperature (cool white, K) |
-| `subscribe-rgb` | mqttTopic | — | Current RGB value (JSON `[r,g,b]` or `r,g,b` string) |
-| `publish-rgb` | mqttTopic | — | Topic to publish RGB value |
-| `subscribe-hs` | mqttTopic | — | Current hue/saturation (JSON `[h,s]`) |
-| `publish-hs` | mqttTopic | — | Topic to publish hue/saturation |
-| `mode` | select | `brightness` | Control mode: `brightness` / `color_temp` / `rgb` / `hs` |
-| `subscribe-effect` | mqttTopic | — | Current effect name |
-| `publish-effect` | mqttTopic | — | Topic to publish selected effect |
-| `effects` | string | `""` | Comma-separated list of effect names |
-| `label` | string | `""` | Optional label below the circle |
-| `subscribe-white` | mqttTopic | — | White channel level for RGBW lamps (0–100 %) |
-| `publish-white` | mqttTopic | — | Topic to publish white channel |
-| `subscribe-warm-white` | mqttTopic | — | Warm-white channel for RGBWW lamps |
-| `publish-warm-white` | mqttTopic | — | Topic to publish warm-white channel |
-| `subscribe-cold-white` | mqttTopic | — | Cold-white channel for RGBWW lamps |
-| `publish-cold-white` | mqttTopic | — | Topic to publish cold-white channel |
-
-**RGBW / RGBWW support:** when `subscribe-white` (or warm/cold white) is configured, a separate horizontal **white slider** (`md-slider`) appears below the colour wheel. The white channel is independent of the RGB channels. This matches the ioBroker material widget "Color Lamp" which supports `#RRGGBBWW` combined states as well as separate R/G/B/W topics — all formats can be mapped via individual topics in feezal. A `white-mode` boolean attribute enables a mode where the RGB wheel is hidden and only the white slider is shown (for lamps that switch between colour and white mode via a separate state).
-
-**Editor preview:** renders the circle at 60 % brightness with a neutral ring colour; colour wheel shown when mode is `rgb`. All controls non-interactive.
-
-**Default size:** 180×220 px.
-
 ### E17 — Alarm panel element (`feezal-element-material-alarm-panel`)
 
 A security alarm control panel with PIN keypad entry and arm/disarm mode selection. Corresponds to HA's alarm panel card, widely used on wall-mounted dashboards.

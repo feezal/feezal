@@ -1,0 +1,675 @@
+/* global feezal */
+import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {svg} from 'lit';
+import '@material/web/slider/slider.js';
+import '@material/web/select/outlined-select.js';
+import '@material/web/select/select-option.js';
+
+// ─── Arc geometry (0° = top, clockwise, matches feezal-element-material-gauge convention) ───
+const CX = 50;
+const CY = 50;
+const TRACK_R = 40;   // brightness ring centre-line radius
+const RING_W  = 7;    // ring stroke width
+const CENTER_R = 26;  // centre-circle radius (toggle / colour zone)
+const POWER_R  = 10;  // inner power-toggle zone radius (within centre)
+const ARC_START = 225;
+const ARC_SWEEP = 270;
+
+function polarXY(deg, r) {
+    const rad = (deg - 90) * Math.PI / 180;
+    return [+(CX + r * Math.cos(rad)).toFixed(3), +(CY + r * Math.sin(rad)).toFixed(3)];
+}
+
+function arcPath(fromDeg, toDeg, r) {
+    const [ax, ay] = polarXY(fromDeg, r);
+    const [bx, by] = polarXY(toDeg, r);
+    const sweep = ((toDeg - fromDeg) + 360) % 360;
+    return `M${ax},${ay} A${r},${r} 0 ${sweep > 180 ? 1 : 0},1 ${bx},${by}`;
+}
+
+function pctToAngle(pct) {
+    return (ARC_START + (Math.max(0, Math.min(100, pct)) / 100) * ARC_SWEEP) % 360;
+}
+
+function angleToPct(deg) {
+    const arcEnd = (ARC_START + ARC_SWEEP) % 360; // 135
+    let n;
+    if (deg >= ARC_START) n = deg - ARC_START;
+    else if (deg <= arcEnd) n = deg + (360 - ARC_START);
+    else n = deg < 180 ? ARC_SWEEP : 0; // gap zone — clamp to nearest end
+    return Math.max(0, Math.min(100, Math.round(n / ARC_SWEEP * 100)));
+}
+
+// ─── Colour helpers ───────────────────────────────────────────────────────────
+function kelvinToRgb(k) {
+    // Simple warm-to-cool interpolation: 2700 K (warm) → 6500 K (cool)
+    const t = Math.max(0, Math.min(1, (k - 2700) / 3800));
+    return [Math.round(255 - t * 60), Math.round(210 + t * 45), Math.round(90 + t * 165)];
+}
+
+function rgbToHex(r, g, b) {
+    return '#' + [r, g, b].map(c => Math.round(Math.max(0, Math.min(255, c))).toString(16).padStart(2, '0')).join('');
+}
+
+function rgbToHsv(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), d = max - Math.min(r, g, b);
+    let h = 0;
+    if (d) {
+        if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) * 60;
+        else if (max === g) h = ((b - r) / d + 2) * 60;
+        else h = ((r - g) / d + 4) * 60;
+    }
+    return {h, s: max ? d / max : 0, v: max};
+}
+
+function hsvToRgb(h, s, v) {
+    const i = Math.floor(h / 60) % 6;
+    const f = h / 60 - Math.floor(h / 60);
+    const p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
+    const combos = [[v, t, p], [q, v, p], [p, v, t], [p, q, v], [t, p, v], [v, p, q]];
+    const [r, g, b] = combos[i];
+    return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+}
+
+function parseRgb(raw) {
+    try {
+        if (typeof raw === 'string' && !raw.startsWith('[')) {
+            const parts = raw.split(',').map(Number);
+            if (parts.length >= 3 && parts.every(n => !isNaN(n))) return parts.slice(0, 3);
+        }
+        const arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (Array.isArray(arr)) return arr.slice(0, 3).map(Number);
+    } catch {}
+    return null;
+}
+
+// ─── Element ──────────────────────────────────────────────────────────────────
+class FeezalElementMaterialLight extends FeezalElement {
+    static get feezal() {
+        return {
+            palette: {name: 'Light', category: 'Material', color: '#1565c0', icon: 'lightbulb'},
+            description: 'Smart light card — brightness ring, colour temperature, RGB/HS colour wheel, white channel, and effect selector.',
+            attributes: [
+                // On/off
+                {name: 'subscribe-state',   type: 'mqttTopic', help: 'Topic receiving on/off state.'},
+                {name: 'publish-state',     type: 'mqttTopic', help: 'Topic to publish on/off.'},
+                {name: 'payload-on',        type: 'string',    default: 'on',  help: 'Payload representing "on".'},
+                {name: 'payload-off',       type: 'string',    default: 'off', help: 'Payload representing "off".'},
+                // Brightness
+                {name: 'subscribe-brightness', type: 'mqttTopic', help: 'Current brightness (0–100 %).'},
+                {name: 'publish-brightness',   type: 'mqttTopic', help: 'Publish brightness on ring release.'},
+                // Colour temperature
+                {name: 'subscribe-color-temp', type: 'mqttTopic', help: 'Current colour temperature.'},
+                {name: 'publish-color-temp',   type: 'mqttTopic', help: 'Publish colour temperature.'},
+                {name: 'color-temp-unit', type: 'select', options: ['kelvin', 'mired'], default: 'kelvin', help: 'Unit used on colour-temp topics.'},
+                {name: 'color-temp-min',  type: 'number', default: 2700, help: 'Minimum colour temperature (K).'},
+                {name: 'color-temp-max',  type: 'number', default: 6500, help: 'Maximum colour temperature (K).'},
+                // RGB / HS
+                {name: 'subscribe-rgb', type: 'mqttTopic', help: 'Current RGB value (JSON [r,g,b] or "r,g,b").'},
+                {name: 'publish-rgb',   type: 'mqttTopic', help: 'Publish RGB value as JSON [r,g,b].'},
+                {name: 'subscribe-hs',  type: 'mqttTopic', help: 'Current hue/saturation (JSON [h,s]).'},
+                {name: 'publish-hs',    type: 'mqttTopic', help: 'Publish hue/saturation as JSON [h,s].'},
+                // Mode
+                {name: 'mode', type: 'select', options: ['brightness', 'color_temp', 'rgb', 'hs'], default: 'brightness', help: 'Control mode shown in the card centre.'},
+                // Effects
+                {name: 'subscribe-effect', type: 'mqttTopic', help: 'Current effect name.'},
+                {name: 'publish-effect',   type: 'mqttTopic', help: 'Publish selected effect name.'},
+                {name: 'effects',          type: 'string',    default: '', help: 'Comma-separated list of available effect names.'},
+                // White / RGBW / RGBWW
+                {name: 'subscribe-white',      type: 'mqttTopic', help: 'White channel (0–100 %) for RGBW lamps.'},
+                {name: 'publish-white',        type: 'mqttTopic', help: 'Publish white channel.'},
+                {name: 'subscribe-warm-white', type: 'mqttTopic', help: 'Warm-white channel (0–100 %) for RGBWW lamps.'},
+                {name: 'publish-warm-white',   type: 'mqttTopic', help: 'Publish warm-white channel.'},
+                {name: 'subscribe-cold-white', type: 'mqttTopic', help: 'Cold-white channel (0–100 %) for RGBWW lamps.'},
+                {name: 'publish-cold-white',   type: 'mqttTopic', help: 'Publish cold-white channel.'},
+                // Label
+                {name: 'label', type: 'string', default: '', help: 'Optional label shown below the circle.'}
+            ],
+            styles: ['top', 'left', 'width', 'height', 'background', 'border-radius'],
+            restrict: {minWidth: 120, minHeight: 140},
+            defaultStyle: {width: '180px', height: '220px'}
+        };
+    }
+
+    static properties = {
+        subscribeState:     {type: String, reflect: true, attribute: 'subscribe-state'},
+        publishState:       {type: String, reflect: true, attribute: 'publish-state'},
+        payloadOn:          {type: String, reflect: true, attribute: 'payload-on'},
+        payloadOff:         {type: String, reflect: true, attribute: 'payload-off'},
+        subscribeBrightness:{type: String, reflect: true, attribute: 'subscribe-brightness'},
+        publishBrightness:  {type: String, reflect: true, attribute: 'publish-brightness'},
+        subscribeColorTemp: {type: String, reflect: true, attribute: 'subscribe-color-temp'},
+        publishColorTemp:   {type: String, reflect: true, attribute: 'publish-color-temp'},
+        colorTempUnit:      {type: String, reflect: true, attribute: 'color-temp-unit'},
+        colorTempMin:       {type: Number, reflect: true, attribute: 'color-temp-min'},
+        colorTempMax:       {type: Number, reflect: true, attribute: 'color-temp-max'},
+        subscribeRgb:       {type: String, reflect: true, attribute: 'subscribe-rgb'},
+        publishRgb:         {type: String, reflect: true, attribute: 'publish-rgb'},
+        subscribeHs:        {type: String, reflect: true, attribute: 'subscribe-hs'},
+        publishHs:          {type: String, reflect: true, attribute: 'publish-hs'},
+        mode:               {type: String, reflect: true},
+        subscribeEffect:    {type: String, reflect: true, attribute: 'subscribe-effect'},
+        publishEffect:      {type: String, reflect: true, attribute: 'publish-effect'},
+        effects:            {type: String, reflect: true},
+        subscribeWhite:     {type: String, reflect: true, attribute: 'subscribe-white'},
+        publishWhite:       {type: String, reflect: true, attribute: 'publish-white'},
+        subscribeWarmWhite: {type: String, reflect: true, attribute: 'subscribe-warm-white'},
+        publishWarmWhite:   {type: String, reflect: true, attribute: 'publish-warm-white'},
+        subscribeColdWhite: {type: String, reflect: true, attribute: 'subscribe-cold-white'},
+        publishColdWhite:   {type: String, reflect: true, attribute: 'publish-cold-white'},
+        label:              {type: String, reflect: true},
+        // Internal state
+        _on:        {state: true},
+        _brt:       {state: true},   // brightness 0–100
+        _colorTemp: {state: true},   // colour temperature in Kelvin
+        _rgb:       {state: true},   // [r, g, b]
+        _hs:        {state: true},   // [h, s]  h: 0–360, s: 0–100
+        _effect:    {state: true},
+        _white:     {state: true},
+        _warmWhite: {state: true},
+        _coldWhite: {state: true},
+        _dragBrt:   {state: true},   // live brightness during ring drag (null = not dragging)
+    };
+
+    static styles = [feezalBaseStyles, css`
+        :host {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 6px;
+            box-sizing: border-box;
+            overflow: hidden;
+            gap: 4px;
+            --md-sys-color-primary:    var(--sl-color-primary-600, #0284c7);
+            --md-sys-color-surface:    var(--feezal-bg, #fff);
+            --md-sys-color-on-surface: var(--feezal-color, #333);
+        }
+        .ring-wrap { width: 100%; flex-shrink: 0; }
+        svg {
+            width: 100%;
+            display: block;
+            aspect-ratio: 1;
+            overflow: visible;
+            touch-action: none;
+            user-select: none;
+        }
+        .controls { width: 100%; display: flex; flex-direction: column; gap: 4px; }
+        .ctrl-label {
+            font-size: 10px; opacity: 0.55;
+            color: var(--feezal-color, #333);
+            margin-bottom: -2px;
+        }
+        .ct-track {
+            position: relative; height: 22px; border-radius: 11px;
+            background: linear-gradient(to right, #ff8c00, #fff8ee 50%, #aac4ff);
+            cursor: pointer; touch-action: none;
+        }
+        .ct-thumb {
+            position: absolute; top: 50%;
+            transform: translate(-50%, -50%);
+            width: 18px; height: 18px; border-radius: 50%;
+            border: 2px solid rgba(0,0,0,0.2);
+            background: white; pointer-events: none;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+        }
+        md-slider { width: 100%; }
+        md-outlined-select { width: 100%; }
+        .label {
+            font-size: 11px; opacity: 0.65; text-align: center;
+            color: var(--feezal-color, #333);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;
+        }
+    `];
+
+    constructor() {
+        super();
+        this.subscribeState      = '';
+        this.publishState        = '';
+        this.payloadOn           = 'on';
+        this.payloadOff          = 'off';
+        this.subscribeBrightness = '';
+        this.publishBrightness   = '';
+        this.subscribeColorTemp  = '';
+        this.publishColorTemp    = '';
+        this.colorTempUnit       = 'kelvin';
+        this.colorTempMin        = 2700;
+        this.colorTempMax        = 6500;
+        this.subscribeRgb        = '';
+        this.publishRgb          = '';
+        this.subscribeHs         = '';
+        this.publishHs           = '';
+        this.mode                = 'brightness';
+        this.subscribeEffect     = '';
+        this.publishEffect       = '';
+        this.effects             = '';
+        this.subscribeWhite      = '';
+        this.publishWhite        = '';
+        this.subscribeWarmWhite  = '';
+        this.publishWarmWhite    = '';
+        this.subscribeColdWhite  = '';
+        this.publishColdWhite    = '';
+        this.label               = '';
+        this._on        = false;
+        this._brt       = null;
+        this._colorTemp = null;
+        this._rgb       = null;
+        this._hs        = null;
+        this._effect    = '';
+        this._white     = null;
+        this._warmWhite = null;
+        this._coldWhite = null;
+        this._dragBrt   = null;
+        // Non-reactive drag flags
+        this.__ctDragging = false;
+    }
+
+    connectedCallback() {
+        super.connectedCallback();
+        if (feezal.isEditor) return;
+
+        if (this.subscribeState) {
+            this.addSubscription(this.subscribeState, msg => {
+                const v = this.getProperty(msg, this.messageProperty);
+                this._on = v === this.payloadOn || v === true || v === 1 || v === '1' ||
+                           (typeof v === 'string' && v.toLowerCase() === 'on');
+            });
+        }
+        if (this.subscribeBrightness) {
+            this.addSubscription(this.subscribeBrightness, msg => {
+                const v = Number(this.getProperty(msg, this.messageProperty));
+                if (!isNaN(v)) this._brt = Math.max(0, Math.min(100, v));
+            });
+        }
+        if (this.subscribeColorTemp) {
+            this.addSubscription(this.subscribeColorTemp, msg => {
+                let v = Number(this.getProperty(msg, this.messageProperty));
+                if (!isNaN(v)) {
+                    if (this.colorTempUnit === 'mired') v = Math.round(1_000_000 / v);
+                    this._colorTemp = v;
+                }
+            });
+        }
+        if (this.subscribeRgb) {
+            this.addSubscription(this.subscribeRgb, msg => {
+                const rgb = parseRgb(this.getProperty(msg, this.messageProperty));
+                if (rgb) this._rgb = rgb;
+            });
+        }
+        if (this.subscribeHs) {
+            this.addSubscription(this.subscribeHs, msg => {
+                try {
+                    const raw = this.getProperty(msg, this.messageProperty);
+                    const arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                    if (Array.isArray(arr) && arr.length >= 2) this._hs = arr.slice(0, 2).map(Number);
+                } catch {}
+            });
+        }
+        if (this.subscribeEffect) {
+            this.addSubscription(this.subscribeEffect, msg => {
+                this._effect = String(this.getProperty(msg, this.messageProperty) ?? '');
+            });
+        }
+        const mkSub = (stateProp, topic) => {
+            if (topic) {
+                this.addSubscription(topic, msg => {
+                    const v = Number(this.getProperty(msg, this.messageProperty));
+                    if (!isNaN(v)) this[stateProp] = Math.max(0, Math.min(100, v));
+                });
+            }
+        };
+        mkSub('_white',     this.subscribeWhite);
+        mkSub('_warmWhite', this.subscribeWarmWhite);
+        mkSub('_coldWhite', this.subscribeColdWhite);
+    }
+
+    // ─── SVG pointer handling ─────────────────────────────────────────────────
+    _onSvgPointerDown(e) {
+        if (feezal.isEditor) return;
+        const {sx, sy} = this._toSvgCoords(e);
+        const dx = sx - CX, dy = sy - CY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist <= CENTER_R) {
+            this._handleCenterTap(dx, dy, dist);
+        } else if (this._on && dist <= TRACK_R + RING_W) {
+            this._startBrtDrag(e, sx, sy);
+        }
+    }
+
+    _handleCenterTap(dx, dy, dist) {
+        const mode = this.mode || 'brightness';
+        const isColorMode = mode === 'rgb' || mode === 'hs';
+        if (!this._on || !isColorMode || dist <= POWER_R) {
+            // Power zone, simple modes, or light is off → toggle
+            this._toggle();
+        } else {
+            // Outer wheel zone in rgb/hs mode while on → colour pick
+            this._pickColor(dx, dy, dist);
+        }
+    }
+
+    _toggle() {
+        this._on = !this._on;
+        if (this.publishState) {
+            feezal.connection.pub(this.publishState, this._on ? this.payloadOn : this.payloadOff);
+        }
+    }
+
+    _pickColor(dx, dy, dist) {
+        // Angle measured clockwise from top (matches the colour wheel segments drawn with polarXY)
+        const hue = ((Math.atan2(dy, dx) * 180 / Math.PI) + 90 + 360) % 360;
+        const sat = Math.min(1, dist / CENTER_R);
+        if (this.mode === 'rgb') {
+            const rgb = hsvToRgb(hue, sat, 1);
+            this._rgb = rgb;
+            if (this.publishRgb) feezal.connection.pub(this.publishRgb, JSON.stringify(rgb));
+        } else if (this.mode === 'hs') {
+            const hs = [Math.round(hue), Math.round(sat * 100)];
+            this._hs = hs;
+            if (this.publishHs) feezal.connection.pub(this.publishHs, JSON.stringify(hs));
+        }
+    }
+
+    _startBrtDrag(e, sx, sy) {
+        this._dragBrt = this._brt ?? 0;
+
+        const onMove = ev => {
+            const {sx: x, sy: y} = this._toSvgCoords(ev);
+            const deg = ((Math.atan2(y - CY, x - CX) * 180 / Math.PI) + 90 + 360) % 360;
+            this._dragBrt = angleToPct(deg);
+        };
+        const onUp = () => {
+            document.removeEventListener('pointermove', onMove);
+            document.removeEventListener('pointerup', onUp);
+            const final = this._dragBrt;
+            this._dragBrt = null;
+            this._brt = final;
+            if (this.publishBrightness) feezal.connection.pub(this.publishBrightness, String(final));
+        };
+        document.addEventListener('pointermove', onMove);
+        document.addEventListener('pointerup', onUp);
+        // Immediately update to click position
+        const deg = ((Math.atan2(sy - CY, sx - CX) * 180 / Math.PI) + 90 + 360) % 360;
+        this._dragBrt = angleToPct(deg);
+    }
+
+    _toSvgCoords(e) {
+        const el = this.shadowRoot.querySelector('svg');
+        if (!el) return {sx: 0, sy: 0};
+        const r = el.getBoundingClientRect();
+        return {sx: ((e.clientX - r.left) / r.width) * 100, sy: ((e.clientY - r.top) / r.height) * 100};
+    }
+
+    // ─── Colour temperature track ─────────────────────────────────────────────
+    _onCtDown(e) {
+        if (feezal.isEditor) return;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        this.__ctDragging = true;
+        this._applyCt(e, false);
+    }
+
+    _onCtMove(e) {
+        if (!this.__ctDragging) return;
+        this._applyCt(e, false);
+    }
+
+    _onCtUp(e) {
+        if (!this.__ctDragging) return;
+        this.__ctDragging = false;
+        this._applyCt(e, true);
+    }
+
+    _applyCt(e, publish) {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        const min = this.colorTempMin || 2700;
+        const max = this.colorTempMax || 6500;
+        const ct = Math.round(min + ratio * (max - min));
+        this._colorTemp = ct;
+        if (publish && this.publishColorTemp) {
+            const v = this.colorTempUnit === 'mired' ? Math.round(1_000_000 / ct) : ct;
+            feezal.connection.pub(this.publishColorTemp, String(v));
+        }
+    }
+
+    // ─── White sliders ────────────────────────────────────────────────────────
+    _onWhite(e, pubTopic, stateProp) {
+        const v = Number(e.target.value);
+        this[stateProp] = v;
+        if (pubTopic) feezal.connection.pub(pubTopic, String(v));
+    }
+
+    // ─── Effect selector ──────────────────────────────────────────────────────
+    _onEffect(e) {
+        this._effect = e.target.value;
+        if (this.publishEffect) feezal.connection.pub(this.publishEffect, this._effect);
+    }
+
+    // ─── Computed values ──────────────────────────────────────────────────────
+    get _dispBrt() {
+        return this._dragBrt !== null ? this._dragBrt : (this._brt ?? 0);
+    }
+
+    get _accentColor() {
+        if (!this._on) return '#bdbdbd';
+        const mode = this.mode || 'brightness';
+        if (mode === 'rgb' && this._rgb) return rgbToHex(...this._rgb);
+        if (mode === 'hs'  && this._hs)  return rgbToHex(...hsvToRgb(this._hs[0], this._hs[1] / 100, 1));
+        if (mode === 'color_temp' && this._colorTemp) return rgbToHex(...kelvinToRgb(this._colorTemp));
+        return 'var(--sl-color-primary-600,#0284c7)';
+    }
+
+    // ─── SVG content ─────────────────────────────────────────────────────────
+    _svgContent() {
+        const isOn   = feezal.isEditor ? true : this._on;
+        const brt    = feezal.isEditor ? 60   : this._dispBrt;
+        const accent = feezal.isEditor ? 'var(--sl-color-primary-600,#0284c7)' : this._accentColor;
+        const trackC = 'var(--feezal-border,#e0e0e0)';
+        const mode   = this.mode || 'brightness';
+
+        const arcEndAngle = (ARC_START + ARC_SWEEP) % 360; // 135°
+        const fillAngle   = pctToAngle(brt);
+        const trackD      = arcPath(ARC_START, arcEndAngle, TRACK_R);
+        const fillD       = brt > 0.5 ? arcPath(ARC_START, fillAngle, TRACK_R) : null;
+        const [hx, hy]    = polarXY(brt > 0.5 ? fillAngle : ARC_START, TRACK_R);
+
+        return svg`
+            <!-- Background track arc -->
+            <path d="${trackD}" fill="none" stroke="${trackC}"
+                stroke-width="${RING_W}" stroke-linecap="round" pointer-events="none"/>
+
+            <!-- Brightness fill arc -->
+            ${isOn && fillD ? svg`
+                <path d="${fillD}" fill="none" stroke="${accent}"
+                    stroke-width="${RING_W}" stroke-linecap="round" pointer-events="none"/>
+            ` : ''}
+
+            <!-- Centre disc -->
+            <circle cx="${CX}" cy="${CY}" r="${CENTER_R}"
+                fill="var(--feezal-bg,#fff)"
+                stroke="${isOn ? accent : trackC}" stroke-width="1.5"
+                pointer-events="none"/>
+
+            <!-- Centre content -->
+            ${isOn
+                ? this._svgCenter(mode, brt, accent)
+                : svg`<text x="${CX}" y="${CY}" text-anchor="middle"
+                        dominant-baseline="middle" font-size="9"
+                        opacity="0.35" fill="var(--feezal-color,#333)"
+                        pointer-events="none">off</text>`}
+
+            <!-- Drag handle on ring (shown when on) -->
+            ${isOn ? svg`
+                <circle cx="${hx}" cy="${hy}" r="5"
+                    fill="${accent}" stroke="var(--feezal-bg,#fff)" stroke-width="2"
+                    pointer-events="none"/>
+            ` : ''}`;
+    }
+
+    _svgCenter(mode, brt, accent) {
+        switch (mode) {
+            case 'brightness':
+                return svg`
+                    <text x="${CX}" y="${CY}" text-anchor="middle"
+                        dominant-baseline="middle" font-size="13" font-weight="500"
+                        fill="var(--feezal-color,#333)" pointer-events="none">
+                        ${brt !== null ? `${brt}%` : '—'}
+                    </text>`;
+
+            case 'color_temp': {
+                const k = feezal.isEditor ? 4000 : (this._colorTemp ?? null);
+                return svg`
+                    <defs>
+                        <linearGradient id="feezal-ct-grad" gradientUnits="userSpaceOnUse"
+                            x1="${CX - CENTER_R}" y1="${CY}" x2="${CX + CENTER_R}" y2="${CY}">
+                            <stop offset="0%"   stop-color="#ff8c00"/>
+                            <stop offset="50%"  stop-color="#fff8ee"/>
+                            <stop offset="100%" stop-color="#aac4ff"/>
+                        </linearGradient>
+                        <clipPath id="feezal-ct-clip">
+                            <circle cx="${CX}" cy="${CY}" r="${CENTER_R - 1.5}"/>
+                        </clipPath>
+                    </defs>
+                    <circle cx="${CX}" cy="${CY}" r="${CENTER_R - 1.5}"
+                        fill="url(#feezal-ct-grad)" clip-path="url(#feezal-ct-clip)"
+                        pointer-events="none"/>
+                    ${k ? svg`
+                        <text x="${CX}" y="${CY}" text-anchor="middle"
+                            dominant-baseline="middle" font-size="8.5"
+                            fill="rgba(0,0,0,0.5)" pointer-events="none">${k}K</text>
+                    ` : ''}`;
+            }
+
+            case 'rgb':
+            case 'hs': {
+                // Hue colour wheel: 36 pie segments (hue = segment angle in polarXY convention)
+                const segs = [];
+                const N = 36;
+                for (let i = 0; i < N; i++) {
+                    const a1 = i * (360 / N), a2 = (i + 1) * (360 / N);
+                    const [x1, y1] = polarXY(a1, CENTER_R - 1.5);
+                    const [x2, y2] = polarXY(a2, CENTER_R - 1.5);
+                    segs.push(svg`<path
+                        d="M${CX},${CY} L${x1},${y1} A${CENTER_R - 1.5},${CENTER_R - 1.5} 0 0,1 ${x2},${y2} Z"
+                        fill="hsl(${a1},100%,50%)" stroke="none" pointer-events="none"/>`);
+                }
+
+                // Selected colour indicator dot (computed from current _rgb or _hs)
+                let dotX = null, dotY = null;
+                if (!feezal.isEditor) {
+                    if (mode === 'rgb' && this._rgb) {
+                        const {h, s} = rgbToHsv(...this._rgb);
+                        // h matches polarXY angle (both: 0=top=red, clockwise)
+                        const [px, py] = polarXY(h, s * (CENTER_R - 5));
+                        dotX = px; dotY = py;
+                    } else if (mode === 'hs' && this._hs) {
+                        const [px, py] = polarXY(this._hs[0], (this._hs[1] / 100) * (CENTER_R - 5));
+                        dotX = px; dotY = py;
+                    }
+                }
+
+                return svg`
+                    <defs>
+                        <clipPath id="feezal-wheel-clip">
+                            <circle cx="${CX}" cy="${CY}" r="${CENTER_R - 1.5}"/>
+                        </clipPath>
+                        <radialGradient id="feezal-sat-grad" cx="50%" cy="50%" r="50%">
+                            <stop offset="0%"  stop-color="white" stop-opacity="0.88"/>
+                            <stop offset="70%" stop-color="white" stop-opacity="0"/>
+                        </radialGradient>
+                    </defs>
+                    <!-- Hue segments -->
+                    <g clip-path="url(#feezal-wheel-clip)" pointer-events="none">${segs}</g>
+                    <!-- Saturation overlay (white-to-transparent radial gradient) -->
+                    <circle cx="${CX}" cy="${CY}" r="${CENTER_R - 1.5}"
+                        fill="url(#feezal-sat-grad)" clip-path="url(#feezal-wheel-clip)"
+                        pointer-events="none"/>
+                    <!-- Inner power-toggle zone -->
+                    <circle cx="${CX}" cy="${CY}" r="${POWER_R}"
+                        fill="rgba(0,0,0,0.3)" pointer-events="none"/>
+                    <text x="${CX}" y="${CY + 0.5}" text-anchor="middle"
+                        dominant-baseline="middle" font-size="11"
+                        fill="white" pointer-events="none">⏻</text>
+                    <!-- Selected colour dot -->
+                    ${dotX !== null ? svg`
+                        <circle cx="${dotX}" cy="${dotY}" r="3"
+                            fill="white" stroke="rgba(0,0,0,0.4)" stroke-width="1"
+                            pointer-events="none"/>
+                    ` : ''}`;
+            }
+
+            default:
+                return svg``;
+        }
+    }
+
+    // ─── Controls below ring ──────────────────────────────────────────────────
+    _renderControls() {
+        const mode = this.mode || 'brightness';
+        const parts = [];
+
+        if (mode === 'color_temp') {
+            const min = this.colorTempMin || 2700;
+            const max = this.colorTempMax || 6500;
+            const ct  = feezal.isEditor ? 4000 : (this._colorTemp ?? min);
+            const pct = Math.max(0, Math.min(100, ((ct - min) / (max - min)) * 100));
+            parts.push(html`
+                <div class="ctrl-label">Color temperature</div>
+                <div class="ct-track"
+                    @pointerdown="${this._onCtDown}"
+                    @pointermove="${this._onCtMove}"
+                    @pointerup="${this._onCtUp}">
+                    <div class="ct-thumb" style="left:${pct.toFixed(1)}%"></div>
+                </div>`);
+        }
+
+        if (this.subscribeWhite || this.publishWhite) {
+            parts.push(html`
+                <div class="ctrl-label">White</div>
+                <md-slider min="0" max="100" value="${this._white ?? 0}"
+                    @change="${e => this._onWhite(e, this.publishWhite, '_white')}"></md-slider>`);
+        }
+        if (this.subscribeWarmWhite || this.publishWarmWhite) {
+            parts.push(html`
+                <div class="ctrl-label">Warm white</div>
+                <md-slider min="0" max="100" value="${this._warmWhite ?? 0}"
+                    @change="${e => this._onWhite(e, this.publishWarmWhite, '_warmWhite')}"></md-slider>`);
+        }
+        if (this.subscribeColdWhite || this.publishColdWhite) {
+            parts.push(html`
+                <div class="ctrl-label">Cold white</div>
+                <md-slider min="0" max="100" value="${this._coldWhite ?? 0}"
+                    @change="${e => this._onWhite(e, this.publishColdWhite, '_coldWhite')}"></md-slider>`);
+        }
+        if (this.effects) {
+            const list = this.effects.split(',').map(s => s.trim()).filter(Boolean);
+            if (list.length > 0) {
+                parts.push(html`
+                    <md-outlined-select value="${this._effect}" @change="${this._onEffect}">
+                        <md-select-option value="">— Effect —</md-select-option>
+                        ${list.map(ef => html`<md-select-option value="${ef}">${ef}</md-select-option>`)}
+                    </md-outlined-select>`);
+            }
+        }
+
+        return parts.length > 0 ? html`<div class="controls">${parts}</div>` : '';
+    }
+
+    // ─── Render ───────────────────────────────────────────────────────────────
+    render() {
+        return html`
+            <div class="ring-wrap">
+                <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"
+                    style="cursor:${feezal.isEditor ? 'default' : 'pointer'}"
+                    @pointerdown="${this._onSvgPointerDown}">
+                    ${this._svgContent()}
+                </svg>
+            </div>
+            ${this._renderControls()}
+            ${this.label ? html`<div class="label">${this.label}</div>` : ''}`;
+    }
+}
+
+customElements.define('feezal-element-material-light', FeezalElementMaterialLight);
+export {FeezalElementMaterialLight};
