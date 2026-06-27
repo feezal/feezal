@@ -39,6 +39,8 @@ Then open [http://localhost:3000/editor/](http://localhost:3000/editor/).
 
 - [User Guide](docs/user-guide.md) — editor walkthrough, views, elements, MQTT patterns, themes, keyboard shortcuts and more
 - [Development Guide](docs/development.md) — repo layout, dev setup, build pipeline, versioning and release process
+- [Roadmap](ROADMAP.md) — planned features and design specs
+- [Roadmap Archive](ROADMAP-ARCHIVE.md) — completed items
 
 ---
 
