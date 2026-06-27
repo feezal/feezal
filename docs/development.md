@@ -20,16 +20,16 @@ This document covers the repository layout, development environment setup, build
 
 ## 1. Repository layout
 
-The repo is a **pnpm monorepo** with three workspaces:
+The repo uses **npm workspaces** inside `www/` to manage element and theme packages:
 
 ```
-feezal/                         ← repo root (private workspace root)
+feezal/                         ← repo root
   bin/feezal.js                 ← thin entry point; delegates to server/bin/feezal.js
   Dockerfile                    ← multi-stage production image
-  pnpm-workspace.yaml           ← declares workspaces: server, www, packages/*
+  package.json                  ← root convenience scripts (install, test, start)
   scripts/
     generate-elements.js        ← CI helper: writes www/editor/feezal-elements.js
-  server/                       ← "feezal" npm package (the Node.js backend)
+  server/                       ← "@feezal/feezal-server" npm package (the Node.js backend)
     bin/feezal.js               ← CLI entry point
     src/
       app.js                    ← Express application factory
@@ -39,7 +39,7 @@ feezal/                         ← repo root (private workspace root)
         export.js               ← static ZIP export
       ...
     dist/                       ← assembled at release time (not committed)
-    package.json                ← name: "feezal", files: ["bin/","src/","dist/"]
+    package.json                ← name: "@feezal/feezal-server", files: ["bin/","src/","dist/"]
   www/                          ← Vite frontend (private, not published to npm)
     editor/
       index.html                ← editor SPA entry
@@ -47,16 +47,19 @@ feezal/                         ← repo root (private workspace root)
     src/                        ← editor and viewer UI components
     viewer-src/viewer.html      ← viewer HTML entry
     vite.config.js
-    node_modules/@feezal/       ← all element and theme packages live here
+    package.json                ← npm workspaces: ["packages/@feezal/*"]
+    packages/@feezal/           ← all element and theme packages live here
   packages/
     create-feezal-element/      ← "create-feezal-element" npm package (CLI scaffolder)
 ```
 
+The `www/package.json` declares `"workspaces": ["packages/@feezal/*"]`. After `npm install` inside `www/`, npm creates symlinks from `www/node_modules/@feezal/*` → `www/packages/@feezal/*`. The element discovery scanner (`server/src/build/elements.js`) and the Vite build resolve elements via those symlinks.
+
 ### What lives in git
 
 - All source code (`server/src/`, `www/src/`, `www/editor/`, `www/viewer-src/`)
-- All element and theme **source** packages (`www/node_modules/@feezal/*/`)
-- Configuration files (`Dockerfile`, `vite.config.js`, `pnpm-workspace.yaml`, `*.json`)
+- All element and theme **source** packages (`www/packages/@feezal/*/`)
+- Configuration files (`Dockerfile`, `vite.config.js`, `*.json`)
 - CI workflows (`.github/workflows/`)
 - `www/editor/feezal-elements.js` — committed as an empty/skeleton file; regenerated before builds
 
@@ -64,7 +67,7 @@ feezal/                         ← repo root (private workspace root)
 
 - `server/dist/` — assembled at release time from `www/dist/` + element packages
 - `www/dist/` — Vite build output
-- Lockfiles of individual workspaces (pnpm manages the root `pnpm-lock.yaml`)
+- `node_modules/` directories — installed locally, not committed
 
 ---
 
@@ -75,7 +78,6 @@ feezal/                         ← repo root (private workspace root)
 | Tool | Version | Notes |
 |---|---|---|
 | Node.js | ≥ 18 (22 recommended) | Matches Docker base image |
-| pnpm | latest | `corepack enable && corepack prepare pnpm@latest --activate` |
 | Docker | any recent | Only needed for Docker workflow |
 
 ### First-time setup
@@ -83,8 +85,14 @@ feezal/                         ← repo root (private workspace root)
 ```sh
 git clone https://github.com/feezal/feezal.git
 cd feezal
-pnpm install          # installs all workspaces including element packages
+npm install        # installs server deps, www deps, generates feezal-elements.js, and builds
 ```
+
+The root `npm install` script runs the full chain:
+1. `cd server && npm install` — server production + dev dependencies
+2. `cd www && npm install` — frontend deps + creates `www/node_modules/@feezal/*` symlinks via npm workspaces
+3. `node scripts/generate-elements.js` — generates `www/editor/feezal-elements.js`
+4. `cd www && npm run build` — Vite production build
 
 ### Starting the dev server
 
@@ -92,9 +100,8 @@ Two terminals are needed — the Express backend and the Vite dev server:
 
 **Terminal 1 — Express backend (port 3000)**
 ```sh
-node server/bin/feezal.js --www-dir ./www
-# or via the root convenience script:
 npm start
+# expands to: node server/bin/feezal.js --www-dir ./www
 ```
 
 **Terminal 2 — Vite dev server (port 5173)**
@@ -111,16 +118,10 @@ The Vite config already proxies `/editor/feezal-elements.js` and all `/api/`, `/
 
 ```sh
 # From the repo root:
-npm test                       # runs vitest in server/
+npm test           # runs server tests then www tests (www currently has no tests)
 
 # Directly:
 cd server && npx vitest run
-```
-
-### Linting
-
-```sh
-pnpm lint                      # runs xo across all JS/HTML files
 ```
 
 ---
@@ -193,13 +194,13 @@ After a global `npm install -g feezal`, the server's `wwwDir` defaults to `<inst
 
 Push a `v*` tag. The **"Publish to npm"** GitHub Actions workflow (`.github/workflows/release-npm.yml`) runs automatically:
 
-1. `pnpm install --frozen-lockfile`
-2. `pnpm test` — all tests must pass
+1. `npm install` in server and www
+2. `npm test` — all tests must pass
 3. `node scripts/generate-elements.js` — generates `www/editor/feezal-elements.js`
 4. `cd www && npm run build` — Vite production build
 5. Copy `www/dist/` → `server/dist/`; copy element packages → `server/dist/packages/@feezal/`
-6. Publish `feezal` (server) — skipped if this version is already on the registry
-7. Publish each `@feezal/*` package from `www/node_modules/@feezal/` — skipped individually if already published
+6. Publish `@feezal/feezal-server` (server) — skipped if this version is already on the registry
+7. Publish each `@feezal/*` package from `www/packages/@feezal/` — skipped individually if already published
 
 The workflow is **idempotent**: re-running the same tag after a partial failure is safe.
 
@@ -214,14 +215,14 @@ cd www && npm run build && cd ..
 
 # 2. Assemble
 cp -r www/dist/. server/dist/
-mkdir -p server/dist/packages && cp -r www/node_modules/@feezal server/dist/packages/
+mkdir -p server/dist/packages && cp -r www/packages/@feezal server/dist/packages/
 
 # 3. Publish server
 cd server
 npm publish --access public
 
 # 4. Publish element packages
-for pkg_dir in ../www/node_modules/@feezal/*/; do
+for pkg_dir in ../www/packages/@feezal/*/; do
   npm publish "$pkg_dir" --access public
 done
 ```
@@ -249,10 +250,10 @@ The `Dockerfile` has two stages:
 
 | Stage | Base | Purpose |
 |---|---|---|
-| `frontend-builder` | `node:22-alpine` | Install all deps + run `pnpm --filter feezal-www build` |
+| `frontend-builder` | `node:22-alpine` | `git clone` from GitHub + npm install + Vite build |
 | production | `node:22-alpine` | Install server prod deps only; copy built frontend from stage 1 |
 
-The production image serves the frontend from `/app/www/dist/` and stores data in `/data` (mount a volume here).
+Stage 1 clones the repo directly from GitHub (controlled by the `GIT_REF` build arg, default `master`). This avoids NTFS junction issues when building on Windows. The production image serves the frontend from `/app/server/dist/` and stores data in `/data` (mount a volume here).
 
 ### Building locally
 
@@ -281,11 +282,10 @@ Open the editor at **http://localhost:3000/editor/**.
 
 The **"CI"** workflow (`.github/workflows/ci.yml`) runs on every push to any branch and on every pull request:
 
-1. `pnpm install --frozen-lockfile`
-2. `pnpm lint` — xo linting
-3. `pnpm test` — vitest unit + integration tests (31 tests covering API routes, storage adapter, topic matching)
+1. `npm install --prefix server` — server dependencies
+2. `npm test --prefix server` — vitest unit + integration tests (covering API routes, storage adapter, topic matching)
 
-No Vite build is run in CI — only the server-side code is tested there. The build is only run as part of the release workflow.
+No Vite build or lint step is run in CI — only the server-side code is tested there. The build is only run as part of the release workflow.
 
 ---
 
@@ -293,28 +293,15 @@ No Vite build is run in CI — only the server-side code is tested there. The bu
 
 ### Bundled elements (in the repo)
 
-All official elements and themes live in `www/node_modules/@feezal/`. They are resolved via pnpm workspaces (listed in `www/package.json` as `"*"` dependencies) and are included in every release automatically.
-
-### User-installed elements (runtime)
-
-After installation, users can add custom or third-party elements without rebuilding feezal. Place the element package directory in `<data-dir>/elements/`:
-
-```
-~/.feezal/elements/
-  feezal-element-custom-gauge/
-    package.json
-    feezal-element-custom-gauge.js
-```
-
-The server picks it up on next restart — no rebuild, no npm link. The element appears in the editor palette and is served via `/user-elements/`.
+All official elements and themes live in `www/packages/@feezal/`. They are declared as workspace dependencies in `www/package.json` and npm workspaces symlinks them into `www/node_modules/@feezal/` after `npm install`. They are included in every release automatically.
 
 ### Scaffolding a new element
 
 ```sh
-npx create-feezal-element
+npm run create-element
 ```
 
-This scaffolds a new element package. For elements intended to ship with feezal, place them in `www/node_modules/@feezal/` and add them to `www/package.json`. See [element-spec.md](../element-spec.md) for the full authoring specification.
+This runs the scaffolder (`packages/create-feezal-element/index.js`). For elements intended to ship with feezal, place the new package in `www/packages/@feezal/` and add it to the `dependencies` in `www/package.json`. See [element-spec.md](../element-spec.md) for the full authoring specification.
 
 ---
 
