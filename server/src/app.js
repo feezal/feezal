@@ -63,6 +63,9 @@ async function createApp(config) {
     // --- Login routes (public) ---
     app.use('/login', loginRouter);
 
+    // --- Redirect root to editor ---
+    app.get('/', (_req, res) => res.redirect(302, '/editor/'));
+
     // --- Static files (Vite pre-built output) ---
     // The editor SPA and viewer bundle are built with `npm run build` inside www/.
     // In dev, wwwDir is the www/ parent so we append 'dist'; in production wwwDir IS
