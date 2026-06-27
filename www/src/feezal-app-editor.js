@@ -48,7 +48,6 @@ class FeezalAppEditor extends LitElement {
         _themeMode:       {state: true},
         _sidebarWidth:    {state: true},
         _version:         {state: true},
-        _updateAvailable: {state: true},
         _viewCtx:         {state: true},
         _actionMenuPos:   {state: true}
     };
@@ -524,10 +523,7 @@ class FeezalAppEditor extends LitElement {
                 <div id="menu-left" style="${this.paletteVisible ? '' : 'display:none'}">
                     Feezal
                     ${this._version ? html`<span style="font-size:0.6em;opacity:0.45;font-style:normal;font-weight:400;margin-left:6px">
-                        v${this._version}${this._updateAvailable ? html`
-                            <span title="feezal ${this._updateAvailable} available on npm"
-                                  style="color:var(--sl-color-warning-500,#d97706);cursor:default"> ↑</span>
-                        ` : ''}
+                        v${this._version}
                     </span>` : ''}
                 </div>
                 <div id="menu-center">
@@ -815,7 +811,6 @@ class FeezalAppEditor extends LitElement {
             .then(data => {
                 if (!data) return;
                 this._version = data.version ?? null;
-                this._updateAvailable = data.latest ?? null;
             })
             .catch(() => {});
     }

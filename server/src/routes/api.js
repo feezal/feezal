@@ -12,21 +12,6 @@ const isReservedSiteName = name => RESERVED_SITE_NAMES.has(name) || name.startsW
 // Read current version from package.json once at module load time.
 const { version: currentVersion } = require(path.join(__dirname, '../../package.json'));
 
-// One-shot npmjs check — fires in the background, never blocks startup.
-let latestVersion = null;
-(async () => {
-    try {
-        const res = await fetch('https://registry.npmjs.org/feezal/latest',
-            {signal: AbortSignal.timeout(8000), headers: {Accept: 'application/json'}});
-        if (res.ok) {
-            const data = await res.json();
-            latestVersion = data.version ?? null;
-        }
-    } catch {
-        // Offline or timeout — latestVersion stays null, no indicator shown.
-    }
-})();
-
 /**
  * REST API router for site management.
  * All routes are mounted under /api and are protected by editorAuth
@@ -40,10 +25,9 @@ let latestVersion = null;
 function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, getDiscoveredEntities = null, getDiscoveredEntity = null} = {}) {
     const router = express.Router();
 
-    // Version info + npm update check
+    // Version info
     router.get('/version', (_req, res) => {
-        const update = latestVersion && latestVersion !== currentVersion ? latestVersion : null;
-        res.json({version: currentVersion, latest: update});
+        res.json({version: currentVersion});
     });
 
     // List all sites
