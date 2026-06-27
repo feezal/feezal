@@ -168,6 +168,41 @@ A rich light-control element covering the full range of smart-light capabilities
 
 ---
 
+### E35 — Light element: dual-payload + N6 custom inspector + auto-discovery retrofit (`feezal-element-material-light`) ✅ done
+
+> **Shipped notes / deviations from the original spec below:**
+> - **Availability badge added (extension beyond original spec).** The spec marked availability "out of scope", but per request the element now subscribes to an optional `subscribe-availability` topic (with `payload-available` / `payload-unavailable`, defaults `online` / `offline`) and shows a small red cloud-off badge in the top-right corner when the device reports unavailable. **Controls are never disabled** — the element stays fully usable regardless of availability state.
+> - **Discovery descriptor is json-focused.** The extended descriptor maps only to attributes the element actually consumes: `schema`→`payload-mode`, `state_topic`→`subscribe` / `command_topic`→`publish` (both `onlyWhen schema:json`), `brightness_scale`→`brightness-max`, `supported_color_modes`→`mode` (via a new `colorMode` transform: `xy`→`hs`, `rgb*`→`rgb`, `color_temp`→`color_temp`, else `brightness`), `min_mireds`/`max_mireds`→`color-temp-max`/`color-temp-min` (mired→kelvin), `effect_list`→`effects` (`join` transform), `availability_topic`→`subscribe-availability`, `name`→`label`. The `has-brightness` / `has-effects` boolean attrs from the spec were dropped (section enablement is derived from topic presence instead).
+> - `_applyDiscovery()` in `feezal-sidebar-inspector-attributes.js` gained `onlyWhen` guards and the `join` / `colorMode` transforms.
+> - The element overrides the base `_subscribe()` as a no-op and manages its own subscriptions (availability always; single JSON topic in `json` mode; per-topic in `separate` mode).
+
+The light element currently has **30 flat attributes** — far too many for the generic attribute form. This item retrofits it with three cross-cutting capabilities: a custom N6 inspector that tames the attribute count, dual-payload (`json`) mode, and a complete auto-discovery descriptor for N12. The discovery descriptor (separate-mode, no JSON) and the N12 hook in `static get feezal()` were shipped in N12 and are already present — this item completes them.
+
+> **Conventions:** dual-payload ✓ (this item adds it) · auto-discovery: `light` (descriptor already present, this item extends it) · custom inspector: `feezal-element-material-light-inspector` (this item adds it).
+
+#### Real-world reference (this device)
+
+Grounded in a real **Philips Hue white and color ambiance E27** exposed via **zigbee2mqtt** (base topic `zigbee2mqtt/licht_hobbyraum`). This one device exhibits every nuance the retrofit must handle: a separate per-property topic stream, a consolidated base-topic JSON object with nested `color`, and a `schema: json` auto-discovery config pointing at the JSON form (`brightness_scale 254`, `supported_color_modes ["xy","color_temp"]`, `min_mireds 153`/`max_mireds 500`, an `effect_list`). Discovery always points at the JSON form, so an auto-configured light defaults to `payload-mode: json`.
+
+#### 1. N6 Custom Inspector
+
+A **two-tab custom inspector** registered as `feezal-element-material-light-inspector` in `static get feezal().inspector`, replacing the unusable 30-attribute flat list. **Tab 1 — Topics:** an always-on State section plus capability-gated, collapsible sections (Brightness, Color Temperature, Color, White/RGBW, Effects); a section is enabled when any of its topic attributes is non-empty, and toggling off clears them. In `json` mode the per-feature groups collapse into a single State & Control section (just `subscribe` + `publish`). **Tab 2 — Config:** Mode, Payload mode, State payloads, Brightness scale, Color Temperature range, Effects, Availability, Display. Defined in the same element JS file; uses `<sl-tab-group>`/`<sl-input>`/`<sl-select>`/`<sl-switch>`; every change dispatches `feezal-attribute-changed` with `{name, value}` (the standard N6 contract).
+
+#### 2. Dual payload mode (`payload-mode`)
+
+- **`separate` (default):** per-topic wiring — unchanged, back-compat preserved.
+- **`json`:** a single `subscribe` / `publish` topic pair. Incoming JSON is parsed and mapped to internal state (state/brightness scaled by `brightness-max`/color_temp mired→kelvin/nested `color` object → hs or rgb or xy→rgb/effect); outgoing changes are merged into one JSON object published to `publish`. A `json-map` attribute (JSON string) overrides the default key map.
+
+#### 3. Extended auto-discovery descriptor + 4. `discovery-id`
+
+See the shipped-notes above for the final mapping. `discovery-id` is declared in `static properties` (`reflect: true, attribute: 'discovery-id'`) so Lit serialises it to the HTML.
+
+#### Compatibility
+
+`payload-mode` defaults to `separate`, so all existing dashboards continue to work. The `inspector` key activates the new inspector only in the editor — no runtime behaviour change for the element itself.
+
+---
+
 ## Editor UX
 
 ### U2 — Keyboard shortcuts ✅ done

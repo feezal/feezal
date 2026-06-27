@@ -1,6 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
-import {svg} from 'lit';
+import {svg, LitElement} from 'lit';
 import '@material/web/slider/slider.js';
 import '@material/web/select/outlined-select.js';
 import '@material/web/select/select-option.js';
@@ -84,40 +84,62 @@ function parseRgb(raw) {
     return null;
 }
 
+// CIE 1931 xy (+ optional brightness) → sRGB. Used to display the colour of
+// zigbee2mqtt / HA lights that report colour as {x, y} (e.g. Philips Hue).
+function xyToRgb(x, y, bri = 1) {
+    if (!y) return [255, 255, 255];
+    const Y = bri;
+    const X = (Y / y) * x;
+    const Z = (Y / y) * (1 - x - y);
+    let r =  X * 1.656492 - Y * 0.354851 - Z * 0.255038;
+    let g = -X * 0.707196 + Y * 1.655397 + Z * 0.036152;
+    let b =  X * 0.051713 - Y * 0.121364 + Z * 1.011530;
+    const gamma = c => (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
+    [r, g, b] = [r, g, b].map(c => gamma(Math.max(0, c)));
+    const max = Math.max(r, g, b, 1);
+    return [r, g, b].map(c => Math.round(Math.max(0, Math.min(1, c / max)) * 255));
+}
+
 // ─── Element ──────────────────────────────────────────────────────────────────
 class FeezalElementMaterialLight extends FeezalElement {
     static get feezal() {
         return {
             palette: {name: 'Light', category: 'Material', color: '#1565c0', icon: 'lightbulb'},
-            description: 'Smart light card — brightness ring, colour temperature, RGB/HS colour wheel, white channel, and effect selector.',            // ── N12 Auto-Discovery descriptor ──────────────────────────────
-            // Maps discovery config keys (after abbreviation expansion) to feezal
-            // element attributes. Transforms: unit 'mired\u2192kelvin' converts colour-temp;
-            // 'first' takes the first item from an array.
+            description: 'Smart light card — brightness ring, colour temperature, RGB/HS colour wheel, white channel, and effect selector.',
+            // ── N6 custom inspector (E35) ──────────────────────────────────
+            inspector: 'feezal-element-material-light-inspector',
+            // ── N12 Auto-Discovery descriptor (E35 extended) ───────────────
+            // zigbee2mqtt / HA discovery always emits the JSON schema, so an
+            // auto-configured light defaults to payload-mode: json with a single
+            // subscribe (base topic) / publish (…/set) pair. Capability ranges
+            // (brightness scale, mired→kelvin temp range, effect list) and the
+            // active colour control are mapped from the config too.
             discovery: {
                 component: 'light',
                 map: {
-                    // State & command topics (separate mode)
-                    state_topic:              'subscribe-state',
-                    command_topic:            'publish-state',
-                    brightness_state_topic:   'subscribe-brightness',
-                    brightness_command_topic: 'publish-brightness',
-                    color_temp_state_topic:   'subscribe-color-temp',
-                    color_temp_command_topic: 'publish-color-temp',
-                    rgb_state_topic:          'subscribe-rgb',
-                    rgb_command_topic:        'publish-rgb',
-                    // Brightness scale (e.g. 254 for zigbee2mqtt) \u2192 brightness-max attribute
-                    brightness_scale:         'brightness-max',
-                    // Colour temperature range: mireds \u2192 kelvin
-                    // max_mireds (warmest) \u2192 color-temp-min (lowest kelvin)
-                    // min_mireds (coolest) \u2192 color-temp-max (highest kelvin)
-                    max_mireds: {attr: 'color-temp-min', unit: 'mired\u2192kelvin'},
-                    min_mireds: {attr: 'color-temp-max', unit: 'mired\u2192kelvin'},
-                    // Use the first supported colour mode to set the element mode
-                    supported_color_modes: {attr: 'mode', transform: 'first'},
-                    // Device name \u2192 label
+                    // wiring — schema decides separate vs json
+                    schema:        {attr: 'payload-mode', valueMap: {json: 'json', _default: 'separate'}},
+                    state_topic:   {attr: 'subscribe', onlyWhen: {schema: 'json'}}, // base topic
+                    command_topic: {attr: 'publish',   onlyWhen: {schema: 'json'}}, // …/set
+                    // capability ranges
+                    brightness_scale:      {attr: 'brightness-max'},          // e.g. 254 → 0–100 %
+                    supported_color_modes: {attr: 'mode', transform: 'colorMode'},
+                    min_mireds: {attr: 'color-temp-max', unit: 'mired\u2192kelvin'}, // 153 → 6536 K
+                    max_mireds: {attr: 'color-temp-min', unit: 'mired\u2192kelvin'}, // 500 → 2000 K
+                    // effects
+                    effect_list: {attr: 'effects', transform: 'join'},
+                    // availability (a single small "unavailable" badge on the card)
+                    availability_topic: {attr: 'subscribe-availability'},
+                    // device name → label
                     name: 'label',
                 },
-            },            attributes: [
+            },
+            attributes: [
+                // Wiring mode
+                {name: 'payload-mode', type: 'select', options: ['separate', 'json'], default: 'separate', help: 'separate = one topic per property; json = single topic carrying a JSON object.'},
+                {name: 'subscribe', type: 'mqttTopic', help: 'json mode: base topic carrying the whole JSON state object.'},
+                {name: 'publish',   type: 'mqttTopic', help: 'json mode: command topic (usually …/set) that accepts a partial JSON object.'},
+                {name: 'json-map',  type: 'string', default: '', help: 'json mode: optional JSON string overriding the default property→key map.'},
                 // On/off
                 {name: 'subscribe-state',   type: 'mqttTopic', help: 'Topic receiving on/off state.'},
                 {name: 'publish-state',     type: 'mqttTopic', help: 'Topic to publish on/off.'},
@@ -152,6 +174,10 @@ class FeezalElementMaterialLight extends FeezalElement {
                 {name: 'publish-warm-white',   type: 'mqttTopic', help: 'Publish warm-white channel.'},
                 {name: 'subscribe-cold-white', type: 'mqttTopic', help: 'Cold-white channel (0–100 %) for RGBWW lamps.'},
                 {name: 'publish-cold-white',   type: 'mqttTopic', help: 'Publish cold-white channel.'},
+                // Availability
+                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability. When unavailable a small badge is shown; the control stays usable.'},
+                {name: 'payload-available',      type: 'string', default: 'online',  help: 'Payload meaning the device is available.'},
+                {name: 'payload-unavailable',    type: 'string', default: 'offline', help: 'Payload meaning the device is unavailable.'},
                 // Label
                 {name: 'label', type: 'string', default: '', help: 'Optional label shown below the circle.'}
             ],
@@ -162,6 +188,9 @@ class FeezalElementMaterialLight extends FeezalElement {
     }
 
     static properties = {
+        payloadMode:        {type: String, reflect: true, attribute: 'payload-mode'},
+        publish:            {type: String, reflect: true, attribute: 'publish'},
+        jsonMap:            {type: String, reflect: true, attribute: 'json-map'},
         subscribeState:     {type: String, reflect: true, attribute: 'subscribe-state'},
         publishState:       {type: String, reflect: true, attribute: 'publish-state'},
         payloadOn:          {type: String, reflect: true, attribute: 'payload-on'},
@@ -189,6 +218,10 @@ class FeezalElementMaterialLight extends FeezalElement {
         publishWarmWhite:   {type: String, reflect: true, attribute: 'publish-warm-white'},
         subscribeColdWhite: {type: String, reflect: true, attribute: 'subscribe-cold-white'},
         publishColdWhite:   {type: String, reflect: true, attribute: 'publish-cold-white'},
+        subscribeAvailability: {type: String, reflect: true, attribute: 'subscribe-availability'},
+        payloadAvailable:   {type: String, reflect: true, attribute: 'payload-available'},
+        payloadUnavailable: {type: String, reflect: true, attribute: 'payload-unavailable'},
+        discoveryId:        {type: String, reflect: true, attribute: 'discovery-id'},
         label:              {type: String, reflect: true},
         // Internal state
         _on:        {state: true},
@@ -201,6 +234,7 @@ class FeezalElementMaterialLight extends FeezalElement {
         _warmWhite: {state: true},
         _coldWhite: {state: true},
         _dragBrt:   {state: true},   // live brightness during ring drag (null = not dragging)
+        _available: {state: true},   // device availability (true unless told otherwise)
     };
 
     static styles = [feezalBaseStyles, css`
@@ -212,10 +246,23 @@ class FeezalElementMaterialLight extends FeezalElement {
             box-sizing: border-box;
             overflow: hidden;
             gap: 4px;
+            position: relative;
             --md-sys-color-primary:    var(--sl-color-primary-600, #0284c7);
             --md-sys-color-surface:    var(--feezal-bg, #fff);
             --md-sys-color-on-surface: var(--feezal-color, #333);
         }
+        .unavail {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 18px;
+            height: 18px;
+            color: #b00020;
+            opacity: 0.8;
+            pointer-events: none;
+            z-index: 2;
+        }
+        .unavail svg { width: 100%; height: 100%; display: block; }
         .ring-wrap { width: 100%; flex-shrink: 0; }
         svg {
             width: 100%;
@@ -255,6 +302,9 @@ class FeezalElementMaterialLight extends FeezalElement {
 
     constructor() {
         super();
+        this.payloadMode         = 'separate';
+        this.publish             = '';
+        this.jsonMap             = '';
         this.subscribeState      = '';
         this.publishState        = '';
         this.payloadOn           = 'on';
@@ -282,6 +332,10 @@ class FeezalElementMaterialLight extends FeezalElement {
         this.publishWarmWhite    = '';
         this.subscribeColdWhite  = '';
         this.publishColdWhite    = '';
+        this.subscribeAvailability = '';
+        this.payloadAvailable    = 'online';
+        this.payloadUnavailable  = 'offline';
+        this.discoveryId         = '';
         this.label               = '';
         this._on        = false;
         this._brt       = null;
@@ -293,14 +347,45 @@ class FeezalElementMaterialLight extends FeezalElement {
         this._warmWhite = null;
         this._coldWhite = null;
         this._dragBrt   = null;
+        this._available = true;
         // Non-reactive drag flags
         this.__ctDragging = false;
     }
+
+    // The light fully manages its own subscriptions below; suppress the generic
+    // base subscription path (which would otherwise fire for the json-mode
+    // `subscribe` topic and try to set attributes by topic suffix).
+    _subscribe() { /* intentionally empty — see connectedCallback */ }
 
     connectedCallback() {
         super.connectedCallback();
         if (feezal.isEditor) return;
 
+        // Availability — always honoured, in both payload modes.
+        if (this.subscribeAvailability) {
+            this.addSubscription(this.subscribeAvailability, msg => {
+                const v = this.getProperty(msg, this.messageProperty);
+                const s = String(v).toLowerCase();
+                this._available = v === this.payloadAvailable ||
+                    (s !== String(this.payloadUnavailable).toLowerCase() &&
+                     s !== 'offline' && s !== 'false' && s !== '0' && s !== 'unavailable');
+            });
+        }
+
+        if (this.payloadMode === 'json') {
+            if (this.subscribe) {
+                this.addSubscription(this.subscribe, msg => {
+                    let obj = this.getProperty(msg, this.messageProperty);
+                    if (typeof obj === 'string') {
+                        try { obj = JSON.parse(obj); } catch { return; }
+                    }
+                    if (obj && typeof obj === 'object') this._applyJsonState(obj);
+                });
+            }
+            return;
+        }
+
+        // ── Separate (per-topic) mode ──────────────────────────────────────
         if (this.subscribeState) {
             this.addSubscription(this.subscribeState, msg => {
                 const v = this.getProperty(msg, this.messageProperty);
@@ -360,6 +445,67 @@ class FeezalElementMaterialLight extends FeezalElement {
         mkSub('_coldWhite', this.subscribeColdWhite);
     }
 
+    // ─── JSON payload mode helpers ────────────────────────────────────────────
+    get _jsonMap() {
+        const defaults = {
+            state: 'state', brightness: 'brightness',
+            color_mode: 'color_mode', color_temp: 'color_temp',
+            color: 'color', effect: 'effect',
+        };
+        if (this.jsonMap) {
+            try { return {...defaults, ...JSON.parse(this.jsonMap)}; } catch { /* fall through */ }
+        }
+        return defaults;
+    }
+
+    _applyJsonState(obj) {
+        const map = this._jsonMap;
+        const get = key => this.getProperty(obj, key);
+
+        const state = get(map.state);
+        if (state !== undefined && state !== null) {
+            const s = String(state).toLowerCase();
+            this._on = state === this.payloadOn || state === true || state === 1 ||
+                       s === 'on' || s === 'true' || s === '1';
+        }
+
+        const bri = Number(get(map.brightness));
+        if (!isNaN(bri)) {
+            const max = this.brightnessMax || 100;
+            this._brt = Math.max(0, Math.min(100, (bri / max) * 100));
+        }
+
+        let ct = Number(get(map.color_temp));
+        if (!isNaN(ct)) {
+            if (this.colorTempUnit === 'mired') ct = Math.round(1_000_000 / ct);
+            this._colorTemp = ct;
+        }
+
+        const color = get(map.color);
+        if (color && typeof color === 'object') {
+            if (color.hue !== undefined || color.h !== undefined) {
+                this._hs = [Number(color.hue ?? color.h), Number(color.saturation ?? color.s ?? 100)];
+            } else if (color.r !== undefined) {
+                this._rgb = [Number(color.r), Number(color.g), Number(color.b)];
+            } else if (color.x !== undefined && color.y !== undefined) {
+                this._rgb = xyToRgb(Number(color.x), Number(color.y));
+            }
+        }
+
+        const effect = get(map.effect);
+        if (effect !== undefined && effect !== null) this._effect = String(effect);
+    }
+
+    // Publish a property: in json mode merges into a single JSON object on the
+    // `publish` topic; in separate mode publishes `value` to `topic`.
+    _pub(topic, value, jsonObj) {
+        if (this.payloadMode === 'json') {
+            if (this.publish) feezal.connection.pub(this.publish, JSON.stringify(jsonObj));
+        } else if (topic) {
+            feezal.connection.pub(topic, value);
+        }
+    }
+
     // ─── SVG pointer handling ─────────────────────────────────────────────────
     _onSvgPointerDown(e) {
         if (feezal.isEditor) return;
@@ -388,9 +534,8 @@ class FeezalElementMaterialLight extends FeezalElement {
 
     _toggle() {
         this._on = !this._on;
-        if (this.publishState) {
-            feezal.connection.pub(this.publishState, this._on ? this.payloadOn : this.payloadOff);
-        }
+        const payload = this._on ? this.payloadOn : this.payloadOff;
+        this._pub(this.publishState, payload, {[this._jsonMap.state]: payload});
     }
 
     _pickColor(dx, dy, dist) {
@@ -400,11 +545,13 @@ class FeezalElementMaterialLight extends FeezalElement {
         if (this.mode === 'rgb') {
             const rgb = hsvToRgb(hue, sat, 1);
             this._rgb = rgb;
-            if (this.publishRgb) feezal.connection.pub(this.publishRgb, JSON.stringify(rgb));
+            this._pub(this.publishRgb, JSON.stringify(rgb),
+                {[this._jsonMap.color]: {r: rgb[0], g: rgb[1], b: rgb[2]}});
         } else if (this.mode === 'hs') {
             const hs = [Math.round(hue), Math.round(sat * 100)];
             this._hs = hs;
-            if (this.publishHs) feezal.connection.pub(this.publishHs, JSON.stringify(hs));
+            this._pub(this.publishHs, JSON.stringify(hs),
+                {[this._jsonMap.color]: {hue: hs[0], saturation: hs[1]}});
         }
     }
 
@@ -422,12 +569,11 @@ class FeezalElementMaterialLight extends FeezalElement {
             const final = this._dragBrt;
             this._dragBrt = null;
             this._brt = final;
-            if (this.publishBrightness) {
-                const min = this.brightnessMin ?? 0;
-                const max = this.brightnessMax ?? 100;
-                const raw = Math.round(min + (final / 100) * (max - min));
-                feezal.connection.pub(this.publishBrightness, String(raw));
-            }
+            const min = this.brightnessMin ?? 0;
+            const max = this.brightnessMax ?? 100;
+            const raw = Math.round(min + (final / 100) * (max - min));
+            const jsonRaw = Math.round((final / 100) * (this.brightnessMax || 100));
+            this._pub(this.publishBrightness, String(raw), {[this._jsonMap.brightness]: jsonRaw});
         };
         document.addEventListener('pointermove', onMove);
         document.addEventListener('pointerup', onUp);
@@ -469,9 +615,9 @@ class FeezalElementMaterialLight extends FeezalElement {
         const max = this.colorTempMax || 6500;
         const ct = Math.round(min + ratio * (max - min));
         this._colorTemp = ct;
-        if (publish && this.publishColorTemp) {
+        if (publish) {
             const v = this.colorTempUnit === 'mired' ? Math.round(1_000_000 / ct) : ct;
-            feezal.connection.pub(this.publishColorTemp, String(v));
+            this._pub(this.publishColorTemp, String(v), {[this._jsonMap.color_temp]: v});
         }
     }
 
@@ -485,7 +631,7 @@ class FeezalElementMaterialLight extends FeezalElement {
     // ─── Effect selector ──────────────────────────────────────────────────────
     _onEffect(e) {
         this._effect = e.target.value;
-        if (this.publishEffect) feezal.connection.pub(this.publishEffect, this._effect);
+        this._pub(this.publishEffect, this._effect, {[this._jsonMap.effect]: this._effect});
     }
 
     // ─── Computed values ──────────────────────────────────────────────────────
@@ -700,7 +846,15 @@ class FeezalElementMaterialLight extends FeezalElement {
 
     // ─── Render ───────────────────────────────────────────────────────────────
     render() {
+        const showUnavail = !feezal.isEditor && this.subscribeAvailability && !this._available;
         return html`
+            ${showUnavail ? html`
+                <div class="unavail" title="Device unavailable">
+                    <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M24 8.98C20.93 5.9 16.69 4 12 4c-1.69 0-3.32.25-4.86.71l2.5 2.5c.77-.14 1.55-.21 2.36-.21 3.42 0 6.7 1.21 9.32 3.42L24 8.98zM2.81 2.81L1.39 4.22l2.05 2.05C2.2 6.92 1.05 7.86 0 8.98l1.68 1.43c.93-.78 1.94-1.45 3.01-2L6.4 9.83c-1.2.55-2.31 1.3-3.28 2.21L4.81 13.46C5.96 12.38 7.4 11.62 9 11.27l2.16 2.16c-1.3.18-2.5.74-3.46 1.59L12 19.51l1.94-1.94 5.84 5.84 1.41-1.41L2.81 2.81zM12 16.5l-1.41-1.41L12 13.68c.5 0 .96.06 1.42.13l1.71 1.71c-.99-.65-2.18-1.02-3.13-1.02z"/>
+                    </svg>
+                </div>
+            ` : ''}
             <div class="ring-wrap">
                 <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"
                     style="cursor:${feezal.isEditor ? 'default' : 'pointer'}"
@@ -715,3 +869,308 @@ class FeezalElementMaterialLight extends FeezalElement {
 
 customElements.define('feezal-element-material-light', FeezalElementMaterialLight);
 export {FeezalElementMaterialLight};
+
+// ─── N6 custom inspector (E35) ──────────────────────────────────────────────
+// Replaces the flat 30+ attribute form with a focused two-tab editor. Renders
+// only in the editor sidebar (Shoelace components are globally registered
+// there); in the viewer this class is defined but never instantiated.
+const LIGHT_SECTIONS = [
+    {id: 'brightness', title: 'Brightness', topics: [
+        {attr: 'subscribe-brightness', label: 'Subscribe'},
+        {attr: 'publish-brightness',   label: 'Publish'},
+    ]},
+    {id: 'color_temp', title: 'Color Temperature', topics: [
+        {attr: 'subscribe-color-temp', label: 'Subscribe'},
+        {attr: 'publish-color-temp',   label: 'Publish'},
+    ]},
+    {id: 'color', title: 'Color — RGB / HS', topics: [
+        {attr: 'subscribe-rgb', label: 'Subscribe RGB'},
+        {attr: 'publish-rgb',   label: 'Publish RGB'},
+        {attr: 'subscribe-hs',  label: 'Subscribe HS'},
+        {attr: 'publish-hs',    label: 'Publish HS'},
+    ]},
+    {id: 'white', title: 'White / RGBW / RGBWW', topics: [
+        {attr: 'subscribe-white', label: 'White ↓'},
+        {attr: 'publish-white',   label: 'White ↑'},
+        {attr: 'subscribe-warm-white', label: 'Warm ↓'},
+        {attr: 'publish-warm-white',   label: 'Warm ↑'},
+        {attr: 'subscribe-cold-white', label: 'Cold ↓'},
+        {attr: 'publish-cold-white',   label: 'Cold ↑'},
+    ]},
+    {id: 'effects', title: 'Effects', topics: [
+        {attr: 'subscribe-effect', label: 'Subscribe'},
+        {attr: 'publish-effect',   label: 'Publish'},
+    ]},
+];
+
+class FeezalElementMaterialLightInspector extends LitElement {
+    static properties = {
+        element: {attribute: false},
+        _tab:    {state: true},
+        _open:   {state: true},
+    };
+
+    static styles = css`
+        :host { display: block; font-size: 12px; color: var(--feezal-color, #333); }
+        sl-tab-panel::part(base) { padding: 8px 2px; }
+        .section { border: 1px solid var(--feezal-border, #e0e0e0); border-radius: 6px; margin-bottom: 8px; }
+        .sec-head {
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 8px; font-weight: 600;
+            background: var(--feezal-bg-sub, #f5f5f5);
+            border-radius: 6px 6px 0 0;
+        }
+        .sec-head.collapsed { border-radius: 6px; }
+        .sec-title { flex: 1; }
+        .sec-body { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+        .field { display: flex; flex-direction: column; gap: 2px; }
+        .field > label { font-size: 10px; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.04em; }
+        sl-input, sl-select { width: 100%; }
+        .row { display: flex; gap: 6px; }
+        .row > .field { flex: 1; }
+        .hint { font-size: 10px; opacity: 0.55; padding: 0 2px 4px; }
+    `;
+
+    constructor() {
+        super();
+        this.element = null;
+        this._tab = 'topics';
+        this._open = {};
+    }
+
+    willUpdate(changed) {
+        if (changed.has('element')) this._open = {};
+    }
+
+    // ── attribute access ──────────────────────────────────────────────────
+    _val(name) { return this.element?.getAttribute(name) ?? ''; }
+
+    _emit(name, value, rerender = false) {
+        this.dispatchEvent(new CustomEvent('feezal-attribute-changed', {
+            bubbles: true, composed: true, detail: {name, value},
+        }));
+        if (rerender) this.requestUpdate();
+    }
+
+    _onInput(name, e) { this._emit(name, e.target.value); }
+    _onSelect(name, e) { this._emit(name, e.target.value, true); }
+
+    _sectionEnabled(sec) {
+        if (this._open[sec.id]) return true;
+        return sec.topics.some(t => this._val(t.attr) !== '');
+    }
+
+    _toggleSection(sec, e) {
+        const on = e.target.checked;
+        if (on) {
+            this._open = {...this._open, [sec.id]: true};
+        } else {
+            // Clear all topic attributes for this section
+            sec.topics.forEach(t => this._emit(t.attr, ''));
+            this._open = {...this._open, [sec.id]: false};
+        }
+        this.requestUpdate();
+    }
+
+    // ── render ────────────────────────────────────────────────────────────
+    render() {
+        if (!this.element) return html``;
+        return html`
+            <sl-tab-group @sl-tab-show="${e => { this._tab = e.detail.name; }}">
+                <sl-tab slot="nav" panel="topics" ?active="${this._tab === 'topics'}">Topics</sl-tab>
+                <sl-tab slot="nav" panel="config" ?active="${this._tab === 'config'}">Config</sl-tab>
+                <sl-tab-panel name="topics">${this._renderTopics()}</sl-tab-panel>
+                <sl-tab-panel name="config">${this._renderConfig()}</sl-tab-panel>
+            </sl-tab-group>
+        `;
+    }
+
+    _topicInput(t) {
+        return html`
+            <div class="field">
+                <label>${t.label}</label>
+                <sl-input size="small" placeholder="mqtt/topic" value="${this._val(t.attr)}"
+                    @sl-change="${e => this._onInput(t.attr, e)}"></sl-input>
+            </div>`;
+    }
+
+    _renderTopics() {
+        // json mode → single State & Control section
+        if (this._val('payload-mode') === 'json') {
+            return html`
+                <div class="hint">JSON mode — one topic carries the whole state object.</div>
+                <div class="section">
+                    <div class="sec-head">State &amp; Control</div>
+                    <div class="sec-body">
+                        ${this._topicInput({attr: 'subscribe', label: 'Subscribe (state)'})}
+                        ${this._topicInput({attr: 'publish',   label: 'Publish (…/set)'})}
+                    </div>
+                </div>`;
+        }
+
+        // separate mode → always-on State section + capability-gated sections
+        return html`
+            <div class="section">
+                <div class="sec-head">State</div>
+                <div class="sec-body">
+                    ${this._topicInput({attr: 'subscribe-state', label: 'Subscribe'})}
+                    ${this._topicInput({attr: 'publish-state',   label: 'Publish'})}
+                </div>
+            </div>
+            ${LIGHT_SECTIONS.map(sec => {
+                const enabled = this._sectionEnabled(sec);
+                return html`
+                    <div class="section">
+                        <div class="sec-head ${enabled ? '' : 'collapsed'}">
+                            <span class="sec-title">${sec.title}</span>
+                            <sl-switch size="small" ?checked="${enabled}"
+                                @sl-change="${e => this._toggleSection(sec, e)}"></sl-switch>
+                        </div>
+                        ${enabled ? html`<div class="sec-body">${sec.topics.map(t => this._topicInput(t))}</div>` : ''}
+                    </div>`;
+            })}`;
+    }
+
+    _renderConfig() {
+        const ctEnabled = this._val('payload-mode') === 'json' ||
+            this._sectionEnabled(LIGHT_SECTIONS.find(s => s.id === 'color_temp'));
+        const brEnabled = this._val('payload-mode') === 'json' ||
+            this._sectionEnabled(LIGHT_SECTIONS.find(s => s.id === 'brightness'));
+        const fxEnabled = this._val('payload-mode') === 'json' ||
+            this._sectionEnabled(LIGHT_SECTIONS.find(s => s.id === 'effects'));
+
+        return html`
+            <div class="section">
+                <div class="sec-head">Mode</div>
+                <div class="sec-body">
+                    <div class="field">
+                        <label>Active control</label>
+                        <sl-select size="small" value="${this._val('mode') || 'brightness'}"
+                            @sl-change="${e => this._onSelect('mode', e)}">
+                            <sl-option value="brightness">Brightness</sl-option>
+                            <sl-option value="color_temp">Color temperature</sl-option>
+                            <sl-option value="rgb">RGB</sl-option>
+                            <sl-option value="hs">Hue / Saturation</sl-option>
+                        </sl-select>
+                    </div>
+                    <div class="field">
+                        <label>Payload mode</label>
+                        <sl-select size="small" value="${this._val('payload-mode') || 'separate'}"
+                            @sl-change="${e => this._onSelect('payload-mode', e)}">
+                            <sl-option value="separate">separate (one topic per property)</sl-option>
+                            <sl-option value="json">json (single topic)</sl-option>
+                        </sl-select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="sec-head">State payloads</div>
+                <div class="sec-body row">
+                    <div class="field">
+                        <label>On</label>
+                        <sl-input size="small" value="${this._val('payload-on') || 'on'}"
+                            @sl-change="${e => this._onInput('payload-on', e)}"></sl-input>
+                    </div>
+                    <div class="field">
+                        <label>Off</label>
+                        <sl-input size="small" value="${this._val('payload-off') || 'off'}"
+                            @sl-change="${e => this._onInput('payload-off', e)}"></sl-input>
+                    </div>
+                </div>
+            </div>
+
+            ${brEnabled ? html`
+                <div class="section">
+                    <div class="sec-head">Brightness scale</div>
+                    <div class="sec-body row">
+                        <div class="field">
+                            <label>Min</label>
+                            <sl-input type="number" size="small" value="${this._val('brightness-min') || '0'}"
+                                @sl-change="${e => this._onInput('brightness-min', e)}"></sl-input>
+                        </div>
+                        <div class="field">
+                            <label>Max</label>
+                            <sl-input type="number" size="small" value="${this._val('brightness-max') || '100'}"
+                                @sl-change="${e => this._onInput('brightness-max', e)}"></sl-input>
+                        </div>
+                    </div>
+                </div>` : ''}
+
+            ${ctEnabled ? html`
+                <div class="section">
+                    <div class="sec-head">Color Temperature</div>
+                    <div class="sec-body">
+                        <div class="field">
+                            <label>Unit</label>
+                            <sl-select size="small" value="${this._val('color-temp-unit') || 'kelvin'}"
+                                @sl-change="${e => this._onSelect('color-temp-unit', e)}">
+                                <sl-option value="kelvin">kelvin</sl-option>
+                                <sl-option value="mired">mired</sl-option>
+                            </sl-select>
+                        </div>
+                        <div class="row">
+                            <div class="field">
+                                <label>Min (K)</label>
+                                <sl-input type="number" size="small" value="${this._val('color-temp-min') || '2700'}"
+                                    @sl-change="${e => this._onInput('color-temp-min', e)}"></sl-input>
+                            </div>
+                            <div class="field">
+                                <label>Max (K)</label>
+                                <sl-input type="number" size="small" value="${this._val('color-temp-max') || '6500'}"
+                                    @sl-change="${e => this._onInput('color-temp-max', e)}"></sl-input>
+                            </div>
+                        </div>
+                    </div>
+                </div>` : ''}
+
+            ${fxEnabled ? html`
+                <div class="section">
+                    <div class="sec-head">Effects</div>
+                    <div class="sec-body">
+                        <div class="field">
+                            <label>Available (comma-separated)</label>
+                            <sl-input size="small" value="${this._val('effects')}"
+                                @sl-change="${e => this._onInput('effects', e)}"></sl-input>
+                        </div>
+                    </div>
+                </div>` : ''}
+
+            <div class="section">
+                <div class="sec-head">Availability</div>
+                <div class="sec-body">
+                    <div class="field">
+                        <label>Subscribe</label>
+                        <sl-input size="small" placeholder="…/availability" value="${this._val('subscribe-availability')}"
+                            @sl-change="${e => this._onInput('subscribe-availability', e)}"></sl-input>
+                    </div>
+                    <div class="row">
+                        <div class="field">
+                            <label>Available</label>
+                            <sl-input size="small" value="${this._val('payload-available') || 'online'}"
+                                @sl-change="${e => this._onInput('payload-available', e)}"></sl-input>
+                        </div>
+                        <div class="field">
+                            <label>Unavailable</label>
+                            <sl-input size="small" value="${this._val('payload-unavailable') || 'offline'}"
+                                @sl-change="${e => this._onInput('payload-unavailable', e)}"></sl-input>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="sec-head">Display</div>
+                <div class="sec-body">
+                    <div class="field">
+                        <label>Label</label>
+                        <sl-input size="small" value="${this._val('label')}"
+                            @sl-change="${e => this._onInput('label', e)}"></sl-input>
+                    </div>
+                </div>
+            </div>`;
+    }
+}
+
+customElements.define('feezal-element-material-light-inspector', FeezalElementMaterialLightInspector);
+export {FeezalElementMaterialLightInspector};
