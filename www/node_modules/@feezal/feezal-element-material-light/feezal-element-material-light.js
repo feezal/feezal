@@ -162,7 +162,7 @@ class FeezalElementMaterialLight extends FeezalElement {
                 {name: 'subscribe-hs',  type: 'mqttTopic', help: 'Current hue/saturation (JSON [h,s]).'},
                 {name: 'publish-hs',    type: 'mqttTopic', help: 'Publish hue/saturation as JSON [h,s].'},
                 // Mode
-                {name: 'mode', type: 'select', options: ['brightness', 'color_temp', 'rgb', 'hs'], default: 'brightness', help: 'Control mode shown in the card centre.'},
+                {name: 'mode', type: 'select', options: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs'], default: 'brightness', help: 'Control mode shown in the card centre.'},
                 // Effects
                 {name: 'subscribe-effect', type: 'mqttTopic', help: 'Current effect name.'},
                 {name: 'publish-effect',   type: 'mqttTopic', help: 'Publish selected effect name.'},
@@ -684,7 +684,7 @@ class FeezalElementMaterialLight extends FeezalElement {
         const mode = this.mode || 'brightness';
         if (mode === 'rgb' && this._rgb) return rgbToHex(...this._rgb);
         if (mode === 'hs'  && this._hs)  return rgbToHex(...hsvToRgb(this._hs[0], this._hs[1] / 100, 1));
-        if (mode === 'color_temp' && this._colorTemp) return rgbToHex(...kelvinToRgb(this._colorTemp));
+        if ((mode === 'color_temp' || mode === 'brightness_ct') && this._colorTemp) return rgbToHex(...kelvinToRgb(this._colorTemp));
         return 'var(--feezal-light-on-color)';
     }
 
@@ -744,6 +744,7 @@ class FeezalElementMaterialLight extends FeezalElement {
     _svgCenter(mode, brt, accent) {
         switch (mode) {
             case 'brightness':
+            case 'brightness_ct':
                 return svg`
                     <text x="${CX}" y="${CY}" text-anchor="middle"
                         dominant-baseline="middle" font-size="13" font-weight="500"
@@ -843,7 +844,7 @@ class FeezalElementMaterialLight extends FeezalElement {
         const mode = this.mode || 'brightness';
         const parts = [];
 
-        if (mode === 'color_temp') {
+        if (mode === 'color_temp' || mode === 'brightness_ct') {
             const min = this.colorTempMin || 2700;
             const max = this.colorTempMax || 6500;
             const ct  = feezal.isEditor ? 4000 : (this._colorTemp ?? min);
@@ -944,8 +945,9 @@ const LIGHT_SECTIONS = [
         {attr: 'publish-cold-white',   label: 'Cold ↑'},
     ]},
     {id: 'effects', title: 'Effects', topics: [
-        {attr: 'subscribe-effect', label: 'Subscribe'},
-        {attr: 'publish-effect',   label: 'Publish'},
+        {attr: 'subscribe-effect', label: 'Subscribe state'},
+        {attr: 'publish-effect',   label: 'Publish command'},
+        {attr: 'effects', label: 'Available effects', placeholder: 'colorloop, rainbow, sparkle, …'},
     ]},
 ];
 
@@ -1106,14 +1108,12 @@ class FeezalElementMaterialLightInspector extends LitElement {
 
     _renderConfig() {
         const isJson = this._val('payload-mode') === 'json';
+        const currentMode = this._val('mode') || 'brightness';
         const ctEnabled = isJson ||
+            currentMode === 'color_temp' || currentMode === 'brightness_ct' ||
             this._sectionEnabled(LIGHT_SECTIONS.find(s => s.id === 'color_temp'));
         const brEnabled = isJson ||
             this._sectionEnabled(LIGHT_SECTIONS.find(s => s.id === 'brightness'));
-        // In json mode the effect list is toggled from the Topics → Capabilities
-        // section, so it is not duplicated here.
-        const fxEnabled = !isJson &&
-            this._sectionEnabled(LIGHT_SECTIONS.find(s => s.id === 'effects'));
 
         return html`
             <div class="section">
@@ -1124,6 +1124,7 @@ class FeezalElementMaterialLightInspector extends LitElement {
                         <sl-select size="small" value="${this._val('mode') || 'brightness'}"
                             @sl-change="${e => this._onSelect('mode', e)}">
                             <sl-option value="brightness">Brightness</sl-option>
+                            <sl-option value="brightness_ct">Brightness + Color temp</sl-option>
                             <sl-option value="color_temp">Color temperature</sl-option>
                             <sl-option value="rgb">RGB</sl-option>
                             <sl-option value="hs">Hue / Saturation</sl-option>
@@ -1196,18 +1197,6 @@ class FeezalElementMaterialLightInspector extends LitElement {
                                 <sl-input type="number" size="small" autocomplete="off" value="${this._val('color-temp-max') || '6500'}"
                                     @sl-change="${e => this._onInput('color-temp-max', e)}"></sl-input>
                             </div>
-                        </div>
-                    </div>
-                </div>` : ''}
-
-            ${fxEnabled ? html`
-                <div class="section">
-                    <div class="sec-head">Effects</div>
-                    <div class="sec-body">
-                        <div class="field">
-                            <label>Available (comma-separated)</label>
-                            <sl-input size="small" autocomplete="off" value="${this._val('effects')}"
-                                @sl-change="${e => this._onInput('effects', e)}"></sl-input>
                         </div>
                     </div>
                 </div>` : ''}
