@@ -196,6 +196,21 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             flex-shrink: 0; background: none; border: none; cursor: pointer;
             color: var(--feezal-color, #888); font-size: 14px; line-height: 1; padding: 0 2px;
         }
+        /* ── Auto-discovery device picker (custom inspectors) ───────────── */
+        .discovery-picker {
+            display: flex; align-items: center; gap: 6px;
+            padding: 6px 8px; margin: 0 0 10px;
+            background: var(--feezal-bg-sub, #f5f5f5);
+            border: 1px solid var(--feezal-border, #e0e0e0);
+            border-radius: 6px;
+        }
+        .discovery-picker .dp-icon { color: var(--sl-color-warning-500, #f59e0b); font-size: 13px; flex-shrink: 0; }
+        .discovery-picker .dp-select { flex: 1; min-width: 0; }
+        .discovery-picker .dp-select::part(combobox) { background: var(--feezal-bg, #fff); border-color: var(--feezal-border, #ccc); color: var(--feezal-color, #333); }
+        .discovery-picker .dp-clear {
+            flex-shrink: 0; background: none; border: none; cursor: pointer;
+            color: var(--feezal-color, #888); font-size: 13px; line-height: 1; padding: 0 2px;
+        }
     `;
 
     constructor() {
@@ -219,6 +234,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
     updated(changed) {
         if (changed.has('selectedElems')) {
             this._rebuildItems();
+            this._fetchDiscoveryEntities(); // refresh device list for the picker/banner
         }
         this._syncCustomInspector();
     }
@@ -237,6 +253,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         // _syncCustomInspector() after the DOM update.
         if (customInspector && this.selectedElems?.length === 1) {
             return html`
+                ${this._renderDiscoveryPicker()}
                 <div id="custom-inspector-host"
                     @feezal-attribute-changed="${this._onCustomAttrChanged}">
                 </div>
@@ -774,8 +791,53 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             if (r.ok) {
                 const {devices} = await r.json();
                 this.__discoveryEntities = devices || [];
+                this.requestUpdate(); // refresh the device picker once entities arrive
             }
         } catch { /* offline or server not connected */ }
+    }
+
+    // Device picker shown above a custom inspector (N6). Lists every discovered
+    // entity whose component matches the element's declared discovery component,
+    // so the user can link/auto-configure without typing a topic first.
+    _renderDiscoveryPicker() {
+        const el = this.selectedElems?.[0];
+        if (!el) return '';
+        const tagName = el.name ? 'feezal-view' : el.localName;
+        const cls = window.customElements.get(tagName);
+        const component = cls?.feezal?.discovery?.component;
+        if (!component) return '';
+
+        const matches = (this.__discoveryEntities || []).filter(e => e.component === component);
+        if (!matches.length) return '';
+
+        const linkedId = el.getAttribute('discovery-id') || '';
+        return html`
+            <div class="discovery-picker">
+                <span class="dp-icon" title="Auto-discovered devices">\u26A1</span>
+                <sl-select class="dp-select" size="small" hoist
+                    placeholder="Link a discovered device\u2026"
+                    value="${linkedId}"
+                    @sl-change="${e => this._onPickDiscovery(e.target.value)}">
+                    ${matches.map(m => html`<sl-option value="${m.discovery_id}">${m.name}</sl-option>`)}
+                </sl-select>
+                ${linkedId ? html`<button class="dp-clear" title="Unlink device" @click="${this._onClearDiscovery}">&#x2715;</button>` : ''}
+            </div>
+        `;
+    }
+
+    _onPickDiscovery(id) {
+        if (!id) return;
+        const entity = (this.__discoveryEntities || []).find(e => e.discovery_id === id);
+        if (entity) this._applyDiscovery(entity);
+    }
+
+    _onClearDiscovery() {
+        const el = this.selectedElems?.[0];
+        if (!el) return;
+        el.removeAttribute('discovery-id');
+        feezal.app.change();
+        this.requestUpdate();
+        this.shadowRoot?.querySelector('#custom-inspector-host')?.firstElementChild?.requestUpdate?.();
     }
 
     // Scan the entity cache for one whose config contains a topic field matching
@@ -856,6 +918,8 @@ class FeezalSidebarInspectorAttributes extends LitElement {
 
         this._rebuildItems();
         feezal.app.change();
+        // Refresh a custom inspector (N6) so its fields show the applied values.
+        this.shadowRoot?.querySelector('#custom-inspector-host')?.firstElementChild?.requestUpdate?.();
     }
 }
 
