@@ -930,7 +930,13 @@ Define multiple layouts per view (e.g. desktop / tablet / mobile) that activate 
 
 
 
-### A7 — Git versioning for data directory
+### A7 — Git versioning for data directory 🔨 in progress
+
+**Backend implemented:** per-site git repos (`<dataDir>/<siteName>/.git`) are auto-initialised on daemon startup and on new site creation.  Every save commits with `save: <siteName> @ <ISO>`.  `git` is installed in the production Docker image.  Separate history per site.  No npm dependency — plain `child_process` calls.
+
+**Remaining:** History panel UI, bookmarks, restore/discard, archived timelines, optional push-to-remote.
+
+---
 
 When enabled, every save auto-commits the data directory. The editor exposes a **History panel** so users can browse saved versions, preview them, and go back — without ever needing to know git exists.
 

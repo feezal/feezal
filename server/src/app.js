@@ -36,6 +36,15 @@ async function createApp(config) {
         logger = console
     } = config;
 
+    // --- Storage bootstrap ---
+    // Initialise per-site git repositories for sites that already exist on disk.
+    // New sites get their repo when first saved.  Errors are non-fatal.
+    if (typeof storage.init === 'function') {
+        await storage.init(logger).catch(err =>
+            logger.warn('storage init: ' + err.message)
+        );
+    }
+
     const app = express();
     const server = http.createServer(app);
 

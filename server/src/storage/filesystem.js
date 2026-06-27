@@ -4,6 +4,7 @@ const fs = require('fs').promises;
 const path = require('path');
 
 const StorageAdapter = require('./adapter.js');
+const {initRepo, autoCommit} = require('../build/git.js');
 
 const VIEWS_FILE = 'views.html';
 const CONFIG_FILE = 'viewer.json';
@@ -30,6 +31,21 @@ class FilesystemStorage extends StorageAdapter {
 
     _sitePath(name) {
         return path.join(this.dataDir, name);
+    }
+
+    /**
+     * Initialise per-site git repositories for all existing sites.
+     * Called once at daemon startup.  Safe to call multiple times.
+     *
+     * @param {object} [logger]
+     */
+    async init(logger = console) {
+        const sites = await this.listSites();
+        for (const site of sites) {
+            initRepo(this._sitePath(site), site).catch(err =>
+                logger.warn(`git: failed to init repo for "${site}": ${err.message}`)
+            );
+        }
     }
 
     async listSites() {
@@ -66,11 +82,21 @@ class FilesystemStorage extends StorageAdapter {
 
     async saveSite(name, {html, config}) {
         const sitePath = this._sitePath(name);
+        const isNew = !require('fs').existsSync(path.join(sitePath, '.git'));
         await fs.mkdir(sitePath, {recursive: true});
         await Promise.all([
             fs.writeFile(path.join(sitePath, VIEWS_FILE), html, 'utf8'),
             fs.writeFile(path.join(sitePath, CONFIG_FILE), JSON.stringify(config, null, 2), 'utf8')
         ]);
+        // Git auto-commit — awaited so the .git dir is stable before returning,
+        // but errors are swallowed so they never fail the save.
+        try {
+            if (isNew) {
+                await initRepo(sitePath, name);
+            } else {
+                await autoCommit(sitePath, name);
+            }
+        } catch { /* git unavailable or repo error — non-fatal */ }
     }
 
     async deleteSite(name) {
@@ -79,9 +105,14 @@ class FilesystemStorage extends StorageAdapter {
 
     async cloneSite(name, newName) {
         await fs.cp(this._sitePath(name), this._sitePath(newName), {recursive: true});
+        // Give the clone its own independent git history (drop the source's .git).
+        const newPath = this._sitePath(newName);
+        await fs.rm(path.join(newPath, '.git'), {recursive: true, force: true});
+        try { await initRepo(newPath, newName); } catch { /* non-fatal */ }
     }
 
     async renameSite(name, newName) {
+        // The .git directory moves with the site directory — history is preserved.
         await fs.rename(this._sitePath(name), this._sitePath(newName));
     }
 
