@@ -1,11 +1,10 @@
 {
   "name": "feezal",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "private": true,
   "description": "WYSIWYG dashboard builder powered by Web Components and MQTT",
   "scripts": {
     "start": "node server/bin/feezal.js --www-dir ./www",
-    "build": "node scripts/generate-elements.js && cd www && npm run build && cd .. ",
     "install": "cd server && npm install && cd ../www && npm install && cd .. && node scripts/generate-elements.js && cd www && npm run build && cd .. ",
     "test": "cd server && npm test && cd ../www && npm test && cd ..",
     "create-element": "node packages/create-feezal-element/index.js"
