@@ -87,7 +87,8 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         _completions:       {state: true},  // string[] — current completions
         _completionCursor:  {state: true},  // keyboard-navigation cursor in list
         _helpTip:           {state: true},  // custom tooltip: { text, x, y } | null
-        _discoveryMatch:    {state: true}   // discovered entity matching a topic field | null
+        _discoveryMatch:    {state: true},  // discovered entity matching a topic field | null
+        _discoveryFilter:   {state: true}   // search text for the discovery picker
     };
 
     static styles = css`
@@ -211,6 +212,14 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             flex-shrink: 0; background: none; border: none; cursor: pointer;
             color: var(--feezal-color, #888); font-size: 13px; line-height: 1; padding: 0 2px;
         }
+        .discovery-picker .dp-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+        .discovery-picker .dp-search {
+            width: 100%; box-sizing: border-box; padding: 3px 7px; border-radius: 4px;
+            border: 1px solid var(--feezal-border, #ccc); background: var(--feezal-bg, #fff);
+            color: var(--feezal-color, #333); font-size: 12px; outline: none;
+        }
+        .discovery-picker .dp-search:focus { border-color: var(--sl-color-primary-500, #0ea5e9); }
+        .discovery-picker .dp-row { display: flex; align-items: center; gap: 4px; }
     `;
 
     constructor() {
@@ -223,6 +232,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         this._completionTimer  = null;
         this._helpTip          = null;
         this._discoveryMatch   = null;
+        this._discoveryFilter  = '';
         this.__discoveryEntities = []; // non-reactive cache
     }
 
@@ -235,6 +245,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         if (changed.has('selectedElems')) {
             this._rebuildItems();
             this._fetchDiscoveryEntities(); // refresh device list for the picker/banner
+            this._discoveryFilter = ''; // reset filter when selection changes
         }
         this._syncCustomInspector();
     }
@@ -808,20 +819,42 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         const component = cls?.feezal?.discovery?.component;
         if (!component) return '';
 
-        const matches = (this.__discoveryEntities || []).filter(e => e.component === component);
-        if (!matches.length) return '';
+        const allMatches = (this.__discoveryEntities || []).filter(e => e.component === component);
+        if (!allMatches.length) return '';
+
+        const q = (this._discoveryFilter || '').toLowerCase().trim();
+        const matches = q
+            ? allMatches.filter(m => {
+                const label = this._discoveryOptionLabel(m).toLowerCase();
+                const name  = (m.name || '').toLowerCase();
+                const id    = (m.discovery_id || '').toLowerCase();
+                return label.includes(q) || name.includes(q) || id.includes(q);
+            })
+            : allMatches;
 
         const linkedId = el.getAttribute('discovery-id') || '';
+        const showSearch = allMatches.length > 5;
         return html`
             <div class="discovery-picker">
-                <span class="dp-icon" title="Auto-discovered devices">\u26A1</span>
-                <sl-select class="dp-select" size="small" hoist
-                    placeholder="Link a discovered device\u2026"
-                    value="${linkedId}"
-                    @sl-change="${e => this._onPickDiscovery(e.target.value)}">
-                    ${matches.map(m => html`<sl-option value="${m.discovery_id}">${this._discoveryOptionLabel(m)}</sl-option>`)}
-                </sl-select>
-                ${linkedId ? html`<button class="dp-clear" title="Unlink device" @click="${this._onClearDiscovery}">&#x2715;</button>` : ''}
+                <span class="dp-icon" title="Auto-discovered devices (${allMatches.length})">\u26A1</span>
+                <div class="dp-body">
+                    ${showSearch ? html`
+                        <input class="dp-search" type="text"
+                            placeholder="Filter ${allMatches.length} devices\u2026"
+                            .value="${this._discoveryFilter || ''}"
+                            @input="${e => { this._discoveryFilter = e.target.value; }}"
+                            @keydown="${e => e.stopPropagation()}">` : ''}
+                    <div class="dp-row">
+                        <sl-select class="dp-select" size="small" hoist
+                            placeholder="Link a discovered device\u2026"
+                            value="${linkedId}"
+                            @sl-change="${e => this._onPickDiscovery(e.target.value)}">
+                            ${matches.map(m => html`<sl-option value="${m.discovery_id}">${this._discoveryOptionLabel(m)}</sl-option>`)}
+                            ${!matches.length ? html`<sl-option value="" disabled>No matches for \u201c${this._discoveryFilter}\u201d</sl-option>` : ''}
+                        </sl-select>
+                        ${linkedId ? html`<button class="dp-clear" title="Unlink device" @click="${this._onClearDiscovery}">&#x2715;</button>` : ''}
+                    </div>
+                </div>
             </div>
         `;
     }
