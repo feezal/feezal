@@ -1424,6 +1424,25 @@ A countdown display toward a target time — common in ioBroker timer/schedule d
 
 **Default size:** 160×100 px.
 
+### E35 — Light element: dual-payload + auto-discovery retrofit (`feezal-element-material-light`)
+
+The light element (E16) shipped **before** the [Element platform conventions](#element-platform-conventions) and N12 existed, so it currently supports only **separate-topic** wiring. This item retrofits the already-published element with the two cross-cutting capabilities it now needs to be a first-class auto-discovery target. (Newer controllable elements — thermostat, shutter, fan, humidifier — bake these in from the start; the light is the one that needs catching up.)
+
+**Scope:**
+
+1. **Dual payload mode (`payload-mode`).** Add the `json` mode alongside the existing `separate` mode:
+   - **`separate` (current):** `subscribe-state`, `subscribe-brightness`, `subscribe-color-temp`, `subscribe-color`, plus matching `publish-*` topics — unchanged, remains the default for back-compat.
+   - **`json` (new):** a single `subscribe`/`publish` topic pair carrying a JSON object (`{"state":"ON","brightness":254,"color_temp":370,"color":{"x":…,"y":…}}`) — the zigbee2mqtt/ESPHome/HA-discovery default schema. A `json-map` (with sensible defaults) maps element properties to JSON paths.
+   - Outgoing commands mirror the mode (per-topic vs. one merged JSON publish). Use the shared `FeezalElement` dual-payload helper.
+
+2. **Auto-discovery descriptor (N12).** Add the `discovery` block to `static get feezal()` declaring `component: 'light'` and the discovery-key → attribute map, including conversions: `brightness_scale` (254/255) → 0–100 %, `min/max_mireds` ↔ kelvin, `supported_color_modes` → the element's colour mode, `schema: json` → `payload-mode: json`.
+
+3. **`discovery-id` attribute** for future re-sync (stored, not yet acted on).
+
+**Compatibility:** `payload-mode` defaults to `separate`, so existing dashboards using the light element are unaffected. The element file, `package.json` version (patch bump), and a rebuild (`cd www && npm run build`) are required.
+
+> **Conventions:** dual-payload ✓ (this item adds it) · auto-discovery: `light` · custom inspector: not required. See [Element platform conventions](#element-platform-conventions).
+
 ---
 
 ## Editor UX
