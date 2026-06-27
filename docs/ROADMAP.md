@@ -195,9 +195,144 @@ This actually *works* — and is the right answer for static exports. When the b
 
 The private key remains exclusively in `dataDir/certs/` on the feezal server (N8). For the live-viewer path it is used directly by the Node.js MQTT client; for static export the user installs it alongside the cert in their OS store (standard operational practice for mTLS deployments).
 
+### N12 — MQTT Auto-Discovery (config-topic import)
+
+A general framework that reads the widely-adopted MQTT **auto-discovery** config-topic convention (popularised by Home Assistant and emitted by zigbee2mqtt, ESPHome, Tasmota, Zigbee2MQTT, WLED, and many others) and uses it to **pre-wire feezal elements automatically**. The user points feezal at their broker; feezal already knows the device's topics, payload schema, value ranges, and units — so dropping a light, thermostat, or shutter onto the canvas can be a single click instead of a dozen manual topic entries.
+
+> **Wording / branding.** This feature is **brand-neutral** in the UI. The use case is *zigbee2mqtt → feezal* (and any other publisher of the same topic format); it does not require or involve a Home Assistant instance. The UI never says "Home Assistant". Terms used: **Auto-Discovery** (the feature), **config topics** (the scanned retained messages), **Auto-configure** (the apply action), **Discovered devices** (the browser).
+
+---
+
+#### How auto-discovery topics work
+
+Publishers emit a **retained** JSON config message per entity to a well-known topic under a configurable prefix (default `homeassistant`):
+
+```
+<prefix>/<component>/<node_id>/<object_id>/config        # component discovery
+<prefix>/<component>/<object_id>/config                  # short form
+<prefix>/device/<node_id>/config                         # device discovery (one payload, many entities via "cmps")
+```
+
+The payload describes the entity: its command/state topics, payload values, value ranges, units, supported colour modes, etc. Keys are heavily **abbreviated** (`stat_t`, `cmd_t`, `bri_cmd_t`, `~`) and a `~` field provides a base topic that the abbreviations expand against.
+
+**Example** (zigbee2mqtt light, JSON schema):
+```json
+{
+  "~": "zigbee2mqtt/Living Room Lamp",
+  "name": "Living Room Lamp",
+  "unique_id": "0x00158d0001abcd_light_zigbee2mqtt",
+  "stat_t": "~", "cmd_t": "~/set", "schema": "json",
+  "brightness": true, "brightness_scale": 254,
+  "color_mode": true, "supported_color_modes": ["xy", "color_temp"],
+  "max_mireds": 500, "min_mireds": 150
+}
+```
+
+#### Server-side discovery registry
+
+A new server module subscribes (on broker connect) to the discovery wildcards:
+
+```
+<prefix>/+/+/config
+<prefix>/+/+/+/config
+<prefix>/device/+/config
+```
+
+For every retained config message it:
+1. **Expands** abbreviations to full keys and resolves the `~` base topic.
+2. **Normalises** both single-component payloads and device-discovery payloads (`cmps` / `components` map) into a **flat entity list**: `{ discovery_id, component, name, unique_id, topics{…}, schema, ranges{…}, options{…} }`.
+3. **Caches** the entity list in memory (keyed by `discovery_id`), updating on every retained-config change so it always reflects the live broker state.
+4. Removes an entity when its config topic is cleared (empty retained payload), matching the standard "delete by empty config" convention.
+
+The prefix is configurable per site (default `homeassistant`); auto-discovery can be disabled entirely per site.
+
+**REST surface:**
+- `GET /api/discovery/devices` — the normalised flat entity list for the current site.
+- `GET /api/discovery/devices/:id` — a single normalised entity (used when applying).
+
+#### Per-component mapping tables
+
+For each supported `component` type there is a mapping table: discovery keys → feezal element + attribute values, including **unit/scale conversions**. Shipped incrementally:
+
+| Discovery component | feezal element | Notable conversions |
+|---|---|---|
+| `light` *(first)* | `feezal-element-material-light` | `brightness_scale` (often 254/255) → 0–100 %; mireds ↔ kelvin; `supported_color_modes` → element colour mode |
+| `climate` | `feezal-element-material-thermostat` (E11) | `temp_step`, `min/max_temp`, mode lists |
+| `cover` | `feezal-element-material-shutter` (E12) | position scale, tilt range |
+| `switch` | `feezal-element-material-switch` | payload on/off |
+| `fan` | `feezal-element-material-fan` (E18) | percentage range, preset modes |
+| `humidifier` | `feezal-element-material-humidifier` (E19) | target range |
+| `lock` | `feezal-element-material-door-lock` (E13) | state/command payloads |
+| `vacuum` | `feezal-element-material-vacuum` (E21) | fan-speed list, command set |
+| `sensor` / `binary_sensor` | `feezal-element-basic-value` / `feezal-element-material-contact` (E27) | unit, device_class → icon |
+
+Each element declares which discovery component(s) it can consume (see **Element platform conventions** in the Element Ecosystem section). New elements register their mapping without touching the framework.
+
+#### Two ways to consume discovery in the editor
+
+**1. Reactive "Auto-configure" banner (topic-driven).**
+When the user types or picks a topic in an element's inspector (e.g. `zigbee2mqtt/Living Room Lamp`), the inspector queries the registry for an entity whose `state_topic` / base topic matches. On a hit it shows a non-intrusive banner:
+
+> *⚡ Found a matching device config for this topic — **Auto-configure**?*
+
+Clicking **Auto-configure** applies the full mapped attribute set in one step (and, if the element type doesn't match the component, offers to swap to the right element type).
+
+**2. Proactive "Discovered devices" browser.**
+A panel (palette tab or dialog) lists every discovered entity grouped by device, each with its name, component icon, and topic. Dragging one onto the canvas (or clicking "Add") creates the correct element **fully pre-wired** — zero manual attribute entry.
+
+#### Apply semantics — MVP vs. future
+
+- **MVP: one-time snapshot apply.** Auto-configure writes concrete attribute values into the element; there is no live link afterwards. The element also stores the source **`discovery-id`** attribute so it can be re-matched later.
+- **Future (not MVP): re-sync.** Because each auto-configured element carries its `discovery-id`, a later enhancement can detect when the device's config topic changes (e.g. firmware adds a colour mode) and offer to re-apply. Stored now, implemented later.
+
+#### Relationship to dual-payload elements
+
+zigbee2mqtt (and HA discovery generally) most often uses the **JSON schema** (one state topic, one command topic, JSON payloads). Some setups — including the maintainer's — configure zigbee2mqtt to publish each property on a **separate topic** instead. To consume both, the controllable elements must support **both payload modes**; this is captured once in **Element platform conventions** below and is a prerequisite for `light`, `climate`, and `cover` auto-configuration.
+
 ---
 
 ## Element Ecosystem
+
+### Element platform conventions
+
+Cross-cutting capabilities that apply to many elements below. Individual element sections reference these by name (e.g. *"Conventions: dual-payload ✓ · discovery: `light` · inspector: N6"*) rather than repeating the full spec, and only call out element-specific details (e.g. a particular unit conversion).
+
+#### Dual payload mode (`payload-mode`)
+
+Controllable elements that read/write several related properties (state, brightness, colour, position, setpoint, …) must support **two interchangeable wiring styles**, selected by a `payload-mode` attribute:
+
+- **`separate` (default)** — one `mqttTopic` attribute per property (`subscribe-state`, `subscribe-brightness`, `publish-color`, …). Matches users who split every property onto its own topic (incl. zigbee2mqtt configured that way, ioBroker states, Node-RED flows).
+- **`json`** — a single `subscribe`/`publish` topic pair carrying a JSON object. A `json-map` (or sensible defaults) maps element properties to JSON paths, e.g. `{"state":"state","brightness":"brightness","color_temp":"color_temp","color":"color.x|color.y"}`. Matches zigbee2mqtt default schema, ESPHome, and HA-discovery JSON-schema devices.
+
+Outgoing commands mirror the mode: `separate` publishes per-topic; `json` publishes a single merged JSON object. The base `FeezalElement` should provide a shared helper for both directions so each element only declares its property↔key map.
+
+#### Auto-discovery target (N12)
+
+An element that can be produced by **Auto-Discovery (N12)** declares the discovery component(s) it consumes and its property mapping in `static get feezal()`:
+
+```js
+static get feezal() {
+    return {
+        palette: { … },
+        discovery: {
+            component: 'light',              // or ['switch','light'] etc.
+            // discovery-key → element-attribute, with optional transform
+            map: {
+                state:      'subscribe-state',
+                brightness: { attr: 'subscribe-brightness', scaleTo: 100 },
+                color_temp: { attr: 'subscribe-color-temp', unit: 'mired→kelvin' }
+            }
+        },
+        attributes: [ … ]
+    };
+}
+```
+
+The N12 framework reads this descriptor to pre-wire the element; no framework change is needed to support a new element type. Auto-configured elements persist a `discovery-id` attribute for future re-sync.
+
+#### Custom inspector (N6)
+
+Elements with **dynamic, repeating, or visual-layout configuration** (lists of modes, rings, nodes, persons, slots, contacts) should ship an N6 custom inspector instead of relying on the flat attribute form. Elements that benefit are tagged below. The standard flat inspector remains the default for simple elements.
 
 ### E4 — Camera element
 Renders a live camera stream on the dashboard canvas. Targets three source types:
@@ -264,9 +399,13 @@ The existing material element set covers `button`, `switch`, `slider`, `gauge`, 
 - `progress-linear` and `progress-circular` can optionally display the numeric value as text overlay (`show-value` boolean).
 - Elements with no direct MD3 analogue (gauge, value) remain custom Lit — do not duplicate them.
 
+> **Conventions:** auto-discovery — `checkbox`, `chip`, and `icon-button` (toggle mode) map to the discovery `switch` component; `select` maps to `select`; `text-field` maps to `text`. Each declares a `discovery` descriptor per [Element platform conventions](#element-platform-conventions). These are single-value controls, so dual-payload mode does not apply.
+
 ### E11 — Thermostat element (`feezal-element-material-thermostat`)
 
 A self-contained thermostat control that wraps several sub-elements into a single cohesive canvas element. Targets typical smart-home thermostats (e.g. Homematic, Z-Wave, MQTT thermostats, ESPHome climate).
+
+> **Conventions:** dual-payload ✓ · auto-discovery: `climate` · custom inspector: N6 (mode-list builder). See [Element platform conventions](#element-platform-conventions). Element-specific conversions: `temp_step` → `step`, `min/max_temp` → `min`/`max`.
 
 **Visual concept:** a large circular arc slider (custom SVG/Canvas, similar to the Nest/ecobee UI) for setting the target temperature. Current actual temperature shown prominently in the centre of the arc. Supporting data rendered below or around the circle.
 
@@ -307,6 +446,8 @@ A self-contained thermostat control that wraps several sub-elements into a singl
 
 A window-visualisation element for controlling roller shutters, blinds, or awnings. Targets cover/shutter devices (e.g. Homematic, MQTT Shelly, Zigbee covers).
 
+> **Conventions:** dual-payload ✓ · auto-discovery: `cover` · custom inspector: not required. See [Element platform conventions](#element-platform-conventions). Element-specific conversions: discovery `position_open`/`position_closed` → position scale; tilt range → `slat-angle`.
+
 **Visual concept:** a stylised window outline (SVG) with a shutter panel that slides up and down proportionally to the current opening percentage. The shutter slats are rendered as horizontal lines whose density can be configured. Touch/mouse drag directly on the shutter panel sets a new position.
 
 **Controls:**
@@ -341,6 +482,8 @@ A window-visualisation element for controlling roller shutters, blinds, or awnin
 ### E13 — Door lock element (`feezal-element-material-door-lock`)
 
 A door / lock control element for smart locks and door entry systems. Targets lock devices (e.g. Nuki, Danalock, Yale, Zigbee door locks).
+
+> **Conventions:** dual-payload ✓ · auto-discovery: `lock` · custom inspector: not required. See [Element platform conventions](#element-platform-conventions). Element-specific: discovery `payload_lock`/`payload_unlock`/`state_locked`/`state_unlocked` → the payload attributes.
 
 **Visual concept:** a front-door silhouette SVG with a large lock icon (`lock` / `lock_open`) in the centre. The door outline changes colour based on state (locked / unlocked / open / jammed). Primary action is a single prominent `md-fab`-style button that toggles the lock.
 
@@ -378,6 +521,8 @@ A door / lock control element for smart locks and door entry systems. Targets lo
 ### E14 — Energy flow element (`feezal-element-material-energy-flow`)
 
 A live energy flow visualisation for solar PV users (rooftop or balcony). Shows the real-time energy topology as an animated flow diagram: animated arrows convey the direction and relative magnitude of power flows between nodes.
+
+> **Conventions:** dual-payload — (per-topic only) · auto-discovery: not a single-component target · custom inspector: N6 (node enable/label/colour + summary-row builder). See [Element platform conventions](#element-platform-conventions).
 
 **Nodes and flows:**
 
@@ -509,6 +654,8 @@ Each button publishes a configurable payload to `publish-command`. Play/pause to
 
 A security alarm control panel with PIN keypad entry and arm/disarm mode selection. Corresponds to HA's alarm panel card, widely used on wall-mounted dashboards.
 
+> **Conventions:** dual-payload ✓ · auto-discovery: `alarm_control_panel` · custom inspector: N6 (arm-mode list builder). See [Element platform conventions](#element-platform-conventions). Element-specific: discovery `code_arm_required` → `require-code-to-arm`; `supported_features` → which mode buttons show.
+
 **Visual concept:** a prominent status banner at the top (colour-coded by state), a 3×4 numeric keypad (0–9, ✕ clear, ✓ confirm), and arm-mode buttons arranged in a row below the keypad.
 
 **States and colours:**
@@ -547,6 +694,8 @@ All state payloads and labels are configurable via `state-labels` JSON.
 
 A fan control element for smart fans and air circulators. Covers on/off, speed percentage, preset mode (low/medium/high/auto), and optional oscillation and direction.
 
+> **Conventions:** dual-payload ✓ · auto-discovery: `fan` · custom inspector: N6 (preset-mode list). See [Element platform conventions](#element-platform-conventions). Element-specific: discovery `percentage_command_topic`/`preset_modes` → speed ring and preset chips.
+
 **Visual concept:** a circular SVG fan blade illustration that rotates continuously when the fan is on (CSS animation speed proportional to the current percentage). A large central toggle. Speed shown as a percentage arc ring (same as E16 brightness ring) or as a preset-mode chip row. The rotation animation pauses when off.
 
 **Controls:**
@@ -583,6 +732,8 @@ A fan control element for smart fans and air circulators. Covers on/off, speed p
 ### E19 — Humidifier / dehumidifier element (`feezal-element-material-humidifier`)
 
 A humidifier control element with a similar circular arc design to the thermostat (E11) — arc slider for target humidity, current humidity in the centre, on/off toggle, and mode selector. Covers humidifiers, dehumidifiers, and hygrostats.
+
+> **Conventions:** dual-payload ✓ · auto-discovery: `humidifier` · custom inspector: N6 (mode list). See [Element platform conventions](#element-platform-conventions). Element-specific: discovery `min/max_humidity` → arc range; `device_class` (`humidifier`/`dehumidifier`) → `type`.
 
 **Visual concept:** droplet-shaped accent arc (blue gradient) instead of a heat arc. The arc spans ~240° for target humidity (0–100 %). Current humidity shown in the centre. When the device is dehumidifying the arc colour shifts to an orange/amber gradient.
 
@@ -664,6 +815,8 @@ A wall-display-optimised weather card. Shows current conditions prominently and 
 
 A robot vacuum control element. A popular type in the community (Mushroom vacuum card, 5k stars). Covers start/stop/pause/return-home controls, cleaning status, battery level, fan speed mode, and optional room/zone selector.
 
+> **Conventions:** dual-payload ✓ · auto-discovery: `vacuum` · custom inspector: N6 (fan-speed / command-payload builder). See [Element platform conventions](#element-platform-conventions). Element-specific: discovery `fan_speed_list` → `fan-speeds`; `supported_features` → which command buttons are shown.
+
 **Visual concept:** a top-down circular robot vacuum SVG illustration (simplified disc shape with bumper). A large status label below it ("Cleaning", "Docked", "Returning home", "Error"). Battery level shown as a small coloured bar segment on the robot body. Fan speed chips below.
 
 **States and icon behaviour:**
@@ -708,6 +861,8 @@ Each payload is independently configurable (`payload-start`, `payload-pause`, `p
 ### E22 — Computer stats element (`feezal-element-material-computer-stats`)
 
 A system monitoring element that visualises CPU, RAM, GPU and other resource metrics as a set of concentric ring gauges. Designed for dashboards showing server, NAS, Raspberry Pi, or gaming PC health. Data arrives from MQTT — any publisher works: [glances](https://github.com/nicolargo/glances) MQTT export, [MQTT System Stats](https://github.com/mqttx/mqttx) side-cars, Node-RED system nodes, or custom scripts.
+
+> **Conventions:** dual-payload — (per-topic only) · auto-discovery: not a single-component target · custom inspector: N6 (ring builder: reorder, threshold, colour + info-row editor). See [Element platform conventions](#element-platform-conventions).
 
 **Visual concept:** stacked concentric SVG rings (similar to the iOS Activity rings / Apple Watch fitness rings). Each ring represents one metric. The ring fills clockwise from 0 % to 100 %. A subtle gap remains at the top (starting position). A metric label + current value is shown to the right of (or below) the ring set when space allows.
 
@@ -974,6 +1129,8 @@ An SVG tank / fluid-level visualisation. Popular in ioBroker.vis for water tanks
 
 A simple SVG sensor indicator for window and door contacts (reed switches, magnetic sensors). Shows open/closed state with a clear visual — a stylised window or door outline that "opens" when the sensor fires. Very widely used in ioBroker and HA security dashboards for a room-overview panel.
 
+> **Conventions:** dual-payload — (per-topic only) · auto-discovery: `binary_sensor` (device_class `window`/`door` → `type`) · custom inspector: N6 (multi-contact list builder). See [Element platform conventions](#element-platform-conventions).
+
 **Visual concept:** a minimal SVG of a window frame (two panes + frame outline) or a door outline. When the contact is `open`, the window/door visually ajar with an amber or red fill; when `closed`, the outline is closed and coloured normally. Optional alarm/alert animation (pulsing red glow) when a configured alarm state is active.
 
 **Display types** (`type` attribute):
@@ -1076,6 +1233,196 @@ A small UI widget (date-range picker + preset buttons: Last 1h / 6h / 24h / 7d /
 ---
 
 **Default size:** 400×300 px (panel element); 800×600 px (dashboard element).
+
+---
+
+### E29 — Tile / compact state element (`feezal-element-material-tile`)
+
+The single most-used dashboard pattern in the wider ecosystem (Home Assistant's Tile card + the Mushroom card family). A compact horizontal card combining an **icon**, **primary label**, **secondary state line**, and an optional **quick-action control** — the workhorse for room overviews where many devices share a grid.
+
+**Visual concept:** a rounded MD3 surface, ~`56` px tall. Left: a circular icon chip whose colour/fill reflects on/off or active state. Centre: bold name on top, live secondary state below (e.g. "On · 80 %", "22.4 °C", "Closed"). Right (optional): a single quick control — toggle, or a tap target that publishes a payload.
+
+**Quick-action modes** (`action` attribute):
+
+| Mode | Behaviour |
+|---|---|
+| `none` | Display only — tile shows state, no control |
+| `toggle` | Tap anywhere publishes a configurable on/off payload to `publish` |
+| `more` | Tap opens a Shoelace `sl-dialog` "more-info" panel (future: embeds the matching full element, e.g. the light or thermostat) |
+| `navigate` | Tap navigates to another feezal view (`target-view`) — turns a tile into a room-entry button |
+
+**Attributes:**
+
+| Attribute | Type | Default | Description |
+|---|---|---|---|
+| `subscribe` | mqttTopic | — | State topic driving the secondary line and icon colour |
+| `publish` | mqttTopic | — | Topic for `toggle` action |
+| `icon` | string | `lightbulb` | Material icon name |
+| `label` | string | `""` | Primary label |
+| `secondary` | string | `""` | Static secondary text (overridden by `subscribe` when set) |
+| `state-map` | string | `{}` | JSON map of payload → display string for the secondary line |
+| `action` | `none` \| `toggle` \| `more` \| `navigate` | `toggle` | Quick-action behaviour |
+| `payload-on` / `payload-off` | string | `on` / `off` | Toggle payloads |
+| `active-when` | string | `on` | Payload value(s) that render the tile in its "active" (tinted) state |
+| `color-active` | color | `--sl-color-primary-600` | Icon-chip colour when active |
+| `target-view` | string | `""` | View to navigate to in `navigate` mode |
+
+> **Conventions:** dual-payload — (single state topic) · auto-discovery: consumes any component as a read-only tile (icon/label from `device_class` + `name`) · custom inspector: not required. See [Element platform conventions](#element-platform-conventions).
+
+**Editor preview:** static tile with placeholder icon, "Device name" / "State" text.
+
+**Default size:** 200×56 px.
+
+### E30 — Mini live sparkline (`feezal-element-basic-sparkline`)
+
+A lightweight inline trend chart driven by **live MQTT values buffered in the browser** — the most-requested "show me a quick graph" pattern (HA's mini-graph-card is consistently a top-3 community card). Deliberately **distinct from Grafana (E28)**: there is no backend, no historical query, no persistence — it visualises the trend of values that arrive while the dashboard is open.
+
+**Data model (MVP):** the element keeps an in-memory ring buffer of the last `points` samples (default `60`) for the subscribed topic. Each incoming MQTT message appends `{ t: now, v: Number(payload) }`. On reload the buffer starts empty and refills live. *(Future enhancement, explicitly out of MVP scope: an optional server-side ring buffer so the chart has history on first load — deferred to avoid overlapping Grafana's role and adding backend storage.)*
+
+**Visual concept:** a smooth SVG line (or area fill) spanning the element width, auto-scaled to the buffered min/max (or a fixed `min`/`max`), with an optional current-value label and a coloured "above/below threshold" tint. No axes by default (sparkline style); an optional faint baseline and min/max labels can be enabled.
+
+**Attributes:**
+
+| Attribute | Type | Default | Description |
+|---|---|---|---|
+| `subscribe` | mqttTopic | — | Numeric value topic |
+| `points` | number | `60` | Max samples held in the rolling buffer |
+| `window-seconds` | number | `0` | If > 0, drop samples older than this many seconds (time-based window instead of count-based) |
+| `mode` | `line` \| `area` | `area` | Line only, or filled area under the line |
+| `min` / `max` | number | *(auto)* | Fixed Y range; blank = auto-scale to buffered data |
+| `color` | color | `--sl-color-primary-600` | Line/area colour |
+| `warn-threshold` | number | — | Value above which the line tints to `color-warn` |
+| `color-warn` | color | `#ff9800` | Tint colour past `warn-threshold` |
+| `show-value` | boolean | `true` | Show the current value as an overlay label |
+| `show-minmax` | boolean | `false` | Show faint min/max labels at the chart edges |
+| `decimals` | number | `1` | Decimal places for the value label |
+| `unit` | string | `""` | Unit suffix on the value label |
+
+> **Conventions:** dual-payload — (single numeric topic) · auto-discovery: consumes `sensor` (unit/`device_class` → label) · custom inspector: not required. See [Element platform conventions](#element-platform-conventions).
+
+**Editor preview:** renders a static dummy waveform (sine-ish) so the author can see the style without a live feed.
+
+**Default size:** 160×60 px.
+
+### E31 — Plant / flower monitor (`feezal-element-material-plant`)
+
+A plant-health element modelled on the popular flower-card pattern. Shows a plant's current sensor readings against configured healthy ranges, with a clear at-a-glance "needs attention" state. Targets soil/plant sensors (e.g. Xiaomi/MiFlora via MQTT, Ecowitt, custom ESPHome soil probes).
+
+**Visual concept:** a header row with an optional plant photo/icon and name, followed by a compact row of metric badges — **moisture**, **light/illuminance**, **temperature**, **conductivity/fertility**, **humidity** — each shown as a small bar or pill that turns amber/red when the reading falls outside its `min`/`max` range. An overall status dot summarises (green = all OK, amber = one out of range, red = critical).
+
+**Metric slots** (each optional, enabled by setting its topic):
+
+| Slot | Topic attr | Range attrs | Unit |
+|---|---|---|---|
+| Moisture | `subscribe-moisture` | `moisture-min`/`max` | % |
+| Illuminance | `subscribe-light` | `light-min`/`max` | lx |
+| Temperature | `subscribe-temperature` | `temp-min`/`max` | °C |
+| Conductivity | `subscribe-conductivity` | `cond-min`/`max` | µS/cm |
+| Humidity | `subscribe-humidity` | `humidity-min`/`max` | % |
+| Battery | `subscribe-battery` | — | % |
+
+**Attributes (in addition to the slot topics/ranges above):**
+
+| Attribute | Type | Default | Description |
+|---|---|---|---|
+| `name` | string | `""` | Plant name |
+| `image-url` | string | `""` | Optional plant photo URL (falls back to a leaf icon) |
+| `layout` | `compact` \| `detailed` | `compact` | Badges row only, or labelled rows with values |
+| `show-battery` | boolean | `true` | Show the battery badge |
+
+> **Conventions:** dual-payload ✓ (each metric can come from separate topics **or** one JSON payload, e.g. a MiFlora JSON message) · auto-discovery: consumes multiple `sensor` entities grouped by device · custom inspector: not required (slots are fixed). See [Element platform conventions](#element-platform-conventions).
+
+**Editor preview:** leaf icon, "Plant name", and placeholder badges at healthy values.
+
+**Default size:** 200×120 px.
+
+### E32 — Logbook / event list (`feezal-element-basic-logbook`)
+
+A rolling, in-browser list of recent MQTT events — the live counterpart to HA's Logbook/Activity card. Like the sparkline (E30) it is **live-only**: it shows messages that arrive while the dashboard is open, with no backend history.
+
+**Visual concept:** a scrollable vertical list, newest at top. Each row: a small timestamp, an optional icon, and a formatted message line. New rows fade/slide in. The list is capped at `max-rows` (oldest dropped).
+
+**Sources:**
+- **Single topic / wildcard:** subscribe to one topic or an MQTT wildcard (`home/+/event`); each message becomes a row. A `template` string formats the row from the topic and payload (e.g. `"{topic}: {payload}"`), with JSON-path extraction for structured payloads.
+- **Configured event map:** a `events` JSON array maps specific `{subscribe, label, icon}` triples to friendly rows (e.g. door opened, motion detected, alarm armed), so several distinct topics feed one consolidated feed.
+
+**Attributes:**
+
+| Attribute | Type | Default | Description |
+|---|---|---|---|
+| `subscribe` | mqttTopic | — | Topic or wildcard to log |
+| `template` | string | `{payload}` | Row format; supports `{topic}`, `{payload}`, `{json:path}` tokens |
+| `events` | string | `[]` | JSON array of `{subscribe, label, icon}` mapped event sources |
+| `max-rows` | number | `50` | Maximum rows retained |
+| `show-time` | boolean | `true` | Show the timestamp column |
+| `time-format` | string | `HH:mm:ss` | Timestamp format |
+| `dedupe` | boolean | `false` | Collapse consecutive identical messages into one row with a count |
+
+> **Conventions:** dual-payload — (n/a, free-form) · auto-discovery: — · custom inspector: N6 (event-source list builder) recommended when using the `events` map. See [Element platform conventions](#element-platform-conventions).
+
+**Editor preview:** three placeholder rows ("12:01:04 — Living room motion", …).
+
+**Default size:** 240×160 px.
+
+### E33 — Webpage / iframe element (`feezal-element-basic-iframe`)
+
+A generic embedded web page — the building block that the Grafana panel element (E28) specialises. Useful for embedding any web UI (a router admin page, a printer status page, another dashboard, a public webcam page, a weather radar loop).
+
+**Visual concept:** a bordered `<iframe>` filling the element bounds, with a skeleton placeholder while loading and a friendly error overlay if the target refuses framing (`X-Frame-Options` / CSP) — including a hint to open it in a new tab instead.
+
+**Attributes:**
+
+| Attribute | Type | Default | Description |
+|---|---|---|---|
+| `src` | string | — | Page URL to embed |
+| `subscribe-src` | mqttTopic | — | Optional: a topic carrying the URL, so the embed can change at runtime |
+| `refresh` | number | `0` | Auto-reload interval in seconds (0 = never) |
+| `scrolling` | boolean | `true` | Allow the iframe to scroll |
+| `sandbox` | string | `""` | Optional iframe `sandbox` token list (blank = no sandbox) |
+| `zoom` | number | `1` | CSS scale applied to the embedded page |
+| `click-url` | string | `""` | Optional "open in new tab" target shown as a corner button |
+
+**Security note:** the `sandbox` attribute is surfaced so authors can lock down embedded third-party pages. The element never injects credentials and never proxies — it is a plain client-side embed.
+
+> **Conventions:** dual-payload — (n/a) · auto-discovery: — · custom inspector: not required. See [Element platform conventions](#element-platform-conventions).
+
+**Editor preview:** a framed placeholder with a globe icon and the configured URL string.
+
+**Default size:** 320×240 px.
+
+### E34 — Countdown / timer element (`feezal-element-basic-countdown`)
+
+A countdown display toward a target time — common in ioBroker timer/schedule dashboards (e.g. "irrigation in 12:34", "next departure", "washing machine done in …"). Counts down (or up) and can publish when it reaches zero.
+
+**Visual concept:** large monospaced `mm:ss` (or `HH:mm:ss` / `d HH:mm:ss`) digits, with an optional thin progress ring or bar showing elapsed-vs-total. Turns amber/red in the final stretch (`warn-seconds`). Shows a configurable "done" label at zero.
+
+**Target sources** (`mode`):
+
+| Mode | Source |
+|---|---|
+| `target-timestamp` | Subscribes to a topic carrying an absolute Unix/ISO timestamp; counts down to it |
+| `seconds-remaining` | Subscribes to a topic carrying remaining seconds; ticks down locally between updates |
+| `count-up` | Counts up from a subscribed start timestamp (a stopwatch / "running for" display) |
+
+**Attributes:**
+
+| Attribute | Type | Default | Description |
+|---|---|---|---|
+| `mode` | select | `seconds-remaining` | Target source (see table) |
+| `subscribe` | mqttTopic | — | Topic carrying the timestamp or remaining seconds |
+| `format` | `mm:ss` \| `HH:mm:ss` \| `d HH:mm:ss` \| `auto` | `auto` | Digit format |
+| `show-ring` | boolean | `true` | Show the progress ring/bar |
+| `total-seconds` | number | `0` | Denominator for the progress ring (0 = infer from first value) |
+| `warn-seconds` | number | `10` | Remaining seconds at which digits turn amber/red |
+| `done-label` | string | `Done` | Text shown at zero |
+| `publish-on-zero` | mqttTopic | — | Optional topic to publish to when the countdown reaches zero |
+| `payload-zero` | string | `done` | Payload published at zero |
+
+> **Conventions:** dual-payload — (single topic) · auto-discovery: — · custom inspector: not required. See [Element platform conventions](#element-platform-conventions).
+
+**Editor preview:** static `12:34` digits with a ring at ~40 %.
+
+**Default size:** 160×100 px.
 
 ---
 
