@@ -1,4 +1,4 @@
-import {LitElement, html, css} from 'lit';
+﻿import {LitElement, html, css} from 'lit';
 
 import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/textarea/textarea.js';
@@ -45,6 +45,7 @@ class FeezalEditableList extends LitElement {
                         ${this.columns.map(col => html`
                             <input .value="${item[col] || ''}"
                                 placeholder="${col}"
+                                autocomplete="off"
                                 @change="${e => this._propChanged(rowIdx, col, e.target.value)}">
                         `)}
                         <button class="del" @click="${() => this._remove(rowIdx)}">✕</button>
@@ -309,6 +310,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             return html`
                 <div class="topic-wrap">
                     <sl-input .label="${labelAttr}" size="small"
+                        autocomplete="off"
                         .value="${mixed ? '' : (value ?? '')}"
                         placeholder="${mixed ? '— varies —' : ''}"
                         @sl-focus="${e => this._onTopicInput(e.target.value, idx)}"
