@@ -529,6 +529,280 @@ A plant-health element modelled on the popular flower-card pattern. Shows a plan
 **Editor preview:** leaf icon, "Plant name", and placeholder badges at healthy values.
 
 **Default size:** 200×120 px.
+### E10 — More material elements (`feezal-element-material-*`) ✅
+
+The existing material element set covers `button`, `switch`, `slider`, `gauge`, and `value`. The following MD3 primitives are missing and would add significant value on a dashboard:
+
+| Element | MD3 component | Dashboard use-case |
+|---|---|---|
+| `feezal-element-material-checkbox` | `md-checkbox` | Toggle a boolean MQTT topic (e.g. enable/disable an automation) |
+| `feezal-element-material-radio` | `md-radio` group | Select one-of-N state (e.g. HVAC mode: heat / cool / auto / off) |
+| `feezal-element-material-select` | `md-outlined-select` | Dropdown for selecting a named option from a list; publishes the selected value |
+| `feezal-element-material-text-field` | `md-outlined-text-field` | Text input that publishes its value on commit (Enter or blur); optionally subscribes to show current value |
+| `feezal-element-material-progress-linear` | `md-linear-progress` | Horizontal progress bar driven by a numeric MQTT value with configurable `min`/`max` |
+| `feezal-element-material-progress-circular` | `md-circular-progress` | Circular indeterminate or determinate spinner/progress ring |
+| `feezal-element-material-chip` | `md-filter-chip` | Compact toggle chip — selected/deselected state maps to a boolean MQTT topic |
+| `feezal-element-material-icon-button` | `md-icon-button` | Icon-only action button; publishes a configurable payload on tap; supports toggle mode |
+| `feezal-element-material-badge` | `md-badge` | Notification count overlay; subscribes to a numeric or string topic and renders a badge dot or count |
+| `feezal-element-material-fab` | `md-fab` | Floating action button for a primary dashboard action (e.g. arm/disarm alarm) |
+
+**Implementation notes:**
+- All elements follow the standard `feezal-element-material-*` conventions: `subscribe` + `publish` attributes, `FeezalElement` base class, full theme integration via `--md-sys-color-*` → `--feezal-*` bridge (U15 MD3 bridge).
+- `radio` needs special handling: the element renders a labelled radio group from a configurable `options` list (comma-separated or JSON array). The currently selected option is read from `subscribe` and each selection publishes to `publish`.
+- `select` and `text-field` should have an optional `label` attribute rendered as the MD3 field label.
+- `progress-linear` and `progress-circular` can optionally display the numeric value as text overlay (`show-value` boolean).
+- Elements with no direct MD3 analogue (gauge, value) remain custom Lit — do not duplicate them.
+
+> **Conventions:** auto-discovery — `checkbox`, `chip`, and `icon-button` (toggle mode) map to the discovery `switch` component; `select` maps to `select`; `text-field` maps to `text`. Each declares a `discovery` descriptor per [Element platform conventions](#element-platform-conventions). These are single-value controls, so dual-payload mode does not apply.
+
+
+### E14 — Energy flow element (`feezal-element-material-energy-flow`) ✅
+
+A live energy flow visualisation for solar PV users (rooftop or balcony). Shows the real-time energy topology as an animated flow diagram: animated arrows convey the direction and relative magnitude of power flows between nodes.
+
+> **Conventions:** dual-payload — (per-topic only) · auto-discovery: not a single-component target · custom inspector: N6 (node enable/label/colour + summary-row builder). See [Element platform conventions](#element-platform-conventions).
+
+**Nodes and flows:**
+
+```
+        [Solar PV / Balcony PV]
+               ↓ (generation)
+[Grid] ←→ [House / Load] ←→ [Battery] (optional)
+```
+
+Each arrow animates (pulsing dashes or moving particles along an SVG path) proportional to the watt value it represents. Arrow direction reverses automatically when power flows the other way (e.g. feeding excess solar back to the grid).
+
+**Data topics:**
+
+| Attribute | Unit | Description |
+|---|---|---|
+| `subscribe-solar` | mqttTopic | Current solar generation (W) |
+| `subscribe-grid` | mqttTopic | Grid import/export (W, positive = import, negative = export) |
+| `subscribe-load` | mqttTopic | Current house consumption (W) |
+| `subscribe-battery` | mqttTopic | Battery charge/discharge (W, optional) |
+| `subscribe-battery-soc` | mqttTopic | Battery state of charge (%, optional) |
+
+**Summary panels (below the flow diagram):**
+
+Configurable tabs or rows showing accumulated energy for the current day and week, read from separate topics:
+
+| Attribute | Description |
+|---|---|
+| `subscribe-solar-today` | Solar yield today (kWh) |
+| `subscribe-solar-week` | Solar yield this week (kWh) |
+| `subscribe-grid-import-today` | Grid import today (kWh) |
+| `subscribe-grid-export-today` | Grid export today (kWh) |
+| `subscribe-load-today` | House consumption today (kWh) |
+
+**Display attributes:**
+
+| Attribute | Type | Default | Description |
+|---|---|---|---|
+| `show-battery` | boolean | `false` | Show the battery node and its flow arrows |
+| `show-summary` | boolean | `true` | Show the daily/weekly summary rows below the diagram |
+| `pv-label` | string | `Solar` | Label shown on the solar node (e.g. "Balcony PV", "Rooftop") |
+| `grid-label` | string | `Grid` | Label on the grid node |
+| `load-label` | string | `House` | Label on the load/consumption node |
+| `battery-label` | string | `Battery` | Label on the battery node |
+| `unit` | string | `W` | Unit for live power values |
+| `animate-speed` | number | `1` | Animation speed multiplier for flow arrows (0 = static) |
+| `color-solar` | color | `#fdd835` | Solar node and flow arrow colour |
+| `color-grid` | color | `#42a5f5` | Grid node and arrow colour |
+| `color-load` | color | `--primary-text-color` | Load node colour |
+| `color-battery` | color | `#66bb6a` | Battery node and arrow colour |
+| `color-export` | color | `#26a69a` | Export-to-grid arrow colour (overrides `color-grid`) |
+
+**Editor preview:** renders static arrows at mid-scale values with node labels. No animation in editor mode.
+
+**Default size:** 320×280 px (wider with battery node visible).
+
+*Research note: HA has a dedicated energy cards section and a new **Distribution card** (introduced 2024) that renders energy distribution as a horizontal stacked bar / percentage chart — useful as a companion to the flow diagram. A future E14b could add a `feezal-element-material-energy-distribution` for exactly this: a horizontal stacked bar showing % from solar / grid / battery.*
+
+
+### E22 — Computer stats element (`feezal-element-material-computer-stats`) ✅
+
+A system monitoring element that visualises CPU, RAM, GPU and other resource metrics as a set of concentric ring gauges. Designed for dashboards showing server, NAS, Raspberry Pi, or gaming PC health. Data arrives from MQTT — any publisher works: [glances](https://github.com/nicolargo/glances) MQTT export, [MQTT System Stats](https://github.com/mqttx/mqttx) side-cars, Node-RED system nodes, or custom scripts.
+
+> **Conventions:** dual-payload — (per-topic only) · auto-discovery: not a single-component target · custom inspector: N6 (ring builder: reorder, threshold, colour + info-row editor). See [Element platform conventions](#element-platform-conventions).
+
+**Visual concept:** stacked concentric SVG rings (similar to the iOS Activity rings / Apple Watch fitness rings). Each ring represents one metric. The ring fills clockwise from 0 % to 100 %. A subtle gap remains at the top (starting position). A metric label + current value is shown to the right of (or below) the ring set when space allows.
+
+Rings are rendered innermost→outermost in the order the user configures them. Up to 8 rings fit comfortably; with 3–5 rings the layout is cleanest. Each ring has an independent colour that pulses or changes when the value crosses a configurable warning/critical threshold.
+
+**Ring colour behaviour:**
+- Normal: ring colour as configured.
+- Warning threshold crossed: ring colour transitions to amber (`#ff9800`).
+- Critical threshold crossed: ring colour transitions to red (`#f44336`) and the ring label text also turns red.
+
+**Pre-configured metric slots** (each is optional; any combination can be enabled):
+
+| Slot key | Default label | Typical topic | Description |
+|---|---|---|---|
+| `cpu` | CPU | `stats/cpu` | CPU utilisation (0–100 %) |
+| `cpu-temp` | CPU °C | `stats/cpu_temp` | CPU temperature — ring fills relative to `max` (e.g. 100 °C) |
+| `ram` | RAM | `stats/ram` | RAM usage (0–100 %) |
+| `swap` | Swap | `stats/swap` | Swap / page file usage (0–100 %) |
+| `gpu` | GPU | `stats/gpu` | GPU utilisation (0–100 %) |
+| `gpu-mem` | VRAM | `stats/gpu_mem` | GPU memory usage (0–100 %) |
+| `gpu-temp` | GPU °C | `stats/gpu_temp` | GPU temperature |
+| `disk` | Disk | `stats/disk` | Disk usage (0–100 %) |
+| `load` | Load | `stats/load` | Load average (value scaled against `max`; default `max` = number of cores) |
+| `net-up` | ↑ | `stats/net_up` | Network upload (value scaled against `max` in Mbit/s) |
+| `net-down` | ↓ | `stats/net_down` | Network download |
+
+Up to 4 **custom rings** can also be defined via a `custom-rings` JSON attribute — each with a topic, label, min, max, and colour — for metrics that don't fit the pre-configured slots (e.g. a battery, a UPS load, a custom sensor).
+
+**Optional text rows below the rings:**
+
+A compact status bar beneath the ring set can show additional values that don't map well to a ring (e.g. uptime, IP address, kernel version, number of running processes). Each row is a `{label, subscribe}` pair in the `info-rows` JSON array.
+
+**Attributes:**
+
+| Attribute | Type | Default | Description |
+|---|---|---|---|
+| `subscribe-cpu` | mqttTopic | — | CPU utilisation (%) |
+| `subscribe-ram` | mqttTopic | — | RAM usage (%) |
+| `subscribe-swap` | mqttTopic | — | Swap usage (%) |
+| `subscribe-gpu` | mqttTopic | — | GPU utilisation (%) |
+| `subscribe-gpu-mem` | mqttTopic | — | VRAM usage (%) |
+| `subscribe-gpu-temp` | mqttTopic | — | GPU temperature |
+| `subscribe-cpu-temp` | mqttTopic | — | CPU temperature |
+| `subscribe-disk` | mqttTopic | — | Disk usage (%) |
+| `subscribe-load` | mqttTopic | — | Load average |
+| `subscribe-net-up` | mqttTopic | — | Upload (Mbit/s) |
+| `subscribe-net-down` | mqttTopic | — | Download (Mbit/s) |
+| `rings` | string | `["cpu","ram","gpu"]` | JSON array of slot keys to render, in inner→outer order |
+| `ring-width` | number | `10` | Width of each ring in px |
+| `ring-gap` | number | `4` | Gap between rings in px |
+| `warn-threshold` | number | `75` | % value at which ring turns amber |
+| `crit-threshold` | number | `90` | % value at which ring turns red |
+| `cpu-color` | color | `#42a5f5` | Ring colour for CPU |
+| `ram-color` | color | `#66bb6a` | Ring colour for RAM |
+| `gpu-color` | color | `#ab47bc` | Ring colour for GPU |
+| `disk-color` | color | `#26c6da` | Ring colour for Disk |
+| `temp-color` | color | `#ff7043` | Ring colour for temperature slots |
+| `net-color` | color | `#ffca28` | Ring colour for network slots |
+| `custom-rings` | string | `[]` | JSON array of `{subscribe, label, color, min, max}` extra ring definitions |
+| `info-rows` | string | `[]` | JSON array of `{label, subscribe}` text rows below the rings |
+| `show-labels` | boolean | `true` | Show metric label + value alongside each ring |
+| `show-legend` | boolean | `true` | Show a colour-coded legend below the rings listing all active metrics and current values |
+| `animate` | boolean | `true` | Animate ring fill transitions |
+| `host-label` | string | `""` | Optional hostname / machine label shown at the top of the element |
+
+**Load average scaling:** when `subscribe-load` is used, `load-cores` (integer, default `4`) defines the maximum — a load of 4.0 on a 4-core machine fills the ring to 100 %. Independently configurable via `load-max` if the auto-scale is not desired.
+
+**Temperature scaling:** temperature rings use `temp-max` (default `100`) as the 100 % mark. The ring fills to `current / temp-max`.
+
+**Network ring scaling:** each direction uses its own `net-max` (default `1000` Mbit/s). Values above max clamp at 100 % fill and the label turns bold.
+
+**Editor preview:** renders three rings (CPU, RAM, GPU) at static fill values (65 %, 48 %, 30 %) with placeholder labels. No animation in editor mode.
+
+**Default size:** 200×200 px (square; ring diameter scales to the shorter dimension). Grows vertically when `show-legend` is true.
+
+
+### E23 — Map element (`feezal-element-material-map`) ✅
+
+A geographic map widget that displays one or more tracked positions on an OpenStreetMap tile layer via [Leaflet.js](https://leafletjs.com/). The primary and most compelling use-case is **[OwnTracks](https://owntracks.org/)** family/friends/device tracking: with a single MQTT wildcard subscription the element auto-discovers every person in the household and renders them as avatar pins on the map — battery level, accuracy circle, geofence badges and all. Also works with any other MQTT position source (ioBroker material map's `lon;lat` string format, Node-RED GPS nodes, custom scripts, vehicle trackers via qtripp, etc.).
+
+---
+
+#### OwnTracks integration 
+
+[OwnTracks](https://owntracks.org/) is an open-source mobile app (iOS + Android) that publishes the device's location to a private MQTT broker. It follows a well-documented JSON protocol:
+
+**Topic structure:**
+- `owntracks/<user>/<device>` — location messages (`_type: "location"`)
+- `owntracks/<user>/<device>/info` — card messages (`_type: "card"`) with a display name and **face** (Base64-encoded PNG avatar)
+
+**Location payload** (key fields from `_type: "location"`):
+```json
+{
+  "_type": "location",
+  "lat": 48.137,
+  "lon": 11.575,
+  "tst": 1719388800,
+  "tid": "JD",
+  "acc": 15,
+  "batt": 72,
+  "vel": 0,
+  "inregions": ["Home"]
+}
+```
+
+**Card payload** (published to `owntracks/<user>/<device>/info`, retained):
+```json
+{
+  "_type": "card",
+  "tid": "JD",
+  "name": "Jane",
+  "face": "<base64-encoded PNG>"
+}
+```
+
+The `face` field is a Base64-encoded PNG set directly in the OwnTracks app — it can be any profile picture, and naturally lends itself to fun/custom avatars. When the feezal element receives a card message it decodes the PNG and renders it as a circular avatar pin on the map for that person. If no card is available, a coloured circle with the `tid` initials is used as fallback.
+
+**Auto-discovery:** the element subscribes to `owntracks/+/+` (wildcard) and `owntracks/+/+/info` on startup. Every person who publishes while the dashboard is open is automatically added to the live person roster — no manual per-person configuration required. Persons whose broker connection drops trigger an LWT (`_type: "lwt"`) which the element uses to show a greyed-out "offline" marker.
+
+**Per-person display config — N6 custom inspector:**
+
+> ⚠️ **This element requires a custom inspector (N6).** Because the person roster is built dynamically from MQTT wildcard subscriptions, configuring per-person overrides (nickname, avatar override, colour, visibility) through the standard flat attribute inspector would be terrible UX. The element ships with a dedicated inspector component (a full `<feezal-inspector-map>` web component loaded via N6) that renders:
+>
+> - A live **person roster** table: shows each auto-discovered `owntracks/<user>/<device>` alongside their card avatar (if received), last-seen timestamp, battery %, and current geofence region.
+> - **Per-person overrides:** nickname field, custom avatar upload (PNG/JPG → stored as data-URL in element config), pin colour picker, "show on map" toggle.
+> - **Home marker:** lat/lon input + label for a static home-base pin.
+> - **Waypoints strip:** optional list of saved OwnTracks waypoints (geofences) to overlay as named circles on the map.
+> - **Tile provider selector** and zoom defaults.
+
+The element stores the person overrides as a JSON blob in a single `persons` attribute that the custom inspector manages — the dashboard author never edits this JSON by hand.
+
+---
+
+#### General marker mode (non-OwnTracks)
+
+When `owntracks-mode` is `false`, the element works as a generic multi-marker map:
+
+**Coordinate formats accepted** (configurable via `coord-format`):
+- Separate topics for latitude and longitude (two `mqttTopic` attributes)
+- Combined `lat,lon` string on one topic (comma- or semicolon-separated — ioBroker compat)
+- JSON object `{"lat": 48.1, "lon": 11.6}` on one topic
+
+A single-marker shorthand via top-level `subscribe-lat` / `subscribe-lon` (or `subscribe-position`) covers the common single-device case. For multiple markers in generic mode, a `markers` JSON attribute configures each one: `{subscribe, label, icon, color, coord-format}`.
+
+---
+
+**Attributes:**
+
+| Attribute | Type | Default | Description |
+|---|---|---|---|
+| `owntracks-mode` | boolean | `true` | Enable OwnTracks auto-discovery (subscribes `owntracks/+/+` and `owntracks/+/+/info`) |
+| `owntracks-prefix` | string | `owntracks` | MQTT topic prefix (override if using a custom `pubTopicBase` in OwnTracks config) |
+| `persons` | string | `{}` | JSON blob of per-person overrides; managed by the custom inspector (N6) |
+| `subscribe-lat` | mqttTopic | — | Latitude topic — generic mode, single marker |
+| `subscribe-lon` | mqttTopic | — | Longitude topic — generic mode, single marker |
+| `subscribe-position` | mqttTopic | — | Combined position topic (parsed per `coord-format`) |
+| `coord-format` | `lat,lon` \| `lon,lat` \| `json` | `lat,lon` | How to parse a combined position topic |
+| `markers` | string | `[]` | JSON array of generic marker definitions `{subscribe, label, icon, color, coord-format}` |
+| `zoom` | number | `13` | Initial zoom level (1–19) |
+| `tile-url` | string | OSM default | Custom tile server URL template |
+| `home-lat` | number | — | Static home-base marker latitude |
+| `home-lon` | number | — | Static home-base marker longitude |
+| `home-label` | string | `Home` | Label for the home-base marker |
+| `show-zoom` | boolean | `true` | Show Leaflet zoom controls |
+| `show-accuracy` | boolean | `true` | Show accuracy circle around OwnTracks markers |
+| `show-battery` | boolean | `true` | Show battery % badge on OwnTracks avatar pins |
+| `show-regions` | boolean | `true` | Show geofence region name badge on pins (`inregions[0]`) |
+| `follow` | boolean | `true` | Auto-pan/zoom to keep all active markers in view |
+| `stale-minutes` | number | `60` | Minutes after last fix before a marker is considered stale and shown dimmed |
+| `label` | string | `""` | Optional overlay label in top-left corner of the map |
+
+**Editor mode:** Leaflet loads and renders the configured `home-lat`/`home-lon` or a world-centre default. A placeholder house pin is shown. No MQTT connection in editor.
+
+**Dependency:** Leaflet.js (~42 KB gzip) — ES module import inside the element, not global. Tiles fetched from the configured tile server directly by the browser.
+
+**Default size:** 320×240 px.
+
+
+
 ---
 
 ## Editor UX
