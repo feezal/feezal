@@ -46,6 +46,14 @@ class FeezalSidebarHistory extends LitElement {
             background: var(--feezal-bg, #fff); box-sizing: border-box; overflow: hidden;
             font-size: 13px; color: var(--feezal-color, #333);
         }
+        .material-icons {
+            font-family: 'Material Icons';
+            font-weight: normal; font-style: normal;
+            font-size: inherit; line-height: 1;
+            letter-spacing: normal; text-transform: none;
+            display: inline-block; white-space: nowrap;
+            -webkit-font-smoothing: antialiased;
+        }
 
         /* ── Header ─────────────────────────────────────────────────── */
         .hdr {
