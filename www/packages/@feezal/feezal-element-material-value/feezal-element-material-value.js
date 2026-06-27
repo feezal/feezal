@@ -19,8 +19,8 @@ class FeezalElementMaterialValue extends FeezalElement {
             description: 'Material Design 3 styled value tile. Shows a large numeric or text value from an MQTT topic.',
             attributes: [
                 'subscribe',
-                {name: 'subscribe-json-path', type: 'string', default: '',
-                    help: 'JSON key to extract from a JSON payload. E.g. "temperature" reads from {"temperature":22}.'},
+                {name: 'message-property', type: 'string', default: 'payload',
+                    help: 'Dot-notation path to the value within the MQTT message. Default "payload" uses msg.payload; use e.g. "payload.temperature" to navigate into a JSON payload.'},
                 {name: 'label',           type: 'string',  help: 'Caption shown above or below the value.'},
                 {name: 'unit',            type: 'string',  help: 'Unit string shown after the value (e.g. °C, %, W).'},
                 {name: 'prefix',          type: 'string',  help: 'String prepended before the value (e.g. $, #).'},
@@ -43,8 +43,7 @@ class FeezalElementMaterialValue extends FeezalElement {
         prefix:        {type: String, reflect: true},
         icon:          {type: String, reflect: true},
         digits:        {type: Number, reflect: true},
-        labelPosition:     {type: String, reflect: true, attribute: 'label-position'},
-        subscribeJsonPath: {type: String, reflect: true, attribute: 'subscribe-json-path'},
+        labelPosition: {type: String, reflect: true, attribute: 'label-position'},
         _rawValue:     {state: true}
     };
 
@@ -104,27 +103,15 @@ class FeezalElementMaterialValue extends FeezalElement {
         this.prefix        = '';
         this.icon          = '';
         this.digits        = undefined;
-        this.labelPosition     = 'below';
-        this.subscribeJsonPath = '';
+        this.labelPosition = 'below';
         this._rawValue     = null;
-    }
-
-    _extractPayload(msg) {
-        let v = this.getProperty(msg, this.messageProperty);
-        if (this.subscribeJsonPath && typeof v === 'string') {
-            try {
-                const obj = JSON.parse(v);
-                v = this.getProperty(obj, this.subscribeJsonPath);
-            } catch { /* not JSON */ }
-        }
-        return v;
     }
 
     connectedCallback() {
         super.connectedCallback();
         if (!feezal.isEditor && this.subscribe) {
             this.addSubscription(this.subscribe, msg => {
-                this._rawValue = this._extractPayload(msg);
+                this._rawValue = this.getProperty(msg, this.messageProperty);
             });
         }
     }

@@ -13,8 +13,8 @@ class FeezalElementMaterialSwitch extends FeezalElement {
             description: 'Material Design 3 toggle switch. Subscribes to an MQTT topic for state and publishes ON/OFF on toggle.',
             attributes: [
                 'subscribe',
-                {name: 'subscribe-json-path', type: 'string', default: '',
-                    help: 'JSON key to extract from a JSON payload. E.g. "state" reads from {"state":"ON"}.'},
+                {name: 'message-property', type: 'string', default: 'payload',
+                    help: 'Dot-notation path to the value within the MQTT message. Default "payload" uses msg.payload; use e.g. "payload.state" to navigate into a JSON payload.'},
                 {name: 'publish',        type: 'mqttTopic', help: 'Topic to publish ON or OFF to on toggle.'},
                 {name: 'label',          type: 'string',  help: 'Optional label shown to the right of the switch.'},
                 {name: 'payload-on',     type: 'string',  help: 'Payload published when switched on.', default: 'ON'},
@@ -31,9 +31,8 @@ class FeezalElementMaterialSwitch extends FeezalElement {
         label:      {type: String,  reflect: true},
         payloadOn:  {type: String,  reflect: true, attribute: 'payload-on'},
         payloadOff: {type: String,  reflect: true, attribute: 'payload-off'},
-        icons:             {type: Boolean, reflect: true},
-        subscribeJsonPath: {type: String,  reflect: true, attribute: 'subscribe-json-path'},
-        _on:        {state: true}
+        icons: {type: Boolean, reflect: true},
+        _on:   {state: true}
     };
 
     static styles = [feezalBaseStyles, css`
@@ -71,27 +70,15 @@ class FeezalElementMaterialSwitch extends FeezalElement {
         this.label      = '';
         this.payloadOn  = 'ON';
         this.payloadOff = 'OFF';
-        this.icons             = false;
-        this.subscribeJsonPath = '';
-        this._on        = false;
-    }
-
-    _extractPayload(msg) {
-        let v = this.getProperty(msg, this.messageProperty);
-        if (this.subscribeJsonPath && typeof v === 'string') {
-            try {
-                const obj = JSON.parse(v);
-                v = this.getProperty(obj, this.subscribeJsonPath);
-            } catch { /* not JSON */ }
-        }
-        return v;
+        this.icons = false;
+        this._on   = false;
     }
 
     connectedCallback() {
         super.connectedCallback();
         if (!feezal.isEditor && this.subscribe) {
             this.addSubscription(this.subscribe, msg => {
-                const v = this._extractPayload(msg);
+                const v = this.getProperty(msg, this.messageProperty);
                 this._on = v === this.payloadOn || v === true || v === 1 || v === '1';
             });
         }

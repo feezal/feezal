@@ -13,8 +13,8 @@ class FeezalElementMaterialSlider extends FeezalElement {
             description: 'Material Design 3 slider. Subscribes to an MQTT topic for the current value and publishes the numeric value on change.',
             attributes: [
                 'subscribe',
-                {name: 'subscribe-json-path', type: 'string', default: '',
-                    help: 'JSON key to extract from a JSON payload. E.g. "level" reads from {"level":75}.'},
+                {name: 'message-property', type: 'string', default: 'payload',
+                    help: 'Dot-notation path to the value within the MQTT message. Default "payload" uses msg.payload; use e.g. "payload.level" to navigate into a JSON payload.'},
                 {name: 'publish',  type: 'mqttTopic', help: 'Topic to publish the numeric value to on change.'},
                 {name: 'min',      type: 'number',  help: 'Minimum value.', default: 0},
                 {name: 'max',      type: 'number',  help: 'Maximum value.', default: 100},
@@ -31,8 +31,7 @@ class FeezalElementMaterialSlider extends FeezalElement {
         min:     {type: Number,  reflect: true},
         max:     {type: Number,  reflect: true},
         step:    {type: Number,  reflect: true},
-        labeled:           {type: Boolean, reflect: true},
-        subscribeJsonPath: {type: String,  reflect: true, attribute: 'subscribe-json-path'},
+        labeled: {type: Boolean, reflect: true},
         _value:  {state: true}
     };
 
@@ -66,27 +65,15 @@ class FeezalElementMaterialSlider extends FeezalElement {
         this.min     = 0;
         this.max     = 100;
         this.step    = 1;
-        this.labeled           = false;
-        this.subscribeJsonPath = '';
+        this.labeled = false;
         this._value  = 0;
-    }
-
-    _extractPayload(msg) {
-        let v = this.getProperty(msg, this.messageProperty);
-        if (this.subscribeJsonPath && typeof v === 'string') {
-            try {
-                const obj = JSON.parse(v);
-                v = this.getProperty(obj, this.subscribeJsonPath);
-            } catch { /* not JSON */ }
-        }
-        return v;
     }
 
     connectedCallback() {
         super.connectedCallback();
         if (!feezal.isEditor && this.subscribe) {
             this.addSubscription(this.subscribe, msg => {
-                const v = Number(this._extractPayload(msg));
+                const v = Number(this.getProperty(msg, this.messageProperty));
                 if (!isNaN(v)) this._value = v;
             });
         }
