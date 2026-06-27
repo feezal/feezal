@@ -212,14 +212,16 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             flex-shrink: 0; background: none; border: none; cursor: pointer;
             color: var(--feezal-color, #888); font-size: 13px; line-height: 1; padding: 0 2px;
         }
-        .discovery-picker .dp-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+        .discovery-picker .dp-search-wrap {
+            padding: 4px 6px; border-bottom: 1px solid var(--feezal-border, #e0e0e0);
+            position: sticky; top: 0; background: var(--feezal-bg, #fff); z-index: 1;
+        }
         .discovery-picker .dp-search {
             width: 100%; box-sizing: border-box; padding: 3px 7px; border-radius: 4px;
             border: 1px solid var(--feezal-border, #ccc); background: var(--feezal-bg, #fff);
             color: var(--feezal-color, #333); font-size: 12px; outline: none;
         }
         .discovery-picker .dp-search:focus { border-color: var(--sl-color-primary-500, #0ea5e9); }
-        .discovery-picker .dp-row { display: flex; align-items: center; gap: 4px; }
     `;
 
     constructor() {
@@ -837,24 +839,25 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         return html`
             <div class="discovery-picker">
                 <span class="dp-icon" title="Auto-discovered devices (${allMatches.length})">\u26A1</span>
-                <div class="dp-body">
+                <sl-select class="dp-select" size="small" hoist
+                    placeholder="Link a discovered device\u2026"
+                    value="${linkedId}"
+                    @sl-hide="${() => { this._discoveryFilter = ''; }}"
+                    @sl-change="${e => this._onPickDiscovery(e.target.value)}">
                     ${showSearch ? html`
-                        <input class="dp-search" type="text"
-                            placeholder="Filter ${allMatches.length} devices\u2026"
-                            .value="${this._discoveryFilter || ''}"
-                            @input="${e => { this._discoveryFilter = e.target.value; }}"
-                            @keydown="${e => e.stopPropagation()}">` : ''}
-                    <div class="dp-row">
-                        <sl-select class="dp-select" size="small" hoist
-                            placeholder="Link a discovered device\u2026"
-                            value="${linkedId}"
-                            @sl-change="${e => this._onPickDiscovery(e.target.value)}">
-                            ${matches.map(m => html`<sl-option value="${m.discovery_id}">${this._discoveryOptionLabel(m)}</sl-option>`)}
-                            ${!matches.length ? html`<sl-option value="" disabled>No matches for \u201c${this._discoveryFilter}\u201d</sl-option>` : ''}
-                        </sl-select>
-                        ${linkedId ? html`<button class="dp-clear" title="Unlink device" @click="${this._onClearDiscovery}">&#x2715;</button>` : ''}
-                    </div>
-                </div>
+                        <div class="dp-search-wrap"
+                            @click="${e => e.stopPropagation()}"
+                            @mousedown="${e => e.stopPropagation()}">
+                            <input class="dp-search" type="text"
+                                placeholder="Filter ${allMatches.length} devices\u2026"
+                                .value="${this._discoveryFilter || ''}"
+                                @input="${e => { e.stopPropagation(); this._discoveryFilter = e.target.value; }}"
+                                @keydown="${e => e.stopPropagation()}">
+                        </div>` : ''}
+                    ${matches.map(m => html`<sl-option value="${m.discovery_id}">${this._discoveryOptionLabel(m)}</sl-option>`)}
+                    ${!matches.length ? html`<sl-option value="" disabled>No matches for \u201c${this._discoveryFilter}\u201d</sl-option>` : ''}
+                </sl-select>
+                ${linkedId ? html`<button class="dp-clear" title="Unlink device" @click="${this._onClearDiscovery}">&#x2715;</button>` : ''}
             </div>
         `;
     }
