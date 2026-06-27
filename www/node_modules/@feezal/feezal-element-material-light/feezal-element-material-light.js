@@ -181,7 +181,19 @@ class FeezalElementMaterialLight extends FeezalElement {
                 // Label
                 {name: 'label', type: 'string', default: '', help: 'Optional label shown below the circle.'}
             ],
-            styles: ['top', 'left', 'width', 'height', 'background', 'border-radius'],
+            styles: [
+                'top', 'left', 'width', 'height', 'background', 'border-radius',
+                // Theme-aware colour tokens — editable in the Style inspector.
+                // Leave blank to inherit the theme default (see :host below).
+                {property: '--feezal-light-ring-color',    type: 'color'},
+                {property: '--feezal-light-track-color',   type: 'color'},
+                {property: '--feezal-light-surface-color', type: 'color'},
+                {property: '--feezal-light-text-color',    type: 'color'},
+                {property: '--feezal-light-label-color',   type: 'color'},
+                {property: '--feezal-light-off-color',     type: 'color'},
+                {property: '--feezal-light-button-color',  type: 'color'},
+                {property: '--feezal-light-error-color',   type: 'color'}
+            ],
             restrict: {minWidth: 120, minHeight: 140},
             defaultStyle: {width: '180px', height: '220px'}
         };
