@@ -89,8 +89,35 @@ class FeezalElementMaterialLight extends FeezalElement {
     static get feezal() {
         return {
             palette: {name: 'Light', category: 'Material', color: '#1565c0', icon: 'lightbulb'},
-            description: 'Smart light card — brightness ring, colour temperature, RGB/HS colour wheel, white channel, and effect selector.',
-            attributes: [
+            description: 'Smart light card — brightness ring, colour temperature, RGB/HS colour wheel, white channel, and effect selector.',            // ── N12 Auto-Discovery descriptor ──────────────────────────────
+            // Maps discovery config keys (after abbreviation expansion) to feezal
+            // element attributes. Transforms: unit 'mired\u2192kelvin' converts colour-temp;
+            // 'first' takes the first item from an array.
+            discovery: {
+                component: 'light',
+                map: {
+                    // State & command topics (separate mode)
+                    state_topic:              'subscribe-state',
+                    command_topic:            'publish-state',
+                    brightness_state_topic:   'subscribe-brightness',
+                    brightness_command_topic: 'publish-brightness',
+                    color_temp_state_topic:   'subscribe-color-temp',
+                    color_temp_command_topic: 'publish-color-temp',
+                    rgb_state_topic:          'subscribe-rgb',
+                    rgb_command_topic:        'publish-rgb',
+                    // Brightness scale (e.g. 254 for zigbee2mqtt) \u2192 brightness-max attribute
+                    brightness_scale:         'brightness-max',
+                    // Colour temperature range: mireds \u2192 kelvin
+                    // max_mireds (warmest) \u2192 color-temp-min (lowest kelvin)
+                    // min_mireds (coolest) \u2192 color-temp-max (highest kelvin)
+                    max_mireds: {attr: 'color-temp-min', unit: 'mired\u2192kelvin'},
+                    min_mireds: {attr: 'color-temp-max', unit: 'mired\u2192kelvin'},
+                    // Use the first supported colour mode to set the element mode
+                    supported_color_modes: {attr: 'mode', transform: 'first'},
+                    // Device name \u2192 label
+                    name: 'label',
+                },
+            },            attributes: [
                 // On/off
                 {name: 'subscribe-state',   type: 'mqttTopic', help: 'Topic receiving on/off state.'},
                 {name: 'publish-state',     type: 'mqttTopic', help: 'Topic to publish on/off.'},
