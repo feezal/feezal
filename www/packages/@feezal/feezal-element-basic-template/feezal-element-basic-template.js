@@ -64,7 +64,7 @@ class FeezalElementBasicTemplate extends FeezalElement {
             feezal.connection.unsubscribe(this._topicSubscription);
             this._topicSubscription = null;
         }
-        if (this.topic) {
+        if (this.subscribe) {
             this._topicSubscription = feezal.connection.sub(
                 this.subscribe,
                 msg => { this.msg = msg; }
