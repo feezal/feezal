@@ -279,6 +279,17 @@ class FeezalElementMaterialLight extends FeezalElement {
             --md-sys-color-primary:    var(--feezal-light-on-color);
             --md-sys-color-surface:    var(--feezal-light-surface-color);
             --md-sys-color-on-surface: var(--feezal-light-text-color);
+            /* Outlined-select field + dropdown menu theming (effect selector).
+               The menu surface, outline, label and selected-item colours all
+               read from the same theme tokens so the popup respects the theme. */
+            --md-sys-color-on-surface-variant:        var(--feezal-light-text-color);
+            --md-sys-color-outline:                   var(--feezal-light-off-color);
+            --md-sys-color-outline-variant:           var(--feezal-light-off-color);
+            --md-sys-color-surface-container:         var(--feezal-light-surface-color);
+            --md-sys-color-surface-container-high:    var(--feezal-light-surface-color);
+            --md-sys-color-surface-container-highest: var(--feezal-light-surface-color);
+            --md-sys-color-secondary-container:       var(--feezal-light-on-color);
+            --md-sys-color-on-secondary-container:    var(--feezal-light-surface-color);
         }
         .unavail {
             position: absolute;
@@ -938,6 +949,15 @@ const LIGHT_SECTIONS = [
     ]},
 ];
 
+// Optional, additive capabilities offered in json mode (no per-property topics
+// to derive enablement from, so they are toggled explicitly). Toggling one off
+// clears its backing config; toggling on reveals the inline editor.
+const JSON_CAPABILITIES = [
+    {id: 'effects', title: 'Effects', topics: [
+        {attr: 'effects', label: 'Available (comma-separated)', placeholder: 'colorloop, rainbow, …'},
+    ]},
+];
+
 class FeezalElementMaterialLightInspector extends LitElement {
     static properties = {
         element: {attribute: false},
@@ -1030,13 +1050,13 @@ class FeezalElementMaterialLightInspector extends LitElement {
         return html`
             <div class="field">
                 <label>${t.label}</label>
-                <sl-input size="small" autocomplete="off" placeholder="mqtt/topic" value="${this._val(t.attr)}"
+                <sl-input size="small" autocomplete="off" placeholder="${t.placeholder ?? 'mqtt/topic'}" value="${this._val(t.attr)}"
                     @sl-change="${e => this._onInput(t.attr, e)}"></sl-input>
             </div>`;
     }
 
     _renderTopics() {
-        // json mode → single State & Control section
+        // json mode → single State & Control section + optional capabilities
         if (this._val('payload-mode') === 'json') {
             return html`
                 <div class="hint">JSON mode — one topic carries the whole state object.</div>
@@ -1046,7 +1066,19 @@ class FeezalElementMaterialLightInspector extends LitElement {
                         ${this._topicInput({attr: 'subscribe', label: 'Subscribe (state)'})}
                         ${this._topicInput({attr: 'publish',   label: 'Publish (…/set)'})}
                     </div>
-                </div>`;
+                </div>
+                ${JSON_CAPABILITIES.map(sec => {
+                    const enabled = this._sectionEnabled(sec);
+                    return html`
+                        <div class="section">
+                            <div class="sec-head ${enabled ? '' : 'collapsed'}">
+                                <span class="sec-title">${sec.title}</span>
+                                <sl-switch size="small" ?checked="${enabled}"
+                                    @sl-change="${e => this._toggleSection(sec, e)}"></sl-switch>
+                            </div>
+                            ${enabled ? html`<div class="sec-body">${sec.topics.map(t => this._topicInput(t))}</div>` : ''}
+                        </div>`;
+                })}`;
         }
 
         // separate mode → always-on State section + capability-gated sections
@@ -1073,11 +1105,14 @@ class FeezalElementMaterialLightInspector extends LitElement {
     }
 
     _renderConfig() {
-        const ctEnabled = this._val('payload-mode') === 'json' ||
+        const isJson = this._val('payload-mode') === 'json';
+        const ctEnabled = isJson ||
             this._sectionEnabled(LIGHT_SECTIONS.find(s => s.id === 'color_temp'));
-        const brEnabled = this._val('payload-mode') === 'json' ||
+        const brEnabled = isJson ||
             this._sectionEnabled(LIGHT_SECTIONS.find(s => s.id === 'brightness'));
-        const fxEnabled = this._val('payload-mode') === 'json' ||
+        // In json mode the effect list is toggled from the Topics → Capabilities
+        // section, so it is not duplicated here.
+        const fxEnabled = !isJson &&
             this._sectionEnabled(LIGHT_SECTIONS.find(s => s.id === 'effects'));
 
         return html`
