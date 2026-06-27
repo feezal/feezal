@@ -25,6 +25,17 @@ docker run -d --name feezal -p 3000:3000 -v feezal-data:/data ghcr.io/feezal/fee
 
 Then open `http://localhost:3000/editor/` in a browser.
 
+**Updating to a new release**
+
+Your dashboard data is stored in the named volume (`feezal-data`) and is never touched by the container itself, so updating is safe:
+
+```sh
+docker pull ghcr.io/feezal/feezal:latest
+docker stop feezal
+docker rm feezal
+docker run -d --name feezal -p 3000:3000 -v feezal-data:/data ghcr.io/feezal/feezal:latest
+```
+
 **CLI flags**
 
 | Flag | Default | Description |
