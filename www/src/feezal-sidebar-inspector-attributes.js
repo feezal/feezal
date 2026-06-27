@@ -192,13 +192,31 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         if (changed.has('selectedElems')) {
             this._rebuildItems();
         }
+        this._syncCustomInspector();
     }
 
     render() {
         // Resolve help text from the selected element's feezal descriptor.
         const el = this.selectedElems?.[0];
         const tagName = el?.name ? 'feezal-view' : el?.localName;
-        const feezalInfo = tagName ? window.customElements.get(tagName)?.feezal : null;
+        const cls = tagName ? window.customElements.get(tagName) : null;
+        const feezalInfo = cls?.feezal;
+        const customInspector = feezalInfo?.inspector;
+
+        // ── Custom inspector (N6) ──────────────────────────────────────────
+        // When the selected element declares feezal().inspector, render a host
+        // container. The actual custom element is injected imperatively in
+        // _syncCustomInspector() after the DOM update.
+        if (customInspector && this.selectedElems?.length === 1) {
+            return html`
+                <div id="custom-inspector-host"
+                    @feezal-attribute-changed="${this._onCustomAttrChanged}">
+                </div>
+                ${this._helpTip ? html`<div class="help-tip" style="left:${this._helpTip.x}px;top:${this._helpTip.y}px">${this._helpTip.text}</div>` : ''}
+            `;
+        }
+
+        // ── Standard attribute form ────────────────────────────────────────
         const desc = feezalInfo?.description;
         const links = feezalInfo?.links;
         const hasHelp = desc || (links && links.length > 0);
@@ -221,6 +239,50 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             ` : ''}
         ${this._helpTip ? html`<div class="help-tip" style="left:${this._helpTip.x}px;top:${this._helpTip.y}px">${this._helpTip.text}</div>` : ''}
         `;
+    }
+
+    // ── Custom inspector sync (N6) ────────────────────────────────────────
+    // Called after every render. Creates or updates the custom inspector
+    // element inside #custom-inspector-host if one is required.
+    _syncCustomInspector() {
+        const host = this.shadowRoot?.querySelector('#custom-inspector-host');
+        if (!host) return;
+
+        const el = this.selectedElems?.[0];
+        if (!el) { host.innerHTML = ''; return; }
+
+        // If the same custom inspector is already attached to this element, do nothing.
+        const existing = host.firstElementChild;
+        if (existing && existing.element === el) return;
+
+        const tagName = el.name ? 'feezal-view' : el.localName;
+        const inspectorTag = window.customElements.get(tagName)?.feezal?.inspector;
+        if (!inspectorTag) { host.innerHTML = ''; return; }
+
+        host.innerHTML = '';
+        const inspectorEl = document.createElement(inspectorTag);
+        inspectorEl.element = el;
+        host.appendChild(inspectorEl);
+    }
+
+    // Handles feezal-attribute-changed events dispatched by custom inspectors.
+    _onCustomAttrChanged(e) {
+        const {name, value} = e.detail || {};
+        if (!name) return;
+        this.selectedElems.forEach(element => {
+            if (value === null || value === undefined) {
+                element.removeAttribute(name);
+            } else if (typeof value === 'boolean') {
+                if (value) element.setAttribute(name, '');
+                else element.removeAttribute(name);
+            } else if (typeof value === 'object') {
+                element.setAttribute(name, JSON.stringify(value));
+            } else {
+                element.setAttribute(name, String(value));
+            }
+        });
+        feezal.app.change();
+        e.stopPropagation();
     }
 
     // ── Help-icon label slot ──────────────────────────────────────────────────
@@ -512,6 +574,13 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         const tagName = el.name ? 'feezal-view' : el.localName;
         const cls = window.customElements.get(tagName);
         if (!cls || !cls.feezal || !cls.feezal.attributes) {
+            this.items = [];
+            return;
+        }
+
+        // If the element declares a custom inspector (N6), skip the standard
+        // attribute form entirely — the inspector handles its own UI.
+        if (cls.feezal.inspector && this.selectedElems.length === 1) {
             this.items = [];
             return;
         }
