@@ -1030,7 +1030,7 @@ class FeezalElementMaterialLightInspector extends LitElement {
         return html`
             <div class="field">
                 <label>${t.label}</label>
-                <sl-input size="small" placeholder="mqtt/topic" value="${this._val(t.attr)}"
+                <sl-input size="small" autocomplete="off" placeholder="mqtt/topic" value="${this._val(t.attr)}"
                     @sl-change="${e => this._onInput(t.attr, e)}"></sl-input>
             </div>`;
     }
@@ -1110,12 +1110,12 @@ class FeezalElementMaterialLightInspector extends LitElement {
                 <div class="sec-body row">
                     <div class="field">
                         <label>On</label>
-                        <sl-input size="small" value="${this._val('payload-on') || 'on'}"
+                        <sl-input size="small" autocomplete="off" value="${this._val('payload-on') || 'on'}"
                             @sl-change="${e => this._onInput('payload-on', e)}"></sl-input>
                     </div>
                     <div class="field">
                         <label>Off</label>
-                        <sl-input size="small" value="${this._val('payload-off') || 'off'}"
+                        <sl-input size="small" autocomplete="off" value="${this._val('payload-off') || 'off'}"
                             @sl-change="${e => this._onInput('payload-off', e)}"></sl-input>
                     </div>
                 </div>
@@ -1127,12 +1127,12 @@ class FeezalElementMaterialLightInspector extends LitElement {
                     <div class="sec-body row">
                         <div class="field">
                             <label>Min</label>
-                            <sl-input type="number" size="small" value="${this._val('brightness-min') || '0'}"
+                            <sl-input type="number" size="small" autocomplete="off" value="${this._val('brightness-min') || '0'}"
                                 @sl-change="${e => this._onInput('brightness-min', e)}"></sl-input>
                         </div>
                         <div class="field">
                             <label>Max</label>
-                            <sl-input type="number" size="small" value="${this._val('brightness-max') || '100'}"
+                            <sl-input type="number" size="small" autocomplete="off" value="${this._val('brightness-max') || '100'}"
                                 @sl-change="${e => this._onInput('brightness-max', e)}"></sl-input>
                         </div>
                     </div>
@@ -1153,12 +1153,12 @@ class FeezalElementMaterialLightInspector extends LitElement {
                         <div class="row">
                             <div class="field">
                                 <label>Min (K)</label>
-                                <sl-input type="number" size="small" value="${this._val('color-temp-min') || '2700'}"
+                                <sl-input type="number" size="small" autocomplete="off" value="${this._val('color-temp-min') || '2700'}"
                                     @sl-change="${e => this._onInput('color-temp-min', e)}"></sl-input>
                             </div>
                             <div class="field">
                                 <label>Max (K)</label>
-                                <sl-input type="number" size="small" value="${this._val('color-temp-max') || '6500'}"
+                                <sl-input type="number" size="small" autocomplete="off" value="${this._val('color-temp-max') || '6500'}"
                                     @sl-change="${e => this._onInput('color-temp-max', e)}"></sl-input>
                             </div>
                         </div>
@@ -1171,7 +1171,7 @@ class FeezalElementMaterialLightInspector extends LitElement {
                     <div class="sec-body">
                         <div class="field">
                             <label>Available (comma-separated)</label>
-                            <sl-input size="small" value="${this._val('effects')}"
+                            <sl-input size="small" autocomplete="off" value="${this._val('effects')}"
                                 @sl-change="${e => this._onInput('effects', e)}"></sl-input>
                         </div>
                     </div>
@@ -1182,18 +1182,18 @@ class FeezalElementMaterialLightInspector extends LitElement {
                 <div class="sec-body">
                     <div class="field">
                         <label>Subscribe</label>
-                        <sl-input size="small" placeholder="…/availability" value="${this._val('subscribe-availability')}"
+                        <sl-input size="small" autocomplete="off" placeholder="…/availability" value="${this._val('subscribe-availability')}"
                             @sl-change="${e => this._onInput('subscribe-availability', e)}"></sl-input>
                     </div>
                     <div class="row">
                         <div class="field">
                             <label>Available</label>
-                            <sl-input size="small" value="${this._val('payload-available') || 'online'}"
+                            <sl-input size="small" autocomplete="off" value="${this._val('payload-available') || 'online'}"
                                 @sl-change="${e => this._onInput('payload-available', e)}"></sl-input>
                         </div>
                         <div class="field">
                             <label>Unavailable</label>
-                            <sl-input size="small" value="${this._val('payload-unavailable') || 'offline'}"
+                            <sl-input size="small" autocomplete="off" value="${this._val('payload-unavailable') || 'offline'}"
                                 @sl-change="${e => this._onInput('payload-unavailable', e)}"></sl-input>
                         </div>
                     </div>
@@ -1205,7 +1205,7 @@ class FeezalElementMaterialLightInspector extends LitElement {
                 <div class="sec-body">
                     <div class="field">
                         <label>Label</label>
-                        <sl-input size="small" value="${this._val('label')}"
+                        <sl-input size="small" autocomplete="off" value="${this._val('label')}"
                             @sl-change="${e => this._onInput('label', e)}"></sl-input>
                     </div>
                 </div>
