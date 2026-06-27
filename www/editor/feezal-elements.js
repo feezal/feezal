@@ -9,12 +9,19 @@ import '@feezal/feezal-element-basic-template';
 import '@feezal/feezal-element-basic-view';
 import '@feezal/feezal-element-connection-status';
 import '@feezal/feezal-element-material-button';
+import '@feezal/feezal-element-material-camera';
+import '@feezal/feezal-element-material-climate';
+import '@feezal/feezal-element-material-clock';
+import '@feezal/feezal-element-material-contact';
 import '@feezal/feezal-element-material-cover';
+import '@feezal/feezal-element-material-door-lock';
+import '@feezal/feezal-element-material-fan';
 import '@feezal/feezal-element-material-gauge';
 import '@feezal/feezal-element-material-light';
+import '@feezal/feezal-element-material-plant';
 import '@feezal/feezal-element-material-slider';
 import '@feezal/feezal-element-material-switch';
-import '@feezal/feezal-element-material-climate';
+import '@feezal/feezal-element-material-tank';
 import '@feezal/feezal-element-material-value';
 import '@feezal/feezal-element-paper-app-layout';
 import '@feezal/feezal-element-paper-badge';
@@ -49,12 +56,19 @@ window.feezal.elements = [
   "@feezal/feezal-element-basic-view",
   "@feezal/feezal-element-connection-status",
   "@feezal/feezal-element-material-button",
+  "@feezal/feezal-element-material-camera",
+  "@feezal/feezal-element-material-climate",
+  "@feezal/feezal-element-material-clock",
+  "@feezal/feezal-element-material-contact",
   "@feezal/feezal-element-material-cover",
+  "@feezal/feezal-element-material-door-lock",
+  "@feezal/feezal-element-material-fan",
   "@feezal/feezal-element-material-gauge",
   "@feezal/feezal-element-material-light",
+  "@feezal/feezal-element-material-plant",
   "@feezal/feezal-element-material-slider",
   "@feezal/feezal-element-material-switch",
-  "@feezal/feezal-element-material-climate",
+  "@feezal/feezal-element-material-tank",
   "@feezal/feezal-element-material-value",
   "@feezal/feezal-element-paper-app-layout",
   "@feezal/feezal-element-paper-badge",
