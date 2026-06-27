@@ -1,6 +1,6 @@
 {
   "name": "feezal",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "description": "WYSIWYG dashboard builder powered by Web Components and MQTT",
   "scripts": {
