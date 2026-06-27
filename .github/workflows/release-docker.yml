@@ -17,6 +17,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history needed for git log
 
       - name: Set up QEMU (multi-platform builds)
         uses: docker/setup-qemu-action@v3
@@ -53,7 +55,53 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Get previous tag
+        id: prev_tag
+        run: |
+          PREV=$(git tag --sort=-version:refname | grep -v "^${{ github.ref_name }}$" | head -1)
+          echo "tag=${PREV}" >> "$GITHUB_OUTPUT"
+
+      - name: Build release body
+        id: release_body
+        run: |
+          PREV="${{ steps.prev_tag.outputs.tag }}"
+          TAG="${{ github.ref_name }}"
+          REPO="${{ github.repository }}"
+
+          if [ -n "$PREV" ]; then
+            CHANGELOG="**Full Changelog**: https://github.com/${REPO}/compare/${PREV}...${TAG}"
+            RANGE="${PREV}..HEAD"
+          else
+            CHANGELOG="**Full Changelog**: https://github.com/${REPO}/commits/${TAG}"
+            RANGE="HEAD"
+          fi
+
+          COMMITS=$(git log "${RANGE}" --pretty=format:"- %s" --no-merges \
+            | grep -Ev "^- chore[:(]" || true)
+
+          {
+            echo 'body<<EOF'
+            echo "${CHANGELOG}"
+            echo ""
+            echo "## What's changed"
+            echo ""
+            echo "${COMMITS}"
+            echo ""
+            echo "## Update"
+            echo ""
+            echo "**Docker Compose** (recommended):"
+            echo '```sh'
+            echo "docker compose pull && docker compose up -d"
+            echo '```'
+            echo ""
+            echo "**Docker (manual):**"
+            echo '```sh'
+            echo "docker pull ghcr.io/feezal/feezal:latest"
+            echo '```'
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body: ${{ steps.release_body.outputs.body }}
