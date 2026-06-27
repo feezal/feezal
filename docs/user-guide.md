@@ -18,20 +18,12 @@
 
 ## 1. Installation & first run
 
-**npm / pnpm (recommended)**
-
 ```sh
-npm install -g feezal
-feezal --data ./my-dashboard
+docker pull ghcr.io/feezal/feezal:latest
+docker run -d --name feezal -p 3000:3000 -v feezal-data:/data ghcr.io/feezal/feezal:latest
 ```
 
 Then open `http://localhost:3000/editor/` in a browser.
-
-**Docker**
-
-```sh
-docker run -p 3000:3000 -v $(pwd)/data:/data ghcr.io/feezal/feezal:latest
-```
 
 **CLI flags**
 

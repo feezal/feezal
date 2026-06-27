@@ -26,15 +26,9 @@ Feezal lets you build live dashboards in a drag-and-drop editor, connect them to
 
 ## Quickstart
 
-### Docker
-
-Clone the repo and build the image locally:
-
 ```sh
-git clone https://github.com/feezal/feezal.git
-cd feezal
-docker build -t feezal .
-docker run -d --name feezal -p 3000:3000 -v feezal-data:/data feezal
+docker pull ghcr.io/feezal/feezal:latest
+docker run -d --name feezal -p 3000:3000 -v feezal-data:/data ghcr.io/feezal/feezal:latest
 ```
 
 Then open [http://localhost:3000/editor/](http://localhost:3000/editor/).
