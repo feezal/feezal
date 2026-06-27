@@ -1,6 +1,6 @@
 # feezal — Development & Release Guide
 
-This document covers the repository layout, development environment setup, build pipeline, versioning strategy, and the full release process for npm and Docker.
+This document covers the repository layout, development environment setup, build pipeline, versioning strategy, and the Docker release process.
 
 ---
 
@@ -10,11 +10,10 @@ This document covers the repository layout, development environment setup, build
 2. [Development environment](#2-development-environment)
 3. [Versioning](#3-versioning)
 4. [Building](#4-building)
-5. [Releasing — npm](#5-releasing--npm)
-6. [Releasing — Docker](#6-releasing--docker)
-7. [CI (continuous integration)](#7-ci-continuous-integration)
-8. [Installing element packages](#8-installing-element-packages)
-9. [Required repository secrets](#9-required-repository-secrets)
+5. [Releasing — Docker](#5-releasing--docker)
+6. [CI (continuous integration)](#6-ci-continuous-integration)
+7. [Installing element packages](#7-installing-element-packages)
+8. [Required repository secrets](#8-required-repository-secrets)
 
 ---
 
@@ -94,6 +93,8 @@ The root `npm install` script runs the full chain:
 3. `node scripts/generate-elements.js` — generates `www/editor/feezal-elements.js`
 4. `cd www && npm run build` — Vite production build
 
+> **Note**: this chain is defined as the `"install"` lifecycle script in the root `package.json`, so it runs automatically whenever `npm install` is invoked at the root.
+
 ### Starting the dev server
 
 Two terminals are needed — the Express backend and the Vite dev server:
@@ -118,7 +119,7 @@ The Vite config already proxies `/editor/feezal-elements.js` and all `/api/`, `/
 
 ```sh
 # From the repo root:
-npm test           # runs server tests then www tests (www currently has no tests)
+npm test           # runs server tests (www has no tests yet)
 
 # Directly:
 cd server && npx vitest run
@@ -127,18 +128,6 @@ cd server && npx vitest run
 ---
 
 ## 3. Versioning
-
-### Package versioning rules
-
-| Package | npm name | Versioning |
-|---|---|---|
-| Server | `feezal` | Lockstep **major**, independent minor/patch |
-| Each element/theme | `@feezal/feezal-element-*`, `@feezal/feezal-theme-*` | Lockstep **major**, independent minor/patch |
-| Scaffolder | `create-feezal-element` | Independent |
-
-**Lockstep major**: when a breaking API change is made, the major version is bumped on **every** package in the same release (server + all elements/themes). This prevents an element built for `feezal` v1 from accidentally being loaded with a v2 server.
-
-**Independent minor/patch**: element packages may be at `1.3.0` while the server is at `1.5.2`. Bug fixes to individual elements do not require a server release.
 
 ### Git tags
 
@@ -149,7 +138,7 @@ git tag v1.2.0
 git push origin v1.2.0
 ```
 
-Both the npm publish workflow and the Docker publish workflow fire on this event. There is no separate "release branch" — `master` is always the release branch.
+The Docker publish workflow fires on this event and pushes both a versioned tag and `latest` to GHCR. There is no separate "release branch" — `master` is always the release branch.
 
 ---
 
@@ -174,66 +163,27 @@ The build produces:
 - `www/dist/assets/` — JS/CSS chunks for the editor
 - `www/dist/feezal-builtin-elements.json` — list of any built-in elements bundled directly into the editor chunk
 
-### Assembling `server/dist/` for npm publish
+### Assembling the dist for Docker
 
-npm strips any directory named `node_modules/` during `npm publish`. Element packages therefore live in `packages/` inside `dist/`:
+The Docker build (Stage 1) assembles `server/dist/` so the production image can serve everything from one directory:
 
 ```sh
 cp -r www/dist/. server/dist/
 mkdir -p server/dist/packages
-cp -r www/node_modules/@feezal server/dist/packages/
+cp -r www/packages/@feezal server/dist/packages/
 ```
 
-After a global `npm install -g feezal`, the server's `wwwDir` defaults to `<install-root>/dist/` and `app.js` serves elements from `<wwwDir>/packages/` (falling back to `node_modules/` in dev).
+Element packages are copied from the real source directory (`www/packages/@feezal/`) rather than from `www/node_modules/@feezal/` (which contains npm workspace symlinks). After the copy, `server/dist/` contains:
+- `editor/`, `assets/`, `viewer-bundle.js` — Vite output
+- `packages/@feezal/` — all element and theme packages
 
 ---
 
-## 5. Releasing — npm
-
-### Automated (recommended)
-
-Push a `v*` tag. The **"Publish to npm"** GitHub Actions workflow (`.github/workflows/release-npm.yml`) runs automatically:
-
-1. `npm install` in server and www
-2. `npm test` — all tests must pass
-3. `node scripts/generate-elements.js` — generates `www/editor/feezal-elements.js`
-4. `cd www && npm run build` — Vite production build
-5. Copy `www/dist/` → `server/dist/`; copy element packages → `server/dist/packages/@feezal/`
-6. Publish `@feezal/feezal-server` (server) — skipped if this version is already on the registry
-7. Publish each `@feezal/*` package from `www/packages/@feezal/` — skipped individually if already published
-
-The workflow is **idempotent**: re-running the same tag after a partial failure is safe.
-
-Authentication is via the `NPM_TOKEN` secret (see [§9](#9-required-repository-secrets)). OIDC provenance attestation (`--provenance`) is enabled, so each published package gets a verifiable build attestation.
-
-### Manual (emergency only)
-
-```sh
-# 1. Build
-node scripts/generate-elements.js
-cd www && npm run build && cd ..
-
-# 2. Assemble
-cp -r www/dist/. server/dist/
-mkdir -p server/dist/packages && cp -r www/packages/@feezal server/dist/packages/
-
-# 3. Publish server
-cd server
-npm publish --access public
-
-# 4. Publish element packages
-for pkg_dir in ../www/packages/@feezal/*/; do
-  npm publish "$pkg_dir" --access public
-done
-```
-
----
-
-## 6. Releasing — Docker
+## 5. Releasing — Docker
 
 ### Automated
 
-The same `v*` tag push triggers the **"Publish Docker image"** workflow (`.github/workflows/release-docker.yml`):
+Pushing a `v*` tag triggers the **"Publish Docker image"** workflow (`.github/workflows/release-docker.yml`):
 
 1. Sets up QEMU + Docker Buildx for multi-platform builds (`linux/amd64`, `linux/arm64`)
 2. Logs in to **GitHub Container Registry (GHCR)** with `GITHUB_TOKEN` (no extra secret needed — OIDC-backed)
@@ -242,18 +192,16 @@ The same `v*` tag push triggers the **"Publish Docker image"** workflow (`.githu
    - `ghcr.io/feezal/feezal:latest` (on default branch only)
 4. Builds and pushes using GitHub Actions cache (`type=gha`)
 
-The image is **not pushed to Docker Hub** — only to GHCR.
-
 ### Multi-stage Dockerfile
 
 The `Dockerfile` has two stages:
 
 | Stage | Base | Purpose |
 |---|---|---|
-| `frontend-builder` | `node:22-alpine` | `git clone` from GitHub + npm install + Vite build |
-| production | `node:22-alpine` | Install server prod deps only; copy built frontend from stage 1 |
+| `frontend-builder` | `node:22-alpine` | `git clone` from GitHub + `npm install` (server + www) + Vite build |
+| production | `node:22-alpine` | Copies the full build output from stage 1 |
 
-Stage 1 clones the repo directly from GitHub (controlled by the `GIT_REF` build arg, default `master`). This avoids NTFS junction issues when building on Windows. The production image serves the frontend from `/app/server/dist/` and stores data in `/data` (mount a volume here).
+Stage 1 clones the repo directly from GitHub using the `GIT_REF` build arg (default `master`). This avoids NTFS junction issues when building on Windows. The CI workflow passes `GIT_REF=${{ github.ref_name }}` so releases build from the exact tag.
 
 ### Building locally
 
@@ -265,7 +213,7 @@ docker run -d --name feezal \
   feezal
 ```
 
-Open the editor at **http://localhost:3000/editor/**.
+To build a specific tag: `docker build --build-arg GIT_REF=v1.2.0 -t feezal .`
 
 ### Environment variables supported by the image
 
@@ -278,18 +226,18 @@ Open the editor at **http://localhost:3000/editor/**.
 
 ---
 
-## 7. CI (continuous integration)
+## 6. CI (continuous integration)
 
 The **"CI"** workflow (`.github/workflows/ci.yml`) runs on every push to any branch and on every pull request:
 
 1. `npm install --prefix server` — server dependencies
 2. `npm test --prefix server` — vitest unit + integration tests (covering API routes, storage adapter, topic matching)
 
-No Vite build or lint step is run in CI — only the server-side code is tested there. The build is only run as part of the release workflow.
+No Vite build or lint step is run in CI — only the server-side code is tested there. The build is only run as part of the Docker release workflow.
 
 ---
 
-## 8. Installing element packages
+## 7. Installing element packages
 
 ### Bundled elements (in the repo)
 
@@ -305,11 +253,10 @@ This runs the scaffolder (`packages/create-feezal-element/index.js`). For elemen
 
 ---
 
-## 9. Required repository secrets
+## 8. Required repository secrets
 
 | Secret | Where used | How to obtain |
 |---|---|---|
-| `NPM_TOKEN` | npm publish workflow | Create an **Automation** token on npmjs.com with publish access to the `feezal` org |
 | `GITHUB_TOKEN` | Docker publish workflow | Provided automatically by GitHub Actions — no setup needed |
 
-No other secrets are required. Docker publishing uses OIDC via `GITHUB_TOKEN`; npm provenance uses OIDC via the `id-token: write` permission.
+No other secrets are required. Docker publishing uses OIDC via `GITHUB_TOKEN` and the `packages: write` + `id-token: write` permissions declared in the workflow.
