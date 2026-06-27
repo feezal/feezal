@@ -99,6 +99,8 @@ class FeezalElementMaterialLight extends FeezalElement {
                 // Brightness
                 {name: 'subscribe-brightness', type: 'mqttTopic', help: 'Current brightness (0–100 %).'},
                 {name: 'publish-brightness',   type: 'mqttTopic', help: 'Publish brightness on ring release.'},
+                {name: 'brightness-min', type: 'number', default: 0,   size: 'half', help: 'Minimum brightness value on the MQTT topic.'},
+                {name: 'brightness-max', type: 'number', default: 100, size: 'half', help: 'Maximum brightness value on the MQTT topic.'},
                 // Colour temperature
                 {name: 'subscribe-color-temp', type: 'mqttTopic', help: 'Current colour temperature.'},
                 {name: 'publish-color-temp',   type: 'mqttTopic', help: 'Publish colour temperature.'},
@@ -139,6 +141,8 @@ class FeezalElementMaterialLight extends FeezalElement {
         payloadOff:         {type: String, reflect: true, attribute: 'payload-off'},
         subscribeBrightness:{type: String, reflect: true, attribute: 'subscribe-brightness'},
         publishBrightness:  {type: String, reflect: true, attribute: 'publish-brightness'},
+        brightnessMin:      {type: Number, reflect: true, attribute: 'brightness-min'},
+        brightnessMax:      {type: Number, reflect: true, attribute: 'brightness-max'},
         subscribeColorTemp: {type: String, reflect: true, attribute: 'subscribe-color-temp'},
         publishColorTemp:   {type: String, reflect: true, attribute: 'publish-color-temp'},
         colorTempUnit:      {type: String, reflect: true, attribute: 'color-temp-unit'},
@@ -230,6 +234,8 @@ class FeezalElementMaterialLight extends FeezalElement {
         this.payloadOff          = 'off';
         this.subscribeBrightness = '';
         this.publishBrightness   = '';
+        this.brightnessMin       = 0;
+        this.brightnessMax       = 100;
         this.subscribeColorTemp  = '';
         this.publishColorTemp    = '';
         this.colorTempUnit       = 'kelvin';
@@ -278,7 +284,11 @@ class FeezalElementMaterialLight extends FeezalElement {
         if (this.subscribeBrightness) {
             this.addSubscription(this.subscribeBrightness, msg => {
                 const v = Number(this.getProperty(msg, this.messageProperty));
-                if (!isNaN(v)) this._brt = Math.max(0, Math.min(100, v));
+                if (!isNaN(v)) {
+                    const min = this.brightnessMin ?? 0;
+                    const max = this.brightnessMax ?? 100;
+                    this._brt = max === min ? 0 : Math.max(0, Math.min(100, (v - min) / (max - min) * 100));
+                }
             });
         }
         if (this.subscribeColorTemp) {
@@ -385,7 +395,12 @@ class FeezalElementMaterialLight extends FeezalElement {
             const final = this._dragBrt;
             this._dragBrt = null;
             this._brt = final;
-            if (this.publishBrightness) feezal.connection.pub(this.publishBrightness, String(final));
+            if (this.publishBrightness) {
+                const min = this.brightnessMin ?? 0;
+                const max = this.brightnessMax ?? 100;
+                const raw = Math.round(min + (final / 100) * (max - min));
+                feezal.connection.pub(this.publishBrightness, String(raw));
+            }
         };
         document.addEventListener('pointermove', onMove);
         document.addEventListener('pointerup', onUp);
