@@ -86,7 +86,8 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         _completionIdx:     {state: true},  // item index with open completions (-1 = none)
         _completions:       {state: true},  // string[] — current completions
         _completionCursor:  {state: true},  // keyboard-navigation cursor in list
-        _helpTip:           {state: true}   // custom tooltip: { text, x, y } | null
+        _helpTip:           {state: true},  // custom tooltip: { text, x, y } | null
+        _discoveryMatch:    {state: true}   // discovered entity matching a topic field | null
     };
 
     static styles = css`
@@ -175,6 +176,26 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             border: 1px solid var(--feezal-border, #ccc); border-radius: 3px;
             cursor: pointer; background: var(--feezal-bg, #fff);
         }
+        /* ── Auto-discovery banner (N12) ───────────────────────────────── */
+        .discovery-banner {
+            display: flex; align-items: center; gap: 6px;
+            padding: 6px 10px; margin: 0 0 8px;
+            background: var(--sl-color-warning-100, #fef3c7);
+            border: 1px solid var(--sl-color-warning-400, #fbbf24);
+            border-radius: 6px; font-size: 12px; line-height: 1.4;
+            color: var(--feezal-color, #333);
+        }
+        .discovery-banner .disc-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .discovery-banner .disc-name { font-weight: 600; }
+        .disc-apply {
+            flex-shrink: 0; background: var(--sl-color-warning-500, #f59e0b); color: #fff;
+            border: none; border-radius: 4px; padding: 2px 8px; cursor: pointer; font-size: 11px;
+        }
+        .disc-apply:hover { background: var(--sl-color-warning-600, #d97706); }
+        .disc-dismiss {
+            flex-shrink: 0; background: none; border: none; cursor: pointer;
+            color: var(--feezal-color, #888); font-size: 14px; line-height: 1; padding: 0 2px;
+        }
     `;
 
     constructor() {
@@ -186,6 +207,13 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         this._completionCursor = -1;
         this._completionTimer  = null;
         this._helpTip          = null;
+        this._discoveryMatch   = null;
+        this.__discoveryEntities = []; // non-reactive cache
+    }
+
+    connectedCallback() {
+        super.connectedCallback();
+        this._fetchDiscoveryEntities();
     }
 
     updated(changed) {
@@ -221,6 +249,13 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         const links = feezalInfo?.links;
         const hasHelp = desc || (links && links.length > 0);
         return html`
+            ${this._discoveryMatch ? html`
+                <div class="discovery-banner">
+                    <span class="disc-label">⚡ <span class="disc-name">${this._discoveryMatch.name}</span> detected</span>
+                    <button class="disc-apply" @click="${this._onAutoConfig}">Auto-configure</button>
+                    <button class="disc-dismiss" title="Dismiss" @click="${() => { this._discoveryMatch = null; }}">&#x2715;</button>
+                </div>
+            ` : ''}
             ${this.items.map((item, idx) => html`
                 <div class="attr ${item.half ? 'half' : ''} ${item.invalid ? 'invalid' : ''} ${item.mixed ? 'mixed' : ''}">
                     ${this._renderInput(item, idx)}
@@ -555,6 +590,11 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         if (applyImmediately && !invalid) {
             feezal.app.change();
         }
+
+        // Check for a discovery match when a MQTT topic field is committed
+        if (item?.elem?.mqttTopic && typeof newValue === 'string' && newValue && !newValue.endsWith('/')) {
+            this._checkDiscovery(newValue);
+        }
     }
 
     _blur(e, idx) {
@@ -724,6 +764,82 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                 validator: undefined, min: undefined, max: undefined, step: undefined
             }
         };
+    }
+
+    // ── Auto-discovery (N12) ──────────────────────────────────────────────────
+
+    async _fetchDiscoveryEntities() {
+        try {
+            const r = await fetch('/api/discovery/devices');
+            if (r.ok) {
+                const {devices} = await r.json();
+                this.__discoveryEntities = devices || [];
+            }
+        } catch { /* offline or server not connected */ }
+    }
+
+    // Scan the entity cache for one whose config contains a topic field matching
+    // the entered value. Only considers entities matching the element's declared
+    // discovery component (if any), so the banner never fires for wrong element types.
+    _checkDiscovery(topic) {
+        if (!topic || !this.__discoveryEntities?.length) return;
+        const el = this.selectedElems?.[0];
+        if (!el) return;
+        const tagName = el.name ? 'feezal-view' : el.localName;
+        const cls = window.customElements.get(tagName);
+        const expectedComponent = cls?.feezal?.discovery?.component;
+
+        const match = this.__discoveryEntities.find(entity => {
+            if (expectedComponent && entity.component !== expectedComponent) return false;
+            const cfg = entity.config || {};
+            return Object.values(cfg).some(v => typeof v === 'string' && v === topic);
+        });
+
+        this._discoveryMatch = match || null;
+    }
+
+    _onAutoConfig() {
+        const entity = this._discoveryMatch;
+        if (!entity) return;
+        this._applyDiscovery(entity);
+        this._discoveryMatch = null;
+    }
+
+    // Apply a discovery entity's config to the selected element using the element's
+    // feezal().discovery.map descriptor. Each entry maps a discovery config key to
+    // a feezal attribute, with optional value transforms.
+    _applyDiscovery(entity) {
+        const el = this.selectedElems?.[0];
+        if (!el) return;
+        const tagName = el.name ? 'feezal-view' : el.localName;
+        const cls = window.customElements.get(tagName);
+        const discoveryMap = cls?.feezal?.discovery?.map;
+        if (!discoveryMap) return;
+
+        const cfg = entity.config || {};
+        for (const [configKey, spec] of Object.entries(discoveryMap)) {
+            const raw = cfg[configKey];
+            if (raw === undefined || raw === null) continue;
+            const attrName = typeof spec === 'string' ? spec : spec.attr;
+            if (!attrName) continue;
+            let value = raw;
+            if (typeof spec === 'object') {
+                if (spec.unit === 'mired\u2192kelvin') {
+                    value = Math.round(1_000_000 / Number(raw));
+                } else if (spec.valueMap) {
+                    value = spec.valueMap[raw] ?? spec.valueMap['_default'] ?? raw;
+                } else if (spec.transform === 'first') {
+                    value = Array.isArray(raw) ? raw[0] : raw;
+                }
+            }
+            el.setAttribute(attrName, String(value));
+        }
+
+        // Store the discovery-id for future re-sync (N12 MVP)
+        if (entity.discovery_id) el.setAttribute('discovery-id', entity.discovery_id);
+
+        this._rebuildItems();
+        feezal.app.change();
     }
 }
 
