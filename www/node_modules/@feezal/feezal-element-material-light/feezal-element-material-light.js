@@ -184,15 +184,16 @@ class FeezalElementMaterialLight extends FeezalElement {
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
                 // Theme-aware colour tokens — editable in the Style inspector.
-                // Leave blank to inherit the theme default (see :host below).
-                {property: '--feezal-light-ring-color',    type: 'color'},
-                {property: '--feezal-light-track-color',   type: 'color'},
-                {property: '--feezal-light-surface-color', type: 'color'},
-                {property: '--feezal-light-text-color',    type: 'color'},
-                {property: '--feezal-light-label-color',   type: 'color'},
-                {property: '--feezal-light-off-color',     type: 'color'},
-                {property: '--feezal-light-button-color',  type: 'color'},
-                {property: '--feezal-light-error-color',   type: 'color'}
+                // The `default` is shown as the field placeholder so the active
+                // mapping is visible; leave a field blank to inherit it.
+                {property: '--feezal-light-ring-color',    type: 'color', default: 'var(--primary-text-color)'},
+                {property: '--feezal-light-track-color',   type: 'color', default: 'var(--secondary-text-color)'},
+                {property: '--feezal-light-surface-color', type: 'color', default: 'var(--primary-background-color)'},
+                {property: '--feezal-light-text-color',    type: 'color', default: 'var(--primary-text-color)'},
+                {property: '--feezal-light-label-color',   type: 'color', default: 'var(--secondary-text-color)'},
+                {property: '--feezal-light-off-color',     type: 'color', default: 'var(--disabled-text-color)'},
+                {property: '--feezal-light-button-color',  type: 'color', default: 'var(--secondary-background-color)'},
+                {property: '--feezal-light-error-color',   type: 'color', default: 'var(--error-color)'}
             ],
             restrict: {minWidth: 120, minHeight: 140},
             defaultStyle: {width: '180px', height: '220px'}
@@ -267,8 +268,8 @@ class FeezalElementMaterialLight extends FeezalElement {
                theme rule) to restyle the light. Physical light colours — the
                colour-temperature gradient and the hue wheel — intentionally
                stay fixed, as they represent the actual light output. */
-            --feezal-light-ring-color:    var(--accent-color, var(--primary-color, var(--sl-color-primary-600, #0284c7)));
-            --feezal-light-track-color:   var(--divider-color, var(--feezal-border, #e0e0e0));
+            --feezal-light-ring-color:    var(--primary-text-color, var(--accent-color, var(--primary-color, var(--sl-color-primary-600, #0284c7))));
+            --feezal-light-track-color:   var(--secondary-text-color, var(--divider-color, var(--feezal-border, #e0e0e0)));
             --feezal-light-surface-color: var(--primary-background-color, var(--feezal-bg, #fff));
             --feezal-light-text-color:    var(--primary-text-color, var(--feezal-color, #333));
             --feezal-light-label-color:   var(--secondary-text-color, var(--feezal-color, #777));

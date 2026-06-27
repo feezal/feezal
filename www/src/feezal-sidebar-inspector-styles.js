@@ -230,7 +230,7 @@ class FeezalSidebarInspectorStyles extends LitElement {
                                 size="small"
                                 autocomplete="off"
                                 .value="${item.mixed ? '' : (item.value || '')}"
-                                placeholder="${item.mixed ? '— varies —' : ''}"
+                                placeholder="${item.mixed ? '— varies —' : (item.default || '')}"
                                 data-property="${item.property}"
                                 @sl-input="${e => this._onVarInput(e, idx)}"
                                 @keydown="${e => this._onVarKeydown(e, idx)}"
