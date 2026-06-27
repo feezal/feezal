@@ -286,36 +286,6 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
         }
     });
 
-    // List archive branches — MUST be before the :sha routes to avoid Express
-    // treating "archives" as a sha param.
-    router.get('/sites/:name/history/archives', async (req, res) => {
-        const {listArchiveBranches} = require('../build/git.js');
-        const dir = siteRepoDir(req.params.name);
-        if (!dir) return res.json([]);
-        try {
-            res.json(await listArchiveBranches(dir));
-        } catch {
-            res.json([]);
-        }
-    });
-
-    // Delete an archive branch (branch name in request body to avoid encoding issues)
-    router.delete('/sites/:name/history/archives', async (req, res) => {
-        const {deleteArchiveBranch} = require('../build/git.js');
-        const {branch} = req.body;
-        if (!branch || !branch.startsWith('archive/')) {
-            return res.status(400).json({error: 'invalid branch'});
-        }
-        const dir = siteRepoDir(req.params.name);
-        if (!dir) return res.status(503).json({error: 'no dataDir'});
-        try {
-            await deleteArchiveBranch(dir, branch);
-            res.status(204).send();
-        } catch (err) {
-            res.status(500).json({error: err.message});
-        }
-    });
-
     // Restore a version (non-destructive: creates a new commit at HEAD)
     router.post('/sites/:name/history/:sha/restore', async (req, res) => {
         const {sha, name} = req.params;
@@ -326,21 +296,6 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
         const {label} = req.body || {};
         try {
             await restoreVersion(dir, name, sha, label || sha.slice(0, 7));
-            res.json({ok: true});
-        } catch (err) {
-            res.status(500).json({error: err.message});
-        }
-    });
-
-    // Discard to a version (destructive: archives current HEAD, resets to sha)
-    router.post('/sites/:name/history/:sha/discard', async (req, res) => {
-        const {sha, name} = req.params;
-        if (!/^[a-f0-9]{7,40}$/.test(sha)) return res.status(400).json({error: 'invalid sha'});
-        const {discardToVersion} = require('../build/git.js');
-        const dir = siteRepoDir(name);
-        if (!dir) return res.status(503).json({error: 'no dataDir'});
-        try {
-            await discardToVersion(dir, sha);
             res.json({ok: true});
         } catch (err) {
             res.status(500).json({error: err.message});
