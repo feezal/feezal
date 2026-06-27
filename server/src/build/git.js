@@ -25,6 +25,12 @@ const IDENTITY = [
 // Lazily-resolved git-available flag: null = unchecked, true/false = result.
 let _gitAvailable = null;
 
+// Optional logger injected by setLogger(). Falls back to silent no-op.
+let _log = { info: () => {}, warn: () => {}, debug: () => {} };
+
+/** Inject a logger (info/warn/debug). Called once from filesystem.js at startup. */
+function setLogger(logger) { _log = logger; }
+
 /**
  * Returns true if the `git` binary can be found in PATH.
  * Result is cached for the lifetime of the process.
@@ -32,10 +38,12 @@ let _gitAvailable = null;
 async function isGitAvailable() {
     if (_gitAvailable !== null) return _gitAvailable;
     try {
-        await _gitExec(process.cwd(), ['--version']);
+        const version = await _gitExec(process.cwd(), ['--version']);
         _gitAvailable = true;
-    } catch {
+        _log.info(`git: binary found (${version}) — per-site version history enabled`);
+    } catch (err) {
         _gitAvailable = false;
+        _log.warn(`git: binary not found (${err.message}) — per-site version history disabled`);
     }
     return _gitAvailable;
 }
@@ -61,9 +69,13 @@ async function initRepo(repoDir, siteName) {
     if (!await isGitAvailable()) return;
     const isNew = !existsSync(path.join(repoDir, '.git'));
     if (isNew) {
+        _log.info(`git: initialising new repo for "${siteName}" at ${repoDir}`);
         await _gitExec(repoDir, ['-c', 'init.defaultBranch=main', 'init']);
         // Commit whatever files are already present (views.html, viewer.json, …).
-        await _autoCommit(repoDir, `init: ${siteName}`);
+        const committed = await _autoCommit(repoDir, `init: ${siteName}`);
+        _log.info(`git: repo "${siteName}" ready${committed ? ' — initial commit created' : ' — nothing to commit yet'}`);
+    } else {
+        _log.info(`git: repo "${siteName}" already exists, skipping init`);
     }
 }
 
@@ -77,19 +89,26 @@ async function initRepo(repoDir, siteName) {
  */
 async function autoCommit(repoDir, siteName, message) {
     if (!await isGitAvailable()) return;
-    await _autoCommit(repoDir, message || `save: ${siteName} @ ${new Date().toISOString()}`);
+    const msg = message || `save: ${siteName} @ ${new Date().toISOString()}`;
+    _log.info(`git: auto-commit for "${siteName}"`);
+    const committed = await _autoCommit(repoDir, msg);
+    if (!committed) _log.info(`git: nothing to commit for "${siteName}"`);
 }
 
-/** Internal commit helper (already knows git is available). */
+/** Internal commit helper (already knows git is available). Returns true if a commit was made. */
 async function _autoCommit(repoDir, message) {
     try {
         await _gitExec(repoDir, ['add', '-A']);
         await _gitExec(repoDir, [...IDENTITY, 'commit', '-m', message]);
+        _log.info(`git: committed "${message}"`);
+        return true;
     } catch (err) {
         // "nothing to commit" / "nothing added" → not an error
         if (!/(nothing to commit|nothing added|no changes added)/.test(err.message)) {
+            _log.warn(`git: commit failed — ${err.message}`);
             throw err;
         }
+        return false;
     }
 }
 
@@ -198,3 +217,16 @@ async function deleteArchiveBranch(repoDir, branchName) {
     if (!branchName.startsWith('archive/')) throw new Error('can only delete archive/ branches');
     await _gitExec(repoDir, ['branch', '-D', branchName]);
 }
+
+module.exports = {
+    setLogger,
+    isGitAvailable,
+    initRepo,
+    autoCommit,
+    showFile,
+    restoreVersion,
+    discardToVersion,
+    listCommits,
+    listArchiveBranches,
+    deleteArchiveBranch
+};

@@ -4,7 +4,7 @@ const fs = require('fs').promises;
 const path = require('path');
 
 const StorageAdapter = require('./adapter.js');
-const {initRepo, autoCommit, showFile} = require('../build/git.js');
+const {initRepo, autoCommit, showFile, setLogger} = require('../build/git.js');
 
 const VIEWS_FILE = 'views.html';
 const CONFIG_FILE = 'viewer.json';
@@ -27,6 +27,7 @@ class FilesystemStorage extends StorageAdapter {
     constructor(dataDir) {
         super();
         this.dataDir = dataDir;
+        this._logger = console;
     }
 
     _sitePath(name) {
@@ -40,11 +41,16 @@ class FilesystemStorage extends StorageAdapter {
      * @param {object} [logger]
      */
     async init(logger = console) {
+        this._logger = logger;
+        setLogger(logger);
         const sites = await this.listSites();
+        logger.info(`git: found ${sites.length} site(s) to initialise: ${sites.join(', ') || '(none)'}`);
         for (const site of sites) {
-            initRepo(this._sitePath(site), site).catch(err =>
-                logger.warn(`git: failed to init repo for "${site}": ${err.message}`)
-            );
+            try {
+                await initRepo(this._sitePath(site), site);
+            } catch (err) {
+                logger.warn(`git: failed to init repo for "${site}": ${err.message}`);
+            }
         }
     }
 
@@ -108,7 +114,9 @@ class FilesystemStorage extends StorageAdapter {
             } else {
                 await autoCommit(sitePath, name);
             }
-        } catch { /* git unavailable or repo error — non-fatal */ }
+        } catch (err) {
+            this._logger.warn(`git: save commit failed for "${name}": ${err.message}`);
+        }
     }
 
     async deleteSite(name) {
@@ -120,7 +128,9 @@ class FilesystemStorage extends StorageAdapter {
         // Give the clone its own independent git history (drop the source's .git).
         const newPath = this._sitePath(newName);
         await fs.rm(path.join(newPath, '.git'), {recursive: true, force: true});
-        try { await initRepo(newPath, newName); } catch { /* non-fatal */ }
+        try { await initRepo(newPath, newName); } catch (err) {
+            this._logger.warn(`git: clone init failed for "${newName}": ${err.message}`);
+        }
     }
 
     async renameSite(name, newName) {
