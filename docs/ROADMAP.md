@@ -1434,76 +1434,81 @@ The light element currently has **30 flat attributes** — far too many for the 
 
 #### 1. N6 Custom Inspector
 
-**Problem:** 30 attributes in a flat list is unusable. The user either fills in every field manually or stares at a wall of topic inputs that make no clear conceptual sense together.
+**Problem:** 30 attributes in a flat list is unusable. Every feature group (brightness, colour temperature, RGB, white channels, effects) is always shown in full, regardless of whether the light actually supports it.
 
-**Solution:** replace the flat form with a **two-tab custom inspector** registered as `feezal-element-material-light-inspector` in `static get feezal().inspector`. The tabs split configuration into two domains:
+**Solution:** replace the flat form with a **two-tab custom inspector** registered as `feezal-element-material-light-inspector` in `static get feezal().inspector`. The tabs split configuration into two concerns, and each feature section is **capability-gated**: it has a toggle in its header that collapses/expands the section and clears or restores its attributes.
+
+---
 
 ##### Tab 1 — Topics
 
-Subscribe/Publish pairs arranged in **labelled feature groups**. The subscribe and publish topics for each feature sit on adjacent rows under a compact group header, making the pairing obvious at a glance:
+Feature groups are shown as **collapsible sections with a header toggle**. A section is *enabled* (expanded) when the light has that capability; disabled (collapsed) when it doesn't. The toggle state is derived from and written back to the element's attributes — no separate `has-*` boolean attributes needed.
+
+**Enabled / disabled derivation:** a section is enabled if any of its topic attributes is non-empty on the current element. Toggling a section off clears all of its topic attributes and collapses it. Toggling on expands it with empty inputs ready to fill.
 
 ```
-━━ State ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━ State (always enabled) ━━━━━━━━━━━━━━━━━━━━
 Subscribe  [ zigbee2mqtt/Lamp           ↓ ]
 Publish    [ zigbee2mqtt/Lamp/set       ↑ ]
 
-━━ Brightness ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Subscribe  [ zigbee2mqtt/Lamp/brightness ↓ ]
-Publish    [ zigbee2mqtt/Lamp/set        ↑ ]
+[⬤ ON ] Brightness ━━━━━━━━━━━━━━━━━━━━━━━━━━   ← toggle → expands/collapses + clears on off
+         Subscribe  [ zigbee2mqtt/Lamp/brightness ↓ ]
+         Publish    [ zigbee2mqtt/Lamp/set        ↑ ]
 
-━━ Color Temperature ━━━━━━━━━━━━━━━━━━━━━━━━━
-Subscribe  [                            ↓ ]
-Publish    [                            ↑ ]
+[⬤ ON ] Color Temperature ━━━━━━━━━━━━━━━━━━━━
+         Subscribe  [ zigbee2mqtt/Lamp/color_temp ↓ ]
+         Publish    [ zigbee2mqtt/Lamp/set        ↑ ]
 
-━━ Color — RGB / HS ━━━━━━━━━━━━━━━━━━━━━━━━━━
-RGB Sub    [          ] RGB Pub [          ]
-HS Sub     [          ] HS Pub  [          ]
+[○ OFF] Color — RGB / HS ━━━━━━━━━━━━━━━━━━━━━  ← collapsed, no topic fields shown
 
-━━ White / RGBW / RGBWW ━━━━━━━━━━━━━━━━━━━━━━
-White sub  [          ] White pub [         ]
-Warm sub   [          ] Warm pub  [         ]
-Cold sub   [          ] Cold pub  [         ]
+[○ OFF] White / RGBW / RGBWW ━━━━━━━━━━━━━━━━━
 
-━━ Effects ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Subscribe  [                            ↓ ]
-Publish    [                            ↑ ]
+[○ OFF] Effects ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-All topic inputs use the standard MQTT autocomplete behaviour (same as the built-in inspector). Empty fields are visually subdued (placeholder style) to draw attention to what's actually wired.
+**Auto-configure interaction:** when N12 applies a discovery entity, the topics it sets cause the relevant sections to automatically appear expanded on the next inspector render. The user immediately sees only the sections that are wired, not all 30 attributes.
+
+**`json` payload mode:** when `payload-mode` is `json`, all feature-group sections collapse and are replaced by a single **State & Control** section showing only a `subscribe` and a `publish` topic — because one JSON envelope carries everything. The per-feature groups reappear when switching back to `separate`.
+
+---
 
 ##### Tab 2 — Config
 
-Non-topic settings, grouped into four compact sub-sections:
+Non-topic settings. Capability-dependent sub-sections (brightness scale, colour-temp range) are only shown when the corresponding section in Tab 1 is enabled — keeping Config equally focused:
 
 ```
 ━━ Mode ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Control mode  [ brightness ▾ ]
-Payload mode  [ separate   ▾ ]   (separate / json)
+Active control  [ brightness ▾ ]   (drives centre-circle UI)
+Payload mode    [ separate   ▾ ]   (separate / json)
 
-━━ Payloads ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━ State payloads ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 On   [ on  ]    Off  [ off ]
 
-━━ Brightness ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━ Brightness ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  ← only shown when brightness is enabled in Tab 1
 Scale min  [ 0  ]    Scale max  [ 254 ]
 
-━━ Color Temperature ━━━━━━━━━━━━━━━━━━━━━━━━
+━━ Color Temperature ━━━━━━━━━━━━━━━━━━━━━━━━  ← only shown when color temp is enabled in Tab 1
 Unit  [ kelvin ▾ ]
 Min   [ 2700 ]    Max   [ 6500 ]
 
-━━ Effects ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━ Effects ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  ← only shown when effects is enabled in Tab 1
 Available  [ sparkle, rainbow, colorloop ]
 
 ━━ Display ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Label  [ Living Room ]
 ```
 
+---
+
 ##### Inspector implementation notes
 
-- The component is defined (and `customElements.define`'d) in the same element JS file as `FeezalElementMaterialLight` — no extra file.
-- It is a Lit component. `.element` is a reactive property; all reads from the actual element happen in `willUpdate` / `updated` when `.element` changes.
-- Every change dispatches `feezal-attribute-changed` (bubbles, composed) with `detail: { name, value }` — the standard N6 output contract. The sidebar handles it; the inspector needs no further wiring.
-- Topic inputs reuse the `sl-input` pattern from the standard inspector (plain `<sl-input>` with `data-attr` for mapping). Autocomplete is **not** replicated in the MVP — inputs are plain text; autocomplete can be added later.
-- The `sl-tab-group` / `sl-tab` / `sl-tab-panel` components from Shoelace are used for the two-tab layout.
+- Defined (and `customElements.define`'d) in the same element JS file as `FeezalElementMaterialLight` — no extra file.
+- `.element` is a Lit reactive property; the inspector reads the element's current attribute values in `willUpdate` to derive which sections are enabled and what values to show.
+- The **toggle** for each section is an `<sl-switch>` (or a plain styled `<button>` to avoid Shoelace overhead). When toggled off, the inspector dispatches one `feezal-attribute-changed` per cleared attribute (value `''`). When toggled on, it just expands the section; the user fills in topics themselves.
+- Every topic input change dispatches `feezal-attribute-changed` with `detail: { name, value }` — the standard N6 output contract. No other wiring needed.
+- Topic inputs are plain `<sl-input>` elements. MQTT autocomplete is **not** replicated in the MVP — can be layered on later.
+- Tabs use `<sl-tab-group>` / `<sl-tab>` / `<sl-tab-panel>` from Shoelace.
+- The selected tab index is stored as a local reactive property (`_tab: {state: true}`) so switching elements doesn't reset the tab unnecessarily (only resets when `.element` itself changes type).
 
 ---
 
@@ -1521,7 +1526,7 @@ Add the `json` mode alongside the existing `separate` mode:
 
   A `json-map` attribute (JSON string) overrides these defaults for non-standard brokers.
 
-When `payload-mode` is `json`, the Topics tab replaces the per-feature group with a single **State & Control** section (just `subscribe` + `publish`) and hides all other topic groups. The Config tab remains unchanged.
+When `payload-mode` is `json`, the Topics tab replaces the per-feature groups with a single **State & Control** section (just `subscribe` + `publish`) and hides all capability toggles — because one JSON envelope carries everything. The Config tab remains unchanged.
 
 The `payload-mode` attribute is exposed as a `select` in the Config tab inspector (not in the flat `attributes` array — the flat list is replaced by the inspector).
 
