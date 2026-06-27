@@ -23,6 +23,7 @@ import './feezal-sidebar-palette.js';
 import './feezal-sidebar-viewer.js';
 import './feezal-sidebar-editor.js';
 import './feezal-site-manager.js';
+import './feezal-sidebar-history.js';
 
 class FeezalAppEditor extends LitElement {
     static properties = {
@@ -364,7 +365,8 @@ class FeezalAppEditor extends LitElement {
         :host(.dark) feezal-sidebar-palette,
         :host(.dark) feezal-sidebar-viewer,
         :host(.dark) feezal-sidebar-editor,
-        :host(.dark) feezal-sidebar-assets {
+        :host(.dark) feezal-sidebar-assets,
+        :host(.dark) feezal-sidebar-history {
             --feezal-bg:     #2e2e2e;
             --feezal-bg-sub: #262626;
             --feezal-border: #3d3d3d;
@@ -587,6 +589,7 @@ class FeezalAppEditor extends LitElement {
                     <button class="icon-btn ${this.sidebar === 'editor' ? 'active' : ''}" title="Editor Settings" @click="${() => this._setSidebar('editor')}"><span class="material-icons">build</span></button>
                     <button class="icon-btn ${this.sidebar === 'assets' ? 'active' : ''}" title="Assets" @click="${() => this._setSidebar('assets')}"><span class="material-icons">perm_media</span></button>
                     <button class="icon-btn ${this.sidebar === 'palette' ? 'active' : ''}" title="Palette" @click="${() => this._setSidebar('palette')}"><span class="material-icons">widgets</span></button>
+                    <button class="icon-btn ${this.sidebar === 'history' ? 'active' : ''}" title="Version history" @click="${() => this._setSidebar('history')}"><span class="material-icons">history</span></button>
                 </div>
             </div>
 
@@ -699,6 +702,9 @@ class FeezalAppEditor extends LitElement {
                         @grid-visible-changed="${e => { this.gridVisible = e.detail.value; localStorage.setItem('gridVisible', this.gridVisible); }}"
                         @snapping-changed="${e => { this.snapping = e.detail.value; localStorage.setItem('snapping', this.snapping); }}">
                     </feezal-sidebar-editor>
+                    <feezal-sidebar-history class="sidebar-panel"
+                        ?hidden="${this.sidebar !== 'history'}">
+                    </feezal-sidebar-history>
                 </div>
             </div>
 

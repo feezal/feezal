@@ -4,7 +4,7 @@ const fs = require('fs').promises;
 const path = require('path');
 
 const StorageAdapter = require('./adapter.js');
-const {initRepo, autoCommit} = require('../build/git.js');
+const {initRepo, autoCommit, showFile} = require('../build/git.js');
 
 const VIEWS_FILE = 'views.html';
 const CONFIG_FILE = 'viewer.json';
@@ -78,6 +78,18 @@ class FilesystemStorage extends StorageAdapter {
         }
 
         return {html, config};
+    }
+
+    /**
+     * Return the views.html of a site at a specific git commit.
+     * Falls back to current content if git is unavailable or the sha is invalid.
+     * @param {string} name  Site name.
+     * @param {string} sha   Commit hash (7–40 hex chars).
+     * @returns {Promise<{html: string}>}
+     */
+    async getSiteAtVersion(name, sha) {
+        const html = await showFile(this._sitePath(name), sha, VIEWS_FILE);
+        return {html: html || DEFAULT_SITE_HTML};
     }
 
     async saveSite(name, {html, config}) {

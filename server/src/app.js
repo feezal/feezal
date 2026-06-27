@@ -141,6 +141,18 @@ async function createApp(config) {
         try {
             const siteName = req.params.site || defaultSiteName;
             const {html: siteHtml, config} = await storage.getSite(siteName);
+
+            // ?sha=<hex> — preview a historical version of views.html.
+            // The current config (connection, theme) is still applied.
+            let historicalHtml = null;
+            const shaParam = req.query.sha;
+            if (shaParam && /^[a-f0-9]{7,40}$/.test(shaParam) &&
+                typeof storage.getSiteAtVersion === 'function') {
+                try {
+                    const v = await storage.getSiteAtVersion(siteName, shaParam);
+                    historicalHtml = v.html;
+                } catch { /* sha not found or git unavailable — fall through to current */ }
+            }
             // config is stored as {viewer, connection}; feezal-connection expects
             // the inner connection object (with uri, clientId, etc.), not the wrapper.
             const connectionConfig = (config && config.connection) || null;
@@ -157,7 +169,8 @@ async function createApp(config) {
 
             // Inject the persisted theme class into the feezal-site root element.
             const theme = config && config.viewer && config.viewer.theme;
-            let themedHtml = siteHtml;
+            // Use the historical version for preview when ?sha= was provided.
+            let themedHtml = historicalHtml || siteHtml;
             if (theme && /^feezal-theme-[\w-]+$/.test(theme)) {
                 const hasClass = /<feezal-site[^>]*\bclass\s*=/.test(themedHtml);
                 if (hasClass) {
@@ -254,8 +267,13 @@ window.feezal = {
 <\/script>${userThemeLink}${overrideStyle}${classesStyle}
 </head>
 <body>
+${historicalHtml ? `<div style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#1565c0;color:#fff;padding:8px 16px;display:flex;align-items:center;gap:12px;font-family:sans-serif;font-size:13px">
+  <span style="flex:1">⏱ Previewing historical version — <strong>${shaParam}</strong></span>
+  <a href="/viewer/${siteName}" style="color:#fff;text-decoration:underline">Close preview</a>
+</div><div style="margin-top:37px;height:calc(100%-37px)">` : ''}
 <feezal-connection backend="${backendValue}"${connectionAttr}></feezal-connection>
 <feezal-app-viewer>${themedHtml}</feezal-app-viewer>
+${historicalHtml ? '</div>' : ''}
 <script type="module" src="/viewer-bundle.js"><\/script>
 </body>
 </html>`;
