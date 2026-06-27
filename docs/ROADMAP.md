@@ -1424,24 +1424,137 @@ A countdown display toward a target time — common in ioBroker timer/schedule d
 
 **Default size:** 160×100 px.
 
-### E35 — Light element: dual-payload + auto-discovery retrofit (`feezal-element-material-light`)
+### E35 — Light element: dual-payload + N6 custom inspector + auto-discovery retrofit (`feezal-element-material-light`)
 
-The light element (E16) shipped **before** the [Element platform conventions](#element-platform-conventions) and N12 existed, so it currently supports only **separate-topic** wiring. This item retrofits the already-published element with the two cross-cutting capabilities it now needs to be a first-class auto-discovery target. (Newer controllable elements — thermostat, shutter, fan, humidifier — bake these in from the start; the light is the one that needs catching up.)
+The light element currently has **30 flat attributes** — far too many for the generic attribute form. This item retrofits it with three cross-cutting capabilities: a custom N6 inspector that tames the attribute count, dual-payload (`json`) mode, and a complete auto-discovery descriptor for N12. The discovery descriptor (separate-mode, no JSON) and the N12 hook in `static get feezal()` were shipped in N12 and are already present — this item completes them.
 
-**Scope:**
+> **Conventions:** dual-payload ✓ (this item adds it) · auto-discovery: `light` (descriptor already present, this item extends it) · custom inspector: `feezal-element-material-light-inspector` (this item adds it). See [Element platform conventions](#element-platform-conventions).
 
-1. **Dual payload mode (`payload-mode`).** Add the `json` mode alongside the existing `separate` mode:
-   - **`separate` (current):** `subscribe-state`, `subscribe-brightness`, `subscribe-color-temp`, `subscribe-color`, plus matching `publish-*` topics — unchanged, remains the default for back-compat.
-   - **`json` (new):** a single `subscribe`/`publish` topic pair carrying a JSON object (`{"state":"ON","brightness":254,"color_temp":370,"color":{"x":…,"y":…}}`) — the zigbee2mqtt/ESPHome/HA-discovery default schema. A `json-map` (with sensible defaults) maps element properties to JSON paths.
-   - Outgoing commands mirror the mode (per-topic vs. one merged JSON publish). Use the shared `FeezalElement` dual-payload helper.
+---
 
-2. **Auto-discovery descriptor (N12).** Add the `discovery` block to `static get feezal()` declaring `component: 'light'` and the discovery-key → attribute map, including conversions: `brightness_scale` (254/255) → 0–100 %, `min/max_mireds` ↔ kelvin, `supported_color_modes` → the element's colour mode, `schema: json` → `payload-mode: json`.
+#### 1. N6 Custom Inspector
 
-3. **`discovery-id` attribute** for future re-sync (stored, not yet acted on).
+**Problem:** 30 attributes in a flat list is unusable. The user either fills in every field manually or stares at a wall of topic inputs that make no clear conceptual sense together.
 
-**Compatibility:** `payload-mode` defaults to `separate`, so existing dashboards using the light element are unaffected. The element file, `package.json` version (patch bump), and a rebuild (`cd www && npm run build`) are required.
+**Solution:** replace the flat form with a **two-tab custom inspector** registered as `feezal-element-material-light-inspector` in `static get feezal().inspector`. The tabs split configuration into two domains:
 
-> **Conventions:** dual-payload ✓ (this item adds it) · auto-discovery: `light` · custom inspector: not required. See [Element platform conventions](#element-platform-conventions).
+##### Tab 1 — Topics
+
+Subscribe/Publish pairs arranged in **labelled feature groups**. The subscribe and publish topics for each feature sit on adjacent rows under a compact group header, making the pairing obvious at a glance:
+
+```
+━━ State ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Subscribe  [ zigbee2mqtt/Lamp           ↓ ]
+Publish    [ zigbee2mqtt/Lamp/set       ↑ ]
+
+━━ Brightness ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Subscribe  [ zigbee2mqtt/Lamp/brightness ↓ ]
+Publish    [ zigbee2mqtt/Lamp/set        ↑ ]
+
+━━ Color Temperature ━━━━━━━━━━━━━━━━━━━━━━━━━
+Subscribe  [                            ↓ ]
+Publish    [                            ↑ ]
+
+━━ Color — RGB / HS ━━━━━━━━━━━━━━━━━━━━━━━━━━
+RGB Sub    [          ] RGB Pub [          ]
+HS Sub     [          ] HS Pub  [          ]
+
+━━ White / RGBW / RGBWW ━━━━━━━━━━━━━━━━━━━━━━
+White sub  [          ] White pub [         ]
+Warm sub   [          ] Warm pub  [         ]
+Cold sub   [          ] Cold pub  [         ]
+
+━━ Effects ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Subscribe  [                            ↓ ]
+Publish    [                            ↑ ]
+```
+
+All topic inputs use the standard MQTT autocomplete behaviour (same as the built-in inspector). Empty fields are visually subdued (placeholder style) to draw attention to what's actually wired.
+
+##### Tab 2 — Config
+
+Non-topic settings, grouped into four compact sub-sections:
+
+```
+━━ Mode ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Control mode  [ brightness ▾ ]
+Payload mode  [ separate   ▾ ]   (separate / json)
+
+━━ Payloads ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+On   [ on  ]    Off  [ off ]
+
+━━ Brightness ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Scale min  [ 0  ]    Scale max  [ 254 ]
+
+━━ Color Temperature ━━━━━━━━━━━━━━━━━━━━━━━━
+Unit  [ kelvin ▾ ]
+Min   [ 2700 ]    Max   [ 6500 ]
+
+━━ Effects ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Available  [ sparkle, rainbow, colorloop ]
+
+━━ Display ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Label  [ Living Room ]
+```
+
+##### Inspector implementation notes
+
+- The component is defined (and `customElements.define`'d) in the same element JS file as `FeezalElementMaterialLight` — no extra file.
+- It is a Lit component. `.element` is a reactive property; all reads from the actual element happen in `willUpdate` / `updated` when `.element` changes.
+- Every change dispatches `feezal-attribute-changed` (bubbles, composed) with `detail: { name, value }` — the standard N6 output contract. The sidebar handles it; the inspector needs no further wiring.
+- Topic inputs reuse the `sl-input` pattern from the standard inspector (plain `<sl-input>` with `data-attr` for mapping). Autocomplete is **not** replicated in the MVP — inputs are plain text; autocomplete can be added later.
+- The `sl-tab-group` / `sl-tab` / `sl-tab-panel` components from Shoelace are used for the two-tab layout.
+
+---
+
+#### 2. Dual payload mode (`payload-mode`)
+
+Add the `json` mode alongside the existing `separate` mode:
+
+- **`separate` (current/default):** per-topic wiring — `subscribe-state`, `subscribe-brightness`, etc. Unchanged; remains the default for back-compat.
+- **`json` (new):** a single `subscribe` / `publish` topic pair. Incoming: parse the JSON object, map keys to internal state. Outgoing: build a single JSON object from changed properties, publish to `publish`. Default JSON key map:
+
+  ```js
+  { state: 'state', brightness: 'brightness', color_temp: 'color_temp',
+    color: { rgb: 'color.{r,g,b}', hs: 'color.{h,s}' }, effect: 'effect' }
+  ```
+
+  A `json-map` attribute (JSON string) overrides these defaults for non-standard brokers.
+
+When `payload-mode` is `json`, the Topics tab replaces the per-feature group with a single **State & Control** section (just `subscribe` + `publish`) and hides all other topic groups. The Config tab remains unchanged.
+
+The `payload-mode` attribute is exposed as a `select` in the Config tab inspector (not in the flat `attributes` array — the flat list is replaced by the inspector).
+
+---
+
+#### 3. Extended auto-discovery descriptor
+
+The discovery descriptor already present covers separate-mode topics. Extend it to also map `schema: json` → `payload-mode: json`:
+
+```js
+discovery: {
+    component: 'light',
+    map: {
+        // existing separate-mode mappings …
+        schema: { attr: 'payload-mode', valueMap: { json: 'json', _default: 'separate' } },
+        // json-mode single topics (only written when schema=json)
+        state_topic:   { attr: 'subscribe', onlyWhen: { schema: 'json' } },
+        command_topic: { attr: 'publish',   onlyWhen: { schema: 'json' } },
+    }
+}
+```
+
+---
+
+#### 4. `discovery-id` attribute
+
+Expose `discovery-id` in `static properties` as `{type: String, reflect: true, attribute: 'discovery-id'}`. This is already set by `_applyDiscovery()` (N12 Phase 3) and `_applyDiscoveryMap()` (N12 Phase 4) — the attribute just needs to be declared so Lit serialises it correctly to the HTML.
+
+---
+
+#### Compatibility
+
+`payload-mode` defaults to `separate`, so all existing dashboards continue to work. The `inspector` key in `static get feezal()` activates the new inspector only for newly selected elements in the editor — it does not affect any runtime behaviour of the element itself.
 
 ---
 
