@@ -53,6 +53,9 @@ class FeezalElementBasicNumber extends FeezalElement {
     }
 
     render() {
+        if (feezal.isEditor) {
+            return html`<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0.6">Number${this.subscribe ? ': ' + this.subscribe : ''}</div>`;
+        }
         return html`
             <div>
                 <span id="prefix">${this.prefix}</span><span id="value">${this._formatedValue}</span><span id="suffix">${this.suffix}</span>
