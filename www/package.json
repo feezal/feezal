@@ -27,7 +27,7 @@
                          "@feezal/feezal-element-material-button":  "*",
                          "@feezal/feezal-element-material-gauge":  "*",
                          "@feezal/feezal-element-material-light":  "*",
-                         "@feezal/feezal-element-material-shutter": "*",
+                         "@feezal/feezal-element-material-cover": "*",
                          "@feezal/feezal-element-material-slider":  "*",
                          "@feezal/feezal-element-material-thermostat": "*",
                          "@feezal/feezal-element-material-switch":  "*",

@@ -9,13 +9,13 @@ import '@material/web/slider/slider.js';
 const FX = 4, FY = 4, FW = 52, FH = 62; // window frame origin / size in SVG space
 
 // ─── Element ──────────────────────────────────────────────────────────────────
-class FeezalElementMaterialShutter extends FeezalElement {
+class FeezalElementMaterialCover extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Shutter', category: 'Device', color: '#37474f', icon: 'blinds'},
-            description: 'Window shutter / blind control card. Visualises position as a sliding shutter panel, provides up/stop/down commands, direct position setting, and optional venetian-blind tilt control.',
+            palette: {name: 'Cover', category: 'Device', color: '#37474f', icon: 'blinds'},
+            description: 'Window cover / blind control card. Visualises position as a sliding panel, provides up/stop/down commands, direct position setting, and optional venetian-blind tilt control.',
             // ── N6 custom inspector ───────────────────────────────────────────
-            inspector: 'feezal-element-material-shutter-inspector',
+            inspector: 'feezal-element-material-cover-inspector',
             // ── N12 Auto-Discovery descriptor ─────────────────────────────────
             // zigbee2mqtt covers (and HA cover entities) use a consolidated JSON
             // base-topic for state and a /set topic for commands. The element
@@ -25,13 +25,18 @@ class FeezalElementMaterialShutter extends FeezalElement {
             discovery: {
                 component: 'cover',
                 map: {
-                    // JSON wiring — base topic + /set command topic
-                    state_topic:        {attr: 'subscribe'},
+                    // JSON wiring — base topic publishes {position, state, …};
+                    // set_position_topic / command_topic both point at /set.
+                    position_topic:     {attr: 'subscribe'},
+                    set_position_topic: {attr: 'publish'},
                     command_topic:      {attr: 'publish'},
-                    // command payloads
-                    payload_open:       {attr: 'payload-up'},
-                    payload_close:      {attr: 'payload-down'},
-                    payload_stop:       {attr: 'payload-stop'},
+                    // State/payload values from discovery
+                    state_open:    {attr: 'payload-up'},
+                    state_closed:  {attr: 'payload-down'},
+                    state_stopped: {attr: 'payload-stop'},
+                    payload_open:  {attr: 'payload-up'},
+                    payload_close: {attr: 'payload-down'},
+                    payload_stop:  {attr: 'payload-stop'},
                     // tilt / slat angle support
                     tilt_status_topic:  {attr: 'slat-angle'},
                     tilt_command_topic: {attr: 'publish-slat-angle'},
@@ -45,7 +50,7 @@ class FeezalElementMaterialShutter extends FeezalElement {
                 // ── Wiring mode ───────────────────────────────────────────────
                 {name: 'payload-mode', type: 'select', options: ['json', 'separate'], default: 'json',
                     help: 'json = single topic carrying a JSON object (default, matches zigbee2mqtt); separate = one topic per property.'},
-                {name: 'subscribe', type: 'mqttTopic', help: 'json mode: base topic carrying the cover state (position, tilt, …).'},
+                {name: 'subscribe', type: 'mqttTopic', help: 'json mode: base topic carrying the cover state (position, state, …).'},
                 {name: 'publish',   type: 'mqttTopic', help: 'json mode: command/set topic (accepts {position:50} or {state:"OPEN"}).'},
                 {name: 'json-map',  type: 'string', default: '', help: 'json mode: optional JSON string overriding the default key map.'},
                 // ── Separate-mode per-property topics ─────────────────────────
@@ -53,16 +58,16 @@ class FeezalElementMaterialShutter extends FeezalElement {
                 {name: 'publish-position',   type: 'mqttTopic', help: 'separate mode: target position topic.'},
                 {name: 'publish-command',    type: 'mqttTopic', help: 'separate mode: up/stop/down command topic.'},
                 // ── Command payloads ──────────────────────────────────────────
-                {name: 'payload-up',   type: 'string', default: 'UP',   help: 'Payload sent by the Up button.'},
-                {name: 'payload-stop', type: 'string', default: 'STOP', help: 'Payload sent by the Stop button.'},
-                {name: 'payload-down', type: 'string', default: 'DOWN', help: 'Payload sent by the Down button.'},
+                {name: 'payload-up',   type: 'string', default: 'OPEN',  help: 'Payload sent by the Up button.'},
+                {name: 'payload-stop', type: 'string', default: 'STOP',  help: 'Payload sent by the Stop button.'},
+                {name: 'payload-down', type: 'string', default: 'CLOSE', help: 'Payload sent by the Down button.'},
                 // ── Tilt / slat angle ─────────────────────────────────────────
                 {name: 'slat-angle',         type: 'mqttTopic', help: 'Subscribe: venetian-blind tilt/slat angle (0–100). Slat lines rotate in the SVG.'},
                 {name: 'publish-slat-angle', type: 'mqttTopic', help: 'Publish: topic to publish new slat angle to (0–100).'},
                 // ── Display ───────────────────────────────────────────────────
                 {name: 'invert',        type: 'boolean', default: false, help: 'Invert position scale: 0=open, 100=closed.'},
                 {name: 'show-position', type: 'boolean', default: true,  help: 'Show the numeric position label below the window.'},
-                {name: 'slat-count',    type: 'number',  default: 6,     help: 'Number of horizontal slat lines rendered in the SVG shutter panel.'},
+                {name: 'slat-count',    type: 'number',  default: 6,     help: 'Number of horizontal slat lines rendered in the SVG cover panel.'},
                 {name: 'label',         type: 'string',  default: '',    help: 'Optional card title shown at the bottom.'},
                 // ── Availability ──────────────────────────────────────────────
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Optional availability topic. A badge appears when unavailable; controls stay enabled.'},
@@ -72,13 +77,13 @@ class FeezalElementMaterialShutter extends FeezalElement {
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
                 // Theme-aware colour tokens. Leave blank to inherit from theme.
-                {property: '--feezal-shutter-frame-color', type: 'color', default: 'var(--primary-text-color)',
+                {property: '--feezal-cover-frame-color', type: 'color', default: 'var(--primary-text-color)',
                     help: 'Window frame, dividers, and slat line colour.'},
-                {property: '--feezal-shutter-panel-color', type: 'color', default: 'var(--secondary-background-color)',
-                    help: 'Shutter panel fill colour.'},
-                {property: '--feezal-shutter-text-color',  type: 'color', default: 'var(--primary-text-color)',
+                {property: '--feezal-cover-panel-color', type: 'color', default: 'var(--secondary-background-color)',
+                    help: 'Cover panel fill colour.'},
+                {property: '--feezal-cover-text-color',  type: 'color', default: 'var(--primary-text-color)',
                     help: 'Position label and button icon colour.'},
-                {property: '--feezal-shutter-error-color', type: 'color', default: 'var(--error-color)',
+                {property: '--feezal-cover-error-color', type: 'color', default: 'var(--error-color)',
                     help: 'Colour of the unavailability badge.'},
             ],
             restrict:     {minWidth: 80, minHeight: 100},
@@ -113,7 +118,6 @@ class FeezalElementMaterialShutter extends FeezalElement {
         _available:   {state: true},   // device availability
         _dragPos:     {state: true},   // live position during SVG drag
         _showSlider:  {state: true},   // toggle inline position slider
-        _showTilt:    {state: true},   // toggle inline tilt slider
     };
 
     static styles = [feezalBaseStyles, css`
@@ -131,26 +135,26 @@ class FeezalElementMaterialShutter extends FeezalElement {
                Four overridable colours, each defaulting to a feezal/HA theme
                variable (with a literal fallback). Override per-element via the
                Style inspector or a theme rule.                              */
-            --feezal-shutter-frame-color: var(--primary-text-color,        var(--feezal-color, #333));
-            --feezal-shutter-panel-color: var(--secondary-background-color, var(--feezal-bg-sub, #ddd));
-            --feezal-shutter-text-color:  var(--primary-text-color,        var(--feezal-color, #333));
-            --feezal-shutter-error-color: var(--error-color, #b00020);
+            --feezal-cover-frame-color: var(--primary-text-color,        var(--feezal-color, #333));
+            --feezal-cover-panel-color: var(--secondary-background-color, var(--feezal-bg-sub, #ddd));
+            --feezal-cover-text-color:  var(--primary-text-color,        var(--feezal-color, #333));
+            --feezal-cover-error-color: var(--error-color, #b00020);
 
-            /* MD3 bridge — icon buttons follow the shutter theme */
-            --md-sys-color-on-surface:         var(--feezal-shutter-text-color);
-            --md-sys-color-on-surface-variant: var(--feezal-shutter-text-color);
-            --md-icon-button-icon-color:        var(--feezal-shutter-text-color);
-            --md-icon-button-hover-icon-color:  var(--feezal-shutter-text-color);
-            --md-sys-color-primary:             var(--feezal-shutter-frame-color);
-            --md-slider-active-track-color:     var(--feezal-shutter-frame-color);
-            --md-slider-handle-color:           var(--feezal-shutter-frame-color);
-            --md-slider-inactive-track-color:   var(--feezal-shutter-panel-color);
+            /* MD3 bridge — icon buttons follow the cover theme */
+            --md-sys-color-on-surface:         var(--feezal-cover-text-color);
+            --md-sys-color-on-surface-variant: var(--feezal-cover-text-color);
+            --md-icon-button-icon-color:        var(--feezal-cover-text-color);
+            --md-icon-button-hover-icon-color:  var(--feezal-cover-text-color);
+            --md-sys-color-primary:             var(--feezal-cover-frame-color);
+            --md-slider-active-track-color:     var(--feezal-cover-frame-color);
+            --md-slider-handle-color:           var(--feezal-cover-frame-color);
+            --md-slider-inactive-track-color:   var(--feezal-cover-panel-color);
         }
         .unavail {
             position: absolute;
             top: 4px; right: 4px;
             width: 18px; height: 18px;
-            color: var(--feezal-shutter-error-color);
+            color: var(--feezal-cover-error-color);
             opacity: 0.8; pointer-events: none; z-index: 2;
         }
         .unavail svg { width: 100%; height: 100%; display: block; }
@@ -176,7 +180,7 @@ class FeezalElementMaterialShutter extends FeezalElement {
         .editor-btns {
             display: flex; gap: 8px; align-items: center;
             font-size: 16px; opacity: 0.55;
-            color: var(--feezal-shutter-text-color);
+            color: var(--feezal-cover-text-color);
         }
         .pos-wrap {
             display: flex; align-items: center; gap: 4px; width: 100%;
@@ -184,7 +188,7 @@ class FeezalElementMaterialShutter extends FeezalElement {
         }
         .pos-label {
             font-size: 12px; min-width: 32px; text-align: center;
-            color: var(--feezal-shutter-text-color);
+            color: var(--feezal-cover-text-color);
             cursor: pointer;
         }
         md-slider { flex: 1; max-width: 80px; }
@@ -193,11 +197,11 @@ class FeezalElementMaterialShutter extends FeezalElement {
         }
         .tilt-label {
             font-size: 10px; opacity: 0.6; min-width: 28px;
-            color: var(--feezal-shutter-text-color);
+            color: var(--feezal-cover-text-color);
         }
         .label {
             font-size: 11px; opacity: 0.65; text-align: center;
-            color: var(--feezal-shutter-text-color);
+            color: var(--feezal-cover-text-color);
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;
         }
     `];
@@ -211,9 +215,9 @@ class FeezalElementMaterialShutter extends FeezalElement {
         this.subscribePosition     = '';
         this.publishPosition       = '';
         this.publishCommand        = '';
-        this.payloadUp             = 'UP';
+        this.payloadUp             = 'OPEN';
         this.payloadStop           = 'STOP';
-        this.payloadDown           = 'DOWN';
+        this.payloadDown           = 'CLOSE';
         this.slatAngle             = '';
         this.publishSlatAngle      = '';
         this.invert                = false;
@@ -229,10 +233,9 @@ class FeezalElementMaterialShutter extends FeezalElement {
         this._available            = true;
         this._dragPos              = null;
         this._showSlider           = false;
-        this._showTilt             = false;
     }
 
-    // The shutter manages all subscriptions itself; suppress the base class path.
+    // The cover manages all subscriptions itself; suppress the base class path.
     _subscribe() { /* intentionally empty */ }
 
     connectedCallback() {
@@ -240,11 +243,21 @@ class FeezalElementMaterialShutter extends FeezalElement {
         if (feezal.isEditor) return;
 
         // Availability — always, independent of payload mode.
+        // Handles both plain string payloads and JSON objects: {"state":"online"}
         if (this.subscribeAvailability) {
             this.addSubscription(this.subscribeAvailability, msg => {
-                const v = this.getProperty(msg, this.messageProperty);
+                let v = this.getProperty(msg, this.messageProperty);
+                // Handle JSON availability payloads: {"state":"online"}
+                if (typeof v === 'string') {
+                    try {
+                        const parsed = JSON.parse(v);
+                        if (parsed && typeof parsed === 'object' && 'state' in parsed) v = parsed.state;
+                    } catch { /* not JSON, use raw string */ }
+                } else if (v && typeof v === 'object' && 'state' in v) {
+                    v = v.state;
+                }
                 const s = String(v).toLowerCase();
-                this._available = v === this.payloadAvailable ||
+                this._available = String(v) === this.payloadAvailable ||
                     (s !== String(this.payloadUnavailable).toLowerCase() &&
                      s !== 'offline' && s !== 'false' && s !== '0' && s !== 'unavailable');
             });
@@ -290,14 +303,37 @@ class FeezalElementMaterialShutter extends FeezalElement {
     _applyJsonState(obj) {
         const map = this._jsonMap;
         const get = key => this.getProperty(obj, key);
-        const pos = Number(get(map.position));
-        if (!isNaN(pos)) this._position = Math.max(0, Math.min(100, pos));
-        const tilt = Number(get(map.tilt));
-        if (!isNaN(tilt)) this._tilt = Math.max(0, Math.min(100, tilt));
+
+        // Position from numeric field (primary)
+        const pos = get(map.position);
+        if (pos !== null && pos !== undefined) {
+            const n = Number(pos);
+            if (!isNaN(n)) this._position = Math.max(0, Math.min(100, n));
+        }
+
+        // State field: infer position when numeric position is absent
+        // e.g. zigbee2mqtt cover reports state:"CLOSE" before position:0 arrives
+        if (this._position === null) {
+            const state = get(map.state);
+            if (state !== null && state !== undefined) {
+                const s = String(state).toUpperCase();
+                if (s === this.payloadDown.toUpperCase() || s === 'CLOSE' || s === 'CLOSED') {
+                    this._position = 0;
+                } else if (s === this.payloadUp.toUpperCase() || s === 'OPEN' || s === 'OPENED') {
+                    this._position = 100;
+                }
+            }
+        }
+
+        const tilt = get(map.tilt);
+        if (tilt !== null && tilt !== undefined) {
+            const n = Number(tilt);
+            if (!isNaN(n)) this._tilt = Math.max(0, Math.min(100, n));
+        }
     }
 
-    // Unified publish: json mode → single JSON object on `publish`;
-    // separate mode → raw value on `topic`.
+    // Unified publish: json mode → JSON object on `publish`;
+    // separate mode → raw string on `topic`.
     _pub(topic, value, jsonObj) {
         if (this.payloadMode === 'json') {
             if (this.publish) feezal.connection.pub(this.publish, JSON.stringify(jsonObj));
@@ -307,13 +343,13 @@ class FeezalElementMaterialShutter extends FeezalElement {
     }
 
     // ─── Controls ─────────────────────────────────────────────────────────────
-    _cmdUp()   { this._pub(this.publishCommand, this.payloadUp,   {[this._jsonMap.state]: 'OPEN'}); }
-    _cmdStop() { this._pub(this.publishCommand, this.payloadStop, {[this._jsonMap.state]: 'STOP'}); }
-    _cmdDown() { this._pub(this.publishCommand, this.payloadDown, {[this._jsonMap.state]: 'CLOSE'}); }
+    _cmdUp()   { this._pub(this.publishCommand, this.payloadUp,   {[this._jsonMap.state]: this.payloadUp}); }
+    _cmdStop() { this._pub(this.publishCommand, this.payloadStop, {[this._jsonMap.state]: this.payloadStop}); }
+    _cmdDown() { this._pub(this.publishCommand, this.payloadDown, {[this._jsonMap.state]: this.payloadDown}); }
 
     _setPosition(pos) {
         const clamped = Math.max(0, Math.min(100, Math.round(Number(pos))));
-        this._position  = clamped;
+        this._position   = clamped;
         this._showSlider = false;
         this._pub(this.publishPosition, clamped, {[this._jsonMap.position]: clamped});
     }
@@ -324,15 +360,15 @@ class FeezalElementMaterialShutter extends FeezalElement {
         this._pub(this.publishSlatAngle, clamped, {[this._jsonMap.tilt]: clamped});
     }
 
-    // ─── SVG drag — dragging the shutter panel sets a new position ────────────
+    // ─── SVG drag — dragging the cover panel sets a new position ─────────────
     _onSvgPointerDown(e) {
         if (feezal.isEditor) return;
         const svgEl = e.currentTarget;
         svgEl.setPointerCapture(e.pointerId);
-        const startY    = e.clientY;
-        const startPos  = this._position ?? 50;
-        const rect      = svgEl.getBoundingClientRect();
-        const heightPx  = rect.height || 1;
+        const startY   = e.clientY;
+        const startPos = this._position ?? 50;
+        const rect     = svgEl.getBoundingClientRect();
+        const heightPx = rect.height || 1;
 
         const onMove = ev => {
             const dy    = ev.clientY - startY;
@@ -358,54 +394,54 @@ class FeezalElementMaterialShutter extends FeezalElement {
     _renderWindow() {
         const displayPos   = this._dragPos ?? this._position ?? (feezal.isEditor ? 55 : 0);
         const effectivePos = this.invert ? (100 - displayPos) : displayPos;
-        // shutterH: 0 = fully open (position 100), FH = fully closed (position 0)
-        const shutterH   = Math.max(0, Math.round(FH * (1 - effectivePos / 100)));
-        const slatCount  = Math.max(1, this.slatCount || 6);
-        const tiltDeg    = ((this._tilt ?? 0) / 100) * 70; // 0–70° visual tilt
-        const slats      = [];
+        // coverH: 0 = fully open (position 100), FH = fully closed (position 0)
+        const coverH    = Math.max(0, Math.round(FH * (1 - effectivePos / 100)));
+        const slatCount = Math.max(1, this.slatCount || 6);
+        const tiltDeg   = ((this._tilt ?? 0) / 100) * 70; // 0–70° visual tilt
+        const slats     = [];
 
-        if (shutterH > 0) {
-            const spacing = shutterH / slatCount;
+        if (coverH > 0) {
+            const spacing = coverH / slatCount;
             for (let i = 0; i < slatCount; i++) {
                 const cy = FY + spacing * (i + 0.5);
-                if (cy > FY + shutterH + 0.5) break;
+                if (cy > FY + coverH + 0.5) break;
                 const dy = Math.tan(tiltDeg * Math.PI / 180) * (FW / 2);
                 slats.push(svg`<line
                     x1="${FX}" y1="${(cy - dy).toFixed(2)}"
                     x2="${FX + FW}" y2="${(cy + dy).toFixed(2)}"
-                    stroke="var(--feezal-shutter-frame-color)"
+                    stroke="var(--feezal-cover-frame-color)"
                     stroke-opacity="0.35" stroke-width="0.9"/>`);
             }
         }
 
         return svg`
-            <!-- Glass panes — subtle fill behind the shutter -->
+            <!-- Glass panes — subtle fill behind the cover -->
             <rect x="${FX}" y="${FY}" width="${FW}" height="${FH}"
-                fill="var(--feezal-shutter-frame-color)" fill-opacity="0.06" stroke="none"/>
-            <!-- Window cross-bars (drawn under shutter panel) -->
+                fill="var(--feezal-cover-frame-color)" fill-opacity="0.06" stroke="none"/>
+            <!-- Window cross-bars (drawn under cover panel) -->
             <line x1="${FX}" y1="${FY + FH * 0.45}" x2="${FX + FW}" y2="${FY + FH * 0.45}"
-                stroke="var(--feezal-shutter-frame-color)" stroke-width="1.5" stroke-opacity="0.25"/>
+                stroke="var(--feezal-cover-frame-color)" stroke-width="1.5" stroke-opacity="0.25"/>
             <line x1="${FX + FW * 0.37}" y1="${FY}" x2="${FX + FW * 0.37}" y2="${FY + FH}"
-                stroke="var(--feezal-shutter-frame-color)" stroke-width="1" stroke-opacity="0.2"/>
+                stroke="var(--feezal-cover-frame-color)" stroke-width="1" stroke-opacity="0.2"/>
             <line x1="${FX + FW * 0.63}" y1="${FY}" x2="${FX + FW * 0.63}" y2="${FY + FH}"
-                stroke="var(--feezal-shutter-frame-color)" stroke-width="1" stroke-opacity="0.2"/>
-            <!-- Shutter panel -->
-            ${shutterH > 0 ? svg`
-                <rect x="${FX}" y="${FY}" width="${FW}" height="${shutterH}"
-                    fill="var(--feezal-shutter-panel-color)" rx="1"/>` : svg``}
+                stroke="var(--feezal-cover-frame-color)" stroke-width="1" stroke-opacity="0.2"/>
+            <!-- Cover panel -->
+            ${coverH > 0 ? svg`
+                <rect x="${FX}" y="${FY}" width="${FW}" height="${coverH}"
+                    fill="var(--feezal-cover-panel-color)" rx="1"/>` : svg``}
             <!-- Slat lines -->
             ${slats}
             <!-- Window frame — drawn on top so it always shows clearly -->
             <rect x="${FX}" y="${FY}" width="${FW}" height="${FH}"
-                fill="none" stroke="var(--feezal-shutter-frame-color)" stroke-width="2.5" rx="1.5"/>
+                fill="none" stroke="var(--feezal-cover-frame-color)" stroke-width="2.5" rx="1.5"/>
         `;
     }
 
     // ─── Render ───────────────────────────────────────────────────────────────
     render() {
-        const showUnavail  = !feezal.isEditor && this.subscribeAvailability && !this._available;
-        const displayPos   = this._dragPos ?? this._position;
-        const hasTilt      = !feezal.isEditor && (this.slatAngle || this.publishSlatAngle);
+        const showUnavail = !feezal.isEditor && this.subscribeAvailability && !this._available;
+        const displayPos  = this._dragPos ?? this._position;
+        const hasTilt     = !feezal.isEditor && (this.slatAngle || this.publishSlatAngle);
 
         return html`
             ${showUnavail ? html`
@@ -470,8 +506,8 @@ class FeezalElementMaterialShutter extends FeezalElement {
     }
 }
 
-customElements.define('feezal-element-material-shutter', FeezalElementMaterialShutter);
-export {FeezalElementMaterialShutter};
+customElements.define('feezal-element-material-cover', FeezalElementMaterialCover);
+export {FeezalElementMaterialCover};
 
 // ─── N6 Custom Inspector ──────────────────────────────────────────────────────
 // Two-tab inspector (Topics + Config). Replaces the flat attribute form.
@@ -480,7 +516,7 @@ export {FeezalElementMaterialShutter};
 // with a Tilt capability toggle (json mode).
 // Config tab: Payload mode, command payloads, display options, availability.
 
-const SHUTTER_SECTIONS = [
+const COVER_SECTIONS = [
     // Separate-mode capability-gated sections
     {id: 'tilt', title: 'Tilt / Slat angle', topics: [
         {attr: 'slat-angle',          label: 'Subscribe (angle 0\u2013100)'},
@@ -503,7 +539,7 @@ const JSON_CAPABILITIES = [
     ]},
 ];
 
-class FeezalElementMaterialShutterInspector extends LitElement {
+class FeezalElementMaterialCoverInspector extends LitElement {
     static properties = {
         element: {attribute: false},
         _tab:    {state: true},
@@ -619,7 +655,7 @@ class FeezalElementMaterialShutterInspector extends LitElement {
                 <div class="section">
                     <div class="sec-head">State &amp; Control</div>
                     <div class="sec-body">
-                        ${this._topicInput({attr: 'subscribe', label: 'Subscribe (state)'})}
+                        ${this._topicInput({attr: 'subscribe', label: 'Subscribe (state topic)'})}
                         ${this._topicInput({attr: 'publish',   label: 'Publish (\u2026/set)'})}
                     </div>
                 </div>
@@ -652,7 +688,7 @@ class FeezalElementMaterialShutterInspector extends LitElement {
                     ${this._topicInput({attr: 'publish-command', label: 'Up / Stop / Down'})}
                 </div>
             </div>
-            ${SHUTTER_SECTIONS.map(sec => {
+            ${COVER_SECTIONS.map(sec => {
                 const enabled = this._sectionEnabled(sec);
                 return html`
                     <div class="section">
@@ -688,7 +724,7 @@ class FeezalElementMaterialShutterInspector extends LitElement {
                     <div class="field">
                         <label>Up</label>
                         <sl-input size="small" autocomplete="off"
-                            value="${this._val('payload-up') || 'UP'}"
+                            value="${this._val('payload-up') || 'OPEN'}"
                             @sl-change="${e => this._onInput('payload-up', e)}"></sl-input>
                     </div>
                     <div class="field">
@@ -700,7 +736,7 @@ class FeezalElementMaterialShutterInspector extends LitElement {
                     <div class="field">
                         <label>Down</label>
                         <sl-input size="small" autocomplete="off"
-                            value="${this._val('payload-down') || 'DOWN'}"
+                            value="${this._val('payload-down') || 'CLOSE'}"
                             @sl-change="${e => this._onInput('payload-down', e)}"></sl-input>
                     </div>
                 </div>
@@ -709,23 +745,32 @@ class FeezalElementMaterialShutterInspector extends LitElement {
             <div class="section">
                 <div class="sec-head">Display</div>
                 <div class="sec-body">
-                    <div class="field">
-                        <label>Slat count</label>
-                        <sl-input type="number" size="small" autocomplete="off"
-                            value="${this._val('slat-count') || '6'}"
-                            @sl-change="${e => this._onInput('slat-count', e)}"></sl-input>
+                    <div class="row">
+                        <div class="field">
+                            <label>Slat count</label>
+                            <sl-input size="small" type="number" autocomplete="off"
+                                value="${this._val('slat-count') || '6'}"
+                                @sl-change="${e => this._onInput('slat-count', e)}"></sl-input>
+                        </div>
                     </div>
-                    <sl-switch ?checked="${this._bool('invert', false)}"
-                        @sl-change="${e => this._emit('invert', e.target.checked)}">
-                        Invert (0\u00a0=\u00a0open)
-                    </sl-switch>
-                    <sl-switch ?checked="${this._bool('show-position', true)}"
-                        @sl-change="${e => this._emit('show-position', e.target.checked)}">
-                        Show position label
-                    </sl-switch>
+                    <div class="field">
+                        <sl-switch size="small"
+                            ?checked="${this._bool('invert', false)}"
+                            @sl-change="${e => this._emit('invert', e.target.checked || null, true)}">
+                            Invert (0 = open)
+                        </sl-switch>
+                    </div>
+                    <div class="field">
+                        <sl-switch size="small"
+                            ?checked="${this._bool('show-position', true)}"
+                            @sl-change="${e => this._emit('show-position', e.target.checked || null, true)}">
+                            Show position %
+                        </sl-switch>
+                    </div>
                     <div class="field">
                         <label>Label</label>
                         <sl-input size="small" autocomplete="off"
+                            placeholder="Kitchen blinds"
                             value="${this._val('label')}"
                             @sl-change="${e => this._onInput('label', e)}"></sl-input>
                     </div>
@@ -735,21 +780,16 @@ class FeezalElementMaterialShutterInspector extends LitElement {
             <div class="section">
                 <div class="sec-head">Availability</div>
                 <div class="sec-body">
-                    <div class="field">
-                        <label>Subscribe</label>
-                        <sl-input size="small" autocomplete="off" placeholder="\u2026/availability"
-                            value="${this._val('subscribe-availability')}"
-                            @sl-change="${e => this._onInput('subscribe-availability', e)}"></sl-input>
-                    </div>
+                    ${this._topicInput({attr: 'subscribe-availability', label: 'Availability topic'})}
                     <div class="row">
                         <div class="field">
-                            <label>Available</label>
+                            <label>Online payload</label>
                             <sl-input size="small" autocomplete="off"
                                 value="${this._val('payload-available') || 'online'}"
                                 @sl-change="${e => this._onInput('payload-available', e)}"></sl-input>
                         </div>
                         <div class="field">
-                            <label>Unavailable</label>
+                            <label>Offline payload</label>
                             <sl-input size="small" autocomplete="off"
                                 value="${this._val('payload-unavailable') || 'offline'}"
                                 @sl-change="${e => this._onInput('payload-unavailable', e)}"></sl-input>
@@ -761,5 +801,5 @@ class FeezalElementMaterialShutterInspector extends LitElement {
     }
 }
 
-customElements.define('feezal-element-material-shutter-inspector', FeezalElementMaterialShutterInspector);
-export {FeezalElementMaterialShutterInspector};
+customElements.define('feezal-element-material-cover-inspector', FeezalElementMaterialCoverInspector);
+export {FeezalElementMaterialCoverInspector};
