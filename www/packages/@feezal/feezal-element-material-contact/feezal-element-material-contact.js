@@ -57,7 +57,6 @@ class FeezalElementMaterialContact extends FeezalElement {
         return {
             palette: {name: 'Contact', category: 'Device', color: '#1565c0', icon: 'sensor_window'},
             description: 'Window / door contact sensor. Shows open or closed state as a stylised SVG. Supports multi-contact mode for a compact room overview.',
-            inspector: 'feezal-element-material-contact-inspector',
             discovery: {
                 component: 'binary_sensor',
                 map: {

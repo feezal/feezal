@@ -45,7 +45,6 @@ class FeezalElementMaterialDoorLock extends FeezalElement {
         return {
             palette: {name: 'Door lock', category: 'Device', color: '#1565c0', icon: 'lock'},
             description: 'Smart door lock card — shows locked / unlocked / jammed state with a padlock SVG. Lock and unlock command buttons included.',
-            inspector: 'feezal-element-material-door-lock-inspector',
             discovery: {
                 component: 'lock',
                 map: {

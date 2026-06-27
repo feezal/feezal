@@ -27,7 +27,6 @@ class FeezalElementMaterialPlant extends FeezalElement {
         return {
             palette: {name: 'Plant', category: 'Device', color: '#1565c0', icon: 'local_florist'},
             description: 'Plant health monitor — shows moisture, illuminance, temperature, conductivity and humidity sensor readings against configured healthy ranges.',
-            inspector: 'feezal-element-material-plant-inspector',
             attributes: [
                 {name: 'name',      type: 'string', default: '', help: 'Plant name displayed in the card header.'},
                 {name: 'image-url', type: 'string', default: '', help: 'Optional plant photo URL. Falls back to a leaf icon.'},

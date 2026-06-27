@@ -21,7 +21,6 @@ class FeezalElementMaterialFan extends FeezalElement {
         return {
             palette: {name: 'Fan', category: 'Device', color: '#1565c0', icon: 'mode_fan'},
             description: 'Smart fan card — on/off toggle with animated blade SVG, optional speed percentage slider and preset mode buttons.',
-            inspector: 'feezal-element-material-fan-inspector',
             discovery: {
                 component: 'fan',
                 map: {
