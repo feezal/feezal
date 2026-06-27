@@ -1,6 +1,6 @@
 {
     "name": "@feezal/feezal-server",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "description": "Web Components based Dashboard UI with WYSIWYG Editor",
     "main": "src/app.js",
     "bin": {
