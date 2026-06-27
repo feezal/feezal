@@ -25,7 +25,7 @@ class FeezalElementMaterialGauge extends FeezalElement {
             palette: {
                 name: 'Gauge',
                 category: 'Material',
-                color: '#4a7080'
+                color: '#4a6080'
             },
             description: 'Circular arc gauge. Subscribes to an MQTT numeric value and visualises it as a colour-filled arc.',
             attributes: [
