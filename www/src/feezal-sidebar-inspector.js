@@ -697,6 +697,7 @@ class FeezalSidebarInspector extends LitElement {
                                 this.setLocked(el, willLock);
                             });
                             feezal.app.change();
+                            this.selectedElems = [...this.selectedElems];
                         }
 
                         break;
@@ -1204,6 +1205,7 @@ class FeezalSidebarInspector extends LitElement {
                         this.setLocked(el, willLock);
                     });
                 feezal.app.change();
+                this.selectedElems = [...this.selectedElems];
                 break;
         }
     }
