@@ -164,6 +164,8 @@ class FeezalSiteManager extends LitElement {
         this._dropX         = 0;
         this._dropY         = 0;
         this._busy          = false;
+        this._openNewDialog  = this._openNewDialog.bind(this);
+        this._closeNewDialog = this._closeNewDialog.bind(this);
     }
 
     connectedCallback() {
