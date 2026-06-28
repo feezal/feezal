@@ -1131,7 +1131,7 @@ Enhance the existing HTML export to be a valid **Progressive Web App**. This req
 
 2. **`sw.js`** — a minimal service worker using Cache-First strategy. Caches all ZIP assets on first load. Subsequent loads work offline. On the broker side, MQTT over WebSocket reconnects automatically when the network returns — feezal-connection already handles this.
 
-3. **Icons** — a set of PNG icons at standard sizes (192×192, 512×512) for Android, and `apple-touch-icon` for iOS. If the site has a configured icon in its assets, use it; otherwise ship a default feezal icon. These are included in the ZIP.
+3. **Icons** — a set of PNG icons at standard sizes (192×192, 512×512) for Android, and `apple-touch-icon` for iOS. ✅ Already available: `www/favicon/` contains `web-app-manifest-192x192.png`, `web-app-manifest-512x512.png`, `apple-touch-icon.png`, `favicon.svg`, `favicon.ico`, and a `site.webmanifest` skeleton. The export should copy these files into the ZIP and reference them from the generated `manifest.json`.
 
 **Result:** the user hosts the ZIP contents on any static server (or `file://` via a local web server on Android). Chrome on Android shows an "Add to Home Screen" banner automatically. Safari on iOS shows "Add to Home Screen" in the share menu. The installed icon launches the dashboard in standalone mode (no browser chrome), full-screen, with offline support.
 
