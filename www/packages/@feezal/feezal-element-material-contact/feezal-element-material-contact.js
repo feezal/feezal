@@ -7,6 +7,19 @@ const UNAVAIL = html`<svg viewBox="0 0 24 24"><path fill="currentColor"
     d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>`;
 
 // ── SVG helpers ───────────────────────────────────────────────────────────────
+
+// Compare a received MQTT value (may be JS number/bool after JSON parsing)
+// against a user-configured payload string.
+// - String equality after coercion handles numbers: Number 1 → "1" === "1"
+// - Boolean true  matches "ON"/"TRUE"/"1"/"YES" (HA/z2m convention)
+// - Boolean false matches "OFF"/"FALSE"/"0"/"NO"
+function payloadMatch(value, configured) {
+    if (String(value) === String(configured)) return true;
+    if (value === true  && /^(on|true|1|yes)$/i.test(String(configured)))  return true;
+    if (value === false && /^(off|false|0|no)$/i.test(String(configured))) return true;
+    return false;
+}
+
 function windowSvg(state, mirrorHandle) {
     // state: 'closed' | 'open' | 'tilted'
     const isOpen   = state === 'open';
@@ -278,8 +291,7 @@ class FeezalElementMaterialContact extends FeezalElement {
                 if (!c.subscribe) continue;
                 this.addSubscription(c.subscribe, msg => {
                     const v = this.getProperty(msg, this.messageProperty);
-                    const isOpen = String(v) === String(this.payloadOpen) ||
-                        v === true || v === 1 || v === '1';
+                    const isOpen = payloadMatch(v, this.payloadOpen);
                     this._multiOpen = {...this._multiOpen, [c.subscribe]: isOpen};
                 });
             }
@@ -289,9 +301,9 @@ class FeezalElementMaterialContact extends FeezalElement {
                 const s = String(v);
                 console.log('[contact] topic=%s raw=%o str=%s payloadOpen=%s payloadClosed=%s payloadTilted=%s',
                     this.subscribe, v, s, this.payloadOpen, this.payloadClosed, this.payloadTilted);
-                if (this.payloadTilted && s === String(this.payloadTilted)) {
+                if (this.payloadTilted && payloadMatch(v, this.payloadTilted)) {
                     this._contactState = 'tilted';
-                } else if (s === String(this.payloadOpen) || v === true || v === 1 || v === '1') {
+                } else if (payloadMatch(v, this.payloadOpen)) {
                     this._contactState = 'open';
                 } else {
                     this._contactState = 'closed';
