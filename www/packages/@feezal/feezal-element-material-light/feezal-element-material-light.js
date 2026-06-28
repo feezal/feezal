@@ -354,13 +354,12 @@ class FeezalElementMaterialLight extends FeezalElement {
         md-slider { width: 100%; }
         select.effect-select {
             width: 100%; box-sizing: border-box;
-            background: rgba(255,255,255,0.06); color: inherit;
-            border: 1px solid rgba(255,255,255,0.18); border-radius: 6px;
+            background: var(--feezal-light-surface-color); color: var(--feezal-light-text-color);
+            border: 1px solid var(--feezal-light-off-color); border-radius: 6px;
             padding: 3px 6px; font-size: 11px; line-height: 1.4;
             cursor: pointer; outline: none; appearance: auto;
-            color-scheme: dark;
         }
-        select.effect-select:hover { border-color: rgba(255,255,255,0.35); }
+        select.effect-select:hover { border-color: var(--feezal-light-text-color); }
         .label {
             font-size: 11px; opacity: 0.65; text-align: center;
             color: var(--feezal-light-text-color);
