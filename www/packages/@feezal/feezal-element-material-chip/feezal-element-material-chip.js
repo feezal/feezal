@@ -28,7 +28,10 @@ class FeezalElementMaterialChip extends FeezalElement {
                 {name: 'icon',        type: 'string',    help: 'Material icon name shown in the chip.'},
                 {name: 'disabled',    type: 'boolean',   help: 'Disable user interaction.'},
             ],
-            styles: ['top', 'left', 'width', 'height'],
+            styles: [
+                'top', 'left', 'width', 'height',
+                {property: '--feezal-chip-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Chip selected state colour.'},
+            ],
             defaultStyle: {width: '120px', height: '36px'},
         };
     }
@@ -50,7 +53,8 @@ class FeezalElementMaterialChip extends FeezalElement {
             align-items: center;
             justify-content: center;
             box-sizing: border-box;
-            --md-sys-color-primary: var(--sl-color-primary-600, #0284c7);
+            --feezal-chip-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --md-sys-color-primary: var(--feezal-chip-color);
             --md-sys-color-on-surface: var(--primary-text-color, #333);
             --md-sys-color-surface-container-low: var(--card-background-color, #f5f5f5);
         }
@@ -60,7 +64,7 @@ class FeezalElementMaterialChip extends FeezalElement {
             gap: 6px;
             padding: 6px 12px;
             border-radius: 8px;
-            border: 1px solid var(--sl-color-primary-600, #0284c7);
+            border: 1px solid var(--feezal-chip-color);
             font-size: 14px;
             color: var(--primary-text-color, #555);
             background: var(--card-background-color, #f5f5f5);

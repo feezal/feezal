@@ -19,7 +19,10 @@ class FeezalElementMaterialIconButton extends FeezalElement {
                 {name: 'payload-off', type: 'string',    help: 'Payload meaning OFF/unselected. Default: OFF'},
                 {name: 'disabled',    type: 'boolean',   help: 'Disable the button.'},
             ],
-            styles: ['top', 'left', 'width', 'height'],
+            styles: [
+                'top', 'left', 'width', 'height',
+                {property: '--feezal-icon-button-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Icon and selected state colour.'},
+            ],
             defaultStyle: {width: '48px', height: '48px'},
         };
     }
@@ -43,7 +46,8 @@ class FeezalElementMaterialIconButton extends FeezalElement {
             align-items: center;
             justify-content: center;
             box-sizing: border-box;
-            --md-sys-color-primary: var(--sl-color-primary-600, #0284c7);
+            --feezal-icon-button-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --md-sys-color-primary: var(--feezal-icon-button-color);
             --md-sys-color-on-surface: var(--primary-text-color, #333);
         }
         .editor-ph {
@@ -53,8 +57,8 @@ class FeezalElementMaterialIconButton extends FeezalElement {
             width: 40px;
             height: 40px;
             border-radius: 50%;
-            background: var(--sl-color-primary-100, #e0f2fe);
-            color: var(--sl-color-primary-600, #0284c7);
+            background: color-mix(in srgb, var(--feezal-icon-button-color) 12%, transparent);
+            color: var(--feezal-icon-button-color);
             font-size: 20px;
             font-family: 'Material Symbols Outlined', 'Material Icons', sans-serif;
         }

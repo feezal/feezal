@@ -25,7 +25,10 @@ class FeezalElementMaterialButton extends FeezalElement {
                     help: 'Visual style: filled (solid), outlined (border only), text, elevated (shadow), tonal (secondary container).'},
                 {name: 'icon',    type: 'string',  help: 'Optional Material Icons ligature shown before the label.'}
             ],
-            styles: ['top', 'left', 'width', 'height'],
+            styles: [
+                'top', 'left', 'width', 'height',
+                {property: '--feezal-button-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Button fill / accent colour.'},
+            ],
             defaultStyle: {width: '120px', height: '40px'}
         };
     }
@@ -43,7 +46,8 @@ class FeezalElementMaterialButton extends FeezalElement {
             display: flex;
             align-items: stretch;
             justify-content: stretch;
-            --md-sys-color-primary:            var(--sl-color-primary-600, #0284c7);
+            --feezal-button-color:             var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --md-sys-color-primary:            var(--feezal-button-color);
             --md-sys-color-on-primary:         #fff;
             --md-sys-color-secondary-container: var(--sl-color-primary-100, #e0f2fe);
             --md-sys-color-on-secondary-container: var(--sl-color-primary-900, #0c4a6e);
@@ -58,9 +62,9 @@ class FeezalElementMaterialButton extends FeezalElement {
         .editor-ph {
             flex: 1;
             display: flex; align-items: center; justify-content: center;
-            border: 1px solid #1565c0; border-radius: 20px;
-            font-size: 12px; color: #1565c0; gap: 4px;
-            background: rgba(21,101,192,0.06);
+            border: 1px solid var(--feezal-button-color); border-radius: 20px;
+            font-size: 12px; color: var(--feezal-button-color); gap: 4px;
+            background: color-mix(in srgb, var(--feezal-button-color) 8%, transparent);
             user-select: none;
         }
     `];

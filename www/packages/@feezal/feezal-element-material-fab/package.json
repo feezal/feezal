@@ -1,5 +1,5 @@
 {
-  "name": "@feezal/feezal-element-material-fab",
-  "version": "1.0.0",
-  "main": "feezal-element-material-fab.js"
+    "name":  "@feezal/feezal-element-material-fab",
+    "version":  "1.0.1",
+    "main":  "feezal-element-material-fab.js"
 }

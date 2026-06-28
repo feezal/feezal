@@ -21,7 +21,10 @@ class FeezalElementMaterialSwitch extends FeezalElement {
                 {name: 'payload-off',    type: 'string',  help: 'Payload published when switched off.', default: 'OFF'},
                 {name: 'icons',          type: 'boolean', help: 'Show check / x icons inside the thumb.', default: false}
             ],
-            styles: ['top', 'left', 'width', 'height'],
+            styles: [
+                'top', 'left', 'width', 'height',
+                {property: '--feezal-switch-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Switch track colour when on.'},
+            ],
             defaultStyle: {width: '80px', height: '32px'},
             discovery: {
                 component: 'switch',
@@ -51,7 +54,8 @@ class FeezalElementMaterialSwitch extends FeezalElement {
             display: flex;
             align-items: center;
             gap: 8px;
-            --md-sys-color-primary:       var(--sl-color-primary-600, #0284c7);
+            --feezal-switch-color:        var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --md-sys-color-primary:       var(--feezal-switch-color);
             --md-sys-color-on-primary:    #fff;
             --md-switch-track-width:      52px;
             --md-switch-track-height:     32px;
@@ -63,7 +67,7 @@ class FeezalElementMaterialSwitch extends FeezalElement {
         }
         .editor-ph {
             display: flex; align-items: center; gap: 6px;
-            font-size: 12px; color: #1565c0; user-select: none;
+            font-size: 12px; color: var(--feezal-switch-color); user-select: none;
         }
         .editor-ph .track {
             width: 44px; height: 24px; border-radius: 12px;

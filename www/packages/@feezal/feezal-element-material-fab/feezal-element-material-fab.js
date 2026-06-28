@@ -17,7 +17,10 @@ class FeezalElementMaterialFab extends FeezalElement {
                 {name: 'variant',  type: 'select',    options: ['surface', 'primary', 'secondary', 'tertiary'], help: 'Color variant.'},
                 {name: 'disabled', type: 'boolean',   help: 'Disable the button.'},
             ],
-            styles: ['top', 'left', 'width', 'height'],
+            styles: [
+                'top', 'left', 'width', 'height',
+                {property: '--feezal-fab-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'FAB fill colour.'},
+            ],
             defaultStyle: {width: '56px', height: '56px'},
         };
     }
@@ -38,7 +41,8 @@ class FeezalElementMaterialFab extends FeezalElement {
             align-items: center;
             justify-content: center;
             box-sizing: border-box;
-            --md-sys-color-primary: var(--sl-color-primary-600, #0284c7);
+            --feezal-fab-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --md-sys-color-primary: var(--feezal-fab-color);
             --md-sys-color-on-primary: #fff;
             --md-sys-color-primary-container: var(--sl-color-primary-100, #e0f2fe);
             --md-sys-color-on-primary-container: var(--sl-color-primary-700, #0369a1);
@@ -52,7 +56,7 @@ class FeezalElementMaterialFab extends FeezalElement {
             min-width: 40px;
             min-height: 40px;
             border-radius: 16px;
-            background: var(--sl-color-primary-600, #0284c7);
+            background: var(--feezal-fab-color);
             color: #fff;
             font-size: 14px;
             font-family: 'Material Symbols Outlined', 'Material Icons', sans-serif;

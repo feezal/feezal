@@ -21,7 +21,10 @@ class FeezalElementMaterialSlider extends FeezalElement {
                 {name: 'step',     type: 'number',  help: 'Step size.', default: 1},
                 {name: 'labeled',  type: 'boolean', help: 'Show a value label bubble above the thumb while dragging.', default: false}
             ],
-            styles: ['top', 'left', 'width', 'height'],
+            styles: [
+                'top', 'left', 'width', 'height',
+                {property: '--feezal-slider-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Slider thumb and active track colour.'},
+            ],
             defaultStyle: {width: '160px', height: '48px'}
         };
     }
@@ -39,14 +42,15 @@ class FeezalElementMaterialSlider extends FeezalElement {
         :host {
             display: flex;
             align-items: center;
-            --md-sys-color-primary:       var(--sl-color-primary-600, #0284c7);
+            --feezal-slider-color:        var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --md-sys-color-primary:       var(--feezal-slider-color);
             --md-sys-color-surface:       var(--feezal-bg, #fff);
             --md-sys-color-on-surface:    var(--feezal-color, #333);
         }
         md-slider { width: 100%; }
         .editor-ph {
             flex: 1; height: 4px; border-radius: 2px;
-            background: linear-gradient(to right, var(--sl-color-primary-600, #0284c7) 50%, var(--feezal-border, #ccc) 50%);
+            background: linear-gradient(to right, var(--feezal-slider-color) 50%, var(--feezal-border, #ccc) 50%);
             position: relative;
         }
         .editor-ph::after {
@@ -55,7 +59,7 @@ class FeezalElementMaterialSlider extends FeezalElement {
             transform: translate(-50%, -50%);
             width: 20px; height: 20px;
             border-radius: 50%;
-            background: var(--sl-color-primary-600, #0284c7);
+            background: var(--feezal-slider-color);
         }
     `];
 

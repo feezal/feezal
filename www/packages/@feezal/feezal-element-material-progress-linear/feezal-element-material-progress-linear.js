@@ -17,7 +17,10 @@ class FeezalElementMaterialProgressLinear extends FeezalElement {
                 {name: 'label',         type: 'string',    help: 'Label text shown above the bar.'},
                 {name: 'show-value',    type: 'boolean',   help: 'Show current numeric value beside the bar.'},
             ],
-            styles: ['top', 'left', 'width', 'height'],
+            styles: [
+                'top', 'left', 'width', 'height',
+                {property: '--feezal-progress-linear-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Progress bar fill colour.'},
+            ],
             defaultStyle: {width: '200px', height: '32px'},
         };
     }
@@ -40,9 +43,10 @@ class FeezalElementMaterialProgressLinear extends FeezalElement {
             gap: 4px;
             padding: 4px;
             box-sizing: border-box;
-            --md-sys-color-primary: var(--sl-color-primary-600, #0284c7);
+            --feezal-progress-linear-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --md-sys-color-primary: var(--feezal-progress-linear-color);
             --md-linear-progress-track-color: var(--divider-color, #e0e0e0);
-            --md-linear-progress-active-indicator-color: var(--sl-color-primary-600, #0284c7);
+            --md-linear-progress-active-indicator-color: var(--feezal-progress-linear-color);
         }
         .label-row {
             display: flex;
@@ -63,7 +67,7 @@ class FeezalElementMaterialProgressLinear extends FeezalElement {
             height: 4px;
             border-radius: 2px;
             background: linear-gradient(to right,
-                var(--sl-color-primary-600, #0284c7) 60%,
+                var(--feezal-progress-linear-color) 60%,
                 var(--divider-color, #e0e0e0) 60%);
         }
     `];

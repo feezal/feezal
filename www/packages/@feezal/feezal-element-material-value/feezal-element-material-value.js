@@ -31,7 +31,8 @@ class FeezalElementMaterialValue extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height',
-                'background', 'border-radius', 'color', 'font-family'
+                'background', 'border-radius', 'color', 'font-family',
+                {property: '--feezal-value-icon-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Icon colour.'},
             ],
             defaultStyle: {width: '120px', height: '80px', borderRadius: '12px'}
         };
@@ -59,11 +60,12 @@ class FeezalElementMaterialValue extends FeezalElement {
             border-radius: 12px;
             overflow: hidden;
             box-sizing: border-box;
+            --feezal-value-icon-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
         }
         .icon {
             font-family: 'Material Icons', sans-serif;
             font-size: 18px; font-style: normal;
-            color: var(--sl-color-primary-600, #0284c7);
+            color: var(--feezal-value-icon-color);
             line-height: 1; margin-bottom: 2px;
         }
         .value-row {

@@ -18,7 +18,10 @@ class FeezalElementMaterialProgressCircular extends FeezalElement {
                 {name: 'label',         type: 'string',    help: 'Label text shown below the ring.'},
                 {name: 'unit',          type: 'string',    help: 'Unit suffix shown beside the centre value.'},
             ],
-            styles: ['top', 'left', 'width', 'height'],
+            styles: [
+                'top', 'left', 'width', 'height',
+                {property: '--feezal-progress-circular-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Progress ring indicator colour.'},
+            ],
             defaultStyle: {width: '80px', height: '80px'},
         };
     }
@@ -41,8 +44,9 @@ class FeezalElementMaterialProgressCircular extends FeezalElement {
             align-items: center;
             justify-content: center;
             box-sizing: border-box;
-            --md-sys-color-primary: var(--sl-color-primary-600, #0284c7);
-            --md-circular-progress-active-indicator-color: var(--sl-color-primary-600, #0284c7);
+            --feezal-progress-circular-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --md-sys-color-primary: var(--feezal-progress-circular-color);
+            --md-circular-progress-active-indicator-color: var(--feezal-progress-circular-color);
         }
         .wrap {
             position: relative;
@@ -82,7 +86,7 @@ class FeezalElementMaterialProgressCircular extends FeezalElement {
             height: 48px;
             border-radius: 50%;
             border: 4px solid var(--divider-color, #e0e0e0);
-            border-top-color: var(--sl-color-primary-600, #0284c7);
+            border-top-color: var(--feezal-progress-circular-color);
             box-sizing: border-box;
         }
     `];

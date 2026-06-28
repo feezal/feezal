@@ -22,7 +22,11 @@ class FeezalElementMaterialBadge extends FeezalElement {
                 {name: 'label',     type: 'string',    help: 'Label text shown below the icon.'},
                 {name: 'max-count', type: 'number',    help: 'Maximum count to show; higher values display "99+". Default: 99'},
             ],
-            styles: ['top', 'left', 'width', 'height'],
+            styles: [
+                'top', 'left', 'width', 'height',
+                {property: '--feezal-badge-color',      type: 'color', default: 'var(--error-color, #d32f2f)',         help: 'Badge dot background colour.'},
+                {property: '--feezal-badge-icon-color',  type: 'color', default: 'var(--primary-text-color, #555)',     help: 'Base icon colour.'},
+            ],
             defaultStyle: {width: '56px', height: '56px'},
         };
     }
@@ -42,8 +46,10 @@ class FeezalElementMaterialBadge extends FeezalElement {
             align-items: center;
             justify-content: center;
             box-sizing: border-box;
+            --feezal-badge-color:      var(--error-color, #d32f2f);
+            --feezal-badge-icon-color: var(--primary-text-color, var(--feezal-color, #555));
             --md-sys-color-primary: var(--sl-color-primary-600, #0284c7);
-            --md-sys-color-error: #d32f2f;
+            --md-sys-color-error: var(--feezal-badge-color);
         }
         .wrap {
             position: relative;
@@ -53,7 +59,7 @@ class FeezalElementMaterialBadge extends FeezalElement {
         }
         md-icon {
             font-size: 32px;
-            color: var(--primary-text-color, #555);
+            color: var(--feezal-badge-icon-color);
         }
         .badge {
             position: absolute;
@@ -63,7 +69,7 @@ class FeezalElementMaterialBadge extends FeezalElement {
             min-width: 18px;
             height: 18px;
             border-radius: 9px;
-            background: var(--md-badge-color, #d32f2f);
+            background: var(--feezal-badge-color);
             color: #fff;
             font-size: 10px;
             font-weight: 600;
@@ -101,7 +107,7 @@ class FeezalElementMaterialBadge extends FeezalElement {
             min-width: 18px;
             height: 18px;
             border-radius: 9px;
-            background: #d32f2f;
+            background: var(--feezal-badge-color);
             color: #fff;
             font-size: 10px;
             display: flex;

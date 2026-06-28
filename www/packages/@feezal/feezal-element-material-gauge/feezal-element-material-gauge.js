@@ -40,7 +40,10 @@ class FeezalElementMaterialGauge extends FeezalElement {
                 {name: 'digits', type: 'number', help: 'Decimal places for the displayed value.', default: 0},
                 {name: 'thickness', type: 'number', help: 'Arc stroke width in SVG units (1–40).', default: 12}
             ],
-            styles: ['top', 'left', 'width', 'height', 'background', 'border-radius'],
+            styles: [
+                'top', 'left', 'width', 'height', 'background', 'border-radius',
+                {property: '--feezal-gauge-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Arc fill colour.'},
+            ],
             defaultStyle: {width: '120px', height: '120px'}
         };
     }
@@ -64,6 +67,7 @@ class FeezalElementMaterialGauge extends FeezalElement {
             justify-content: center;
             box-sizing: border-box;
             overflow: hidden;
+            --feezal-gauge-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
         }
         svg { flex: 1; width: 100%; overflow: visible; }
         .label {
@@ -133,7 +137,7 @@ class FeezalElementMaterialGauge extends FeezalElement {
         const fillEnd  = SA + SW * ratio;
         const trackPath = this._arcPath(SA, SA + SW, trackR);
         const fillPath  = ratio > 0.001 ? this._arcPath(SA, fillEnd, trackR) : null;
-        const accent    = this.color || 'var(--sl-color-primary-600, #0284c7)';
+        const accent    = this.color || 'var(--feezal-gauge-color)';
         const trackColor = 'var(--feezal-border, #e0e0e0)';
 
         const formatted = isEditor ? '—' : (

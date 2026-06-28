@@ -17,7 +17,10 @@ class FeezalElementMaterialSelect extends FeezalElement {
                 {name: 'options',   type: 'string',    help: 'JSON array of options, e.g. [{"value":"1","label":"One"},{"value":"2","label":"Two"}]'},
                 {name: 'disabled',  type: 'boolean',   help: 'Disable the select field.'},
             ],
-            styles: ['top', 'left', 'width', 'height'],
+            styles: [
+                'top', 'left', 'width', 'height',
+                {property: '--feezal-select-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Select field focus / active colour.'},
+            ],
             defaultStyle: {width: '200px', height: '56px'},
         };
     }
@@ -36,7 +39,8 @@ class FeezalElementMaterialSelect extends FeezalElement {
             display: flex;
             align-items: center;
             box-sizing: border-box;
-            --md-sys-color-primary: var(--sl-color-primary-600, #0284c7);
+            --feezal-select-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --md-sys-color-primary: var(--feezal-select-color);
             --md-sys-color-on-surface: var(--primary-text-color, #333);
             --md-sys-color-surface: var(--card-background-color, #fff);
             --md-sys-color-outline: var(--divider-color, #ccc);

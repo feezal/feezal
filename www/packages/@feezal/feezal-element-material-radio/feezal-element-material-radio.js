@@ -18,7 +18,10 @@ class FeezalElementMaterialRadio extends FeezalElement {
                 {name: 'orientation', type: 'select',    options: ['vertical', 'horizontal'], help: 'Layout direction. Default: vertical'},
                 {name: 'disabled',    type: 'boolean',   help: 'Disable all radio buttons.'},
             ],
-            styles: ['top', 'left', 'width', 'height'],
+            styles: [
+                'top', 'left', 'width', 'height',
+                {property: '--feezal-radio-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Radio button selected colour.'},
+            ],
             defaultStyle: {width: '160px', height: '96px'},
         };
     }
@@ -39,7 +42,8 @@ class FeezalElementMaterialRadio extends FeezalElement {
             justify-content: center;
             box-sizing: border-box;
             padding: 4px;
-            --md-sys-color-primary: var(--sl-color-primary-600, #0284c7);
+            --feezal-radio-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --md-sys-color-primary: var(--feezal-radio-color);
         }
         .group {
             display: flex;
@@ -77,7 +81,7 @@ class FeezalElementMaterialRadio extends FeezalElement {
             width: 16px;
             height: 16px;
             border-radius: 50%;
-            border: 2px solid var(--sl-color-primary-600, #0284c7);
+            border: 2px solid var(--feezal-radio-color);
             flex-shrink: 0;
         }
     `];

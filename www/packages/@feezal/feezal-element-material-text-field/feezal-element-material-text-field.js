@@ -19,7 +19,10 @@ class FeezalElementMaterialTextField extends FeezalElement {
                 {name: 'suffix',           type: 'string',    help: 'Suffix text shown inside the field (e.g. unit).'},
                 {name: 'disabled',         type: 'boolean',   help: 'Disable user input.'},
             ],
-            styles: ['top', 'left', 'width', 'height'],
+            styles: [
+                'top', 'left', 'width', 'height',
+                {property: '--feezal-text-field-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Focus border and floating label colour.'},
+            ],
             defaultStyle: {width: '200px', height: '56px'},
         };
     }
@@ -41,7 +44,8 @@ class FeezalElementMaterialTextField extends FeezalElement {
             display: flex;
             align-items: center;
             box-sizing: border-box;
-            --md-sys-color-primary: var(--sl-color-primary-600, #0284c7);
+            --feezal-text-field-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --md-sys-color-primary: var(--feezal-text-field-color);
             --md-sys-color-on-surface: var(--primary-text-color, #333);
             --md-sys-color-surface: var(--card-background-color, #fff);
             --md-sys-color-outline: var(--divider-color, #ccc);

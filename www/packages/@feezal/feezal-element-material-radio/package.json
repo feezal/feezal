@@ -1,5 +1,5 @@
 {
-  "name": "@feezal/feezal-element-material-radio",
-  "version": "1.0.1",
-  "main": "feezal-element-material-radio.js"
+    "name":  "@feezal/feezal-element-material-radio",
+    "version":  "1.0.2",
+    "main":  "feezal-element-material-radio.js"
 }

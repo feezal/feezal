@@ -28,7 +28,10 @@ class FeezalElementMaterialCheckbox extends FeezalElement {
                 {name: 'label',       type: 'string',    help: 'Label text shown beside the checkbox.'},
                 {name: 'disabled',    type: 'boolean',   help: 'Disable user interaction.'},
             ],
-            styles: ['top', 'left', 'width', 'height'],
+            styles: [
+                'top', 'left', 'width', 'height',
+                {property: '--feezal-checkbox-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Checkbox active/checked colour.'},
+            ],
             defaultStyle: {width: '140px', height: '40px'},
         };
     }
@@ -50,7 +53,8 @@ class FeezalElementMaterialCheckbox extends FeezalElement {
             gap: 8px;
             padding: 4px;
             box-sizing: border-box;
-            --md-sys-color-primary: var(--sl-color-primary-600, #0284c7);
+            --feezal-checkbox-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --md-sys-color-primary: var(--feezal-checkbox-color);
         }
         label {
             font-size: 14px;
@@ -72,7 +76,7 @@ class FeezalElementMaterialCheckbox extends FeezalElement {
         .editor-ph .box {
             width: 18px;
             height: 18px;
-            border: 2px solid var(--sl-color-primary-600, #0284c7);
+            border: 2px solid var(--feezal-checkbox-color);
             border-radius: 2px;
             flex-shrink: 0;
         }
