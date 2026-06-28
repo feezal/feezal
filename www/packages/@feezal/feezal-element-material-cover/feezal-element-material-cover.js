@@ -57,7 +57,7 @@ class FeezalElementMaterialCover extends FeezalElement {
                     help: 'json mode: dot-notation path to the JSON state object within the MQTT message. Default "payload" reads msg.payload directly.'},
                 // ── Separate-mode per-property topics ─────────────────────────
                 {name: 'subscribe-position', type: 'mqttTopic', help: 'separate mode: current position (0=closed, 100=open).'},
-                {name: 'message-property-position', type: 'string', default: '',
+                {name: 'message-property-position', type: 'string', default: 'payload',
                     help: 'Dot-notation path within the position message. Blank = fall back to element-level message-property.'},
                 {name: 'publish-position',   type: 'mqttTopic', help: 'separate mode: target position topic.'},
                 {name: 'publish-command',    type: 'mqttTopic', help: 'separate mode: up/stop/down command topic.'},
@@ -67,7 +67,7 @@ class FeezalElementMaterialCover extends FeezalElement {
                 {name: 'payload-down', type: 'string', default: 'CLOSE', help: 'Payload sent by the Down button.'},
                 // ── Tilt / slat angle ─────────────────────────────────────────
                 {name: 'slat-angle',         type: 'mqttTopic', help: 'Subscribe: venetian-blind tilt/slat angle (0–100). Slat lines rotate in the SVG.'},
-                {name: 'message-property-tilt', type: 'string', default: '',
+                {name: 'message-property-tilt', type: 'string', default: 'payload',
                     help: 'Dot-notation path within the slat-angle message. Blank = fall back to element-level message-property.'},
                 {name: 'publish-slat-angle', type: 'mqttTopic', help: 'Publish: topic to publish new slat angle to (0–100).'},
                 // ── Display ───────────────────────────────────────────────────
@@ -77,7 +77,7 @@ class FeezalElementMaterialCover extends FeezalElement {
                 {name: 'label',         type: 'string',  default: '',    help: 'Optional card title shown at the bottom.'},
                 // ── Availability ──────────────────────────────────────────────
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Optional availability topic. A badge appears when unavailable; controls stay enabled.'},
-                {name: 'message-property-availability', type: 'string', default: '',
+                {name: 'message-property-availability', type: 'string', default: 'payload',
                     help: 'Dot-notation path within the availability message. Blank = fall back to element-level message-property.'},
                 {name: 'payload-available',      type: 'string', default: 'online',  help: 'Payload meaning the device is online.'},
                 {name: 'payload-unavailable',    type: 'string', default: 'offline', help: 'Payload meaning the device is offline.'},
@@ -808,6 +808,41 @@ class FeezalElementMaterialCoverInspector extends LitElement {
                                 value="${this._val('payload-unavailable') || 'offline'}"
                                 @sl-change="${e => this._onInput('payload-unavailable', e)}"></sl-input>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="sec-head">Message property</div>
+                <div class="sec-body">
+                    <div class="hint">Dot-notation path to extract a value from each message (e.g. <code>payload</code>, <code>data.value</code>). Blank = read top-level payload.</div>
+                    <div class="field">
+                        <label>Global (all topics)</label>
+                        <sl-input size="small" autocomplete="off"
+                            placeholder="payload"
+                            value="${this._val('message-property')}"
+                            @sl-change="${e => this._onInput('message-property', e)}"></sl-input>
+                    </div>
+                    <div class="field">
+                        <label>Position topic</label>
+                        <sl-input size="small" autocomplete="off"
+                            placeholder="payload"
+                            value="${this._val('message-property-position')}"
+                            @sl-change="${e => this._onInput('message-property-position', e)}"></sl-input>
+                    </div>
+                    <div class="field">
+                        <label>Tilt / slat topic</label>
+                        <sl-input size="small" autocomplete="off"
+                            placeholder="payload"
+                            value="${this._val('message-property-tilt')}"
+                            @sl-change="${e => this._onInput('message-property-tilt', e)}"></sl-input>
+                    </div>
+                    <div class="field">
+                        <label>Availability topic</label>
+                        <sl-input size="small" autocomplete="off"
+                            placeholder="payload"
+                            value="${this._val('message-property-availability')}"
+                            @sl-change="${e => this._onInput('message-property-availability', e)}"></sl-input>
                     </div>
                 </div>
             </div>

@@ -113,24 +113,24 @@ class FeezalElementMaterialClimate extends FeezalElement {
                     help: 'json mode: optional JSON map overriding default keys. E.g. {"setpoint":"target_temp","actual":"temperature"}.'},                {name: 'message-property', type: 'string', default: 'payload',
                     help: 'json mode: dot-notation path to the state JSON object within the MQTT message. Default "payload" reads msg.payload directly.'},                // ── Separate mode — setpoint ───────────────────────────────────
                 {name: 'subscribe-setpoint', type: 'mqttTopic', help: 'separate: topic publishing the current setpoint.'},
-                {name: 'message-property-setpoint', type: 'string', default: '',
+                {name: 'message-property-setpoint', type: 'string', default: 'payload',
                     help: 'Dot-notation path within the setpoint message. Blank = fall back to element-level message-property.'},
                 {name: 'publish-setpoint',   type: 'mqttTopic', help: 'separate: topic to publish a new setpoint to.'},
                 // ── Separate mode — actual ─────────────────────────────────────
                 {name: 'subscribe-actual', type: 'mqttTopic', help: 'Topic for the actual measured temperature.'},
-                {name: 'message-property-actual', type: 'string', default: '',
+                {name: 'message-property-actual', type: 'string', default: 'payload',
                     help: 'Dot-notation path within the actual temperature message. Blank = fall back to element-level message-property.'},
                 // ── Separate mode — mode ──────────────────────────────────────
                 {name: 'subscribe-mode', type: 'mqttTopic', help: 'separate: topic publishing the current operating mode.'},
-                {name: 'message-property-mode', type: 'string', default: '',
+                {name: 'message-property-mode', type: 'string', default: 'payload',
                     help: 'Dot-notation path within the mode message. Blank = fall back to element-level message-property.'},
                 {name: 'publish-mode',   type: 'mqttTopic', help: 'separate: topic to publish the selected mode to.'},
                 // ── Separate mode — valve / humidity ──────────────────────────
                 {name: 'subscribe-valve',    type: 'mqttTopic', help: 'Optional: valve/position percentage (0–100).'},
-                {name: 'message-property-valve', type: 'string', default: '',
+                {name: 'message-property-valve', type: 'string', default: 'payload',
                     help: 'Dot-notation path within the valve message. Blank = fall back to element-level message-property.'},
                 {name: 'subscribe-humidity', type: 'mqttTopic', help: 'Optional: relative humidity percentage (0–100).'},
-                {name: 'message-property-humidity', type: 'string', default: '',
+                {name: 'message-property-humidity', type: 'string', default: 'payload',
                     help: 'Dot-notation path within the humidity message. Blank = fall back to element-level message-property.'},
                 // ── Range / unit ──────────────────────────────────────────────
                 {name: 'min',  type: 'number', default: 5,    help: 'Minimum setpoint value.'},
@@ -144,7 +144,7 @@ class FeezalElementMaterialClimate extends FeezalElement {
                 {name: 'label', type: 'string', default: '', help: 'Optional card title shown at the bottom.'},
                 // ── Availability ──────────────────────────────────────────────
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Optional availability topic. A badge appears when unavailable; controls stay enabled.'},
-                {name: 'message-property-availability', type: 'string', default: '',
+                {name: 'message-property-availability', type: 'string', default: 'payload',
                     help: 'Dot-notation path within the availability message. Blank = fall back to element-level message-property.'},
                 {name: 'payload-available',      type: 'string', default: 'online',  help: 'Payload meaning the device is online.'},
                 {name: 'payload-unavailable',    type: 'string', default: 'offline', help: 'Payload meaning the device is offline.'},
@@ -974,6 +974,62 @@ class FeezalElementMaterialClimateInspector extends LitElement {
                                 value="${this._val('payload-unavailable') || 'offline'}"
                                 @sl-change="${e => this._onInput('payload-unavailable', e)}"></sl-input>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="sec-head">Message property</div>
+                <div class="sec-body">
+                    <div class="hint">Dot-notation path to extract a value from each message (e.g. <code>payload</code>, <code>data.value</code>). Blank = read top-level payload.</div>
+                    <div class="field">
+                        <label>Global (all topics)</label>
+                        <sl-input size="small" autocomplete="off"
+                            placeholder="payload"
+                            value="${this._val('message-property')}"
+                            @sl-change="${e => this._onInput('message-property', e)}"></sl-input>
+                    </div>
+                    <div class="field">
+                        <label>Setpoint topic</label>
+                        <sl-input size="small" autocomplete="off"
+                            placeholder="payload"
+                            value="${this._val('message-property-setpoint')}"
+                            @sl-change="${e => this._onInput('message-property-setpoint', e)}"></sl-input>
+                    </div>
+                    <div class="field">
+                        <label>Actual temperature topic</label>
+                        <sl-input size="small" autocomplete="off"
+                            placeholder="payload"
+                            value="${this._val('message-property-actual')}"
+                            @sl-change="${e => this._onInput('message-property-actual', e)}"></sl-input>
+                    </div>
+                    <div class="field">
+                        <label>Mode topic</label>
+                        <sl-input size="small" autocomplete="off"
+                            placeholder="payload"
+                            value="${this._val('message-property-mode')}"
+                            @sl-change="${e => this._onInput('message-property-mode', e)}"></sl-input>
+                    </div>
+                    <div class="field">
+                        <label>Valve topic</label>
+                        <sl-input size="small" autocomplete="off"
+                            placeholder="payload"
+                            value="${this._val('message-property-valve')}"
+                            @sl-change="${e => this._onInput('message-property-valve', e)}"></sl-input>
+                    </div>
+                    <div class="field">
+                        <label>Humidity topic</label>
+                        <sl-input size="small" autocomplete="off"
+                            placeholder="payload"
+                            value="${this._val('message-property-humidity')}"
+                            @sl-change="${e => this._onInput('message-property-humidity', e)}"></sl-input>
+                    </div>
+                    <div class="field">
+                        <label>Availability topic</label>
+                        <sl-input size="small" autocomplete="off"
+                            placeholder="payload"
+                            value="${this._val('message-property-availability')}"
+                            @sl-change="${e => this._onInput('message-property-availability', e)}"></sl-input>
                     </div>
                 </div>
             </div>

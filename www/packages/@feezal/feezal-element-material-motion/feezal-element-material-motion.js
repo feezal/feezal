@@ -113,7 +113,7 @@ class FeezalElementMaterialMotion extends FeezalElement {
                     help: 'Visual style — PIR silhouette with arcs (motion), person inside zone circle (presence), mmWave radar semicircles (radar), or room area highlight (zone).'},
                 {name: 'label',                  type: 'string',    default: '',    help: 'Optional card label shown below the visual.'},
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability.'},
-                {name: 'message-property-availability', type: 'string', default: '', help: 'Property path within availability messages. Defaults to message-property.'},
+                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
                 {name: 'payload-available',      type: 'string',    default: 'online',  help: 'Payload meaning available.'},
                 {name: 'payload-unavailable',    type: 'string',    default: 'offline', help: 'Payload meaning unavailable.'},
             ],

@@ -73,7 +73,7 @@ class FeezalElementMaterialDoorLock extends FeezalElement {
                 {name: 'payload-jammed',         type: 'string', default: 'JAMMED',   help: 'State payload meaning jammed.'},
                 {name: 'label',                  type: 'string', default: '',         help: 'Optional card label.'},
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Availability topic.'},
-                {name: 'message-property-availability', type: 'string', default: '', help: 'Property path within availability messages. Defaults to message-property.'},
+                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
                 {name: 'payload-available',      type: 'string', default: 'online',  help: 'Payload meaning available.'},
                 {name: 'payload-unavailable',    type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
             ],

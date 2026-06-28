@@ -180,16 +180,16 @@ class FeezalElementMaterialLight extends FeezalElement {
                 {name: 'payload-available',      type: 'string', default: 'online',  help: 'Payload meaning the device is available.'},
                 {name: 'payload-unavailable',    type: 'string', default: 'offline', help: 'Payload meaning the device is unavailable.'},
                 // Per-topic message-property overrides (separate mode)
-                {name: 'message-property-state',       type: 'string', default: '', help: 'Property path for state topic. Defaults to message-property.'},
-                {name: 'message-property-brightness',  type: 'string', default: '', help: 'Property path for brightness topic. Defaults to message-property.'},
-                {name: 'message-property-color-temp',  type: 'string', default: '', help: 'Property path for colour-temperature topic. Defaults to message-property.'},
-                {name: 'message-property-rgb',         type: 'string', default: '', help: 'Property path for RGB topic. Defaults to message-property.'},
-                {name: 'message-property-hs',          type: 'string', default: '', help: 'Property path for hue/saturation topic. Defaults to message-property.'},
-                {name: 'message-property-effect',      type: 'string', default: '', help: 'Property path for effect topic. Defaults to message-property.'},
-                {name: 'message-property-white',       type: 'string', default: '', help: 'Property path for white-channel topic. Defaults to message-property.'},
-                {name: 'message-property-warm-white',  type: 'string', default: '', help: 'Property path for warm-white topic. Defaults to message-property.'},
-                {name: 'message-property-cold-white',  type: 'string', default: '', help: 'Property path for cold-white topic. Defaults to message-property.'},
-                {name: 'message-property-availability', type: 'string', default: '', help: 'Property path for availability topic. Defaults to message-property.'},
+                {name: 'message-property-state',       type: 'string', default: 'payload', help: 'Property path for state topic. Defaults to message-property.'},
+                {name: 'message-property-brightness',  type: 'string', default: 'payload', help: 'Property path for brightness topic. Defaults to message-property.'},
+                {name: 'message-property-color-temp',  type: 'string', default: 'payload', help: 'Property path for colour-temperature topic. Defaults to message-property.'},
+                {name: 'message-property-rgb',         type: 'string', default: 'payload', help: 'Property path for RGB topic. Defaults to message-property.'},
+                {name: 'message-property-hs',          type: 'string', default: 'payload', help: 'Property path for hue/saturation topic. Defaults to message-property.'},
+                {name: 'message-property-effect',      type: 'string', default: 'payload', help: 'Property path for effect topic. Defaults to message-property.'},
+                {name: 'message-property-white',       type: 'string', default: 'payload', help: 'Property path for white-channel topic. Defaults to message-property.'},
+                {name: 'message-property-warm-white',  type: 'string', default: 'payload', help: 'Property path for warm-white topic. Defaults to message-property.'},
+                {name: 'message-property-cold-white',  type: 'string', default: 'payload', help: 'Property path for cold-white topic. Defaults to message-property.'},
+                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path for availability topic. Defaults to message-property.'},
                 // Label
                 {name: 'label', type: 'string', default: '', help: 'Optional label shown below the circle.'}
             ],
@@ -1252,6 +1252,82 @@ class FeezalElementMaterialLightInspector extends LitElement {
                             <sl-input size="small" autocomplete="off" value="${this._val('payload-unavailable') || 'offline'}"
                                 @sl-change="${e => this._onInput('payload-unavailable', e)}"></sl-input>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="sec-head">Message property</div>
+                <div class="sec-body">
+                    <div class="hint">Dot-notation path to extract a value from each message (e.g. <code>payload</code>, <code>data.value</code>). Blank = read top-level payload.</div>
+                    <div class="field">
+                        <label>Global (all topics)</label>
+                        <sl-input size="small" autocomplete="off"
+                            placeholder="payload"
+                            value="${this._val('message-property')}"
+                            @sl-change="${e => this._onInput('message-property', e)}"></sl-input>
+                    </div>
+                    ${!isJson ? html`
+                        <div class="field">
+                            <label>State topic</label>
+                            <sl-input size="small" autocomplete="off" placeholder="payload"
+                                value="${this._val('message-property-state')}"
+                                @sl-change="${e => this._onInput('message-property-state', e)}"></sl-input>
+                        </div>
+                        <div class="field">
+                            <label>Brightness topic</label>
+                            <sl-input size="small" autocomplete="off" placeholder="payload"
+                                value="${this._val('message-property-brightness')}"
+                                @sl-change="${e => this._onInput('message-property-brightness', e)}"></sl-input>
+                        </div>
+                        <div class="field">
+                            <label>Color temp topic</label>
+                            <sl-input size="small" autocomplete="off" placeholder="payload"
+                                value="${this._val('message-property-color-temp')}"
+                                @sl-change="${e => this._onInput('message-property-color-temp', e)}"></sl-input>
+                        </div>
+                        <div class="field">
+                            <label>RGB topic</label>
+                            <sl-input size="small" autocomplete="off" placeholder="payload"
+                                value="${this._val('message-property-rgb')}"
+                                @sl-change="${e => this._onInput('message-property-rgb', e)}"></sl-input>
+                        </div>
+                        <div class="field">
+                            <label>Hue/sat topic</label>
+                            <sl-input size="small" autocomplete="off" placeholder="payload"
+                                value="${this._val('message-property-hs')}"
+                                @sl-change="${e => this._onInput('message-property-hs', e)}"></sl-input>
+                        </div>
+                        <div class="field">
+                            <label>Effect topic</label>
+                            <sl-input size="small" autocomplete="off" placeholder="payload"
+                                value="${this._val('message-property-effect')}"
+                                @sl-change="${e => this._onInput('message-property-effect', e)}"></sl-input>
+                        </div>
+                        <div class="field">
+                            <label>White topic</label>
+                            <sl-input size="small" autocomplete="off" placeholder="payload"
+                                value="${this._val('message-property-white')}"
+                                @sl-change="${e => this._onInput('message-property-white', e)}"></sl-input>
+                        </div>
+                        <div class="field">
+                            <label>Warm white topic</label>
+                            <sl-input size="small" autocomplete="off" placeholder="payload"
+                                value="${this._val('message-property-warm-white')}"
+                                @sl-change="${e => this._onInput('message-property-warm-white', e)}"></sl-input>
+                        </div>
+                        <div class="field">
+                            <label>Cold white topic</label>
+                            <sl-input size="small" autocomplete="off" placeholder="payload"
+                                value="${this._val('message-property-cold-white')}"
+                                @sl-change="${e => this._onInput('message-property-cold-white', e)}"></sl-input>
+                        </div>
+                    ` : ''}
+                    <div class="field">
+                        <label>Availability topic</label>
+                        <sl-input size="small" autocomplete="off" placeholder="payload"
+                            value="${this._val('message-property-availability')}"
+                            @sl-change="${e => this._onInput('message-property-availability', e)}"></sl-input>
                     </div>
                 </div>
             </div>
