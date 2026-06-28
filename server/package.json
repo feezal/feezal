@@ -1,6 +1,6 @@
 {
     "name":  "@feezal/feezal-server",
-    "version":  "1.4.4",
+    "version":  "1.4.5",
     "description":  "Dashboard editor powered by Web Components and MQTT",
     "main":  "src/app.js",
     "bin":  {
