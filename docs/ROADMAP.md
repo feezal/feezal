@@ -810,6 +810,55 @@ A system element that prevents flash-of-unstyled-content and UI jitter on first 
 - Should `warn-seconds` / a progress indicator be shown if the wait is unexpectedly long?
 - Does this belong as a standalone element or as a built-in behaviour of `feezal-site`?
 
+### E40 — Select / dropdown element (`feezal-element-material-select`) + discovery wiring
+
+A Material-style dropdown element for selecting one option from a list, fully wired to MQTT auto-discovery `select` components.
+
+**Background:** The HA MQTT discovery protocol defines a `select` component (`homeassistant/select/<id>/config`) with three key fields:
+
+| Discovery field | Description |
+|---|---|
+| `options` | `["Option A", "Option B", ...]` — the exhaustive list of allowed values |
+| `state_topic` | topic the device publishes its current selection to |
+| `command_topic` | topic to publish to when the user picks a new value |
+
+The feezal discovery engine already tracks `select` entities (including `options`) — the missing piece is a feezal element that accepts those fields and renders a usable dropdown.
+
+**Element behaviour:**
+- Subscribes to `topic` (`state_topic`) to display the current selection.
+- Renders a `<sl-select>` (Shoelace) populated from a comma-separated or JSON `options` attribute.
+- Publishes the chosen option string to `command-topic` on change.
+- In the editor, renders a static preview dropdown labelled with the element name.
+
+**Suggested attributes:**
+
+| Attribute | Type | Description |
+|---|---|---|
+| `topic` | `mqttTopic` | State topic (subscribe) |
+| `command-topic` | `mqttTopic` | Command topic (publish) |
+| `options` | `string` | Comma-separated list of options (e.g. `"auto,heat,cool"`) |
+| `label` | `string` | Optional label above the dropdown |
+
+**Discovery map:**
+```js
+static get feezal() {
+    return {
+        discovery: {
+            component: 'select',
+            map: {
+                state_topic:   'topic',
+                command_topic: 'command-topic',
+                options:       { attr: 'options', transform: 'join' }, // array → comma-separated
+            }
+        }
+    };
+}
+```
+
+The existing `transform: 'join'` in `_applyDiscovery()` already handles array → comma-separated string, so no new discovery infrastructure is needed.
+
+**Scope:** one new element package `www/packages/@feezal/feezal-element-material-select/`. No changes to the discovery engine or inspector required.
+
 ## Editor UX
 
 ### U1 — Preview mode 🔽 low priority
