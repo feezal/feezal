@@ -1,6 +1,6 @@
 import {LitElement, html, css, render, nothing} from 'lit';
 
-const RESERVED_SITE_NAMES = ['_global', 'themes'];
+const RESERVED_SITE_NAMES = ['_global', 'themes', 'certs'];
 const isReservedSiteName = n => RESERVED_SITE_NAMES.includes(n) || n.startsWith('_');
 
 /**
