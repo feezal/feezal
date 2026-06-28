@@ -1365,6 +1365,27 @@ For SCP/rsync targets that haven't been connected before, the test button runs `
 | FTP | `basic-ftp` (~20 KB, actively maintained) | No `ftp` client ships in standard Linux images |
 | HTTP PUT / WebDAV | Node.js built-in `fetch` (Node 18+) | No extra dependency |
 
+### A13 — Update / restart feezal from the UI ⚠️ TBD
+
+Allow an admin user to trigger a feezal server update or restart from within the editor, without SSH access to the host.
+
+**Approaches to evaluate:**
+
+| Approach | How it works | Pros | Cons |
+|---|---|---|---|
+| **Docker socket** | Mount `/var/run/docker.sock` into the feezal container; server calls `docker pull` + `docker restart` via the Docker API | Clean, self-contained; works with any Docker setup | Mounting the Docker socket grants root-equivalent access to the host — significant security surface |
+| **Companion sidecar container** | A minimal privileged sidecar (e.g. `containrrr/watchtower` or a custom helper) listens on a restricted local socket; feezal sends it a signed restart request | Docker socket never exposed to feezal's process | Extra container to manage; requires a shared secret between feezal and sidecar |
+| **Process manager signal** | If feezal runs under a process manager (pm2, s6, systemd), the manager is configured to restart on SIGTERM; feezal's API endpoint sends `process.exit(0)` | Zero extra dependencies for bare-metal / VM installs | Doesn't pull updates; process manager must be configured correctly; not applicable in Docker |
+| **Webhook / CI trigger** | Restart button calls an external webhook (e.g. Portainer webhook, Gitea Actions, n8n) configured by the user | feezal has no privileged access at all | Requires external infrastructure; not self-contained |
+
+**Open questions:**
+- Which approach is the right default for the recommended Docker Compose setup?
+- Should "update" (pull new image) and "restart" (keep current image) be separate actions?
+- Authentication: only admin-role users should be able to trigger this — depends on the auth model (N10 / A3).
+- Should the UI show a live log stream of the restart/update progress?
+
+No implementation approach chosen yet.
+
 ---
 
 ## Open Questions
