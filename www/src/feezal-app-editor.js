@@ -585,11 +585,11 @@ class FeezalAppEditor extends LitElement {
                 <div id="menu-right" style="${this.sidebarVisible ? `flex: 0 0 ${this._sidebarWidth}px` : 'display:none'}">
                     <button class="icon-btn ${this.sidebar === 'inspector' ? 'active' : ''}" title="Inspector" @click="${() => this._setSidebar('inspector')}"><span class="material-icons">tune</span></button>
                     <button class="icon-btn ${this.sidebar === 'themes' ? 'active' : ''}" title="Theme" @click="${() => this._setSidebar('themes')}"><span class="material-icons">palette</span></button>
-                    <button class="icon-btn ${this.sidebar === 'viewer' ? 'active' : ''}" title="Viewer Settings" @click="${() => this._setSidebar('viewer')}"><span class="material-icons">cast</span></button>
-                    <button class="icon-btn ${this.sidebar === 'editor' ? 'active' : ''}" title="Editor Settings" @click="${() => this._setSidebar('editor')}"><span class="material-icons">build</span></button>
+                    <button class="icon-btn ${this.sidebar === 'viewer' ? 'active' : ''}" title="Site Settings" @click="${() => this._setSidebar('viewer')}"><span class="material-icons">cast</span></button>
                     <button class="icon-btn ${this.sidebar === 'assets' ? 'active' : ''}" title="Assets" @click="${() => this._setSidebar('assets')}"><span class="material-icons">perm_media</span></button>
-                    <button class="icon-btn ${this.sidebar === 'palette' ? 'active' : ''}" title="Palette" @click="${() => this._setSidebar('palette')}"><span class="material-icons">widgets</span></button>
                     <button class="icon-btn ${this.sidebar === 'history' ? 'active' : ''}" title="Version history" @click="${() => this._setSidebar('history')}"><span class="material-icons">history</span></button>
+                    <button class="icon-btn ${this.sidebar === 'palette' ? 'active' : ''}" title="Palette" @click="${() => this._setSidebar('palette')}"><span class="material-icons">widgets</span></button>
+                    <button class="icon-btn ${this.sidebar === 'editor' ? 'active' : ''}" title="Editor Settings" @click="${() => this._setSidebar('editor')}"><span class="material-icons">build</span></button>
                 </div>
             </div>
 
@@ -1069,6 +1069,11 @@ class FeezalAppEditor extends LitElement {
             this.changes = false;
             feezal.hasChanges = false;
             this.deploying = false;
+            // Refresh history panel shortly after deploy so the new commit is visible
+            setTimeout(() => {
+                const history = this.shadowRoot.querySelector('feezal-sidebar-history');
+                if (history) history._load();
+            }, 800);
         });
     }
 

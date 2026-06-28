@@ -20,8 +20,7 @@ function labelFor(message) {
     if (!message) return 'Auto-save';
     if (message.startsWith('init:'))    return 'Initial version';
     if (message.startsWith('restore:')) return message.replace(/^restore:\s*/, '').replace(/\s*\([a-f0-9]{7}\)$/, '');
-    if (message.startsWith('save:'))    return 'Auto-save'; // legacy format
-    if (/^\d{4}-\d{2}-\d{2}T/.test(message)) return 'Auto-save'; // ISO timestamp format
+    if (message.startsWith('save:'))    return message.replace(/^save:\s*/, '');
     return message;
 }
 
