@@ -108,6 +108,8 @@ function createHub(io, {storage, logger}) {
             logger.debug('send ' + message.topic);
             bridge.insertTopic(message.topic);
             cache[message.topic] = {cached: true, ...message};
+            // Forward to the MQTT broker so feezal-backend viewers can publish
+            bridge.publish(message);
             // Echo back so the editor can observe its own publishes
             socket.emit('input', message);
         });

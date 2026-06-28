@@ -158,4 +158,19 @@ function disconnect() {
     }
 }
 
-module.exports = { connect, disconnect, insertTopic, getTopicCompletions, setRelayCallback, getDiscoveredEntities: discovery.getDiscoveredEntities, getDiscoveredEntity: discovery.getDiscoveredEntity };
+/** Publish a message to the broker (used by the feezal-backend viewer). */
+function publish(message) {
+    if (!client) {
+        _logger?.warn('mqtt-bridge: publish skipped — no broker connection');
+        return;
+    }
+    const payload = message.payload == null
+        ? ''
+        : typeof message.payload === 'string'
+            ? message.payload
+            : JSON.stringify(message.payload);
+    client.publish(message.topic, payload);
+    _logger?.debug('mqtt-bridge: publish ' + message.topic);
+}
+
+module.exports = { connect, disconnect, publish, insertTopic, getTopicCompletions, setRelayCallback, getDiscoveredEntities: discovery.getDiscoveredEntities, getDiscoveredEntity: discovery.getDiscoveredEntity };

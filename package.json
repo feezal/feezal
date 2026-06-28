@@ -1,6 +1,6 @@
 {
     "name":  "feezal",
-    "version":  "1.4.9",
+    "version":  "1.4.10",
     "private":  true,
     "description":  "Dashboard editor powered by Web Components and MQTT",
     "scripts":  {
