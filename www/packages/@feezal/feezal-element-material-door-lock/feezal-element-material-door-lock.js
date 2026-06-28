@@ -58,11 +58,13 @@ class FeezalElementMaterialDoorLock extends FeezalElement {
                     availability_topic:    {attr: 'subscribe-availability'},
                     payload_available:     {attr: 'payload-available'},
                     payload_not_available: {attr: 'payload-unavailable'},
+                    value_template:        {attr: 'message-property', transform: 'valueTemplateToPath'},
                     name:                  'label',
                 },
             },
             attributes: [
                 {name: 'subscribe',              type: 'mqttTopic', help: 'Topic receiving the lock state.'},
+                {name: 'message-property',       type: 'string',    default: 'payload', help: 'Property path within the message payload (dot-notation). Blank = top-level payload.'},
                 {name: 'publish',                type: 'mqttTopic', help: 'Topic to publish lock/unlock commands to.'},
                 {name: 'payload-lock',           type: 'string', default: 'LOCK',     help: 'Command payload to lock.'},
                 {name: 'payload-unlock',         type: 'string', default: 'UNLOCK',   help: 'Command payload to unlock.'},
@@ -71,6 +73,7 @@ class FeezalElementMaterialDoorLock extends FeezalElement {
                 {name: 'payload-jammed',         type: 'string', default: 'JAMMED',   help: 'State payload meaning jammed.'},
                 {name: 'label',                  type: 'string', default: '',         help: 'Optional card label.'},
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Availability topic.'},
+                {name: 'message-property-availability', type: 'string', default: '', help: 'Property path within availability messages. Defaults to message-property.'},
                 {name: 'payload-available',      type: 'string', default: 'online',  help: 'Payload meaning available.'},
                 {name: 'payload-unavailable',    type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
             ],
@@ -99,6 +102,7 @@ class FeezalElementMaterialDoorLock extends FeezalElement {
         subscribeAvailability: {type: String, reflect: true, attribute: 'subscribe-availability'},
         payloadAvailable:      {type: String, reflect: true, attribute: 'payload-available'},
         payloadUnavailable:    {type: String, reflect: true, attribute: 'payload-unavailable'},
+        msgPropAvailability:   {type: String, reflect: true, attribute: 'message-property-availability'},
         discoveryId:           {type: String, reflect: true, attribute: 'discovery-id'},
         _lockState: {state: true},   // 'locked' | 'unlocked' | 'jammed' | null
         _available: {state: true},
@@ -160,6 +164,7 @@ class FeezalElementMaterialDoorLock extends FeezalElement {
         this.subscribeAvailability = '';
         this.payloadAvailable      = 'online';
         this.payloadUnavailable    = 'offline';
+        this.msgPropAvailability   = '';
         this.discoveryId           = '';
         this._lockState = null;
         this._available = true;
@@ -173,7 +178,7 @@ class FeezalElementMaterialDoorLock extends FeezalElement {
 
         if (this.subscribeAvailability) {
             this.addSubscription(this.subscribeAvailability, msg => {
-                let v = this.getProperty(msg, this.messageProperty);
+                let v = this.getProperty(msg, this.msgPropAvailability || this.messageProperty);
                 if (typeof v === 'string') {
                     try { const p = JSON.parse(v); if (p && 'state' in p) v = p.state; } catch { /* not JSON */ }
                 } else if (v && typeof v === 'object' && 'state' in v) { v = v.state; }

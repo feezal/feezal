@@ -98,11 +98,13 @@ class FeezalElementMaterialMotion extends FeezalElement {
                     availability_topic:    {attr: 'subscribe-availability'},
                     payload_available:     {attr: 'payload-available'},
                     payload_not_available: {attr: 'payload-unavailable'},
+                    value_template:        {attr: 'message-property', transform: 'valueTemplateToPath'},
                     name:                  'label',
                 },
             },
             attributes: [
                 {name: 'subscribe',              type: 'mqttTopic', help: 'Topic reporting motion or presence state.'},
+                {name: 'message-property',       type: 'string',    default: 'payload', help: 'Property path within the message payload (dot-notation). Blank = top-level payload.'},
                 {name: 'payload-active',         type: 'string',    default: 'ON',  help: 'Payload meaning motion detected / zone occupied.'},
                 {name: 'payload-clear',          type: 'string',    default: 'OFF', help: 'Payload meaning no motion / zone vacant.'},
                 {name: 'type',                   type: 'select',
@@ -111,6 +113,7 @@ class FeezalElementMaterialMotion extends FeezalElement {
                     help: 'Visual style — PIR silhouette with arcs (motion), person inside zone circle (presence), mmWave radar semicircles (radar), or room area highlight (zone).'},
                 {name: 'label',                  type: 'string',    default: '',    help: 'Optional card label shown below the visual.'},
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability.'},
+                {name: 'message-property-availability', type: 'string', default: '', help: 'Property path within availability messages. Defaults to message-property.'},
                 {name: 'payload-available',      type: 'string',    default: 'online',  help: 'Payload meaning available.'},
                 {name: 'payload-unavailable',    type: 'string',    default: 'offline', help: 'Payload meaning unavailable.'},
             ],
@@ -134,6 +137,7 @@ class FeezalElementMaterialMotion extends FeezalElement {
         subscribeAvailability: {type: String, reflect: true, attribute: 'subscribe-availability'},
         payloadAvailable:      {type: String, reflect: true, attribute: 'payload-available'},
         payloadUnavailable:    {type: String, reflect: true, attribute: 'payload-unavailable'},
+        msgPropAvailability:   {type: String, reflect: true, attribute: 'message-property-availability'},
         discoveryId:           {type: String, reflect: true, attribute: 'discovery-id'},
         _active:    {state: true},
         _available: {state: true},
@@ -180,6 +184,7 @@ class FeezalElementMaterialMotion extends FeezalElement {
         this.subscribeAvailability = '';
         this.payloadAvailable      = 'online';
         this.payloadUnavailable    = 'offline';
+        this.msgPropAvailability   = '';
         this.discoveryId           = '';
         this._active    = false;
         this._available = true;
@@ -194,7 +199,7 @@ class FeezalElementMaterialMotion extends FeezalElement {
 
         if (this.subscribeAvailability) {
             this.addSubscription(this.subscribeAvailability, msg => {
-                let v = this.getProperty(msg, this.messageProperty);
+                let v = this.getProperty(msg, this.msgPropAvailability || this.messageProperty);
                 if (typeof v === 'string') {
                     try { const p = JSON.parse(v); if (p && 'state' in p) v = p.state; } catch { /* not JSON */ }
                 } else if (v && typeof v === 'object' && 'state' in v) { v = v.state; }

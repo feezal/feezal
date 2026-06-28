@@ -36,22 +36,27 @@ class FeezalElementMaterialFan extends FeezalElement {
                     availability_topic:        {attr: 'subscribe-availability'},
                     payload_available:         {attr: 'payload-available'},
                     payload_not_available:     {attr: 'payload-unavailable'},
+                    value_template:            {attr: 'message-property', transform: 'valueTemplateToPath'},
                     name:                      'label',
                 },
             },
             attributes: [
                 {name: 'subscribe',              type: 'mqttTopic', help: 'Topic receiving the fan on/off state.'},
+                {name: 'message-property',       type: 'string',    default: 'payload', help: 'Property path within state messages (dot-notation). Blank = top-level payload.'},
                 {name: 'publish',                type: 'mqttTopic', help: 'Topic to publish on/off commands.'},
                 {name: 'payload-on',             type: 'string',    default: 'ON',  help: 'Payload for "on".'},
                 {name: 'payload-off',            type: 'string',    default: 'OFF', help: 'Payload for "off".'},
                 {name: 'subscribe-speed',        type: 'mqttTopic', help: 'Topic receiving current speed percentage (0–100).'},
+                {name: 'message-property-speed', type: 'string',    default: '', help: 'Property path within speed messages. Defaults to message-property.'},
                 {name: 'publish-speed',          type: 'mqttTopic', help: 'Topic to publish target speed percentage.'},
                 {name: 'subscribe-preset',       type: 'mqttTopic', help: 'Topic receiving current preset mode name.'},
+                {name: 'message-property-preset', type: 'string',   default: '', help: 'Property path within preset messages. Defaults to message-property.'},
                 {name: 'publish-preset',         type: 'mqttTopic', help: 'Topic to publish selected preset mode name.'},
                 {name: 'preset-modes',           type: 'string',    default: '[]',
                     help: 'JSON array of preset mode names, e.g. ["low","medium","high"].'},
                 {name: 'label',                  type: 'string',    default: '', help: 'Optional card label.'},
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Availability topic.'},
+                {name: 'message-property-availability', type: 'string', default: '', help: 'Property path within availability messages. Defaults to message-property.'},
                 {name: 'payload-available',      type: 'string',    default: 'online',  help: 'Payload meaning available.'},
                 {name: 'payload-unavailable',    type: 'string',    default: 'offline', help: 'Payload meaning unavailable.'},
             ],
@@ -81,6 +86,9 @@ class FeezalElementMaterialFan extends FeezalElement {
         subscribeAvailability: {type: String,  reflect: true, attribute: 'subscribe-availability'},
         payloadAvailable:      {type: String,  reflect: true, attribute: 'payload-available'},
         payloadUnavailable:    {type: String,  reflect: true, attribute: 'payload-unavailable'},
+        msgPropSpeed:          {type: String,  reflect: true, attribute: 'message-property-speed'},
+        msgPropPreset:         {type: String,  reflect: true, attribute: 'message-property-preset'},
+        msgPropAvailability:   {type: String,  reflect: true, attribute: 'message-property-availability'},
         discoveryId:           {type: String,  reflect: true, attribute: 'discovery-id'},
         _on:        {state: true},
         _speed:     {state: true},  // 0–100 or null
@@ -160,6 +168,9 @@ class FeezalElementMaterialFan extends FeezalElement {
         this.subscribeAvailability = '';
         this.payloadAvailable      = 'online';
         this.payloadUnavailable    = 'offline';
+        this.msgPropSpeed          = '';
+        this.msgPropPreset         = '';
+        this.msgPropAvailability   = '';
         this.discoveryId           = '';
         this._on        = false;
         this._speed     = null;
@@ -175,7 +186,7 @@ class FeezalElementMaterialFan extends FeezalElement {
 
         if (this.subscribeAvailability) {
             this.addSubscription(this.subscribeAvailability, msg => {
-                let v = this.getProperty(msg, this.messageProperty);
+                let v = this.getProperty(msg, this.msgPropAvailability || this.messageProperty);
                 if (typeof v === 'string') {
                     try { const p = JSON.parse(v); if (p && 'state' in p) v = p.state; } catch { /* not JSON */ }
                 } else if (v && typeof v === 'object' && 'state' in v) { v = v.state; }
@@ -199,14 +210,14 @@ class FeezalElementMaterialFan extends FeezalElement {
 
         if (this.subscribeSpeed) {
             this.addSubscription(this.subscribeSpeed, msg => {
-                const v = Number(this.getProperty(msg, this.messageProperty));
+                const v = Number(this.getProperty(msg, this.msgPropSpeed || this.messageProperty));
                 if (!isNaN(v)) this._speed = Math.max(0, Math.min(100, v));
             });
         }
 
         if (this.subscribePreset) {
             this.addSubscription(this.subscribePreset, msg => {
-                this._preset = String(this.getProperty(msg, this.messageProperty));
+                this._preset = String(this.getProperty(msg, this.msgPropPreset || this.messageProperty));
             });
         }
     }

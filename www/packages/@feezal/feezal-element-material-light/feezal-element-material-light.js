@@ -140,6 +140,7 @@ class FeezalElementMaterialLight extends FeezalElement {
                 {name: 'subscribe', type: 'mqttTopic', help: 'json mode: base topic carrying the whole JSON state object.'},
                 {name: 'publish',   type: 'mqttTopic', help: 'json mode: command topic (usually …/set) that accepts a partial JSON object.'},
                 {name: 'json-map',  type: 'string', default: '', help: 'json mode: optional JSON string overriding the default property→key map.'},
+                {name: 'message-property',  type: 'string', default: 'payload', help: 'Property path within message payloads (dot-notation). json mode: extracts the JSON state object; separate mode: global fallback for all topics.'},
                 // On/off
                 {name: 'subscribe-state',   type: 'mqttTopic', help: 'Topic receiving on/off state.'},
                 {name: 'publish-state',     type: 'mqttTopic', help: 'Topic to publish on/off.'},
@@ -178,6 +179,17 @@ class FeezalElementMaterialLight extends FeezalElement {
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability. When unavailable a small badge is shown; the control stays usable.'},
                 {name: 'payload-available',      type: 'string', default: 'online',  help: 'Payload meaning the device is available.'},
                 {name: 'payload-unavailable',    type: 'string', default: 'offline', help: 'Payload meaning the device is unavailable.'},
+                // Per-topic message-property overrides (separate mode)
+                {name: 'message-property-state',       type: 'string', default: '', help: 'Property path for state topic. Defaults to message-property.'},
+                {name: 'message-property-brightness',  type: 'string', default: '', help: 'Property path for brightness topic. Defaults to message-property.'},
+                {name: 'message-property-color-temp',  type: 'string', default: '', help: 'Property path for colour-temperature topic. Defaults to message-property.'},
+                {name: 'message-property-rgb',         type: 'string', default: '', help: 'Property path for RGB topic. Defaults to message-property.'},
+                {name: 'message-property-hs',          type: 'string', default: '', help: 'Property path for hue/saturation topic. Defaults to message-property.'},
+                {name: 'message-property-effect',      type: 'string', default: '', help: 'Property path for effect topic. Defaults to message-property.'},
+                {name: 'message-property-white',       type: 'string', default: '', help: 'Property path for white-channel topic. Defaults to message-property.'},
+                {name: 'message-property-warm-white',  type: 'string', default: '', help: 'Property path for warm-white topic. Defaults to message-property.'},
+                {name: 'message-property-cold-white',  type: 'string', default: '', help: 'Property path for cold-white topic. Defaults to message-property.'},
+                {name: 'message-property-availability', type: 'string', default: '', help: 'Property path for availability topic. Defaults to message-property.'},
                 // Label
                 {name: 'label', type: 'string', default: '', help: 'Optional label shown below the circle.'}
             ],
@@ -234,6 +246,16 @@ class FeezalElementMaterialLight extends FeezalElement {
         payloadAvailable:   {type: String, reflect: true, attribute: 'payload-available'},
         payloadUnavailable: {type: String, reflect: true, attribute: 'payload-unavailable'},
         discoveryId:        {type: String, reflect: true, attribute: 'discovery-id'},
+        msgPropState:       {type: String, reflect: true, attribute: 'message-property-state'},
+        msgPropBrightness:  {type: String, reflect: true, attribute: 'message-property-brightness'},
+        msgPropColorTemp:   {type: String, reflect: true, attribute: 'message-property-color-temp'},
+        msgPropRgb:         {type: String, reflect: true, attribute: 'message-property-rgb'},
+        msgPropHs:          {type: String, reflect: true, attribute: 'message-property-hs'},
+        msgPropEffect:      {type: String, reflect: true, attribute: 'message-property-effect'},
+        msgPropWhite:       {type: String, reflect: true, attribute: 'message-property-white'},
+        msgPropWarmWhite:   {type: String, reflect: true, attribute: 'message-property-warm-white'},
+        msgPropColdWhite:   {type: String, reflect: true, attribute: 'message-property-cold-white'},
+        msgPropAvailability:{type: String, reflect: true, attribute: 'message-property-availability'},
         label:              {type: String, reflect: true},
         // Internal state
         _on:        {state: true},
@@ -376,6 +398,16 @@ class FeezalElementMaterialLight extends FeezalElement {
         this.payloadAvailable    = 'online';
         this.payloadUnavailable  = 'offline';
         this.discoveryId         = '';
+        this.msgPropState        = '';
+        this.msgPropBrightness   = '';
+        this.msgPropColorTemp    = '';
+        this.msgPropRgb          = '';
+        this.msgPropHs           = '';
+        this.msgPropEffect       = '';
+        this.msgPropWhite        = '';
+        this.msgPropWarmWhite    = '';
+        this.msgPropColdWhite    = '';
+        this.msgPropAvailability = '';
         this.label               = '';
         this._on        = false;
         this._brt       = null;
@@ -404,7 +436,7 @@ class FeezalElementMaterialLight extends FeezalElement {
         // Availability — always honoured, in both payload modes.
         if (this.subscribeAvailability) {
             this.addSubscription(this.subscribeAvailability, msg => {
-                const v = this.getProperty(msg, this.messageProperty);
+                const v = this.getProperty(msg, this.msgPropAvailability || this.messageProperty);
                 const s = String(v).toLowerCase();
                 this._available = v === this.payloadAvailable ||
                     (s !== String(this.payloadUnavailable).toLowerCase() &&
@@ -428,14 +460,14 @@ class FeezalElementMaterialLight extends FeezalElement {
         // ── Separate (per-topic) mode ──────────────────────────────────────
         if (this.subscribeState) {
             this.addSubscription(this.subscribeState, msg => {
-                const v = this.getProperty(msg, this.messageProperty);
+                const v = this.getProperty(msg, this.msgPropState || this.messageProperty);
                 this._on = v === this.payloadOn || v === true || v === 1 || v === '1' ||
                            (typeof v === 'string' && v.toLowerCase() === 'on');
             });
         }
         if (this.subscribeBrightness) {
             this.addSubscription(this.subscribeBrightness, msg => {
-                const v = Number(this.getProperty(msg, this.messageProperty));
+                const v = Number(this.getProperty(msg, this.msgPropBrightness || this.messageProperty));
                 if (!isNaN(v)) {
                     const min = this.brightnessMin ?? 0;
                     const max = this.brightnessMax ?? 100;
@@ -445,7 +477,7 @@ class FeezalElementMaterialLight extends FeezalElement {
         }
         if (this.subscribeColorTemp) {
             this.addSubscription(this.subscribeColorTemp, msg => {
-                let v = Number(this.getProperty(msg, this.messageProperty));
+                let v = Number(this.getProperty(msg, this.msgPropColorTemp || this.messageProperty));
                 if (!isNaN(v)) {
                     if (this.colorTempUnit === 'mired') v = Math.round(1_000_000 / v);
                     this._colorTemp = v;
@@ -454,14 +486,14 @@ class FeezalElementMaterialLight extends FeezalElement {
         }
         if (this.subscribeRgb) {
             this.addSubscription(this.subscribeRgb, msg => {
-                const rgb = parseRgb(this.getProperty(msg, this.messageProperty));
+                const rgb = parseRgb(this.getProperty(msg, this.msgPropRgb || this.messageProperty));
                 if (rgb) this._rgb = rgb;
             });
         }
         if (this.subscribeHs) {
             this.addSubscription(this.subscribeHs, msg => {
                 try {
-                    const raw = this.getProperty(msg, this.messageProperty);
+                    const raw = this.getProperty(msg, this.msgPropHs || this.messageProperty);
                     const arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
                     if (Array.isArray(arr) && arr.length >= 2) this._hs = arr.slice(0, 2).map(Number);
                 } catch {}
@@ -469,20 +501,20 @@ class FeezalElementMaterialLight extends FeezalElement {
         }
         if (this.subscribeEffect) {
             this.addSubscription(this.subscribeEffect, msg => {
-                this._effect = String(this.getProperty(msg, this.messageProperty) ?? '');
+                this._effect = String(this.getProperty(msg, this.msgPropEffect || this.messageProperty) ?? '');
             });
         }
-        const mkSub = (stateProp, topic) => {
+        const mkSub = (stateProp, topic, msgPropOverride) => {
             if (topic) {
                 this.addSubscription(topic, msg => {
-                    const v = Number(this.getProperty(msg, this.messageProperty));
+                    const v = Number(this.getProperty(msg, msgPropOverride || this.messageProperty));
                     if (!isNaN(v)) this[stateProp] = Math.max(0, Math.min(100, v));
                 });
             }
         };
-        mkSub('_white',     this.subscribeWhite);
-        mkSub('_warmWhite', this.subscribeWarmWhite);
-        mkSub('_coldWhite', this.subscribeColdWhite);
+        mkSub('_white',     this.subscribeWhite,     this.msgPropWhite);
+        mkSub('_warmWhite', this.subscribeWarmWhite,  this.msgPropWarmWhite);
+        mkSub('_coldWhite', this.subscribeColdWhite,  this.msgPropColdWhite);
     }
 
     // ─── JSON payload mode helpers ────────────────────────────────────────────

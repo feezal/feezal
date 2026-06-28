@@ -116,11 +116,13 @@ class FeezalElementMaterialContact extends FeezalElement {
                     availability_topic:    {attr: 'subscribe-availability'},
                     payload_available:     {attr: 'payload-available'},
                     payload_not_available: {attr: 'payload-unavailable'},
+                    value_template:        {attr: 'message-property', transform: 'valueTemplateToPath'},
                     name:                  'label',
                 },
             },
             attributes: [
                 {name: 'subscribe',              type: 'mqttTopic', help: 'State topic (single-contact mode).'},
+                {name: 'message-property',       type: 'string',    default: 'payload', help: 'Property path within the message payload (dot-notation). Blank = top-level payload.'},
                 {name: 'payload-open',           type: 'string',    default: 'ON',    help: 'Payload value meaning the contact is open.'},
                 {name: 'payload-closed',         type: 'string',    default: 'OFF',   help: 'Payload value meaning the contact is closed.'},
                 {name: 'type',                   type: 'select',    options: ['window', 'door', 'generic', 'waterleak', 'firealarm', 'garagedoor'], default: 'window',
@@ -129,6 +131,7 @@ class FeezalElementMaterialContact extends FeezalElement {
                     help: 'JSON array of {subscribe, label} for multi-contact mode (up to 8). Overrides single subscribe.'},
                 {name: 'label',                  type: 'string',    default: '',      help: 'Optional card label shown below the visual.'},
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability.'},
+                {name: 'message-property-availability', type: 'string', default: '', help: 'Property path within availability messages. Defaults to message-property.'},
                 {name: 'payload-available',      type: 'string',    default: 'online',  help: 'Payload meaning available.'},
                 {name: 'payload-unavailable',    type: 'string',    default: 'offline', help: 'Payload meaning unavailable.'},
             ],
@@ -154,6 +157,7 @@ class FeezalElementMaterialContact extends FeezalElement {
         subscribeAvailability: {type: String,  reflect: true, attribute: 'subscribe-availability'},
         payloadAvailable:      {type: String,  reflect: true, attribute: 'payload-available'},
         payloadUnavailable:    {type: String,  reflect: true, attribute: 'payload-unavailable'},
+        msgPropAvailability:   {type: String,  reflect: true, attribute: 'message-property-availability'},
         discoveryId:           {type: String,  reflect: true, attribute: 'discovery-id'},
         _open:       {state: true},
         _multiOpen:  {state: true},
@@ -216,6 +220,7 @@ class FeezalElementMaterialContact extends FeezalElement {
         this.subscribeAvailability = '';
         this.payloadAvailable      = 'online';
         this.payloadUnavailable    = 'offline';
+        this.msgPropAvailability   = '';
         this.discoveryId           = '';
         this._open      = false;
         this._multiOpen = {};
@@ -231,7 +236,7 @@ class FeezalElementMaterialContact extends FeezalElement {
 
         if (this.subscribeAvailability) {
             this.addSubscription(this.subscribeAvailability, msg => {
-                let v = this.getProperty(msg, this.messageProperty);
+                let v = this.getProperty(msg, this.msgPropAvailability || this.messageProperty);
                 if (typeof v === 'string') {
                     try { const p = JSON.parse(v); if (p && 'state' in p) v = p.state; } catch { /* not JSON */ }
                 } else if (v && typeof v === 'object' && 'state' in v) { v = v.state; }
