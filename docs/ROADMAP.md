@@ -257,6 +257,42 @@ This actually *works* — and is the right answer for static exports. When the b
 The private key remains exclusively in `dataDir/certs/` on the feezal server (N8). For the live-viewer path it is used directly by the Node.js MQTT client; for static export the user installs it alongside the cert in their OS store (standard operational practice for mTLS deployments).
 
 
+### N14 — Live elements in the editor (glass-overlay WYSIWYG)
+
+**Motivation:** The current `feezal.isEditor` convention makes elements render a static placeholder in the editor and suppresses all subscriptions. This breaks WYSIWYG: a light card with a brightness ring, a fan with its speed label, a contact window with a handle — they all look nothing like their real state. The user positions and styles a placeholder, then discovers in the viewer that real content has different sizes, colours, or text.
+
+**Proposed behaviour:** elements run their subscriptions in the editor exactly as in the viewer. The editor's active MQTT connection is already available; nothing new is needed for transport. When the dashboard has no broker connection the elements simply show their "no data" initial state — acceptable and already the behaviour in a disconnected viewer.
+
+**Preventing accidental interaction — the glass overlay:**
+
+Every element on the canvas sits inside a positioned wrapper div managed by `feezal-sidebar-inspector.js` (interact.js attaches here for drag/resize). Adding a single `position:absolute; inset:0; z-index:5` transparent `<div class="element-glass">` as the *last* child of each wrapper intercepts all pointer events at the light-DOM level before they reach shadow-DOM internals (MD3 buttons, sliders, native `<select>` elements, etc.). interact.js listens at the *wrapper* level and continues to work normally — selection, drag, and resize are unaffected. The glass div is never rendered in the viewer (it is injected only by the editor canvas logic).
+
+This is the same technique used by Grafana's panel edit mode and HA's Lovelace editor.
+
+**Changed element authoring convention:**
+
+The meaning of `feezal.isEditor` narrows but does not disappear:
+
+| Before | After |
+|---|---|
+| Guard all subscriptions: `if (!feezal.isEditor) this.addSubscription(…)` | Subscriptions run unconditionally — remove the guard |
+| Render a static placeholder: `if (feezal.isEditor) return html\`<div>Fan</div>\`` | Remove the static branch; real render runs in both contexts |
+| `feezal.isEditor` unused? | Use only for true editor affordances: "unconfigured" hint when required attributes are empty; editor-only drag-handle overlays |
+
+Exception: elements that **publish on connect** (e.g., query payloads, ping messages) must keep `if (!feezal.isEditor)` guards on those publish calls. The rule is: *subscribe freely, but never publish in editor mode.*
+
+**Implementation scope:**
+
+1. **`feezal-sidebar-inspector.js`** — inject `<div class="element-glass">` when wrapping each element on the canvas; remove on destroy. Add CSS: `position:absolute; inset:0; z-index:5; cursor:inherit`.
+2. **`feezal-element`** base class (or `feezal.isEditor` docs) — update `addSubscription` to no longer suppress itself when `isEditor`. Currently the base-class `connectedCallback` or element-level guards skip subscriptions; that gate is removed.
+3. **All built-in elements** — audit and remove `if (feezal.isEditor)` subscription guards and static-placeholder render branches. Keep `isEditor` only where genuinely needed (unconfigured-state hints).
+4. **`docs/element-spec.md`** — update §2 (isEditor) and §4 (subscription contract) to reflect the new convention.
+
+**Migration for third-party elements:** non-breaking. Elements that still have `if (feezal.isEditor) return …` will continue to work — they just won't benefit from live preview until updated. The editor glass overlay still protects interaction regardless.
+
+**Out of scope for MVP:** throttling subscription traffic in large editor canvases (60+ elements); this is equivalent to a viewer with 60+ elements and is already handled by the broker/connection layer.
+
+
 ## Element Ecosystem
 
 ### Element platform conventions
