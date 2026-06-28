@@ -82,11 +82,12 @@ class FeezalElementPaperCheckbox extends FeezalPolymerElement {
             discovery: {
                 component: 'switch',
                 map: {
-                    state_topic:   'topic',
-                    command_topic: 'publish',
-                    payload_on:    'payloadOn',
-                    payload_off:   'payloadOff',
-                    name:          'label'
+                    state_topic:    'topic',
+                    command_topic:  'publish',
+                    payload_on:     'payload-on',
+                    payload_off:    'payload-off',
+                    name:           'label',
+                    value_template: {attr: 'message-property', transform: 'valueTemplateToPath'}
                 }
             },
             baseAttribute: 'checked',
@@ -97,7 +98,19 @@ class FeezalElementPaperCheckbox extends FeezalPolymerElement {
                 'height',
                 '--paper-checkbox-size'
             ],
-            attributes: ['topic', 'label', 'noink', 'publish', 'payloadOn', 'payloadOff', 'disabled'],
+            attributes: [
+                'topic',
+                'label',
+                {name: 'message-property', type: 'string', default: 'payload',
+                    help: 'Dot-notation path to the value within the MQTT message. Default "payload" uses msg.payload.'},
+                'noink',
+                'publish',
+                {name: 'payload-on',  type: 'string', default: 'true',
+                    help: 'Payload published and expected when the checkbox is checked.'},
+                {name: 'payload-off', type: 'string', default: 'false',
+                    help: 'Payload published and expected when the checkbox is unchecked.'},
+                'disabled'
+            ],
             restrict: {
                 minWidth: 40,
                 minHeight: 22
@@ -109,9 +122,9 @@ class FeezalElementPaperCheckbox extends FeezalPolymerElement {
     connectedCallback() {
         super.connectedCallback();
         feezal.connection.sub(this.topic, msg => {
-            const on = this.payloadOn || 'true';
-            if (String(msg.payload) === on) {
-                this.setAttribute('checked', true);
+            const v = this.getProperty(msg, this.messageProperty);
+            if (String(v) === (this.payloadOn || 'true')) {
+                this.setAttribute('checked', '');
             } else {
                 this.removeAttribute('checked');
             }

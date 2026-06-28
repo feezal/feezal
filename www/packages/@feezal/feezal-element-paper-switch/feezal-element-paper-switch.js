@@ -55,6 +55,16 @@ class FeezalElementPaperSwitch extends FeezalPolymerElement {
                 type: Boolean,
                 value: false,
                 reflectToAttribute: true
+            },
+            payloadOn: {
+                type: String,
+                value: 'ON',
+                reflectToAttribute: true
+            },
+            payloadOff: {
+                type: String,
+                value: 'OFF',
+                reflectToAttribute: true
             }
         }
     }
@@ -68,16 +78,24 @@ class FeezalElementPaperSwitch extends FeezalPolymerElement {
             discovery: {
                 component: 'switch',
                 map: {
-                    state_topic:   'subscribe',
-                    command_topic: 'publish',
-                    name:          'label'
+                    state_topic:    'subscribe',
+                    command_topic:  'publish',
+                    payload_on:     'payload-on',
+                    payload_off:    'payload-off',
+                    name:           'label',
+                    value_template: {attr: 'message-property', transform: 'valueTemplateToPath'}
                 }
             },
             attributes: [
                 'label',
                 'subscribe',
-                'messageProperty',
+                {name: 'message-property', type: 'string', default: 'payload',
+                    help: 'Dot-notation path to the value within the MQTT message. Default "payload" uses msg.payload.'},
                 'publish',
+                {name: 'payload-on',  type: 'string', default: 'ON',
+                    help: 'Payload published and expected when the switch is on.'},
+                {name: 'payload-off', type: 'string', default: 'OFF',
+                    help: 'Payload published and expected when the switch is off.'},
                 {name: 'noink'},
                 {name: 'invalid'},
                 {name: 'disabled'}
@@ -107,10 +125,26 @@ class FeezalElementPaperSwitch extends FeezalPolymerElement {
         }
     }
 
+    _subscribe() {
+        if (!this.subscribe) return;
+        this._subscriptions.push(feezal.connection.sub(this.subscribe, msg => {
+            const v = this.getProperty(msg, this.messageProperty);
+            const on = this.payloadOn || 'ON';
+            const isOn = v === on || v === true || v === 1 || v === '1';
+            if (isOn) {
+                this.setAttribute('checked', '');
+            } else {
+                this.removeAttribute('checked');
+            }
+        }));
+    }
+
     connectedCallback() {
         super.connectedCallback();
         this.$.switch.addEventListener('checked-changed', e => {
-            feezal.connection.pub(this.publish, this.$.switch.checked);
+            feezal.connection.pub(this.publish, this.$.switch.checked
+                ? (this.payloadOn || 'ON')
+                : (this.payloadOff || 'OFF'));
         });
     }
 }
