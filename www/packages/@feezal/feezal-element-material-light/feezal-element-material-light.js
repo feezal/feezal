@@ -787,7 +787,7 @@ class FeezalElementMaterialLight extends FeezalElement {
                     <text x="${CX}" y="${CY}" text-anchor="middle"
                         dominant-baseline="middle" font-size="13" font-weight="500"
                         fill="var(--feezal-light-text-color)" pointer-events="none">
-                        ${brt !== null ? `${brt}%` : '—'}
+                        ${brt !== null ? `${Math.round(brt)}%` : '—'}
                     </text>`;
 
             case 'color_temp': {
