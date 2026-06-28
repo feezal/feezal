@@ -678,6 +678,21 @@ This concept touches the element platform (how elements subscribe/publish), the 
 
 **Needs:** further discussion, design doc, and refinement before starting implementation.
 
+### E37 — Countdown confirmation dialog (`feezal-element-material-countdown-dialog`) ⚠️ needs design / planning
+
+A specialised dialog variant that auto-executes a configurable action after a countdown unless the user cancels. The canonical use case: a "Leaving home" button triggers the dialog — it counts down *"Switching to Away mode in 10… 9… 8…"* with a **Cancel** button. If the countdown reaches zero the action fires; if the user hits Cancel the action is suppressed.
+
+**Concept:**
+- Opened the same way as E36 (MQTT message or internal publish).
+- Displays a countdown in seconds (configurable `duration`), a message body (static text or template with `{seconds}` placeholder), and a Cancel button.
+- On zero: publishes the **confirm payload** to the configured topic (e.g. sets presence mode to Away).
+- On Cancel: publishes an optional **cancel payload** and closes without action.
+- Visual: large countdown number (styled like E34), message text, animated progress ring or bar shrinking to zero.
+
+Closely related to E36 (dialog) and E34 (countdown). Whether this ships as a standalone element or as a `mode="countdown"` variant of E36 is an open design question.
+
+**Needs:** further discussion and refinement before implementation. Depends on the internal publishing design (E36).
+
 ## Editor UX
 
 ### U1 — Preview mode 🔽 low priority
