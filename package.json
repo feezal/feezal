@@ -1,8 +1,8 @@
 {
     "name":  "feezal",
-    "version":  "1.4.0",
+    "version":  "1.4.1",
     "private":  true,
-    "description":  "WYSIWYG dashboard builder powered by Web Components and MQTT",
+    "description":  "Dashboard builder powered by Web Components and MQTT",
     "scripts":  {
                     "start":  "node server/bin/feezal.js --www-dir ./www",
                     "install":  "cd server \u0026\u0026 npm install \u0026\u0026 cd ../www \u0026\u0026 npm install \u0026\u0026 cd .. \u0026\u0026 node scripts/generate-elements.js \u0026\u0026 cd www \u0026\u0026 npm run build \u0026\u0026 cd .. ",

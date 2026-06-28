@@ -1,6 +1,6 @@
 # feezal
 
-> WYSIWYG dashboard builder powered by Web Components and MQTT
+> Dashboard builder powered by Web Components and MQTT
 
 > [!WARNING]
 > This project is a work in progress. Expect bugs, missing features and rough edges. Feedback and bug reports via the issue tracker are very welcome.
