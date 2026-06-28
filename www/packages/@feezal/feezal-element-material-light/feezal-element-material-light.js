@@ -2,8 +2,6 @@
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {svg, LitElement} from 'lit';
 import '@material/web/slider/slider.js';
-import '@material/web/select/outlined-select.js';
-import '@material/web/select/select-option.js';
 
 // ─── Arc geometry (0° = top, clockwise, matches feezal-element-material-gauge convention) ───
 const CX = 50;
@@ -354,7 +352,15 @@ class FeezalElementMaterialLight extends FeezalElement {
             box-shadow: 0 1px 4px rgba(0,0,0,0.25);
         }
         md-slider { width: 100%; }
-        md-outlined-select { width: 100%; }
+        select.effect-select {
+            width: 100%; box-sizing: border-box;
+            background: rgba(255,255,255,0.06); color: inherit;
+            border: 1px solid rgba(255,255,255,0.18); border-radius: 6px;
+            padding: 3px 6px; font-size: 11px; line-height: 1.4;
+            cursor: pointer; outline: none; appearance: auto;
+            color-scheme: dark;
+        }
+        select.effect-select:hover { border-color: rgba(255,255,255,0.35); }
         .label {
             font-size: 11px; opacity: 0.65; text-align: center;
             color: var(--feezal-light-text-color);
@@ -913,10 +919,10 @@ class FeezalElementMaterialLight extends FeezalElement {
             const list = this.effects.split(',').map(s => s.trim()).filter(Boolean);
             if (list.length > 0) {
                 parts.push(html`
-                    <md-outlined-select value="${this._effect}" @change="${this._onEffect}">
-                        <md-select-option value="">— Effect —</md-select-option>
-                        ${list.map(ef => html`<md-select-option value="${ef}">${ef}</md-select-option>`)}
-                    </md-outlined-select>`);
+                    <select class="effect-select" .value="${this._effect}" @change="${this._onEffect}">
+                        <option value="" ?selected="${!this._effect}">— Effect —</option>
+                        ${list.map(ef => html`<option value="${ef}" ?selected="${this._effect === ef}">${ef}</option>`)}
+                    </select>`);
             }
         }
 
