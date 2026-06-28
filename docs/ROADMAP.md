@@ -6,6 +6,10 @@ Work in progress — priorities and scope are not final.
 
 ## Bugs
 
+### B10 — Asset Manager not functional
+
+The Asset Manager sidebar (`feezal-sidebar-assets.js`) has multiple bugs that need concrete reproduction steps before fixing. Needs investigation with specific bug reports.
+
 ### B8 — Elements cannot be dragged to the far edge of an oversized view ❓ questionable
 When the view's canvas dimensions exceed the browser viewport (i.e. the page is scrollable), elements stop before reaching the right and/or bottom edge of the canvas. The cutoff distance matches the scroll offset: if the user has scrolled 200 px down, elements can be dragged at most to `viewHeight − 200 px` rather than the full `viewHeight`. Same issue occurs horizontally.
 
