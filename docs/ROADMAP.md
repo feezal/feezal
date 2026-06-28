@@ -727,6 +727,14 @@ A separate specialised dialog that auto-executes an action after a countdown unl
 
 **Default size:** n/a (pseudo-element; editor shows ~120×40 px labelled placeholder).
 
+### E38 — Element scaling / responsive sizing ⚠️ TBD — needs element audit
+
+Some elements scale their internal UI proportionally when the element is resized on the canvas (font sizes, icon sizes, SVG geometry adapt to the element's width/height). Others render at a fixed internal size regardless of the element's configured dimensions, leading to clipped or cramped content at non-default sizes.
+
+**Goal:** all visual elements should scale gracefully across a reasonable size range. This likely means adopting `container queries`, CSS `cqw`/`cqh` units, or SVG `viewBox` scaling as a consistent pattern across the element set.
+
+**Next step:** compile a concrete list of elements that do not yet scale (user to supply). Once the list is known, assess per-element effort and decide on a shared scaling pattern before making changes.
+
 ## Editor UX
 
 ### U1 — Preview mode 🔽 low priority
