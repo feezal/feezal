@@ -79,6 +79,16 @@ class FeezalElementPaperCheckbox extends FeezalPolymerElement {
                     name: 'Checkbox',
                     color: '#4a6080'
             },
+            discovery: {
+                component: 'switch',
+                map: {
+                    state_topic:   'topic',
+                    command_topic: 'publish',
+                    payload_on:    'payloadOn',
+                    payload_off:   'payloadOff',
+                    name:          'label'
+                }
+            },
             baseAttribute: 'checked',
             styles: [
                 'top',

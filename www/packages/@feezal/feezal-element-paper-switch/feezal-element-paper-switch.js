@@ -65,6 +65,14 @@ class FeezalElementPaperSwitch extends FeezalPolymerElement {
                 name: 'Switch',
                 color: '#4a6080'
             },
+            discovery: {
+                component: 'switch',
+                map: {
+                    state_topic:   'subscribe',
+                    command_topic: 'publish',
+                    name:          'label'
+                }
+            },
             attributes: [
                 'label',
                 'subscribe',

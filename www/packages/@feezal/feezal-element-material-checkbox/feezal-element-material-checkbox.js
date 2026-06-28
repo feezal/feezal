@@ -15,6 +15,7 @@ class FeezalElementMaterialCheckbox extends FeezalElement {
                     payload_on:    {attr: 'payload-on'},
                     payload_off:   {attr: 'payload-off'},
                     name:          'label',
+                    value_template: {attr: 'message-property', transform: 'valueTemplateToPath'},
                 },
             },
             attributes: [
