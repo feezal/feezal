@@ -655,6 +655,29 @@ A countdown display toward a target time — common in ioBroker timer/schedule d
 
 **Default size:** 160×100 px.
 
+### E36 — Dialog element (`feezal-element-material-dialog`) ⚠️ needs design / planning
+
+A canvas element that renders a Shoelace `sl-dialog` (or MD3 `md-dialog`) overlay. The dialog's body is a named feezal view — the full feezal element set is available inside it. Buttons in the dialog footer are configurable (label + publish payload per button). The dialog can be opened by an incoming MQTT message **or** via an internal publish (see below).
+
+**Configurable buttons:** each button has a label, an optional icon, and a publish action. Common presets: OK, Cancel, Accept, Dismiss — fully user-defined. Clicking a button publishes its payload to the configured topic and closes the dialog.
+
+**Opening the dialog:**
+- **MQTT-driven:** `subscribe-open` — a retained or non-retained message on this topic opens (`payload-open`) or closes (`payload-close`) the dialog.
+- **Internal publish (TBD):** an element on the same dashboard (e.g. a `feezal-element-material-button`) can target a well-known internal topic that never leaves the browser. This avoids the MQTT broker roundtrip for purely local UI interactions (open a dialog, navigate a view, trigger a local animation). Needs platform design — see below.
+
+#### Internal publishing concept ⚠️ TBD
+
+A lightweight in-browser pub/sub channel that elements can publish to and subscribe from, independent of the MQTT broker. Internal topics use a reserved prefix (e.g. `feezal://`) to distinguish them from real MQTT topics. The MQTT bridge ignores them; the feezal runtime routes them locally.
+
+Use cases:
+- A button opens a dialog without a broker roundtrip.
+- A navigation element switches views programmatically.
+- A confirmation dialog result triggers a follow-up action.
+
+This concept touches the element platform (how elements subscribe/publish), the connection layer, and the user guide. **Requires a dedicated design discussion before any implementation.** The dialog element depends on this if internal triggering is to be supported; an MQTT-only trigger is simpler and can ship first.
+
+**Needs:** further discussion, design doc, and refinement before starting implementation.
+
 ## Editor UX
 
 ### U1 — Preview mode 🔽 low priority
