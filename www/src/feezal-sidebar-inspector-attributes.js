@@ -958,10 +958,13 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                     const list = Array.isArray(raw) ? raw : [raw];
                     value = list.map(m => modeMap[m]).find(Boolean) || 'brightness';
                 } else if (spec.transform === 'valueTemplateToPath') {
-                    // Convert a HA value_template like "{{ value_json.state }}" to
-                    // a feezal message-property path like "payload.state".
-                    const m = /\{\{\s*value_json\.(\w+)\s*\}\}/.exec(String(raw));
-                    if (!m) continue; // complex/unsupported template — leave attribute at default
+                    // Convert a HA value_template to a feezal message-property path.
+                    // Handles both simple "{{ value_json.X }}" and complex templates
+                    // like "{{ dict[value_json.fan_mode] | default(...) }}".
+                    const simple = /\{\{\s*value_json\.(\w+)\s*\}\}/.exec(String(raw));
+                    const any    = /value_json\.(\w+)/.exec(String(raw));
+                    const m = simple || any;
+                    if (!m) continue; // no value_json reference — leave attribute at default
                     value = 'payload.' + m[1];
                 }
             }

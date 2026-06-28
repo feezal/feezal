@@ -24,20 +24,26 @@ class FeezalElementMaterialFan extends FeezalElement {
             discovery: {
                 component: 'fan',
                 map: {
-                    state_topic:               {attr: 'subscribe'},
-                    command_topic:             {attr: 'publish'},
-                    payload_on:                {attr: 'payload-on'},
-                    payload_off:               {attr: 'payload-off'},
-                    percentage_state_topic:    {attr: 'subscribe-speed'},
-                    percentage_command_topic:  {attr: 'publish-speed'},
-                    preset_modes:              {attr: 'preset-modes', transform: 'jsonStringify'},
-                    preset_mode_state_topic:   {attr: 'subscribe-preset'},
-                    preset_mode_command_topic: {attr: 'publish-preset'},
-                    availability_topic:        {attr: 'subscribe-availability'},
-                    payload_available:         {attr: 'payload-available'},
-                    payload_not_available:     {attr: 'payload-unavailable'},
-                    value_template:            {attr: 'message-property', transform: 'valueTemplateToPath'},
-                    name:                      'label',
+                    state_topic:                {attr: 'subscribe'},
+                    command_topic:              {attr: 'publish'},
+                    payload_on:                 {attr: 'payload-on'},
+                    payload_off:                {attr: 'payload-off'},
+                    // HA uses either value_template (generic) or state_value_template (fan-specific)
+                    value_template:             {attr: 'message-property', transform: 'valueTemplateToPath'},
+                    state_value_template:       {attr: 'message-property', transform: 'valueTemplateToPath'},
+                    percentage_state_topic:     {attr: 'subscribe-speed'},
+                    percentage_command_topic:   {attr: 'publish-speed'},
+                    percentage_value_template:  {attr: 'message-property-speed',  transform: 'valueTemplateToPath'},
+                    speed_range_min:            {attr: 'speed-range-min'},
+                    speed_range_max:            {attr: 'speed-range-max'},
+                    preset_modes:               {attr: 'preset-modes', transform: 'jsonStringify'},
+                    preset_mode_state_topic:    {attr: 'subscribe-preset'},
+                    preset_mode_command_topic:  {attr: 'publish-preset'},
+                    preset_mode_value_template: {attr: 'message-property-preset', transform: 'valueTemplateToPath'},
+                    availability_topic:         {attr: 'subscribe-availability'},
+                    payload_available:          {attr: 'payload-available'},
+                    payload_not_available:      {attr: 'payload-unavailable'},
+                    name:                       'label',
                 },
             },
             attributes: [
@@ -59,6 +65,8 @@ class FeezalElementMaterialFan extends FeezalElement {
                 {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
                 {name: 'payload-available',      type: 'string',    default: 'online',  help: 'Payload meaning available.'},
                 {name: 'payload-unavailable',    type: 'string',    default: 'offline', help: 'Payload meaning unavailable.'},
+                {name: 'speed-range-min', type: 'number', default: 1,   help: 'Raw speed minimum (from discovery speed_range_min). Slider shows 0–100%; raw values are scaled to this range.'},
+                {name: 'speed-range-max', type: 'number', default: 100, help: 'Raw speed maximum (from discovery speed_range_max). e.g. 9 for IKEA STARKVIND.'},
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
@@ -86,6 +94,8 @@ class FeezalElementMaterialFan extends FeezalElement {
         subscribeAvailability: {type: String,  reflect: true, attribute: 'subscribe-availability'},
         payloadAvailable:      {type: String,  reflect: true, attribute: 'payload-available'},
         payloadUnavailable:    {type: String,  reflect: true, attribute: 'payload-unavailable'},
+        speedRangeMin:         {type: Number,  reflect: true, attribute: 'speed-range-min'},
+        speedRangeMax:         {type: Number,  reflect: true, attribute: 'speed-range-max'},
         msgPropSpeed:          {type: String,  reflect: true, attribute: 'message-property-speed'},
         msgPropPreset:         {type: String,  reflect: true, attribute: 'message-property-preset'},
         msgPropAvailability:   {type: String,  reflect: true, attribute: 'message-property-availability'},
@@ -161,6 +171,8 @@ class FeezalElementMaterialFan extends FeezalElement {
         this.payloadOff            = 'OFF';
         this.subscribeSpeed        = '';
         this.publishSpeed          = '';
+        this.speedRangeMin         = 1;
+        this.speedRangeMax         = 100;
         this.subscribePreset       = '';
         this.publishPreset         = '';
         this.presetModes           = '[]';
@@ -210,8 +222,13 @@ class FeezalElementMaterialFan extends FeezalElement {
 
         if (this.subscribeSpeed) {
             this.addSubscription(this.subscribeSpeed, msg => {
-                const v = Number(this.getProperty(msg, this.msgPropSpeed || this.messageProperty));
-                if (!isNaN(v)) this._speed = Math.max(0, Math.min(100, v));
+                const raw = Number(this.getProperty(msg, this.msgPropSpeed || this.messageProperty));
+                if (!isNaN(raw)) {
+                    const lo = this.speedRangeMin ?? 1;
+                    const hi = this.speedRangeMax ?? 100;
+                    // Normalise raw device units to 0–100% for the slider
+                    this._speed = (hi === lo) ? 0 : Math.max(0, Math.min(100, ((raw - lo) / (hi - lo)) * 100));
+                }
             });
         }
 
@@ -228,9 +245,15 @@ class FeezalElementMaterialFan extends FeezalElement {
     }
 
     _setSpeed(e) {
-        const v = e.target.value;
-        this._speed = v;
-        if (this.publishSpeed) feezal.connection.pub(this.publishSpeed, String(v));
+        const pct = e.target.value;
+        this._speed = pct;
+        if (this.publishSpeed) {
+            const lo = this.speedRangeMin ?? 1;
+            const hi = this.speedRangeMax ?? 100;
+            // De-normalise percentage back to raw device units
+            const raw = (lo === hi) ? lo : Math.round(lo + (pct / 100) * (hi - lo));
+            feezal.connection.pub(this.publishSpeed, String(raw));
+        }
     }
 
     _setPreset(mode) {

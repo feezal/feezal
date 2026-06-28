@@ -983,7 +983,86 @@ Multiple groups on the same view each get a distinct colour from a small fixed p
 ### U6 — Pin-protected views 🔽 low priority
 A view can require a PIN to enter (rendered in the viewer). Useful for settings or admin pages on a shared display.
 
+### U7 — Monaco editor for template attributes ⚠️ needs further planning
 
+The `feezal-element-basic-template` element's `template` attribute accepts arbitrary HTML with ES template-literal expressions (`${msg.payload}`, `${msg.topic}`, etc.). The current inspector renders this as a plain `<sl-textarea>` — no syntax highlighting, no autocompletion, no error hints. This item replaces it with an embedded [Monaco editor](https://microsoft.github.io/monaco-editor/) (the engine behind VS Code) for template attributes.
+
+#### Current state
+
+- Attribute descriptor marks the field with `textarea: true` and `template: true`.
+- Inspector renders a plain `<sl-textarea rows="6">` with a monospace font.
+- Template syntax: ES template literals processed via `new Function('msg', 'return \`' + innerHTML + '\`;')`. The `msg` object has `msg.topic` (string) and `msg.payload` (string or parsed JSON object).
+- The server already has a topic trie (`/api/topics/completions?prefix=…`) but does **not** cache last-seen payloads.
+
+#### Proposed implementation
+
+**Triggering Monaco:**  
+The `template: true` flag on an attribute descriptor becomes the trigger to render Monaco instead of `<sl-textarea>`. No API change to element authors.
+
+**Lazy loading:**  
+Monaco is ~5 MB unparsed. It must be loaded on-demand — only when a `template: true` attribute panel is first opened. Load via dynamic `import()` from a separately chunked Vite entry, or from CDN (`esm.sh` / `jspm`). Web workers for Monaco's language features need special handling in Vite (see `vite-plugin-monaco-editor` or `@monaco-editor/loader`).
+
+Preferred approach: `@monaco-editor/loader` (CDN-backed, zero Vite config) → loads Monaco from `cdn.jsdelivr.net` the first time, then uses the browser cache. No impact on bundle size. Only requires CSP header adjustment for `script-src`.
+
+**Language mode:**  
+Use Monaco's built-in `html` language for the template content. HTML gives tag/attribute completion and syntax highlighting. The `${...}` interpolations are visually treated as plain text embedded in HTML (Monaco's HTML mode tolerates them). If a pure-JS template without HTML tags is needed, a `language` hint could be added to the descriptor in the future.
+
+**Monaco editor appearance:**  
+- Theme: `vs` (light mode) / `vs-dark` (dark mode) — toggled from `feezal._darkMode`.
+- Height: auto-grow up to ~300 px (Monaco's `automaticLayout: true` + a ResizeObserver on the container).
+- Disable minimap, line numbers can be shown or hidden (keep for HTML — useful for larger templates).
+
+**Custom completion provider — Phase 1 (static):**  
+Register a Monaco `CompletionItemProvider` for the HTML language. When the cursor is after `${`, offer:
+
+| Suggestion | Detail |
+|---|---|
+| `msg.payload` | Full payload (string or object) |
+| `msg.topic` | The MQTT topic string |
+| `msg.payloadString` | Raw payload as string |
+| `JSON.stringify(msg.payload, null, 2)` | Pretty-printed payload |
+
+**Custom completion provider — Phase 2 (live payload keys):**  
+When the template element's `subscribe` attribute is set, fetch the last known payload for that topic and extract its top-level keys. Offer `msg.payload.<key>` completions.
+
+*Server change required:* `bridge.js` adds a `Map<topic, lastPayload>` payload cache (capped at e.g. 500 topics, TTL-free — retained messages stay until reconnect clears them). New endpoint:
+
+```
+GET /api/topics/payload?topic=<topic>
+→ { payload: <last raw JSON string or null> }
+```
+
+*Client:* when the template inspector opens, if the element has a `subscribe` attribute, fetch `/api/topics/payload?topic=…`. Parse the JSON payload and walk the object to extract dot-path suggestions:
+
+```
+msg.payload.temperature   → number
+msg.payload.humidity      → number
+msg.payload.state         → string
+```
+
+Nested paths (`msg.payload.device.name`) are offered up to 2 levels deep to avoid explosion on large payloads.
+
+**Descriptor change:**  
+No change to the `feezal.attributes` descriptor is needed. `template: true` already marks the field; the inspector detects it and switches to Monaco. Element authors don't need to do anything.
+
+**Component:**  
+A new `feezal-template-editor` Lit element wraps Monaco and handles:
+- Lazy Monaco load + CDN fallback to `<sl-textarea>` if load fails (e.g. offline / CSP).
+- Dark/light theme sync from the parent via a `.dark` CSS class or property.
+- Emitting `feezal-change` on content change (debounced ~300 ms to avoid re-renders on every keystroke).
+- Auto-grow height.
+
+**Scope:**
+1. `server/src/mqtt/bridge.js` — add payload cache + export `getLastPayload(topic)`.
+2. `server/src/routes/api.js` — add `/api/topics/payload` endpoint.
+3. `www/src/feezal-template-editor.js` — new Monaco wrapper component (lazy CDN load).
+4. `www/src/feezal-sidebar-inspector-attributes.js` — detect `template: true`, render `<feezal-template-editor>` instead of `<sl-textarea>`.
+5. `editor/index.html` — verify CSP allows `cdn.jsdelivr.net` for the CDN approach, or document the Vite worker approach if bundling locally.
+
+**Open questions:**
+- CDN load vs. bundle: CDN is zero-footprint but breaks offline use. If offline export + editor is a priority (see A9 PWA), bundling Monaco as a separate async chunk is safer but adds Vite config complexity.
+- Should the editor offer a full-screen expand button (the template can grow large)?
+- Does Monaco's HTML mode handle `${…}` expressions gracefully enough, or do we need a custom TextMate grammar / monarch tokenizer?
 
 ## Architecture & Infrastructure
 
