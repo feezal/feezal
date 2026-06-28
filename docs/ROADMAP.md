@@ -53,6 +53,53 @@ Exports over `ws://`/`wss://` (the only permitted export mode) no longer bundle 
 
 Remaining: exports always bundle mqtt.js (~280 kB) even when the live site uses the feezal bridge. This case is currently blocked at export time (`mqtt://`/`mqtts://` → error), so the remaining waste is theoretical until N9 (bridge mode export) is implemented.
 
+### N13 — Lighter MQTT client for export bundle ⚠️ TBD
+
+The export bundle currently includes all of mqtt.js (**347 kB minified / 100 kB gzip**). mqtt.js is large because it targets Node.js and carries a full MQTT stack including QoS 1/2, session persistence, offline buffering, and a Node.js stream abstraction. feezal's actual usage is minimal: `connect`, `subscribe`, `unsubscribe`, `publish`, connection/disconnection/message events — all QoS 0, WebSocket-only.
+
+**Options evaluated:**
+
+| Option | Minified | Gzip | Notes |
+|---|---|---|---|
+| **mqtt.js 5.x** *(current)* | 347 kB | 100 kB | Mature, battle-tested; ES modules but not side-effect-free, no useful tree-shaking |
+| **paho-mqtt 1.1.0** | 30 kB | 7.7 kB | ❌ Last release 2018, effectively abandoned; callback API; no ES modules |
+| **u8-mqtt 0.6.x** | 19 kB | 7.3 kB | ✅ ES modules, zero deps, MQTT 3.1.1 + 5.0, auto-reconnect; ⚠️ 62 GitHub stars, single author, no formal releases |
+| **Bespoke minimal client** | ~5 kB | ~2 kB | QoS-0 WebSocket MQTT is ~200 lines; ❌ maintenance burden, security risk |
+
+**Recommended approach: export-only `u8-mqtt` backend**
+
+u8-mqtt (19 kB / 7 kB gzip) is the most promising candidate — a **95% size reduction**. The risk-managed strategy is to use it exclusively in the export build, keeping mqtt.js for the live viewer:
+
+- Add `feezal-connection-mqtt-lite.js` that adapts u8-mqtt to feezal's connection interface (`connect`, `subscribe`, `unsubscribe`, `publish`, events)
+- The Vite export plugin (already stubs `feezal-connection-feezal.js`) replaces `feezal-connection-mqtt.js` with the lite version
+- Live viewer continues to use mqtt.js unchanged
+- If u8-mqtt causes issues, the stub can be reverted independently
+
+**u8-mqtt API sketch for the feezal use case:**
+```js
+import mqtt_client from 'u8-mqtt';
+
+const client = mqtt_client()
+  .with_websock(cfg.uri)
+  .with_autoreconnect();
+
+await client.connect({ client_id: clientId });
+
+// subscribe
+client.subscribe_topic('my/topic', (pkt) => { /* pkt.payload_utf8() */ });
+
+// publish
+client.json_send('my/topic', payload);
+```
+
+**Concerns to verify before implementing:**
+- Username/password auth support (needed for N10)
+- QoS 0 vs QoS 1 subscribe behaviour (feezal currently uses QoS 0 implicitly)
+- LWT (last will) support
+- Reconnect behaviour parity with mqtt.js
+
+**Expected export bundle savings:** ~300 kB minified / ~93 kB gzip (from ~400 kB to ~100 kB total).
+
 ### N11 — Dual snap lines per axis
 
 When dragging an element, show up to 2 vertical and 2 horizontal snap-helper lines simultaneously — one per side of the dragged element that has a nearby match.
