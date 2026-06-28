@@ -47,19 +47,11 @@ This handles all combinations: fixed×fixed, fixed×auto, auto×auto.
 
 ## Near-term Improvements
 
-### N12 — Export bundle: only include the active connection backend
+### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
-The static export always bundles **both** connection backends — mqtt.js and socket.io-client — even though only one is ever used at runtime. This is caused by `inlineDynamicImports: true` in the Vite export config: it inlines both branches of the ternary in `feezal-connection.js` unconditionally.
+Exports over `ws://`/`wss://` (the only permitted export mode) no longer bundle socket.io-client (~40 kB) — ✅ fixed by stubbing out `feezal-connection-feezal.js` in the Vite export plugin.
 
-**Cost:**
-- mqtt.js: ~280 kB minified
-- socket.io-client: ~40 kB minified
-
-Both are always present in every export, so whichever backend is not in use wastes 40–280 kB. For the common case of a direct broker connection (`ws://`), socket.io is dead weight. For a feezal-bridge connection (`mqtt://`), mqtt.js is dead weight.
-
-**Fix:** pass the resolved connection backend (`'mqtt'` or `'feezal'`) into `buildFilteredBundle()`. Generate the export entry file with a static import of only the needed backend module rather than the generic `feezal-connection.js` (which does the lazy dynamic import). Remove `inlineDynamicImports: true` once the entry is backend-specific; this also benefits Vite's own tree-shaking.
-
-**Expected savings:** ~40 kB for `ws://` users; ~280 kB for `mqtt://`/`mqtts://` users.
+Remaining: exports always bundle mqtt.js (~280 kB) even when the live site uses the feezal bridge. This case is currently blocked at export time (`mqtt://`/`mqtts://` → error), so the remaining waste is theoretical until N9 (bridge mode export) is implemented.
 
 ### N11 — Dual snap lines per axis
 

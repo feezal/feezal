@@ -85,6 +85,17 @@ async function buildFilteredBundle(wwwDir, siteHtml, theme, logger) {
             root: wwwDir,
             logLevel: 'silent',
             configFile: false,            // don't load www/vite.config.js
+            plugins: [
+                // Exports are always ws:// (direct MQTT). The feezal bridge backend
+                // (socket.io-client) is never reachable — stub it out so it doesn't
+                // get bundled.
+                {
+                    name: 'feezal-export-strip-socketio',
+                    load(id) {
+                        if (id.includes('feezal-connection-feezal')) return '';
+                    }
+                }
+            ],
             build: {
                 write: false,             // in-memory output only
                 minify: 'esbuild',
