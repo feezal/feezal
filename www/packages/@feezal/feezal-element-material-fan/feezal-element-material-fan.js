@@ -120,9 +120,13 @@ class FeezalElementMaterialFan extends FeezalElement {
             --feezal-fan-off-color:   var(--secondary-text-color, var(--feezal-color-sub, #999));
             --feezal-fan-text-color:  var(--primary-text-color, var(--feezal-color, #333));
             --feezal-fan-error-color: var(--error-color, #b00020);
-            --md-sys-color-primary:              var(--feezal-fan-on-color);
-            --md-slider-active-track-color:      var(--feezal-fan-on-color);
-            --md-slider-handle-color:            var(--feezal-fan-on-color);
+            /* Use the themed accent colour for interactive controls (switch track, preset active).
+               --primary-color is the feezal/Shoelace accent; --primary-text-color is used for
+               the blade colour only so it can stay white on dark themes. */
+            --feezal-fan-accent-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --md-sys-color-primary:              var(--feezal-fan-accent-color);
+            --md-slider-active-track-color:      var(--feezal-fan-accent-color);
+            --md-slider-handle-color:            var(--feezal-fan-accent-color);
             --md-slider-inactive-track-color:    var(--feezal-fan-off-color);
             --md-switch-track-width:  44px;
             --md-switch-track-height: 26px;
@@ -144,6 +148,7 @@ class FeezalElementMaterialFan extends FeezalElement {
         }
         .toggle-label { font-size: 12px; color: var(--feezal-fan-text-color); min-width: 36px; }
         .speed-row { display: flex; align-items: center; width: 100%; }
+        .speed-row.disabled { opacity: 0.35; pointer-events: none; }
         md-slider { flex: 1; }
         .preset-row { display: flex; gap: 3px; flex-wrap: wrap; justify-content: center; }
         .preset-btn {
@@ -152,9 +157,9 @@ class FeezalElementMaterialFan extends FeezalElement {
             color: var(--feezal-fan-text-color);
         }
         .preset-btn.active {
-            background: var(--feezal-fan-on-color);
+            background: var(--feezal-fan-accent-color);
             color: var(--primary-background-color, #fff);
-            border-color: var(--feezal-fan-on-color);
+            border-color: var(--feezal-fan-accent-color);
         }
         .label {
             font-size: 11px; opacity: 0.65; text-align: center;
@@ -316,9 +321,10 @@ class FeezalElementMaterialFan extends FeezalElement {
                         : 'Off'}
                 </span>
             </div>
-            ${this.subscribeSpeed && this._on ? html`
-                <div class="speed-row">
+            ${this.subscribeSpeed ? html`
+                <div class="speed-row${this._on ? '' : ' disabled'}">
                     <md-slider min="1" max="100" .value="${this._speed ?? 50}"
+                               ?disabled="${!this._on}"
                                @change="${this._setSpeed}"></md-slider>
                 </div>
             ` : ''}

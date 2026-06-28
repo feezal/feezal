@@ -1061,7 +1061,7 @@ A new `feezal-template-editor` Lit element wraps Monaco and handles:
 
 **Open questions:**
 - CDN load vs. bundle: CDN is zero-footprint but breaks offline use. If offline export + editor is a priority (see A9 PWA), bundling Monaco as a separate async chunk is safer but adds Vite config complexity.
-- Should the editor offer a full-screen expand button (the template can grow large)?
+- Should the editor offer a full-screen expand button (the template can grow large)? 
 - Does Monaco's HTML mode handle `${…}` expressions gracefully enough, or do we need a custom TextMate grammar / monarch tokenizer?
 
 ## Architecture & Infrastructure
