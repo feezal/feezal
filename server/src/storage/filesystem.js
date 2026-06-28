@@ -87,15 +87,20 @@ class FilesystemStorage extends StorageAdapter {
     }
 
     /**
-     * Return the views.html of a site at a specific git commit.
+     * Return the views.html and viewer config of a site at a specific git commit.
      * Falls back to current content if git is unavailable or the sha is invalid.
      * @param {string} name  Site name.
      * @param {string} sha   Commit hash (7–40 hex chars).
-     * @returns {Promise<{html: string}>}
+     * @returns {Promise<{html: string, config: object|null}>}
      */
     async getSiteAtVersion(name, sha) {
         const html = await showFile(this._sitePath(name), sha, VIEWS_FILE);
-        return {html: html || DEFAULT_SITE_HTML};
+        let config = null;
+        try {
+            const raw = await showFile(this._sitePath(name), sha, CONFIG_FILE);
+            if (raw) config = JSON.parse(raw);
+        } catch { /* viewer.json absent in older commits — non-fatal */ }
+        return {html: html || DEFAULT_SITE_HTML, config};
     }
 
     async saveSite(name, {html, config}) {

@@ -156,14 +156,18 @@ async function createApp(config) {
             const {html: siteHtml, config} = await storage.getSite(siteName);
 
             // ?sha=<hex> — preview a historical version of views.html.
-            // The current config (connection, theme) is still applied.
+            // The historical viewer config (theme, overrides, classes) is used for
+            // the preview; connection settings are always taken from the current
+            // config so we never try to reconnect to a stale broker address.
             let historicalHtml = null;
+            let historicalViewerConfig = null;
             const shaParam = req.query.sha;
             if (shaParam && /^[a-f0-9]{7,40}$/.test(shaParam) &&
                 typeof storage.getSiteAtVersion === 'function') {
                 try {
                     const v = await storage.getSiteAtVersion(siteName, shaParam);
                     historicalHtml = v.html;
+                    historicalViewerConfig = (v.config && v.config.viewer) || null;
                 } catch { /* sha not found or git unavailable — fall through to current */ }
             }
 
@@ -199,7 +203,9 @@ async function createApp(config) {
             const backendValue = usesBridge ? 'feezal' : 'mqtt';
 
             // Inject the persisted theme class into the feezal-site root element.
-            const theme = config && config.viewer && config.viewer.theme;
+            // For historical previews use the viewer config captured at that commit.
+            const viewerConfig = historicalViewerConfig || (config && config.viewer) || null;
+            const theme = viewerConfig && viewerConfig.theme;
             // Use the historical version for preview when ?sha= was provided.
             let themedHtml = historicalHtml || siteHtml;
             if (theme && /^feezal-theme-[\w-]+$/.test(theme)) {
@@ -212,7 +218,7 @@ async function createApp(config) {
             }
 
             // Build an inline <style> block for any colour-variable overrides.
-            const themeOverrides = config && config.viewer && config.viewer.themeOverrides;
+            const themeOverrides = viewerConfig && viewerConfig.themeOverrides;
             let overrideStyle = '';
             if (themeOverrides && Object.keys(themeOverrides).length) {
                 const props = Object.entries(themeOverrides)
@@ -232,7 +238,7 @@ async function createApp(config) {
             }
 
             // Build CSS for defined classes.
-            const classes = config && config.viewer && config.viewer.classes;
+            const classes = viewerConfig && viewerConfig.classes;
             let classesStyle = '';
             if (classes && Object.keys(classes).length) {
                 const cssText = Object.entries(classes)

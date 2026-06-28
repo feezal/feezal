@@ -2,6 +2,9 @@
 
 ## Bugs
 
+### B11 — History preview ignores historical theme ✅ fixed
+When previewing a past commit, the current theme was always applied because `getSiteAtVersion()` only fetched `views.html`, not `viewer.json`. Fixed by extending `getSiteAtVersion()` to also `git show sha:viewer.json` and returning the historical config. The viewer route now uses the historical `viewerConfig` (theme, themeOverrides, classes) for `?sha=` previews while still using the current connection config.
+
 ### B3 — Event listener leak on disconnectedCallback ✅ fixed
 Components do not clean up MQTT subscriptions and event listeners when removed. In long-running sessions this will accumulate stale listeners.
 - `feezal-app-editor.js`: copy/paste/cut document handlers now stored as named instance properties and removed in `disconnectedCallback` ✅
