@@ -26,11 +26,12 @@ class FeezalElementMaterialSwitch extends FeezalElement {
             discovery: {
                 component: 'switch',
                 map: {
-                    state_topic:   'subscribe',
-                    command_topic: 'publish',
-                    payload_on:    'payload-on',
-                    payload_off:   'payload-off',
-                    name:          'label'
+                    state_topic:    'subscribe',
+                    command_topic:  'publish',
+                    payload_on:     'payload-on',
+                    payload_off:    'payload-off',
+                    name:           'label',
+                    value_template: {attr: 'message-property', transform: 'valueTemplateToPath'}
                 }
             }
         };

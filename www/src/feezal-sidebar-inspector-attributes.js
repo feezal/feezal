@@ -957,6 +957,12 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                     };
                     const list = Array.isArray(raw) ? raw : [raw];
                     value = list.map(m => modeMap[m]).find(Boolean) || 'brightness';
+                } else if (spec.transform === 'valueTemplateToPath') {
+                    // Convert a HA value_template like "{{ value_json.state }}" to
+                    // a feezal message-property path like "payload.state".
+                    const m = /\{\{\s*value_json\.(\w+)\s*\}\}/.exec(String(raw));
+                    if (!m) continue; // complex/unsupported template — leave attribute at default
+                    value = 'payload.' + m[1];
                 }
             }
             el.setAttribute(attrName, String(value));
