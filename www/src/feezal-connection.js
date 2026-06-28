@@ -158,12 +158,13 @@ class FeezalConnection extends LitElement {
     }
 
     pub(topic, payload, options = {}) {
+        console.log('[feezal-pub] topic=%s payload=%o conn=%o connected=%o', topic, payload, !!this.conn, this.connected);
         if (options.local) {
             this._spreadMessage({topic, payload});
         } else if (this.conn && this.connected) {
             this.conn.publish({topic, payload}, options);
         } else {
-            console.error('feezal-connection: could not publish', topic);
+            console.warn('[feezal-pub] BLOCKED — conn=%o connected=%o topic=%s', !!this.conn, this.connected, topic);
         }
     }
 

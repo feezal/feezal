@@ -92,8 +92,12 @@ class FeezalConnectionMqtt extends LitElement {
     }
 
     publish(message, _options = {}) {
+        console.log('[feezal-mqtt-pub] connected=%o topic=%s payload=%o', this.connected, message.topic, message.payload);
         if (this.connected && message.topic) {
             this.client.publish(message.topic, String(message.payload));
+            console.log('[feezal-mqtt-pub] sent OK');
+        } else {
+            console.warn('[feezal-mqtt-pub] BLOCKED — connected=%o topic=%s', this.connected, message.topic);
         }
     }
 }

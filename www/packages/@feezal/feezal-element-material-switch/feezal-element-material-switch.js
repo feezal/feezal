@@ -101,8 +101,11 @@ class FeezalElementMaterialSwitch extends FeezalElement {
 
     _toggle(e) {
         this._on = e.target.selected;
+        console.log('[switch-toggle] _on=%o publish=%o payloadOn=%o payloadOff=%o', this._on, this.publish, this.payloadOn, this.payloadOff);
         if (this.publish) {
             feezal.connection.pub(this.publish, this._on ? this.payloadOn : this.payloadOff);
+        } else {
+            console.warn('[switch-toggle] no publish topic configured');
         }
     }
 
