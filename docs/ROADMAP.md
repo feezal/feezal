@@ -735,6 +735,28 @@ Some elements scale their internal UI proportionally when the element is resized
 
 **Next step:** compile a concrete list of elements that do not yet scale (user to supply). Once the list is known, assess per-element effort and decide on a shared scaling pattern before making changes.
 
+### E39 — Splash / FOUC-prevention element ⚠️ needs further planning
+
+A system element that prevents flash-of-unstyled-content and UI jitter on first load, before retained MQTT messages have been received and the dashboard has settled into its initial state.
+
+**Editor behaviour:** pseudo-element (invisible placeholder); position and size are irrelevant. Appears in the palette so the user can drop one onto any view that needs it.
+
+**Viewer behaviour:**
+- On first page load, renders a full-screen overlay that sits above all other content (`position: fixed; inset: 0; z-index: 9999`).
+- The overlay hides until the following conditions are all met:
+  1. The MQTT connection is established.
+  2. The view's DOM is fully populated (element `connectedCallback`s have run).
+  3. At least one retained message has been received (or a configurable timeout has elapsed as a fallback, so the dashboard doesn't hang indefinitely if there are no retained topics).
+- Once the conditions are met the overlay fades out with a short transition (target: ~250 ms).
+- Only fires on the initial load; navigating between views does not re-trigger the overlay.
+
+**Open questions (needs refinement before implementation):**
+- What counts as "enough messages arrived"? Options: first message on any topic, all subscribed topics that have a retained message, a user-configured count, or a fixed debounce after connection-up.
+- Fallback timeout value — what is a sensible default?
+- Visual appearance of the overlay: solid colour (matching the site background), logo/spinner, or fully transparent (just blocks rendering)?
+- Should `warn-seconds` / a progress indicator be shown if the wait is unexpectedly long?
+- Does this belong as a standalone element or as a built-in behaviour of `feezal-site`?
+
 ## Editor UX
 
 ### U1 — Preview mode 🔽 low priority
