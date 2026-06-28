@@ -11,6 +11,8 @@
  * the trie, and reconnects with the new settings.
  */
 
+const fs = require('fs').promises;
+const path = require('path');
 const mqtt = require('mqtt');
 const discovery = require('./discovery.js');
 
@@ -55,6 +57,7 @@ function getTopicCompletions(prefix) {
 // ── Connection ─────────────────────────────────────────────────────────────
 let client          = null;
 let activeUri       = null;
+let activeCertDir   = null;
 let _logger         = null;
 let _relayCallback  = null;
 
@@ -64,7 +67,7 @@ function setRelayCallback(fn) {
     _relayCallback = fn;
 }
 
-function connect(config, logger) {
+function connect(config, logger, certDir) {
     if (logger) _logger = logger;
 
     const uri = config?.uri;
@@ -75,8 +78,8 @@ function connect(config, logger) {
         return;
     }
 
-    // Skip if already connected to the same broker
-    if (activeUri === uri) {
+    // Skip if already connected to the same broker with the same cert dir
+    if (activeUri === uri && activeCertDir === (certDir || null)) {
         _logger?.debug('mqtt-bridge: already connected to ' + uri);
         return;
     }
@@ -85,6 +88,7 @@ function connect(config, logger) {
     _clearTrie();
     discovery.clearEntities();
     activeUri = uri;
+    activeCertDir = certDir || null;
 
     _logger?.info('mqtt-bridge: connecting to ' + uri);
 
@@ -96,12 +100,25 @@ function connect(config, logger) {
     if (config.username) options.username = config.username;
     if (config.password) options.password = config.password;
 
+    // Load TLS CA cert if present (N8)
+    const doConnect = certDir
+        ? fs.readFile(path.join(certDir, 'ca.pem'))
+            .then(ca => { options.ca = ca; })
+            .catch(() => { /* no CA cert — connect without it */ })
+            .then(() => _doConnect(uri, options))
+        : Promise.resolve(_doConnect(uri, options));
+
+    doConnect.catch(err => _logger?.error('mqtt-bridge: ' + err.message));
+}
+
+function _doConnect(uri, options) {
     try {
         client = mqtt.connect(uri, options);
     } catch (err) {
         _logger?.error('mqtt-bridge: connect threw ' + err.message);
         client = null;
         activeUri = null;
+        activeCertDir = null;
         return;
     }
 
@@ -135,8 +152,9 @@ function connect(config, logger) {
 function disconnect() {
     if (client) {
         try { client.end(true); } catch {}
-        client    = null;
-        activeUri = null;
+        client       = null;
+        activeUri    = null;
+        activeCertDir = null;
     }
 }
 

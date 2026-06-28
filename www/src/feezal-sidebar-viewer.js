@@ -6,6 +6,8 @@ import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
 import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/select/select.js';
 import '@shoelace-style/shoelace/dist/components/option/option.js';
+import '@shoelace-style/shoelace/dist/components/button/button.js';
+import '@shoelace-style/shoelace/dist/components/textarea/textarea.js';
 
 /**
  * feezal-sidebar-viewer
@@ -15,8 +17,12 @@ import '@shoelace-style/shoelace/dist/components/option/option.js';
  */
 class FeezalSidebarViewer extends LitElement {
     static properties = {
-        connection: {type: Object},
-        site:       {type: Object}
+        connection:   {type: Object},
+        site:         {type: Object},
+        _certStatus:  {state: true},
+        _showPaste:   {state: true},
+        _pemText:     {state: true},
+        _certBusy:    {state: true},
     };
 
     static styles = css`
@@ -41,12 +47,81 @@ class FeezalSidebarViewer extends LitElement {
             text-transform: uppercase; margin-top: 16px; margin-bottom: 4px;
             padding-bottom: 4px; border-bottom: 1px solid var(--feezal-border, #eee);
         }
+        /* TLS cert section */
+        .cert-row {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-top: 8px; font-size: 13px; color: var(--feezal-color, #333);
+        }
+        .cert-badge {
+            font-size: 11px; padding: 2px 6px; border-radius: 10px;
+            font-weight: 600; letter-spacing: 0.03em;
+        }
+        .cert-badge.ok  { background: #dcfce7; color: #16a34a; }
+        .cert-badge.none { background: #f3f4f6; color: #9ca3af; }
+        .cert-actions { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+        sl-textarea { width: 100%; margin-top: 6px; }
+        sl-textarea::part(textarea) {
+            font-family: monospace; font-size: 11px;
+            background: var(--feezal-bg, #fff); color: var(--sl-input-color, #333);
+            border-color: var(--feezal-border, #ccc);
+        }
+        .cert-save-row { display: flex; justify-content: flex-end; margin-top: 6px; }
+        input[type=file] { display: none; }
     `;
 
     constructor() {
         super();
-        this.connection = {backend: 'mqtt'};
-        this.site = {name: feezal.siteName};
+        this.connection  = {backend: 'mqtt'};
+        this.site        = {name: feezal.siteName};
+        this._certStatus = null;
+        this._showPaste  = false;
+        this._pemText    = '';
+        this._certBusy   = false;
+    }
+
+    connectedCallback() {
+        super.connectedCallback();
+        this._loadCertStatus();
+    }
+
+    async _loadCertStatus() {
+        try {
+            const r = await fetch(`/api/sites/${encodeURIComponent(feezal.siteName)}/certs`);
+            if (r.ok) this._certStatus = await r.json();
+        } catch { /* ignore — server may not have a dataDir */ }
+    }
+
+    async _uploadPem(pem) {
+        this._certBusy = true;
+        try {
+            const r = await fetch(`/api/sites/${encodeURIComponent(feezal.siteName)}/certs`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({type: 'ca', pem}),
+            });
+            if (r.ok) {
+                this._showPaste = false;
+                this._pemText   = '';
+                await this._loadCertStatus();
+            }
+        } catch { /* ignore */ }
+        this._certBusy = false;
+    }
+
+    async _removeCert(type) {
+        this._certBusy = true;
+        try {
+            await fetch(`/api/sites/${encodeURIComponent(feezal.siteName)}/certs/${type}`, {method: 'DELETE'});
+            await this._loadCertStatus();
+        } catch { /* ignore */ }
+        this._certBusy = false;
+    }
+
+    _handleFileUpload(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        file.text().then(text => this._uploadPem(text));
+        e.target.value = '';
     }
 
     // ── URI ↔ structured fields ──────────────────────────────────────────────
@@ -97,6 +172,8 @@ class FeezalSidebarViewer extends LitElement {
     render() {
         const c = this.connection;
         const s = this.site;
+        const isTls = c._protocol === 'mqtts' || c._protocol === 'wss';
+        const hasCa = this._certStatus?.ca;
         return html`
             <sl-tab-group>
                 <sl-tab slot="nav" panel="connection">Connection</sl-tab>
@@ -133,6 +210,53 @@ class FeezalSidebarViewer extends LitElement {
                         .value="${c._password || ''}"
                         @sl-change="${e => { this.connection = {...this.connection, _password: e.target.value}; this._buildUri(); this._applyConnection(); feezal.app.change(true); }}">
                     </sl-input>
+
+                    ${isTls ? html`
+                        <div class="section-label">TLS</div>
+                        <div class="cert-row">
+                            <span>CA certificate</span>
+                            ${hasCa
+                                ? html`<span class="cert-badge ok">✓ active</span>`
+                                : html`<span class="cert-badge none">none</span>`}
+                        </div>
+                        ${hasCa ? html`
+                            <div class="cert-actions">
+                                <sl-button size="small" variant="danger" ?loading="${this._certBusy}"
+                                    @click="${() => this._removeCert('ca')}">
+                                    Remove
+                                </sl-button>
+                            </div>
+                        ` : html`
+                            <div class="cert-actions">
+                                <sl-button size="small" ?loading="${this._certBusy}"
+                                    @click="${() => this.renderRoot.querySelector('#ca-file-input').click()}">
+                                    Upload file
+                                </sl-button>
+                                <sl-button size="small" variant="text"
+                                    @click="${() => { this._showPaste = !this._showPaste; }}">
+                                    ${this._showPaste ? 'Cancel' : 'Paste PEM'}
+                                </sl-button>
+                            </div>
+                            <input id="ca-file-input" type="file" accept=".pem,.crt,.cer,.ca"
+                                @change="${this._handleFileUpload}">
+                            ${this._showPaste ? html`
+                                <sl-textarea size="small" rows="5"
+                                    placeholder="-----BEGIN CERTIFICATE-----&#10;..."
+                                    .value="${this._pemText}"
+                                    @sl-input="${e => this._pemText = e.target.value}">
+                                </sl-textarea>
+                                <div class="cert-save-row">
+                                    <sl-button size="small" variant="primary"
+                                        ?disabled="${!this._pemText.includes('-----BEGIN ')}"
+                                        ?loading="${this._certBusy}"
+                                        @click="${() => this._uploadPem(this._pemText)}">
+                                        Save
+                                    </sl-button>
+                                </div>
+                            ` : ''}
+                        `}
+                    ` : ''}
+
                     <div class="section-label">Client</div>
                     <sl-input label="Client ID" size="small" placeholder="(auto)"
                         .value="${c.clientId || ''}"

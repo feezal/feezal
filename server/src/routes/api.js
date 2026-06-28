@@ -335,6 +335,60 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
         }
     });
 
+    // ── TLS certificate management (N8) ───────────────────────────────────
+
+    // Valid cert types and their on-disk filenames.
+    const CERT_FILES = {ca: 'ca.pem', cert: 'client.crt', key: 'client.key'};
+    const certDir = name => storage.dataDir ? path.join(storage.dataDir, 'certs', name) : null;
+
+    // GET /api/sites/:name/certs — which cert files are present (never returns content)
+    router.get('/sites/:name/certs', async (req, res) => {
+        const dir = certDir(req.params.name);
+        if (!dir) return res.json({ca: false, cert: false, key: false});
+        const result = {};
+        for (const [type, file] of Object.entries(CERT_FILES)) {
+            try { await fs.access(path.join(dir, file)); result[type] = true; }
+            catch { result[type] = false; }
+        }
+        res.json(result);
+    });
+
+    // POST /api/sites/:name/certs — store a PEM cert by text
+    // Body: {type: 'ca'|'cert'|'key', pem: '<PEM string>'}
+    router.post('/sites/:name/certs', async (req, res) => {
+        const {type, pem} = req.body || {};
+        if (!CERT_FILES[type]) {
+            return res.status(400).json({error: 'type must be ca, cert, or key'});
+        }
+        if (typeof pem !== 'string' || !pem.includes('-----BEGIN ')) {
+            return res.status(400).json({error: 'pem must be a valid PEM-format string'});
+        }
+        const dir = certDir(req.params.name);
+        if (!dir) return res.status(503).json({error: 'No dataDir configured'});
+        await fs.mkdir(dir, {recursive: true});
+        // Normalise line endings; strip null bytes (defence-in-depth).
+        const sanitized = pem.replace(/\r\n/g, '\n').replace(/\0/g, '').trim() + '\n';
+        await fs.writeFile(path.join(dir, CERT_FILES[type]), sanitized, 'utf8');
+        res.status(201).json({type, stored: true});
+    });
+
+    // DELETE /api/sites/:name/certs/:type — remove a stored cert
+    router.delete('/sites/:name/certs/:type', async (req, res) => {
+        const {type} = req.params;
+        if (!CERT_FILES[type]) {
+            return res.status(400).json({error: 'type must be ca, cert, or key'});
+        }
+        const dir = certDir(req.params.name);
+        if (!dir) return res.status(503).json({error: 'No dataDir configured'});
+        try {
+            await fs.unlink(path.join(dir, CERT_FILES[type]));
+            res.status(204).send();
+        } catch (err) {
+            if (err.code === 'ENOENT') return res.status(404).json({error: 'not found'});
+            res.status(500).json({error: err.message});
+        }
+    });
+
     return router;
 }
 

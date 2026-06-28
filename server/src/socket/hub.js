@@ -56,7 +56,10 @@ function createHub(io, {storage, logger}) {
                 logger.info('saved site ' + siteName);
 
                 // Reconnect bridge if connection settings changed
-                bridge.connect(data.connection, logger);
+                const certDir = storage.dataDir
+                    ? path.join(storage.dataDir, 'certs', siteName)
+                    : null;
+                bridge.connect(data.connection, logger, certDir);
 
                 io.emit('reload');
             } catch (err) {
@@ -77,7 +80,10 @@ function createHub(io, {storage, logger}) {
                 const {html: views, config: viewer} = await storage.getSite(site);
                 callback({views, viewer});
                 // Auto-connect bridge with the stored connection config
-                bridge.connect(viewer?.connection, logger);
+                const certDir = storage.dataDir
+                    ? path.join(storage.dataDir, 'certs', site)
+                    : null;
+                bridge.connect(viewer?.connection, logger, certDir);
             } catch (err) {
                 logger.warn('getSite error for ' + site + ': ' + err.message);
                 callback({views: '', viewer: {}});
