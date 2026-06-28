@@ -6,6 +6,14 @@ Work in progress — priorities and scope are not final.
 
 ## Bugs
 
+### B11 — History preview ignores historical theme
+
+When previewing a past commit from the version history sidebar, the current theme is always applied, regardless of what theme was active at that commit. All historical previews therefore look identical in terms of colour scheme.
+
+**Root cause:** `getSiteAtVersion()` in `filesystem.js` fetches only `views.html` via `git show`; it never retrieves `viewer.json` at the same SHA. The viewer route (`app.js`) then injects the theme from the *current* `viewer.json` onto the historical layout — a known limitation noted in a comment at that line.
+
+**Fix:** extend `getSiteAtVersion()` to also `git show sha:viewer.json` and return the historical config alongside the historical HTML. The viewer route should use the historical theme (and other visual config such as class overrides) when rendering a `?sha=` preview. Connection settings should *not* be restored from history — only visual/theme config.
+
 ### B10 — Asset Manager not functional
 
 The Asset Manager sidebar (`feezal-sidebar-assets.js`) has multiple bugs that need concrete reproduction steps before fixing. Needs investigation with specific bug reports.
