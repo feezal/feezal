@@ -71,8 +71,9 @@ Each repeater child becomes individually selectable and configurable on the edit
 
 
 
-### N4 — Palette Manager 🔽 low priority
-Install additional `@feezal/feezal-element-*` packages from the editor UI without touching the terminal. Requires a backend endpoint that runs `pnpm add` in the `www/` workspace.
+### N4 — Palette Manager / custom element install ⚠️ TBD
+
+The overall flow for users installing custom feezal elements via npm needs to be refined before implementation. Open questions: how does a user discover and install a third-party `feezal-element-*` package, where does it land on the server, how does the server pick it up at runtime, and what is the editor UI for managing installed packages? Requires a design pass before any code is written.
 
 ### N8 — MQTT TLS certificate management
 
