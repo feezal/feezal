@@ -124,7 +124,7 @@ class FeezalElementMaterialLight extends FeezalElement {
                     // capability ranges
                     brightness_scale:      {attr: 'brightness-max'},          // e.g. 254 → 0–100 %
                     supported_color_modes: {attr: 'mode', transform: 'colorMode'},
-                    min_mireds: {attr: 'color-temp-max', unit: 'mired\u2192kelvin'}, // 153 → 6536 K
+                    min_mireds: {attr: 'color-temp-max', unit: 'mired\u2192kelvin', alsoSet: {'color-temp-unit': 'mired'}}, // 153 → 6536 K; also sets unit so runtime reads/publishes in mired
                     max_mireds: {attr: 'color-temp-min', unit: 'mired\u2192kelvin'}, // 500 → 2000 K
                     // effects
                     effect_list: {attr: 'effects', transform: 'join'},

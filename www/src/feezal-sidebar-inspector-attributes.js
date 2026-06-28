@@ -966,6 +966,12 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                 }
             }
             el.setAttribute(attrName, String(value));
+            // alsoSet: unconditionally set additional attributes alongside the main one
+            if (typeof spec === 'object' && spec.alsoSet) {
+                for (const [sideAttr, sideVal] of Object.entries(spec.alsoSet)) {
+                    el.setAttribute(sideAttr, String(sideVal));
+                }
+            }
         }
 
         // Store the discovery-id for future re-sync (N12 MVP)
