@@ -70,58 +70,6 @@ Each repeater child becomes individually selectable and configurable on the edit
 ### N4 — Palette Manager 🔽 low priority
 Install additional `@feezal/feezal-element-*` packages from the editor UI without touching the terminal. Requires a backend endpoint that runs `pnpm add` in the `www/` workspace.
 
-### N6 — Custom element inspectors
-
-An element package can ship a Web Component that **fully replaces** the generic attribute form in the sidebar inspector when that element is selected. The style section (position, size, background, etc.) remains below it, unchanged.
-
-#### Declaration
-
-The element declares the custom inspector by adding an `inspector` key to `static get feezal()`:
-
-```js
-static get feezal() {
-    return {
-        palette: { … },
-        inspector: 'feezal-element-basic-chart-inspector',  // custom element tag name
-        attributes: [ … ],
-        styles: [ … ]
-    };
-}
-```
-
-The tag must be defined and registered (via `customElements.define`) in the same element package file. No separate discovery, no extra files.
-
-#### Rendering
-
-When an element with `feezal().inspector` set is selected, `feezal-sidebar-inspector-attributes.js` renders the named custom element in place of the standard attribute form:
-
-```html
-<feezal-element-basic-chart-inspector></feezal-element-basic-chart-inspector>
-```
-
-The selected element's DOM reference is passed directly to the inspector component as its `.element` property immediately after insertion (same render cycle). The inspector can read any attribute or property from this reference.
-
-#### Writing changes back
-
-The inspector dispatches a standard `feezal-attribute-changed` CustomEvent (bubbles, composed) with `detail: { name, value }` — the same event shape that the built-in attribute controls already use:
-
-```js
-this.dispatchEvent(new CustomEvent('feezal-attribute-changed', {
-    bubbles: true,
-    composed: true,
-    detail: { name: 'series', value: JSON.stringify(newSeries) }
-}));
-```
-
-The sidebar listens for this event and applies it to the selected element exactly as it does for built-in controls. No other API is needed.
-
-#### Lifecycle
-
-- `.element` is set after the inspector is connected to the DOM; the inspector should react to it via a Lit reactive property.
-- When the selection changes to a different element (or the inspector's own element type), the sidebar replaces the inspector component with a fresh instance.
-- When selection is cleared, the inspector is removed.
-
-
 ### N8 — MQTT TLS certificate management
 
 Two sub-features for secure broker connections, both server-side (TLS is terminated in Node.js; the browser is uninvolved).
@@ -196,138 +144,11 @@ This actually *works* — and is the right answer for static exports. When the b
 The private key remains exclusively in `dataDir/certs/` on the feezal server (N8). For the live-viewer path it is used directly by the Node.js MQTT client; for static export the user installs it alongside the cert in their OS store (standard operational practice for mTLS deployments).
 
 
----
-
-#### How auto-discovery topics work
-
-Publishers emit a **retained** JSON config message per entity to a well-known topic under a configurable prefix (default `homeassistant`):
-
-```
-<prefix>/<component>/<node_id>/<object_id>/config        # component discovery
-<prefix>/<component>/<object_id>/config                  # short form
-<prefix>/device/<node_id>/config                         # device discovery (one payload, many entities via "cmps")
-```
-
-The payload describes the entity: its command/state topics, payload values, value ranges, units, supported colour modes, etc. Keys are heavily **abbreviated** (`stat_t`, `cmd_t`, `bri_cmd_t`, `~`) and a `~` field provides a base topic that the abbreviations expand against.
-
-**Example** (zigbee2mqtt light, JSON schema):
-```json
-{
-  "~": "zigbee2mqtt/Living Room Lamp",
-  "name": "Living Room Lamp",
-  "unique_id": "0x00158d0001abcd_light_zigbee2mqtt",
-  "stat_t": "~", "cmd_t": "~/set", "schema": "json",
-  "brightness": true, "brightness_scale": 254,
-  "color_mode": true, "supported_color_modes": ["xy", "color_temp"],
-  "max_mireds": 500, "min_mireds": 150
-}
-```
-
-#### Server-side discovery registry
-
-A new server module subscribes (on broker connect) to the discovery wildcards:
-
-```
-<prefix>/+/+/config
-<prefix>/+/+/+/config
-<prefix>/device/+/config
-```
-
-For every retained config message it:
-1. **Expands** abbreviations to full keys and resolves the `~` base topic.
-2. **Normalises** both single-component payloads and device-discovery payloads (`cmps` / `components` map) into a **flat entity list**: `{ discovery_id, component, name, unique_id, topics{…}, schema, ranges{…}, options{…} }`.
-3. **Caches** the entity list in memory (keyed by `discovery_id`), updating on every retained-config change so it always reflects the live broker state.
-4. Removes an entity when its config topic is cleared (empty retained payload), matching the standard "delete by empty config" convention.
-
-The prefix is configurable per site (default `homeassistant`); auto-discovery can be disabled entirely per site.
-
-**REST surface:**
-- `GET /api/discovery/devices` — the normalised flat entity list for the current site.
-- `GET /api/discovery/devices/:id` — a single normalised entity (used when applying).
-
-#### Per-component mapping tables
-
-For each supported `component` type there is a mapping table: discovery keys → feezal element + attribute values, including **unit/scale conversions**. Shipped incrementally:
-
-| Discovery component | feezal element | Notable conversions |
-|---|---|---|
-| `light` *(first)* | `feezal-element-material-light` | `brightness_scale` (often 254/255) → 0–100 %; mireds ↔ kelvin; `supported_color_modes` → element colour mode |
-| `climate` | `feezal-element-material-climate` (E11) | `temp_step`, `min/max_temp`, mode lists |
-| `cover` | `feezal-element-material-shutter` (E12) | position scale, tilt range |
-| `switch` | `feezal-element-material-switch` | payload on/off |
-| `fan` | `feezal-element-material-fan` (E18) | percentage range, preset modes |
-| `humidifier` | `feezal-element-material-humidifier` (E19) | target range |
-| `lock` | `feezal-element-material-door-lock` (E13) | state/command payloads |
-| `vacuum` | `feezal-element-material-vacuum` (E21) | fan-speed list, command set |
-| `sensor` / `binary_sensor` | `feezal-element-basic-value` / `feezal-element-material-contact` (E27) | unit, device_class → icon |
-
-Each element declares which discovery component(s) it can consume (see **Element platform conventions** in the Element Ecosystem section). New elements register their mapping without touching the framework.
-
-#### Two ways to consume discovery in the editor
-
-**1. Reactive "Auto-configure" banner (topic-driven).**
-When the user types or picks a topic in an element's inspector (e.g. `zigbee2mqtt/Living Room Lamp`), the inspector queries the registry for an entity whose `state_topic` / base topic matches. On a hit it shows a non-intrusive banner:
-
-> *⚡ Found a matching device config for this topic — **Auto-configure**?*
-
-Clicking **Auto-configure** applies the full mapped attribute set in one step (and, if the element type doesn't match the component, offers to swap to the right element type).
-
-**2. Proactive "Discovered devices" browser.**
-A panel (palette tab or dialog) lists every discovered entity grouped by device, each with its name, component icon, and topic. Dragging one onto the canvas (or clicking "Add") creates the correct element **fully pre-wired** — zero manual attribute entry.
-
-#### Apply semantics — MVP vs. future
-
-- **MVP: one-time snapshot apply.** Auto-configure writes concrete attribute values into the element; there is no live link afterwards. The element also stores the source **`discovery-id`** attribute so it can be re-matched later.
-- **Future (not MVP): re-sync.** Because each auto-configured element carries its `discovery-id`, a later enhancement can detect when the device's config topic changes (e.g. firmware adds a colour mode) and offer to re-apply. Stored now, implemented later.
-
-#### Relationship to dual-payload elements
-
-zigbee2mqtt (and HA discovery generally) most often uses the **JSON schema** (one state topic, one command topic, JSON payloads). Some setups — including the maintainer's — configure zigbee2mqtt to publish each property on a **separate topic** instead. To consume both, the controllable elements must support **both payload modes**; this is captured once in **Element platform conventions** below and is a prerequisite for `light`, `climate`, and `cover` auto-configuration.
-
----
-
 ## Element Ecosystem
 
 ### Element platform conventions
 
-Cross-cutting capabilities that apply to many elements below. Individual element sections reference these by name (e.g. *"Conventions: dual-payload ✓ · discovery: `light` · inspector: N6"*) rather than repeating the full spec, and only call out element-specific details (e.g. a particular unit conversion).
-
-#### Dual payload mode (`payload-mode`)
-
-Controllable elements that read/write several related properties (state, brightness, colour, position, setpoint, …) must support **two interchangeable wiring styles**, selected by a `payload-mode` attribute:
-
-- **`separate` (default)** — one `mqttTopic` attribute per property (`subscribe-state`, `subscribe-brightness`, `publish-color`, …). Matches users who split every property onto its own topic (incl. zigbee2mqtt configured that way, ioBroker states, Node-RED flows).
-- **`json`** — a single `subscribe`/`publish` topic pair carrying a JSON object. A `json-map` (or sensible defaults) maps element properties to JSON paths, e.g. `{"state":"state","brightness":"brightness","color_temp":"color_temp","color":"color.x|color.y"}`. Matches zigbee2mqtt default schema, ESPHome, and HA-discovery JSON-schema devices.
-
-Outgoing commands mirror the mode: `separate` publishes per-topic; `json` publishes a single merged JSON object. The base `FeezalElement` should provide a shared helper for both directions so each element only declares its property↔key map.
-
-#### Auto-discovery target (N12)
-
-An element that can be produced by **Auto-Discovery (N12)** declares the discovery component(s) it consumes and its property mapping in `static get feezal()`:
-
-```js
-static get feezal() {
-    return {
-        palette: { … },
-        discovery: {
-            component: 'light',              // or ['switch','light'] etc.
-            // discovery-key → element-attribute, with optional transform
-            map: {
-                state:      'subscribe-state',
-                brightness: { attr: 'subscribe-brightness', scaleTo: 100 },
-                color_temp: { attr: 'subscribe-color-temp', unit: 'mired→kelvin' }
-            }
-        },
-        attributes: [ … ]
-    };
-}
-```
-
-The N12 framework reads this descriptor to pre-wire the element; no framework change is needed to support a new element type. Auto-configured elements persist a `discovery-id` attribute for future re-sync.
-
-#### Custom inspector (N6)
-
-Elements with **dynamic, repeating, or visual-layout configuration** (lists of modes, rings, nodes, persons, slots, contacts) should ship an N6 custom inspector instead of relying on the flat attribute form. Elements that benefit are tagged below. The standard flat inspector remains the default for simple elements.
+See **[docs/element-spec.md](../docs/element-spec.md)** §4 (dual-payload / `message-property-*`), §3.7 (discovery descriptor), §3.8 (custom inspector / N6) for the full platform conventions spec. Individual element entries below reference these by name.
 
 ### E9 — Flexbox layout element *(backlog, depends on N6)*
 
@@ -794,32 +615,6 @@ A rolling, in-browser list of recent MQTT events — the live counterpart to HA'
 **Editor preview:** three placeholder rows ("12:01:04 — Living room motion", …).
 
 **Default size:** 240×160 px.
-
-### E33 — Webpage / iframe element (`feezal-element-basic-iframe`)
-
-A generic embedded web page — the building block that the Grafana panel element (E28) specialises. Useful for embedding any web UI (a router admin page, a printer status page, another dashboard, a public webcam page, a weather radar loop).
-
-**Visual concept:** a bordered `<iframe>` filling the element bounds, with a skeleton placeholder while loading and a friendly error overlay if the target refuses framing (`X-Frame-Options` / CSP) — including a hint to open it in a new tab instead.
-
-**Attributes:**
-
-| Attribute | Type | Default | Description |
-|---|---|---|---|
-| `src` | string | — | Page URL to embed |
-| `subscribe-src` | mqttTopic | — | Optional: a topic carrying the URL, so the embed can change at runtime |
-| `refresh` | number | `0` | Auto-reload interval in seconds (0 = never) |
-| `scrolling` | boolean | `true` | Allow the iframe to scroll |
-| `sandbox` | string | `""` | Optional iframe `sandbox` token list (blank = no sandbox) |
-| `zoom` | number | `1` | CSS scale applied to the embedded page |
-| `click-url` | string | `""` | Optional "open in new tab" target shown as a corner button |
-
-**Security note:** the `sandbox` attribute is surfaced so authors can lock down embedded third-party pages. The element never injects credentials and never proxies — it is a plain client-side embed.
-
-> **Conventions:** dual-payload — (n/a) · auto-discovery: — · custom inspector: not required. See [Element platform conventions](#element-platform-conventions).
-
-**Editor preview:** a framed placeholder with a globe icon and the configured URL string.
-
-**Default size:** 320×240 px.
 
 ### E34 — Countdown / timer element (`feezal-element-basic-countdown`)
 

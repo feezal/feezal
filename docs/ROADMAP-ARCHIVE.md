@@ -88,6 +88,12 @@ Upload and manage images, icons, and other static assets (SVG, audio) from withi
 ### N7 — MQTT connection configuration UI ✅ implemented
 Replaced the free-form URL input in the Connection sidebar with a structured form: **Protocol** (sl-select: mqtt/mqtts/ws/wss), **Host**, **Port**, **Username**, **Password** (masked). The URI is derived from these fields and still stored as `connection.uri` for backward compatibility. Advanced fields (Last Will, On Connect) remain in collapsible sections below the broker details.
 
+### N6 — Custom element inspectors ✅ implemented
+An element can declare `inspector: 'feezal-element-<name>-inspector'` in `static get feezal()` to replace the generic attribute form with a fully custom Web Component. `feezal-sidebar-inspector-attributes.js` renders the named inspector, passes the selected element as `.element`, and listens for `feezal-attribute-changed` events dispatched by the inspector. Used by `feezal-element-material-light`, `feezal-element-material-climate`, `feezal-element-material-cover`, and others. Full spec in `docs/element-spec.md` §3.8.
+
+### N12 — MQTT auto-discovery (HA / zigbee2mqtt) ✅ implemented
+Server-side discovery registry (`server/src/mqtt/discovery.js`) subscribes to HA-format discovery wildcards, expands abbreviations, normalises payloads, and maintains an in-memory entity cache. REST endpoint `GET /api/discovery/devices` exposes the cache. The inspector shows: (a) a reactive "Auto-configure" banner when a typed topic matches a discovered entity, and (b) a proactive device-picker dropdown for elements that declare a `discovery` descriptor in `static get feezal()`. Discovery descriptors shipped for: `light`, `switch`, `fan`, `lock`, `climate`, `cover`, `binary_sensor` (contact/motion), `checkbox`, `paper-switch`, `paper-checkbox`. Full spec in `docs/element-spec.md` §3.7 and §8.5.
+
 
 ## Element Ecosystem
 
@@ -137,6 +143,9 @@ The element subscribes to internal connection lifecycle events (connected / disc
 
 ### E6 — Chart element ✅ implemented (`feezal-element-basic-chart`)
 Pure-SVG sparkline / line chart. Buffers incoming MQTT numeric payloads (up to `history` data points, default 50). Renders a polyline with an optional area fill and most-recent-value dot. Attributes: `subscribe`, `history`, `color`, `label`, `min`, `max`, `show-dots`, `fill`. No external library dependency.
+
+### E33 — Webpage / iframe element ✅ implemented (`feezal-element-basic-iframe`)
+A generic `<iframe>` canvas element with `src`, `subscribe-src` (MQTT-driven URL), `refresh` (auto-reload interval), `scrolling`, `sandbox`, and `zoom` attributes. Part of the Polymer-to-Lit migration (E1); the new implementation uses `FeezalElement`.
 
 ### E8 — Navigation element ✅ implemented (`feezal-element-navigation`)
 A visible canvas element that renders navigation buttons for switching between views. Editor shows a labelled placeholder. Viewer renders clickable buttons — one per view (filtered by `views` attribute). Responds to `hashchange` events, highlights the active view. Attributes: `views`, `orientation` (horizontal/vertical), `active-color`, `hide-tabbar`.
