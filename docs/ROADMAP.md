@@ -47,6 +47,20 @@ This handles all combinations: fixed×fixed, fixed×auto, auto×auto.
 
 ## Near-term Improvements
 
+### N12 — Export bundle: only include the active connection backend
+
+The static export always bundles **both** connection backends — mqtt.js and socket.io-client — even though only one is ever used at runtime. This is caused by `inlineDynamicImports: true` in the Vite export config: it inlines both branches of the ternary in `feezal-connection.js` unconditionally.
+
+**Cost:**
+- mqtt.js: ~280 kB minified
+- socket.io-client: ~40 kB minified
+
+Both are always present in every export, so whichever backend is not in use wastes 40–280 kB. For the common case of a direct broker connection (`ws://`), socket.io is dead weight. For a feezal-bridge connection (`mqtt://`), mqtt.js is dead weight.
+
+**Fix:** pass the resolved connection backend (`'mqtt'` or `'feezal'`) into `buildFilteredBundle()`. Generate the export entry file with a static import of only the needed backend module rather than the generic `feezal-connection.js` (which does the lazy dynamic import). Remove `inlineDynamicImports: true` once the entry is backend-specific; this also benefits Vite's own tree-shaking.
+
+**Expected savings:** ~40 kB for `ws://` users; ~280 kB for `mqtt://`/`mqtts://` users.
+
 ### N11 — Dual snap lines per axis
 
 When dragging an element, show up to 2 vertical and 2 horizontal snap-helper lines simultaneously — one per side of the dragged element that has a nearby match.
