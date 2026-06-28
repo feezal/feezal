@@ -124,16 +124,71 @@ Each repeater child becomes individually selectable and configurable on the edit
 
 
 
-### N4 — Palette Manager / custom element install ⚠️ TBD
+### N4 — Palette Manager / custom element install
 
-The overall flow for users installing custom feezal elements via npm needs to be refined before implementation. Open questions: how does a user discover and install a third-party `feezal-element-*` package, where does it land on the server, how does the server pick it up at runtime, and what is the editor UI for managing installed packages? Requires a design pass before any code is written.
+#### Current state — what already works
+
+The server already has a full dynamic element-discovery pipeline. `discoverElements()` in `server/src/build/elements.js` scans three locations:
+
+| Source | Path | Served via |
+|---|---|---|
+| Bundled packages | `www/packages/@feezal/` | Baked into `viewer-bundle.js` at build time |
+| User-installed | `<dataDir>/elements/` | `/user-elements/<pkg>/` — dynamic import at runtime |
+| Built-ins | `www/src/feezal-element-*.js` | Baked into editor Vite chunk |
+
+The Express route `GET /editor/feezal-elements.js` regenerates the module on every request by calling `discoverElements()` — **no daemon restart required** to pick up user-installed elements. A browser reload is enough.
+
+#### `generate-elements.js` — build-time only, not a runtime concern
+
+`scripts/generate-elements.js` writes `www/editor/feezal-elements.js` with **bare specifiers** (`import '@feezal/feezal-element-basic-gauge'`) so Vite can bundle all packages into `viewer-bundle.js` at build time. This file is a **build artefact** — it is never imported at runtime (the server serves the dynamic route instead).
+
+**Daemon-start generation:** the server could call `writeElementsFile()` at startup to keep the file fresh, but this only matters for `npm run build` runs that follow. It does not affect the running server or the live editor.
+
+**Eliminating the manual step:** since user-installed elements land in `<dataDir>/elements/` (not `www/packages/`), they are never baked into `viewer-bundle.js` anyway — the dynamic route handles them entirely. The `generate-elements.js` step is only relevant when developing or publishing a new *bundled* element package, and is already integrated into the Docker build. No change needed here for the user-install flow.
+
+#### What N4 needs to implement
+
+**1. Backend API — npm install to `<dataDir>/elements/`**
+
+```
+POST /api/elements          { "package": "@my-org/feezal-element-foo" }
+DELETE /api/elements/:name
+GET  /api/elements          → list installed user elements
+```
+
+`POST` runs `npm install --prefix <dataDir>/elements <package>` in a child process. The package lands in `<dataDir>/elements/node_modules/` but must be pre-bundled (no bare specifiers) — a constraint already documented in `element-spec.md §User elements`. Returns progress via SSE or polling.
+
+**2. Hot-reload without daemon restart**
+
+After install/uninstall completes, the server emits a Socket.IO event `elementsChanged` to all connected editor clients. The editor reloads the `<script src="/editor/feezal-elements.js">` module tag in-place (or does a `location.reload()` as a simple fallback). No daemon restart — a browser reload of the editor tab is the only requirement.
+
+Optionally: a `chokidar` watcher on `<dataDir>/elements/` auto-emits `elementsChanged` when packages appear or disappear (supports manual package drops without going through the API).
+
+**3. Editor UI — Palette Manager panel**
+
+A new sidebar tab (or section in the existing palette sidebar) with:
+- Search / filter field for npmjs.com (`GET https://registry.npmjs.org/-/v1/search?text=feezal-element-&size=20`)
+- List of search results with install button
+- List of currently installed user elements with uninstall button and version badge
+- Installation progress indicator
+
+Discovery via npm registry search scoped to `keywords:feezal-element` (packages that follow the spec publish with that keyword).
+
+#### Dynamic update summary
+
+| Action | Restart required? | Rebuild required? |
+|---|---|---|
+| Install user element via API | ✗ | ✗ — browser reload only |
+| Add file to `<dataDir>/elements/` manually | ✗ | ✗ — browser reload only |
+| Add bundled package to `www/packages/` | ✗ | ✅ `npm run build` required to update `viewer-bundle.js` |
+| Modify a bundled element's source | ✗ | ✅ `npm run build` required |
 
 ### N8 — MQTT TLS certificate management
 
 Two sub-features for secure broker connections, both server-side (TLS is terminated in Node.js; the browser is uninvolved).
 
 **CA trust certificate (TLS servers):**
-When connecting to an MQTT broker over TLS (`mqtts://`, `wss://`) that uses a self-signed or private CA certificate, the Node.js MQTT client needs to trust that CA. A file-upload control in the Connection settings sidebar lets the user upload a PEM-format CA certificate. The server stores it at `dataDir/certs/<siteName>/ca.pem` and passes it as the `ca` option to `mqtt.js`. The sidebar shows the current status ("CA cert: ✓ uploaded" / "none") with a remove button.
+When connecting to an MQTT broker over TLS (`mqtts://`, `wss://`) that uses a self-signed or private CA certificate, the Node.js MQTT client needs to trust that CA. A file-upload control in the Connection settings sidebar lets the user upload a PEM-format CA certificate. Additionally: a text input where users can paste PEM. The server stores it at `dataDir/certs/<siteName>/ca.pem` and passes it as the `ca` option to `mqtt.js`. The sidebar shows the current status ("CA cert: ✓ uploaded" / "none") with a remove button.
 
 **Client certificate — mTLS:**
 For brokers that require mutual TLS authentication, the user uploads both a PEM client certificate and a PEM private key. Stored as `dataDir/certs/<siteName>/client.crt` and `dataDir/certs/<siteName>/client.key` (the key is never served back to the browser). Passed as `cert` and `key` options to the MQTT client. The upload slots are shown only when the selected protocol is `mqtts://` or `wss://`.
