@@ -655,43 +655,77 @@ A countdown display toward a target time — common in ioBroker timer/schedule d
 
 **Default size:** 160×100 px.
 
-### E36 — Dialog element (`feezal-element-material-dialog`) ⚠️ needs design / planning
+### E36 — Dialog element (`feezal-element-material-dialog`) ⚠️ needs further planning
 
-A canvas element that renders a Shoelace `sl-dialog` (or MD3 `md-dialog`) overlay. The dialog's body is a named feezal view — the full feezal element set is available inside it. Buttons in the dialog footer are configurable (label + publish payload per button). The dialog can be opened by an incoming MQTT message **or** via an internal publish (see below).
+**Canvas placement:** pseudo-element — invisible labelled placeholder in the editor (like `feezal-element-connection-status`). Position and size on the canvas are irrelevant; the dialog is a viewport overlay.
 
-**Configurable buttons:** each button has a label, an optional icon, and a publish action. Common presets: OK, Cancel, Accept, Dismiss — fully user-defined. Clicking a button publishes its payload to the configured topic and closes the dialog.
+**Body content** — two modes controlled by `content-type`:
+- **`simple`** — title + optional icon + body text, all configured as attributes. Zero setup, works standalone.
+- **`view`** — references a named feezal view (`body-view` attribute). Full element set available inside. The referenced view is a regular site view (accepted UX tradeoff for now; view list will contain dialog views alongside real views).
 
 **Opening the dialog:**
-- **MQTT-driven:** `subscribe-open` — a retained or non-retained message on this topic opens (`payload-open`) or closes (`payload-close`) the dialog.
-- **Internal publish (TBD):** an element on the same dashboard (e.g. a `feezal-element-material-button`) can target a well-known internal topic that never leaves the browser. This avoids the MQTT broker roundtrip for purely local UI interactions (open a dialog, navigate a view, trigger a local animation). Needs platform design — see below.
+- **MQTT-driven (MVP):** `subscribe-open` topic — `payload-open` opens, `payload-close` closes.
+- **Internal publish (planned, not MVP):** `feezal://` prefix routes in-browser without broker roundtrip — see below.
 
-#### Internal publishing concept ⚠️ TBD
+**Buttons:** `buttons` attribute — JSON array of `{label, icon?, publish?, payload?, style?}`. Every button closes the dialog after publishing. N6 custom inspector for the button list.
 
-A lightweight in-browser pub/sub channel that elements can publish to and subscribe from, independent of the MQTT broker. Internal topics use a reserved prefix (e.g. `feezal://`) to distinguish them from real MQTT topics. The MQTT bridge ignores them; the feezal runtime routes them locally.
+**Attributes:**
 
-Use cases:
-- A button opens a dialog without a broker roundtrip.
-- A navigation element switches views programmatically.
-- A confirmation dialog result triggers a follow-up action.
+| Attribute | Type | Default | Description |
+|---|---|---|---|
+| `content-type` | `simple` \| `view` | `simple` | Body content mode |
+| `title` | string | `""` | Dialog title (simple mode) |
+| `message` | string | `""` | Body text (simple mode) |
+| `icon` | string | `""` | Material icon name above message (simple mode) |
+| `body-view` | string | `""` | Name of the feezal view to embed (view mode) |
+| `subscribe-open` | mqttTopic | — | Topic that opens/closes the dialog |
+| `payload-open` | string | `open` | Payload that opens the dialog |
+| `payload-close` | string | `close` | Payload that closes the dialog |
+| `buttons` | string | `[]` | JSON array of button descriptors |
+| `width` | string | `480px` | Dialog max-width |
 
-This concept touches the element platform (how elements subscribe/publish), the connection layer, and the user guide. **Requires a dedicated design discussion before any implementation.** The dialog element depends on this if internal triggering is to be supported; an MQTT-only trigger is simpler and can ship first.
+**Default size:** n/a (pseudo-element; editor shows ~120×40 px labelled placeholder).
 
-**Needs:** further discussion, design doc, and refinement before starting implementation.
+#### Internal publishing concept ⚠️ TBD — separate platform item
 
-### E37 — Countdown confirmation dialog (`feezal-element-material-countdown-dialog`) ⚠️ needs design / planning
+A `feezal://` topic prefix routes pub/sub in-browser without touching the MQTT broker. The connection layer intercepts these topics and delivers them locally. Elements declare `subscribe: "feezal://dialog/my-dialog"` and a button on the same dashboard publishes to that address — zero broker roundtrip, conceptually cleaner.
 
-A specialised dialog variant that auto-executes a configurable action after a countdown unless the user cancels. The canonical use case: a "Leaving home" button triggers the dialog — it counts down *"Switching to Away mode in 10… 9… 8…"* with a **Cancel** button. If the countdown reaches zero the action fires; if the user hits Cancel the action is suppressed.
+Further use cases: navigate to a view, chain element actions. Touches element platform, connection layer, and user guide. **Design as a standalone platform item before implementing.** The dialog MVP ships with MQTT-only triggers.
 
-**Concept:**
-- Opened the same way as E36 (MQTT message or internal publish).
-- Displays a countdown in seconds (configurable `duration`), a message body (static text or template with `{seconds}` placeholder), and a Cancel button.
-- On zero: publishes the **confirm payload** to the configured topic (e.g. sets presence mode to Away).
-- On Cancel: publishes an optional **cancel payload** and closes without action.
-- Visual: large countdown number (styled like E34), message text, animated progress ring or bar shrinking to zero.
+### E37 — Countdown confirmation dialog (`feezal-element-material-countdown-dialog`) ⚠️ needs further planning
 
-Closely related to E36 (dialog) and E34 (countdown). Whether this ships as a standalone element or as a `mode="countdown"` variant of E36 is an open design question.
+A separate specialised dialog that auto-executes an action after a countdown unless cancelled. Canonical use case: "Leaving home" button → dialog shows *"Switching to Away in 10… 9… 8…"* + Cancel. On zero the action fires; Cancel suppresses it.
 
-**Needs:** further discussion and refinement before implementation. Depends on the internal publishing design (E36).
+**Canvas placement:** pseudo-element, same as E36.
+
+**Body content:** same two modes as E36 (`content-type`: `simple` or `view`).
+
+**Flow:**
+1. MQTT message (or future `feezal://` internal publish) opens the dialog and starts the countdown.
+2. **On zero** → publishes `payload-confirm` to `publish-confirm`. Dialog closes.
+3. **Cancel pressed** → publishes optional `payload-cancel` to `publish-cancel`. Dialog closes.
+
+**Visual:** large countdown number + shrinking circular progress ring (styled like E34) + message text + Cancel button.
+
+**Attributes:**
+
+| Attribute | Type | Default | Description |
+|---|---|---|---|
+| `content-type` | `simple` \| `view` | `simple` | Body content mode (same as E36) |
+| `title` | string | `""` | Dialog title |
+| `message` | string | `"Proceeding in {seconds}…"` | Body text; `{seconds}` is replaced live |
+| `body-view` | string | `""` | Named feezal view to embed (view mode) |
+| `duration` | number | `10` | Countdown duration in seconds |
+| `subscribe-open` | mqttTopic | — | Topic that starts the countdown dialog |
+| `payload-open` | string | `open` | Payload that opens and starts the countdown |
+| `publish-confirm` | mqttTopic | — | Topic published when countdown reaches zero |
+| `payload-confirm` | string | `confirm` | Payload published on confirm |
+| `publish-cancel` | mqttTopic | — | Topic published when cancel is pressed |
+| `payload-cancel` | string | `cancel` | Payload published on cancel |
+| `cancel-label` | string | `Cancel` | Label of the cancel button |
+| `warn-seconds` | number | `3` | Seconds at which the ring turns red/amber |
+
+**Default size:** n/a (pseudo-element; editor shows ~120×40 px labelled placeholder).
 
 ## Editor UX
 
