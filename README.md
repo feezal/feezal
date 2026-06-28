@@ -3,7 +3,7 @@
 > Dashboard builder powered by Web Components and MQTT
 
 > [!WARNING]
-> This project is a work in progress. Expect bugs, missing features and rough edges. Feedback and bug reports via the issue tracker are very welcome.
+> This project is a work in progress. Expect incomplete documentation, bugs, missing features and rough edges. Feedback and bug reports via the issue tracker are very welcome.
 
 Feezal lets you build live dashboards in a drag-and-drop editor, connect them to a MQTT broker, and publish them — either served by the feezal backend or exported as a fully self-contained static website that runs from any web server or even a local `file://` URL.
 
