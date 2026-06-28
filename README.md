@@ -1,6 +1,8 @@
 # feezal
 
-> Dashboard builder powered by Web Components and MQTT
+<img src="www/favicon/apple-touch-icon.png" align="left"><h3>Dashboard builder powered by Web Components and MQTT</h3>
+
+
 
 > [!WARNING]
 > This project is a work in progress. Expect incomplete documentation, bugs, missing features and rough edges. Feedback and bug reports via the issue tracker are very welcome. See [Roadmap](docs/ROADMAP.md) for what's already planned.
