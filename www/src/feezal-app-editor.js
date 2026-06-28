@@ -1040,8 +1040,9 @@ class FeezalAppEditor extends LitElement {
     }
 
     _view() {
-        const path = feezal.siteName === 'default' ? '/view/' : '/view/' + feezal.siteName + '/';
-        window.open(path, 'feezal-' + feezal.siteName);
+        const base = feezal.siteName === 'default' ? '/viewer/' : '/viewer/' + feezal.siteName;
+        const hash = window.location.hash || '';
+        window.open(base + hash, 'feezal-' + feezal.siteName);
     }
 
     _deploy() {
