@@ -13,6 +13,7 @@
 9. [Static export](#9-static-export)
 10. [Assets](#10-assets)
 11. [Keyboard shortcuts](#11-keyboard-shortcuts)
+12. [Reverse proxy setup (nginx)](#12-reverse-proxy-setup-nginx)
 
 ---
 
@@ -337,3 +338,58 @@ Use the folder tree on the left of the Assets panel to navigate directories. Dra
 | `Escape` | Deselect all |
 | `Arrow keys` | Nudge selected elements by 1 px |
 | `Shift+Arrow` | Nudge by grid size |
+
+---
+
+## 12. Reverse proxy setup (nginx)
+
+Running feezal behind nginx lets you add HTTPS, a custom domain, and (optionally) upstream authentication.
+
+The key requirements are:
+- **WebSocket upgrade** — feezal uses Socket.IO over WebSockets; `Upgrade` and `Connection` headers must be forwarded.
+- **`proxy_http_version 1.1`** — required for WebSocket support.
+- **`Host` header forwarding** — feezal uses the host for generating correct URLs.
+
+### Minimal HTTPS example
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name feezal.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/feezal.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/feezal.example.com/privkey.pem;
+
+    # Redirect requests that arrive with a different Host header
+    if ($host != $server_name) {
+        return 301 $scheme://$server_name$request_uri;
+    }
+
+    location / {
+        proxy_set_header Host              $http_host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Required for Socket.IO / WebSocket
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_pass http://localhost:3000/;
+    }
+}
+```
+
+Replace `feezal.example.com` with your actual domain and adjust the certificate paths accordingly. If you use Certbot, it will manage the certificate lines automatically.
+
+### Reverse-proxy authentication (Authentik / Authelia)
+
+If your nginx setup forwards an authenticated user header (e.g. `X-Auth-User`), start feezal with `--trust-proxy-auth` to accept it:
+
+```sh
+docker run -d --name feezal -p 3000:3000 -v feezal-data:/data \
+  ghcr.io/feezal/feezal:latest --trust-proxy-auth
+```
+
+feezal will read the `X-Auth-User` header and treat its value as the authenticated username. **Only enable this when feezal is not directly reachable from the internet** — the header must always be set by the trusted proxy, never by an end user.
