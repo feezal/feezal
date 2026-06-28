@@ -16,7 +16,7 @@ docker pull ghcr.io/feezal/feezal:latest
 docker run -d --name feezal -p 3000:3000 -v feezal-data:/data ghcr.io/feezal/feezal:latest
 ```
 
-Then open [http://localhost:3000/editor/](http://localhost:3000/editor/) and configure your MQTT broker in **Site Settings** (the sliders icon in the left sidebar).
+Then open [http://localhost:3000/editor/](http://localhost:3000/editor/) and configure your MQTT broker in **Site Settings** (the remote-screen-icon in the right sidebar).
 
 
 ---
