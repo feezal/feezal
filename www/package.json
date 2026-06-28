@@ -1,20 +1,20 @@
 {
     "name":  "@feezal/feezal-www",
     "private":  true,
-    "version":  "1.3.0",
+    "version":  "1.4.0",
     "description":  "",
     "main":  "none",
     "scripts":  {
                     "dev":  "vite",
                     "build":  "vite build",
                     "preview":  "vite preview",
-                    "test": "echo no tests yet"
+                    "test":  "echo no tests yet"
                 },
     "author":  "Sebastian Raff \u003chobbyquaker@gmail.com\u003e",
     "license":  "GPLv3",
     "workspaces":  [
-                      "packages/@feezal/*"
-                  ],
+                       "packages/@feezal/*"
+                   ],
     "dependencies":  {
                          "@feezal/feezal-element-basic-chart":  "*",
                          "@feezal/feezal-element-basic-datetime":  "*",

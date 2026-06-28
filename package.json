@@ -1,18 +1,18 @@
 {
-  "name": "feezal",
-  "version": "1.3.2",
-  "private": true,
-  "description": "WYSIWYG dashboard builder powered by Web Components and MQTT",
-  "scripts": {
-    "start": "node server/bin/feezal.js --www-dir ./www",
-    "install": "cd server && npm install && cd ../www && npm install && cd .. && node scripts/generate-elements.js && cd www && npm run build && cd .. ",
-    "test": "cd server && npm test && cd ../www && npm test && cd ..",
-    "create-element": "node packages/create-feezal-element/index.js"
-  },
-  "author": "Sebastian Raff <hobbyquaker@gmail.com>",
-  "license": "GPLv3",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/feezal/feezal.git"
-  }
+    "name":  "feezal",
+    "version":  "1.4.0",
+    "private":  true,
+    "description":  "WYSIWYG dashboard builder powered by Web Components and MQTT",
+    "scripts":  {
+                    "start":  "node server/bin/feezal.js --www-dir ./www",
+                    "install":  "cd server \u0026\u0026 npm install \u0026\u0026 cd ../www \u0026\u0026 npm install \u0026\u0026 cd .. \u0026\u0026 node scripts/generate-elements.js \u0026\u0026 cd www \u0026\u0026 npm run build \u0026\u0026 cd .. ",
+                    "test":  "cd server \u0026\u0026 npm test \u0026\u0026 cd ../www \u0026\u0026 npm test \u0026\u0026 cd ..",
+                    "create-element":  "node packages/create-feezal-element/index.js"
+                },
+    "author":  "Sebastian Raff \u003chobbyquaker@gmail.com\u003e",
+    "license":  "GPLv3",
+    "repository":  {
+                       "type":  "git",
+                       "url":  "https://github.com/feezal/feezal.git"
+                   }
 }
