@@ -12,7 +12,6 @@ Feezal lets you build live dashboards in a drag-and-drop editor, connect them to
 ## Quickstart
 
 ```sh
-docker pull ghcr.io/feezal/feezal:latest
 docker run -d --name feezal -p 3000:3000 -v feezal-data:/data ghcr.io/feezal/feezal:latest
 ```
 
