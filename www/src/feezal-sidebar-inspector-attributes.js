@@ -868,7 +868,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
     _discoveryOptionLabel(entity) {
         const cfg = entity.config || {};
         const topic = cfg.state_topic || cfg.position_topic || cfg.percentage_state_topic ||
-            cfg.current_temperature_topic || cfg.command_topic || '';
+            cfg.current_temperature_topic || cfg.temperature_state_topic || cfg.command_topic || '';
         return topic || entity.name || entity.discovery_id;
     }
 

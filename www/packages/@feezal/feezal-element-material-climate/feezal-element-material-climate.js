@@ -77,10 +77,16 @@ class FeezalElementMaterialClimate extends FeezalElement {
                 map: {
                     // Schema → payload mode (json = zigbee2mqtt; absent = separate)
                     schema: {attr: 'payload-mode', valueMap: {json: 'json', _default: 'separate'}},
-                    // JSON schema: state = base topic, command = /set endpoint.
-                    // Skip in separate mode — topics there are per-value dedicated topics.
-                    temperature_state_topic:   {attr: 'subscribe', onlyWhen: {schema: 'json'}},
-                    temperature_command_topic: {attr: 'publish',   onlyWhen: {schema: 'json'}},
+                    // Base-topic wiring — used by JSON-schema devices (zigbee2mqtt);
+                    // harmless to set for separate-mode devices since subscribe/publish
+                    // are not consumed in separate mode.
+                    temperature_state_topic:   {attr: 'subscribe'},
+                    temperature_command_topic: {attr: 'publish'},
+                    // Separate-mode per-property topic mappings (ESPHome, HA MQTT)
+                    current_temperature_topic: {attr: 'subscribe-actual'},
+                    mode_state_topic:          {attr: 'subscribe-mode'},
+                    mode_command_topic:        {attr: 'publish-mode'},
+                    action_topic:              {attr: 'subscribe-valve'},
                     // Range + step (apply in both modes)
                     min_temp:         {attr: 'min'},
                     max_temp:         {attr: 'max'},
@@ -104,18 +110,28 @@ class FeezalElementMaterialClimate extends FeezalElement {
                 {name: 'subscribe', type: 'mqttTopic', help: 'json mode: base topic carrying the climate state JSON object.'},
                 {name: 'publish',   type: 'mqttTopic', help: 'json mode: command/set topic (e.g. zigbee2mqtt/TRV/set).'},
                 {name: 'json-map',  type: 'string', default: '',
-                    help: 'json mode: optional JSON map overriding default keys. E.g. {"setpoint":"target_temp","actual":"temperature"}.'},
-                // ── Separate mode — setpoint ───────────────────────────────────
+                    help: 'json mode: optional JSON map overriding default keys. E.g. {"setpoint":"target_temp","actual":"temperature"}.'},                {name: 'message-property', type: 'string', default: 'payload',
+                    help: 'json mode: dot-notation path to the state JSON object within the MQTT message. Default "payload" reads msg.payload directly.'},                // ── Separate mode — setpoint ───────────────────────────────────
                 {name: 'subscribe-setpoint', type: 'mqttTopic', help: 'separate: topic publishing the current setpoint.'},
+                {name: 'message-property-setpoint', type: 'string', default: '',
+                    help: 'Dot-notation path within the setpoint message. Blank = fall back to element-level message-property.'},
                 {name: 'publish-setpoint',   type: 'mqttTopic', help: 'separate: topic to publish a new setpoint to.'},
                 // ── Separate mode — actual ─────────────────────────────────────
                 {name: 'subscribe-actual', type: 'mqttTopic', help: 'Topic for the actual measured temperature.'},
+                {name: 'message-property-actual', type: 'string', default: '',
+                    help: 'Dot-notation path within the actual temperature message. Blank = fall back to element-level message-property.'},
                 // ── Separate mode — mode ──────────────────────────────────────
                 {name: 'subscribe-mode', type: 'mqttTopic', help: 'separate: topic publishing the current operating mode.'},
+                {name: 'message-property-mode', type: 'string', default: '',
+                    help: 'Dot-notation path within the mode message. Blank = fall back to element-level message-property.'},
                 {name: 'publish-mode',   type: 'mqttTopic', help: 'separate: topic to publish the selected mode to.'},
                 // ── Separate mode — valve / humidity ──────────────────────────
                 {name: 'subscribe-valve',    type: 'mqttTopic', help: 'Optional: valve/position percentage (0–100).'},
+                {name: 'message-property-valve', type: 'string', default: '',
+                    help: 'Dot-notation path within the valve message. Blank = fall back to element-level message-property.'},
                 {name: 'subscribe-humidity', type: 'mqttTopic', help: 'Optional: relative humidity percentage (0–100).'},
+                {name: 'message-property-humidity', type: 'string', default: '',
+                    help: 'Dot-notation path within the humidity message. Blank = fall back to element-level message-property.'},
                 // ── Range / unit ──────────────────────────────────────────────
                 {name: 'min',  type: 'number', default: 5,    help: 'Minimum setpoint value.'},
                 {name: 'max',  type: 'number', default: 30,   help: 'Maximum setpoint value.'},
@@ -128,6 +144,8 @@ class FeezalElementMaterialClimate extends FeezalElement {
                 {name: 'label', type: 'string', default: '', help: 'Optional card title shown at the bottom.'},
                 // ── Availability ──────────────────────────────────────────────
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Optional availability topic. A badge appears when unavailable; controls stay enabled.'},
+                {name: 'message-property-availability', type: 'string', default: '',
+                    help: 'Dot-notation path within the availability message. Blank = fall back to element-level message-property.'},
                 {name: 'payload-available',      type: 'string', default: 'online',  help: 'Payload meaning the device is online.'},
                 {name: 'payload-unavailable',    type: 'string', default: 'offline', help: 'Payload meaning the device is offline.'},
                 // ── Discovery linkage ─────────────────────────────────────────
@@ -179,6 +197,12 @@ class FeezalElementMaterialClimate extends FeezalElement {
         modes:                 {type: String,  reflect: true},
         label:                 {type: String,  reflect: true},
         discoveryId:           {type: String,  reflect: true, attribute: 'discovery-id'},
+        msgPropSetpoint:       {type: String,  reflect: true, attribute: 'message-property-setpoint'},
+        msgPropActual:         {type: String,  reflect: true, attribute: 'message-property-actual'},
+        msgPropMode:           {type: String,  reflect: true, attribute: 'message-property-mode'},
+        msgPropValve:          {type: String,  reflect: true, attribute: 'message-property-valve'},
+        msgPropHumidity:       {type: String,  reflect: true, attribute: 'message-property-humidity'},
+        msgPropAvailability:   {type: String,  reflect: true, attribute: 'message-property-availability'},
         // Internal state — never as class fields (Lit 3 rule)
         _setpoint:   {state: true},   // null | number
         _actual:     {state: true},   // null | number
@@ -317,6 +341,12 @@ class FeezalElementMaterialClimate extends FeezalElement {
         this.modes                 = '';
         this.label                 = '';
         this.discoveryId           = '';
+        this.msgPropSetpoint       = '';
+        this.msgPropActual         = '';
+        this.msgPropMode           = '';
+        this.msgPropValve          = '';
+        this.msgPropHumidity       = '';
+        this.msgPropAvailability   = '';
         this._setpoint             = null;
         this._actual               = null;
         this._mode                 = null;
@@ -336,7 +366,7 @@ class FeezalElementMaterialClimate extends FeezalElement {
         // Availability — always independent of payload mode.
         if (this.subscribeAvailability) {
             this.addSubscription(this.subscribeAvailability, msg => {
-                const v = String(this.getProperty(msg, this.messageProperty));
+                const v = String(this.getProperty(msg, this.msgPropAvailability || this.messageProperty));
                 this._available = v === this.payloadAvailable ||
                     (v.toLowerCase() !== String(this.payloadUnavailable).toLowerCase() &&
                      v !== 'offline' && v !== 'false' && v !== '0' && v !== 'unavailable');
@@ -359,30 +389,30 @@ class FeezalElementMaterialClimate extends FeezalElement {
         // ── Separate mode ──────────────────────────────────────────────────────
         if (this.subscribeSetpoint) {
             this.addSubscription(this.subscribeSetpoint, msg => {
-                const v = Number(this.getProperty(msg, this.messageProperty));
+                const v = Number(this.getProperty(msg, this.msgPropSetpoint || this.messageProperty));
                 if (!isNaN(v)) this._setpoint = v;
             });
         }
         if (this.subscribeActual) {
             this.addSubscription(this.subscribeActual, msg => {
-                const v = Number(this.getProperty(msg, this.messageProperty));
+                const v = Number(this.getProperty(msg, this.msgPropActual || this.messageProperty));
                 if (!isNaN(v)) this._actual = v;
             });
         }
         if (this.subscribeMode) {
             this.addSubscription(this.subscribeMode, msg => {
-                this._mode = String(this.getProperty(msg, this.messageProperty));
+                this._mode = String(this.getProperty(msg, this.msgPropMode || this.messageProperty));
             });
         }
         if (this.subscribeValve) {
             this.addSubscription(this.subscribeValve, msg => {
-                const v = Number(this.getProperty(msg, this.messageProperty));
+                const v = Number(this.getProperty(msg, this.msgPropValve || this.messageProperty));
                 if (!isNaN(v)) this._valve = Math.max(0, Math.min(100, v));
             });
         }
         if (this.subscribeHumidity) {
             this.addSubscription(this.subscribeHumidity, msg => {
-                const v = Number(this.getProperty(msg, this.messageProperty));
+                const v = Number(this.getProperty(msg, this.msgPropHumidity || this.messageProperty));
                 if (!isNaN(v)) this._humidity = Math.max(0, Math.min(100, v));
             });
         }

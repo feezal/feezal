@@ -53,8 +53,12 @@ class FeezalElementMaterialCover extends FeezalElement {
                 {name: 'subscribe', type: 'mqttTopic', help: 'json mode: base topic carrying the cover state (position, state, …).'},
                 {name: 'publish',   type: 'mqttTopic', help: 'json mode: command/set topic (accepts {position:50} or {state:"OPEN"}).'},
                 {name: 'json-map',  type: 'string', default: '', help: 'json mode: optional JSON string overriding the default key map.'},
+                {name: 'message-property', type: 'string', default: 'payload',
+                    help: 'json mode: dot-notation path to the JSON state object within the MQTT message. Default "payload" reads msg.payload directly.'},
                 // ── Separate-mode per-property topics ─────────────────────────
                 {name: 'subscribe-position', type: 'mqttTopic', help: 'separate mode: current position (0=closed, 100=open).'},
+                {name: 'message-property-position', type: 'string', default: '',
+                    help: 'Dot-notation path within the position message. Blank = fall back to element-level message-property.'},
                 {name: 'publish-position',   type: 'mqttTopic', help: 'separate mode: target position topic.'},
                 {name: 'publish-command',    type: 'mqttTopic', help: 'separate mode: up/stop/down command topic.'},
                 // ── Command payloads ──────────────────────────────────────────
@@ -63,6 +67,8 @@ class FeezalElementMaterialCover extends FeezalElement {
                 {name: 'payload-down', type: 'string', default: 'CLOSE', help: 'Payload sent by the Down button.'},
                 // ── Tilt / slat angle ─────────────────────────────────────────
                 {name: 'slat-angle',         type: 'mqttTopic', help: 'Subscribe: venetian-blind tilt/slat angle (0–100). Slat lines rotate in the SVG.'},
+                {name: 'message-property-tilt', type: 'string', default: '',
+                    help: 'Dot-notation path within the slat-angle message. Blank = fall back to element-level message-property.'},
                 {name: 'publish-slat-angle', type: 'mqttTopic', help: 'Publish: topic to publish new slat angle to (0–100).'},
                 // ── Display ───────────────────────────────────────────────────
                 {name: 'invert',        type: 'boolean', default: false, help: 'Invert position scale: 0=open, 100=closed.'},
@@ -71,6 +77,8 @@ class FeezalElementMaterialCover extends FeezalElement {
                 {name: 'label',         type: 'string',  default: '',    help: 'Optional card title shown at the bottom.'},
                 // ── Availability ──────────────────────────────────────────────
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Optional availability topic. A badge appears when unavailable; controls stay enabled.'},
+                {name: 'message-property-availability', type: 'string', default: '',
+                    help: 'Dot-notation path within the availability message. Blank = fall back to element-level message-property.'},
                 {name: 'payload-available',      type: 'string', default: 'online',  help: 'Payload meaning the device is online.'},
                 {name: 'payload-unavailable',    type: 'string', default: 'offline', help: 'Payload meaning the device is offline.'},
             ],
@@ -112,6 +120,9 @@ class FeezalElementMaterialCover extends FeezalElement {
         payloadAvailable:      {type: String,  reflect: true, attribute: 'payload-available'},
         payloadUnavailable:    {type: String,  reflect: true, attribute: 'payload-unavailable'},
         discoveryId:           {type: String,  reflect: true, attribute: 'discovery-id'},
+        msgPropPosition:       {type: String,  reflect: true, attribute: 'message-property-position'},
+        msgPropTilt:           {type: String,  reflect: true, attribute: 'message-property-tilt'},
+        msgPropAvailability:   {type: String,  reflect: true, attribute: 'message-property-availability'},
         // Internal state — never as class fields (Lit 3 rule)
         _position:    {state: true},   // 0–100, null = unknown
         _tilt:        {state: true},   // 0–100 slat tilt, null = not configured
@@ -228,6 +239,9 @@ class FeezalElementMaterialCover extends FeezalElement {
         this.payloadAvailable      = 'online';
         this.payloadUnavailable    = 'offline';
         this.discoveryId           = '';
+        this.msgPropPosition       = '';
+        this.msgPropTilt           = '';
+        this.msgPropAvailability   = '';
         this._position             = null;
         this._tilt                 = null;
         this._available            = true;
@@ -246,7 +260,7 @@ class FeezalElementMaterialCover extends FeezalElement {
         // Handles both plain string payloads and JSON objects: {"state":"online"}
         if (this.subscribeAvailability) {
             this.addSubscription(this.subscribeAvailability, msg => {
-                let v = this.getProperty(msg, this.messageProperty);
+                let v = this.getProperty(msg, this.msgPropAvailability || this.messageProperty);
                 // Handle JSON availability payloads: {"state":"online"}
                 if (typeof v === 'string') {
                     try {
@@ -279,13 +293,13 @@ class FeezalElementMaterialCover extends FeezalElement {
         // ── Separate (per-topic) mode ──────────────────────────────────────
         if (this.subscribePosition) {
             this.addSubscription(this.subscribePosition, msg => {
-                const v = Number(this.getProperty(msg, this.messageProperty));
+                const v = Number(this.getProperty(msg, this.msgPropPosition || this.messageProperty));
                 if (!isNaN(v)) this._position = Math.max(0, Math.min(100, v));
             });
         }
         if (this.slatAngle) {
             this.addSubscription(this.slatAngle, msg => {
-                const v = Number(this.getProperty(msg, this.messageProperty));
+                const v = Number(this.getProperty(msg, this.msgPropTilt || this.messageProperty));
                 if (!isNaN(v)) this._tilt = Math.max(0, Math.min(100, v));
             });
         }
