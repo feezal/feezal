@@ -30,6 +30,7 @@ Then open [http://localhost:3000/editor/](http://localhost:3000/editor/) and con
 - **Theme system** — swap the entire colour scheme at runtime via published theme packages
 - **Static export** — one click produces a ZIP with a single `index.html` that has all JavaScript inlined; works on any static host or from `file://`
 - **MQTT auto-discovery** — automatically detects devices published by zigbee2mqtt, ESPHome, and compatible bridges; one click pre-wires all topics and attributes
+- **Undo / history** — full undo and redo with a visual history sidebar showing every change made to the dashboard
 - **Password-protected editor** — the live editor can be secured with a bcrypt-hashed password while the viewer remains public
 - **Reverse-proxy auth** — optionally trust an upstream `X-Auth-User` header (e.g. Authentik / Authelia)
 
