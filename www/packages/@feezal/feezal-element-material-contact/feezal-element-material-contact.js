@@ -7,19 +7,34 @@ const UNAVAIL = html`<svg viewBox="0 0 24 24"><path fill="currentColor"
     d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>`;
 
 // ── SVG helpers ───────────────────────────────────────────────────────────────
-function windowSvg(isOpen) {
+function windowSvg(state, mirrorHandle) {
+    // state: 'closed' | 'open' | 'tilted'
+    const isOpen   = state === 'open';
+    const isTilted = state === 'tilted';
+    const isActive = isOpen || isTilted;
+    const fillColor = isTilted ? 'var(--feezal-contact-tilt-color)' : 'var(--feezal-contact-open-color)';
+
+    // Handle pivot: centre of right (or left) frame edge
+    const hx = mirrorHandle ? 6 : 54;
+    const hy = 30;
+    // Lever endpoint: horizontal=open, up=tilted, down=closed
+    const lx = isOpen ? (mirrorHandle ? hx + 12 : hx - 12) : hx;
+    const ly = isOpen ? hy : (isTilted ? hy - 14 : hy + 14);
+
     return svg`
         <rect x="4" y="4" width="52" height="52" rx="3"
               fill="none" stroke="currentColor" stroke-width="3.5"/>
+        ${isActive ? svg`
+            <rect x="6" y="6" width="48" height="48" rx="2"
+                  fill="${fillColor}" fill-opacity="0.3"/>
+        ` : ''}
         <line x1="4" y1="30" x2="56" y2="30" stroke="currentColor" stroke-width="2"/>
         <line x1="30" y1="4" x2="30" y2="56" stroke="currentColor" stroke-width="2"/>
-        ${isOpen ? svg`
-            <rect x="33" y="7" width="19" height="20" rx="1"
-                  fill="var(--feezal-contact-open-color)" fill-opacity="0.35"
-                  stroke="var(--feezal-contact-open-color)" stroke-width="1.5"/>
-            <line x1="39" y1="11" x2="47" y2="19"
-                  stroke="var(--feezal-contact-open-color)" stroke-width="1.5" stroke-linecap="round"/>
-        ` : ''}`;
+        <circle cx="${hx}" cy="${hy}" r="3.5"
+                fill="${isActive ? fillColor : 'currentColor'}"/>
+        <line x1="${hx}" y1="${hy}" x2="${lx}" y2="${ly}"
+              stroke="${isActive ? fillColor : 'currentColor'}"
+              stroke-width="3" stroke-linecap="round"/>`;
 }
 
 function doorSvg(isOpen) {
@@ -134,10 +149,13 @@ class FeezalElementMaterialContact extends FeezalElement {
                 {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
                 {name: 'payload-available',      type: 'string',    default: 'online',  help: 'Payload meaning available.'},
                 {name: 'payload-unavailable',    type: 'string',    default: 'offline', help: 'Payload meaning unavailable.'},
+                {name: 'payload-tilted',         type: 'string',    default: '',        help: 'Payload meaning the window is tilted/vented (e.g. Homematic: 2). Leave blank to disable tilt state. Window type only.'},
+                {name: 'mirror',                 type: 'boolean',   default: false,     help: 'Show the window handle on the left side instead of the right. Window type only.'},
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
                 {property: '--feezal-contact-open-color',   type: 'color', default: 'var(--warning-color, #ff9800)', help: 'Colour shown when contact is open.'},
+                {property: '--feezal-contact-tilt-color',   type: 'color', default: 'var(--info-color, #2196f3)',    help: 'Colour shown when window is tilted.'},
                 {property: '--feezal-contact-closed-color', type: 'color', default: 'var(--primary-text-color)',     help: 'SVG outline colour when contact is closed.'},
                 {property: '--feezal-contact-text-color',   type: 'color', default: 'var(--primary-text-color)',     help: 'Label text colour.'},
                 {property: '--feezal-contact-error-color',  type: 'color', default: 'var(--error-color, #b00020)',   help: 'Unavailability badge colour.'},
@@ -158,8 +176,10 @@ class FeezalElementMaterialContact extends FeezalElement {
         payloadAvailable:      {type: String,  reflect: true, attribute: 'payload-available'},
         payloadUnavailable:    {type: String,  reflect: true, attribute: 'payload-unavailable'},
         msgPropAvailability:   {type: String,  reflect: true, attribute: 'message-property-availability'},
+        payloadTilted:         {type: String,  reflect: true, attribute: 'payload-tilted'},
+        mirror:                {type: Boolean, reflect: true},
         discoveryId:           {type: String,  reflect: true, attribute: 'discovery-id'},
-        _open:       {state: true},
+        _contactState: {state: true},  // 'closed' | 'open' | 'tilted'
         _multiOpen:  {state: true},
         _available:  {state: true},
     };
@@ -175,6 +195,7 @@ class FeezalElementMaterialContact extends FeezalElement {
             gap: 4px;
             position: relative;
             --feezal-contact-open-color:   var(--warning-color, var(--feezal-warning, #ff9800));
+            --feezal-contact-tilt-color:   var(--info-color, #2196f3);
             --feezal-contact-closed-color: var(--primary-text-color, var(--feezal-color, #333));
             --feezal-contact-text-color:   var(--primary-text-color, var(--feezal-color, #333));
             --feezal-contact-error-color:  var(--error-color, #b00020);
@@ -221,10 +242,12 @@ class FeezalElementMaterialContact extends FeezalElement {
         this.payloadAvailable      = 'online';
         this.payloadUnavailable    = 'offline';
         this.msgPropAvailability   = '';
+        this.payloadTilted         = '';
+        this.mirror                = false;
         this.discoveryId           = '';
-        this._open      = false;
-        this._multiOpen = {};
-        this._available = true;
+        this._contactState = 'closed';
+        this._multiOpen    = {};
+        this._available    = true;
     }
 
     // Device cards manage subscriptions manually; suppress the base class path.
@@ -263,19 +286,29 @@ class FeezalElementMaterialContact extends FeezalElement {
         } else if (this.subscribe) {
             this.addSubscription(this.subscribe, msg => {
                 const v = this.getProperty(msg, this.messageProperty);
-                this._open = String(v) === String(this.payloadOpen) ||
-                    v === true || v === 1 || v === '1';
+                const s = String(v);
+                console.log('[contact] topic=%s raw=%o str=%s payloadOpen=%s payloadClosed=%s payloadTilted=%s',
+                    this.subscribe, v, s, this.payloadOpen, this.payloadClosed, this.payloadTilted);
+                if (this.payloadTilted && s === String(this.payloadTilted)) {
+                    this._contactState = 'tilted';
+                } else if (s === String(this.payloadOpen) || v === true || v === 1 || v === '1') {
+                    this._contactState = 'open';
+                } else {
+                    this._contactState = 'closed';
+                }
+                console.log('[contact] → state=%s', this._contactState);
             });
         }
     }
 
-    _shapeSvg(isOpen) {
+    _shapeSvg(state) {
+        const isOpen = state === 'open';
         if (this.type === 'door')       return doorSvg(isOpen);
         if (this.type === 'generic')    return genericSvg(isOpen);
         if (this.type === 'waterleak')  return waterleakSvg(isOpen);
         if (this.type === 'firealarm')  return fireAlarmSvg(isOpen);
         if (this.type === 'garagedoor') return garageDoorSvg(isOpen);
-        return windowSvg(isOpen);
+        return windowSvg(state, this.mirror);
     }
 
     render() {
@@ -287,7 +320,7 @@ class FeezalElementMaterialContact extends FeezalElement {
             return html`
                 <div class="svg-wrap">
                     <svg class="contact" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-                        ${this._shapeSvg(false)}
+                        ${this._shapeSvg('closed')}
                     </svg>
                 </div>
                 ${this.label ? html`<div class="label">${this.label}</div>` : ''}`;
@@ -304,7 +337,7 @@ class FeezalElementMaterialContact extends FeezalElement {
             ` : html`
                 <div class="svg-wrap">
                     <svg class="contact" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-                        ${this._shapeSvg(this._open)}
+                        ${this._shapeSvg(this._contactState)}
                     </svg>
                 </div>
             `}
