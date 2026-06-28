@@ -291,6 +291,7 @@ A static export packages the entire viewer into a **single self-contained `index
 
 - The exported dashboard still requires a reachable MQTT broker at runtime — only the feezal server is eliminated.
 - If your broker requires WSS (WebSocket over TLS), the exported file must be served from HTTPS (browser security restriction) or opened in a native WebSocket context.
+- **HTTPS → WSS requirement** — if the exported `index.html` is served over `https://`, the broker connection **must** use `wss://`. Browsers block mixed-content connections: a page loaded from HTTPS cannot open a plain (non-TLS) WebSocket to a `ws://` broker. Make sure your broker URL uses `wss://` whenever the dashboard is hosted on HTTPS.
 - Global assets (shared across sites) are also bundled.
 - **TLS CA certificates** — any CA certificate you uploaded in the Connection settings is stored server-side and used only by the feezal server's MQTT bridge. It is **not** included in the export. If your `wss://` broker uses a self-signed or private CA certificate, you must install that CA certificate in the **OS or browser trust store** of every device that will open the exported dashboard. This is standard procedure for private TLS deployments.
 
