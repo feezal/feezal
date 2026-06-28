@@ -60,7 +60,7 @@ class FeezalElementMaterialClock extends FeezalElement {
                 {property: '--feezal-clock-hand-color',   type: 'color', default: 'var(--primary-text-color)',         help: 'Hour and minute hands colour.'},
                 {property: '--feezal-clock-second-color', type: 'color', default: 'var(--accent-color, #f44336)',      help: 'Second hand / digit accent colour.'},
                 {property: '--feezal-clock-text-color',   type: 'color', default: 'var(--primary-text-color)',         help: 'Tick labels, digit and label text colour.'},
-                {property: '--feezal-clock-rim-color',    type: 'color', default: 'var(--primary-text-color)',         help: 'Analog clock rim / tick-mark colour.'},
+                {property: '--feezal-clock-rim-color',    type: 'color', default: 'var(--secondary-text-color)',         help: 'Analog clock rim / tick-mark colour.'},
             ],
             restrict:     {minWidth: 60, minHeight: 60},
             defaultStyle: {width: '160px', height: '160px'},

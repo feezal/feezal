@@ -1,7 +1,7 @@
 {
     "name":  "@feezal/feezal-server",
     "version":  "1.4.4",
-    "description":  "Web Components based Dashboard UI with WYSIWYG Editor",
+    "description":  "Dashboard editor powered by Web Components and MQTT",
     "main":  "src/app.js",
     "bin":  {
                 "feezal":  "bin/feezal.js"

@@ -865,20 +865,13 @@ Every material element exposes a set of `--feezal-*` CSS custom properties for t
 
 **Known gaps (confirmed):**
 
-`feezal-element-material-progress-linear` and `feezal-element-material-progress-circular` each expose exactly **one** color property for the filled/active part of the bar or ring, but the track (the unfilled remainder) color is hardcoded and not exposed:
-
-| Element | Currently exposed | Missing |
-|---|---|---|
-| `material-progress-linear` | `--feezal-progress-linear-color` (active indicator) | `--feezal-progress-linear-track-color` (track / remainder) |
-| `material-progress-circular` | `--feezal-progress-circular-color` (active indicator arc) | `--feezal-progress-circular-track-color` (inactive arc / background ring) |
-
-Internally both elements already drive the underlying `--md-linear-progress-track-color` / `--md-circular-progress-track-color` Material tokens, but from a hardcoded value (`var(--divider-color, #e0e0e0)`) rather than a feezal-owned property.
+No confirmed gaps at this time. The `material-progress-linear` and `material-progress-circular` elements have been superseded by the new merged `feezal-element-material-progress` element which exposes `--feezal-progress-color`, `--feezal-progress-track-color`, and `--feezal-progress-thickness` from the start.
 
 **Scope — elements to audit:**
 
-All 29 material elements currently in `www/packages/@feezal/`:
+All material elements currently in `www/packages/@feezal/` (30 elements including the new merged progress element):
 
-`material-badge`, `material-button`, `material-camera`, `material-checkbox`, `material-chip`, `material-climate`, `material-clock`, `material-computer-stats`, `material-contact`, `material-cover`, `material-door-lock`, `material-energy-flow`, `material-fab`, `material-fan`, `material-gauge`, `material-icon-button`, `material-light`, `material-map`, `material-motion`, `material-plant`, `material-progress-circular`, `material-progress-linear`, `material-radio`, `material-select`, `material-slider`, `material-switch`, `material-tank`, `material-text-field`, `material-value`
+`material-badge`, `material-button`, `material-camera`, `material-checkbox`, `material-chip`, `material-climate`, `material-clock`, `material-computer-stats`, `material-contact`, `material-cover`, `material-door-lock`, `material-energy-flow`, `material-fab`, `material-fan`, `material-gauge`, `material-icon-button`, `material-light`, `material-map`, `material-motion`, `material-plant`, `material-progress`, `material-radio`, `material-select`, `material-slider`, `material-switch`, `material-tank`, `material-text-field`, `material-value`
 
 **Process:** User will supply the list of missing properties they identify element by element. Each gap is then implemented: add the `--feezal-*` property to the element's `styles` descriptor and wire it to the relevant internal CSS token. Patch-bump the affected element's `package.json` version per commit.
 
