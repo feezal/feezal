@@ -390,6 +390,11 @@ class FeezalAppEditor extends LitElement {
             --sl-input-placeholder-color: rgba(255,255,255,0.25);
             --sl-input-icon-color: rgba(255,255,255,0.4);
         }
+        :host(.dark) feezal-sidebar-inspector {
+            --feezal-sel-badge-bg:     rgba(2,132,199, 0.15);
+            --feezal-sel-badge-color:  #7dd3fc;
+            --feezal-sel-badge-border: #0ea5e9;
+        }
     `;
 
     constructor() {
