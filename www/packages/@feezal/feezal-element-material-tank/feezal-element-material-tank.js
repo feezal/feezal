@@ -31,6 +31,8 @@ class FeezalElementMaterialTank extends FeezalElement {
             description: 'Fluid level / tank visualisation — an SVG fill-level indicator with animated transitions. Configurable shape, colour thresholds and optional wave animation.',
             attributes: [
                 {name: 'subscribe',       type: 'mqttTopic', help: 'Topic carrying the current fill level.'},
+                {name: 'message-property', type: 'string', default: 'payload',
+                    help: 'Dot-notation path to the value within the MQTT message. Default "payload" uses msg.payload; use e.g. "payload.state" to navigate into a JSON payload.'},
                 {name: 'min',             type: 'number',    default: 0,     help: 'Value representing an empty tank (0 %).'},
                 {name: 'max',             type: 'number',    default: 100,   help: 'Value representing a full tank (100 %).'},
                 {name: 'unit',            type: 'string',    default: '%',   help: 'Unit label shown with the numeric value.'},

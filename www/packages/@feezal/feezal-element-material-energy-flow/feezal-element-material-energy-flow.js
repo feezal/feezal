@@ -21,11 +21,16 @@ class FeezalElementMaterialEnergyFlow extends FeezalElement {
             palette: {name: 'Energy Flow', category: 'Material', color: '#4a6080', icon: 'electric_bolt'},
             description: 'Animated energy-flow diagram: Solar → House ← Grid, House ↔ Battery.',
             attributes: [
-                {name: 'subscribe-solar',       type: 'mqttTopic', help: 'Topic for solar generation (W, always positive).'},
-                {name: 'subscribe-grid',        type: 'mqttTopic', help: 'Topic for grid power (W, positive = import, negative = export).'},
-                {name: 'subscribe-load',        type: 'mqttTopic', help: 'Topic for house consumption (W, always positive).'},
-                {name: 'subscribe-battery',     type: 'mqttTopic', help: 'Topic for battery power (W, positive = charging, negative = discharging).'},
-                {name: 'subscribe-battery-soc', type: 'mqttTopic', help: 'Topic for battery state of charge (0–100 %).'},
+                {name: 'subscribe-solar',             type: 'mqttTopic', help: 'Topic for solar generation (W, always positive).'},
+                {name: 'message-property-solar',       type: 'string',    help: 'Dot-notation path within solar messages. Default: payload'},
+                {name: 'subscribe-grid',              type: 'mqttTopic', help: 'Topic for grid power (W, positive = import, negative = export).'},
+                {name: 'message-property-grid',        type: 'string',    help: 'Dot-notation path within grid messages. Default: payload'},
+                {name: 'subscribe-load',              type: 'mqttTopic', help: 'Topic for house consumption (W, always positive).'},
+                {name: 'message-property-load',        type: 'string',    help: 'Dot-notation path within load messages. Default: payload'},
+                {name: 'subscribe-battery',           type: 'mqttTopic', help: 'Topic for battery power (W, positive = charging, negative = discharging).'},
+                {name: 'message-property-battery',     type: 'string',    help: 'Dot-notation path within battery messages. Default: payload'},
+                {name: 'subscribe-battery-soc',       type: 'mqttTopic', help: 'Topic for battery state of charge (0–100 %).'},
+                {name: 'message-property-battery-soc', type: 'string',    help: 'Dot-notation path within battery SoC messages. Default: payload'},
                 {name: 'show-battery',          type: 'boolean',   help: 'Show the battery node.'},
                 {name: 'pv-label',              type: 'string',    help: 'Label under the solar node. Default: Solar'},
                 {name: 'grid-label',            type: 'string',    help: 'Label under the grid node. Default: Grid'},
@@ -45,6 +50,11 @@ class FeezalElementMaterialEnergyFlow extends FeezalElement {
         subscribeLoad:       {type: String,  reflect: true, attribute: 'subscribe-load'},
         subscribeBattery:    {type: String,  reflect: true, attribute: 'subscribe-battery'},
         subscribeBatterySoc: {type: String,  reflect: true, attribute: 'subscribe-battery-soc'},
+        msgPropSolar:        {type: String,  reflect: true, attribute: 'message-property-solar'},
+        msgPropGrid:         {type: String,  reflect: true, attribute: 'message-property-grid'},
+        msgPropLoad:         {type: String,  reflect: true, attribute: 'message-property-load'},
+        msgPropBattery:      {type: String,  reflect: true, attribute: 'message-property-battery'},
+        msgPropBatterySoc:   {type: String,  reflect: true, attribute: 'message-property-battery-soc'},
         showBattery:         {type: Boolean, reflect: true, attribute: 'show-battery'},
         pvLabel:             {type: String,  reflect: true, attribute: 'pv-label'},
         gridLabel:           {type: String,  reflect: true, attribute: 'grid-label'},
@@ -91,6 +101,11 @@ class FeezalElementMaterialEnergyFlow extends FeezalElement {
         this.subscribeLoad       = '';
         this.subscribeBattery    = '';
         this.subscribeBatterySoc = '';
+        this.msgPropSolar        = '';
+        this.msgPropGrid         = '';
+        this.msgPropLoad         = '';
+        this.msgPropBattery      = '';
+        this.msgPropBatterySoc   = '';
         this.showBattery         = false;
         this.pvLabel             = 'Solar';
         this.gridLabel           = 'Grid';
@@ -109,11 +124,11 @@ class FeezalElementMaterialEnergyFlow extends FeezalElement {
         super.connectedCallback();
         if (feezal.isEditor) return;
         const sub = (topic, cb) => { if (topic) this.addSubscription(topic, cb); };
-        sub(this.subscribeSolar,      msg => { this._solar   = parseFloat(this.getProperty(msg, this.messageProperty)); });
-        sub(this.subscribeGrid,       msg => { this._grid    = parseFloat(this.getProperty(msg, this.messageProperty)); });
-        sub(this.subscribeLoad,       msg => { this._load    = parseFloat(this.getProperty(msg, this.messageProperty)); });
-        sub(this.subscribeBattery,    msg => { this._battery = parseFloat(this.getProperty(msg, this.messageProperty)); });
-        sub(this.subscribeBatterySoc, msg => { this._soc     = parseFloat(this.getProperty(msg, this.messageProperty)); });
+        sub(this.subscribeSolar,      msg => { this._solar   = parseFloat(this.getProperty(msg, this.msgPropSolar      || this.messageProperty)); });
+        sub(this.subscribeGrid,       msg => { this._grid    = parseFloat(this.getProperty(msg, this.msgPropGrid       || this.messageProperty)); });
+        sub(this.subscribeLoad,       msg => { this._load    = parseFloat(this.getProperty(msg, this.msgPropLoad       || this.messageProperty)); });
+        sub(this.subscribeBattery,    msg => { this._battery = parseFloat(this.getProperty(msg, this.msgPropBattery    || this.messageProperty)); });
+        sub(this.subscribeBatterySoc, msg => { this._soc     = parseFloat(this.getProperty(msg, this.msgPropBatterySoc || this.messageProperty)); });
     }
 
     _flowLine(x1, y1, x2, y2, color, power, anim) {

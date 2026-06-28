@@ -20,6 +20,8 @@ class FeezalElementMaterialChip extends FeezalElement {
             attributes: [
                 {name: 'label',       type: 'string',    help: 'Chip label text.'},
                 {name: 'subscribe',   type: 'mqttTopic', help: 'Topic to read selected state from.'},
+                {name: 'message-property', type: 'string', default: 'payload',
+                    help: 'Dot-notation path to the value within the MQTT message. Default "payload" uses msg.payload; use e.g. "payload.state" to navigate into a JSON payload.'},
                 {name: 'publish',     type: 'mqttTopic', help: 'Topic to publish state changes to.'},
                 {name: 'payload-on',  type: 'string',    help: 'Payload for selected state. Default: ON'},
                 {name: 'payload-off', type: 'string',    help: 'Payload for deselected state. Default: OFF'},

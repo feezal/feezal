@@ -10,6 +10,8 @@ class FeezalElementMaterialTextField extends FeezalElement {
             attributes: [
                 {name: 'label',            type: 'string',    help: 'Floating label above the input.'},
                 {name: 'subscribe',        type: 'mqttTopic', help: 'Topic to read current text value from.'},
+                {name: 'message-property', type: 'string', default: 'payload',
+                    help: 'Dot-notation path to the value within the MQTT message. Default "payload" uses msg.payload; use e.g. "payload.state" to navigate into a JSON payload.'},
                 {name: 'publish',          type: 'mqttTopic', help: 'Topic to publish text value to.'},
                 {name: 'placeholder',      type: 'string',    help: 'Placeholder text when the field is empty.'},
                 {name: 'type',             type: 'select',    options: ['text', 'number', 'email', 'tel', 'url', 'password'], help: 'HTML input type.'},

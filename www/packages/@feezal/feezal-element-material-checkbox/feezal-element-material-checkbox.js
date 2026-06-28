@@ -20,6 +20,8 @@ class FeezalElementMaterialCheckbox extends FeezalElement {
             },
             attributes: [
                 {name: 'subscribe',   type: 'mqttTopic', help: 'Topic to read checked state from.'},
+                {name: 'message-property', type: 'string', default: 'payload',
+                    help: 'Dot-notation path to the value within the MQTT message. Default "payload" uses msg.payload; use e.g. "payload.state" to navigate into a JSON payload.'},
                 {name: 'publish',     type: 'mqttTopic', help: 'Topic to publish state changes to.'},
                 {name: 'payload-on',  type: 'string',    help: 'Payload meaning checked. Default: ON'},
                 {name: 'payload-off', type: 'string',    help: 'Payload meaning unchecked. Default: OFF'},

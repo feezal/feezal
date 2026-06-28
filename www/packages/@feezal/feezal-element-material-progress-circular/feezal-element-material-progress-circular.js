@@ -9,6 +9,8 @@ class FeezalElementMaterialProgressCircular extends FeezalElement {
             description: 'MD3 circular progress indicator — subscribes to a numeric value topic.',
             attributes: [
                 {name: 'subscribe',     type: 'mqttTopic', help: 'Topic to read current value from.'},
+                {name: 'message-property', type: 'string', default: 'payload',
+                    help: 'Dot-notation path to the value within the MQTT message. Default "payload" uses msg.payload; use e.g. "payload.state" to navigate into a JSON payload.'},
                 {name: 'min',           type: 'number',    help: 'Minimum value. Default: 0'},
                 {name: 'max',           type: 'number',    help: 'Maximum value. Default: 100'},
                 {name: 'indeterminate', type: 'boolean',   help: 'Show indeterminate spinning animation.'},

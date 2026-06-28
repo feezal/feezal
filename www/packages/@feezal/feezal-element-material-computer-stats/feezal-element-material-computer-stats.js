@@ -38,14 +38,22 @@ class FeezalElementMaterialComputerStats extends FeezalElement {
             palette: {name: 'Computer Stats', category: 'Material', color: '#4a6080', icon: 'memory'},
             description: 'Concentric ring gauges for CPU, RAM, GPU and other system metrics.',
             attributes: [
-                {name: 'subscribe-cpu',      type: 'mqttTopic', help: 'Topic for CPU usage (0–100%).'},
-                {name: 'subscribe-ram',      type: 'mqttTopic', help: 'Topic for RAM usage (0–100%).'},
-                {name: 'subscribe-gpu',      type: 'mqttTopic', help: 'Topic for GPU usage (0–100%).'},
-                {name: 'subscribe-disk',     type: 'mqttTopic', help: 'Topic for disk usage (0–100%).'},
-                {name: 'subscribe-cpu-temp', type: 'mqttTopic', help: 'Topic for CPU temperature.'},
-                {name: 'subscribe-gpu-temp', type: 'mqttTopic', help: 'Topic for GPU temperature.'},
-                {name: 'subscribe-gpu-mem',  type: 'mqttTopic', help: 'Topic for GPU VRAM usage (0–100%).'},
-                {name: 'subscribe-swap',     type: 'mqttTopic', help: 'Topic for swap/page-file usage (0–100%).'},
+                {name: 'subscribe-cpu',             type: 'mqttTopic', help: 'Topic for CPU usage (0–100%).'},
+                {name: 'message-property-cpu',       type: 'string',    help: 'Dot-notation path within CPU messages. Default: payload'},
+                {name: 'subscribe-ram',             type: 'mqttTopic', help: 'Topic for RAM usage (0–100%).'},
+                {name: 'message-property-ram',       type: 'string',    help: 'Dot-notation path within RAM messages. Default: payload'},
+                {name: 'subscribe-gpu',             type: 'mqttTopic', help: 'Topic for GPU usage (0–100%).'},
+                {name: 'message-property-gpu',       type: 'string',    help: 'Dot-notation path within GPU messages. Default: payload'},
+                {name: 'subscribe-disk',            type: 'mqttTopic', help: 'Topic for disk usage (0–100%).'},
+                {name: 'message-property-disk',      type: 'string',    help: 'Dot-notation path within disk messages. Default: payload'},
+                {name: 'subscribe-cpu-temp',        type: 'mqttTopic', help: 'Topic for CPU temperature.'},
+                {name: 'message-property-cpu-temp',  type: 'string',    help: 'Dot-notation path within CPU temperature messages. Default: payload'},
+                {name: 'subscribe-gpu-temp',        type: 'mqttTopic', help: 'Topic for GPU temperature.'},
+                {name: 'message-property-gpu-temp',  type: 'string',    help: 'Dot-notation path within GPU temperature messages. Default: payload'},
+                {name: 'subscribe-gpu-mem',         type: 'mqttTopic', help: 'Topic for GPU VRAM usage (0–100%).'},
+                {name: 'message-property-gpu-mem',   type: 'string',    help: 'Dot-notation path within GPU VRAM messages. Default: payload'},
+                {name: 'subscribe-swap',            type: 'mqttTopic', help: 'Topic for swap/page-file usage (0–100%).'},
+                {name: 'message-property-swap',      type: 'string',    help: 'Dot-notation path within swap messages. Default: payload'},
                 {name: 'warn-threshold',     type: 'number',    help: 'Value (%) at which ring turns amber. Default: 75'},
                 {name: 'crit-threshold',     type: 'number',    help: 'Value (%) at which ring turns red. Default: 90'},
                 {name: 'show-legend',        type: 'boolean',   help: 'Show a colour legend to the right of the rings.'},
@@ -67,6 +75,14 @@ class FeezalElementMaterialComputerStats extends FeezalElement {
         subscribeGpuTemp: {type: String,  reflect: true, attribute: 'subscribe-gpu-temp'},
         subscribeGpuMem:  {type: String,  reflect: true, attribute: 'subscribe-gpu-mem'},
         subscribeSwap:    {type: String,  reflect: true, attribute: 'subscribe-swap'},
+        msgPropCpu:       {type: String,  reflect: true, attribute: 'message-property-cpu'},
+        msgPropRam:       {type: String,  reflect: true, attribute: 'message-property-ram'},
+        msgPropGpu:       {type: String,  reflect: true, attribute: 'message-property-gpu'},
+        msgPropDisk:      {type: String,  reflect: true, attribute: 'message-property-disk'},
+        msgPropCpuTemp:   {type: String,  reflect: true, attribute: 'message-property-cpu-temp'},
+        msgPropGpuTemp:   {type: String,  reflect: true, attribute: 'message-property-gpu-temp'},
+        msgPropGpuMem:    {type: String,  reflect: true, attribute: 'message-property-gpu-mem'},
+        msgPropSwap:      {type: String,  reflect: true, attribute: 'message-property-swap'},
         warnThreshold:    {type: Number,  reflect: true, attribute: 'warn-threshold'},
         critThreshold:    {type: Number,  reflect: true, attribute: 'crit-threshold'},
         showLegend:       {type: Boolean, reflect: true, attribute: 'show-legend'},
@@ -142,6 +158,14 @@ class FeezalElementMaterialComputerStats extends FeezalElement {
         this.subscribeGpuTemp = '';
         this.subscribeGpuMem  = '';
         this.subscribeSwap    = '';
+        this.msgPropCpu       = '';
+        this.msgPropRam       = '';
+        this.msgPropGpu       = '';
+        this.msgPropDisk      = '';
+        this.msgPropCpuTemp   = '';
+        this.msgPropGpuTemp   = '';
+        this.msgPropGpuMem    = '';
+        this.msgPropSwap      = '';
         this.warnThreshold    = 75;
         this.critThreshold    = 90;
         this.showLegend       = false;
@@ -172,6 +196,19 @@ class FeezalElementMaterialComputerStats extends FeezalElement {
         return map[slot] || '';
     }
 
+    _msgPropFor(slot) {
+        return ({
+            'cpu':      this.msgPropCpu,
+            'ram':      this.msgPropRam,
+            'gpu':      this.msgPropGpu,
+            'disk':     this.msgPropDisk,
+            'cpu-temp': this.msgPropCpuTemp,
+            'gpu-temp': this.msgPropGpuTemp,
+            'gpu-mem':  this.msgPropGpuMem,
+            'swap':     this.msgPropSwap,
+        })[slot] || this.messageProperty;
+    }
+
     connectedCallback() {
         super.connectedCallback();
         if (feezal.isEditor) return;
@@ -180,7 +217,7 @@ class FeezalElementMaterialComputerStats extends FeezalElement {
             if (!topic) continue;
             ((slot, max) => {
                 this.addSubscription(topic, msg => {
-                    const raw = parseFloat(this.getProperty(msg, this.messageProperty));
+                    const raw = parseFloat(this.getProperty(msg, this._msgPropFor(slot)));
                     if (isNaN(raw)) return;
                     const pct = max && max !== 100 ? (raw / max) * 100 : raw;
                     this._values = {...this._values, [slot]: pct};

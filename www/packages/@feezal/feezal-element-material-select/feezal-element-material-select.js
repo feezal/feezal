@@ -11,6 +11,8 @@ class FeezalElementMaterialSelect extends FeezalElement {
             attributes: [
                 {name: 'label',     type: 'string',    help: 'Floating label above the select field.'},
                 {name: 'subscribe', type: 'mqttTopic', help: 'Topic to read current selected value from.'},
+                {name: 'message-property', type: 'string', default: 'payload',
+                    help: 'Dot-notation path to the value within the MQTT message. Default "payload" uses msg.payload; use e.g. "payload.state" to navigate into a JSON payload.'},
                 {name: 'publish',   type: 'mqttTopic', help: 'Topic to publish selected value to.'},
                 {name: 'options',   type: 'string',    help: 'JSON array of options, e.g. [{"value":"1","label":"One"},{"value":"2","label":"Two"}]'},
                 {name: 'disabled',  type: 'boolean',   help: 'Disable the select field.'},

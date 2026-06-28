@@ -16,6 +16,8 @@ class FeezalElementMaterialBadge extends FeezalElement {
             },
             attributes: [
                 {name: 'subscribe', type: 'mqttTopic', help: 'Topic to read badge count or text from. Empty value hides the badge.'},
+                {name: 'message-property', type: 'string', default: 'payload',
+                    help: 'Dot-notation path to the value within the MQTT message. Default "payload" uses msg.payload; use e.g. "payload.state" to navigate into a JSON payload.'},
                 {name: 'icon',      type: 'string',    help: 'Material icon name for the base icon.'},
                 {name: 'label',     type: 'string',    help: 'Label text shown below the icon.'},
                 {name: 'max-count', type: 'number',    help: 'Maximum count to show; higher values display "99+". Default: 99'},

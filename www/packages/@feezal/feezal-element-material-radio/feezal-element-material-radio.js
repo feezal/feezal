@@ -11,6 +11,8 @@ class FeezalElementMaterialRadio extends FeezalElement {
             description: 'MD3 radio button group — subscribes to current value and publishes the selected option.',
             attributes: [
                 {name: 'subscribe',   type: 'mqttTopic', help: 'Topic to read the current selected value from.'},
+                {name: 'message-property', type: 'string', default: 'payload',
+                    help: 'Dot-notation path to the value within the MQTT message. Default "payload" uses msg.payload; use e.g. "payload.state" to navigate into a JSON payload.'},
                 {name: 'publish',     type: 'mqttTopic', help: 'Topic to publish the selected value to.'},
                 {name: 'options',     type: 'string',    help: 'JSON array of options, e.g. [{"value":"a","label":"Option A"},{"value":"b","label":"Option B"}]'},
                 {name: 'orientation', type: 'select',    options: ['vertical', 'horizontal'], help: 'Layout direction. Default: vertical'},
