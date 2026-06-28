@@ -3,7 +3,30 @@
 const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
+const {execFile} = require('child_process');
+const {promisify} = require('util');
+const execFileAsync = promisify(execFile);
 const createExport = require('../build/export.js');
+
+/**
+ * Extract the CN (Common Name) from a PEM certificate file using openssl.
+ * Returns null if openssl is unavailable or the cert has no CN.
+ * @param {string} certPath
+ * @returns {Promise<string|null>}
+ */
+async function _extractCertCn(certPath) {
+    try {
+        const {stdout} = await execFileAsync(
+            'openssl', ['x509', '-noout', '-subject', '-in', certPath],
+            {timeout: 5000}
+        );
+        // stdout: "subject=C = US, O = Org, CN = My CA\n"
+        const m = stdout.match(/CN\s*=\s*([^,\n\/]+)/);
+        return m ? m[1].trim() : null;
+    } catch {
+        return null;
+    }
+}
 
 // Names reserved for internal use that must never be treated as site names.
 const RESERVED_SITE_NAMES = new Set(['_global', 'themes']);
@@ -347,8 +370,14 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
         if (!dir) return res.json({ca: false, cert: false, key: false});
         const result = {};
         for (const [type, file] of Object.entries(CERT_FILES)) {
-            try { await fs.access(path.join(dir, file)); result[type] = true; }
-            catch { result[type] = false; }
+            const filePath = path.join(dir, file);
+            try {
+                await fs.access(filePath);
+                result[type] = true;
+                if (type === 'ca') result.caCn = await _extractCertCn(filePath);
+            } catch {
+                result[type] = false;
+            }
         }
         res.json(result);
     });

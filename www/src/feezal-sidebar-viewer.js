@@ -8,6 +8,7 @@ import '@shoelace-style/shoelace/dist/components/select/select.js';
 import '@shoelace-style/shoelace/dist/components/option/option.js';
 import '@shoelace-style/shoelace/dist/components/button/button.js';
 import '@shoelace-style/shoelace/dist/components/textarea/textarea.js';
+import '@shoelace-style/shoelace/dist/components/dialog/dialog.js';
 
 /**
  * feezal-sidebar-viewer
@@ -48,16 +49,29 @@ class FeezalSidebarViewer extends LitElement {
             padding-bottom: 4px; border-bottom: 1px solid var(--feezal-border, #eee);
         }
         /* TLS cert section */
-        .cert-row {
-            display: flex; align-items: center; justify-content: space-between;
-            margin-top: 8px; font-size: 13px; color: var(--feezal-color, #333);
+        .cert-info-row {
+            display: flex; align-items: center; gap: 6px; margin-top: 8px;
         }
-        .cert-badge {
+        .cert-badge-ok {
+            flex-shrink: 0; font-size: 10px; padding: 1px 5px; border-radius: 8px;
+            font-weight: 700; background: #dcfce7; color: #16a34a;
+        }
+        .cert-badge-none {
             font-size: 11px; padding: 2px 6px; border-radius: 10px;
-            font-weight: 600; letter-spacing: 0.03em;
+            font-weight: 600; background: #f3f4f6; color: #9ca3af;
         }
-        .cert-badge.ok  { background: #dcfce7; color: #16a34a; }
-        .cert-badge.none { background: #f3f4f6; color: #9ca3af; }
+        .cert-cn {
+            flex: 1; font-size: 12px; color: var(--feezal-color, #555);
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            font-style: italic;
+        }
+        .cert-remove-btn {
+            flex-shrink: 0; background: none; border: none; cursor: pointer;
+            padding: 2px 5px; border-radius: 4px; font-size: 13px; line-height: 1;
+            color: var(--feezal-color, #666); opacity: 0.45;
+            transition: opacity 0.15s, background 0.15s, color 0.15s;
+        }
+        .cert-remove-btn:hover { opacity: 1; background: rgba(200,0,0,0.08); color: #c62828; }
         .cert-actions { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
         sl-textarea { width: 100%; margin-top: 6px; }
         sl-textarea::part(textarea) {
@@ -67,6 +81,25 @@ class FeezalSidebarViewer extends LitElement {
         }
         .cert-save-row { display: flex; justify-content: flex-end; margin-top: 6px; }
         input[type=file] { display: none; }
+        /* Confirmation dialog — float above all editor overlays (inspector handles: 20000) */
+        #dlg-remove-ca { --sl-z-index-dialog: 20001; }
+        /* Dark mode — mirror the pattern used in feezal-app-editor dialogs */
+        :host-context(.dark) #dlg-remove-ca {
+            --sl-panel-background-color: #2e2e2e;
+            --sl-panel-border-color: #3d3d3d;
+            --sl-color-neutral-0:   #1e1e1e;
+            --sl-color-neutral-100: #252525;
+            --sl-color-neutral-200: #3d3d3d;
+            --sl-color-neutral-600: rgba(255,255,255,0.55);
+            --sl-color-neutral-700: rgba(255,255,255,0.75);
+            --sl-color-neutral-900: rgba(255,255,255,0.9);
+            --sl-color-neutral-1000: rgba(255,255,255,0.95);
+        }
+        :host-context(.dark) #dlg-remove-ca::part(panel) { color: rgba(255,255,255,0.88); }
+        :host-context(.dark) #dlg-remove-ca p { color: rgba(255,255,255,0.85); }
+        :host-context(.dark) #dlg-remove-ca sl-button:not([variant])::part(base) {
+            background-color: #3a3a3a; border-color: #555; color: rgba(255,255,255,0.8);
+        }
     `;
 
     constructor() {
@@ -115,6 +148,11 @@ class FeezalSidebarViewer extends LitElement {
             await this._loadCertStatus();
         } catch { /* ignore */ }
         this._certBusy = false;
+    }
+
+    async _confirmRemoveCA() {
+        await this._removeCert('ca');
+        this.renderRoot.querySelector('#dlg-remove-ca')?.hide();
     }
 
     _handleFileUpload(e) {
@@ -213,20 +251,22 @@ class FeezalSidebarViewer extends LitElement {
 
                     ${isTls ? html`
                         <div class="section-label">TLS</div>
-                        <div class="cert-row">
-                            <span>CA certificate</span>
-                            ${hasCa
-                                ? html`<span class="cert-badge ok">✓ active</span>`
-                                : html`<span class="cert-badge none">none</span>`}
-                        </div>
                         ${hasCa ? html`
-                            <div class="cert-actions">
-                                <sl-button size="small" variant="danger" ?loading="${this._certBusy}"
-                                    @click="${() => this._removeCert('ca')}">
-                                    Remove
-                                </sl-button>
+                            <div class="cert-info-row">
+                                <span class="cert-badge-ok">✓</span>
+                                <span class="cert-cn" title="${this._certStatus.caCn || ''}">
+                                    ${this._certStatus.caCn || 'CA certificate'}
+                                </span>
+                                <button class="cert-remove-btn" title="Remove CA certificate"
+                                    @click="${() => this.renderRoot.querySelector('#dlg-remove-ca').show()}">
+                                    ✕
+                                </button>
                             </div>
                         ` : html`
+                            <div class="cert-info-row">
+                                <span style="font-size:13px;color:var(--feezal-color,#333)">CA certificate</span>
+                                <span class="cert-badge-none">none</span>
+                            </div>
                             <div class="cert-actions">
                                 <sl-button size="small" ?loading="${this._certBusy}"
                                     @click="${() => this.renderRoot.querySelector('#ca-file-input').click()}">
@@ -300,6 +340,20 @@ class FeezalSidebarViewer extends LitElement {
                     </sl-input>
                 </sl-tab-panel>
             </sl-tab-group>
+
+            <!-- CA certificate removal confirmation dialog -->
+            <sl-dialog id="dlg-remove-ca" label="Remove CA certificate">
+                <p>Remove <strong>${this._certStatus?.caCn ? `\u201c${this._certStatus.caCn}\u201d` : 'the CA certificate'}</strong>?<br>
+                TLS connections to brokers signed by this CA will fail until a new certificate is uploaded.</p>
+                <sl-button slot="footer" variant="default"
+                    @click="${() => this.renderRoot.querySelector('#dlg-remove-ca').hide()}">
+                    Cancel
+                </sl-button>
+                <sl-button slot="footer" variant="danger" ?loading="${this._certBusy}"
+                    @click="${this._confirmRemoveCA}">
+                    Remove
+                </sl-button>
+            </sl-dialog>
         `;
     }
 

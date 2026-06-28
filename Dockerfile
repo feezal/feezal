@@ -29,7 +29,8 @@ LABEL org.opencontainers.image.title="feezal" \
 WORKDIR /app
 
 # git is required at runtime for per-site version history (A7).
-RUN apk add --no-cache git
+# openssl is required for CA certificate CN extraction (N8).
+RUN apk add --no-cache git openssl
 
 COPY --from=frontend-builder /build/ ./
 
