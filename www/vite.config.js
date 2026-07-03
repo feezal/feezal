@@ -68,6 +68,10 @@ export default defineConfig({
     build: {
         outDir: 'dist',
         emptyOutDir: true,
+        // Coverage builds (CI E2E): inline sourcemaps so the V8 coverage
+        // collected by the Playwright harness can be mapped back to src/
+        // offline (the captured script source carries its own map).
+        sourcemap: process.env.FEEZAL_COVERAGE ? 'inline' : false,
         rollupOptions: {
             input: {
                 editor: 'editor/index.html',

@@ -11,7 +11,8 @@
         "test": "vitest run",
         "test:coverage": "vitest run --coverage",
         "test:browser": "vitest run --config vitest.browser.config.mjs",
-        "test:e2e": "vitest run --config vitest.e2e.config.mjs"
+        "test:e2e": "vitest run --config vitest.e2e.config.mjs",
+        "coverage:e2e-report": "node scripts/e2e-coverage-report.mjs"
     },
     "author": "Sebastian Raff <hobbyquaker@gmail.com>",
     "license": "AGPL-3.0-only",
@@ -111,6 +112,7 @@
         "@vitest/browser-playwright": "^4.1.9",
         "@vitest/coverage-v8": "^4.1.9",
         "happy-dom": "^20.10.6",
+        "monocart-coverage-reports": "^2.12.12",
         "vite": "^6.4.3",
         "vite-plugin-monaco-editor": "^1.1.0",
         "vite-plugin-static-copy": "^4.1.1",

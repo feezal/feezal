@@ -3,14 +3,43 @@
  * dataDir, optionally an in-memory aedes MQTT broker, and headless Chromium.
  */
 import {createRequire} from 'module';
-import {mkdtemp, rm} from 'fs/promises';
+import {mkdtemp, rm, mkdir, writeFile} from 'fs/promises';
 import {tmpdir} from 'os';
 import {join, resolve, dirname} from 'path';
 import {fileURLToPath} from 'url';
 import {spawn} from 'child_process';
+import {randomUUID} from 'crypto';
 import net from 'net';
 import {chromium} from 'playwright-core';
 import {io as socketClient} from 'socket.io-client';
+
+// FEEZAL_COVERAGE: collect Chromium V8 JS coverage for every page and dump the
+// raw entries to coverage-e2e/raw/ on stopStack(). Requires a build made with
+// the same env var (inline sourcemaps). scripts/e2e-coverage-report.mjs turns
+// the dumps into lcov for Codecov.
+// The dumps live OUTSIDE coverage-e2e/ — monocart empties its outputDir on
+// generate and would delete them before a re-run.
+const collectCoverage = Boolean(process.env.FEEZAL_COVERAGE);
+const coverageRawDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'coverage-e2e-raw');
+
+async function trackPageCoverage(stack, page) {
+    // resetOnNavigation:false — tests reload pages (replay tests); keep counting.
+    await page.coverage.startJSCoverage({resetOnNavigation: false});
+    stack._coveragePages.add(page);
+    const originalClose = page.close.bind(page);
+    page.close = async (...args) => {
+        await harvestPageCoverage(stack, page);
+        return originalClose(...args);
+    };
+}
+
+async function harvestPageCoverage(stack, page) {
+    if (!stack._coveragePages.has(page)) return;
+    stack._coveragePages.delete(page);
+    try {
+        stack._coverageEntries.push(...await page.coverage.stopJSCoverage());
+    } catch { /* page already gone — its coverage is lost, not fatal */ }
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const repoRoot = resolve(__dirname, '..', '..');
@@ -61,6 +90,20 @@ export async function startStack() {
 
     stack.browser = await chromium.launch({headless: true});
     stack.context = await stack.browser.newContext({viewport: {width: 1600, height: 900}});
+
+    if (collectCoverage) {
+        stack._coveragePages = new Set();
+        stack._coverageEntries = [];
+        // Wrap newPage so every page a test opens is tracked from creation
+        // (scripts only run after the test navigates, so this is race-free).
+        const originalNewPage = stack.context.newPage.bind(stack.context);
+        stack.context.newPage = async (...args) => {
+            const page = await originalNewPage(...args);
+            await trackPageCoverage(stack, page);
+            return page;
+        };
+    }
+
     stack.page = await stack.context.newPage();
     stack.pageErrors = [];
     stack.page.on('pageerror', err => stack.pageErrors.push(err.message));
@@ -68,6 +111,18 @@ export async function startStack() {
 }
 
 export async function stopStack(stack) {
+    if (collectCoverage && stack._coveragePages) {
+        for (const page of [...stack._coveragePages]) {
+            await harvestPageCoverage(stack, page);
+        }
+        if (stack._coverageEntries.length > 0) {
+            await mkdir(coverageRawDir, {recursive: true});
+            await writeFile(
+                join(coverageRawDir, `e2e-${randomUUID()}.json`),
+                JSON.stringify(stack._coverageEntries)
+            );
+        }
+    }
     await stack.browser?.close();
     stack.serverProc?.kill('SIGKILL');
     await rm(stack.dataDir, {recursive: true, force: true});

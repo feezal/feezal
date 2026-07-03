@@ -8,5 +8,7 @@
 /www/viewer-src/index.html
 /server/coverage
 /www/coverage
+/www/coverage-e2e
+/www/coverage-e2e-raw
 /www/.vitest-attachments
 

@@ -90,11 +90,20 @@ jobs:
         env:
           FEEZAL_TEST_BROWSERS: chromium,firefox,webkit
 
+      # FEEZAL_COVERAGE: build with inline sourcemaps and collect Chromium V8
+      # coverage in the E2E harness (see www/test-e2e/harness.js).
       - name: Build editor + viewer bundle
         run: npm run build --prefix www
+        env:
+          FEEZAL_COVERAGE: '1'
 
       - name: E2E happy path
         run: npm run test:e2e --prefix www
+        env:
+          FEEZAL_COVERAGE: '1'
+
+      - name: E2E coverage report
+        run: npm run coverage:e2e-report --prefix www
 
       - name: Upload coverage report
         if: always()
@@ -110,3 +119,10 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: www/coverage/lcov.info
           flags: frontend
+
+      - name: Upload E2E coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: www/coverage-e2e/lcov.info
+          flags: e2e
