@@ -113,7 +113,7 @@ class FeezalElementMaterialInput extends FeezalElement {
         return html`
             <md-outlined-text-field
                 label="${this.label}"
-                value="${this._value}"
+                .value="${this._value}"
                 type="${this.type || 'text'}"
                 placeholder="${this.placeholder}"
                 suffix-text="${this.suffix}"
