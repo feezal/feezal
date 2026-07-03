@@ -126,3 +126,10 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: www/coverage-e2e/lcov.info
           flags: e2e
+
+      - name: Upload element coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: www/coverage-e2e/lcov-elements.info
+          flags: elements
