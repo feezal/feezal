@@ -297,4 +297,4 @@ class FeezalSidebarHistory extends LitElement {
 }
 
 customElements.define('feezal-sidebar-history', FeezalSidebarHistory);
-export {FeezalSidebarHistory};
+export {FeezalSidebarHistory, labelFor, relativeTime};
