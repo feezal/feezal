@@ -16,12 +16,13 @@ export default defineConfig({
             // A17 ratchet: this measures the happy-dom logic-unit layer only —
             // the big Lit UI files are exercised by the browser/E2E layers,
             // which v8 coverage doesn't see. Floors sit just below current
-            // values (10/7/7/11 at introduction). Raise, never lower.
+            // values (16/11/13/17 as of the connection/viewer/history-bar
+            // tests). Raise, never lower.
             thresholds: {
-                statements: 9,
-                branches: 6,
-                functions: 6,
-                lines: 9
+                statements: 15,
+                branches: 10,
+                functions: 12,
+                lines: 16
             }
         }
     }

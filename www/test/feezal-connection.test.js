@@ -1,6 +1,13 @@
 import {describe, it, expect, vi} from 'vitest';
+import {io} from 'socket.io-client';
 
 import '../src/feezal-connection.js';
+
+// The connectedCallback tests attach the element, which lazily imports the
+// feezal backend — that backend must not open a real socket.
+vi.mock('socket.io-client', () => ({
+    io: vi.fn(() => ({on: vi.fn(), emit: vi.fn()}))
+}));
 
 const FeezalConnection = customElements.get('feezal-connection');
 
@@ -167,5 +174,87 @@ describe('message fan-out', () => {
         el.connected = false;
         el.pub('a/b', 'on');
         expect(el.conn.publish).not.toHaveBeenCalled();
+    });
+});
+
+describe('connectedCallback backend wiring', () => {
+    async function attachConnection() {
+        const el = makeConnection();
+        document.body.append(el);
+        // The backend module loads via a lazy import; wait until it is wired.
+        await vi.waitFor(() => expect(el.conn).toBeTruthy());
+        return el;
+    }
+
+    it('creates the feezal backend by default and connects it', async () => {
+        const el = await attachConnection();
+        expect(el.conn.tagName.toLowerCase()).toBe('feezal-connection-feezal');
+        expect(el.shadowRoot.contains(el.conn)).toBe(true);
+        expect(io).toHaveBeenCalled();
+    });
+
+    it('flushes subscriptions queued before the element was upgraded', async () => {
+        const cb = vi.fn();
+        feezal._subQueue = [{topic: 'queued/topic', options: {}, callback: cb}];
+        const el = await attachConnection();
+        expect(feezal._subQueue).toBeNull();
+        expect(el.subscriptions).toHaveLength(1);
+        el._spreadMessage({topic: 'queued/topic', payload: '1'});
+        expect(cb).toHaveBeenCalled();
+    });
+
+    it('re-dispatches the backend "connected" event composed, with detail', async () => {
+        const el = await attachConnection();
+        let event;
+        el.addEventListener('connected', e => { event = e; });
+
+        el.conn.dispatchEvent(new CustomEvent('connected', {detail: {reconnect: 2}}));
+
+        expect(el.connected).toBe(true);
+        expect(event.bubbles).toBe(true);
+        expect(event.composed).toBe(true);
+        expect(event.detail).toEqual({reconnect: 2});
+    });
+
+    it('replays deduplicated subscriptions to the backend on connect', async () => {
+        const el = await attachConnection();
+        el.sub('a/b', () => {});
+        el.sub('a/b', () => {});
+        el.sub('c/#', () => {});
+        el.conn.subscribe = vi.fn();
+
+        el.conn.dispatchEvent(new CustomEvent('connected', {detail: {reconnect: 0}}));
+
+        expect(el.conn.subscribe).toHaveBeenCalledWith(['a/b', 'c/#']);
+    });
+
+    it('does not touch the backend on connect without subscriptions', async () => {
+        const el = await attachConnection();
+        el.conn.subscribe = vi.fn();
+        el.conn.dispatchEvent(new CustomEvent('connected', {detail: {reconnect: 0}}));
+        expect(el.conn.subscribe).not.toHaveBeenCalled();
+    });
+
+    it('clears connected on the backend "disconnected" event', async () => {
+        const el = await attachConnection();
+        const onDisconnected = vi.fn();
+        el.addEventListener('disconnected', onDisconnected);
+
+        el.conn.dispatchEvent(new CustomEvent('connected', {detail: {}}));
+        el.conn.dispatchEvent(new Event('disconnected'));
+
+        expect(el.connected).toBe(false);
+        expect(onDisconnected).toHaveBeenCalledTimes(1);
+    });
+
+    it('fans backend "message" events out to matching subscriptions', async () => {
+        const el = await attachConnection();
+        const cb = vi.fn();
+        el.sub('home/+/temp', cb);
+
+        const message = {topic: 'home/kitchen/temp', payload: '21.5', retain: true};
+        el.conn.dispatchEvent(new CustomEvent('message', {detail: message}));
+
+        expect(cb).toHaveBeenCalledWith(message);
     });
 });

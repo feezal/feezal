@@ -1,4 +1,4 @@
-import {describe, it, expect} from 'vitest';
+import {describe, it, expect, vi} from 'vitest';
 
 import '../src/feezal-view.js';
 
@@ -44,5 +44,43 @@ describe('feezal-view visibility', () => {
 
     it('defaults childPosition to absolute', () => {
         expect(makeView().childPosition).toBe('absolute');
+    });
+});
+
+describe('viewer addclass/removeclass subscriptions', () => {
+    function subscribedHandler(sub, topic) {
+        return sub.mock.calls.find(call => call[0] === topic)[1];
+    }
+
+    it('registers addclass/removeclass topics in the viewer and applies them', () => {
+        feezal.isEditor = false;
+        feezal.connection = {sub: vi.fn()};
+        const view = makeView('home');
+        view.subscribe = 'ctrl/home';
+        document.body.append(view);
+
+        expect(feezal.connection.sub).toHaveBeenCalledTimes(2);
+
+        subscribedHandler(feezal.connection.sub, 'ctrl/home/addclass')({payload: 'alert'});
+        expect(view.classList.contains('alert')).toBe(true);
+
+        subscribedHandler(feezal.connection.sub, 'ctrl/home/removeclass')({payload: 'alert'});
+        expect(view.classList.contains('alert')).toBe(false);
+    });
+
+    it('does not subscribe in the editor', () => {
+        feezal.isEditor = true;
+        feezal.connection = {sub: vi.fn()};
+        const view = makeView('home');
+        view.subscribe = 'ctrl/home';
+        document.body.append(view);
+        expect(feezal.connection.sub).not.toHaveBeenCalled();
+    });
+
+    it('does not subscribe without a subscribe topic', () => {
+        feezal.isEditor = false;
+        feezal.connection = {sub: vi.fn()};
+        document.body.append(makeView('home'));
+        expect(feezal.connection.sub).not.toHaveBeenCalled();
     });
 });

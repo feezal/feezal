@@ -331,4 +331,4 @@ class FeezalHistoryBar extends LitElement {
 }
 
 customElements.define('feezal-history-bar', FeezalHistoryBar);
-export {FeezalHistoryBar};
+export {FeezalHistoryBar, labelFor};
