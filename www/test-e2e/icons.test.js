@@ -76,7 +76,10 @@ describe('icon picker (N23)', () => {
         await iconInput().locator('input').fill('');
         const tiles = page.locator('feezal-sidebar-inspector-attributes .icon-tile');
         await expect.poll(() => tiles.count()).toBe(2);
-        await tiles.first().click();
+        // Lit re-creates the tile nodes on every sidebar render — under CI
+        // load Playwright's stability check can starve ('element is not
+        // stable' / 'detached'); click the resolved node programmatically.
+        await tiles.first().evaluate(el => el.click());
 
         await expect.poll(() => page.locator('feezal-element-material-icon-button')
             .getAttribute('icon')).toBe('testset:alpha');

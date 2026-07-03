@@ -88,7 +88,7 @@ describe('built-in icon packages in the editor', () => {
         const tile = page.locator('feezal-sidebar-inspector-attributes .icon-tile[title="mdi:sofa"]');
         await expect.poll(() => tile.count()).toBe(1);
         expect(await tile.locator('feezal-icon svg path').count()).toBe(1);
-        await tile.click();
+        await tile.evaluate(el => el.click());   // programmatic: tiles are re-created on Lit renders
         await expect.poll(() => page.locator('feezal-element-material-icon-button').first()
             .getAttribute('icon')).toBe('mdi:sofa');
         // The element itself renders the prefixed icon on the canvas
@@ -180,7 +180,7 @@ describe('basic-icon-value element', () => {
         const tile = page.locator('feezal-sidebar-inspector-attributes .icon-tile[title="knx-uf:fts_blade_s"]');
         await expect.poll(() => tile.count()).toBe(1);
         expect(await tile.locator('feezal-icon svg').count()).toBe(1);   // mid-step preview renders
-        await tile.click();
+        await tile.evaluate(t => t.click());   // programmatic: tiles are re-created on Lit renders
         await expect.poll(() => el().getAttribute('icon')).toBe('knx-uf:fts_blade_s');
     });
 
