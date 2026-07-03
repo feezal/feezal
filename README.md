@@ -28,6 +28,7 @@ Then open [http://localhost:3000/editor/](http://localhost:3000/editor/) and con
 - **MQTT support** — direct browser-to-broker WebSocket connection; no backend required for the viewer
 - **MQTT auto-discovery** — automatically detects devices published by zigbee2mqtt, ESPHome, and compatible bridges; one click pre-wires all topics and attributes
 - **Web Components element model** — every palette element is a standard Custom Element; the ecosystem is distributed as plain npm packages
+- **Components (composable elements)** — turn a selection of elements into a named, reusable component with typed parameters: build once, instantiate many times, edit centrally and every instance follows
 - **Multi-view dashboards** — organise your dashboard into multiple named views with instant switching
 - **Responsive layouts** — layout elements (flex containers, responsive/app-shell wrappers, navbars) build fluid dashboards that adapt to any screen size, beyond fixed absolute positioning
 - **Theme system** — swap the entire colour scheme at runtime via published theme packages
