@@ -4,7 +4,7 @@
 
 
 > [!WARNING]
-> This project is a work in progress. Expect incomplete documentation, bugs, missing features and rough edges. Feedback and bug reports via the issue tracker are very welcome. See [Roadmap](docs/ROADMAP.md) for what's already planned.
+> This project is a work in progress. Expect incomplete documentation, bugs, missing features and rough edges. Feedback and bug reports via the issue tracker are very welcome. See [Roadmap](docs/ROADMAP.md) for what's coming next.
 
 
 ---
