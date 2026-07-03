@@ -165,6 +165,12 @@ function injectPwaTags(html, {manifestUrl, appleTouchIconUrl, themeColor, swUrl,
     const head = [
         `<link rel="manifest" href="${manifestUrl}">`,
         `<meta name="theme-color" content="${themeColor || DEFAULT_THEME_COLOR}">`,
+        // iOS standalone PWAs: make the status-bar area transparent so the
+        // page paints behind the clock/dynamic island (together with
+        // viewport-fit=cover and feezal-site's safe-area padding) instead of
+        // showing a white bar above the view.
+        '<meta name="apple-mobile-web-app-capable" content="yes">',
+        '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">',
         appleTouchIconUrl ? `<link rel="apple-touch-icon" href="${appleTouchIconUrl}">` : '',
     ].filter(Boolean).join('\n');
     const guard = httpGuard ? "location.protocol.startsWith('http') && " : '';

@@ -23,7 +23,12 @@ class FeezalSite extends LitElement {
             width: 100%;
             height: 100%;
             overflow: auto;
-            padding: 0;
+            /* Safe-area insets (iOS notch/dynamic island/home indicator with
+               viewport-fit=cover): the site's own background paints the inset
+               strips while the views stay clear of the system UI. 0 on
+               devices without insets, so desktop/editor are unaffected. */
+            padding: env(safe-area-inset-top) env(safe-area-inset-right)
+                     env(safe-area-inset-bottom) env(safe-area-inset-left);
             margin: 0;
             /* background synced at runtime to the current view's background;
                background-attachment:local extends the color across the full
@@ -159,6 +164,14 @@ class FeezalSite extends LitElement {
                 this.style.setProperty('--feezal-canvas-bg', bg);
             } else {
                 this.style.removeProperty('--feezal-canvas-bg');
+            }
+
+            // Viewer: mirror the view background to the document so the iOS
+            // status-bar area (black-translucent + viewport-fit=cover) and
+            // overscroll bounce show the view's colour instead of white.
+            if (!feezal.isEditor) {
+                document.documentElement.style.background = bg;
+                document.body.style.background = bg;
             }
         };
         sync();

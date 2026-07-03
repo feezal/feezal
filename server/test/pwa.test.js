@@ -97,6 +97,9 @@ describe('buildServiceWorker() / injectPwaTags()', () => {
         expect(out).toContain('<link rel="manifest" href="manifest.webmanifest">');
         expect(out).toContain('<meta name="theme-color" content="#111111">');
         expect(out).toContain('<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">');
+        // iOS standalone: transparent status bar so the page paints behind it
+        expect(out).toContain('<meta name="apple-mobile-web-app-capable" content="yes">');
+        expect(out).toContain('<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">');
         expect(out).toContain("navigator.serviceWorker.register('sw.js')");
         expect(out).not.toContain('location.protocol');
     });

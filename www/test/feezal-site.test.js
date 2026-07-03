@@ -84,3 +84,27 @@ describe('_syncViewBackground()', () => {
         expect(site.style.getPropertyValue('--feezal-canvas-bg')).toBe('');
     });
 });
+
+describe('_syncViewBackground() — document mirroring for iOS safe areas', () => {
+    it('mirrors the view background to html/body in the viewer', () => {
+        feezal.isEditor = false;
+        const site = document.createElement('feezal-site');
+        feezal.views = makeViews('home');
+        feezal.views[0].style.background = 'rgb(4, 5, 6)';
+        site.view = 'home';
+        site._syncViewBackground();
+        expect(document.body.style.background).toContain('rgb(4, 5, 6)');
+        expect(document.documentElement.style.background).toContain('rgb(4, 5, 6)');
+        document.documentElement.style.background = '';
+    });
+
+    it('does not touch the document in the editor', () => {
+        feezal.isEditor = true;
+        const site = document.createElement('feezal-site');
+        feezal.views = makeViews('home');
+        feezal.views[0].style.background = 'rgb(7, 8, 9)';
+        site.view = 'home';
+        site._syncViewBackground();
+        expect(document.body.style.background).not.toContain('rgb(7, 8, 9)');
+    });
+});
