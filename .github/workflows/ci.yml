@@ -52,6 +52,13 @@ jobs:
           path: server/coverage/
           if-no-files-found: ignore
 
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: server/coverage/lcov.info
+          flags: backend
+
   frontend:
     name: Frontend (logic + component + E2E)
     runs-on: ubuntu-latest
@@ -96,3 +103,10 @@ jobs:
           name: frontend-coverage
           path: www/coverage/
           if-no-files-found: ignore
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: www/coverage/lcov.info
+          flags: frontend

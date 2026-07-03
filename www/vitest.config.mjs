@@ -10,6 +10,8 @@ export default defineConfig({
         setupFiles: ['test/setup.js'],
         coverage: {
             provider: 'v8',
+            // lcov for the Codecov upload, text/html for humans
+            reporter: ['text', 'html', 'lcov'],
             include: ['src/**/*.js'],
             // A17 ratchet: this measures the happy-dom logic-unit layer only —
             // the big Lit UI files are exercised by the browser/E2E layers,
