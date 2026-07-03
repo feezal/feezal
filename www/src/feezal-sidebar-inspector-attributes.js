@@ -5,6 +5,9 @@ import '@shoelace-style/shoelace/dist/components/textarea/textarea.js';
 import '@shoelace-style/shoelace/dist/components/select/select.js';
 import '@shoelace-style/shoelace/dist/components/option/option.js';
 import '@shoelace-style/shoelace/dist/components/checkbox/checkbox.js';
+import './feezal-template-editor.js';
+import MATERIAL_ICONS from './material-design-icons.js';
+import {iconSets} from './feezal-icon.js';
 
 /**
  * feezal-editable-list — a sortable list of key/value rows for attribute editing.
@@ -77,6 +80,87 @@ window.customElements.define('feezal-editable-list', FeezalEditableList);
 // ---------------------------------------------------------------------------
 
 /**
+ * Variant families: base names for which every non-zero `${base}_${step}`
+ * variant exists. The ZERO step is optional — upstream is inconsistent
+ * there: some knx-uf families spell it `_00`, others `_0`, and the shutter/
+ * garage families have no zero variant at all (basic-icon-value falls back
+ * to the nearest available step). Pure — exported for tests.
+ *
+ * @param {string[]|Set<string>} names  a set's icon names
+ * @param {number[]} steps              e.g. [0, 10, …, 100]
+ * @returns {string[]} sorted family base names
+ */
+export function iconVariantBases(names, steps) {
+    const all = names instanceof Set ? names : new Set(names);
+    const required = steps.filter(step => step !== 0);
+    const probe = `_${required[0]}`;   // candidates derived from the first required step
+    const bases = new Set();
+    for (const name of all) {
+        if (!name.endsWith(probe)) continue;
+        const base = name.slice(0, -probe.length);
+        if (bases.has(base)) continue;
+        if (required.every(step => all.has(`${base}_${step}`))) bases.add(base);
+    }
+    return [...bases].sort();
+}
+
+/**
+ * N23: compute the icon picker's grouped matches across icon sets.
+ * Pure — exported for tests.
+ *
+ * @param {object} opts
+ * @param {string[]} opts.materialNames  built-in Material names
+ * @param {Map}      opts.sets           registry Map(setName → {names, …})
+ * @param {string}   opts.activeSet      'all' | 'material' | a registered set name
+ * @param {string}   opts.query          raw typed text; a "set:" prefix scopes to that set
+ * @param {number}   [opts.cap=90]       max tiles per view
+ * @param {number[]} [opts.variantSteps] variant-family mode: offer only base
+ *          names whose `${base}_${step}` variants all exist (iconVariantBases);
+ *          each flat entry then carries a `preview` name (the mid-step variant)
+ *          while `value` stays the family base.
+ * @returns {{activeSet: string, groups: Array<{set: string, names: string[]}>,
+ *            flat: Array<{set: string, name: string, value: string, preview?: string}>}}
+ *          value is the attribute value to store: bare for Material, set:name otherwise.
+ */
+export function iconPickerGroups({materialNames, sets, activeSet, query, cap = 90, variantSteps = null}) {
+    const setNames = ['material', ...sets.keys()];
+    let q = String(query || '').trim().toLowerCase();
+
+    // Typing a "set:" prefix scopes the search to that set.
+    const colon = q.indexOf(':');
+    if (colon > -1 && setNames.includes(q.slice(0, colon))) {
+        activeSet = q.slice(0, colon);
+        q = q.slice(colon + 1);
+    }
+    if (activeSet !== 'all' && !setNames.includes(activeSet)) {
+        activeSet = 'material';
+    }
+
+    const namesOf = set => set === 'material' ? materialNames : (sets.get(set)?.names ?? []);
+    const listOf = set => variantSteps ? iconVariantBases(namesOf(set), variantSteps) : namesOf(set);
+    const valueOf = (set, name) => set === 'material' ? name : `${set}:${name}`;
+    const midStep = variantSteps ? variantSteps[Math.floor(variantSteps.length / 2)] : null;
+
+    const groups = [];
+    const flat = [];
+    let left = cap;
+    for (const set of (activeSet === 'all' ? setNames : [activeSet])) {
+        if (left <= 0) break;
+        const all = listOf(set);
+        const names = (q ? all.filter(n => n.includes(q)) : all).slice(0, left);
+        if (names.length === 0) continue;
+        left -= names.length;
+        groups.push({set, names});
+        names.forEach(name => flat.push({
+            set, name,
+            value: valueOf(set, name),
+            ...(variantSteps ? {preview: valueOf(set, `${name}_${midStep}`)} : {})
+        }));
+    }
+    return {activeSet, groups, flat};
+}
+
+/**
  * feezal-sidebar-inspector-attributes — attribute editor for selected elements.
  */
 class FeezalSidebarInspectorAttributes extends LitElement {
@@ -88,7 +172,11 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         _completionCursor:  {state: true},  // keyboard-navigation cursor in list
         _helpTip:           {state: true},  // custom tooltip: { text, x, y } | null
         _discoveryMatch:    {state: true},  // discovered entity matching a topic field | null
-        _discoveryFilter:   {state: true}   // search text for the discovery picker
+        _discoveryFilter:   {state: true},  // search text for the discovery picker
+        _iconIdx:           {state: true},  // item index with open icon picker (-1 = none)
+        _iconQuery:         {state: true},  // current search text in the icon picker
+        _iconSet:           {state: true},  // N23: active set chip ('all' | 'material' | registered set)
+        _iconCursor:        {state: true}   // N23: keyboard cursor in the icon grid (-1 = none)
     };
 
     static styles = css`
@@ -177,6 +265,62 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             border: 1px solid var(--feezal-border, #ccc); border-radius: 3px;
             cursor: pointer; background: var(--feezal-bg, #fff);
         }
+        /* ── Icon attribute picker (N19) ───────────────────────────────── */
+        .material-icons {
+            font-family: 'Material Icons';
+            font-weight: normal; font-style: normal;
+            font-size: inherit; line-height: 1; letter-spacing: normal; text-transform: none;
+            display: inline-block; white-space: nowrap; word-wrap: normal; direction: ltr;
+            -webkit-font-feature-settings: 'liga'; font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
+        }
+        .icon-wrap { position: relative; }
+        .icon-wrap sl-input span[slot=prefix] { font-size: 18px; opacity: 0.85; }
+        .icon-wrap sl-input feezal-icon[slot=prefix] { font-size: 18px; opacity: 0.85; }
+        .icon-pop {
+            position: absolute; top: 100%; left: 0; right: 0; z-index: 9999;
+            margin-top: 2px;
+            background: var(--feezal-bg, #fff); border: 1px solid var(--feezal-border, #ccc);
+            border-radius: 4px; box-shadow: 0 4px 14px rgba(0,0,0,.18);
+            max-height: 260px; display: flex; flex-direction: column;
+        }
+        /* N23: set-chooser chip row above the grid */
+        .icon-sets {
+            display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 6px 4px;
+            border-bottom: 1px solid var(--feezal-border, #eee);
+        }
+        .icon-set-chip {
+            border: 1px solid var(--feezal-border, #ccc); background: none;
+            color: var(--feezal-color, #333); border-radius: 10px;
+            font-size: 11px; padding: 2px 8px; cursor: pointer; line-height: 1.4;
+        }
+        .icon-set-chip:hover { border-color: var(--sl-color-primary-500, #0ea5e9); }
+        .icon-set-chip.active {
+            background: var(--sl-color-primary-600, #0284c7); border-color: var(--sl-color-primary-600, #0284c7);
+            color: #fff;
+        }
+        .icon-grid {
+            padding: 6px; overflow-y: auto;
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 2px;
+        }
+        .icon-set-header {
+            grid-column: 1 / -1; font-size: 10px; text-transform: uppercase;
+            letter-spacing: 0.06em; opacity: 0.55; padding: 4px 2px 1px;
+            color: var(--feezal-color, #333);
+        }
+        .icon-empty {
+            padding: 10px 8px; font-size: 12px; opacity: 0.55; font-style: italic;
+            color: var(--feezal-color, #333);
+        }
+        .icon-tile {
+            display: flex; align-items: center; justify-content: center;
+            width: 100%; height: 34px; border: none; background: none; cursor: pointer;
+            border-radius: 4px; color: var(--feezal-color, #333);
+        }
+        .icon-tile:hover { background: var(--sl-color-primary-600, #0284c7); color: #fff; }
+        .icon-tile.active { background: rgba(2,132,199,0.18); }
+        .icon-tile.cursor { outline: 2px solid var(--sl-color-primary-500, #0ea5e9); outline-offset: -2px; }
+        .icon-tile .material-icons, .icon-tile feezal-icon { font-size: 20px; }
         /* ── Auto-discovery banner (N12) ───────────────────────────────── */
         .discovery-banner {
             display: flex; align-items: center; gap: 6px;
@@ -236,11 +380,24 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         this._discoveryMatch   = null;
         this._discoveryFilter  = '';
         this.__discoveryEntities = []; // non-reactive cache
+        this._iconIdx          = -1;
+        this._iconQuery        = '';
+        this._iconTimer        = null;
+        this._iconSet          = localStorage.getItem('feezal-icon-set') || 'material';
+        this._iconCursor       = -1;
     }
 
     connectedCallback() {
         super.connectedCallback();
         this._fetchDiscoveryEntities();
+        // N23: re-render when an icon-set package registers after load.
+        this._onIconSetsChanged = () => this.requestUpdate();
+        document.addEventListener('feezal-iconsets-changed', this._onIconSetsChanged);
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        document.removeEventListener('feezal-iconsets-changed', this._onIconSetsChanged);
     }
 
     updated(changed) {
@@ -395,6 +552,18 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         }
 
         if (elem.textarea) {
+            // If the attribute has editor:true, use the Monaco-backed template editor.
+            if (elem.editor) {
+                return html`
+                    <feezal-template-editor
+                        .label="${label}"
+                        .value="${mixed ? '' : (value || '')}"
+                        .variables="${elem.variables || ['msg']}"
+                        .darkMode="${window.feezal?.app?._darkMode ?? false}"
+                        @feezal-change="${e => this._change(e.detail.value, idx, true)}">
+                    </feezal-template-editor>
+                `;
+            }
             return html`
                 <sl-textarea .label="${labelAttr}" size="small" rows="6"
                     autocomplete="off"
@@ -430,6 +599,89 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                         title="Pick colour"
                         .value="${this._toCssColorHex(mixed ? '' : value)}"
                         @input="${e => this._change(e.target.value, idx, true)}">
+                </div>
+            `;
+        }
+
+        if (elem.icon) {
+            const open = this._iconIdx === idx;
+            const registered = [...iconSets().keys()];
+            const multiSet = registered.length > 0;
+            const variantSteps = elem.iconVariants || null;
+
+            // Variant-family mode (e.g. basic-icon-value): only sets that
+            // actually contain complete families get a chip, and the
+            // persisted chip falls back to the first set that qualifies.
+            const namesOfSet = set => set === 'material' ? MATERIAL_ICONS : (iconSets().get(set)?.names ?? []);
+            const eligibleSets = variantSteps && open
+                ? ['material', ...registered].filter(set => iconVariantBases(namesOfSet(set), variantSteps).length > 0)
+                : ['material', ...registered];
+            let wantedSet = multiSet ? this._iconSet : 'material';
+            if (variantSteps && wantedSet !== 'all' && !eligibleSets.includes(wantedSet)) {
+                wantedSet = eligibleSets[0] ?? 'all';
+            }
+
+            const {activeSet, groups, flat} = open
+                ? iconPickerGroups({
+                    materialNames: MATERIAL_ICONS,
+                    sets: iconSets(),
+                    activeSet: wantedSet,
+                    query: this._iconQuery,
+                    variantSteps
+                })
+                : {activeSet: this._iconSet, groups: [], flat: []};
+            const chips = multiSet ? ['all', ...eligibleSets] : [];
+            let tileIndex = -1;
+            return html`
+                <div class="icon-wrap">
+                    <sl-input .label="${labelAttr}" size="small"
+                        autocomplete="off"
+                        .value="${mixed ? '' : (value ?? '')}"
+                        placeholder="${mixed ? '— varies —' : 'icon name'}"
+                        @sl-focus="${() => this._openIconPicker(idx, value)}"
+                        @sl-input="${e => { this._iconQuery = e.target.value; this._iconIdx = idx; this._iconCursor = -1; }}"
+                        @sl-blur="${() => this._scheduleCloseIcon(idx)}"
+                        @sl-change="${e => this._change(e.target.value, idx, true)}"
+                        @keydown="${e => this._iconKeydown(e, idx, flat)}">
+                        ${labelSlot}
+                        ${value && !mixed ? html`<feezal-icon slot="prefix" name="${value}"></feezal-icon>` : ''}
+                    </sl-input>
+                    ${open && (groups.length || chips.length) ? html`
+                        <div class="icon-pop" @mousedown="${e => e.preventDefault()}">
+                            ${chips.length ? html`
+                                <div class="icon-sets">
+                                    ${chips.map(set => html`
+                                        <button class="icon-set-chip ${set === activeSet ? 'active' : ''}"
+                                            @click="${() => this._selectIconSet(set)}">${set === 'all' ? 'All' : set}</button>
+                                    `)}
+                                </div>
+                            ` : ''}
+                            ${groups.length === 0 ? html`
+                                <div class="icon-empty">no matching icons</div>
+                            ` : ''}
+                            <div class="icon-grid">
+                                ${groups.map(group => html`
+                                    ${activeSet === 'all' && chips.length ? html`
+                                        <div class="icon-set-header">${group.set}</div>
+                                    ` : ''}
+                                    ${group.names.map(() => {
+                                        tileIndex++;
+                                        const entry = flat[tileIndex];
+                                        const isCursor = tileIndex === this._iconCursor;
+                                        return html`
+                                            <button class="icon-tile ${entry.value === value ? 'active' : ''} ${isCursor ? 'cursor' : ''}"
+                                                title="${entry.value}"
+                                                @click="${() => this._selectIcon(entry.value, idx)}">
+                                                ${group.set === 'material' && !entry.preview
+                                                    ? html`<span class="material-icons">${entry.name}</span>`
+                                                    : html`<feezal-icon name="${entry.preview ?? entry.value}"></feezal-icon>`}
+                                            </button>
+                                        `;
+                                    })}
+                                `)}
+                            </div>
+                        </div>
+                    ` : ''}
                 </div>
             `;
         }
@@ -558,6 +810,65 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         }, 200);
     }
 
+    // ── Icon picker (N19) ──────────────────────────────────────────────────────
+    _openIconPicker(idx, value) {
+        this._iconIdx   = idx;
+        this._iconQuery = value || '';
+    }
+
+    _selectIcon(name, idx) {
+        clearTimeout(this._iconTimer);
+        this._iconIdx    = -1;
+        this._iconQuery  = '';
+        this._iconCursor = -1;
+        this._change(name, idx, true);
+    }
+
+    /** N23: switch the active set chip; persisted so the popup reopens on it. */
+    _selectIconSet(set) {
+        this._iconSet = set;
+        this._iconCursor = -1;
+        try {
+            localStorage.setItem('feezal-icon-set', set);
+        } catch { /* quota — non-fatal */ }
+    }
+
+    /** N23: keyboard navigation in the icon grid (cursor + Enter/Escape). */
+    _iconKeydown(e, idx, flat) {
+        if (this._iconIdx !== idx || flat.length === 0) return;
+        switch (e.key) {
+            case 'ArrowRight':
+            case 'ArrowDown':
+                this._iconCursor = Math.min(this._iconCursor + 1, flat.length - 1);
+                e.preventDefault();
+                break;
+            case 'ArrowLeft':
+            case 'ArrowUp':
+                this._iconCursor = Math.max(this._iconCursor - 1, -1);
+                e.preventDefault();
+                break;
+            case 'Enter':
+                if (this._iconCursor >= 0 && flat[this._iconCursor]) {
+                    this._selectIcon(flat[this._iconCursor].value, idx);
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                break;
+            case 'Escape':
+                this._iconIdx = -1;
+                this._iconCursor = -1;
+                e.stopPropagation();
+                break;
+        }
+    }
+
+    _scheduleCloseIcon(idx) {
+        clearTimeout(this._iconTimer);
+        this._iconTimer = setTimeout(() => {
+            if (this._iconIdx === idx) this._iconIdx = -1;
+        }, 150);
+    }
+
     _change(newValue, idx, applyImmediately) {
         const item  = this.items[idx];
         const attr  = item.attrName || item.label;  // attrName for attribute ops, label as fallback
@@ -642,6 +953,15 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         }
 
         const el = this.selectedElems[0];
+
+        // U32: component instances — the inspector is driven by the template's
+        // feezal-params metadata, not by class metadata. Stamped children are
+        // never editable here (strict no-override; divergence = Detach).
+        if (el.localName === 'feezal-component') {
+            this._rebuildComponentItems(el);
+            return;
+        }
+
         const tagName = el.name ? 'feezal-view' : el.localName;
         const cls = window.customElements.get(tagName);
         if (!cls || !cls.feezal || !cls.feezal.attributes) {
@@ -697,7 +1017,9 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                 && (attrSpec.type === 'mqttTopic'
                     || attrName.toLowerCase().includes('topic')
                     || attrName === 'subscribe' || attrName === 'publish');
-            console.debug('[feezal:attrs]', tagName, attrName, '→ isBool:', isBool, 'isColor:', isColor, 'isTopic:', isTopic, 'options:', options);
+            // 4. Icon: explicit ({type:'icon'} / {iconPicker:true}) OR any attribute named icon* (N19)
+            const isIcon = !isBool && !isColor && !isTopic && !options && !attrSpec.textarea && !attrSpec.list
+                && (attrSpec.iconPicker || attrSpec.type === 'icon' || /^icon(-|$)/i.test(attrName));
 
             // Read value from ALL selected elements and detect mixed state.
             const vals = this.selectedElems.map(e => {
@@ -722,20 +1044,24 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                 half,
                 invalid: false,
                 elem: {
-                    input: !options && !attrSpec.textarea && !isBool && !attrSpec.list && !isColor && !isTopic,
+                    input: !options && !attrSpec.textarea && !isBool && !attrSpec.list && !isColor && !isTopic && !isIcon,
                     inputType,
                     dropdown: Boolean(options),
                     options,
                     textarea: Boolean(attrSpec.textarea),
+                    editor: Boolean(attrSpec.editor),
+                    variables: attrSpec.variables || [],
                     checkbox: isBool,
                     color: isColor,
                     mqttTopic: isTopic,
+                    icon: isIcon,
                     list: Boolean(attrSpec.list),
                     columns: attrSpec.columns,
                     tooltip: attrSpec.tooltip,
                     help: attrSpec.help || '',
                     template: Boolean(attrSpec.template),
                     validator: attrSpec.validator,
+                    iconVariants: attrSpec.iconVariants,
                     min: attrSpec.min,
                     max: attrSpec.max,
                     step: attrSpec.step
@@ -763,6 +1089,84 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                 }
             }];
         }
+    }
+
+    /**
+     * U32: build inspector items for feezal-component instances from the
+     * template's feezal-params. The declared type maps onto the existing
+     * typed controls (mqttTopic → topic autocomplete, color → picker, …).
+     * Multi-select works when all selected instances are the same component.
+     */
+    _rebuildComponentItems(el) {
+        const componentName = el.getAttribute('name');
+        const sameComponent = this.selectedElems.every(e =>
+            e.localName === 'feezal-component' && e.getAttribute('name') === componentName);
+        const params = sameComponent ? (el.params || {}) : {};
+
+        this.items = Object.entries(params).map(([paramName, spec]) => {
+            const type = spec.type || 'string';
+            const isColor = type === 'color';
+            const isTopic = type === 'mqttTopic';
+            const isIcon = type === 'icon';
+            // Substitution is textual, so boolean params are edited as an
+            // explicit true/false dropdown rather than a checkbox.
+            const options = type === 'select' ? (spec.options || [])
+                : (type === 'boolean' ? ['true', 'false'] : null);
+            const fallback = spec.default === undefined ? '' : String(spec.default);
+
+            const vals = this.selectedElems.map(e => e.getAttribute(paramName) ?? fallback);
+            const mixed = this.selectedElems.length > 1 && vals.some(v => v !== vals[0]);
+
+            return {
+                label: paramName,
+                attrName: paramName,
+                value: mixed ? null : vals[0],
+                mixed,
+                half: false,
+                invalid: false,
+                elem: {
+                    input: !options && !isColor && !isTopic && !isIcon,
+                    inputType: type === 'number' ? 'number' : 'text',
+                    dropdown: Boolean(options),
+                    options,
+                    textarea: false,
+                    editor: false,
+                    variables: [],
+                    checkbox: false,
+                    color: isColor,
+                    mqttTopic: isTopic,
+                    icon: isIcon,
+                    list: false,
+                    columns: undefined,
+                    tooltip: undefined,
+                    help: spec.label || '',
+                    template: false,
+                    validator: undefined,
+                    min: undefined,
+                    max: undefined,
+                    step: undefined
+                }
+            };
+        });
+
+        // Locked checkbox — same as for regular elements.
+        const lockedVals = this.selectedElems.map(e => e.hasAttribute('locked'));
+        const lockedMixed = this.selectedElems.length > 1 && lockedVals.some(v => v !== lockedVals[0]);
+        this.items = [...this.items, {
+            label: 'locked',
+            attrName: 'locked',
+            value: lockedMixed ? false : lockedVals[0],
+            mixed: lockedMixed,
+            half: false,
+            invalid: false,
+            elem: {
+                input: false, inputType: 'text', dropdown: false, options: null,
+                textarea: false, checkbox: true, color: false, mqttTopic: false, list: false,
+                columns: undefined, tooltip: undefined,
+                help: 'Prevent this element from being moved or resized in the editor',
+                template: false, validator: undefined, min: undefined, max: undefined, step: undefined
+            }
+        }];
     }
 
     _makeTextItem(el, attrName) {
@@ -868,7 +1272,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
     _discoveryOptionLabel(entity) {
         const cfg = entity.config || {};
         const topic = cfg.state_topic || cfg.position_topic || cfg.percentage_state_topic ||
-            cfg.current_temperature_topic || cfg.temperature_state_topic || cfg.command_topic || '';
+            cfg.current_temperature_topic || cfg.command_topic || '';
         return topic || entity.name || entity.discovery_id;
     }
 
@@ -958,21 +1362,19 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                     const list = Array.isArray(raw) ? raw : [raw];
                     value = list.map(m => modeMap[m]).find(Boolean) || 'brightness';
                 } else if (spec.transform === 'valueTemplateToPath') {
-                    // Convert a HA value_template to a feezal message-property path.
-                    // Handles both simple "{{ value_json.X }}" and complex templates
-                    // like "{{ dict[value_json.fan_mode] | default(...) }}".
-                    const simple = /\{\{\s*value_json\.(\w+)\s*\}\}/.exec(String(raw));
-                    const any    = /value_json\.(\w+)/.exec(String(raw));
-                    const m = simple || any;
-                    if (!m) continue; // no value_json reference — leave attribute at default
+                    // Convert a HA value_template like "{{ value_json.state }}" to
+                    // a feezal message-property path like "payload.state".
+                    const m = /\{\{\s*value_json\.(\w+)\s*\}\}/.exec(String(raw));
+                    if (!m) continue; // complex/unsupported template — leave attribute at default
                     value = 'payload.' + m[1];
                 }
             }
             el.setAttribute(attrName, String(value));
-            // alsoSet: unconditionally set additional attributes alongside the main one
+            // alsoSet — apply companion attributes (e.g. switch colour-temp unit to
+            // mired when mired discovery values are mapped).
             if (typeof spec === 'object' && spec.alsoSet) {
-                for (const [sideAttr, sideVal] of Object.entries(spec.alsoSet)) {
-                    el.setAttribute(sideAttr, String(sideVal));
+                for (const [k, v] of Object.entries(spec.alsoSet)) {
+                    el.setAttribute(k, String(v));
                 }
             }
         }

@@ -1,7 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import '@material/web/fab/fab.js';
-import '@material/web/icon/icon.js';
 
 class FeezalElementMaterialFab extends FeezalElement {
     static get feezal() {
@@ -42,10 +41,21 @@ class FeezalElementMaterialFab extends FeezalElement {
             justify-content: center;
             box-sizing: border-box;
             --feezal-fab-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
-            --md-sys-color-primary: var(--feezal-fab-color);
-            --md-sys-color-on-primary: #fff;
-            --md-sys-color-primary-container: var(--sl-color-primary-100, #e0f2fe);
-            --md-sys-color-on-primary-container: var(--sl-color-primary-700, #0369a1);
+            /*
+             * B13: md-fab resolves its fill from the component-level container
+             * tokens (per variant), not directly from the sys tokens. Set them
+             * all so the exposed --feezal-fab-color (and the active feezal theme)
+             * always take effect regardless of the selected variant, with a white
+             * icon for contrast.
+             */
+            --md-fab-container-color:           var(--feezal-fab-color);
+            --md-fab-primary-container-color:   var(--feezal-fab-color);
+            --md-fab-secondary-container-color: var(--feezal-fab-color);
+            --md-fab-tertiary-container-color:  var(--feezal-fab-color);
+            --md-fab-icon-color:                #fff;
+            --md-fab-primary-icon-color:        #fff;
+            --md-fab-secondary-icon-color:      #fff;
+            --md-fab-tertiary-icon-color:       #fff;
         }
         .editor-ph {
             display: flex;
@@ -81,9 +91,6 @@ class FeezalElementMaterialFab extends FeezalElement {
     }
 
     render() {
-        if (feezal.isEditor) {
-            return html`<div class="editor-ph">${this.icon || 'add'}${this.label ? html` <span>${this.label}</span>` : ''}</div>`;
-        }
         return html`
             <md-fab
                 size="${this.size || 'medium'}"
@@ -91,7 +98,7 @@ class FeezalElementMaterialFab extends FeezalElement {
                 label="${this.label || ''}"
                 ?disabled="${this.disabled}"
                 @click="${this._onClick}">
-                <md-icon slot="icon">${this.icon || 'add'}</md-icon>
+                <feezal-icon slot="icon" name="${this.icon || 'add'}"></feezal-icon>
             </md-fab>`;
     }
 }

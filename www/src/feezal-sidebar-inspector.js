@@ -11,6 +11,105 @@ import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
 import './feezal-sidebar-inspector-styles.js';
 import './feezal-sidebar-inspector-attributes.js';
 
+// U32: everything the canvas machinery treats as a first-class element —
+// regular feezal elements plus component instances. Stamped children inside a
+// <feezal-component> are direct children of the instance (not the view), so
+// they are never enumerated or wired.
+const isCanvasElement = el =>
+    Boolean(el.localName) && (el.localName.startsWith('feezal-element-') || el.localName === 'feezal-component');
+
+// U33: canvas stacking is DOM order, period. DragSelect writes cumulative
+// inline z-index junk on every selection/drag (+1/-1 per add/remove, 9999
+// during drags) that would pollute saved sites and silently defeat DOM-order
+// stacking. Live on the canvas an injected !important rule neutralizes any
+// inline z-index (see the editor style below); at save time this helper
+// removes it from the serialized clone so views.html stays clean. z-index on
+// canvas elements is editor-managed — hand-set values do not survive a save.
+export function stripCanvasZIndex(root) {
+    root.querySelectorAll('.feezal-editable').forEach(el => {
+        el.style.zIndex = '';
+    });
+}
+
+// ── U33: element stacking order — pure DOM-order helpers ───────────────────
+// Stacking is DOM sibling order (no z-index): a later sibling paints on top.
+// Only .feezal-editable siblings count; non-element nodes (the U25
+// <style id="feezal-classes"> block, text nodes) never paint and are skipped.
+// Exported for tests.
+
+/** Editable siblings of a view, in DOM (= paint) order. */
+export function stackingSiblings(view) {
+    return [...view.children].filter(el => el.classList.contains('feezal-editable'));
+}
+
+/** The selection in DOM order, restricted to editable elements of the view. */
+function _selectionInDomOrder(view, elements) {
+    const siblings = stackingSiblings(view);
+    return siblings.filter(el => elements.includes(el));
+}
+
+/**
+ * What the current selection can do — drives menu enable/disable.
+ * front/back are enabled unless the selection already IS the contiguous
+ * tail/head of the editable siblings; forward/backward need a non-selected
+ * editable sibling beyond the selection's last/first element.
+ */
+export function stackingState(view, elements) {
+    const siblings = stackingSiblings(view);
+    const selection = _selectionInDomOrder(view, elements);
+    if (selection.length === 0 || selection.length === siblings.length) {
+        return {canFront: false, canBack: false, canForward: false, canBackward: false};
+    }
+    const lastIdx = siblings.indexOf(selection[selection.length - 1]);
+    const firstIdx = siblings.indexOf(selection[0]);
+    const canForward = siblings.slice(lastIdx + 1).some(el => !selection.includes(el));
+    const canBackward = siblings.slice(0, firstIdx).some(el => !selection.includes(el));
+    const isTail = siblings.slice(-selection.length).every(el => selection.includes(el));
+    const isHead = siblings.slice(0, selection.length).every(el => selection.includes(el));
+    return {canFront: !isTail, canBack: !isHead, canForward, canBackward};
+}
+
+/**
+ * Reorder the selected elements within their view.
+ * @param {'front'|'back'|'forward'|'backward'} direction
+ * @returns {boolean} whether anything moved
+ *
+ * Multi-selections move as a block preserving their relative order;
+ * forward/backward step across ONE non-selected editable sibling (the
+ * obstacle is moved across the selection, so one step = one paint layer).
+ */
+export function reorderElements(view, elements, direction) {
+    const state = stackingState(view, elements);
+    const selection = _selectionInDomOrder(view, elements);
+    const siblings = stackingSiblings(view);
+
+    switch (direction) {
+        case 'front':
+            if (!state.canFront) return false;
+            selection.forEach(el => view.append(el));
+            return true;
+        case 'back':
+            if (!state.canBack) return false;
+            [...selection].reverse().forEach(el => view.prepend(el));
+            return true;
+        case 'forward': {
+            if (!state.canForward) return false;
+            const lastIdx = siblings.indexOf(selection[selection.length - 1]);
+            const obstacle = siblings.slice(lastIdx + 1).find(el => !selection.includes(el));
+            selection[0].before(obstacle);
+            return true;
+        }
+        case 'backward': {
+            if (!state.canBackward) return false;
+            const firstIdx = siblings.indexOf(selection[0]);
+            const obstacle = siblings.slice(0, firstIdx).reverse().find(el => !selection.includes(el));
+            selection[selection.length - 1].after(obstacle);
+            return true;
+        }
+    }
+    return false;
+}
+
 class FeezalSidebarInspector extends LitElement {
     static properties = {
         viewSelected:   {type: Boolean, notify: true},
@@ -41,12 +140,18 @@ class FeezalSidebarInspector extends LitElement {
             margin-left: auto; align-self: center; margin-right: 8px;
             font-size: 11px; line-height: 1.4; padding: 2px 8px;
             border-radius: 10px;
-            background: var(--feezal-sel-badge-bg, #e0f2fe);
-            color: var(--feezal-sel-badge-color, #0369a1);
-            border: 1px solid var(--feezal-sel-badge-border, #7dd3fc);
+            background: var(--sl-color-primary-100, #e0f2fe);
+            color: var(--sl-color-primary-700, #0369a1);
+            border: 1px solid var(--sl-color-primary-300, #7dd3fc);
             white-space: nowrap; max-width: 150px;
             overflow: hidden; text-overflow: ellipsis;
             cursor: default; user-select: none; flex-shrink: 0;
+        }
+        :host-context([data-theme="dark"]) .sel-badge,
+        :host(.dark) .sel-badge {
+            background: rgba(var(--feezal-selection-rgb, 2,132,199), 0.15);
+            color: var(--sl-color-primary-300, #7dd3fc);
+            border-color: var(--sl-color-primary-500, #0ea5e9);
         }
 
         /* ── Context menu ─────────────────────────────────────────────────── */
@@ -68,6 +173,7 @@ class FeezalSidebarInspector extends LitElement {
             white-space: nowrap;
         }
         .ctx-item:hover:not(.ctx-disabled) { background: var(--sl-color-primary-600, #0284c7); color: #fff; }
+        .ctx-item.danger:hover:not(.ctx-disabled) { background: #c62828; }
         .ctx-disabled { opacity: 0.4; pointer-events: none; }
         .ctx-sep { height: 1px; background: var(--feezal-border, #ddd); margin: 4px 0; }
         .ctx-kbd { font-size: 11px; opacity: 0.65; font-family: monospace; margin-left: auto; }
@@ -130,6 +236,9 @@ class FeezalSidebarInspector extends LitElement {
         if (this.viewSelected) {
             return `view: ${el.getAttribute?.('name') || '?'}`;
         }
+        if (el.localName === 'feezal-component') {
+            return `component: ${el.getAttribute?.('name') || '?'}`;
+        }
         return (el.localName || '').replace('feezal-element-', '');
     }
 
@@ -140,6 +249,18 @@ class FeezalSidebarInspector extends LitElement {
         const selLabel = this._selectionLabel();
         const isLocked = !this.viewSelected && this.selectedElems.length > 0 &&
             Boolean(this.selectedElems[0].hasAttribute?.('locked'));
+        // U32: component context-menu entries. "Create component…" needs a
+        // selection of plain elements (no nesting of instances); the component
+        // actions need the selection to be instances only.
+        const selNonView = this.viewSelected ? [] : this.selectedElems.filter(el => el.tagName !== 'FEEZAL-VIEW');
+        const canCreateComponent = selNonView.length > 0 &&
+            !selNonView.some(el => el.localName === 'feezal-component');
+        const isComponentSel = selNonView.length > 0 &&
+            selNonView.every(el => el.localName === 'feezal-component');
+        // U33: stacking-order menu state (DOM order = paint order).
+        const stacking = cm.visible && cm.onElem && feezal.view
+            ? stackingState(feezal.view, selNonView)
+            : {canFront: false, canBack: false, canForward: false, canBackward: false};
         return html`
             <sl-tab-group>
                 <sl-tab slot="nav" panel="attributes">Attributes</sl-tab>
@@ -176,6 +297,23 @@ class FeezalSidebarInspector extends LitElement {
                             Duplicate <span class="ctx-kbd">Ctrl+D</span>
                         </div>
                         <div class="ctx-sep"></div>
+                        <div class="ctx-item ${stacking.canFront ? '' : 'ctx-disabled'}"
+                            @click="${() => stacking.canFront && this._ctxAction('bringToFront')}">
+                            Bring to front <span class="ctx-kbd">Ctrl+Shift+]</span>
+                        </div>
+                        <div class="ctx-item ${stacking.canForward ? '' : 'ctx-disabled'}"
+                            @click="${() => stacking.canForward && this._ctxAction('bringForward')}">
+                            Bring forward <span class="ctx-kbd">Ctrl+]</span>
+                        </div>
+                        <div class="ctx-item ${stacking.canBackward ? '' : 'ctx-disabled'}"
+                            @click="${() => stacking.canBackward && this._ctxAction('sendBackward')}">
+                            Send backward <span class="ctx-kbd">Ctrl+[</span>
+                        </div>
+                        <div class="ctx-item ${stacking.canBack ? '' : 'ctx-disabled'}"
+                            @click="${() => stacking.canBack && this._ctxAction('sendToBack')}">
+                            Send to back <span class="ctx-kbd">Ctrl+Shift+[</span>
+                        </div>
+                        <div class="ctx-sep"></div>
                         <div class="ctx-item"
                             @mouseenter="${() => this._openCtxSub('copy')}"
                             @mouseleave="${() => this._scheduleCtxSub(null)}">
@@ -205,6 +343,27 @@ class FeezalSidebarInspector extends LitElement {
                             ` : ''}
                         </div>
                         <div class="ctx-sep"></div>
+                        ${canCreateComponent ? html`
+                            <div class="ctx-item" @click="${() => this._ctxAction('createComponent')}">
+                                Create component…
+                            </div>
+                            <div class="ctx-sep"></div>
+                        ` : ''}
+                        ${isComponentSel ? html`
+                            <div class="ctx-item" @click="${() => this._ctxAction('editComponent')}">
+                                Edit component
+                            </div>
+                            <div class="ctx-item" @click="${() => this._ctxAction('detachComponent')}">
+                                Detach
+                            </div>
+                            <div class="ctx-item" @click="${() => this._ctxAction('renameComponent')}">
+                                Rename component…
+                            </div>
+                            <div class="ctx-item danger" @click="${() => this._ctxAction('deleteComponent')}">
+                                Delete component…
+                            </div>
+                            <div class="ctx-sep"></div>
+                        ` : ''}
                         <div class="ctx-item" @click="${() => this._ctxAction('delete')}">
                             Delete <span class="ctx-kbd">Del</span>
                         </div>
@@ -231,9 +390,11 @@ class FeezalSidebarInspector extends LitElement {
                             <tr><td>Ctrl+C / X / V</td><td>Copy / Cut / Paste</td></tr>
                             <tr><td>Ctrl+D</td><td>Duplicate selection</td></tr>
                             <tr><td>Ctrl+L</td><td>Lock / unlock selection</td></tr>
+                            <tr><td>Ctrl+] / Ctrl+[</td><td>Bring forward / send backward</td></tr>
+                            <tr><td>Ctrl+Shift+] / Ctrl+Shift+[</td><td>Bring to front / send to back</td></tr>
                             <tr><td>Ctrl+I / ?</td><td>Open this shortcuts dialog</td></tr>
-                            <tr><td>Arrow keys</td><td>Nudge by 1 px</td></tr>
-                            <tr><td>Alt+Arrow keys</td><td>Nudge by grid size</td></tr>
+                            <tr><td>Arrow keys</td><td>Nudge by grid size</td></tr>
+                            <tr><td>Ctrl/Shift+Arrow keys</td><td>Nudge by 1 px</td></tr>
                             <tr><td>Ctrl+click</td><td>Add / remove element from selection</td></tr>
                             <tr><td>Ctrl while drag/resize</td><td>Disable snapping temporarily (or enable element snap when off)</td></tr>
                             <tr><td>Shift while drag/resize</td><td>Switch snap mode: elements ↔ grid (or enable grid when off)</td></tr>
@@ -268,6 +429,14 @@ class FeezalSidebarInspector extends LitElement {
                     pointer-events: none;
                     z-index: 1000;
                 }
+                /* U33: canvas stacking is DOM order — neutralize the inline
+                   z-index junk DragSelect writes on selection/drag (cumulative
+                   ±1 per select, 9999 during drags), which would otherwise
+                   paint over the sanctioned stacking order. Stripped from the
+                   serialized HTML at save time (stripCanvasZIndex). */
+                feezal-view > .feezal-editable {
+                    z-index: auto !important;
+                }
             `;
             document.head.append(style);
         }
@@ -280,11 +449,19 @@ class FeezalSidebarInspector extends LitElement {
                     // data.viewer.viewer holds the viewer-specific settings (theme, etc.).
                     const viewerConfig = data.viewer && data.viewer.viewer;
                     this.loadViews(data.views, viewerConfig);
-                    if (data.viewer && data.viewer.connection) {
-                        const viewerSidebar = feezal.app.shadowRoot.querySelector('feezal-sidebar-viewer');
-                        if (viewerSidebar) {
+                    // Restore the editor-only view folder tree (U8).
+                    if (feezal.app && typeof feezal.app.setFolders === 'function') {
+                        feezal.app.setFolders(viewerConfig && viewerConfig.folders);
+                    }
+                    const viewerSidebar = feezal.app.shadowRoot.querySelector('feezal-sidebar-viewer');
+                    if (viewerSidebar) {
+                        if (data.viewer && data.viewer.connection) {
                             viewerSidebar.connection = data.viewer.connection;
                         }
+                        // A9: restore the PWA opt-in from the persisted config
+                        viewerSidebar.pwa = Boolean(viewerConfig && viewerConfig.pwa);
+                        // A9 Tier 2a: mobile-app export settings
+                        viewerSidebar.app = (viewerConfig && viewerConfig.app) || {};
                     }
 
                     this._keyboard();
@@ -325,6 +502,7 @@ class FeezalSidebarInspector extends LitElement {
         }
         document.removeEventListener('keydown', this._snapKeyDown);
         document.removeEventListener('keyup', this._snapKeyUp);
+        this._gridRO?.disconnect();
     }
 
     restoreViews(html) {
@@ -333,9 +511,18 @@ class FeezalSidebarInspector extends LitElement {
             feezal.site.innerHTML = html;
         }
 
+        // U32: snapshots taken during a component edit may contain the
+        // pseudo-view — it must never survive a restore as a regular view.
+        feezal.site.querySelectorAll('feezal-view[feezal-component-edit]').forEach(el => el.remove());
+        feezal.app._onRestoreViews?.();
+
         feezal.app.views = [...feezal.views];
         feezal.site.querySelectorAll('.dragselect-rectangle').forEach(el => el.remove());
         feezal.app._removeClassesFromChildren(feezal.site, ['feezal-selected', 'feezal-editable', 'ds-selectable']);
+        feezal.palette?.refresh?.();
+        // U25: the <style id="feezal-classes"> block travels inside the restored
+        // markup — resync the Classes editor and inspector list to match it.
+        feezal.app.shadowRoot.querySelector('feezal-sidebar-themes')?.reloadClasses?.();
         this._viewChanged();
     }
 
@@ -347,6 +534,7 @@ class FeezalSidebarInspector extends LitElement {
         feezal.site.querySelectorAll('.dragselect-rectangle').forEach(el => el.remove());
         feezal.ready = true;
         feezal.app.shadowRoot.querySelector('feezal-sidebar-themes').siteReady(viewerConfig);
+        feezal.palette?.refresh?.();
         feezal.app.addHistory();
         this._viewChanged();
         feezal.site.setAttribute('tabindex', 1);
@@ -383,13 +571,28 @@ class FeezalSidebarInspector extends LitElement {
         }
     }
 
+    /**
+     * Re-run _viewChanged() without a property change — used by the source view
+     * (N15) after it rewrites a feezal-view's innerHTML to rebind interact.js
+     * drag/resize handles on the new DOM elements.
+     */
+    rebindView() {
+        this._viewChanged();
+    }
+
     _gridSizeChanged() {
         const grid = feezal.app.shadowRoot.querySelector('#grid');
         if (grid) {
-            Object.assign(grid.style, {
-                backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent ${this.gridSize - 1}px, rgba(0,0,0,0.1) ${this.gridSize - 1}px, ${this.gridColor} ${this.gridSize}px), repeating-linear-gradient(-90deg, transparent, transparent ${this.gridSize - 1}px, rgba(0,0,0,0.1) ${this.gridSize - 2}px, rgba(0,0,0,0.1) ${this.gridSize}px)`,
-                backgroundSize: `${this.gridSize}px ${this.gridSize}px`
-            });
+            const gs = this.gridSize;
+            const c  = this.gridColor;
+            // B14: both axes use the configured grid colour, drawn as a 1px line at
+            // the start of each cell. Alignment to the view origin is handled by the
+            // background-position set in _positionGrid().
+            grid.style.backgroundImage =
+                `linear-gradient(to right, ${c} 1px, transparent 1px),` +
+                `linear-gradient(to bottom, ${c} 1px, transparent 1px)`;
+            grid.style.backgroundSize = `${gs}px ${gs}px`;
+            this._positionGrid(grid);
         }
 
         // Keep snap helper line colors in sync with the configured grid color.
@@ -399,10 +602,45 @@ class FeezalSidebarInspector extends LitElement {
         }
     }
 
+    /**
+     * B14: overlay the grid on the visible canvas viewport (feezal-site) — never the
+     * tab bar — and phase-shift its lines so the first line coincides with the active
+     * view's 0,0 origin (accounting for the view margin / scroll offset).
+     */
+    _positionGrid(grid) {
+        const site = feezal.site;
+        const cv   = feezal.app.shadowRoot.querySelector('#container-view');
+        if (!site || !cv) return;
+
+        // Reposition when the canvas resizes (window / sidebar drag).
+        if (!this._gridRO) {
+            this._gridRO = new ResizeObserver(() => {
+                const g = feezal.app.shadowRoot.querySelector('#grid');
+                if (g && g.style.display !== 'none') this._positionGrid(g);
+            });
+            this._gridRO.observe(site);
+        }
+
+        const s = site.getBoundingClientRect();
+        const r = cv.getBoundingClientRect();
+        grid.style.top    = Math.round(s.top - r.top) + 'px';
+        grid.style.left   = Math.round(s.left - r.left) + 'px';
+        grid.style.width  = Math.round(s.width) + 'px';
+        grid.style.height = Math.round(s.height) + 'px';
+
+        const gs   = this.gridSize || 1;
+        const view = feezal.view;
+        const v    = view ? view.getBoundingClientRect() : s;
+        const offX = (((v.left - s.left) % gs) + gs) % gs;
+        const offY = (((v.top  - s.top)  % gs) + gs) % gs;
+        grid.style.backgroundPosition = `${offX}px ${offY}px`;
+    }
+
     _gridVisibleChanged(value) {
         const grid = feezal.app.shadowRoot.querySelector('#grid');
         if (grid) {
             grid.style.display = value ? 'block' : 'none';
+            if (value) this._positionGrid(grid);
         }
     }
 
@@ -509,7 +747,7 @@ class FeezalSidebarInspector extends LitElement {
                 if (this._ignoreNextClick) { this._ignoreNextClick = false; return; }
 
                 const elem = e.composedPath().find(
-                    el => el.localName && el.localName.startsWith('feezal-element-') && el.feezalEditable
+                    el => isCanvasElement(el) && el.feezalEditable
                 );
                 if (!elem) {
                     // Click on empty canvas space — select the view itself.
@@ -531,7 +769,7 @@ class FeezalSidebarInspector extends LitElement {
                 e.preventDefault();
                 e.stopPropagation();
                 const elem = e.composedPath().find(
-                    el => el.localName && el.localName.startsWith('feezal-element-') && el.feezalEditable
+                    el => isCanvasElement(el) && el.feezalEditable
                 );
                 if (elem && !this.selectedElems.includes(elem)) {
                     this.selectElement(elem);
@@ -584,7 +822,7 @@ class FeezalSidebarInspector extends LitElement {
 
         this.currentView = [view];
         [...view.children].forEach(element => {
-            if (element.localName.startsWith('feezal-element-') && !element.feezalEditable) {
+            if (isCanvasElement(element) && !element.feezalEditable) {
                 this.initElem(element);
             } else if (this.dragselect[this.view]) {
                 this.dragselect[this.view].removeSelection(element);
@@ -692,6 +930,24 @@ class FeezalSidebarInspector extends LitElement {
                             });
                             feezal.app.change();
                             this.selectedElems = [...this.selectedElems];
+                        }
+
+                        break;
+                    // U33 — stacking order. Shift usually changes the key
+                    // itself (Shift+] → "}"), so both spellings are handled.
+                    case ']':
+                    case '}':
+                        if ((event.metaKey || event.ctrlKey) && !this.viewSelected) {
+                            event.preventDefault();
+                            this._reorderSelection(event.shiftKey || event.key === '}' ? 'front' : 'forward');
+                        }
+
+                        break;
+                    case '[':
+                    case '{':
+                        if ((event.metaKey || event.ctrlKey) && !this.viewSelected) {
+                            event.preventDefault();
+                            this._reorderSelection(event.shiftKey || event.key === '{' ? 'back' : 'backward');
                         }
 
                         break;
@@ -816,6 +1072,66 @@ class FeezalSidebarInspector extends LitElement {
         const menuBottom = feezal.app.shadowRoot.querySelector('#container-view-menu').getBoundingClientRect().bottom;
         const snapLineTop = Math.round(menuBottom - cvRect.top);
 
+        const range = 24;
+
+        // N11 — while dragging, track each of the four dragged sides independently
+        // (left/right → vsnap1/vsnap2, top/bottom → hsnap1/hsnap2) so up to two
+        // vertical and two horizontal guide lines can appear at once. interact.js
+        // still snaps to a single position per axis: the closer side wins.
+        if (this.dragElement) {
+            const dr = this.dragElement.getBoundingClientRect();
+            const w = dr.width, h = dr.height;
+            const cxL = x - viewRect.x, cxR = x + w - viewRect.x;   // dragged left/right edges
+            const cyT = y - cvTop,      cyB = y + h - cvTop;        // dragged top/bottom edges
+            let L = {dist: range}, R = {dist: range}, T = {dist: range}, B = {dist: range};
+
+            [...view.children].forEach(element => {
+                if (!isCanvasElement(element) || element === this.resizeElement || element === this.dragElement) {
+                    return;
+                }
+                const rect = element.getBoundingClientRect();
+                const tx = rect.x - viewRect.x, tr = tx + rect.width;
+                const ty = rect.y - cvTop,      tb = ty + rect.height;
+                let d;
+                // Each dragged side snaps to the nearest matching other-element edge.
+                d = Math.abs(cxL - tx); if (d < L.dist) L = {dist: d, pos: tx, target: tx + viewRect.x};
+                d = Math.abs(cxL - tr); if (d < L.dist) L = {dist: d, pos: tr, target: tr + viewRect.x};
+                d = Math.abs(cxR - tx); if (d < R.dist) R = {dist: d, pos: tx, target: tx + viewRect.x - w};
+                d = Math.abs(cxR - tr); if (d < R.dist) R = {dist: d, pos: tr, target: tr + viewRect.x - w};
+                d = Math.abs(cyT - ty); if (d < T.dist) T = {dist: d, pos: ty, target: ty + cvTop};
+                d = Math.abs(cyT - tb); if (d < T.dist) T = {dist: d, pos: tb, target: tb + cvTop};
+                d = Math.abs(cyB - ty); if (d < B.dist) B = {dist: d, pos: ty, target: ty + cvTop - h};
+                d = Math.abs(cyB - tb); if (d < B.dist) B = {dist: d, pos: tb, target: tb + cvTop - h};
+            });
+
+            // Show/hide each guide line independently.
+            const vLine = (el, t) => { el.style.cssText = t.dist < range
+                ? `left:${t.pos - 1}px;display:block;top:${snapLineTop}px;height:calc(100% - ${snapLineTop}px)`
+                : 'display:none'; };
+            const hLine = (el, t) => { el.style.cssText = t.dist < range
+                ? `top:${t.pos - 1.5}px;display:block`
+                : 'display:none'; };
+            vLine(vsnap1, L); vLine(vsnap2, R);
+            hLine(hsnap1, T); hLine(hsnap2, B);
+
+            // interact.js snaps to one position per axis — the closer side wins.
+            const object = {};
+            let nearX = range, nearY = range;
+            const xWin = L.dist <= R.dist ? L : R;
+            if (xWin.dist < range) { object.x = xWin.target; nearX = xWin.dist; }
+            const yWin = T.dist <= B.dist ? T : B;
+            if (yWin.dist < range) { object.y = yWin.target; nearY = yWin.dist; }
+
+            if (object.x !== undefined || object.y !== undefined) {
+                object.range = (object.x !== undefined && object.y !== undefined)
+                    ? Math.ceil(Math.sqrt(nearX * nearX + nearY * nearY)) + 1
+                    : range;
+                return object;
+            }
+            return;
+        }
+
+        // ── Resize / single-point path (winner-takes-all, unchanged) ──────────────
         // Points to compare against other elements' edges.
         // When dragging: all 4 corners of the drag element. x,y is the TL corner
         // (relativePoints: [{x:0,y:0}]), so other corners are derived from the element size.
@@ -833,7 +1149,6 @@ class FeezalSidebarInspector extends LitElement {
             corners = [{ x, y }];
         }
 
-        const range = 24;
         // Track the nearest X and Y snaps across ALL corners × ALL elements.
         // nearX / nearY start at `range` so that only edges within range win.
         let nearX = range;
@@ -843,7 +1158,7 @@ class FeezalSidebarInspector extends LitElement {
         let hsnapEl = null, hsnapOtherEl = null, hsnapPos;
 
         [...view.children].forEach(element => {
-            if (!element.localName.startsWith('feezal-element-') || element === this.resizeElement || element === this.dragElement) {
+            if (!isCanvasElement(element) || element === this.resizeElement || element === this.dragElement) {
                 return;
             }
 
@@ -923,6 +1238,19 @@ class FeezalSidebarInspector extends LitElement {
         const absolute = element.parentNode.childPosition === 'absolute';
         element.feezalEditable = true;
         element.classList.add('feezal-editable');
+
+        // Inject a glass overlay into the element's shadow root so that any
+        // remaining pointer events cannot reach shadow-DOM internals.  This
+        // complements the :host(.feezal-editable) * { pointer-events:none }
+        // rule already present in feezal base-class styles.
+        if (element.shadowRoot && !element.shadowRoot.querySelector('.feezal-glass-style')) {
+            const glassStyle = document.createElement('style');
+            glassStyle.className = 'feezal-glass-style';
+            glassStyle.textContent =
+                ':host(.feezal-editable)::after{content:"";position:absolute;inset:0;z-index:5;cursor:inherit;}';
+            element.shadowRoot.appendChild(glassStyle);
+        }
+
         const elementOptions = window.customElements.get(element.localName) && window.customElements.get(element.localName).feezal || {};
 
         if (!elementOptions) {
@@ -1060,6 +1388,9 @@ class FeezalSidebarInspector extends LitElement {
                 this.shadowRoot.querySelector('feezal-sidebar-inspector-styles').setStyle(element, ['left', 'top']);
             })
             .resizable({
+                // U32: component instances are fixed-size (the template's
+                // bounding box) — resizing is disabled entirely for them.
+                enabled: element.localName !== 'feezal-component',
                 edges: {right: true, bottom: true, left: '.resize-left', top: false},
                 snapSize: {targets: [(x, y) => this._snapSize(x, y)]},
                 onstart: () => { this.resizeElement = element; },
@@ -1201,6 +1532,43 @@ class FeezalSidebarInspector extends LitElement {
                 feezal.app.change();
                 this.selectedElems = [...this.selectedElems];
                 break;
+            // U33 — stacking order (DOM order = paint order; locked elements
+            // may be restacked — reordering changes neither position nor size)
+            case 'bringToFront':
+            case 'bringForward':
+            case 'sendBackward':
+            case 'sendToBack':
+                this._reorderSelection({
+                    bringToFront: 'front', bringForward: 'forward',
+                    sendBackward: 'backward', sendToBack: 'back'
+                }[action]);
+                break;
+            // U32 — component actions
+            case 'createComponent':
+                feezal.app._openCreateComponent(this.selectedElems);
+                break;
+            case 'editComponent':
+                feezal.app._openComponentEdit(this.selectedElems[0]?.getAttribute('name'));
+                break;
+            case 'detachComponent':
+                feezal.app._detachComponent(this.selectedElems.filter(el => el.localName === 'feezal-component'));
+                break;
+            case 'renameComponent':
+                feezal.app._componentRenameOpen(this.selectedElems[0]?.getAttribute('name'));
+                break;
+            case 'deleteComponent':
+                feezal.app._componentDeleteRequest(this.selectedElems[0]?.getAttribute('name'));
+                break;
+        }
+    }
+
+    /** U33: reorder the selection in its view; one undo step on success. */
+    _reorderSelection(direction) {
+        const selection = this.selectedElems.filter(el => el.tagName !== 'FEEZAL-VIEW');
+        if (!feezal.view || selection.length === 0) return;
+        if (reorderElements(feezal.view, selection, direction)) {
+            feezal.app.change();
+            this.selectedElems = [...this.selectedElems];   // refresh menu state
         }
     }
 

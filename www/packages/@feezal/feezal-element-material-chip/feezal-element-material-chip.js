@@ -5,7 +5,7 @@ import '@material/web/chips/filter-chip.js';
 class FeezalElementMaterialChip extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Filter Chip', category: 'Material', color: '#4a6080', icon: 'label'},
+            palette: {name: 'Chip', category: 'Material', color: '#4a6080', icon: 'label'},
             description: 'MD3 filter chip — subscribes to a boolean topic and publishes selected state.',
             discovery: {
                 component: 'switch',
@@ -30,7 +30,11 @@ class FeezalElementMaterialChip extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height',
-                {property: '--feezal-chip-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Chip selected state colour.'},
+                {property: '--feezal-chip-color',         type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Chip selected state colour (default for --feezal-chip-active-color).'},
+                {property: '--feezal-chip-text-color',    type: 'color', default: 'var(--primary-text-color, #333)',    help: 'Chip label text colour.'},
+                {property: '--feezal-chip-outline-color', type: 'color', default: 'var(--divider-color, #ccc)',         help: 'Chip border colour when not selected.'},
+                {property: '--feezal-chip-active-color',  type: 'color', default: 'var(--feezal-chip-color)',          help: 'Chip background when selected.'},
+                {property: '--feezal-chip-inactive-color',type: 'color', default: 'transparent',                       help: 'Chip background when not selected.'},
             ],
             defaultStyle: {width: '120px', height: '36px'},
         };
@@ -53,10 +57,20 @@ class FeezalElementMaterialChip extends FeezalElement {
             align-items: center;
             justify-content: center;
             box-sizing: border-box;
-            --feezal-chip-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
-            --md-sys-color-primary: var(--feezal-chip-color);
-            --md-sys-color-on-surface: var(--primary-text-color, #333);
-            --md-sys-color-surface-container-low: var(--card-background-color, #f5f5f5);
+            --feezal-chip-color:          var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --feezal-chip-text-color:     var(--primary-text-color, #333);
+            --feezal-chip-outline-color:  var(--divider-color, #ccc);
+            --feezal-chip-active-color:   var(--feezal-chip-color);
+            --feezal-chip-inactive-color: transparent;
+            /* MD3 token wiring */
+            --md-sys-color-primary:                           var(--feezal-chip-color);
+            --md-sys-color-on-surface:                        var(--feezal-chip-text-color);
+            --md-sys-color-surface-container-low:             var(--card-background-color, #f5f5f5);
+            --md-filter-chip-label-text-color:                var(--feezal-chip-text-color);
+            --md-filter-chip-selected-label-text-color:       var(--feezal-chip-text-color);
+            --md-filter-chip-outline-color:                   var(--feezal-chip-outline-color);
+            --md-filter-chip-selected-container-color:        var(--feezal-chip-active-color);
+            --md-filter-chip-container-color:                 var(--feezal-chip-inactive-color);
         }
         .editor-ph {
             display: inline-flex;
@@ -64,10 +78,10 @@ class FeezalElementMaterialChip extends FeezalElement {
             gap: 6px;
             padding: 6px 12px;
             border-radius: 8px;
-            border: 1px solid var(--feezal-chip-color);
+            border: 1px solid var(--feezal-chip-outline-color);
             font-size: 14px;
-            color: var(--primary-text-color, #555);
-            background: var(--card-background-color, #f5f5f5);
+            color: var(--feezal-chip-text-color);
+            background: var(--feezal-chip-inactive-color, var(--card-background-color, #f5f5f5));
         }
     `];
 
@@ -85,7 +99,7 @@ class FeezalElementMaterialChip extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (!feezal.isEditor && this.subscribe) {
+        if (this.subscribe) {
             this.addSubscription(this.subscribe, msg => {
                 const v = this.getProperty(msg, this.messageProperty);
                 this._selected = v === this.payloadOn || v === true || v === 1 || v === '1' || v === 'true';
@@ -100,9 +114,6 @@ class FeezalElementMaterialChip extends FeezalElement {
     }
 
     render() {
-        if (feezal.isEditor) {
-            return html`<div class="editor-ph">${this.label || 'Filter Chip'}</div>`;
-        }
         return html`
             <md-filter-chip
                 label="${this.label}"

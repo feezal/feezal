@@ -1,6 +1,7 @@
 import {defineConfig} from 'vite';
 import fs from 'node:fs';
 import path from 'node:path';
+import monacoEditorPlugin from 'vite-plugin-monaco-editor';
 
 // Plugin: inject /editor/feezal-elements.js as a runtime script (not bundled).
 // The editor loads element packages at runtime from the Express dynamic route.
@@ -53,7 +54,16 @@ export default defineConfig({
     // www/ is the Vite root
     base: '/',
 
-    plugins: [feezalElementsRuntimePlugin, feezalBuiltinManifestPlugin],
+    plugins: [
+        feezalElementsRuntimePlugin,
+        feezalBuiltinManifestPlugin,
+        // Bundle Monaco language workers as separate async chunks (editor-only).
+        // The viewer bundle never imports monaco-editor so these chunks are not
+        // included in viewer-bundle.js.
+        monacoEditorPlugin({
+            languageWorkers: ['editorWorkerService', 'html', 'css', 'typescript']
+        })
+    ],
 
     build: {
         outDir: 'dist',

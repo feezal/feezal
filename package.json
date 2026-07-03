@@ -1,18 +1,21 @@
 {
-    "name":  "feezal",
-    "version":  "1.4.18",
-    "private":  true,
-    "description":  "Dashboard editor powered by Web Components and MQTT",
-    "scripts":  {
-                    "start":  "node server/bin/feezal.js --www-dir ./www",
-                    "install":  "cd server \u0026\u0026 npm install \u0026\u0026 cd ../www \u0026\u0026 npm install \u0026\u0026 cd .. \u0026\u0026 node scripts/generate-elements.js \u0026\u0026 cd www \u0026\u0026 npm run build \u0026\u0026 cd .. ",
-                    "test":  "cd server \u0026\u0026 npm test \u0026\u0026 cd ../www \u0026\u0026 npm test \u0026\u0026 cd ..",
-                    "create-element":  "node packages/create-feezal-element/index.js"
-                },
-    "author":  "Sebastian Raff \u003chobbyquaker@gmail.com\u003e",
-    "license":  "GPLv3",
-    "repository":  {
-                       "type":  "git",
-                       "url":  "https://github.com/feezal/feezal.git"
-                   }
+  "name": "feezal",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Dashboard editor powered by Web Components and MQTT",
+  "scripts": {
+    "start": "node server/bin/feezal.js --www-dir ./www",
+    "install": "cd server && npm install && cd ../www && npm install && cd .. && node scripts/generate-elements.js && cd www && npm run build && cd .. ",
+    "test": "npm --prefix server test && npm --prefix www test",
+    "test:browser": "npm --prefix www run test:browser",
+    "test:e2e": "npm --prefix www run test:e2e",
+    "test:all": "npm test && npm run test:browser && npm run test:e2e",
+    "create-element": "node packages/create-feezal-element/index.js"
+  },
+  "author": "Sebastian Raff <hobbyquaker@gmail.com>",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/feezal/feezal.git"
+  }
 }

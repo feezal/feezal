@@ -12,7 +12,9 @@ const createAuthMiddleware = require('./auth/middleware.js');
 const createApiRouter = require('./routes/api.js');
 const mqttBridge = require('./mqtt/bridge.js');
 const createHub = require('./socket/hub.js');
+const pwa = require('./build/pwa.js');
 const {discoverElements, generateElementsModule} = require('./build/elements.js');
+const {siteIconArtifacts} = require('./build/icons.js');
 
 /** Format a git commit message for display in the historical-preview banner. */
 function _fmtCommitLabel(msg) {
@@ -80,6 +82,11 @@ async function createApp(config) {
     });
 
     // --- Body parsing ---
+    // A9: PWA icon uploads carry a base64-encoded icon set + source image —
+    // they need a larger limit and must be parsed BEFORE the default parser,
+    // which would reject them with 413 at its 100kb default. The default
+    // parser skips bodies that are already parsed.
+    app.use('/api/sites/:name/pwa-icons', express.json({limit: '25mb'}));
     app.use(express.json());
     app.use(express.urlencoded({extended: false}));
 
@@ -105,14 +112,14 @@ async function createApp(config) {
         : path.join(wwwDir, 'node_modules');
     app.use('/node_modules', express.static(elementPackagesDir));
 
-    // --- Asset static files ---
-    // Global assets: /assets/global/<path>  →  <dataDir>/_global/assets/<path>
-    // Site assets:   /assets/<site>/<path>  →  <dataDir>/<site>/assets/<path>
+    // --- Asset static files --- (A14 layout)
+    // Global assets: /assets/global/<path>  →  <dataDir>/global/assets/<path>
+    // Site assets:   /assets/<site>/<path>  →  <dataDir>/sites/<site>/assets/<path>
     // User themes:   /themes/<slug>.css     →  <dataDir>/themes/<slug>.css
     if (storage.dataDir) {
-        app.use('/assets/global', express.static(path.join(storage.dataDir, '_global', 'assets')));
+        app.use('/assets/global', express.static(path.join(storage.dataDir, 'global', 'assets')));
         app.get('/assets/:site/*', (req, res, next) => {
-            const file = path.join(storage.dataDir, req.params.site, 'assets', req.params[0]);
+            const file = path.join(storage.dataDir, 'sites', req.params.site, 'assets', req.params[0]);
             res.sendFile(file, err => { if (err) next(); });
         });
         app.use('/themes', express.static(path.join(storage.dataDir, 'themes')));
@@ -130,6 +137,8 @@ async function createApp(config) {
         getTopicCompletions,
         getDiscoveredEntities: mqttBridge.getDiscoveredEntities,
         getDiscoveredEntity:   mqttBridge.getDiscoveredEntity,
+        getDeviceGroups:       mqttBridge.getDeviceGroups,
+        emitElementsChanged:   () => io.emit('elementsChanged'),
     }));
 
     // --- Editor route (protected) ---
@@ -176,7 +185,7 @@ async function createApp(config) {
             if (historicalHtml && storage.dataDir) {
                 try {
                     const {listCommits} = require('./build/git.js');
-                    const commits = await listCommits(path.join(storage.dataDir, siteName));
+                    const commits = await listCommits(path.join(storage.dataDir, 'sites', siteName));
                     const idx = commits.findIndex(c =>
                         c.sha === shaParam || c.sha.startsWith(shaParam) || shaParam.startsWith(c.sha.slice(0, 7))
                     );
@@ -254,7 +263,24 @@ async function createApp(config) {
                 if (cssText) classesStyle = `\n<style>${cssText}</style>`;
             }
 
-            const page = `<!doctype html>
+            // N23: per-site icon tree-shaking. Bundled icon sets are NOT in
+            // viewer-bundle.js — inline a mini-registration with only the
+            // icons this site references; user-installed sets load their full
+            // module (per-icon data is not separable from an install bundle).
+            let iconScripts = '';
+            try {
+                const {inlineJs, userModuleUrls} = siteIconArtifacts({
+                    wwwDir, userElementsDir, siteHtml: themedHtml, logger
+                });
+                if (inlineJs) iconScripts += `\n<script type="module">${inlineJs}<\/script>`;
+                for (const url of userModuleUrls) {
+                    iconScripts += `\n<script type="module" src="${url}"><\/script>`;
+                }
+            } catch (err) {
+                logger.warn('viewer icons: ' + err.message);
+            }
+
+            let page = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -304,28 +330,44 @@ window.feezal = {
 <\/script>${userThemeLink}${overrideStyle}${classesStyle}
 </head>
 <body>
-${historicalHtml ? `<div style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#1565c0;color:#fff;padding:6px 14px;display:flex;align-items:center;gap:10px;font-family:sans-serif;font-size:13px;box-sizing:border-box">
-  ${prevSha
-      ? `<a href="/viewer/${siteName}?sha=${prevSha}" style="color:#fff;padding:3px 10px;border:1px solid rgba(255,255,255,0.5);border-radius:4px;text-decoration:none;font-size:12px;white-space:nowrap">&#8592; Older</a>`
-      : `<span style="padding:3px 10px;border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:rgba(255,255,255,0.35);font-size:12px;cursor:default;white-space:nowrap">&#8592; Older</span>`}
-  ${nextSha
-      ? `<a href="/viewer/${siteName}?sha=${nextSha}" style="color:#fff;padding:3px 10px;border:1px solid rgba(255,255,255,0.5);border-radius:4px;text-decoration:none;font-size:12px;white-space:nowrap">Newer &#8594;</a>`
-      : `<span style="padding:3px 10px;border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:rgba(255,255,255,0.35);font-size:12px;cursor:default;white-space:nowrap">Newer &#8594;</span>`}
-  <span style="flex:1;text-align:center;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:0.95">${commitLabel}</span>
-  <a href="/viewer/${siteName}" style="color:#fff;padding:3px 10px;border:1px solid rgba(255,255,255,0.5);border-radius:4px;text-decoration:none;font-size:12px;white-space:nowrap">&#10005; Close</a>
-</div><div style="margin-top:43px;height:calc(100% - 43px)">` : ''}
+${historicalHtml ? `<script>window.feezal.historyBanner = ${JSON.stringify({
+    sha:      shaParam,
+    prevSha:  prevSha  || null,
+    nextSha:  nextSha  || null,
+    label:    commitLabel,
+    siteName
+})};<\/script>
+<feezal-history-bar></feezal-history-bar>
+<div style="margin-top:38px;height:calc(100% - 38px)">` : ''}
 <feezal-connection backend="${backendValue}"${connectionAttr}></feezal-connection>
 <feezal-app-viewer>${themedHtml}</feezal-app-viewer>
 ${historicalHtml ? '</div>' : ''}
 <script type="module" src="/viewer-bundle.js"><\/script>
+${iconScripts}
 </body>
 </html>`;
+            // A9: make the served viewer installable when the site opts in.
+            if (pwa.pwaEnabled(config)) {
+                const base = `/viewer/${encodeURIComponent(siteName)}`;
+                const meta = storage.dataDir ? pwa.readPwaMeta(storage.dataDir, siteName) : null;
+                page = pwa.injectPwaTags(page, {
+                    manifestUrl: `${base}/manifest.webmanifest`,
+                    appleTouchIconUrl: `${base}/icons/apple-touch-icon.png`,
+                    themeColor: (meta && meta.backgroundColor) || undefined,
+                    swUrl: `${base}/sw.js`,
+                    swScope: base,
+                });
+            }
+
             res.setHeader('Content-Type', 'text/html; charset=utf-8');
             res.send(page);
         } catch (err) {
             next(err);
         }
     };
+
+    // A9: per-site manifest / service worker / icons (404 unless viewer.pwa).
+    pwa.registerPwaRoutes(app, {storage, wwwDir});
 
     if (publicViewer) {
         app.get('/viewer/', viewerHandler);
@@ -340,10 +382,17 @@ ${historicalHtml ? '</div>' : ''}
     // The generated module is served at /editor/feezal-elements.js so the editor can load
     // element definitions at runtime without writing to the (potentially read-only) wwwDir.
     const userElementsDir = storage.dataDir ? path.join(storage.dataDir, 'elements') : null;
-    const discoveredElements = discoverElements(wwwDir, userElementsDir, logger);
+    discoverElements(wwwDir, userElementsDir, logger);   // startup log of what's available
 
+    // Re-discover per request — packages installed (or manually dropped) into
+    // <dataDir>/elements/ at runtime must appear after an editor reload, not
+    // only after a server restart. The scan is a handful of readdirs; the
+    // route is fetched once per editor load. Quiet logger: the startup scan
+    // above already logged the inventory.
+    const quietLogger = {info() {}, debug() {}};
     app.get('/editor/feezal-elements.js', (_req, res) => {
-        res.type('text/javascript').send(generateElementsModule(discoveredElements));
+        const discovered = discoverElements(wwwDir, userElementsDir, quietLogger);
+        res.type('text/javascript').send(generateElementsModule(discovered));
     });
 
     return {app, server, io};

@@ -6,9 +6,10 @@ on:
       - 'v*'
 
 permissions:
-  contents: write   # create GitHub releases
-  packages: write   # push to GHCR with GITHUB_TOKEN (OIDC-backed)
-  id-token: write   # for optional sigstore/cosign image signing
+  contents: write      # create GitHub releases
+  packages: write      # push to GHCR with GITHUB_TOKEN (OIDC-backed)
+  id-token: write      # sigstore signing (SBOM attestation, optional cosign)
+  attestations: write  # actions/attest-sbom
 
 jobs:
   build-and-push:
@@ -43,6 +44,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -54,6 +56,63 @@ jobs:
             GIT_REF=${{ github.ref_name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # In-registry supply-chain attestations (inspect with
+          # `docker buildx imagetools inspect`): BuildKit-generated SBOM
+          # and full build provenance, attached to the image manifest.
+          sbom: true
+          provenance: mode=max
+
+      # ----------------------------------------------------------------
+      # SBOMs (A21 follow-up): attached to the GitHub release below.
+      #   - image SBOMs (Syft): OS packages + npm modules as shipped in
+      #     the container, per platform
+      #   - npm source SBOMs (npm sbom, lockfile-only): exact production
+      #     dependency tree of the server and www workspaces
+      # Each in both standard formats: SPDX-JSON and CycloneDX-JSON.
+      # ----------------------------------------------------------------
+
+      - name: Install Syft
+        id: syft
+        uses: anchore/sbom-action/download-syft@v0
+
+      - name: Generate image SBOMs (SPDX + CycloneDX, per platform)
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/feezal
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          mkdir -p sbom
+          for arch in amd64 arm64; do
+            ${{ steps.syft.outputs.cmd }} "registry:${IMAGE}:${VERSION}" \
+              --platform "linux/${arch}" \
+              -o spdx-json="sbom/feezal-${VERSION}-docker-${arch}.spdx.json" \
+              -o cyclonedx-json="sbom/feezal-${VERSION}-docker-${arch}.cdx.json"
+          done
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Generate npm source SBOMs (SPDX + CycloneDX, per workspace)
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          for ws in server www; do
+            (cd "$ws" && npm sbom --sbom-format spdx --omit dev --package-lock-only) \
+              > "sbom/feezal-${VERSION}-npm-${ws}.spdx.json"
+            (cd "$ws" && npm sbom --sbom-format cyclonedx --omit dev --package-lock-only) \
+              > "sbom/feezal-${VERSION}-npm-${ws}.cdx.json"
+          done
+
+      # Signed attestation binding the image SBOM to the pushed image
+      # digest; also pushed to GHCR. Verify with:
+      #   gh attestation verify oci://ghcr.io/feezal/feezal:<version> -R feezal/feezal
+      - name: Attest image SBOM
+        uses: actions/attest-sbom@v4
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/feezal
+          subject-digest: ${{ steps.build.outputs.digest }}
+          sbom-path: sbom/feezal-${{ steps.meta.outputs.version }}-docker-amd64.spdx.json
+          push-to-registry: true
 
       - name: Get previous tag
         id: prev_tag
@@ -102,3 +161,4 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           body: ${{ steps.release_body.outputs.body }}
+          files: sbom/*

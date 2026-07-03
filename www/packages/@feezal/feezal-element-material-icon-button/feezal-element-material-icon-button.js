@@ -1,12 +1,11 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import '@material/web/iconbutton/icon-button.js';
-import '@material/web/icon/icon.js';
 
 class FeezalElementMaterialIconButton extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Icon Button', category: 'Material', color: '#4a6080', icon: 'smart_button'},
+            palette: {name: 'Icon', category: 'Material', color: '#4a6080', icon: 'smart_button'},
             description: 'MD3 icon button — publishes on tap. Enable toggle to subscribe/publish boolean state.',
             attributes: [
                 {name: 'icon',        type: 'string',    help: 'Material icon name (e.g. "home", "power_settings_new").'},
@@ -46,10 +45,17 @@ class FeezalElementMaterialIconButton extends FeezalElement {
             align-items: center;
             justify-content: center;
             box-sizing: border-box;
+            /* E38: scale the icon + touch target with the element size (cqmin = 1%
+               of the smaller of the element's width/height, so it stays square). */
+            container-type: size;
             --feezal-icon-button-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
             --md-sys-color-primary: var(--feezal-icon-button-color);
             --md-sys-color-on-surface: var(--primary-text-color, #333);
+            --md-icon-button-icon-size: 55cqmin;
+            --md-icon-button-state-layer-width: 92cqmin;
+            --md-icon-button-state-layer-height: 92cqmin;
         }
+        md-icon-button { width: 100%; height: 100%; }
         .editor-ph {
             display: flex;
             align-items: center;
@@ -80,7 +86,7 @@ class FeezalElementMaterialIconButton extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (!feezal.isEditor && this.toggle && this.subscribe) {
+        if (this.toggle && this.subscribe) {
             this.addSubscription(this.subscribe, msg => {
                 const v = this.getProperty(msg, this.messageProperty);
                 this._on = v === this.payloadOn || v === true || v === 1 || v === '1' || v === 'true';
@@ -99,9 +105,9 @@ class FeezalElementMaterialIconButton extends FeezalElement {
     }
 
     render() {
-        if (feezal.isEditor) {
-            return html`<div class="editor-ph">${this.icon || 'touch_app'}</div>`;
-        }
+        // <feezal-icon> resolves set-prefixed names (mdi:…, knx-uf:…) through
+        // the icon registry; bare names render the Material Icons ligature.
+        // ::slotted(*) still sizes it to the scaled --md-icon-button-icon-size.
         if (this.toggle) {
             return html`
                 <md-icon-button
@@ -109,15 +115,15 @@ class FeezalElementMaterialIconButton extends FeezalElement {
                     ?selected="${this._on}"
                     ?disabled="${this.disabled}"
                     @click="${this._onClick}">
-                    <md-icon slot="selected">${this.icon}</md-icon>
-                    <md-icon>${this.iconOff || this.icon}</md-icon>
+                    <feezal-icon slot="selected" name="${this.icon}"></feezal-icon>
+                    <feezal-icon name="${this.iconOff || this.icon}"></feezal-icon>
                 </md-icon-button>`;
         }
         return html`
             <md-icon-button
                 ?disabled="${this.disabled}"
                 @click="${this._onClick}">
-                <md-icon>${this.icon}</md-icon>
+                <feezal-icon name="${this.icon}"></feezal-icon>
             </md-icon-button>`;
     }
 }

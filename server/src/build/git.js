@@ -71,7 +71,7 @@ async function initRepo(repoDir, siteName) {
     if (isNew) {
         _log.info(`git: initialising new repo for "${siteName}" at ${repoDir}`);
         await _gitExec(repoDir, ['-c', 'init.defaultBranch=main', 'init']);
-        // Commit whatever files are already present (views.html, viewer.json, …).
+        // Commit whatever files are already present (site.html, site.json, …).
         const committed = await _autoCommit(repoDir, `init: ${siteName}`);
         _log.info(`git: repo "${siteName}" ready${committed ? ' — initial commit created' : ' — nothing to commit yet'}`);
     } else {

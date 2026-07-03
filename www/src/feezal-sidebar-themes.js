@@ -297,13 +297,14 @@ class FeezalSidebarThemes extends LitElement {
         this.viewSelected   = false;
         this._open          = false;
         this._colors        = {};
-        this._overridesOpen = false;
+        // Collapsible section open/close, persisted (default open).
+        this._overridesOpen = localStorage.getItem('feezal:themes:overridesOpen') !== '0';
         this._overrides     = {};
         this._themeVars     = {};
         this._userThemes    = [];
         this._saveThemeOpen = false;
         this._saveThemeName = '';
-        this._classesOpen     = false;
+        this._classesOpen     = localStorage.getItem('feezal:themes:classesOpen') !== '0';
         this._classes         = {};
         this._editingClass    = null;
         this._collapsedClasses = new Set();
@@ -332,6 +333,12 @@ class FeezalSidebarThemes extends LitElement {
     disconnectedCallback() {
         super.disconnectedCallback();
         document.removeEventListener('pointerdown', this._onDocPointer, true);
+    }
+
+    /** Toggle a collapsible section and persist its open/close state. */
+    _toggleSection(prop, key) {
+        this[prop] = !this[prop];
+        localStorage.setItem(key, this[prop] ? '1' : '0');
     }
 
     // ── Color sampling ────────────────────────────────────────────────────────
@@ -435,19 +442,14 @@ class FeezalSidebarThemes extends LitElement {
         return this.currentTheme === 'default' ? null : this.currentTheme;
     }
 
-    /** Returns classes (filtered to non-empty props) for deploy serialization. */
-    get classes() {
-        const result = {};
-        for (const [name, props] of Object.entries(this._classes)) {
-            const clean = {};
-            for (const [k, v] of Object.entries(props)) {
-                if (k && v) clean[k] = v;
-            }
-            if (Object.keys(clean).length) result[name] = clean;
-        }
-        return result;
-    }
-
+    /**
+     * U25: class definitions are persisted as a <style id="feezal-classes">
+     * block INSIDE <feezal-site>, so they are saved in views.html and are
+     * visible/editable from the source editor. This regenerates that block
+     * from the current _classes state. The block is inserted as the first
+     * child of feezal-site and removed entirely when there are no classes so
+     * the stored HTML stays clean.
+     */
     _syncClassesStyle() {
         const cssText = Object.entries(this._classes)
             .map(([name, props]) => {
@@ -458,15 +460,60 @@ class FeezalSidebarThemes extends LitElement {
                 return propStr ? `.feezal-class-${name}{${propStr}}` : '';
             })
             .filter(Boolean).join('\n');
-        let el = document.getElementById('feezal-classes');
-        if (!el) {
-            el = document.createElement('style');
-            el.id = 'feezal-classes';
-            document.head.appendChild(el);
+
+        if (feezal.site) {
+            let el = feezal.site.querySelector(':scope > style#feezal-classes');
+            if (cssText) {
+                if (!el) {
+                    el = document.createElement('style');
+                    el.id = 'feezal-classes';
+                    feezal.site.insertBefore(el, feezal.site.firstChild);
+                }
+                el.textContent = cssText;
+            } else if (el) {
+                el.remove();
+            }
         }
-        el.textContent = cssText;
         feezal.classes = this._classes;
         document.dispatchEvent(new CustomEvent('feezal-classes-changed'));
+    }
+
+    /**
+     * Parse the in-document <style id="feezal-classes"> block back into a
+     * {name: {prop: val}} map for the visual class editor. Mirrors the format
+     * produced by _syncClassesStyle().
+     */
+    _parseClassesStyle() {
+        const classes = {};
+        const el = feezal.site && feezal.site.querySelector(':scope > style#feezal-classes');
+        if (!el) return classes;
+        const re = /\.feezal-class-([\w-]+)\s*\{([^}]*)\}/g;
+        let m;
+        while ((m = re.exec(el.textContent || ''))) {
+            const props = {};
+            for (const decl of m[2].split(';')) {
+                const i = decl.indexOf(':');
+                if (i === -1) continue;
+                const k = decl.slice(0, i).trim();
+                const v = decl.slice(i + 1).trim();
+                if (k && v) props[k] = v;
+            }
+            classes[m[1]] = props;
+        }
+        return classes;
+    }
+
+    /**
+     * Re-read the class definitions from the document after the markup was
+     * replaced out-of-band (source-editor apply, undo/redo, history restore).
+     * Updates the visual editor and the inspector's class list without
+     * rewriting the block the user just authored.
+     */
+    reloadClasses() {
+        this._classes = this._parseClassesStyle();
+        feezal.classes = this._classes;
+        document.dispatchEvent(new CustomEvent('feezal-classes-changed'));
+        this.requestUpdate();
     }
 
     _addClass() {
@@ -784,11 +831,23 @@ class FeezalSidebarThemes extends LitElement {
         this.themes = feezal.themes || [];
         this._fetchUserThemes().then(() => this._syncUserThemeLink(this.currentTheme));
 
-        // Restore saved CSS classes.
-        const savedClasses = (viewerConfig && viewerConfig.classes) || {};
-        this._classes = savedClasses;
-        feezal.classes = savedClasses;
+        // Restore CSS classes (U25). Definitions now live in a <style
+        // id="feezal-classes"> block inside <feezal-site> (saved in views.html).
+        // Legacy sites stored them in viewer.json — adopt those once and
+        // re-persist them into the document on the next deploy.
+        let classes = this._parseClassesStyle();
+        let migrated = false;
+        if (!Object.keys(classes).length) {
+            const legacy = (viewerConfig && viewerConfig.classes) || {};
+            if (Object.keys(legacy).length) {
+                classes = legacy;
+                migrated = true;
+            }
+        }
+        this._classes = classes;
+        feezal.classes = classes;
         this._syncClassesStyle();
+        if (migrated) feezal.app.change?.(true);   // mark dirty so the next deploy persists it
 
         this._sampleColors();
     }
@@ -865,7 +924,7 @@ class FeezalSidebarThemes extends LitElement {
             </div>
 
             <div class="overrides-section">
-                <div class="collapsible-hdr" @click="${() => this._overridesOpen = !this._overridesOpen}">
+                <div class="collapsible-hdr" @click="${() => this._toggleSection('_overridesOpen', 'feezal:themes:overridesOpen')}">
                     <span class="section-label">Colour overrides</span>
                     ${activeCount > 0 ? html`<span class="overrides-badge">${activeCount}</span>` : ''}
                     <span class="collapsible-arrow">${this._overridesOpen ? '▴' : '▾'}</span>
@@ -924,7 +983,7 @@ class FeezalSidebarThemes extends LitElement {
             </div>
 
             <div class="classes-section">
-                <div class="collapsible-hdr" @click="${() => this._classesOpen = !this._classesOpen}">
+                <div class="collapsible-hdr" @click="${() => this._toggleSection('_classesOpen', 'feezal:themes:classesOpen')}">
                     <span class="section-label">Classes</span>
                     ${Object.keys(this._classes).length > 0 ? html`<span class="overrides-badge">${Object.keys(this._classes).length}</span>` : ''}
                     <span class="collapsible-arrow">${this._classesOpen ? '▴' : '▾'}</span>

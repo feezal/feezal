@@ -361,7 +361,6 @@ class FeezalElementMaterialClimate extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (feezal.isEditor) return;
 
         // Availability — always independent of payload mode.
         if (this.subscribeAvailability) {
@@ -513,7 +512,7 @@ class FeezalElementMaterialClimate extends FeezalElement {
     // ─── SVG rendering ────────────────────────────────────────────────────────
     _renderArc() {
         const editorSetpoint = (this.min + this.max) / 2 + this.step * 3; // e.g. 17.5 + 1.5 = 19
-        const setpoint  = this._setpoint ?? (feezal.isEditor ? editorSetpoint : null);
+        const setpoint  = this._setpoint ?? null;
         const actual    = this._actual;
         const fillColor = this._arcFillColor;
 
@@ -561,7 +560,7 @@ class FeezalElementMaterialClimate extends FeezalElement {
 
         // Centre text
         const dispSetpoint = setpoint !== null ? fmtTemp(setpoint, this.unit) : '';
-        const dispActual   = actual !== null ? fmtTemp(actual, this.unit) : (feezal.isEditor ? fmtTemp(21.5, this.unit) : '\u2014');
+        const dispActual   = actual !== null ? fmtTemp(actual, this.unit) : '\u2014';
 
         return svg`
             <!-- Background track -->
@@ -621,11 +620,11 @@ class FeezalElementMaterialClimate extends FeezalElement {
     }
 
     render() {
-        const showUnavail = !feezal.isEditor && this.subscribeAvailability && !this._available;
+        const showUnavail = this.subscribeAvailability && !this._available;
         const modeList    = this._parsedModes();
-        const showModes   = modeList.length > 0 && !feezal.isEditor;
-        const showValve   = this._valve !== null && !feezal.isEditor;
-        const showHum     = this._humidity !== null && !feezal.isEditor;
+        const showModes   = modeList.length > 0;
+        const showValve   = this._valve !== null;
+        const showHum     = this._humidity !== null;
 
         return html`
             ${showUnavail ? html`

@@ -86,14 +86,12 @@ class FeezalElementMaterialButton extends FeezalElement {
 
     _iconSlot() {
         return this.icon
-            ? html`<span slot="icon" style="font-family:'Material Icons';font-style:normal">${this.icon}</span>`
+            ? html`<feezal-icon slot="icon" name="${this.icon}"></feezal-icon>`
             : '';
     }
 
     render() {
-        if (feezal.isEditor) {
-            return html`<div class="editor-ph">⬡ ${this.label || 'Button'}</div>`;
-        }
+
         switch (this.variant) {
             case 'outlined':
                 return html`<md-outlined-button @click="${this._click}">${this._iconSlot()}${this.label}</md-outlined-button>`;

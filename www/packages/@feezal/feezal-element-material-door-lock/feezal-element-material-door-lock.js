@@ -43,7 +43,7 @@ function lockSvg(state) {
 class FeezalElementMaterialDoorLock extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Door lock', category: 'Device', color: '#1565c0', icon: 'lock'},
+            palette: {name: 'Lock', category: 'Device', color: '#1565c0', icon: 'lock'},
             description: 'Smart door lock card — shows locked / unlocked / jammed state with a padlock SVG. Lock and unlock command buttons included.',
             discovery: {
                 component: 'lock',
@@ -174,7 +174,6 @@ class FeezalElementMaterialDoorLock extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (feezal.isEditor) return;
 
         if (this.subscribeAvailability) {
             this.addSubscription(this.subscribeAvailability, msg => {
@@ -213,21 +212,11 @@ class FeezalElementMaterialDoorLock extends FeezalElement {
             ? this._lockState.charAt(0).toUpperCase() + this._lockState.slice(1)
             : '\u2014';
 
-        if (feezal.isEditor) {
-            return html`
-                <div class="svg-wrap">
-                    <svg class="lock" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-                        ${lockSvg('locked')}
-                    </svg>
-                </div>
-                ${this.label ? html`<div class="label">${this.label}</div>` : ''}`;
-        }
-
         return html`
             ${!this._available ? html`<div class="unavail">${UNAVAIL}</div>` : ''}
             <div class="svg-wrap">
                 <svg class="lock" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-                    ${lockSvg(this._lockState)}
+                    ${lockSvg(this._lockState ?? 'locked')}
                 </svg>
             </div>
             <span class="state-label">${stateText}</span>

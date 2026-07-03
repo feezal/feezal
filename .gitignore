@@ -6,4 +6,7 @@
 /www/viewer
 /www/viewer-src/feezal-elements.js
 /www/viewer-src/index.html
+/server/coverage
+/www/coverage
+/www/.vitest-attachments
 

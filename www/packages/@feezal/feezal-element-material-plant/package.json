@@ -1,5 +1,6 @@
 {
   "name": "@feezal/feezal-element-material-plant",
-  "version": "1.0.0",
+  "version": "1.0.3",
+  "license": "MIT",
   "main": "feezal-element-material-plant.js"
 }

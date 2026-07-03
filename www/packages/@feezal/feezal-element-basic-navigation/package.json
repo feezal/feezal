@@ -1,5 +1,6 @@
 {
-    "name":  "@feezal/feezal-element-basic-navigation",
-    "version":  "1.0.0",
-    "main":  "feezal-element-basic-navigation.js"
+    "name": "@feezal/feezal-element-basic-navigation",
+    "version": "1.0.0",
+    "license": "MIT",
+    "main": "feezal-element-basic-navigation.js"
 }

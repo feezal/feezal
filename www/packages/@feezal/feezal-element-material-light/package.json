@@ -1,5 +1,6 @@
 {
-    "name":  "@feezal/feezal-element-material-light",
-    "version":  "1.0.7",
-    "main":  "feezal-element-material-light.js"
+  "name": "@feezal/feezal-element-material-light",
+  "version": "1.1.0",
+  "license": "MIT",
+  "main": "feezal-element-material-light.js"
 }

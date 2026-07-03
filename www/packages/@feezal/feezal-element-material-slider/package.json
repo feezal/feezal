@@ -1,5 +1,6 @@
 {
-    "name":  "@feezal/feezal-element-material-slider",
-    "version":  "1.0.3",
-    "main":  "feezal-element-material-slider.js"
+  "name": "@feezal/feezal-element-material-slider",
+  "version": "1.0.6",
+  "license": "MIT",
+  "main": "feezal-element-material-slider.js"
 }

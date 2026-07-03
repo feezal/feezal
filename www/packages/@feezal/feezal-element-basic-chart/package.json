@@ -1,5 +1,6 @@
 {
-    "name":  "@feezal/feezal-element-basic-chart",
-    "version":  "1.0.2",
-    "main":  "feezal-element-basic-chart.js"
+    "name": "@feezal/feezal-element-basic-chart",
+    "version": "1.0.2",
+    "license": "MIT",
+    "main": "feezal-element-basic-chart.js"
 }

@@ -79,13 +79,11 @@ class FeezalElementBasicNavigation extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (!feezal.isEditor) {
+        this._activeView = feezal.site?.getAttribute('view') || '';
+        this._onViewChange = () => {
             this._activeView = feezal.site?.getAttribute('view') || '';
-            this._onViewChange = () => {
-                this._activeView = feezal.site?.getAttribute('view') || '';
-            };
-            feezal.site?.addEventListener('view-changed', this._onViewChange);
-        }
+        };
+        feezal.site?.addEventListener('view-changed', this._onViewChange);
     }
 
     disconnectedCallback() {
@@ -116,10 +114,6 @@ class FeezalElementBasicNavigation extends FeezalElement {
     }
 
     render() {
-        if (feezal.isEditor) {
-            return html`<div class="editor-placeholder"><span class="icon">swap_horiz</span> Navigation</div>`;
-        }
-
         const activeStyle = this.activeColor ? `--nav-active-color: ${this.activeColor};` : '';
         return html`
             <style>:host { ${activeStyle} }</style>

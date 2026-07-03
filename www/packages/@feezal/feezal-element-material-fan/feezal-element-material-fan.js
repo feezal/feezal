@@ -199,7 +199,6 @@ class FeezalElementMaterialFan extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (feezal.isEditor) return;
 
         if (this.subscribeAvailability) {
             this.addSubscription(this.subscribeAvailability, msg => {
@@ -301,12 +300,6 @@ class FeezalElementMaterialFan extends FeezalElement {
     render() {
         let presets = [];
         try { presets = JSON.parse(this.presetModes); } catch { presets = []; }
-
-        if (feezal.isEditor) {
-            return html`
-                <div class="svg-wrap">${this._fanSvg(true, 50)}</div>
-                ${this.label ? html`<div class="label">${this.label}</div>` : ''}`;
-        }
 
         const speedPct = this._speed ?? 0;
 

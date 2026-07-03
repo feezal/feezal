@@ -67,7 +67,7 @@ class FeezalElementBasicChart extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (!feezal.isEditor && this.subscribe) {
+        if (this.subscribe) {
             this.addSubscription(this.subscribe, msg => this._onMessage(msg));
         }
     }
@@ -110,13 +110,6 @@ class FeezalElementBasicChart extends FeezalElement {
     }
 
     render() {
-        if (feezal.isEditor) {
-            return html`
-                <div class="editor-placeholder">
-                    <span class="icon">show_chart</span> Chart
-                </div>
-                ${this.label ? html`<div class="label">${this.label}</div>` : ''}`;
-        }
         return html`
             ${this._buildSvg()}
             ${this.label ? html`<div class="label">${this.label}</div>` : ''}`;

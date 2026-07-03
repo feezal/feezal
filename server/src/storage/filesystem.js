@@ -6,13 +6,13 @@ const path = require('path');
 const StorageAdapter = require('./adapter.js');
 const {initRepo, autoCommit, showFile, setLogger} = require('../build/git.js');
 
-const VIEWS_FILE = 'views.html';
-const CONFIG_FILE = 'viewer.json';
-const GLOBAL_DIR = '_global';
+const VIEWS_FILE = 'site.html';    // per-site markup (A14 — was views.html)
+const CONFIG_FILE = 'site.json';   // per-site config (A14 — was viewer.json)
+const SITES_DIR = 'sites';         // A14 — every site lives under <dataDir>/sites/
+const GLOBAL_DIR = 'global';       // A14 — was _global
 
-// Directories inside dataDir that are not sites.
-const RESERVED_SITE_NAMES = new Set(['_global', 'themes']);
-const isReservedSiteName = name => RESERVED_SITE_NAMES.has(name) || name.startsWith('_');
+// A14: sites live under <dataDir>/sites/, so a site name can no longer collide
+// with a root-level system dir. It only has to be a safe single path segment.
 
 const DEFAULT_SITE_HTML = `<feezal-site><feezal-view name="view1" style="
         width: 100%;
@@ -31,7 +31,7 @@ class FilesystemStorage extends StorageAdapter {
     }
 
     _sitePath(name) {
-        return path.join(this.dataDir, name);
+        return path.join(this.dataDir, SITES_DIR, name);
     }
 
     /**
@@ -56,9 +56,9 @@ class FilesystemStorage extends StorageAdapter {
 
     async listSites() {
         try {
-            const entries = await fs.readdir(this.dataDir, {withFileTypes: true});
+            const entries = await fs.readdir(path.join(this.dataDir, SITES_DIR), {withFileTypes: true});
             return entries
-                .filter(e => e.isDirectory() && !isReservedSiteName(e.name))
+                .filter(e => e.isDirectory())
                 .map(e => e.name);
         } catch {
             return [];
@@ -87,26 +87,44 @@ class FilesystemStorage extends StorageAdapter {
     }
 
     /**
-     * Return the views.html and viewer config of a site at a specific git commit.
+     * Return the site markup (site.html) and config of a site at a specific git commit.
      * Falls back to current content if git is unavailable or the sha is invalid.
      * @param {string} name  Site name.
      * @param {string} sha   Commit hash (7–40 hex chars).
      * @returns {Promise<{html: string, config: object|null}>}
      */
     async getSiteAtVersion(name, sha) {
-        const html = await showFile(this._sitePath(name), sha, VIEWS_FILE);
+        const repo = this._sitePath(name);
+        // A14: commits made before the file rename carry the old names — fall
+        // back to them so historical previews/diffs keep working without a
+        // data migration.
+        const html = await this._showFileLegacy(repo, sha, VIEWS_FILE, 'views.html');
         let config = null;
         try {
-            const raw = await showFile(this._sitePath(name), sha, CONFIG_FILE);
+            const raw = await this._showFileLegacy(repo, sha, CONFIG_FILE, 'viewer.json');
             if (raw) config = JSON.parse(raw);
-        } catch { /* viewer.json absent in older commits — non-fatal */ }
+        } catch { /* config absent in older commits — non-fatal */ }
         return {html: html || DEFAULT_SITE_HTML, config};
+    }
+
+    /**
+     * `git show sha:<file>`, falling back to the legacy filename for commits
+     * created before the A14 rename. Throws only if neither name resolves.
+     */
+    async _showFileLegacy(repoDir, sha, file, legacyFile) {
+        try {
+            return await showFile(repoDir, sha, file);
+        } catch {
+            return showFile(repoDir, sha, legacyFile);
+        }
     }
 
     async saveSite(name, {html, config}) {
         const sitePath = this._sitePath(name);
         const isNew = !require('fs').existsSync(path.join(sitePath, '.git'));
         await fs.mkdir(sitePath, {recursive: true});
+        // A14: TLS certs (N8) live in <site>/certs/ — keep private keys out of git.
+        await this._ensureGitignore(sitePath);
         await Promise.all([
             fs.writeFile(path.join(sitePath, VIEWS_FILE), html, 'utf8'),
             fs.writeFile(path.join(sitePath, CONFIG_FILE), JSON.stringify(config, null, 2), 'utf8')
@@ -121,6 +139,16 @@ class FilesystemStorage extends StorageAdapter {
             }
         } catch (err) {
             this._logger.warn(`git: save commit failed for "${name}": ${err.message}`);
+        }
+    }
+
+    /** Ensure the site dir ignores its certs/ folder so keys are never committed. */
+    async _ensureGitignore(sitePath) {
+        const gitignore = path.join(sitePath, '.gitignore');
+        try {
+            await fs.access(gitignore);
+        } catch {
+            await fs.writeFile(gitignore, 'certs/\n', 'utf8');
         }
     }
 
@@ -185,14 +213,32 @@ class FilesystemStorage extends StorageAdapter {
         return results;
     }
 
+    async _listDirsRec(dir, baseDir) {
+        const results = [];
+        try {
+            const entries = await fs.readdir(dir, {withFileTypes: true});
+            for (const entry of entries) {
+                if (entry.isDirectory()) {
+                    const full = path.join(dir, entry.name);
+                    results.push(path.relative(baseDir, full).replace(/\\/g, '/'));
+                    const sub = await this._listDirsRec(full, baseDir);
+                    results.push(...sub);
+                }
+            }
+        } catch { /* dir does not exist yet */ }
+        return results;
+    }
+
     async listAssets(siteName) {
         const globalBase = this._assetBase('global', siteName);
         const siteBase   = this._assetBase('site',   siteName);
-        const [globalFiles, siteFiles] = await Promise.all([
+        const [globalFiles, siteFiles, globalDirs, siteDirs] = await Promise.all([
             this._listFilesRec(globalBase, globalBase),
-            this._listFilesRec(siteBase, siteBase)
+            this._listFilesRec(siteBase, siteBase),
+            this._listDirsRec(globalBase, globalBase),
+            this._listDirsRec(siteBase, siteBase)
         ]);
-        return {global: globalFiles, site: siteFiles};
+        return {global: globalFiles, site: siteFiles, globalDirs, siteDirs};
     }
 
     async saveAsset(category, siteName, filePath, buffer) {
@@ -226,6 +272,94 @@ class FilesystemStorage extends StorageAdapter {
         const base   = this._assetBase(category, siteName);
         const target = this._resolveAssetPath(base, dirPath);
         await fs.mkdir(target, {recursive: true});
+    }
+
+    async copyAsset(srcCategory, siteName, srcPath, destCategory, destPath) {
+        const srcBase  = this._assetBase(srcCategory, siteName);
+        const destBase = this._assetBase(destCategory, siteName);
+        const from = this._resolveAssetPath(srcBase,  srcPath);
+        const to   = this._resolveAssetPath(destBase, destPath);
+        await fs.mkdir(path.dirname(to), {recursive: true});
+        await fs.copyFile(from, to);
+    }
+
+    async moveAsset(srcCategory, siteName, srcPath, destCategory, destPath) {
+        await this.copyAsset(srcCategory, siteName, srcPath, destCategory, destPath);
+        const srcBase = this._assetBase(srcCategory, siteName);
+        const from    = this._resolveAssetPath(srcBase, srcPath);
+        await fs.unlink(from);
+    }
+
+    /**
+     * Content-deduplicating copy (B15, copy-on-use of global assets). Walks the
+     * candidate chain `name`, `name-1`, `name-2`, … and:
+     *   (a) a free slot     → copy there, return it;
+     *   (b) taken, identical → reuse it (no copy) so the src points at the existing file;
+     *   (c) taken, different → try the next suffix.
+     * Identity = same size, then a byte-for-byte compare. Returns the relative
+     * destination path used.
+     */
+    async copyAssetUnique(srcCategory, siteName, srcPath, destCategory, destPath) {
+        const srcBase  = this._assetBase(srcCategory, siteName);
+        const destBase = this._assetBase(destCategory, siteName);
+        const srcAbs   = this._resolveAssetPath(srcBase, srcPath);
+        const ext  = path.extname(destPath);
+        const stem = destPath.slice(0, destPath.length - ext.length);
+
+        let srcStat = null;
+        try { srcStat = await fs.stat(srcAbs); } catch { /* missing source → copyAsset will throw below */ }
+
+        for (let n = 0; ; n++) {
+            const candidate = n === 0 ? destPath : `${stem}-${n}${ext}`;
+            const candAbs = this._resolveAssetPath(destBase, candidate);
+            let candStat = null;
+            try { candStat = await fs.stat(candAbs); } catch { candStat = null; }
+
+            if (!candStat) {                                   // (a) free
+                await this.copyAsset(srcCategory, siteName, srcPath, destCategory, candidate);
+                return candidate;
+            }
+            if (srcStat && candStat.size === srcStat.size &&   // (b) identical → reuse
+                await this._filesEqual(srcAbs, candAbs)) {
+                return candidate;
+            }
+            // (c) different → next suffix
+        }
+    }
+
+    /** Byte-for-byte file comparison (callers pre-check size for a cheap reject). */
+    async _filesEqual(a, b) {
+        try {
+            const [ba, bb] = await Promise.all([fs.readFile(a), fs.readFile(b)]);
+            return ba.equals(bb);
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Walk site.html and site.json for the given site and replace all
+     * occurrences of oldUrl with newUrl.  A git commit is made if anything changed.
+     */
+    async updateAssetRefs(siteName, oldUrl, newUrl) {
+        const sitePath  = this._sitePath(siteName);
+        const viewsFile = path.join(sitePath, VIEWS_FILE);
+        const cfgFile   = path.join(sitePath, CONFIG_FILE);
+        let changed = false;
+        for (const file of [viewsFile, cfgFile]) {
+            const content = await fs.readFile(file, 'utf8').catch(() => null);
+            if (content && content.includes(oldUrl)) {
+                await fs.writeFile(file, content.split(oldUrl).join(newUrl), 'utf8');
+                changed = true;
+            }
+        }
+        if (changed) {
+            try {
+                await autoCommit(sitePath, siteName);
+            } catch (err) {
+                this._logger.warn(`git: ref-update commit failed for "${siteName}": ${err.message}`);
+            }
+        }
     }
 
     /** Returns {global: {base, files}, site: {base, files}} for export bundling. */

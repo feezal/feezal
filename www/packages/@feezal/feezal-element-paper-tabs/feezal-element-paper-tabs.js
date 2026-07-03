@@ -100,8 +100,10 @@ class FeezalElementPaperTabs extends FeezalPolymerElement {
         })
 
 
-        if (!feezal.isEditor && this.subscribe) {
-            feezal.connection.sub(this.subscribe, msg => {
+        if (this.subscribe) {
+            // addSubscription tracks the subscription so disconnectedCallback
+            // releases it (a bare feezal.connection.sub() would leak).
+            this.addSubscription(this.subscribe, msg => {
                 this.$.tabs.selected = this.arrItems.indexOf(msg.payload);
             });
         }

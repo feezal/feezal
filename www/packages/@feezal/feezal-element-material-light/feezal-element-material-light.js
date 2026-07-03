@@ -117,7 +117,7 @@ class FeezalElementMaterialLight extends FeezalElement {
                 map: {
                     // wiring — schema decides separate vs json
                     schema:        {attr: 'payload-mode', valueMap: {json: 'json', _default: 'separate'}},
-                    state_topic:   {attr: 'subscribe', onlyWhen: {schema: 'json'}}, // base topic
+                    state_topic:   'subscribe', // json mode: base topic; separate mode: on/off state topic
                     command_topic: {attr: 'publish',   onlyWhen: {schema: 'json'}}, // …/set
                     // capability ranges
                     brightness_scale:      {attr: 'brightness-max'},          // e.g. 254 → 0–100 %
@@ -135,12 +135,11 @@ class FeezalElementMaterialLight extends FeezalElement {
             attributes: [
                 // Wiring mode
                 {name: 'payload-mode', type: 'select', options: ['separate', 'json'], default: 'separate', help: 'separate = one topic per property; json = single topic carrying a JSON object.'},
-                {name: 'subscribe', type: 'mqttTopic', help: 'json mode: base topic carrying the whole JSON state object.'},
+                {name: 'subscribe', type: 'mqttTopic', help: 'JSON mode: base topic carrying the whole state JSON object. Separate mode: on/off state topic. Also serves as base for dynamic attribute overrides via `<subscribe>/#`.'},
                 {name: 'publish',   type: 'mqttTopic', help: 'json mode: command topic (usually …/set) that accepts a partial JSON object.'},
                 {name: 'json-map',  type: 'string', default: '', help: 'json mode: optional JSON string overriding the default property→key map.'},
                 {name: 'message-property',  type: 'string', default: 'payload', help: 'Property path within message payloads (dot-notation). json mode: extracts the JSON state object; separate mode: global fallback for all topics.'},
                 // On/off
-                {name: 'subscribe-state',   type: 'mqttTopic', help: 'Topic receiving on/off state.'},
                 {name: 'publish-state',     type: 'mqttTopic', help: 'Topic to publish on/off.'},
                 {name: 'payload-on',        type: 'string',    default: 'on',  help: 'Payload representing "on".'},
                 {name: 'payload-off',       type: 'string',    default: 'off', help: 'Payload representing "off".'},
@@ -178,7 +177,6 @@ class FeezalElementMaterialLight extends FeezalElement {
                 {name: 'payload-available',      type: 'string', default: 'online',  help: 'Payload meaning the device is available.'},
                 {name: 'payload-unavailable',    type: 'string', default: 'offline', help: 'Payload meaning the device is unavailable.'},
                 // Per-topic message-property overrides (separate mode)
-                {name: 'message-property-state',       type: 'string', default: 'payload', help: 'Property path for state topic. Defaults to message-property.'},
                 {name: 'message-property-brightness',  type: 'string', default: 'payload', help: 'Property path for brightness topic. Defaults to message-property.'},
                 {name: 'message-property-color-temp',  type: 'string', default: 'payload', help: 'Property path for colour-temperature topic. Defaults to message-property.'},
                 {name: 'message-property-rgb',         type: 'string', default: 'payload', help: 'Property path for RGB topic. Defaults to message-property.'},
@@ -213,7 +211,6 @@ class FeezalElementMaterialLight extends FeezalElement {
         payloadMode:        {type: String, reflect: true, attribute: 'payload-mode'},
         publish:            {type: String, reflect: true, attribute: 'publish'},
         jsonMap:            {type: String, reflect: true, attribute: 'json-map'},
-        subscribeState:     {type: String, reflect: true, attribute: 'subscribe-state'},
         publishState:       {type: String, reflect: true, attribute: 'publish-state'},
         payloadOn:          {type: String, reflect: true, attribute: 'payload-on'},
         payloadOff:         {type: String, reflect: true, attribute: 'payload-off'},
@@ -244,7 +241,6 @@ class FeezalElementMaterialLight extends FeezalElement {
         payloadAvailable:   {type: String, reflect: true, attribute: 'payload-available'},
         payloadUnavailable: {type: String, reflect: true, attribute: 'payload-unavailable'},
         discoveryId:        {type: String, reflect: true, attribute: 'discovery-id'},
-        msgPropState:       {type: String, reflect: true, attribute: 'message-property-state'},
         msgPropBrightness:  {type: String, reflect: true, attribute: 'message-property-brightness'},
         msgPropColorTemp:   {type: String, reflect: true, attribute: 'message-property-color-temp'},
         msgPropRgb:         {type: String, reflect: true, attribute: 'message-property-rgb'},
@@ -372,7 +368,6 @@ class FeezalElementMaterialLight extends FeezalElement {
         this.payloadMode         = 'separate';
         this.publish             = '';
         this.jsonMap             = '';
-        this.subscribeState      = '';
         this.publishState        = '';
         this.payloadOn           = 'on';
         this.payloadOff          = 'off';
@@ -403,7 +398,6 @@ class FeezalElementMaterialLight extends FeezalElement {
         this.payloadAvailable    = 'online';
         this.payloadUnavailable  = 'offline';
         this.discoveryId         = '';
-        this.msgPropState        = '';
         this.msgPropBrightness   = '';
         this.msgPropColorTemp    = '';
         this.msgPropRgb          = '';
@@ -436,7 +430,6 @@ class FeezalElementMaterialLight extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (feezal.isEditor) return;
 
         // Availability — always honoured, in both payload modes.
         if (this.subscribeAvailability) {
@@ -463,9 +456,9 @@ class FeezalElementMaterialLight extends FeezalElement {
         }
 
         // ── Separate (per-topic) mode ──────────────────────────────────────
-        if (this.subscribeState) {
-            this.addSubscription(this.subscribeState, msg => {
-                const v = this.getProperty(msg, this.msgPropState || this.messageProperty);
+        if (this.subscribe) {
+            this.addSubscription(this.subscribe, msg => {
+                const v = this.getProperty(msg, this.messageProperty);
                 this._on = v === this.payloadOn || v === true || v === 1 || v === '1' ||
                            (typeof v === 'string' && v.toLowerCase() === 'on');
             });
@@ -727,9 +720,9 @@ class FeezalElementMaterialLight extends FeezalElement {
 
     // ─── SVG content ─────────────────────────────────────────────────────────
     _svgContent() {
-        const isOn   = feezal.isEditor ? true : this._on;
-        const brt    = feezal.isEditor ? 60   : this._dispBrt;
-        const accent = feezal.isEditor ? 'var(--feezal-light-on-color)' : this._accentColor;
+        const isOn   = this._on ?? true;
+        const brt    = this._dispBrt ?? 60;
+        const accent = this._accentColor ?? 'var(--feezal-light-on-color)';
         const trackC = 'var(--feezal-light-off-color)';
         const mode   = this.mode || 'brightness';
 
@@ -790,7 +783,7 @@ class FeezalElementMaterialLight extends FeezalElement {
                     </text>`;
 
             case 'color_temp': {
-                const k = feezal.isEditor ? 4000 : (this._colorTemp ?? null);
+                const k = this._colorTemp ?? null;
                 return svg`
                     <defs>
                         <linearGradient id="feezal-ct-grad" gradientUnits="userSpaceOnUse"
@@ -829,16 +822,14 @@ class FeezalElementMaterialLight extends FeezalElement {
 
                 // Selected colour indicator dot (computed from current _rgb or _hs)
                 let dotX = null, dotY = null;
-                if (!feezal.isEditor) {
-                    if (mode === 'rgb' && this._rgb) {
-                        const {h, s} = rgbToHsv(...this._rgb);
-                        // h matches polarXY angle (both: 0=top=red, clockwise)
-                        const [px, py] = polarXY(h, s * (CENTER_R - 5));
-                        dotX = px; dotY = py;
-                    } else if (mode === 'hs' && this._hs) {
-                        const [px, py] = polarXY(this._hs[0], (this._hs[1] / 100) * (CENTER_R - 5));
-                        dotX = px; dotY = py;
-                    }
+                if (mode === 'rgb' && this._rgb) {
+                    const {h, s} = rgbToHsv(...this._rgb);
+                    // h matches polarXY angle (both: 0=top=red, clockwise)
+                    const [px, py] = polarXY(h, s * (CENTER_R - 5));
+                    dotX = px; dotY = py;
+                } else if (mode === 'hs' && this._hs) {
+                    const [px, py] = polarXY(this._hs[0], (this._hs[1] / 100) * (CENTER_R - 5));
+                    dotX = px; dotY = py;
                 }
 
                 return svg`
@@ -884,7 +875,7 @@ class FeezalElementMaterialLight extends FeezalElement {
         if (mode === 'color_temp' || mode === 'brightness_ct') {
             const min = this.colorTempMin || 2700;
             const max = this.colorTempMax || 6500;
-            const ct  = feezal.isEditor ? 4000 : (this._colorTemp ?? min);
+            const ct  = this._colorTemp ?? min;
             const pct = Math.max(0, Math.min(100, ((ct - min) / (max - min)) * 100));
             parts.push(html`
                 <div class="ctrl-label">Color temperature</div>
@@ -930,7 +921,7 @@ class FeezalElementMaterialLight extends FeezalElement {
 
     // ─── Render ───────────────────────────────────────────────────────────────
     render() {
-        const showUnavail = !feezal.isEditor && this.subscribeAvailability && !this._available;
+        const showUnavail = this.subscribeAvailability && !this._available;
         return html`
             ${showUnavail ? html`
                 <div class="unavail" title="Device unavailable">

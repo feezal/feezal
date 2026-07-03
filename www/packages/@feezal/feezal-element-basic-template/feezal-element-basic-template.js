@@ -11,7 +11,7 @@ class FeezalElementBasicTemplate extends FeezalElement {
             },
             attributes: [
                 'subscribe',
-                {name: 'template', textarea: true, template: true, help: 'Use ${msg.payload} to insert the received MQTT value. Other message properties like ${msg.topic} are also available.'}
+                {name: 'template', textarea: true, template: true, editor: true, help: 'Use ${msg.payload} to insert the received MQTT value. Other message properties like ${msg.topic} are also available.'}
             ],
             styles: [
                 'top', 'left', 'width', 'height',
@@ -38,9 +38,6 @@ class FeezalElementBasicTemplate extends FeezalElement {
     }
 
     render() {
-        if (feezal.isEditor) {
-            return html`<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0.6">Template${this.subscribe ? ': ' + this.subscribe : ''}</div>`;
-        }
         return html`<div id="content"></div>`;
     }
 

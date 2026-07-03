@@ -1,5 +1,6 @@
 {
   "name": "@feezal/feezal-element-material-computer-stats",
-  "version": "1.0.1",
+  "version": "1.0.2",
+  "license": "MIT",
   "main": "feezal-element-material-computer-stats.js"
 }

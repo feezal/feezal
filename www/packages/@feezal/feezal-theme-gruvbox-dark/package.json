@@ -1,8 +1,9 @@
 {
-    "name":  "@feezal/feezal-theme-gruvbox-dark",
-    "version":  "1.0.0",
-    "main":  "feezal-theme-gruvbox-dark.js",
-    "feezal":  {
-                   "type":  "theme"
-               }
+    "name": "@feezal/feezal-theme-gruvbox-dark",
+    "version": "1.0.0",
+    "license": "MIT",
+    "main": "feezal-theme-gruvbox-dark.js",
+    "feezal": {
+        "type": "theme"
+    }
 }

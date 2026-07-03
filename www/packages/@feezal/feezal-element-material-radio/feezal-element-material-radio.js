@@ -7,7 +7,7 @@ let _uid = 0;
 class FeezalElementMaterialRadio extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Radio Group', category: 'Material', color: '#4a6080', icon: 'radio_button_checked'},
+            palette: {name: 'Radio', category: 'Material', color: '#4a6080', icon: 'radio_button_checked'},
             description: 'MD3 radio button group — subscribes to current value and publishes the selected option.',
             attributes: [
                 {name: 'subscribe',   type: 'mqttTopic', help: 'Topic to read the current selected value from.'},
@@ -107,7 +107,7 @@ class FeezalElementMaterialRadio extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (!feezal.isEditor && this.subscribe) {
+        if (this.subscribe) {
             this.addSubscription(this.subscribe, msg => {
                 this._value = String(this.getProperty(msg, this.messageProperty) ?? '');
             });
@@ -122,13 +122,6 @@ class FeezalElementMaterialRadio extends FeezalElement {
 
     render() {
         const opts = this._options;
-        if (feezal.isEditor) {
-            return html`
-                <div class="editor-ph">
-                    ${opts.slice(0, 3).map(o => html`
-                        <div class="editor-opt"><div class="editor-dot"></div>${o.label ?? o.value}</div>`)}
-                </div>`;
-        }
         return html`
             <div class="group" ?horizontal="${this.orientation === 'horizontal'}">
                 ${opts.map(o => html`

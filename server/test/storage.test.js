@@ -91,4 +91,26 @@ describe('FilesystemStorage', () => {
             expect(await storage.listSites()).toContain('after');
         });
     });
+
+    describe('copyAssetUnique — content dedup (B15)', () => {
+        it('reuses an identical copy and only suffixes when content differs', async () => {
+            await storage.saveSite('s', {html: '<x/>', config: {}});
+            await storage.saveAsset('global', null, 'logo.png', Buffer.from('AAAA'));
+
+            const p1 = await storage.copyAssetUnique('global', 's', 'logo.png', 'site', 'logo.png');
+            const p2 = await storage.copyAssetUnique('global', 's', 'logo.png', 'site', 'logo.png');
+            expect(p1).toBe('logo.png');
+            expect(p2).toBe('logo.png');                    // same file → reused, no dup
+
+            // A different global file with the same name → suffixed, not overwritten.
+            await storage.saveAsset('global', null, 'logo.png', Buffer.from('BBBBBB'));
+            const p3 = await storage.copyAssetUnique('global', 's', 'logo.png', 'site', 'logo.png');
+            const p4 = await storage.copyAssetUnique('global', 's', 'logo.png', 'site', 'logo.png');
+            expect(p3).toBe('logo-1.png');
+            expect(p4).toBe('logo-1.png');                  // re-drag of the different file → reused
+
+            const {site} = await storage.listAssets('s');
+            expect(site.map(f => f.path).sort()).toEqual(['logo-1.png', 'logo.png']);
+        });
+    });
 });

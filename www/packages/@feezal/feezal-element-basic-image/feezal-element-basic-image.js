@@ -65,7 +65,7 @@ class FeezalElementBasicImage extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (!feezal.isEditor && this.subscribe) {
+        if (this.subscribe) {
             this.addSubscription(this.subscribe, msg => {
                 this._dynSrc = this.getProperty(msg, this.messageProperty);
             });
@@ -75,18 +75,11 @@ class FeezalElementBasicImage extends FeezalElement {
     render() {
         const fitStyle = `--img-fit: ${this.fit || 'contain'};`;
         const src = this._dynSrc || this.src;
-
-        if (feezal.isEditor) {
-            return html`
-                <style>:host { ${fitStyle} }</style>
-                ${src
-                    ? html`<img src="${src}" alt="${this.alt}">`
-                    : html`<div class="editor-placeholder"><span class="icon">image</span> Image</div>`}`;
-        }
-
         return html`
             <style>:host { ${fitStyle} }</style>
-            ${src ? html`<img src="${src}" alt="${this.alt || ''}">` : ''}`;
+            ${src
+                ? html`<img src="${src}" alt="${this.alt || ''}">`
+                : html`<div class="editor-placeholder"><span class="icon">image</span> Image</div>`}`;
     }
 }
 

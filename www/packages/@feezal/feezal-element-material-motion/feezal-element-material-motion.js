@@ -86,7 +86,7 @@ function zoneSvg(isActive) {
 class FeezalElementMaterialMotion extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Motion / Presence', category: 'Device', color: '#1565c0', icon: 'motion_sensor_active'},
+            palette: {name: 'Occupancy', category: 'Device', color: '#1565c0', icon: 'motion_sensor_active'},
             description: 'Motion and presence detector card. Supports PIR (motion), person-in-zone (presence), mmWave radar arcs (radar), and room-zone highlight (zone) visual styles.',
             discovery: {
                 component: 'binary_sensor',
@@ -119,9 +119,9 @@ class FeezalElementMaterialMotion extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
-                {property: '--feezal-motion-active-color', type: 'color', default: 'var(--warning-color, #ff9800)', help: 'Colour shown when motion is detected or zone is occupied.'},
+                {property: '--feezal-motion-active-color', type: 'color', default: 'var(--primary-color)', help: 'Colour shown when motion is detected or zone is occupied.'},
                 {property: '--feezal-motion-text-color',   type: 'color', default: 'var(--primary-text-color)',    help: 'Label text colour.'},
-                {property: '--feezal-motion-error-color',  type: 'color', default: 'var(--error-color, #b00020)', help: 'Unavailability badge colour.'},
+                {property: '--feezal-motion-error-color',  type: 'color', default: 'var(--error-color)', help: 'Unavailability badge colour.'},
             ],
             restrict:     {minWidth: 60, minHeight: 80},
             defaultStyle: {width: '80px', height: '120px'},
@@ -195,7 +195,6 @@ class FeezalElementMaterialMotion extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (feezal.isEditor) return;
 
         if (this.subscribeAvailability) {
             this.addSubscription(this.subscribeAvailability, msg => {
@@ -230,16 +229,6 @@ class FeezalElementMaterialMotion extends FeezalElement {
     }
 
     render() {
-        if (feezal.isEditor) {
-            return html`
-                <div class="svg-wrap">
-                    <svg class="motion" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-                        ${this._shapeSvg(false)}
-                    </svg>
-                </div>
-                ${this.label ? html`<div class="label">${this.label}</div>` : ''}`;
-        }
-
         return html`
             ${!this._available ? html`<div class="unavail">${UNAVAIL}</div>` : ''}
             <div class="svg-wrap">

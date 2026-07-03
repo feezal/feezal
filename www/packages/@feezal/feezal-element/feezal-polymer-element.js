@@ -98,28 +98,57 @@ class FeezalPolymerElement extends PolymerElement {
             return;
         }
 
+        // In the editor, runtime MQTT manipulation of elements is gated by a user
+        // setting (Editor settings → "Prevent MQTT element manipulation in editor",
+        // default ON) so live broker values never get written onto elements and
+        // serialized into the saved view.
+        if (feezal.isEditor && feezal.preventEditorMqtt !== false) {
+            return;
+        }
+
+        const base      = this.subscribe;
         const elemClass = window.customElements.get(this.localName);
 
-        this._subscriptions.push(feezal.connection.sub(this.subscribe + '/#', msg => {
-            let key;
-            if (msg.topic === this.subscribe && elemClass.feezal) {
-                key = elemClass.feezal.baseAttribute;
-            } else {
-                key = msg.topic.split('/').pop();
-            }
+        // Primary state topic → baseAttribute (exact topic, no wildcard).
+        const baseAttribute = elemClass && elemClass.feezal && elemClass.feezal.baseAttribute;
+        if (baseAttribute) {
+            this._subscriptions.push(feezal.connection.sub(base, msg => {
+                const type = (elemClass.properties[baseAttribute] || {}).type;
+                const val  = this._payloadCast(type, this.getProperty(msg, this.messageProperty));
+                if (type === Boolean && !val) {
+                    this.removeAttribute(baseAttribute);
+                } else {
+                    this.setAttribute(baseAttribute, val);
+                }
+            }));
+        }
 
-            const type = (elemClass.properties[key] || {}).type;
+        // Reserved runtime-control channel — distinct, exact topics so device
+        // telemetry sharing the base topic can never reach the element.
+        // Consistent with feezal-view / feezal-site addclass / removeclass.
+        this._subscribeControl(base);
+    }
 
-            const val = this._payloadCast(key === 'style' ? Object : type, this.getProperty(msg, this.messageProperty));
-   
-            if (key === 'style') {
-                Object.assign(this.style, msg.payload);
-            } else if (type === Boolean && !val) {
-                this.removeAttribute(key);
-            } else {
-                this.setAttribute(key, val);
+    /** Subscribe to the reserved <base>/{setattribute,removeattribute,setstyle,removestyle,addclass,removeclass} control topics. */
+    _subscribeControl(base) {
+        const sub  = (suffix, cb) => this._subscriptions.push(feezal.connection.sub(base + '/' + suffix, cb));
+        const val  = msg => this.getProperty(msg, this.messageProperty);
+        const list = p => (Array.isArray(p) ? p : String(p).split(/[,\s]+/)).filter(Boolean);
+
+        sub('setattribute', msg => {
+            const obj = val(msg);
+            if (obj && typeof obj === 'object') {
+                for (const [k, v] of Object.entries(obj)) this.setAttribute(k, String(v));
             }
-        }));
+        });
+        sub('removeattribute', msg => list(val(msg)).forEach(n => this.removeAttribute(n)));
+        sub('setstyle', msg => {
+            const obj = val(msg);
+            if (obj && typeof obj === 'object') Object.assign(this.style, obj);
+        });
+        sub('removestyle', msg => list(val(msg)).forEach(n => this.style.removeProperty(n)));
+        sub('addclass', msg => this.classList.add(val(msg)));
+        sub('removeclass', msg => this.classList.remove(val(msg)));
     }
 
     _unsubscribe() {
@@ -138,14 +167,8 @@ class FeezalPolymerElement extends PolymerElement {
     connectedCallback() {
         super.connectedCallback();
         this.classList.add('feezal-element');
-        if (feezal.isEditor) {
-            /*
-            if (!this.shadowRoot.querySelector('.feezal-blocker')) {
-                const el = document.createElement('div');
-                el.className = 'feezal-blocker';
-                this.shadowRoot.prepend(el);
-            }
-             */
+        // Prevent tab-focus on shadow DOM controls while in the editor.
+        if (feezal.isEditor && this.shadowRoot) {
             this.shadowRoot.querySelectorAll('*').forEach(el => {
                 if (el.hasAttribute('tabindex')) {
                     el.addEventListener('focus', event => {
@@ -159,10 +182,9 @@ class FeezalPolymerElement extends PolymerElement {
                     el.setAttribute('tabindex', '-1');
                 }
             });
-        } else {
-            if (this.visible || !this.dynamicSubscriptions) {
-                this._subscribe();
-            }
+        }
+        if (this.visible || !this.dynamicSubscriptions) {
+            this._subscribe();
         }
     }
     disconnectedCallback() {
@@ -171,7 +193,7 @@ class FeezalPolymerElement extends PolymerElement {
     }
 
     _visibleChanged(visible) {
-        if (feezal.isEditor || !this.dynamicSubscriptions) {
+        if (!this.dynamicSubscriptions) {
             return;
         }
         if (visible) {

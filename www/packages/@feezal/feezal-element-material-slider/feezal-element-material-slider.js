@@ -23,7 +23,11 @@ class FeezalElementMaterialSlider extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height',
-                {property: '--feezal-slider-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Slider thumb and active track colour.'},
+                {property: '--feezal-slider-color',        type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Active track and thumb colour (used as default for --feezal-slider-knob-color).'},
+                {property: '--feezal-slider-track-color',  type: 'color', default: 'var(--divider-color, #e0e0e0)', help: 'Inactive track colour.'},
+                {property: '--feezal-slider-knob-color',   type: 'color', default: 'var(--feezal-slider-color)',    help: 'Thumb / knob colour. Defaults to the active track colour.'},
+                {property: '--feezal-slider-track-width',  default: '4px',  help: 'Track height in CSS units, e.g. "4px" or "6px".'},
+                {property: '--feezal-slider-knob-size',    default: '20px', help: 'Thumb diameter in CSS units, e.g. "20px".'},
             ],
             defaultStyle: {width: '160px', height: '48px'}
         };
@@ -42,24 +46,41 @@ class FeezalElementMaterialSlider extends FeezalElement {
         :host {
             display: flex;
             align-items: center;
+            /* E38: track + handle scale with the element height (cqh = 1% of height);
+               explicit --feezal-slider-track-width / --feezal-slider-knob-size still win. */
+            container-type: size;
             --feezal-slider-color:        var(--primary-color, var(--sl-color-primary-600, #0284c7));
-            --md-sys-color-primary:       var(--feezal-slider-color);
-            --md-sys-color-surface:       var(--feezal-bg, #fff);
-            --md-sys-color-on-surface:    var(--feezal-color, #333);
+            --feezal-slider-track-color:  var(--divider-color, #e0e0e0);
+            --feezal-slider-knob-color:   var(--feezal-slider-color);
+            --feezal-slider-track-width:  8cqh;
+            --feezal-slider-knob-size:    42cqh;
+            /* MD3 token wiring */
+            --md-sys-color-primary:              var(--feezal-slider-color);
+            --md-sys-color-surface:              var(--feezal-bg, #fff);
+            --md-sys-color-on-surface:           var(--feezal-color, #333);
+            --md-slider-inactive-track-color:    var(--feezal-slider-track-color);
+            --md-slider-handle-color:            var(--feezal-slider-knob-color);
+            --md-slider-active-track-height:     var(--feezal-slider-track-width);
+            --md-slider-inactive-track-height:   var(--feezal-slider-track-width);
+            --md-slider-handle-height:           var(--feezal-slider-knob-size);
+            --md-slider-handle-width:            var(--feezal-slider-knob-size);
+            --md-slider-state-layer-size:        calc(var(--feezal-slider-knob-size) * 2);
         }
-        md-slider { width: 100%; }
+        /* min-inline-size:0 lets the track shrink/grow with the element instead of
+           clipping at narrow widths (E38). */
+        md-slider { width: 100%; min-inline-size: 0; }
         .editor-ph {
-            flex: 1; height: 4px; border-radius: 2px;
-            background: linear-gradient(to right, var(--feezal-slider-color) 50%, var(--feezal-border, #ccc) 50%);
+            flex: 1; height: var(--feezal-slider-track-width, 4px); border-radius: 2px;
+            background: linear-gradient(to right, var(--feezal-slider-color) 50%, var(--feezal-slider-track-color, var(--feezal-border, #ccc)) 50%);
             position: relative;
         }
         .editor-ph::after {
             content: '';
             position: absolute; left: 50%; top: 50%;
             transform: translate(-50%, -50%);
-            width: 20px; height: 20px;
+            width: var(--feezal-slider-knob-size, 20px); height: var(--feezal-slider-knob-size, 20px);
             border-radius: 50%;
-            background: var(--feezal-slider-color);
+            background: var(--feezal-slider-knob-color, var(--feezal-slider-color));
         }
     `];
 
@@ -75,7 +96,7 @@ class FeezalElementMaterialSlider extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (!feezal.isEditor && this.subscribe) {
+        if (this.subscribe) {
             this.addSubscription(this.subscribe, msg => {
                 const v = Number(this.getProperty(msg, this.messageProperty));
                 if (!isNaN(v)) this._value = v;
@@ -91,9 +112,6 @@ class FeezalElementMaterialSlider extends FeezalElement {
     }
 
     render() {
-        if (feezal.isEditor) {
-            return html`<div class="editor-ph"></div>`;
-        }
         return html`
             <md-slider
                 min="${this.min}" max="${this.max}" step="${this.step}"

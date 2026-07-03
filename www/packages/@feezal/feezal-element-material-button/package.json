@@ -1,5 +1,6 @@
 {
-    "name":  "@feezal/feezal-element-material-button",
-    "version":  "1.0.1",
-    "main":  "feezal-element-material-button.js"
+    "name": "@feezal/feezal-element-material-button",
+    "version": "1.0.1",
+    "license": "MIT",
+    "main": "feezal-element-material-button.js"
 }

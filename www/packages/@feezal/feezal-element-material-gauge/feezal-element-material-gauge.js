@@ -92,7 +92,7 @@ class FeezalElementMaterialGauge extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (!feezal.isEditor && this.subscribe) {
+        if (this.subscribe) {
             this.addSubscription(this.subscribe, msg => {
                 const v = Number(this.getProperty(msg, this.messageProperty));
                 if (!isNaN(v)) this._value = v;
@@ -163,10 +163,11 @@ class FeezalElementMaterialGauge extends FeezalElement {
     }
 
     render() {
-        const value = feezal.isEditor ? (this.min + this.max) / 2 : this._value;
+        // When no live value has arrived yet, show the midpoint as an unconfigured-state hint.
+        const value = this._value ?? (this.min + this.max) / 2;
         return html`
             <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                ${this._buildSvg(value, feezal.isEditor)}
+                ${this._buildSvg(value, value === (this.min + this.max) / 2 && this._value === null)}
             </svg>
             ${this.label ? html`<div class="label">${this.label}</div>` : ''}`;
     }

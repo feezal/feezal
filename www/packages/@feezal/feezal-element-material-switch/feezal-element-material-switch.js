@@ -23,7 +23,13 @@ class FeezalElementMaterialSwitch extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height',
-                {property: '--feezal-switch-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Switch track colour when on.'},
+                {property: '--feezal-switch-track-on',    type: 'color', default: 'var(--primary-color)', help: 'Track colour when ON.'},
+                {property: '--feezal-switch-track-off',   type: 'color', default: 'var(--primary-background-color)', help: 'Track colour when OFF.'},
+                {property: '--feezal-switch-thumb-on',    type: 'color', default: 'var(--primary-text-color)', help: 'Thumb (handle) colour when ON.'},
+                {property: '--feezal-switch-thumb-off',   type: 'color', default: 'var(--disabled-text-color)', help: 'Thumb (handle) colour when OFF.'},
+                {property: '--feezal-switch-outline-off', type: 'color', default: 'var(--primary-color)', help: 'Track outline colour when OFF.'},
+                {property: '--feezal-switch-label-color', type: 'color', default: 'var(--primary-text-color)', help: 'Label text colour.'},
+                {property: '--feezal-switch-size', default: '100cqh', help: 'Track height, drives overall switch size. Default scales with the element height.'},
             ],
             defaultStyle: {width: '80px', height: '32px'},
             discovery: {
@@ -54,16 +60,84 @@ class FeezalElementMaterialSwitch extends FeezalElement {
             display: flex;
             align-items: center;
             gap: 8px;
-            --feezal-switch-color:        var(--primary-color, var(--sl-color-primary-600, #0284c7));
-            --md-sys-color-primary:       var(--feezal-switch-color);
-            --md-sys-color-on-primary:    #fff;
-            --md-switch-track-width:      52px;
-            --md-switch-track-height:     32px;
+            /* Default size — container-type:size collapses to 0 without an
+               explicit height (markup without inline width/height, e.g.
+               hand-written or AI-generated sites). Inline styles and the
+               editor's defaultStyle override these. */
+            width: 80px;
+            height: 32px;
+            /* Let the MD3 state layer (hover/focus ripple) and the label extend
+               past the element box instead of being clipped by the base
+               overflow:hidden. */
+            overflow: visible;
+            /* E38: scale the switch + label with the element size. The track
+               height follows the element height (cqh); an explicit
+               --feezal-switch-size still wins. */
+            container-type: size;
+
+            /* ── Exposed colours (on + off state) ──
+               Theme variables first so the switch tracks the active theme;
+               concrete fallbacks keep it visible in a theme-less viewer. */
+            --feezal-switch-color:        var(--primary-color, var(--sl-color-primary-600, #0284c7)); /* legacy alias → on-track */
+            --feezal-switch-track-on:     var(--feezal-switch-color);
+            --feezal-switch-track-off:    var(--primary-background-color, #d0d4d8);
+            --feezal-switch-thumb-on:     var(--primary-text-color, #ffffff);
+            --feezal-switch-thumb-off:    var(--disabled-text-color, #757575);
+            --feezal-switch-outline-off:  var(--primary-color, #757575);
+            --feezal-switch-label-color:  var(--primary-text-color, #333);
+            --feezal-switch-size:         100cqh;
+
+            /* ── Size tokens (proportional to --feezal-switch-size = track height) ── */
+            --md-switch-track-height:            var(--feezal-switch-size);
+            --md-switch-track-width:             calc(var(--feezal-switch-size) * 1.625);
+            --md-switch-handle-height:           calc(var(--feezal-switch-size) * 0.5);
+            --md-switch-handle-width:            calc(var(--feezal-switch-size) * 0.5);
+            --md-switch-selected-handle-height:  calc(var(--feezal-switch-size) * 0.75);
+            --md-switch-selected-handle-width:   calc(var(--feezal-switch-size) * 0.75);
+            --md-switch-pressed-handle-height:   calc(var(--feezal-switch-size) * 0.875);
+            --md-switch-pressed-handle-width:    calc(var(--feezal-switch-size) * 0.875);
+            --md-switch-with-icon-handle-height: calc(var(--feezal-switch-size) * 0.75);
+            --md-switch-with-icon-handle-width:  calc(var(--feezal-switch-size) * 0.75);
+            --md-switch-state-layer-size:        calc(var(--feezal-switch-size) * 1.25);
+
+            /* ── Colour tokens ── */
+            --md-sys-color-primary: var(--feezal-switch-track-on);
+            /* ON (selected) */
+            --md-switch-selected-track-color:          var(--feezal-switch-track-on);
+            --md-switch-selected-hover-track-color:    var(--feezal-switch-track-on);
+            --md-switch-selected-focus-track-color:    var(--feezal-switch-track-on);
+            --md-switch-selected-pressed-track-color:  var(--feezal-switch-track-on);
+            --md-switch-selected-handle-color:         var(--feezal-switch-thumb-on);
+            --md-switch-selected-hover-handle-color:   var(--feezal-switch-thumb-on);
+            --md-switch-selected-focus-handle-color:   var(--feezal-switch-thumb-on);
+            --md-switch-selected-pressed-handle-color: var(--feezal-switch-thumb-on);
+            --md-switch-selected-icon-color:           var(--feezal-switch-track-on);
+            --md-switch-selected-hover-icon-color:     var(--feezal-switch-track-on);
+            --md-switch-selected-focus-icon-color:     var(--feezal-switch-track-on);
+            --md-switch-selected-pressed-icon-color:   var(--feezal-switch-track-on);
+            /* OFF (unselected) */
+            --md-switch-track-color:                 var(--feezal-switch-track-off);
+            --md-switch-hover-track-color:           var(--feezal-switch-track-off);
+            --md-switch-focus-track-color:           var(--feezal-switch-track-off);
+            --md-switch-pressed-track-color:         var(--feezal-switch-track-off);
+            --md-switch-track-outline-color:         var(--feezal-switch-outline-off);
+            --md-switch-hover-track-outline-color:   var(--feezal-switch-outline-off);
+            --md-switch-focus-track-outline-color:   var(--feezal-switch-outline-off);
+            --md-switch-pressed-track-outline-color: var(--feezal-switch-outline-off);
+            --md-switch-handle-color:                var(--feezal-switch-thumb-off);
+            --md-switch-hover-handle-color:          var(--feezal-switch-thumb-off);
+            --md-switch-focus-handle-color:          var(--feezal-switch-thumb-off);
+            --md-switch-pressed-handle-color:        var(--feezal-switch-thumb-off);
+            --md-switch-icon-color:                  var(--feezal-switch-track-off);
+            --md-switch-hover-icon-color:            var(--feezal-switch-track-off);
+            --md-switch-focus-icon-color:            var(--feezal-switch-track-off);
+            --md-switch-pressed-icon-color:          var(--feezal-switch-track-off);
         }
         .label {
-            font-size: 13px;
-            color: var(--feezal-color, #333);
+            font-size: 40cqmin;
+            color: var(--feezal-switch-label-color);
             user-select: none;
+            white-space: nowrap;
         }
         .editor-ph {
             display: flex; align-items: center; gap: 6px;
@@ -91,7 +165,7 @@ class FeezalElementMaterialSwitch extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (!feezal.isEditor && this.subscribe) {
+        if (this.subscribe) {
             this.addSubscription(this.subscribe, msg => {
                 const v = this.getProperty(msg, this.messageProperty);
                 this._on = v === this.payloadOn || v === true || v === 1 || v === '1';
@@ -101,22 +175,12 @@ class FeezalElementMaterialSwitch extends FeezalElement {
 
     _toggle(e) {
         this._on = e.target.selected;
-        console.log('[switch-toggle] _on=%o publish=%o payloadOn=%o payloadOff=%o', this._on, this.publish, this.payloadOn, this.payloadOff);
         if (this.publish) {
             feezal.connection.pub(this.publish, this._on ? this.payloadOn : this.payloadOff);
-        } else {
-            console.warn('[switch-toggle] no publish topic configured');
         }
     }
 
     render() {
-        if (feezal.isEditor) {
-            return html`
-                <div class="editor-ph">
-                    <div class="track"><div class="thumb"></div></div>
-                    ${this.label ? html`<span class="label">${this.label}</span>` : ''}
-                </div>`;
-        }
         return html`
             <md-switch ?selected="${this._on}" ?icons="${this.icons}"
                 @change="${this._toggle}"></md-switch>

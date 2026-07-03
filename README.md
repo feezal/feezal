@@ -23,16 +23,20 @@ Then open [http://localhost:3000/editor/](http://localhost:3000/editor/) and con
 ## Features
 
 - **WYSIWYG editor** — drag elements from the palette onto the canvas, resize and position them with your mouse
+- **Source editing** — edit the view's HTML directly in a built-in code editor, with formatting and live round-tripping back to the canvas
 - **Real-time data binding** — topic-based message routing connects any element attribute to a mqtt subscription
 - **MQTT support** — direct browser-to-broker WebSocket connection; no backend required for the viewer
+- **MQTT auto-discovery** — automatically detects devices published by zigbee2mqtt, ESPHome, and compatible bridges; one click pre-wires all topics and attributes
 - **Web Components element model** — every palette element is a standard Custom Element; the ecosystem is distributed as plain npm packages
 - **Multi-view dashboards** — organise your dashboard into multiple named views with instant switching
+- **Responsive layouts** — layout elements (flex containers, responsive/app-shell wrappers, navbars) build fluid dashboards that adapt to any screen size, beyond fixed absolute positioning
 - **Theme system** — swap the entire colour scheme at runtime via published theme packages
 - **Static export** — one click produces a ZIP with a single `index.html` that has all JavaScript inlined; works on any static host or from `file://`
-- **MQTT auto-discovery** — automatically detects devices published by zigbee2mqtt, ESPHome, and compatible bridges; one click pre-wires all topics and attributes
-- **Undo / history** — full undo and redo with a visual history sidebar showing every change made to the dashboard
-- **Password-protected editor** — the live editor can be secured with a bcrypt-hashed password while the viewer remains public
-- **Reverse-proxy auth** — optionally trust an upstream `X-Auth-User` header (e.g. Authentik / Authelia)
+- **Progressive Web App** — installable, offline-capable dashboards that run full-screen and launch like a native app
+- **Android & iOS apps** — export your dashboard as a Capacitor mobile-app project, with optional server-side Android APK builds
+- **AI assistant** — a built-in chat that creates and edits dashboards for you; its agent tools search your live broker topics and discovered devices, so generated views arrive pre-wired to real data. Bring your own backend: Anthropic, OpenAI-compatible, or local Ollama
+
+
 
 ---
 
@@ -48,4 +52,18 @@ Then open [http://localhost:3000/editor/](http://localhost:3000/editor/) and con
 
 ## License
 
-GPLv3 © Sebastian Raff
+feezal uses a two-tier licensing model:
+
+- **Server and editor:** [AGPL-3.0-only](LICENSE) © Sebastian Raff
+- **Element SDK (`@feezal/feezal-element`), all official elements and themes, and the
+  viewer runtime bundled into static exports:** MIT
+
+In practice: run feezal freely, self-host it, modify it — no strings attached beyond the
+AGPL's share-alike terms. Your **exported dashboards are MIT-clean artifacts** you can
+publish anywhere, and **community element packages are not affected by copyleft** — build
+and distribute your own elements under any license you like
+(see the [Element Authoring Spec](docs/element-spec.md)).
+
+Contributions require signing the [FSFE Fiduciary License Agreement](CLA.md), which
+contractually guarantees feezal will always remain Free Software — see
+[CONTRIBUTING.md](CONTRIBUTING.md).

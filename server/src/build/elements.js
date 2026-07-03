@@ -93,6 +93,17 @@ function generateElementsModule(elements) {
         .map(el => `import '/user-elements/${el.bare}/${el.main}';`)
         .join('\n');
 
+    // N23: bundled icon-set packages are deliberately NOT in the editor chunk
+    // or the viewer bundle (they would add megabytes of icon data to every
+    // load). The editor imports their full modules here via the /node_modules
+    // static route (which serves the bundled packages dir) — the picker needs
+    // every icon; viewers get per-site tree-shaken registrations instead
+    // (server/src/build/icons.js).
+    const bundledIconImports = elements
+        .filter(el => el.kind === 'bundled' && el.type === 'icons')
+        .map(el => `import '/node_modules/${el.bare}/${el.main}';`)
+        .join('\n');
+
     const elementNames = JSON.stringify(
         elements.filter(el => el.type === 'element').map(el => el.bare),
         null,
@@ -106,6 +117,7 @@ function generateElementsModule(elements) {
 
     const parts = [];
     if (userImports) parts.push(userImports);
+    if (bundledIconImports) parts.push(bundledIconImports);
     parts.push(`window.feezal.elements = ${elementNames};`);
     parts.push(`window.feezal.themes = ${themeNames};`);
     return parts.join('\n\n') + '\n';
@@ -148,7 +160,11 @@ async function writeElementsFile(wwwDir, logger) {
     elements.filter(el => !el.builtin).forEach(el => logger.info('found element ' + el.bare));
 
     const code =
-        elements.map(el => `import '${el.builtin ? el.importPath : el.bare}';`).join('\n') +
+        // N23: icon-set packages are excluded from the build-time file — the
+        // viewer bundle must stay lean; viewers get per-site tree-shaken
+        // icon registrations, the editor loads full sets at runtime.
+        elements.filter(el => el.type !== 'icons')
+            .map(el => `import '${el.builtin ? el.importPath : el.bare}';`).join('\n') +
         '\n\n' +
         'window.feezal.elements = ' +
             JSON.stringify(
@@ -187,7 +203,7 @@ function _scan(dir, baseDir, elements, kind) {
     // Collect matching packages
     list
         .filter(p => !BLACKLIST.has(p))
-        .filter(p => p.startsWith('feezal-element-') || p.startsWith('feezal-theme-'))
+        .filter(p => p.startsWith('feezal-element-') || p.startsWith('feezal-theme-') || p.startsWith('feezal-icons-'))
         .forEach(p => {
             const absolute = path.join(dir, p);
             const pkgPath = path.join(absolute, 'package.json');
@@ -196,7 +212,8 @@ function _scan(dir, baseDir, elements, kind) {
             }
 
             const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-            const type = p.startsWith('feezal-element-') ? 'element' : 'theme';
+            const type = p.startsWith('feezal-element-') ? 'element'
+                : (p.startsWith('feezal-icons-') ? 'icons' : 'theme');
             const bare = path.relative(baseDir, absolute).split(path.sep).join('/');
             const main = pkg.main || 'index.js';
             elements.push({absolute, bare, type, main, kind, builtin: false});

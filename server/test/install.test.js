@@ -1,0 +1,126 @@
+import {describe, it, expect, beforeEach, afterEach} from 'vitest';
+import {createRequire} from 'module';
+import {mkdtemp, rm, mkdir, writeFile} from 'fs/promises';
+import {tmpdir} from 'os';
+import {join} from 'path';
+
+const require = createRequire(import.meta.url);
+const pm = require('../src/build/install.js');
+
+describe('install — pure helpers', () => {
+    it('derives type from the name prefix (icons enabled with N23)', () => {
+        expect(pm.derivePkgType('feezal-element-gauge')).toBe('element');
+        expect(pm.derivePkgType('@acme/feezal-theme-neon')).toBe('theme');
+        expect(pm.derivePkgType('feezal-icons-lucide')).toBe('icons');
+        expect(pm.derivePkgType('react')).toBe(null);
+    });
+
+    it('allows only valid feezal add-on names', () => {
+        expect(pm.isAllowedPackage('feezal-element-x')).toBe(true);
+        expect(pm.isAllowedPackage('@scope/feezal-theme-y')).toBe(true);
+        expect(pm.isAllowedPackage('feezal-icons-x')).toBe(true);   // N23
+        expect(pm.isAllowedPackage('react')).toBe(false);
+        expect(pm.isAllowedPackage('../evil')).toBe(false);
+        expect(pm.isAllowedPackage('')).toBe(false);
+    });
+
+    it('maps type → registry keyword', () => {
+        expect(pm.typeKeyword('element')).toBe('feezal-element');
+        expect(pm.typeKeyword('theme')).toBe('feezal-theme');
+        expect(pm.typeKeyword('icons')).toBe('feezal-icons');
+    });
+
+    it('resolves install dirs, preserving @scope/', () => {
+        expect(pm.pkgDir('/data', 'feezal-element-x').split(/[\\/]/).join('/')).toBe('/data/elements/feezal-element-x');
+        expect(pm.pkgDir('/data', '@a/feezal-theme-y').split(/[\\/]/).join('/')).toBe('/data/elements/@a/feezal-theme-y');
+    });
+});
+
+describe('install — list / remove', () => {
+    let dataDir;
+    beforeEach(async () => { dataDir = await mkdtemp(join(tmpdir(), 'feezal-pm-')); });
+    afterEach(async () => { await rm(dataDir, {recursive: true, force: true}); });
+
+    async function fakePkg(rel, pkg) {
+        const dir = join(dataDir, 'elements', ...rel.split('/'));
+        await mkdir(dir, {recursive: true});
+        await writeFile(join(dir, 'package.json'), JSON.stringify(pkg));
+        await writeFile(join(dir, 'index.js'), '/* bundle */');
+    }
+
+    it('lists installed packages of all types, scoped included', async () => {
+        await fakePkg('feezal-element-gauge', {name: 'feezal-element-gauge', version: '1.2.0', feezal: {type: 'element'}});
+        await fakePkg('@acme/feezal-theme-neon', {name: '@acme/feezal-theme-neon', version: '0.3.1', feezal: {type: 'theme'}});
+        const list = await pm.listInstalled(dataDir);
+        expect(list.map(p => p.name).sort()).toEqual(['@acme/feezal-theme-neon', 'feezal-element-gauge']);
+        expect(list.find(p => p.name === 'feezal-element-gauge')).toMatchObject({version: '1.2.0', type: 'element'});
+        expect(list.find(p => p.name === '@acme/feezal-theme-neon')).toMatchObject({version: '0.3.1', type: 'theme'});
+    });
+
+    it('removes a package (and prunes its empty @scope dir)', async () => {
+        await fakePkg('@acme/feezal-theme-neon', {name: '@acme/feezal-theme-neon', version: '0.1.0'});
+        await pm.removePackage(dataDir, '@acme/feezal-theme-neon');
+        expect(await pm.listInstalled(dataDir)).toEqual([]);
+    });
+
+    it('rejects removing a non-feezal / traversal name', async () => {
+        await expect(pm.removePackage(dataDir, '../../etc')).rejects.toThrow();
+        await expect(pm.removePackage(dataDir, 'react')).rejects.toThrow();
+    });
+});
+
+describe('install — sidecar asset copy (N23 icon sets)', () => {
+    let srcDir, destDir;
+    beforeEach(async () => {
+        srcDir  = await mkdtemp(join(tmpdir(), 'feezal-assets-src-'));
+        destDir = await mkdtemp(join(tmpdir(), 'feezal-assets-dst-'));
+    });
+    afterEach(async () => {
+        await rm(srcDir, {recursive: true, force: true});
+        await rm(destDir, {recursive: true, force: true});
+    });
+
+    async function file(rel, content = 'x') {
+        const abs = join(srcDir, ...rel.split('/'));
+        await mkdir(join(abs, '..'), {recursive: true});
+        await writeFile(abs, content);
+    }
+
+    it('copies fonts/SVGs/LICENSE, skips JS/maps/markdown/package.json/node_modules', async () => {
+        await file('index.js');
+        await file('index.js.map');
+        await file('README.md');
+        await file('package.json', '{}');
+        await file('LICENSE', 'CC BY-SA 3.0');
+        await file('assets/set.woff2', 'font');
+        await file('assets/icons/light.svg', '<svg/>');
+        await file('node_modules/dep/inner.woff2', 'nope');
+
+        const copied = await pm.copyAssets(srcDir, destDir);
+        expect(copied).toBe(3);
+
+        const {readFile: rf} = await import('fs/promises');
+        expect(await rf(join(destDir, 'LICENSE'), 'utf8')).toBe('CC BY-SA 3.0');
+        expect(await rf(join(destDir, 'assets', 'set.woff2'), 'utf8')).toBe('font');
+        expect(await rf(join(destDir, 'assets', 'icons', 'light.svg'), 'utf8')).toBe('<svg/>');
+        await expect(rf(join(destDir, 'index.js'), 'utf8')).rejects.toThrow();
+        await expect(rf(join(destDir, 'node_modules', 'dep', 'inner.woff2'), 'utf8')).rejects.toThrow();
+    });
+});
+
+describe('discovery — feezal-icons-* packages (N23)', () => {
+    it('discoverElements tags icons packages with type "icons"', async () => {
+        const {discoverElements} = require('../src/build/elements.js');
+        const wwwDir = await mkdtemp(join(tmpdir(), 'feezal-www-'));
+        try {
+            const pkgDir = join(wwwDir, 'node_modules', '@acme', 'feezal-icons-lucide');
+            await mkdir(pkgDir, {recursive: true});
+            await writeFile(join(pkgDir, 'package.json'), JSON.stringify({name: '@acme/feezal-icons-lucide', main: 'index.js'}));
+            const found = discoverElements(wwwDir, null, {info() {}, debug() {}});
+            const icons = found.find(el => el.type === 'icons');
+            expect(icons).toMatchObject({bare: '@acme/feezal-icons-lucide', main: 'index.js', kind: 'bundled'});
+        } finally {
+            await rm(wwwDir, {recursive: true, force: true});
+        }
+    });
+});

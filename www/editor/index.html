@@ -24,6 +24,14 @@
         window.feezal = {
             isEditor: true,
             siteName: location.search.replace(/^\?\/?([^/]*)\/?$/, '$1') || 'default',
+            // When true (default), elements do NOT run their MQTT subscriptions in
+            // the editor, so live broker values never get written onto elements and
+            // saved into the view. Toggled via Editor settings; read live so it
+            // applies to elements rendered after the setting changes.
+            get preventEditorMqtt() {
+                const v = localStorage.getItem('preventEditorMqtt');
+                return v === null ? true : v === 'true';
+            },
             get app() {
                 return document.querySelector('feezal-app-editor');
             },
@@ -43,7 +51,9 @@
                 return feezal.getView(feezal.site && feezal.site.view);
             },
             get views() {
-                return feezal.site.querySelectorAll('feezal-view');
+                // The editor queries views during its first render, before the
+                // site markup has been loaded — feezal.site is null then.
+                return feezal.site ? feezal.site.querySelectorAll('feezal-view') : [];
             },
             get editor() {
                 return feezal.app.shadowRoot.querySelector('feezal-sidebar-inspector');

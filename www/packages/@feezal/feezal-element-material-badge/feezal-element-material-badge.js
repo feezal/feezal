@@ -1,6 +1,5 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
-import '@material/web/icon/icon.js';
 
 class FeezalElementMaterialBadge extends FeezalElement {
     static get feezal() {
@@ -57,7 +56,15 @@ class FeezalElementMaterialBadge extends FeezalElement {
             align-items: center;
             justify-content: center;
         }
-        md-icon {
+        /* Use the loaded 'Material Icons' font. <md-icon> defaults to
+           'Material Symbols Outlined' (not loaded), so its font-family cannot be
+           overridden externally (its internal :host rule wins on specificity) and
+           ligature names render as literal text. */
+        .icon {
+            font-family: 'Material Icons';
+            font-style: normal;
+            font-weight: normal;
+            line-height: 1;
             font-size: 32px;
             color: var(--feezal-badge-icon-color);
         }
@@ -129,7 +136,7 @@ class FeezalElementMaterialBadge extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (!feezal.isEditor && this.subscribe) {
+        if (this.subscribe) {
             this.addSubscription(this.subscribe, msg => {
                 const v = this.getProperty(msg, this.messageProperty);
                 const n = parseInt(v, 10);
@@ -143,20 +150,10 @@ class FeezalElementMaterialBadge extends FeezalElement {
     }
 
     render() {
-        if (feezal.isEditor) {
-            return html`
-                <div class="editor-ph">
-                    <div class="editor-icon-wrap">
-                        <div class="editor-icon">${this.icon || 'notifications'}</div>
-                        <div class="editor-badge">3</div>
-                    </div>
-                    ${this.label ? html`<div class="item-label">${this.label}</div>` : ''}
-                </div>`;
-        }
         const hasCount = this._count !== '' && this._count !== '0' && this._count !== null;
         return html`
             <div class="wrap">
-                <md-icon>${this.icon || 'notifications'}</md-icon>
+                <feezal-icon class="icon" name="${this.icon || 'notifications'}"></feezal-icon>
                 ${hasCount ? html`<div class="badge">${this._count}</div>` : ''}
             </div>
             ${this.label ? html`<div class="item-label">${this.label}</div>` : ''}`;

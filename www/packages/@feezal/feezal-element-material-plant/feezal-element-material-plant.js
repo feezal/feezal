@@ -4,7 +4,7 @@ import {svg} from 'lit';
 
 // All metric slots — used both for subscription setup and render
 const METRIC_DEFS = [
-    {key: 'moisture',     prop: 'subscribeMoisture',     minProp: 'moistureMin',  maxProp: 'moistureMax',  label: 'Moisture', unit: '%',    icon: '💧'},
+    {key: 'moisture',     prop: 'subscribe',           minProp: 'moistureMin',  maxProp: 'moistureMax',  label: 'Moisture', unit: '%',    icon: '💧'},
     {key: 'light',        prop: 'subscribeLight',        minProp: 'lightMin',     maxProp: 'lightMax',     label: 'Light',    unit: 'lx',   icon: '☀'},
     {key: 'temperature',  prop: 'subscribeTemperature',  minProp: 'tempMin',      maxProp: 'tempMax',      label: 'Temp',     unit: '\u00b0C', icon: '🌡'},
     {key: 'conductivity', prop: 'subscribeConductivity', minProp: 'condMin',      maxProp: 'condMax',      label: 'Fert.',    unit: '\u00b5S', icon: '⚡'},
@@ -33,7 +33,7 @@ class FeezalElementMaterialPlant extends FeezalElement {
                 {name: 'layout',    type: 'select', options: ['compact', 'detailed'], default: 'compact',
                     help: 'compact = coloured bar badges; detailed = labelled rows with values.'},
                 // Moisture
-                {name: 'subscribe-moisture', type: 'mqttTopic', help: 'Soil moisture (%).'},
+                {name: 'subscribe',          type: 'mqttTopic', help: 'Soil moisture topic (primary). Also serves as base for dynamic attribute overrides via `<subscribe>/#`.'},
                 {name: 'moisture-min',       type: 'number',    default: 15,    help: 'Minimum healthy moisture (%).'},
                 {name: 'moisture-max',       type: 'number',    default: 65,    help: 'Maximum healthy moisture (%).'},
                 // Illuminance
@@ -55,6 +55,15 @@ class FeezalElementMaterialPlant extends FeezalElement {
                 // Battery
                 {name: 'subscribe-battery',      type: 'mqttTopic', help: 'Battery level (%). Shown as a badge, no healthy range.'},
                 {name: 'show-battery',           type: 'boolean',   default: true, help: 'Show the battery level badge.'},
+                // Dry binary sensor
+                {name: 'subscribe-dry',          type: 'mqttTopic', help: 'Dry binary sensor topic. Shows a warning badge when the plant is dry.'},
+                {name: 'payload-dry-on',         type: 'string',    default: 'true', help: 'Payload value that means the plant is dry.'},
+                // Per-metric JSON path overrides (for single-topic JSON devices such as zigbee2mqtt)
+                {name: 'message-property-moisture',     type: 'string', default: '', help: 'JSON path for moisture reading. Overrides the element-level message-property for this metric.'},
+                {name: 'message-property-temperature',  type: 'string', default: '', help: 'JSON path for temperature reading.'},
+                {name: 'message-property-humidity',     type: 'string', default: '', help: 'JSON path for humidity reading.'},
+                {name: 'message-property-battery',      type: 'string', default: '', help: 'JSON path for battery reading.'},
+                {name: 'message-property-dry',          type: 'string', default: '', help: 'JSON path for dry flag within the payload object.'},
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
@@ -64,6 +73,22 @@ class FeezalElementMaterialPlant extends FeezalElement {
             ],
             restrict:     {minWidth: 160, minHeight: 80},
             defaultStyle: {width: '200px', height: '120px'},
+            discovery: {
+                component: 'device-group',
+                requires: [{component: 'sensor', device_class: 'moisture'}],
+                map: {
+                    'device.name': 'name',
+                    sensors: {
+                        moisture:    {topic: 'subscribe',              path: 'message-property-moisture'},
+                        temperature: {topic: 'subscribe-temperature',  path: 'message-property-temperature'},
+                        humidity:    {topic: 'subscribe-humidity',     path: 'message-property-humidity'},
+                        battery:     {topic: 'subscribe-battery',      path: 'message-property-battery'},
+                    },
+                    binary_sensors: {
+                        dry: {topic: 'subscribe-dry', path: 'message-property-dry', payload_on: 'payload-dry-on'},
+                    },
+                },
+            },
         };
     }
 
@@ -71,7 +96,6 @@ class FeezalElementMaterialPlant extends FeezalElement {
         name:                  {type: String,  reflect: true},
         imageUrl:              {type: String,  reflect: true, attribute: 'image-url'},
         layout:                {type: String,  reflect: true},
-        subscribeMoisture:     {type: String,  reflect: true, attribute: 'subscribe-moisture'},
         moistureMin:           {type: Number,  reflect: true, attribute: 'moisture-min'},
         moistureMax:           {type: Number,  reflect: true, attribute: 'moisture-max'},
         subscribeLight:        {type: String,  reflect: true, attribute: 'subscribe-light'},
@@ -88,6 +112,13 @@ class FeezalElementMaterialPlant extends FeezalElement {
         humidityMax:           {type: Number,  reflect: true, attribute: 'humidity-max'},
         subscribeBattery:      {type: String,  reflect: true, attribute: 'subscribe-battery'},
         showBattery:           {type: Boolean, reflect: true, attribute: 'show-battery'},
+        subscribeDry:              {type: String,  reflect: true, attribute: 'subscribe-dry'},
+        payloadDryOn:              {type: String,  reflect: true, attribute: 'payload-dry-on'},
+        messagePropMoisture:       {type: String,  reflect: true, attribute: 'message-property-moisture'},
+        messagePropTemperature:    {type: String,  reflect: true, attribute: 'message-property-temperature'},
+        messagePropHumidity:       {type: String,  reflect: true, attribute: 'message-property-humidity'},
+        messagePropBattery:        {type: String,  reflect: true, attribute: 'message-property-battery'},
+        messagePropDry:            {type: String,  reflect: true, attribute: 'message-property-dry'},
         _readings: {state: true},
     };
 
@@ -121,6 +152,11 @@ class FeezalElementMaterialPlant extends FeezalElement {
             background: var(--feezal-plant-text-color); color: var(--primary-background-color, #fff);
             opacity: 0.6; white-space: nowrap;
         }
+        .dry-badge {
+            font-size: 10px; padding: 1px 6px; border-radius: 8px;
+            background: var(--feezal-plant-warn-color); color: #fff;
+            white-space: nowrap; font-weight: 600;
+        }
         /* compact mode */
         .metrics { display: flex; flex-wrap: wrap; gap: 4px; }
         .metric  { display: flex; flex-direction: column; align-items: center; min-width: 34px; gap: 1px; }
@@ -153,7 +189,6 @@ class FeezalElementMaterialPlant extends FeezalElement {
         this.name                  = '';
         this.imageUrl              = '';
         this.layout                = 'compact';
-        this.subscribeMoisture     = '';
         this.moistureMin           = 15;
         this.moistureMax           = 65;
         this.subscribeLight        = '';
@@ -170,6 +205,13 @@ class FeezalElementMaterialPlant extends FeezalElement {
         this.humidityMax           = 80;
         this.subscribeBattery      = '';
         this.showBattery           = true;
+        this.subscribeDry          = '';
+        this.payloadDryOn          = 'true';
+        this.messagePropMoisture    = '';
+        this.messagePropTemperature = '';
+        this.messagePropHumidity    = '';
+        this.messagePropBattery     = '';
+        this.messagePropDry         = '';
         this._readings             = {};
     }
 
@@ -178,22 +220,30 @@ class FeezalElementMaterialPlant extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (feezal.isEditor) return;
 
         const subs = [
-            [this.subscribeMoisture,     'moisture'],
-            [this.subscribeLight,        'light'],
-            [this.subscribeTemperature,  'temperature'],
-            [this.subscribeConductivity, 'conductivity'],
-            [this.subscribeHumidity,     'humidity'],
-            [this.subscribeBattery,      'battery'],
+            [this.subscribe,            'moisture',     this.messagePropMoisture    || this.messageProperty],
+            [this.subscribeLight,        'light',        this.messageProperty],
+            [this.subscribeTemperature,  'temperature',  this.messagePropTemperature || this.messageProperty],
+            [this.subscribeConductivity, 'conductivity', this.messageProperty],
+            [this.subscribeHumidity,     'humidity',     this.messagePropHumidity    || this.messageProperty],
+            [this.subscribeBattery,      'battery',      this.messagePropBattery     || this.messageProperty],
         ];
 
-        for (const [topic, key] of subs) {
+        for (const [topic, key, path] of subs) {
             if (!topic) continue;
             this.addSubscription(topic, msg => {
-                const v = Number(this.getProperty(msg, this.messageProperty));
+                const v = Number(this.getProperty(msg, path));
                 if (!isNaN(v)) this._readings = {...this._readings, [key]: v};
+            });
+        }
+
+        if (this.subscribeDry) {
+            this.addSubscription(this.subscribeDry, msg => {
+                const path = this.messagePropDry || this.messageProperty;
+                const raw  = this.getProperty(msg, path);
+                const isDry = String(raw) === String(this.payloadDryOn);
+                this._readings = {...this._readings, dry: isDry};
             });
         }
     }
@@ -213,7 +263,7 @@ class FeezalElementMaterialPlant extends FeezalElement {
             min: this[m.minProp],
             max: this[m.maxProp],
             active: !!this[m.prop],
-        })).filter(m => feezal.isEditor || m.active);
+        })).filter(m => m.active);
     }
 
     render() {
@@ -230,6 +280,9 @@ class FeezalElementMaterialPlant extends FeezalElement {
                 ${this.showBattery && this._readings.battery != null
                     ? html`<span class="battery-badge">${Math.round(this._readings.battery)}\u2009%</span>`
                     : ''}
+                ${this._readings.dry
+                    ? html`<span class="dry-badge">💧 Dry!</span>`
+                    : ''}
             </div>`;
 
         if (this.layout === 'detailed') {
@@ -237,9 +290,9 @@ class FeezalElementMaterialPlant extends FeezalElement {
                 ${header}
                 <div class="metrics-detailed">
                     ${metrics.map(m => {
-                        const val = feezal.isEditor ? null : this._readings[m.key];
-                        const ok  = feezal.isEditor || this._inRange(val, m.min, m.max);
-                        const pct = feezal.isEditor ? 55 : this._barPct(val, m.min, m.max);
+                        const val = this._readings[m.key] ?? null;
+                        const ok  = this._inRange(val, m.min, m.max);
+                        const pct = this._barPct(val, m.min, m.max);
                         const color = ok ? 'var(--feezal-plant-ok-color)' : 'var(--feezal-plant-warn-color)';
                         return html`
                             <div class="detail-row">
@@ -260,9 +313,9 @@ class FeezalElementMaterialPlant extends FeezalElement {
             ${header}
             <div class="metrics">
                 ${metrics.map(m => {
-                    const val = feezal.isEditor ? null : this._readings[m.key];
-                    const ok  = feezal.isEditor || this._inRange(val, m.min, m.max);
-                    const pct = feezal.isEditor ? 55 : this._barPct(val, m.min, m.max);
+                    const val = this._readings[m.key] ?? null;
+                    const ok  = this._inRange(val, m.min, m.max);
+                    const pct = this._barPct(val, m.min, m.max);
                     const color = ok ? 'var(--feezal-plant-ok-color)' : 'var(--feezal-plant-warn-color)';
                     return html`
                         <div class="metric">

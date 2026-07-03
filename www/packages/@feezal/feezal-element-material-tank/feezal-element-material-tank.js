@@ -129,7 +129,7 @@ class FeezalElementMaterialTank extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (feezal.isEditor || !this.subscribe) return;
+        if (!this.subscribe) return;
         this.addSubscription(this.subscribe, msg => {
             const v = Number(this.getProperty(msg, this.messageProperty));
             if (!isNaN(v)) this._value = v;
@@ -226,7 +226,7 @@ class FeezalElementMaterialTank extends FeezalElement {
     }
 
     render() {
-        const displayValue = feezal.isEditor ? (this.min + this.max) / 2 : this._value;
+        const displayValue = this._value ?? (this.min + this.max) / 2;
         const pct   = this._levelPct(displayValue);
         const color = fluidColor(pct, this.warnThreshold, this.critThreshold);
 

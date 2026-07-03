@@ -1,5 +1,6 @@
 {
-    "name":  "@feezal/feezal-element-material-gauge",
-    "version":  "1.0.3",
-    "main":  "feezal-element-material-gauge.js"
+    "name": "@feezal/feezal-element-material-gauge",
+    "version": "1.0.3",
+    "license": "MIT",
+    "main": "feezal-element-material-gauge.js"
 }

@@ -143,7 +143,7 @@ class FeezalElementMaterialClock extends FeezalElement {
         }, 1000);
         this._now = new Date();
 
-        if (this.subscribeTime && !feezal.isEditor) {
+        if (this.subscribeTime) {
             this.addSubscription(this.subscribeTime, msg => {
                 const v = this.getProperty(msg, this.messageProperty);
                 const ts = Number(v);
@@ -246,25 +246,6 @@ class FeezalElementMaterialClock extends FeezalElement {
         const minimal = this.mode === 'analog-minimal';
         const digital = this.mode === 'digital' || this.mode === 'digital-clean';
         const cls     = this.mode === 'digital-clean' ? 'digital-clean' : 'digital';
-
-        if (feezal.isEditor) {
-            // Show a static 10:10 (classic watchface marketing time)
-            const staticDate = new Date(2000, 0, 1, 10, 10, 30);
-            if (digital) {
-                return html`
-                    <div class="${cls}">${fmtDigital(staticDate, this.showSeconds, '')}</div>
-                    ${this.showDate ? html`<div class="date-line">Jan 1, 2000</div>` : ''}
-                    ${this.label   ? html`<div class="label">${this.label}</div>` : ''}`;
-            }
-            return html`
-                <div class="clock-wrap">
-                    <svg class="analog" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                        ${this._analogSvg(staticDate, minimal)}
-                    </svg>
-                </div>
-                ${this.showDate ? html`<div class="date-line">${fmtDate(staticDate, '')}</div>` : ''}
-                ${this.label   ? html`<div class="label">${this.label}</div>` : ''}`;
-        }
 
         if (digital) {
             return html`

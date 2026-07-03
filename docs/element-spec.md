@@ -2,6 +2,8 @@
 
 This document is the single reference for building, publishing, and configuring `feezal-element-*` packages. Read it in full before writing a new element.
 
+**Licensing:** the element base class `@feezal/feezal-element` and the viewer runtime your element runs inside are MIT-licensed — subclassing the base class does **not** place your element under feezal's AGPL (which covers only the server and editor). You may license and distribute your element packages under any terms you choose; the official `create-feezal-element` scaffolding defaults to MIT.
+
 ---
 
 ## 1. Package conventions
@@ -240,6 +242,40 @@ See §8.3 for custom inspector design guidelines.
 
 ## 4. MQTT topic binding
 
+### 4.0 Naming convention: the `subscribe` attribute
+
+Every element's **primary** MQTT subscription **must** use the attribute named `subscribe` — the one inherited from `FeezalElement`. This name is not arbitrary: `FeezalElement._subscribe()` uses it for two things:
+
+1. **Primary state** — a message on the exact `<subscribe>` topic sets the element's `baseAttribute` (see below).
+2. **A reserved runtime-control channel** — a small set of **distinct, exact** sub-topics that let any attribute, style property or CSS class be changed at runtime via MQTT:
+
+   | Topic | Payload | Effect |
+   |---|---|---|
+   | `<subscribe>/setattribute` | object, e.g. `{ "icon":"wifi", "label":"Kitchen" }` | `setAttribute` for each key |
+   | `<subscribe>/removeattribute` | `"icon"` or `["icon","label"]` | `removeAttribute` for each name |
+   | `<subscribe>/setstyle` | object, e.g. `{ "color":"red", "opacity":"0.5" }` | merged into the element's inline style |
+   | `<subscribe>/removestyle` | `"color"` or `["color","opacity"]` | removes each style property |
+   | `<subscribe>/addclass` | `"name"` | `classList.add` |
+   | `<subscribe>/removeclass` | `"name"` | `classList.remove` |
+
+   The payload is read through `message-property` (default `payload`), so these honour the same extraction path as the primary topic. Because every control topic is an **exact** subscription (there is **no `<subscribe>/#` wildcard**), device telemetry published on sibling topics that happen to share the base topic — e.g. `<subscribe>/linkquality`, `<subscribe>/power`, `<subscribe>/update/...` — is **never** ingested and can never pollute the element.
+
+> **Editor behaviour.** In the editor these subscriptions are gated by the *Editor settings → "Prevent MQTT element manipulation in editor"* toggle (default **on**), so live broker values are never written onto elements and serialized into the saved view. In the viewer they are always active.
+
+This derived mechanism only works when the primary topic is stored in the base-class `subscribe` property.
+
+| ✅ Correct | ❌ Wrong |
+|---|---|
+| `{name: 'subscribe', type: 'mqttTopic', ...}` | `{name: 'subscribe-state', ...}` |
+| `{name: 'subscribe', type: 'mqttTopic', ...}` | `{name: 'subscribe-src', ...}` |
+| `{name: 'subscribe', type: 'mqttTopic', ...}` | `{name: 'subscribe-value', ...}` |
+
+**Single-topic elements** declare only `subscribe` as their MQTT attribute. **Multi-topic elements** use `subscribe` for the primary / most-important topic and `subscribe-<suffix>` for secondary topics.
+
+When an element supports multiple modes (e.g. a JSON base-topic mode and a per-property separate-topic mode), the `subscribe` attribute must carry the primary topic in **both** modes. Its `help` text must clearly describe the role in each mode — for example: `'JSON mode: base topic carrying the full state object. Separate mode: on/off state topic.'`
+
+**`baseAttribute`** ties messages arriving on the plain `<subscribe>` topic (no sub-path) to a specific element attribute. Declare it in `static get feezal()` when the primary topic sets something other than a generic reactive state (e.g. `baseAttribute: 'value'` for a number display element, `baseAttribute: 'src'` for a camera / image element).
+
 ### 4.1 Subscribing
 
 Override `connectedCallback` and call `addSubscription`:
@@ -247,7 +283,7 @@ Override `connectedCallback` and call `addSubscription`:
 ```js
 connectedCallback() {
     super.connectedCallback();
-    if (!feezal.isEditor && this.subscribe) {
+    if (this.subscribe) {
         this.addSubscription(this.subscribe, msg => {
             this._value = this.getProperty(msg, this.messageProperty);
         });
@@ -292,10 +328,13 @@ Elements with **multiple subscribe topics** must add a dedicated `message-proper
 #### Attribute declaration pattern
 
 ```js
-// In feezal() attributes — always place message-property-* immediately after its subscribe-*:
-{name: 'subscribe-state',             type: 'mqttTopic', help: 'State topic.'},
-{name: 'message-property-state',      type: 'string',    default: 'payload',
-    help: 'Dot-notation path within state messages. Default: payload'},
+// In feezal() attributes.
+// Primary topic always uses 'subscribe' (inherited from FeezalElement base class).
+// message-property is the paired path extractor for the primary topic.
+{name: 'subscribe',                   type: 'mqttTopic', help: 'Primary state topic.'},
+{name: 'message-property',            type: 'string',    default: 'payload',
+    help: 'Dot-notation path within primary messages. Default: payload'},
+// Secondary topics use subscribe-<suffix>:
 {name: 'subscribe-brightness',        type: 'mqttTopic', help: 'Brightness topic.'},
 {name: 'message-property-brightness', type: 'string',    default: 'payload',
     help: 'Dot-notation path within brightness messages. Default: payload'},
@@ -305,8 +344,8 @@ Elements with **multiple subscribe topics** must add a dedicated `message-proper
 
 ```js
 static properties = {
-    subscribeState:      {type: String, reflect: true, attribute: 'subscribe-state'},
-    msgPropState:        {type: String, reflect: true, attribute: 'message-property-state'},
+    // subscribe and messageProperty are inherited from FeezalElement — no need to re-declare
+    // unless you need to override their default attribute name (you should not).
     subscribeBrightness: {type: String, reflect: true, attribute: 'subscribe-brightness'},
     msgPropBrightness:   {type: String, reflect: true, attribute: 'message-property-brightness'},
 };
@@ -317,11 +356,12 @@ static properties = {
 ```js
 connectedCallback() {
     super.connectedCallback();
-    if (feezal.isEditor) return;
     const sub = (topic, cb) => { if (topic) this.addSubscription(topic, cb); };
-    sub(this.subscribeState, msg => {
-        this._state = this.getProperty(msg, this.msgPropState || this.messageProperty);
+    // Primary topic (subscribe + message-property are inherited):
+    sub(this.subscribe, msg => {
+        this._state = this.getProperty(msg, this.messageProperty);
     });
+    // Secondary topics:
     sub(this.subscribeBrightness, msg => {
         this._brightness = this.getProperty(msg, this.msgPropBrightness || this.messageProperty);
     });
@@ -473,42 +513,45 @@ static properties = {
 
 Attribute names in `feezal.attributes` are always **kebab-case**. Lit property names and JS variable names may be camelCase.
 
-### 6.4 Guard subscriptions against editor mode
+### 6.4 Guard publishes against editor mode
 
-Never call `addSubscription` in editor mode. The standard guard:
+Elements **subscribe freely** in both editor and viewer mode — this is what drives the live WYSIWYG canvas. However, **publish / action methods must never fire in the editor**. Guard every handler that calls `feezal.connection.pub` or triggers side-effects:
 
 ```js
-connectedCallback() {
-    super.connectedCallback();
-    if (feezal.isEditor) return;
-    // … addSubscription calls …
+_onClick() {
+    if (feezal.isEditor) return;   // ← guard publishes, not subscriptions
+    if (this.publish) feezal.connection.pub(this.publish, this._on ? 'OFF' : 'ON');
 }
 ```
+
+Apply the same guard to any method that sends MQTT, triggers navigation, starts timers with side-effects, etc.
 
 ---
 
 ## 7. Editor vs. viewer mode
 
-Use `feezal.isEditor` to branch between editor (placeholder) and viewer (live) rendering:
+Since **N14 (live elements in editor)**, feezal elements subscribe and render live content in both editor and viewer mode. The canvas is a true WYSIWYG preview.
 
-```js
-render() {
-    if (feezal.isEditor) {
-        return html`
-            <div class="editor-ph">
-                <span style="font-family:'Material Icons'">widgets</span>
-                ${this.label || 'My Widget'}
-            </div>`;
-    }
-    // Live viewer rendering
-    return html`…`;
-}
-```
+### What to do
 
-The editor placeholder should:
-- Give a clear visual cue of what the element will look like and what it does.
-- Use `feezal.isEditor` conditionals to skip MQTT logic entirely.
-- Use `--feezal-*` CSS vars for all colours (§5.3).
+- **Subscribe freely** — remove all `if (feezal.isEditor) return;` / `if (!feezal.isEditor && …)` guards from `connectedCallback` and subscription calls.
+- **Render one unified template** — remove separate `if (feezal.isEditor)` render branches. The live template is the only template.
+- **Unconfigured-state hints** — use null-coalescing to show a meaningful default when no MQTT data has arrived yet:
+  ```js
+  // Shows midpoint while unconfigured; real data takes priority
+  const value = this._value ?? (feezal.isEditor ? 50 : null);
+  ```
+- **Guard publishes** — keep `if (feezal.isEditor) return;` inside every publish / action handler (§6.4).
+
+### What NOT to do
+
+- Do **not** add `if (feezal.isEditor)` branches in `connectedCallback` to skip subscriptions.
+- Do **not** render a static placeholder instead of your element's real template.
+- Do **not** use `feezal.isEditor` to substitute fake data for the entire render — only use it for unconfigured-state hints.
+
+### Exception: `feezal-element-basic-view`
+
+`feezal-element-basic-view` keeps its `isEditor` check to avoid recursive canvas rendering — embedding a live sub-view inside the editor would create an editing loop.
 
 ---
 
@@ -568,6 +611,7 @@ Before committing or publishing a new or modified element, verify:
 
 - [ ] `package.json` name follows `@scope/feezal-element-category-name`.
 - [ ] `"main"` points to the element JS file.
+- [ ] **Registered in `www/package.json` `dependencies`** as `"@feezal/feezal-element-...": "*"` (sorted alphabetically). Missing this entry means Vite will not bundle the element.
 - [ ] `customElements.define('feezal-element-…', …)` called in that file, exported as a named export.
 - [ ] `static get feezal()` present with at minimum `palette.name`, `palette.category`, `palette.color`.
 - [ ] Extends `FeezalElement` (or `LitElement` for pseudo-elements).
@@ -575,7 +619,7 @@ Before committing or publishing a new or modified element, verify:
 - [ ] camelCase properties mapping to kebab-case attributes declare `attribute: 'kebab-name'` (§6.3).
 - [ ] Every `subscribe-*` attribute has a corresponding `message-property-*` attribute, all with `default: 'payload'` (§4.4).
 - [ ] `--feezal-*` CSS custom properties declared in `styles` array and initialised in `:host` (§5.2).
-- [ ] Editor placeholder `render()` branch exists and uses feezal CSS vars for colour (§5.3).
+- [ ] No `if (feezal.isEditor)` render branch — single unified template; unconfigured-state hints use null-coalescing (§7).
 - [ ] `discovery` declared if the element can be auto-wired from HA MQTT autodiscovery (§3.7).
 - [ ] `palette.category` is `'Device'` for device-control cards (§3.1).
 - [ ] Patch version bumped in `package.json`.
@@ -659,7 +703,6 @@ class FeezalElementMyToggle extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (feezal.isEditor) return;
         if (this.subscribe) {
             this.addSubscription(this.subscribe, msg => {
                 const v = this.getProperty(msg, this.messageProperty);
@@ -669,9 +712,6 @@ class FeezalElementMyToggle extends FeezalElement {
     }
 
     render() {
-        if (feezal.isEditor) {
-            return html`<div class="editor-ph">${this.label || 'Toggle'}</div>`;
-        }
         return html`
             <button class="${this._on ? 'on' : ''}" @click="${this._toggle}">
                 ${this.label || 'Toggle'}
@@ -679,6 +719,7 @@ class FeezalElementMyToggle extends FeezalElement {
     }
 
     _toggle() {
+        if (feezal.isEditor) return;   // never publish in editor
         this._on = !this._on;
         if (this.publish) {
             feezal.connection.pub(this.publish, this._on ? this.payloadOn : this.payloadOff);

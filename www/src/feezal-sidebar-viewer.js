@@ -9,6 +9,9 @@ import '@shoelace-style/shoelace/dist/components/option/option.js';
 import '@shoelace-style/shoelace/dist/components/button/button.js';
 import '@shoelace-style/shoelace/dist/components/textarea/textarea.js';
 import '@shoelace-style/shoelace/dist/components/dialog/dialog.js';
+import '@shoelace-style/shoelace/dist/components/switch/switch.js';
+
+import './feezal-pwa-icon-dialog.js';
 
 /**
  * feezal-sidebar-viewer
@@ -20,10 +23,14 @@ class FeezalSidebarViewer extends LitElement {
     static properties = {
         connection:   {type: Object},
         site:         {type: Object},
+        pwa:          {type: Boolean},
+        app:          {type: Object},   // A9 Tier 2a: {name, id} for the mobile-app export
         _certStatus:  {state: true},
         _showPaste:   {state: true},
         _pemText:     {state: true},
         _certBusy:    {state: true},
+        _pwaIcons:    {state: true},   // {custom, meta} | null
+        _pwaIconTs:   {state: true},   // cache-buster for the preview img
     };
 
     static styles = css`
@@ -81,6 +88,17 @@ class FeezalSidebarViewer extends LitElement {
         }
         .cert-save-row { display: flex; justify-content: flex-end; margin-top: 6px; }
         input[type=file] { display: none; }
+        /* PWA section */
+        sl-switch { margin-top: 8px; --sl-input-label-color: var(--feezal-color, #333); }
+        sl-switch::part(label) { font-size: 13px; color: var(--feezal-color, #333); }
+        .pwa-hint { font-size: 11px; color: var(--feezal-color, #888); margin-top: 4px; line-height: 1.4; }
+        .pwa-icon-row { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+        .pwa-icon-preview {
+            width: 48px; height: 48px; border-radius: 8px; flex: 0 0 auto;
+            border: 1px solid var(--feezal-border, #ddd); object-fit: cover; background: #fff;
+        }
+        .pwa-icon-meta { font-size: 12px; color: var(--feezal-color, #555); }
+        .pwa-icon-actions { display: flex; gap: 6px; margin-top: 4px; }
         /* Confirmation dialog — float above all editor overlays (inspector handles: 20000) */
         #dlg-remove-ca { --sl-z-index-dialog: 20001; }
         /* Dark mode — mirror the pattern used in feezal-app-editor dialogs */
@@ -106,15 +124,72 @@ class FeezalSidebarViewer extends LitElement {
         super();
         this.connection  = {backend: 'mqtt'};
         this.site        = {name: feezal.siteName};
+        this.pwa         = false;
+        this.app         = {};
         this._certStatus = null;
         this._showPaste  = false;
         this._pemText    = '';
         this._certBusy   = false;
+        this._pwaIcons   = null;
+        this._pwaIconTs  = Date.now();
     }
 
     connectedCallback() {
         super.connectedCallback();
         this._loadCertStatus();
+        this._loadPwaIcons();
+    }
+
+    async _loadPwaIcons() {
+        try {
+            const r = await fetch(`/api/sites/${encodeURIComponent(feezal.siteName)}/pwa-icons`);
+            if (r.ok) {
+                this._pwaIcons = await r.json();
+                this._pwaIconTs = Date.now();
+            }
+        } catch { /* server without dataDir */ }
+    }
+
+    _setPwa(enabled) {
+        this.pwa = enabled;
+        feezal.app.change(true);
+    }
+
+    _setApp(key, value) {
+        const next = {...this.app};
+        if (value) next[key] = value;
+        else delete next[key];
+        this.app = next;
+        feezal.app.change(true);
+    }
+
+    _pickIconFile() {
+        this.renderRoot.querySelector('#pwa-icon-file').click();
+    }
+
+    _onIconFile(e) {
+        const file = e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+        this.renderRoot.querySelector('feezal-pwa-icon-dialog')
+            .open({site: feezal.siteName, source: file});
+    }
+
+    /** Re-open the crop dialog with the stored source + crop + colour. */
+    async _regenerateIcon() {
+        const r = await fetch(`/api/sites/${encodeURIComponent(feezal.siteName)}/pwa-icons?include=source`);
+        const data = r.ok ? await r.json() : null;
+        if (!data || !data.source) return;
+        const bytes = Uint8Array.from(atob(data.source.data), c => c.charCodeAt(0));
+        const file = new File([bytes], data.source.name);
+        this.renderRoot.querySelector('feezal-pwa-icon-dialog')
+            .open({site: feezal.siteName, source: file, meta: data.meta});
+    }
+
+    async _resetIcon() {
+        await fetch(`/api/sites/${encodeURIComponent(feezal.siteName)}/pwa-icons`, {method: 'DELETE'})
+            .catch(() => {});
+        this._loadPwaIcons();
     }
 
     async _loadCertStatus() {
@@ -338,8 +413,60 @@ class FeezalSidebarViewer extends LitElement {
                         .value="${s.publish || ''}"
                         @sl-change="${e => this._setSite('publish', e.target.value)}">
                     </sl-input>
+
+                    <div class="section-label">Progressive Web App</div>
+                    <sl-switch size="small" ?checked="${this.pwa}"
+                        @sl-change="${e => this._setPwa(e.target.checked)}">
+                        Enable PWA (installable app)
+                    </sl-switch>
+                    <div class="pwa-hint">
+                        Adds a web-app manifest and service worker to the viewer and the
+                        export, so the dashboard can be installed to the home screen.
+                    </div>
+                    ${this.pwa ? html`
+                        <div class="pwa-icon-row">
+                            <img class="pwa-icon-preview" alt="app icon"
+                                src="/viewer/${encodeURIComponent(feezal.siteName)}/icons/icon-192.png?v=${this._pwaIconTs}">
+                            <div class="pwa-icon-meta">
+                                <div>${this._pwaIcons?.custom ? 'Custom icon' : 'Default feezal icon'}</div>
+                                <div class="pwa-icon-actions">
+                                    <sl-button size="small" @click="${this._pickIconFile}">Upload…</sl-button>
+                                    ${this._pwaIcons?.custom ? html`
+                                        <sl-button size="small" @click="${this._regenerateIcon}">Adjust</sl-button>
+                                        <sl-button size="small" variant="text" @click="${this._resetIcon}">Reset</sl-button>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        <input id="pwa-icon-file" type="file"
+                            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                            @change="${this._onIconFile}">
+                    ` : ''}
+
+                    <div class="section-label">Mobile app</div>
+                    <sl-input label="App name" size="small" placeholder="${feezal.siteName}"
+                        .value="${this.app?.name || ''}"
+                        @sl-change="${e => this._setApp('name', e.target.value)}">
+                    </sl-input>
+                    <sl-input label="App ID" size="small" placeholder="io.feezal.${feezal.siteName}"
+                        help-text="Reverse-DNS identifier used by Android/iOS"
+                        .value="${this.app?.id || ''}"
+                        @sl-change="${e => this._setApp('id', e.target.value)}">
+                    </sl-input>
+                    <div class="pwa-hint">
+                        Export an Android/iOS Capacitor project — built on your own
+                        machine, installed without an app store.
+                    </div>
+                    <sl-button size="small" style="margin-top:8px"
+                        @click="${() => feezal.app._openCapacitorDialog()}">
+                        Export project…
+                    </sl-button>
                 </sl-tab-panel>
             </sl-tab-group>
+
+            <feezal-pwa-icon-dialog
+                @pwa-icons-saved="${() => { this._loadPwaIcons(); if (!this.pwa) this._setPwa(true); }}">
+            </feezal-pwa-icon-dialog>
 
             <!-- CA certificate removal confirmation dialog -->
             <sl-dialog id="dlg-remove-ca" label="Remove CA certificate">

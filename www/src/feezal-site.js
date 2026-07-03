@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2019-2026 Sebastian Raff — feezal viewer runtime
 import {LitElement, html, css} from 'lit';
 
 /**
@@ -62,11 +64,23 @@ class FeezalSite extends LitElement {
     connectedCallback() {
         super.connectedCallback();
 
-        if (feezal.app.nav && feezal.app.nav.view) {
-            this.view = feezal.app.nav.view;
+        // Read initial view from URL hash. feezal-app-editor also derives
+        // its nav.view from the hash, so this is equivalent for both contexts
+        // and works correctly in the viewer where feezal.app.nav doesn't exist.
+        const hashView = location.hash.replace(/^#\/?/, '');
+        if (hashView) {
+            this.view = hashView;
         } else {
             this.view = feezal.views[0].getAttribute('name');
             location.hash = '/' + this.view;
+        }
+
+        if (!feezal.isEditor) {
+            // Mirror the initial theme class (injected by the server into feezal-site)
+            // to document.body so that portals appended to body inherit the CSS vars.
+            [...this.classList]
+                .filter(c => c.startsWith('feezal-theme-'))
+                .forEach(c => document.body.classList.add(c));
         }
 
         if (!feezal.isEditor && this.subscribe) {
@@ -75,6 +89,16 @@ class FeezalSite extends LitElement {
             });
             feezal.connection.sub(this.subscribe + '/reload', () => {
                 window.location.reload();
+            });
+            feezal.connection.sub(this.subscribe + '/theme', message => {
+                const raw = String(message.payload || '').trim();
+                // Accept either the full class name (feezal-theme-dark-mint) or just the suffix (dark-mint).
+                const cls = raw.startsWith('feezal-theme-') ? raw : 'feezal-theme-' + raw;
+                // Remove all currently active theme classes, then apply the new one.
+                [...document.body.classList]
+                    .filter(c => c.startsWith('feezal-theme-'))
+                    .forEach(c => document.body.classList.remove(c));
+                document.body.classList.add(cls);
             });
         }
 
@@ -92,6 +116,15 @@ class FeezalSite extends LitElement {
     _viewChanged(view) {
         this.updateVisibility();
         this._syncViewBackground();
+
+        if (!feezal.isEditor) {
+            // Keep the address-bar hash in sync regardless of what triggered the
+            // view change (MQTT message, navigation element, or initial load).
+            const expectedHash = '#/' + view;
+            if (location.hash !== expectedHash) {
+                location.hash = expectedHash;
+            }
+        }
 
         if (!feezal.isEditor && this.publish) {
             feezal.connection.pub(this.publish + '/view', view);

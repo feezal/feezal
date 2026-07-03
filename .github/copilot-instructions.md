@@ -1,5 +1,13 @@
 # feezal — Agent Instructions
 
+## Shell / terminal conventions
+
+**Always use WSL (`wsl -e bash -c "..."`) for all file, build, npm, and git operations.** Never use PowerShell for these — it silently introduces UTF-8 BOMs and corrupts line endings (CRLF), which break JSON parsers, shell scripts, and git diffs.
+
+The only exception is operations that require Windows credential storage, such as `git push` (which may need the Windows Git Credential Manager). For everything else — file writes, npm, builds, grep, git add/commit — use WSL.
+
+---
+
 ## Project overview
 
 feezal is a browser-based MQTT dashboard editor + viewer.
@@ -7,7 +15,7 @@ feezal is a browser-based MQTT dashboard editor + viewer.
 - **`server/`** — Node.js/Express + Socket.IO backend. Entry: `server/src/app.js`. Discovers elements and themes at startup from `www/node_modules/@feezal/`.
 - **`www/`** — Vite front-end. Editor UI (`editor/index.html`) + viewer bundle (`src/viewer-main.js`). Framework: **Lit 3** + **Shoelace 2.20.1**. Build: `cd www && npm run build`.
 - **`www/src/`** — Built-in UI components (`feezal-sidebar-*.js`, `feezal-app-*.js`, etc.) and built-in elements (`feezal-element-connection-status.js`). These are part of the editor bundle.
-- **`www/node_modules/@feezal/`** — Third-party and locally-developed feezal element/theme packages. This is also where new elements are created (see below).
+- **`www/packages/@feezal/`** — Element and theme packages living in the npm workspace. This is where new elements are created (see below). npm symlinks them into `www/node_modules/@feezal/` so Vite can resolve imports.
 - **`docs/element-spec.md`** — Full element authoring specification. **Always read this before working on any element.**
 
 ---
@@ -41,7 +49,7 @@ New elements **must** be created as packages under `www/node_modules/@feezal/`, 
 
 2. **Create the package directory**:
    ```
-   www/node_modules/@feezal/feezal-element-<category>-<name>/
+   www/packages/@feezal/feezal-element-<category>-<name>/
    ```
 
 3. **Create `package.json`**:
@@ -53,7 +61,13 @@ New elements **must** be created as packages under `www/node_modules/@feezal/`, 
    }
    ```
 
-4. **Create the element file** `feezal-element-<category>-<name>.js`. Follow the full spec in `docs/element-spec.md` — minimal skeleton:
+4. **Register in `www/package.json`** — add an entry to `dependencies`:
+   ```json
+   "@feezal/feezal-element-<category>-<name>": "*"
+   ```
+   Keep all `@feezal/feezal-element-*` entries sorted alphabetically. Without this the package is not bundled by Vite.
+
+5. **Create the element file** `feezal-element-<category>-<name>.js`. Follow the full spec in `docs/element-spec.md` — minimal skeleton:
 
    ```js
    /* global feezal */
@@ -79,9 +93,6 @@ New elements **must** be created as packages under `www/node_modules/@feezal/`, 
        }
 
        render() {
-           if (feezal.isEditor) {
-               return html`<div>Display Name</div>`;
-           }
            return html`<div>…</div>`;
        }
    }
@@ -90,12 +101,14 @@ New elements **must** be created as packages under `www/node_modules/@feezal/`, 
    export { FeezalElementCategoryName };
    ```
 
-5. **The server picks it up automatically** at startup by scanning `www/node_modules/@feezal/` — no registration required.
+6. **The server picks it up automatically** at startup by scanning `www/node_modules/@feezal/` — no registration required.
 
-6. After creating or modifying element files, **rebuild**:
+7. After creating or modifying element files, **rebuild**:
    ```
    cd www && npm run build
    ```
+
+8. **Add it to the test checklist** — append the element to the appropriate category list in `docs/TESTING.md §6`, plus an "Element-specific notes" bullet for anything the generic recipe doesn't cover (custom inspector, embedded views, dialogs, per-item MQTT, pseudo-element behaviour, …). See *Test checklist maintenance* below.
 
 ### Element spec reference
 
@@ -144,15 +157,17 @@ These are editor UI components, not dashboard elements. Only modify these when c
 
 ## Build & dev
 
+All commands must be run via WSL (see Shell conventions above).
+
 ```sh
 # Production build (from repo root)
-cd www && npm run build
+wsl -e bash -c "cd /mnt/c/Users/basti/source/repos/feezal/www && npm run build"
 
 # Dev server (hot reload, proxies API to localhost:3000)
-cd www && npm run dev
+wsl -e bash -c "cd /mnt/c/Users/basti/source/repos/feezal/www && npm run dev"
 
 # Start the feezal server (separate terminal)
-node server/bin/feezal.js
+wsl -e bash -c "cd /mnt/c/Users/basti/source/repos/feezal && node server/bin/feezal.js"
 ```
 
 Build output goes to `www/dist/`. The chunk-size warning for chunks >500 kB is expected and pre-existing.
@@ -175,3 +190,14 @@ Build output goes to `www/dist/`. The chunk-size warning for chunks >500 kB is e
 - Completed items live in `docs/ROADMAP-ARCHIVE.md`.
 - **Whenever you mark a roadmap item as done** (add `✅` to its heading), **immediately move the entire section** — from its `### Hx —` heading line down to (but not including) the next `###` heading — to the appropriate section in `docs/ROADMAP-ARCHIVE.md`. Remove it from `docs/ROADMAP.md` entirely.
 - Do not leave `✅ done` / `✅ fixed` / `✅ implemented` sections in `docs/ROADMAP.md`.
+
+---
+
+## Test checklist maintenance
+
+`docs/TESTING.md` is the manual QA checklist for the whole app — it must stay in step with the code.
+
+- **Every new element** must be added to the per-element list in `docs/TESTING.md §6`, with an "Element-specific notes" bullet for any behaviour the generic per-element recipe doesn't cover (custom inspector, embedded views, dialogs, pseudo-element / viewer-only rendering, per-item MQTT topics, session/localStorage state, …).
+- **Every new feature** (editor UX, sidebar, AI assistant, package manager, export/import, persistence, …) must get its own checklist section — or extend an existing one — with concrete, reproducible steps and the expected result.
+- Do this **in the same commit** as the element/feature, exactly as you would bump an element's patch version. A change that ships without its test instructions is incomplete.
+- When a feature changes behaviour, update its existing checklist entry instead of leaving stale steps.

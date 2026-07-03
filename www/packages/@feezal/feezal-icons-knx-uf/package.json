@@ -1,0 +1,25 @@
+{
+    "name": "@feezal/feezal-icons-knx-uf",
+    "version": "1.0.0",
+    "description": "KNX-User-Forum icon set (~940 home-automation icons) for feezal — knx-uf:<name> values, theme-aware inline SVG",
+    "license": "CC-BY-SA-3.0-DE",
+    "main": "index.js",
+    "type": "module",
+    "feezal": {
+        "type": "icons",
+        "set": "knx-uf",
+        "icons": "icons.js"
+    },
+    "keywords": [
+        "feezal-icons",
+        "feezal",
+        "knx",
+        "knx-uf-iconset",
+        "smarthome"
+    ],
+    "author": "Sebastian Raff <hobbyquaker@gmail.com>",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/feezal/feezal.git"
+    }
+}

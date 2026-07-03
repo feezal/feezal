@@ -1,5 +1,6 @@
 {
-    "name":  "@feezal/feezal-element-material-fab",
-    "version":  "1.0.1",
-    "main":  "feezal-element-material-fab.js"
+  "name": "@feezal/feezal-element-material-fab",
+  "version": "1.0.4",
+  "license": "MIT",
+  "main": "feezal-element-material-fab.js"
 }

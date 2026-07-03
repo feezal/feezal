@@ -1,3 +1,4 @@
+/* global feezal */
 import {LitElement, html, css} from 'lit';
 
 /**
@@ -177,8 +178,6 @@ class FeezalElementConnectionStatus extends LitElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (feezal.isEditor) return;
-
         this._onConnected    = () => this._handleConnected();
         this._onDisconnected = () => this._handleDisconnected();
 

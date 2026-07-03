@@ -1,0 +1,26 @@
+# Enforce LF line endings for all text files, in the repo AND the working tree,
+# overriding any local core.autocrlf (e.g. Git for Windows' default of true).
+# `text=auto` lets Git auto-detect text vs binary; `eol=lf` pins text files to LF.
+* text=auto eol=lf
+
+# Explicit binaries — never touch their bytes / line endings.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.eot   binary
+*.zip   binary
+*.gz    binary
+*.pdf   binary
+*.mp3   binary
+*.mp4   binary
+*.wasm  binary
+
+# SVGs are XML text.
+*.svg   text eol=lf

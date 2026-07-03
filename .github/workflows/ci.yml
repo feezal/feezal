@@ -7,8 +7,8 @@ on:
     branches: ['**']
 
 jobs:
-  lint-and-test:
-    name: Lint & Test
+  license-gate:
+    name: Dependency license gate
     runs-on: ubuntu-latest
 
     steps:
@@ -21,5 +21,78 @@ jobs:
       - name: Install server dependencies
         run: npm install --prefix server
 
-      - name: Unit & integration tests
-        run: npm test --prefix server
+      - name: Install www dependencies
+        run: npm install --prefix www
+
+      - name: Check production dependency licenses
+        run: node scripts/check-licenses.js
+
+  backend:
+    name: Backend (unit + integration)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install server dependencies
+        run: npm install --prefix server
+
+      - name: Tests with coverage gate
+        run: npm run test:coverage --prefix server
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: server/coverage/
+          if-no-files-found: ignore
+
+  frontend:
+    name: Frontend (logic + component + E2E)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The E2E suite spawns the real server and resolves aedes/adm-zip
+      # through the server workspace.
+      - name: Install server dependencies
+        run: npm install --prefix server
+
+      - name: Install www dependencies
+        run: npm install --prefix www
+
+      - name: Logic-unit tests with coverage gate
+        run: npm run test:coverage --prefix www
+
+      - name: Install Playwright browsers
+        working-directory: www
+        run: npx playwright install --with-deps chromium firefox webkit
+
+      - name: Component tests (browser matrix)
+        run: npm run test:browser --prefix www
+        env:
+          FEEZAL_TEST_BROWSERS: chromium,firefox,webkit
+
+      - name: Build editor + viewer bundle
+        run: npm run build --prefix www
+
+      - name: E2E happy path
+        run: npm run test:e2e --prefix www
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: www/coverage/
+          if-no-files-found: ignore

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2019-2026 Sebastian Raff — feezal viewer runtime
 import {LitElement} from 'lit';
 import {io} from 'socket.io-client';
 
@@ -29,9 +31,16 @@ class FeezalConnectionFeezal extends LitElement {
         this.socket.on('connect', () => {
             console.log('feezal-connection-feezal connected');
             this.connected = true;
+            // NOT bubbles/composed: this element lives inside the
+            // feezal-connection wrapper's shadow root — a composed event would
+            // cross the shadow boundary and fire on the wrapper host IN
+            // ADDITION to the wrapper's own re-dispatch, so every listener saw
+            // 'connected' twice (reconnect: 0 both times) → getSite/loadViews
+            // ran twice, elements were built twice, and the hub's retained
+            // replay raced the second generation (state missing ~50/50 per
+            // editor load). The wrapper listens directly on this element and
+            // re-dispatches the single public 'connected'.
             this.dispatchEvent(new CustomEvent('connected', {
-                bubbles: true,
-                composed: true,
                 detail: {reconnect: this.reconnectCounter++}
             }));
         });

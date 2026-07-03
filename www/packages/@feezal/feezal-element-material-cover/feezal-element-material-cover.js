@@ -2,7 +2,6 @@
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {svg, LitElement} from 'lit';
 import '@material/web/iconbutton/icon-button.js';
-import '@material/web/icon/icon.js';
 import '@material/web/slider/slider.js';
 
 // ─── SVG frame geometry ───────────────────────────────────────────────────────
@@ -188,6 +187,17 @@ class FeezalElementMaterialCover extends FeezalElement {
         }
         /* tighten up MD icon buttons for a compact card */
         md-icon-button { --md-icon-button-state-layer-size: 32px; }
+        /* Icon glyphs — use the loaded 'Material Icons' font. <md-icon> defaults to
+           'Material Symbols Outlined', which feezal does not load, so ligature names
+           would render as literal text. */
+        md-icon-button .mi {
+            font-family: 'Material Icons';
+            font-style: normal;
+            font-weight: normal;
+            font-size: 24px;
+            line-height: 1;
+            color: var(--feezal-cover-text-color);
+        }
         .editor-btns {
             display: flex; gap: 8px; align-items: center;
             font-size: 16px; opacity: 0.55;
@@ -254,7 +264,6 @@ class FeezalElementMaterialCover extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (feezal.isEditor) return;
 
         // Availability — always, independent of payload mode.
         // Handles both plain string payloads and JSON objects: {"state":"online"}
@@ -406,7 +415,7 @@ class FeezalElementMaterialCover extends FeezalElement {
 
     // ─── SVG rendering ────────────────────────────────────────────────────────
     _renderWindow() {
-        const displayPos   = this._dragPos ?? this._position ?? (feezal.isEditor ? 55 : 0);
+        const displayPos   = this._dragPos ?? this._position ?? 0;
         const effectivePos = this.invert ? (100 - displayPos) : displayPos;
         // coverH: 0 = fully open (position 100), FH = fully closed (position 0)
         const coverH    = Math.max(0, Math.round(FH * (1 - effectivePos / 100)));
@@ -453,9 +462,9 @@ class FeezalElementMaterialCover extends FeezalElement {
 
     // ─── Render ───────────────────────────────────────────────────────────────
     render() {
-        const showUnavail = !feezal.isEditor && this.subscribeAvailability && !this._available;
+        const showUnavail = this.subscribeAvailability && !this._available;
         const displayPos  = this._dragPos ?? this._position;
-        const hasTilt     = !feezal.isEditor && (this.slatAngle || this.publishSlatAngle);
+        const hasTilt     = !!(this.slatAngle || this.publishSlatAngle);
 
         return html`
             ${showUnavail ? html`
@@ -475,21 +484,15 @@ class FeezalElementMaterialCover extends FeezalElement {
             </div>
 
             <div class="btn-row">
-                ${feezal.isEditor ? html`
-                    <div class="editor-btns">
-                        <span>&#9650;</span><span>&#9632;</span><span>&#9660;</span>
-                    </div>
-                ` : html`
-                    <md-icon-button @click="${this._cmdUp}">
-                        <md-icon>keyboard_arrow_up</md-icon>
-                    </md-icon-button>
-                    <md-icon-button @click="${this._cmdStop}">
-                        <md-icon>stop</md-icon>
-                    </md-icon-button>
-                    <md-icon-button @click="${this._cmdDown}">
-                        <md-icon>keyboard_arrow_down</md-icon>
-                    </md-icon-button>
-                `}
+                <md-icon-button @click="${this._cmdUp}">
+                    <span class="mi">keyboard_arrow_up</span>
+                </md-icon-button>
+                <md-icon-button @click="${this._cmdStop}">
+                    <span class="mi">stop</span>
+                </md-icon-button>
+                <md-icon-button @click="${this._cmdDown}">
+                    <span class="mi">keyboard_arrow_down</span>
+                </md-icon-button>
             </div>
 
             ${this.showPosition ? html`

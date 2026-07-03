@@ -2,6 +2,24 @@
 
 ## Bugs
 
+### B14 — Editor grid: vertical lines ignore the grid colour, and the grid is offset by the toolbar ✅ fixed
+
+Two defects in the editor grid overlay (`_gridSizeChanged()` in `www/src/feezal-sidebar-inspector.js`):
+
+1. **Vertical lines ignored `gridColor`** — the horizontal gradient ended on `gridColor` but the vertical `-90deg` gradient hardcoded both stops to `rgba(0,0,0,0.1)`, so vertical lines were always a fixed faint black. **Fix:** replaced the two `repeating-linear-gradient`s with a standard two-axis grid — `linear-gradient(to right, gridColor 1px, transparent 1px)` + `linear-gradient(to bottom, …)` at `background-size: gridSize` — so both axes draw a clean 1px line in the configured colour.
+2. **Grid offset / phase** — `#grid` used a hardcoded `top: 35px` (~6px short of the real tab-bar height, so it sat on the tab bar), and the old bottom-anchored gradient never put a line at the origin. **Fix:** `_positionGrid()` overlays the grid on the measured canvas viewport (`feezal-site` rect relative to `#container-view`) and sets `background-position` to the active view's `0,0` origin (mod grid size), so the first line coincides with the view's top-left even with a view margin/scroll offset. A `ResizeObserver` on the canvas keeps it aligned on window/sidebar resize.
+
+### B15 — Copy-on-use of global assets: stale `src` + duplicate copies ✅ fixed
+
+Two bugs in the A14 **copy-on-use** flow (dragging a global asset onto a view copies it into the site's `assets/` and repoints the element's `src`).
+
+1. **`src` not reflected on the first drop / inspector shows the old value.** `_localiseGlobalAsset()` (`www/src/feezal-sidebar-assets.js`) sets `src` *asynchronously* once the server responds, but the attribute inspector only re-reads on selection change — so the field stayed on the old `/assets/global/…` value. **Fixed** by nudging the inspector to re-read after the async `src` update (`insp.selectedElems = [...insp.selectedElems]`).
+2. **Re-dragging the same global file made duplicate copies (`-1`, `-2`, …).** `copyAssetUnique()` (`server/src/storage/filesystem.js`) unconditionally suffixed when the name was taken. **Fixed** with content-dedup: (a) name free → copy; (b) name taken + byte-identical → reuse, no copy; (c) name taken + different → suffix. Identity is checked by size first, then a streamed byte compare (`_filesEqual`). Covered by a storage-suite test.
+
+### B10 — Asset Manager not functional
+
+The Asset Manager sidebar (`feezal-sidebar-assets.js`) has multiple bugs that need concrete reproduction steps before fixing. Needs investigation with specific bug reports.
+
 ### B11 — History preview ignores historical theme ✅ fixed
 When previewing a past commit, the current theme was always applied because `getSiteAtVersion()` only fetched `views.html`, not `viewer.json`. Fixed by extending `getSiteAtVersion()` to also `git show sha:viewer.json` and returning the historical config. The viewer route now uses the historical `viewerConfig` (theme, themeOverrides, classes) for `?sha=` previews while still using the current connection config.
 
@@ -18,6 +36,25 @@ Root cause: `.resizable()` was using the `snap` modifier instead of `snapSize`. 
 
 ### B7 — Clicking empty canvas space does not deselect elements ✅ fixed
 Clicking on an unoccupied area of the view canvas does not clear the current selection. Expected behaviour: a click on empty canvas space deselects all elements, reverts the inspector to the view's own attributes/styles, and restores the view as the "selected" context (same state as just after switching to a view with no prior selection). Currently the selection remains sticky after such a click.
+
+### B12 — `material-map` rendering broken ✅ fixed
+
+Two distinct bugs on `feezal-element-material-map`:
+
+1. **Tile invisibility:** two of the four map quadrant tiles are invisible. The map renders as a 2×2 grid but half the tiles have no visible content. Likely a CSS `overflow`/`clip` or `z-index` issue in the tile container, or an incorrect tile URL construction for those quadrants.
+
+2. **OwnTracks marker not shown:** when OwnTracks mode is configured (prefix set to e.g. `owntracks`), the location pin is not rendered despite a valid location payload arriving. Confirmed example: topic `owntracks/basti/iphone7`, payload:
+   ```json
+   {"_type":"location","acc":14,"alt":425,"batt":85,"lat":48.740668,"lon":9.177687,"tst":1782583402}
+   ```
+   The element receives the message but no marker is placed on the map.
+
+### B13 — `material-fab` icon not rendering; theme color CSS var has no effect ✅ fixed
+
+Two bugs on `feezal-element-material-fab`:
+
+1. **Icon not showing** — the render used `<md-icon>`, which defaults to the *Material Symbols Outlined* font; feezal only loads *Material Icons*, so the ligature never resolved. Fixed by rendering the icon as a `<span style="font-family:'Material Icons'">` (the same proven pattern used by `material-button` / `material-dialog`).
+2. **Color CSS var ignored** — `md-fab` resolves its fill from component-level tokens per variant (`--md-fab-primary-container-color`, …), not directly from the mapped `--md-sys-*` tokens. Fixed by setting the `--md-fab-*-container-color` tokens (all variants) to `--feezal-fab-color` and the `--md-fab-*-icon-color` tokens to white, so the exposed variable and the active theme always take effect.
 
 ### B9 — Snap helper lines: misalignment, broken 2-axis snap, and UX clutter ✅ fixed
 
@@ -43,6 +80,49 @@ When many elements are present on the canvas or the grid size is small, too many
 ---
 
 ## Near-term Improvements
+
+### N4 — Package Manager (elements + themes) ✅ done
+
+Install, update, and remove feezal add-on packages from the editor, without a daemon restart. Shipped for the `feezal-element-*` and `feezal-theme-*` types; the `feezal-icons-*` third type plus the theme authoring docs/scaffold and live-registry validation were split out to **N23** (still open in the roadmap).
+
+**What was built:**
+- **Install pipeline** (`server/src/build/install.js`) — name-prefix allowlist + `type` derivation (`feezal-element-*` / `feezal-theme-*`), `npm install` into a temp staging dir with `--ignore-scripts --no-audit --no-fund`, then a Vite/Rollup **self-contained-ESM bundle** step (all bare specifiers — `@feezal/feezal-element`, `lit`, … — resolved and inlined so the browser's dynamic import works), written to `<dataDir>/elements/<pkg>/` with a minimal `package.json` (`{name, version, main, feezal:{type}}`). Dependency-free themes pass through the bundle step unchanged. Covered by unit tests; bundling validated offline against the real staging layout.
+- **`/api/elements*` routes** — list / search (npm registry, scoped by type keyword) / install / update / remove, all behind `editorAuth`; blocking install returns `stdout`/`stderr`; emits a Socket.IO `elementsChanged` event so connected editors reload and repopulate the palette (`window.feezal.elements`) and theme picker (`window.feezal.themes`) — **no daemon restart**.
+- **Package Manager sidebar tab** (`www/src/feezal-sidebar-packages.js`) — a dedicated tab with an *All / Elements / Themes / Icons* type filter, npm search + Install, an installed list (version, outdated `→ vX.Y.Z` badge, Update / Remove), an output `<pre>`, and a reload prompt.
+
+**Loading strategy (why server-side bundling).** User elements load via `import '/user-elements/<pkg>/<main>'`; the browser can't resolve bare specifiers, but every spec-compliant element does `import { FeezalElement } from '@feezal/feezal-element'`. Bundling to a self-contained ESM on install solves that and lands output exactly where `discoverElements()` / `_scan()` already scans — so no discovery change was needed for elements/themes. Trade-off: each bundle inlines its own copy of the shared runtime (Lit + FeezalElement); safe because elements interact with the editor only via the DOM, `customElements`, and the global `feezal` object. **Authoring caveat:** an element that itself defines Shoelace (or another custom element the editor already defines) hits `customElements.define` "already defined". This **supersedes** the "packages must be pre-bundled" constraint in `element-spec.md §User elements`.
+
+**Security & environment:** `--ignore-scripts` on every npm call (blocks postinstall RCE); name allowlist; routes behind `editorAuth`; requires `npm` in PATH + network at runtime (present in the Docker alpine image), with an air-gapped manual-drop fallback (a self-contained ESM in `<dataDir>/elements/<pkg>/`).
+
+**Deferred to N23:** `feezal-icons-*` icon-set packages (blocked on the `registerIcons()` contract + icon-picker merge), the theme authoring docs + `create-feezal-theme` scaffold, and end-to-end validation of the live npm-registry install path.
+
+### N11 — Dual snap lines per axis ✅ done
+
+While dragging an element, up to two vertical (left/right) and two horizontal (top/bottom) alignment guides can now appear at once, instead of a single winner-takes-all line per axis.
+
+**Implementation** (`_snap()` in `www/src/feezal-sidebar-inspector.js`, drag path only):
+- Added a drag-specific branch that tracks the four dragged sides independently — left → `vsnap1`, right → `vsnap2`, top → `hsnap1`, bottom → `hsnap2`. Each records its nearest other-element edge within `range` and its guide line shows/hides independently.
+- interact.js still snaps to a single position per axis: the closer of left/right sets `object.x`, the closer of top/bottom sets `object.y`. A guide that shows but doesn't win is purely visual feedback (Figma-style).
+- The resize/single-point path (`_snapSize`) and grid snapping are unchanged; no new DOM (the four existing snap-line elements are reused).
+
+### N19 — Icon attribute autocompletion for material elements ✅ done
+
+Any attribute named `icon*` (e.g. `icon`, `icon-on`, `icon-off`) now gets a search-as-you-type icon picker in the standard attribute inspector.
+
+**Implementation** (`www/src/feezal-sidebar-inspector-attributes.js` only):
+- Auto-detection in `_rebuildItems`: `isIcon` when the attribute name matches `/^icon(-|$)/i`, or the descriptor sets `type:'icon'` / `iconPicker:true` (and it isn't already a bool/colour/topic/select/textarea).
+- `_renderInput` renders an `sl-input` (with a live icon preview in the `prefix` slot) plus a scrollable **icon grid** dropdown filtered by the typed text.
+- Grid populated from the already-bundled `material-design-icons.js` ligature list; tiles render via a local `.material-icons` font rule; clicking a tile writes the ligature name to the attribute.
+- No per-element changes required.
+
+### N20 — Style inspector: resolve CSS variable colours in the colour picker ✅ done
+
+A colour style whose value is a `var(…)` (or `color-mix(…)`, rgb, named colour) now shows its **actual rendered colour** in the native swatch, instead of black/nothing.
+
+**Implementation** (`www/src/feezal-sidebar-inspector-styles.js` only):
+- `_toColorHex` fast-paths hex literals; anything else is resolved via `_resolveColor`, which applies the value to a hidden probe `<span>` appended into the selected element's DOM context and reads `getComputedStyle(probe).color` — so `var()` chains and `var(--x, fallback)` fallbacks resolve natively against the element's theme/custom-props.
+- `_rgbToHex` converts the resolved `rgb()`/`rgba()` to `#rrggbb`; fully-transparent (unresolved var, no fallback) returns '' and the swatch gets an `unresolved` class rendering a checkerboard.
+- The stored value stays the `var(…)` string; only the swatch display is resolved. Re-resolves on selection change / re-render.
 
 ### N1 — Attribute & style editor: autocomplete and smart controls ✅ done
 - **MQTT topic autocomplete** (hierarchical) ✅
@@ -97,8 +177,239 @@ An element can declare `inspector: 'feezal-element-<name>-inspector'` in `static
 ### N12 — MQTT auto-discovery (HA / zigbee2mqtt) ✅ implemented
 Server-side discovery registry (`server/src/mqtt/discovery.js`) subscribes to HA-format discovery wildcards, expands abbreviations, normalises payloads, and maintains an in-memory entity cache. REST endpoint `GET /api/discovery/devices` exposes the cache. The inspector shows: (a) a reactive "Auto-configure" banner when a typed topic matches a discovered entity, and (b) a proactive device-picker dropdown for elements that declare a `discovery` descriptor in `static get feezal()`. Discovery descriptors shipped for: `light`, `switch`, `fan`, `lock`, `climate`, `cover`, `binary_sensor` (contact/motion), `checkbox`, `paper-switch`, `paper-checkbox`. Full spec in `docs/element-spec.md` §3.7 and §8.5.
 
+### N14 — Live elements in the editor (glass-overlay WYSIWYG) ✅ done
+
+Elements now subscribe and render live in the editor exactly as in the viewer. The canvas is a true WYSIWYG preview.
+
+**Implementation:**
+1. **`feezal-element` base class** — removed `if (!feezal.isEditor)` guards from `connectedCallback` and `updated()`. Elements subscribe unconditionally.
+2. **`feezal-polymer-element` base class** — same subscription guard removed; kept tabindex-focus-blocking code for editor accessibility.
+3. **`feezal-sidebar-inspector.js`** — `initElem()` now injects a `<style class="feezal-glass-style">` into each element's shadow root with `:host(.feezal-editable)::after { position:absolute; inset:0; z-index:5; cursor:inherit }`. This glass overlay sits above all shadow-DOM internals and blocks any remaining pointer events, complementing the `pointer-events:none` rule already in base-class styles.
+4. **All 16 built-in elements** — removed `if (feezal.isEditor)` subscription guards and static placeholder render branches. Unconfigured-state hints use null-coalescing (`this._value ?? (feezal.isEditor ? demo : null)`) so real MQTT data always takes priority.
+5. **Publish guards kept** — all `if (feezal.isEditor) return;` inside publish/action handlers are preserved; elements never publish in the editor.
+6. **`feezal-element-basic-view`** — kept its `isEditor` check to prevent recursive canvas rendering.
+7. **`docs/element-spec.md`** — §4.1, §4.4, §6.4, §7, and the §11 full example all updated to reflect the new convention: subscribe freely, guard publishes.
+
 
 ## Element Ecosystem
+
+### E46 — Material navbar (`feezal-element-material-navbar`) ✅ done
+
+A navigation element that switches between views — the persistent "menu" a multi-view dashboard needs. It renders a row (or column) of destination items; tapping one navigates to the target view. It complements the swipe gesture (E7) and the tile `navigate` action (E29): E7 is invisible/gesture-driven, E29 is a single per-tile button, and this is a dedicated, always-visible nav bar/rail.
+
+**Navigation mechanism.** View switching in feezal is driven by the URL hash — `feezal-site` reads `location.hash` (`#/<viewName>`) and shows the matching `<feezal-view name>`, keeping the hash in sync on every change (see [feezal-site.js:68-73](../www/src/feezal-site.js#L68-L73) and `_viewChanged`). The navbar navigates by setting `location.hash = '#/' + viewName`; `feezal-site` does the rest, so it also stays in sync when the view is changed by any other means (swipe, MQTT `subscribe/view`, deep link). The available views are enumerated from `feezal.views` — useful for validation and for an "all views" default.
+
+**`items` attribute — two accepted shapes.** A single JSON-array attribute defines the destinations, accepting either form (mix allowed):
+
+```jsonc
+// 1. bare view names — label defaults to the view name
+["view1", "view2", "view3"]
+
+// 2. label/view pairs — richer, optional per-item icon + badge
+[
+  {"label": "Home",    "view": "home",    "icon": "home"},
+  {"label": "Climate", "view": "climate", "icon": "thermostat"},
+  {"label": "Lights",  "view": "lights",  "icon": "lightbulb", "subscribe-badge": "home/lights/on-count"}
+]
+```
+
+Per-item object keys: `view` (required — target view name), `label` (defaults to `view`), `icon` (optional Material icon name, resolved through the icon registry — N4/N20), `subscribe-badge` (optional MQTT topic whose payload renders as a numeric/dot badge on the item).
+
+**Active-item highlighting.** The item whose `view` matches the currently active view (from the hash / `feezal-site.view`) gets the MD3 active indicator (filled pill + active label/icon colour). The element listens for `hashchange` so the highlight follows navigation from any source, not just its own taps.
+
+**Attributes:**
+
+| Attribute | Type | Default | Description |
+|---|---|---|---|
+| `items` | string (JSON) | `[]` | Destinations — array of view-name strings **or** `{label, view, icon?, subscribe-badge?}` objects (see above). Empty = auto-populate from all `feezal.views` in document order. |
+| `orientation` | `horizontal` \| `vertical` | `horizontal` | Lay items out as a bottom/top nav **bar** (horizontal) or a side nav **rail** (vertical). |
+| `show-labels` | `always` \| `active` \| `never` | `always` | MD3 label-visibility behaviour (mirrors Material's navigation-bar label options). |
+| `show-icons` | boolean | `true` | Render each item's icon (when provided). Icon-only bars set `show-labels="never"`. |
+| `align` | `start` \| `center` \| `space-between` | `space-between` | How items distribute along the main axis. |
+| `subscribe` | mqttTopic | — | Optional — reflect an externally-driven active view (payload = view name); overrides hash-based highlighting when set. |
+| `publish` | mqttTopic | — | Optional — publish the selected view name on tap (in addition to navigating), for cross-device sync. |
+
+**Exposed CSS custom properties.** The element is meant to be themed per-site, so it exposes a documented token surface (defaulting to MD3 / `--feezal-*` theme variables so it inherits the active theme out of the box — see `element-spec.md §5.1`):
+
+| Property | Default | Controls |
+|---|---|---|
+| `--feezal-navbar-background` | `--md-sys-color-surface-container` | Bar/rail background |
+| `--feezal-navbar-color` | `--md-sys-color-on-surface-variant` | Inactive item icon/label colour |
+| `--feezal-navbar-active-color` | `--md-sys-color-on-secondary-container` | Active item icon/label colour |
+| `--feezal-navbar-active-indicator` | `--md-sys-color-secondary-container` | Active pill/indicator fill |
+| `--feezal-navbar-gap` | `4px` | Space between items |
+| `--feezal-navbar-item-padding` | `8px 12px` | Per-item padding |
+| `--feezal-navbar-icon-size` | `24px` | Icon size |
+| `--feezal-navbar-label-size` | `12px` | Label font size |
+| `--feezal-navbar-radius` | `16px` | Active-indicator corner radius |
+| `--feezal-navbar-elevation` | `none` | Optional box-shadow (e.g. a raised bottom bar) |
+
+Padding/gap/icon/label tokens should default to container-query units where practical so the bar scales with the element (E38 pattern).
+
+> **Conventions:** dual-payload — (n/a) · auto-discovery: — · custom inspector: **N6 recommended** (an items list-builder — add/reorder rows, pick a view from a dropdown of `feezal.views`, choose an icon) since hand-editing the `items` JSON is the main friction point. See [Element platform conventions](#element-platform-conventions).
+
+**Editor preview:** renders the real bar with either the configured `items` or, when empty, the document's views — so the author sees the actual layout. Taps are inert in the editor (no navigation) to avoid switching the canvas view while editing.
+
+**Default size:** 400×64 px (horizontal bar); 80×400 px (vertical rail).
+
+**Implementation note:** `@material/web` does not ship a navigation-bar/rail component, so this is a small custom Lit element styled with MD3 tokens (or built on `md-tabs` if primary-tab semantics prove sufficient). Confirm which during implementation.
+
+
+### E47 — App Layout element (`feezal-element-layout-app`) ✅ done
+
+A **Layout-category app shell**: a full-bleed element with a top app bar and a collapsible left navigation drawer, whose main content area **embeds a named view and swaps it** as the user picks drawer entries. This is the modern Lit/MD3 rewrite of the legacy Polymer `feezal-element-paper-app-layout` (which had the chrome but never wired the drawer to navigation), landing in the new **Layout** category alongside E9 (`feezal-element-layout-flex`).
+
+**Relationship to neighbours.** [E46](#e46--material-navbar-feezal-element-material-navbar) (navbar) is a *standalone* nav control that drives **whole-page** navigation via the URL hash; E47 is a *self-contained shell* whose drawer swaps **embedded** content while the bar+drawer chrome stays put. Different philosophies for different apps — a site uses one or the other, not both. Unlike E9, E47 does **not** expose a light-DOM `<slot>` on the canvas (its regions are chosen by attribute, not slotted children), so it sidesteps the editor pointer-interaction pitfalls E9 hit.
+
+#### Resolved design (from refinement Q&A)
+
+| Decision | Choice |
+|---|---|
+| Navigation model | **Embed & swap** the main content view (chrome persists); optionally mirror the selection to the URL hash / an MQTT topic. |
+| Drawer responsiveness | **Persistent** on wide; collapses to an **overlay + hamburger** below a breakpoint. |
+| Menu entry fields | **`{label, icon, view}`** per entry. |
+| Top bar | **Hamburger + title + right-aligned action icons.** |
+
+#### Structure & behaviour
+
+- **Full-bleed shell.** Like the paper element: pinned to the view (`top/left:0`, `100%×100%`, `restrict:{move:false,resize:false}`) so it owns its host view. Internally a CSS grid/flex: top bar row + (drawer | content) row.
+- **Content area — embed & swap.** Hosts the *active entry's* view using the same approach as `feezal-element-basic-view`: in the **viewer**, clone the target `<feezal-view>` (stripping the inactive `display:none`); in the **editor**, show a lightweight placeholder ("View: <name>") — never a live nested render, to avoid recursion. Switching entries just re-points the content host at the new view. A **recursion guard** (a content view must not embed a view that contains this shell) is noted as a follow-up, mirroring E9.
+- **Active selection.** Internal `_active` state, defaulting to the first entry (or an `active-view` attribute). Optional `subscribe` (payload = view name → switch) and `publish` (emit selected view on change) for cross-device sync, plus optional URL-hash mirroring so entries are deep-linkable.
+- **Responsive drawer (container query, not viewport).** Use `container-type: inline-size` on the shell and a `@container (min-width: …)` breakpoint (E38 pattern) so behaviour tracks the element's *own* width and stays correct in the editor at any preview size. Above the breakpoint: drawer persistent, hamburger hidden. Below: drawer is an overlay with a scrim, toggled by the hamburger; tapping an entry (or the scrim) closes it. Breakpoint is a configurable attribute (default ~768px). On narrow, remember open/closed for the session.
+- **Top bar.** Hamburger (shown only below the breakpoint, or always if configured) · title (`title` attribute, optionally driven by an MQTT `subscribe-title` topic) · a right-aligned **actions** area. For the MVP, actions are a small configurable list of icon-buttons that publish an MQTT payload on tap (`{icon, publish, payload}`); richer action types later.
+- **Drawer entries.** Rendered from an `items` JSON-array attribute of `{label, icon, view}` (icon = Material icon name via the icon registry, N20/N4). The active entry (matching `_active`) gets the MD3 active indicator (filled pill + active colour).
+
+#### Attributes (draft)
+
+| Attribute | Type | Default | Description |
+|---|---|---|---|
+| `items` | string (JSON) | `[]` | Drawer entries: `[{label, icon?, view}]`. |
+| `title` | string | `''` | Top-bar title. |
+| `subscribe-title` | mqttTopic | — | Optional — drive the title from MQTT. |
+| `active-view` | string | first entry | Initially selected content view. |
+| `breakpoint` | number (px) | `768` | Width below which the drawer becomes an overlay. |
+| `drawer-persistent` | boolean | `true` | If false, always overlay (hamburger at all sizes). |
+| `actions` | string (JSON) | `[]` | Top-bar action buttons: `[{icon, publish, payload}]`. |
+| `subscribe` / `publish` | mqttTopic | — | Optional external active-view sync (payload = view name). |
+
+**Styles / tokens:** `--feezal-app-bar-bg`, `--feezal-app-bar-color`, `--feezal-app-drawer-bg`, `--feezal-app-drawer-color`, `--feezal-app-drawer-width`, `--feezal-app-active-color`, plus `background`/`border` — each defaulting to MD3/`--feezal-*` theme vars so it inherits the active theme.
+
+#### Editor UX
+
+- **Custom N6 inspector** (like E9's region manager): an entries list-builder — add / reorder / remove rows, each with a **view picker** (dropdown of `feezal.views`), a **label** field, and an **icon picker** (N20); an **✎ edit** button per entry to jump to editing that content view (`feezal.app._setView(name)`); an **＋ add** that can create-and-embed a new blank view (mirroring E9's `_addRegion`, reusing the synchronous-hide fix so new views don't reflow the canvas). Plus top-bar fields (title/subscribe-title), the actions list, and drawer options (breakpoint, persistent).
+- **Canvas preview:** render the real bar + drawer chrome with the placeholder content pane; drawer taps switch the previewed pane but are otherwise inert (no viewer navigation). Because entries are attribute-driven (no `<slot>`), there are no nested editable children to manage.
+
+#### Implementation notes
+
+- **No MD3 nav-drawer:** `@material/web` dropped its navigation-drawer component, so hand-roll the drawer/bar with CSS (flex + container query); use `md-icon-button` for the hamburger and actions — **render glyphs as `<span class="mi">` with the loaded 'Material Icons' font, not `<md-icon>`** (the recurring unloaded-Material-Symbols gotcha).
+- Reuse `feezal-element-basic-view`'s clone-in-viewer / label-in-editor logic for the content pane rather than reinventing it.
+- **Default size:** full view (fills its host); `restrict` disables move/resize.
+
+
+### E44 — Pin protection element ✅ done
+A view can require a PIN to enter (rendered in the viewer). Useful for settings or admin pages on a shared display. => Let's make an element for that. The element renders only a placeholder in the editor (category system) and just adds a fullscreen overlay that disappears when pin is entered correctly. write security notes in user documentation: this is not safe, user can bypass it very easily. 
+
+
+### E45 — Responsive / breakpoint layouts ✅ done
+
+Dashboards need to look right on a phone, a tablet, and a wall display. feezal elements are **absolutely positioned**, so they don't reflow — a layout hand-placed for 1920×1080 is unusable at 390 px. The goal: let a site present a **different layout per viewport class**, chosen automatically.
+
+#### Decision — a responsive *layout element*, not per-view breakpoint variants
+
+Two ways to do this:
+
+| Approach | How | Verdict |
+|---|---|---|
+| **A — Breakpoint variants baked into every view** | Each `feezal-view` stores N element sets (desktop/tablet/mobile); the editor gets a breakpoint switcher; the viewer shows the set matching the viewport. | ❌ Heavy: every element duplicated per breakpoint inside one view, complex editor state, and absolute elements still don't reflow — you're hand-laying each variant anyway. |
+| **B — A responsive layout element that swaps whole *views* by breakpoint** *(chosen — matches the user's instinct)* | A layout element assigns a **named view** to each breakpoint and renders the matching one, reusing the **E9 region-view embed** mechanism (`feezal-element-layout-flex`). | ✅ Minimal new code (E9 already embeds named sub-views), the author edits ordinary views, and mobile vs desktop can be *radically* different layouts, not just reflowed ones. |
+
+**Chosen: B.** You author separate views (e.g. `Home·desktop`, `Home·mobile`) and drop a responsive element on a thin **shell view** that the nav points at; the element renders whichever assigned view matches the current viewport.
+
+#### `feezal-element-layout-responsive`
+
+A full-canvas pseudo-container (Layout palette category, like `layout-flex`). Config is an **ordered list of breakpoint rules**, each mapping a viewport predicate to a view to embed:
+
+```
+rules: [
+  { view: "Home·mobile",  maxWidth: 600 },
+  { view: "Home·tablet",  maxWidth: 1024, orientation: "portrait" },
+  { view: "Home·desktop" }                       // fallback (no predicate = always matches)
+]
+```
+
+- **Predicates:** `minWidth` / `maxWidth` (px) and optional `orientation: portrait | landscape`. Rules are evaluated **top-to-bottom; first match wins**, so ordering *is* priority — and portrait/landscape falls out naturally (add an orientation'd rule above the width-only one).
+- **Fallback:** the last rule with no predicate is the default when nothing else matches.
+- **Defaults** offered in the inspector: mobile `<600`, tablet `600–1024`, desktop `≥1024` — all editable.
+
+#### Runtime (viewer)
+
+- A single `matchMedia` set (or a `ResizeObserver` on the container) evaluates the rules and mounts **only the matching view** into the container — same embed path as E9 flex regions.
+- **Only the active view is in the DOM**, so its elements' MQTT subscriptions are the only live ones — no double-subscribing the same device across breakpoints (a real concern if all variants were mounted). On breakpoint change, unmount the old view, mount the new.
+- Cheap: media-query listeners, no polling.
+
+#### Editor UX
+
+- **Inspector (N6 custom):** the rule list — per row: assigned view (pick existing / create), `min/max width`, `orientation`, and drag-reorder (order = priority); add/remove; a "fallback" marker on the predicate-less rule.
+- **Breakpoint switcher:** a segmented control (📱 / ▭ / 🖥) on the element (mirrors E9's region-edit navigation) that (a) previews a breakpoint by clamping the canvas to a representative device width, and (b) jumps the editor into the assigned region-view to edit it.
+- The assigned views are **ordinary views**, hidden from the nav tab bar (folder them via U8, exactly like E9 slot sub-views) so they don't clutter navigation.
+
+#### Storage & composition
+
+- Rules serialize as a JSON attribute on the element in `site.html` (like E9's slot config); assigned views are normal `<feezal-view>`s.
+- **Composable:** an assigned view can itself contain a `layout-flex` (or another responsive element) — responsive *outer* choice + flexible *inner* regions. The E9 viewer **recursion guard** already prevents a view embedding itself.
+
+#### Relationships
+
+- **E38 (element scaling / container queries)** is complementary — *within* a chosen layout, elements still scale to their box. E45 picks the layout; E38 makes each layout elastic.
+- **E7 (swipe)** and **U13 (viewer mobile support)** pair naturally for the mobile layouts; **A9 (PWA export)** is the delivery vehicle.
+
+#### Open questions
+
+- **Site-level responsive?** Should the whole active view be swappable by breakpoint at the `feezal-site` level (bypassing the shell-view + element), or is element-first enough? Element-first is cleaner and composable — start there; a site-level mode is a later extension.
+- **Shared content across breakpoints.** The same device card must be authored in each breakpoint view (duplicated wiring). Acceptable for MVP; a future "shared element / symbol" concept could de-duplicate. Note it.
+- **Editor preview fidelity.** Clamping the canvas width approximates a device; a full device-frame preview (with the viewer's real CSS) is a nice-to-have, not MVP.
+- **Default breakpoint thresholds** and whether to expose a global site default vs per-element.
+
+
+### E9 — Flexbox layout element (`feezal-element-layout-flex`) ✅ done (v1)
+
+A Layout-category flexbox **container** element. Its regions are `feezal-element-basic-view` children (light DOM) that each embed an **ordinary named view**.
+
+**Implementation:**
+- Container flex settings are attributes — `flex-direction`, `flex-wrap`, `justify-content`, `align-items`, `gap` — applied to a shadow flex wrapper around `<slot>`; per-region flex (`flex-grow`/`shrink`/`basis`, `min-width`) is stored as **inline styles on each region's `basic-view`**.
+- **Custom N6 inspector** (`feezal-element-layout-flex-inspector`) manages the element directly via its `.element` ref: Layout controls (direction/justify/align/gap/wrap) dispatch `feezal-attribute-changed`; the Regions list adds (creates a new blank view via `feezal-view` + `feezal.app.views`/`requestUpdate`, then embeds a `basic-view`), removes, reorders (DOM sibling swap), re-points a region's `view`, edits per-region flex, and an ✎ button calls `feezal.app._setView(name)` to jump to that region's view. Each change calls `element.requestUpdate()` + `feezal.app.change()`.
+- Editor shows an empty-state hint until regions are added; regions render `basic-view`'s editor placeholders (view-name labels), not live content. Responsive: `flex-wrap` + per-region `min-width`.
+- Slot sub-views are ordinary views (organise via folders; removing a region leaves the view untouched).
+
+**Deferred (v2):** drag-and-drop visual layout-preview inspector; live nested previews in the editor; a view-cycle recursion guard in the viewer (a region must not embed a view that contains this container).
+
+### E15 — Media player element (`feezal-element-material-media-player`) ✅ done
+
+A compact MD3 media/music control card (Device category). Album art (`subscribe-artwork-url` topic or static `artwork-url`, with an `album` icon fallback), title/artist/album metadata, a draggable div-based seek bar showing `mm:ss / mm:ss` (publishes target seconds to `publish-seek` on release), a transport row (previous / rewind / play↔pause auto-toggled from the `subscribe` playback state / forward / next / stop / tinted shuffle toggle / cycling repeat), and an optional 0–100 volume slider. Standard flat inspector; custom N6 inspector deferred (noted in-file).
+
+### E17 — Alarm panel element (`feezal-element-material-alarm-panel`) ✅ done
+
+A security alarm control panel (Device category): a colour-coded state banner (flashing on `triggered`, pulsing on `pending`), a masked PIN display, a 3×4 keypad, and a mode-button row from a `modes` JSON array. Publishes `{"action","code"}` JSON to `publish-action` on arm/disarm and clears the PIN immediately (never stored). `require-code-to-arm` gates arming; disarm always requires a code. Includes HA `alarm_control_panel` discovery. Custom N6 inspector deferred.
+
+### E19 — Humidifier / dehumidifier element (`feezal-element-material-humidifier`) ✅ done
+
+A humidifier/dehumidifier card (Device category) reusing the climate element's circular arc geometry. Draggable target-humidity arc (publishes to `publish-target-humidity` on release), current humidity in the centre, centre tap toggles on/off (`publish-state`), optional `md-filter-chip` mode row, and a `type` (humidifier/dehumidifier) that switches the arc accent between blue and amber via `--feezal-humidifier-*` vars. Includes HA `humidifier` discovery. Custom N6 inspector deferred.
+
+### E21 — Robot vacuum element (`feezal-element-material-vacuum`) ✅ done
+
+A robot-vacuum control card (Device category): a top-down SVG robot disc that slow-spins while cleaning and tints/`!`-overlays per state, a coloured status label, a battery bar (green/amber/red), a control-button row (start / pause / stop / return-home / optional locate → `publish-command`), and an optional fan-speed chip row (`fan-speeds`). Includes HA `vacuum` discovery. Custom N6 inspector deferred.
+
+### E43 — Template body for dialog and countdown-dialog ✅ done
+
+`feezal-element-material-dialog` and `feezal-element-material-countdown-dialog` had a plain `message` string attribute; it was replaced with a `template` attribute evaluated as a JavaScript template literal at runtime (like `feezal-element-basic-template`).
+
+**Implementation:**
+- **Attribute rename** `message` → `template` (breaking change → minor bump on both packages, 1.1.0).
+- Both elements capture the triggering MQTT message as `this._msg` (state) and expose it to the template; `countdown-dialog` also passes `seconds` (the live remaining count).
+- Evaluation: `new Function('msg', 'return \`'+tpl+'\`;')(this._msg)` for the dialog; `new Function('msg', 'seconds', …)(this._msg, remaining)` for the countdown. Errors are caught and logged; the body is left empty on error. With no message yet, `msg = {}`.
+- Result rendered via `unsafeHTML(...)` where the old `message` was used (added the `unsafeHTML` import to countdown-dialog).
+- **Editing UI:** the value is stored as a plain attribute (not a `<template>` child). countdown-dialog uses the standard inspector's Monaco template editor (`textarea + editor`, `variables: ['msg','seconds']`); the dialog's custom inspector embeds `<feezal-template-editor>` directly (`variables: ['msg']`).
+- Default countdown template: `` `Proceeding in ${seconds}…` ``.
 
 ### E1 — Migrate feezal-element-basic-* from Polymer to Lit ✅ implemented
 `datetime`, `iframe`, `number`, `template`, `view` — all still on Polymer 3.
@@ -819,6 +1130,429 @@ A single-marker shorthand via top-level `subscribe-lat` / `subscribe-lon` (or `s
 
 ## Editor UX
 
+### U9 — AI coding assistant ✅ done
+
+> **Status: 🔨 Phases 1–3 done.** Phases 1 & 2 (design + source mode, OpenAI-compatible / Ollama / Anthropic providers, server-side conversations + history, file context) and Phase 3 (agent/tools mode — archived U26/U27; new-view creation via the `<!-- @new-view: Name -->` directive) are implemented. The template-editor sparkle button was **dropped** (not wanted). Minor Phase-2 polish remains deferred (Monaco diff-overlay, whole-document source scope, context-window ring). See [Phasing](#phasing).
+
+An AI chat assistant integrated into the feezal editor, inspired by [hobbyquaker/she](https://github.com/hobbyquaker/she)'s Monaco-based assistant. Unlike she (which is source-only), feezal's assistant works in **both** editing modes:
+
+- **Design mode (live canvas)** — the default. The assistant edits the view's HTML under the hood; the user never sees raw HTML. Before applying, it asks for a simple **confirmation** ("Changing the current view…") and then applies the change straight to the canvas.
+- **Source mode (Monaco, N15)** — proposals are shown as a Monaco diff overlay, as in she.
+
+The model contract is identical in both modes (it always returns the full proposed view HTML); only the *presentation and apply* differ by mode.
+
+> **Prerequisite:** U7 (Monaco bundled + `feezal-monaco-loader.js`) and N15 (source view) are required for source-mode diffs. Design mode depends only on the editor canvas and works without the source view.
+
+#### Entry point — toolbar button (config-gated)
+
+A single **icon-button** toggles the assistant:
+
+- **Position:** rightmost in the editor top bar, after the sidebar-tab icon row in `#menu-right` (the last control in the [feezal-app-editor.js](../www/src/feezal-app-editor.js) toolbar).
+- **Icon:** a small **android** glyph (`android` Material Icons ligature), using the existing `.icon-btn` + `<span class="material-icons">` style — same size, hover, and `.active` treatment as the Inspector / Theme / Palette buttons — so it reads as a native toolbar control.
+- **Conditional visibility:** the button renders **only when an AI backend is configured** in the Editor Settings tab. With no provider/key set it is hidden entirely (discoverability comes from the settings panel, not a dead button). Visibility reacts live to a `feezal:ai-config-changed` event, so enabling a backend reveals the button without a reload.
+- **Active state:** while the panel is open the button shows the standard `.active` highlight.
+
+#### Panel layout & UX
+
+The assistant is a **resizable panel docked to the right window edge**, overlaying the right-sidebar region (never the canvas), with a drag handle on its left border (min ~320 px, max ~640 px; width persisted to `localStorage`). A single `feezal-ai-chat` Lit element is reused unchanged in both modes.
+
+Visual design takes cues from **Claude Code / Claude's chat UI** — calm, content-first:
+
+- Vertical message stream: user turns right-aligned in a subtle bubble; assistant turns full-width plain text with comfortable line-height; generous spacing; monospace only inside code / indicator blocks.
+- Slim header: conversation title, model selector, new-conversation (＋) and history (🕘) actions.
+- Bottom **composer**: auto-growing textarea, an animated "thinking" affordance while streaming, and a stop (■) button that replaces send during a request.
+- In design mode a proposal shows a compact **confirmation card** (see Apply flow) rather than walls of code.
+- **Dark/bright mode:** the panel inherits the editor theme. All colours route through the existing feezal CSS custom properties (`--feezal-bg`, `--feezal-color`, `--feezal-border`, `--sl-color-*`) and the `:host(.dark)` propagation already used for the other editor panels — no hardcoded hex. Code blocks and the Monaco diff use the matching light/dark theme. Verify both themes before shipping (element-spec §8.2 discipline).
+
+```
+┌───────── editor top bar ──────[Inspector][Theme]…[Editor][🤖]┐
+├──────────────────────────────────────────┬──────────────────┤
+│                                           │ 🤖 Assistant   ＋🕘│
+│   Canvas (design mode)                    │──────────────────│
+│   — or — Monaco (source mode)             │   …user…         │
+│                                           │   …assistant…    │
+│                                       ⟷ ◀│  ┌─ confirm ────┐ │  ← drag handle
+│                                       drag │  │ Change view? │ │
+│                                           │  │  ✓ Accept  ✕ │ │
+│                                           │  └──────────────┘ │
+│                                           │──────────────────│
+│                                           │ context chips    │
+│                                           │ [ textarea ] ▶/■ │
+└───────────────────────────────────────────┴──────────────────┘
+```
+
+#### Context sent to the model
+
+A **context chips row** sits above the composer (she-parity):
+
+| Context piece | Source | Control |
+|---|---|---|
+| Target view HTML | design: the active canvas view (implicit). source: a view chosen via the target-view selector (see below) | toggle / view-scope chip |
+| Feezal element catalogue | `feezal.elements` + each `static get feezal()` (name, attributes, defaultStyle) | toggle (default on) |
+| Known MQTT topics | `/api/topics/completions` topic trie | toggle (default on) |
+| Element-spec reference | bundled `docs/element-spec.md` excerpt | toggle (default off) |
+| Extra files | user-added other views' HTML, element sources, arbitrary text/markdown | per-file chip |
+
+Adding files matches she exactly: a **"+" button** opens a hidden `<input type="file" multiple>`, **drag-and-drop** onto the panel adds files, and each becomes a removable chip `{name, content}` with a language badge. The current-view chip can be toggled off to ask general questions without sending the view.
+
+A **prompt-size indicator** shows the estimated request size (bytes + rough token count). When the active model's context window is known (e.g. via Ollama model info), a small **context-usage ring** visualises `promptBytes / contextWindow`, as in she.
+
+The element catalogue is serialised as compact JSON in the system prompt so the model emits valid element tags, attribute names, and defaults without hallucinating APIs.
+
+#### View scope (source mode has no active view)
+
+Unlike design mode — where the active canvas tab *is* the working view — source mode loads the **entire site** into Monaco (`feezal.site.outerHTML`, every view — see [feezal-app-editor.js:1295](../www/src/feezal-app-editor.js#L1295)), so there is **no implicit current view**. Therefore, in source mode:
+
+- The context row shows a **target-view selector** listing the document's `<feezal-view name>`s plus a **"Whole document"** option.
+- If the user sends an edit request **without** having picked a target, the assistant **asks first** — *"Which view should I work on?"* — and lists the available views, rather than guessing.
+- The chosen view's `<feezal-view>` block is what gets sent as context and what the model's reply replaces. Splicing is keyed by the view's **`name` attribute** (unique within a site); the prompt instructs the model to **preserve `name`** and not rename or reorder views, so the target block is unambiguous. If a scoped reply's `name` does not match the target (model renamed/dropped it), the apply is **rejected** rather than guessed.
+- **"Whole document"** scope is reserved for genuine cross-view edits (e.g. renaming an MQTT topic across every view); the reply must echo **every** `<feezal-view>` back, and the Monaco diff is the safety net for that larger change.
+
+#### System prompt & output contract
+
+The system prompt is the contract that makes wholesale view replacement safe (there is no `data-fid` reconciliation — an omitted element is a deleted element). It is kept as a **server-side template** (tunable without a client release), stamped with the feezal version, and assembled per request. It must specify:
+
+**Role & domain.** "You edit feezal *views*: HTML made of absolutely-positioned `<feezal-element-*>` custom elements driven by MQTT. Position/size live in inline `style` (`position:absolute; top/left/width/height`)."
+
+**Output contract (load-bearing):**
+- Return the **complete** HTML for the working scope — never a fragment. The editor **replaces the whole scope** with the reply, so any element you omit is **deleted**. Echo unchanged elements **verbatim** (same tags, attributes, inline styles, order).
+- Make the **minimal** change the request needs.
+- Emit exactly **one** ```` ```html ```` fenced block; prose/explanation goes **outside** it.
+- Scope boundary: design mode → the view's **inner** elements only (no `<feezal-view>` wrapper); source mode → the chosen `<feezal-view name="…">…</feezal-view>` block(s) intact (see View scope).
+- **Edit vs. answer:** for questions ("what does this view do?") reply in prose with **no** code block — the *absence* of a block is the signal not to apply.
+
+**Element rules (ground truth = the injected catalogue):**
+- Use only element tags and **kebab-case attributes present in the catalogue** — never invent elements or attributes.
+- Wire MQTT via `subscribe` / `publish` / `message-property`; honour each element's `defaultStyle` / `restrict` minimums when adding.
+- Prefer topics from the **Known MQTT topics** list; if you must guess a topic, say so in prose.
+
+**Reliability aid:** include one tiny **few-shot example** (a small view + a request + the correct full-HTML reply) — the cheapest way to lock the output format.
+
+The prompt is **mode-agnostic** (identical for design and source); only the client-side *apply* differs.
+
+#### Output validation & safety (client-side)
+
+The system prompt asks for clean output, but the client **must not trust it** — model HTML is injected into the live DOM and persisted into saved views. Before applying (both modes), the editor parses and **validates** the proposed HTML and **rejects** it with an error card if it contains any of: a non-`feezal-element-*` / non-whitelisted tag, `<script>` / `<iframe>` / `<object>`, any `on*` event-handler attribute, `javascript:` URLs, or an element tag not present in the catalogue. Inline `style` is constrained to a safe property set. A rejected proposal shows "Can't apply — `<reason>`" with the raw HTML available in the expander; it is **never** silently applied.
+
+#### Apply flow — branches by editor mode
+
+**Design mode (confirmation, no HTML shown):**
+
+1. The model's HTML code block is parsed (`parseBlocks()`, ```` ```html ```` fences) but **never rendered as text**.
+2. A simple **confirmation card** appears in the chat — *"Changing the current view…"* — with actions **Accept** · **Discard** · **Always accept** (session flag, per she's auto-apply). No per-element diff is computed or shown.
+3. **Accept** applies the proposed HTML to the canvas via the existing N15 apply path (the inspector already rewrites `feezal-view.innerHTML` and rebinds interact.js — see [feezal-sidebar-inspector.js:398](../www/src/feezal-sidebar-inspector.js#L398)), then calls `feezal.app.change()` **exactly once**, which pushes a single whole-site `innerHTML` snapshot onto the editor undo stack (`_history`) — so one Ctrl+Z reverts the entire change. *(Caveat: that stack is shallow — ≈5 entries, shared with manual edits — so AI changes do not get unlimited undo depth.)* A toast confirms ("View updated").
+4. Optional **"view as HTML"** expander (collapsed by default) for power users who do want to see the raw diff.
+
+> **Apply timing & failures:** the code block is parsed only **after** the stream completes (no apply on partial output). If an *edit* request yields no code block, the assistant treats the reply as an answer and shows no card; if a reply fails [Output validation](#output-validation--safety-client-side), it surfaces the error card instead of applying.
+
+**Source mode (Monaco diff, she-style):**
+
+0. **Establish the target view first.** Monaco holds the whole site, so if no target view is selected the assistant asks which view to work on before proposing changes (see *View scope* above); "Whole document" is allowed for cross-view edits.
+1. The model returns the proposed HTML for the chosen scope (the target `<feezal-view>` block, or the whole document). An **Apply** button opens a `MonacoDiffEditor` overlay: left = current buffer, right = proposed — the editor splices a view-scoped reply back into the correct `<feezal-view>` block before diffing.
+2. Toolbar: **Accept** (writes to the Monaco model) · **Discard** · **Always accept**.
+3. After accepting, the user saves normally (Ctrl+S).
+
+Both modes also support a **new-view directive** ✅ — the model begins its `html` block with `<!-- @new-view: Name -->` to create a new view instead of editing the current one (feezal's take on she's `// @new-file:` hint).
+
+#### Template editor integration (U7 follow-up)
+
+A simpler **sparkle button** (✨) appears next to the template textarea / Monaco editor in the attribute inspector. Clicking it opens a compact prompt popup: "Describe what the template should display" → calls the AI with the element's `subscribe` topic and last known payload as context → streams the generated template string directly into the editor. No diff view — the result replaces the current template immediately (the user can Ctrl+Z to undo).
+
+#### Backend & providers
+
+A server endpoint proxies AI requests and streams responses:
+
+```
+POST /api/ai/chat        { messages, context, model } → SSE text/event-stream (token stream)
+GET  /api/ai/config      → { configured, provider, model }   (never returns the API key)
+GET  /api/ai/models      → available models for the configured provider
+GET  /api/ai/model-info  → context window / params (Ollama), when available
+```
+
+The server builds the full system prompt (context injection) and streams tokens so the panel shows partial output live, with a stop button (AbortController) that saves the partial reply.
+
+**Supported providers** (configured in server config, she-parity selection UX):
+
+| Provider | Auth | Notes |
+|---|---|---|
+| OpenAI | `apiKey` | `gpt-4o`, `gpt-4.1`, … |
+| Anthropic | `apiKey` | `claude-sonnet-4-5`, … |
+| Ollama (local) | none | `http://localhost:11434` — fully offline; exposes context-window info |
+| OpenAI-compatible | `apiKey` (optional) | LM Studio, llama.cpp, vLLM, … |
+
+- The panel header has a **model dropdown** populated from `/api/ai/models`, with the choice persisted to `localStorage` (`feezal:selectedModel`).
+- Config is **global per server** (not per-site). The API key / endpoint are stored in the server config and **never** sent to the browser or written into `views.html`.
+- The **Editor Settings tab** (`feezal-sidebar-editor.js`, `build` icon) gains an **AI** section: provider select, API key / endpoint inputs, model select, and a "Test connection" button. Saving emits `feezal:ai-config-changed`, which both reloads the panel's config and toggles the toolbar android button's visibility live.
+
+#### Conversations
+
+Following she, conversations persist **server-side** so history survives reloads and is browsable:
+
+```
+POST   /api/ai/conversations          save { id, title, messages }
+GET    /api/ai/conversations          list { id, title, updatedAt }[]
+GET    /api/ai/conversations/:id      load full message log
+DELETE /api/ai/conversations/:id      delete
+```
+
+- A `conversationId` (generated client-side) is kept in `localStorage`; the title is the first user message (truncated).
+- The panel header exposes **New conversation** (＋) and a **history** (🕘) timeline of past conversations, with delete.
+- Context (current view + extra files) refreshes automatically when the user switches views or editing modes.
+
+> Supersedes the earlier "localStorage-only, no server persistence" idea — she-parity (browsable history) requires server-side conversations.
+
+#### Phasing
+
+The full spec is large; build incrementally so each phase ships value and de-risks the next.
+
+- ✅ **Phase 1 (MVP) — done:** design mode; OpenAI-compatible + Ollama providers; `localStorage` conversations; element-catalogue + known-topics context; confirmation-card apply with client-side **output validation** and the server-built **system-prompt contract**; config-gated android toolbar button + right-docked resizable panel + AI settings section.
+- ✅ **Phase 2 — done:** source mode (target-view selector + Monaco-buffer context + splice-apply via `executeEdits`); Anthropic native provider; **server-side** conversations + history timeline; file-context chips (＋ / drag-drop) + prompt-size (token) estimate.
+  - *Deferred within Phase 2:* the separate **Monaco diff-overlay**, the **"Whole document"** source scope, and the **context-window usage ring** (needs a provider model-info endpoint).
+- ✅ **Phase 3 — done:** agent / tools mode (archived **U26** / **U27** in [ROADMAP-ARCHIVE](ROADMAP-ARCHIVE.md)) and new-view creation (via the `<!-- @new-view: Name -->` output directive). *(Template-editor sparkle button dropped — not wanted.)*
+
+Phases 1–2 shipped across commits (`2220abd`, `529e85a`, `4fe798b`, `5912450`, `ef56757`, `37fddff`). The Scope list below is the full feature.
+
+#### Scope
+1. `server/src/routes/api.js` — `/api/ai/chat` (SSE), `/api/ai/config`, `/api/ai/models`, `/api/ai/model-info`, and `/api/ai/conversations` CRUD.
+2. `server/src/app.js` — AI config loading (`config.ai: { provider, apiKey, model, endpoint }`) + conversation store (flat files under `<dataDir>/ai/`).
+3. `www/src/feezal-ai-chat.js` — new Lit element: right-docked resizable panel, message stream, streaming + stop, context chips (+ add / drag-drop), model dropdown, prompt-size / context ring, dual-mode apply (design confirmation / source Monaco diff), conversation history. Claude-Code-inspired styling; full dark/bright support via feezal CSS vars.
+4. `www/src/feezal-app-editor.js` — rightmost **android** `.icon-btn` in the top bar, gated on AI-configured; mount `feezal-ai-chat`; single-undo apply integration.
+5. `www/src/feezal-sidebar-editor.js` — **AI** settings section (provider / key / model / endpoint, test) emitting `feezal:ai-config-changed`.
+6. ~~`www/src/feezal-template-editor.js` — sparkle button for template generation~~ — **dropped** (not wanted).
+
+#### Out of scope (MVP)
+- AI in the viewer (the assistant is editor-only).
+- **Agent / tools mode** — letting the model query live MQTT values / last payloads to ground its answers (feezal's analog of she's `ctxTools`). ✅ **Done** — see archived **U26** in [ROADMAP-ARCHIVE](ROADMAP-ARCHIVE.md).
+- ~~`// @new-file:` → new-view creation~~ — ✅ done (via the `<!-- @new-view: Name -->` directive).
+- Per-site AI configuration — one global config per server is enough.
+
+
+### U28 — AI chat: render assistant messages as Markdown ✅ done
+
+> **Status: ✅ implemented** — assistant replies and the live findings narration render Markdown via `marked`, sanitized with `DOMPurify` before `unsafeHTML`; user messages stay verbatim; links open in a new tab; theme-agnostic bubble styles for code/pre/lists/tables/blockquote.
+
+Assistant replies are rendered as **plain text** today — `_renderMessage()` in `www/src/feezal-ai-chat.js` interpolates `${text}` straight into the bubble (`.bubble { white-space: pre-wrap }`), so `**bold**`, `#` headings, `-`/`1.` lists, `` `inline code` ``, ```` ``` ```` fenced code blocks, tables, and `[links](…)` all show as literal syntax. Models reply in Markdown by default, so this reads noticeably worse than it should.
+
+**Change.** Parse the assistant message content as Markdown and render the resulting HTML in the bubble (via Lit's `unsafeHTML`). User messages stay verbatim (they may contain topics/JSON/code the user typed and shouldn't be reinterpreted).
+
+**Security — mandatory.** Model output is untrusted, and `unsafeHTML` bypasses Lit's escaping, so the parsed HTML **must be sanitized** before insertion (strip `<script>`, event-handler attributes, `javascript:` URLs, etc.). Do not skip this — a prompt-injected or hostile tool result could otherwise inject active content into the editor origin.
+
+**Approach.**
+- Add a small, well-maintained Markdown parser + sanitizer to `www` (e.g. `marked` + `DOMPurify`, or `markdown-it` + `DOMPurify`). Both are tiny and tree-shake; no server changes. There is no such dependency today.
+- Factor a `_renderMarkdown(text)` helper: `sanitize(parse(text))` → `unsafeHTML(...)`. Reuse it for assistant bubbles and the tool/narration lines if desired.
+- **Streaming:** re-parse the accumulating text on each token (cheap for chat-sized messages) so formatting appears live; fenced code blocks left unterminated mid-stream should degrade gracefully (render as they close). If re-parsing per token proves janky, fall back to rendering raw text while `_streaming` and switching to parsed Markdown once the message completes.
+
+**Styling (theme-aware, scoped to `.bubble`).** Add CSS for the generated elements so they match the panel and dark/bright modes via feezal CSS vars:
+- Inline code + fenced blocks: monospace, subtle surface background, horizontal scroll for long lines; optional per-block **copy** button.
+- Headings/paragraph/list spacing tuned for a chat bubble (tight margins, no giant `h1`).
+- Links open in a new tab (`target="_blank" rel="noopener noreferrer"`).
+- Tables: minimal borders, scrollable on overflow.
+
+**Scope:** presentation-only, entirely within `feezal-ai-chat.js` (+ the two new `www` dependencies). No backend or protocol changes. Pairs naturally with the archived U27 chat-UX work.
+
+
+### U29 — AI chat: persist open/closed state in localStorage ✅ done
+
+> **Status: ✅ implemented** — `_aiPanelOpen` inits from `localStorage['aiPanelOpen']`; the three open/close toggles route through a `_setAiPanelOpen(open)` helper that persists it; the `_aiConfigured` gate stays authoritative (force-closes when unconfigured without overwriting the saved preference).
+
+The panel **width** already persists (`localStorage['aiPanelWidth']`), but its **open/closed** state does not — `_aiPanelOpen` is hard-initialised to `false` in the `feezal-app-editor` constructor, so the assistant is collapsed on every editor load even if the user had it open. Persist it like the width, so the panel restores its last state across reloads.
+
+**Change (all in `www/src/feezal-app-editor.js`):**
+- **Init from storage:** `this._aiPanelOpen = localStorage.getItem('aiPanelOpen') === '1';` (default closed when the key is absent).
+- **Write on every toggle:** the open/close click handlers currently just set `this._aiPanelOpen = true/false` (three sites). Route them through a small `_setAiPanelOpen(open)` helper that also does `localStorage.setItem('aiPanelOpen', open ? '1' : '0')`.
+- **Respect the config gate:** restoring open must stay subordinate to `_aiConfigured` — the existing rule that forces the panel closed when AI isn't configured (`if (!this._aiConfigured) this._aiPanelOpen = false;`) still wins, so a persisted `open` never shows the panel without a configured backend. Don't clear the stored preference in that case — if the user later configures AI, their last state should return.
+
+**Scope:** trivial, presentation-only; one new `localStorage` key and a tiny setter. No backend change.
+
+
+### U26 — AI assistant: MQTT-aware tools (topic search · payload peek · discovery search) ✅ done
+
+> **Status: ✅ implemented** (backend + tools + tool-calling loop + agent-mode prompt; frontend toggle/activity in U27). Pure matchers and the loop mechanics are unit-tested; **live-provider tool execution still needs manual verification** with a real model.
+
+Give the assistant read-only **tools** to explore the live broker instead of relying on the static, truncated context it gets today. This is the concrete realisation of U9's deferred **"Agent / tools mode"** (Phase 3).
+
+**Why.** Today `buildSystemPrompt()` bakes in the first **200** known topics as a flat dump and nothing about their *values*. On a real broker (thousands of topics) the model can't find the right topic, doesn't know a payload's **shape** (JSON keys? `ON`/`OFF`? `true`/`false`? `open`/`closed`?), and can't resolve a device the user names ("the kitchen light") to concrete topics. So it guesses — wrong topics, wrong `payload-on`/`payload-off`, wrong `message-property`. Three tools fix this; the model calls them on demand and the 200-topic dump can shrink or go away.
+
+#### Prerequisite — a tool-calling loop
+
+The current assistant is **streaming text only** (`ai/providers.js` `streamChat`): messages in, tokens out, no function calling. U26 needs a **tool-use loop**: model emits a tool call → server executes it against the in-process caches → result is fed back → model continues, possibly calling again, until it emits the final view HTML.
+
+- Add tool/function-calling to each provider adapter: OpenAI `tools` + `tool_calls`, Anthropic `tool_use`/`tool_result` content blocks, Ollama `tools`. Normalise to a common `{name, arguments}` → `{toolCallId, content}` shape, mirroring how `streamChat` already normalises token deltas.
+- Server-side executor loop (bounded iterations, e.g. ≤5) between model turns. The tools run **entirely server-side** — the caches live in the Node process (`bridge.js` trie, `hub.js` retained cache, `discovery.js` entities), so the browser gains nothing but a "assistant is looking things up…" status line.
+- **Capability fallback:** models/providers without tool support degrade gracefully — either keep the current static-context behaviour, or expose the tools as an explicit "the user can paste results" affordance. Gate the tool loop on a capability flag.
+
+#### Tool 1 — `search_topics(query)`
+
+Keyword search over the **flat list of all known topics** (walk `bridge.js` `topicTrie` to its leaves via a new `getAllTopics()`; today only `getTopicCompletions(prefix)` exists).
+
+**Query grammar — one or two keywords, the second optionally negated:**
+- **`keyword1`** — **fuzzy** match over the *whole topic string with `/` separators ignored* (treat the topic as one flat string; case-insensitive subsequence/fuzzy scoring). Finds the device/thing regardless of how deep or how it's segmented.
+- **`keyword2`** *(optional)* — matches **only a full topic part**: a complete segment bounded by `/` (or the topic start/end), case-insensitive and **exact** (so `set` matches `…/set` or `…/set/…` but **not** `reset` or `settings`). Can be **negated** with `NOT`.
+
+**Syntax:** `"kw1 kw2"` (both required) · `"kw1 NOT kw2"` or `"kw1, NOT kw2"` (kw2 negated). A small parser splits on whitespace/comma and recognises a leading `NOT` on the second term.
+
+**Worked examples** (the whole point):
+- `"livingroom set"` → command/write topics for the living room (e.g. `zigbee2mqtt/livingroom_lamp/set`) → wire to **`publish`**.
+- `"livingroom NOT set"` → state/read topics for the living room (the lamp's state, excluding any `set` segment) → wire to **`subscribe`**.
+
+Returns a capped, score-ranked list of full topic strings. This directly teaches the model the publish-vs-subscribe split from the topic layout.
+
+#### Tool 2 — `get_topic_payload(topic)`
+
+Return the **last-known payload** for an exact topic so the model can see its actual **shape/value** before configuring an element. Source: `hub.js`'s retained-message `cache` (`{topic → {payload, retain, …}}`). Returns `{topic, payload, retained, ts}` or a not-found marker.
+
+The model uses this to choose correctly:
+- JSON payload → read the keys to set **`message-property-*`** (e.g. `{"state":"ON","brightness":128}` → `message-property="state"`).
+- Scalar enum → set **`payload-on`/`payload-off`** / state maps from the *real* values (`ON`/`OFF`, `true`/`false`, `open`/`closed`, `1`/`0`).
+
+**Cache caveat / plumbing:** `hub.js` currently caches **only retained** messages, so non-retained state topics have no entry. To make the tool useful there, add a small **bounded `lastSeen` map** (topic → last payload, updated on every message regardless of retain, size-capped) and expose `getLastPayload(topic)`. Note the value may be stale/absent; the tool should say so.
+
+#### Tool 3 — `search_discovery(query)`
+
+**Fuzzy search by name** over the cached MQTT auto-discovery registry (`discovery.getDiscoveredEntities()` — HA/zigbee2mqtt entities with `name`, `component`, and a full `config` incl. `state_topic`/`command_topic`). Fuzzy-match `query` against entity `name` (and device name); return matches with their `component` type and the key topics already resolved from the discovery config.
+
+Lets the model turn "add the kitchen light" into a concrete element wired to the discovered `command_topic`/`state_topic` **without** the user pasting anything — and it composes with Tool 2 (peek the state topic's payload to nail the property/enums).
+
+#### System-prompt updates
+
+Teach the model the tools **and how to act on results** (`ai/prompt.js`):
+- **When to call which:** unsure of a topic → `search_topics` (use the ` set`-part pattern for command topics, the `NOT set` pattern for state topics); about to set `payload-on/off`, a state map, or `message-property` → `get_topic_payload` first, never assume; user names a device → `search_discovery` to resolve it.
+- **How to interpret results:** a `…/set` (command) topic → `publish`; its sibling state topic → `subscribe`; a JSON payload → `message-property`; scalar enums → copy the exact on/off strings from the real payload.
+- **Shrink the static dump:** replace the baked 200-topic list with a short note that the full topic space is searchable via the tool (saves tokens and scales to large brokers). Keep the element catalogue (it's the ground-truth contract).
+
+#### Plumbing summary
+
+| Need | Source today | Add |
+|---|---|---|
+| Flat topic list | `bridge.js` `topicTrie` (+ `getTopicCompletions`) | `getAllTopics()` trie-flatten + the 1–2-keyword/negation matcher |
+| Last payload | `hub.js` retained `cache` | bounded `lastSeen` map + `getLastPayload(topic)` |
+| Discovery search | `discovery.getDiscoveredEntities()` | fuzzy-by-name matcher (tiny subsequence scorer, no new dep) |
+| Tool-calling | — (`streamChat` is text-only) | per-provider tool support + server-side execute→continue loop |
+
+**Scope:** editor-only (like the rest of U9); all tools are read-only and run server-side against existing in-memory caches. Ships naturally alongside [A17](#a17--comprehensive-automated-testing-backend--frontend--unit--integration--system--done) — the matchers (fuzzy scorer, 2-keyword/negation parser, trie-flatten) are pure functions and should land with unit tests.
+
+
+### U27 — AI assistant chat UX: larger multiline input + activity animation ✅ done
+
+> **Status: ✅ implemented** — auto-growing ~3-line composer, sweeping shiny border + text shimmer while busy (respects `prefers-reduced-motion`), and a persisted `agent` toggle chip that gates [U26](#u26--ai-assistant-mqtt-aware-tools-topic-search--payload-peek--discovery-search)'s tool loop, with live tool-activity status.
+
+Refinements to the assistant panel (`www/src/feezal-ai-chat.js`): a roomier input, an activity animation that matches [hobbyquaker/she](https://github.com/hobbyquaker/she)'s assistant (animated "shiny" border + text shimmer while the model works), and a toggle to turn agent/tool mode on or off.
+
+#### 1. Larger, auto-growing multiline input
+
+The composer is currently `<textarea rows="1">` with `max-height:160px` and **no auto-grow**, so it reads as a single line until the user inserts newlines — cramped for describing a change.
+
+- Default to **~3–4 visible lines**: set `rows="3"` (or `4`) and give `.composer textarea` a matching `min-height` (`~4.2em` for 3 lines at `line-height:1.4`).
+- **Auto-grow** on input up to the existing `max-height:160px` cap: on `@input`, reset `height:auto` then set `height = scrollHeight` (clamped), and reset back to the min height after `_send()` clears the field. Keep Enter = send, Shift+Enter = newline (already wired in `_onKeydown`).
+
+#### 2. "Shiny" activity animation (while the assistant is working)
+
+When `_streaming` is true — the model is thinking, streaming, or (with U26) running a tool — animate two surfaces so the panel visibly signals activity:
+
+- **Composer box** (`.composer .box`): swap the static `1px` border for an **animated gradient "shine"** that sweeps around the box.
+- **Active assistant bubble** (the "proposing a change…" / working message and the `.dots` state): add a **text shimmer** (a highlight sweeping across the label) and/or the same animated border, so the in-progress message reads as live rather than static.
+
+**Implementation approach** (plain CSS, no new dependency; gate everything behind a `.busy` class toggled by `_streaming`):
+
+- *Animated gradient border* — a pseudo-element behind the box painted with a rotating `conic-gradient` (or a sliding `linear-gradient` via animated `background-position`), confined to a border ring using the padding-box/`mask` compositing trick (or `border-image`), driven by a `@keyframes` that rotates the gradient angle / slides the position. Use the theme's primary tokens (`--sl-color-primary-*`) plus an accent stop so it matches feezal's palette while echoing she's sweep.
+- *Text shimmer* — a moving `linear-gradient` background with `-webkit-background-clip:text; color:transparent;` animated on `background-position`, applied to the working label.
+- Respect **`prefers-reduced-motion`** (drop to a static tint / no sweep).
+
+**Tie-in with U26:** "does something" should cover the whole tool-use loop, not just token streaming — drive the animation from a broader busy state (`_streaming` today; extend to include tool-call status once U26 lands, e.g. a `_busy`/`_activity` flag with an optional label like "searching topics…").
+
+#### 3. Agent-mode toggle (tool usage on/off)
+
+A **tiny checkbox** in the composer to enable/disable **agent mode** — i.e. whether the assistant may use the [U26](#u26--ai-assistant-mqtt-aware-tools-topic-search--payload-peek--discovery-search) tools (topic search / payload peek / discovery search) and run the tool-use loop.
+
+- **Placement:** a compact toggle in the existing `.chips` row (next to the `view` chip and file chips), styled to match — a small checkbox + `agent` label (or a toggle-chip like `_includeView`). "Tiny" so it doesn't dominate the composer.
+- **State:** a persisted `_agentMode` flag (default on once U26 ships; `localStorage`-backed like other panel prefs). When **off**, the request omits the `tools` array / uses today's plain `streamChat` path (static context only); when **on**, the server runs the tool-calling loop.
+- **Wiring:** the flag rides along in the AI request so the server-side loop is gated per-message. Reflect it in the composer `hint` line (e.g. append `· agent on`), mirroring the existing `auto-apply on` hint.
+- **Capability interplay (U26):** if the selected provider/model can't do tool-calling, show the checkbox disabled with a tooltip ("model doesn't support tools") rather than hiding it.
+
+**Scope:** editor-only. Items 1–2 are presentation-only (CSS + a small auto-grow handler + the busy-class toggle); item 3 adds one persisted flag threaded into the request and depends on U26 for anything to gate.
+
+
+### U25 — Store custom classes in `views.html` (source-editable) ✅ done
+
+Move **custom-class definitions** (the CSS bundles authored on the Themes page, U18) out of `viewer.json` and into `views.html`, so they are visible and editable from the **source editor** (N15) alongside the markup that uses them.
+
+#### Current state — definitions and usage are split across two files
+
+Custom classes (U18) have two halves that today live in **different files**:
+
+| Half | Example | Stored in | Source-editable? |
+|---|---|---|---|
+| **Definition** — the CSS bundle | `.feezal-class-card { border-radius:8px; … }` | `viewer.json` → `viewer.classes` | ✗ **no** — `viewer.json` isn't reachable from the source editor |
+| **Usage** — the applied class name | `<feezal-element-… class="feezal-class-card">` | `views.html` (element `class` attribute) | ✅ yes |
+
+So in the source editor a user sees `class="feezal-class-card"` on an element but has **no way to see or edit what that class actually does** — the rule body is in a JSON file the editor never surfaces. The definition is authored only through the Themes-page class editor (`feezal-sidebar-themes.js`), which serialises to `viewer.classes` on deploy (`feezal-app-editor.js` `_deploy()`), and the runtime `<style>` is rebuilt separately in three places:
+
+- **Editor:** `_syncClassesStyle()` injects `<style id="feezal-classes">` into `document.head`.
+- **Viewer:** `server/src/app.js` reads `viewerConfig.classes`, sanitises, and injects a `<style>` into `<head>`.
+- **Export:** `server/src/build/export.js` does the same into `index.html`.
+
+#### Proposal — one source of truth, inside the document
+
+Persist the class definitions as a single **`<style>` block inside `<feezal-site>`** in `views.html` (e.g. as the first child):
+
+```html
+<feezal-site>
+    <style id="feezal-classes">
+        .feezal-class-card      { border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,.2); }
+        .feezal-class-danger-bg { background:#c62828; color:#fff; }
+    </style>
+    <feezal-view name="Home"> … </feezal-view>
+    …
+</feezal-site>
+```
+
+Because the source editor serialises `feezal.site.outerHTML` (`_enterSourceMode()` in `feezal-app-editor.js`), a `<style>` child of `<feezal-site>` **automatically appears in source** and round-trips back through `_applySource()`. Definition and usage now sit in the same file — a folded view reads as a self-contained document.
+
+#### Why this is a net simplification
+
+- **Viewer + export get simpler, not more complex.** Both already serve/inline `views.html` verbatim. With the `<style>` living in the document, the separate `classesStyle` construction+injection in `server/src/app.js` and `export.js` can be **deleted** — the block ships for free with the HTML.
+- **Git history preview (A7) simplifies.** `getSiteAtVersion()` currently has to `git show sha:viewer.json` *just* to recover historical `classes` for `?sha=` previews (see ROADMAP-ARCHIVE U16). If classes live in `views.html`, the historical HTML already carries them — one fewer cross-file dependency.
+- **Consistency.** Class *usage* is already in `views.html`; moving the *definition* there co-locates the two halves that were arbitrarily split.
+
+#### Implementation sketch
+
+1. **Themes-page class editor (`feezal-sidebar-themes.js`)** — becomes a *view* over the in-document `<style id="feezal-classes">` rather than an independent `_classes` state serialised on deploy. `_syncClassesStyle()` writes the block **inside `feezal.site`** instead of `document.head`; the editor still parses it back into the per-class property cards for the GUI. (Keep the GUI — the source block and the visual editor are two views of the same data, kept in sync like design/source mode already are.)
+2. **Deploy (`feezal-app-editor.js` `_deploy()`)** — drop `classes: themesSidebar.classes` from the `viewer` object; the definitions now flow with `html`. Ensure `_clean()` does **not** strip the `<style id="feezal-classes">` node (it currently strips only editor-only classes and theme classes — leave the style block alone).
+3. **Viewer/export** — remove the `viewer.classes` → `<style>` injection in `server/src/app.js` and `server/src/build/export.js`.
+4. **Migration (one-time).** On load, if `viewer.json` has `classes` but `views.html` has no `<style id="feezal-classes">`, synthesise the block from `viewer.classes` and inject it into the site DOM (marking the site dirty so the next deploy persists it and the legacy `viewer.classes` key is dropped). Mirror U18's "old storage silently dropped on upgrade" approach.
+
+#### Open questions / caveats
+
+- **`<style>` as a `<feezal-site>` child.** Verify `feezal-site` treats a non-`<feezal-view>` child as inert (it should — view logic keys off `<feezal-view>`, and the browser applies the CSS globally regardless). If not, an alternative is a dedicated slot or a `views.html`-level block with a small change to what source mode serialises.
+- **Sanitisation shifts to author-trust.** Today the server sanitises `viewer.classes` property names/values before injecting. Raw CSS authored directly in `views.html` source is inherently user-controlled (it's their own dashboard, same trust level as inline `style=`), so strict sanitisation becomes moot for the live/editor path — but if `views.html` is ever rendered in a context that isn't fully trusted, the `<style>` block is a larger surface than a constrained JSON map. Note this in the security model.
+- **Formatting.** `prettyhtml`/Monaco formatting of CSS *inside* a `<style>` block — confirm it doesn't mangle the rules on round-trip (cosmetic only).
+- **Theme stays in `viewer.json`.** Only the arbitrary user-authored *classes* move. The active theme (a package reference) and colour `themeOverrides` remain site-level config in `viewer.json` — they aren't document content and `_clean()` already strips `feezal-theme-*` from the markup deliberately.
+
+
+### U24 — Collapsible palette categories ✅ done
+
+Palette categories (Basic, Device, System, Material, …) are individually collapsible so users with a large element library can hide categories they don't currently need.
+
+**Implementation** (`www/src/feezal-palette.js` only, no server change):
+- Each category header is a clickable row with a right-aligned chevron (`expand_more` / `chevron_right`); clicking the header toggles the category.
+- Collapsed state is a reactive `_collapsed` Set, persisted to `localStorage` under `feezal-palette-collapsed` (JSON array of collapsed category names), restored on load.
+- A collapsed category renders its header only (its element tiles are omitted from `render()`).
+- When the filter is active, every category is force-expanded (and the chevron hidden) so matches are always visible, regardless of saved state.
+
+### U8 — Folders for views ✅ done
+
+Views can be organised into a folder hierarchy in the editor. **Folders are an editor-only concept** — the viewer and static exports are unaffected and continue to show all views flat.
+
+**Implementation** (`www/src/feezal-app-editor.js`, load wiring in `www/src/feezal-sidebar-inspector.js`):
+- The folder tree is persisted under `viewer.folders` in `viewer.json` (flows through the existing deploy `viewer` config; no server change needed). Each node is a folder `{id, name, children:[]}` or a view ref `{view}`. Never written to `views.html`.
+- The view tab bar was replaced with a custom folder-aware tab bar (`#view-tabs`) that renders folders and views in tree order, with collapse/expand, indentation, and a per-folder view count.
+- **Create folder** button (`create_new_folder`) next to "Add view"; new folders open a rename dialog immediately.
+- **Right-click a view tab**: Rename, Duplicate, Move to (Top level + each folder), Delete.
+- **Right-click a folder tab**: Rename folder, Delete folder (children lifted to the parent at the folder's position).
+- **Drag & drop**: reorder views/folders, drop a view/folder *into* a folder (centre), reorder *before/after* (edges), drag to the empty bar area for top level. Visual drop indicators (insertion line / folder highlight / end-of-bar). Nesting capped at 3 levels (`_maxFolderDepth` rejects deeper moves).
+- **Reconciliation** (`_reconcile`): on load and whenever the view set changes, dangling view refs and duplicates are dropped, malformed nodes ignored, over-deep folders flattened, and any unreferenced views appended at the top level — covering all the views.html ↔ viewer.json drift cases. Renames update the tree in place (`_renameInTree`) so placement is preserved. Empty folders are kept.
+- The viewer route and static export compose their HTML from `views.html` + theme/overrides/classes only and never reference `folders`, so both stay flat automatically.
+
 ### U2 — Keyboard shortcuts ✅ done
 `Delete` ✅, `Escape` ✅, `Ctrl+Z` undo ✅, `Ctrl+A` select all ✅, `Ctrl+C/V/X` copy/paste/cut ✅, arrow-key nudge ✅, `Ctrl+D` duplicate ✅, `?` shortcut-reference modal ✅. Still missing: `Ctrl+G` group (requires U3 grouping).
 
@@ -1154,6 +1888,267 @@ The current update indicator compares the npm `latest` tag string directly again
 
 ## Architecture & Infrastructure
 
+### A16 — Export asset layout: drop the `global/` subfolder ✅ done
+
+> **Status: ✅ implemented** — Option 2 + Option 1 as recommended: `planExportAssets()` in `server/src/build/export.js` bundles only *referenced* assets into a single `assets/` tree (no `global/` folder), keeps site assets authoritative on collisions (`-1` suffix for the global file), and rewrites all reference forms — absolute `/assets/<site>/…` and `/assets/global/…` (also in theme-override/class CSS and user themes) as well as the legacy relative forms — to the relative `assets/…` form, which also makes asset references work from `file://`. Covered by six unit tests and the offline-export E2E (image loads from an extracted bundle).
+
+> **Largely obviated by A14's [copy-on-use global assets](ROADMAP-ARCHIVE.md#global-assets-are-an-editor-only-library-copy-on-use) (✅ implemented).** Dragging a global asset now copies it into the site's own `assets/` and stores a site-relative `src`, so newly-authored markup never references `global/` and new exports won't contain a `global/` folder. What remains here is optional cleanup: (a) drop the now-mostly-dead `global/`-bundling branch in `export.js`, and (b) bundle only *referenced* assets (Option 2) so exports stop copying the entire pool. Still relevant for sites deployed before copy-on-use that retain `/assets/global/…` references.
+
+After A15 a single-site export nests a `global/` folder *inside* the site bundle:
+
+```
+<sitename>.zip
+└── <sitename>/
+    ├── index.html
+    ├── global/…      ← assets from the shared cross-site pool
+    └── assets/…      ← this site's own assets
+```
+
+**Two problems with `global/` here:**
+1. **Semantic mismatch.** "Global" is an *editor-only* concept — a pool of assets shared across sites (`<dataDir>/global/assets/`, surfaced by the Assets sidebar's Global tab). A self-contained export of *one* site has no notion of "other sites", so a folder literally named `global` inside `<sitename>/` is confusing — it reads as if the bundle were multi-site.
+2. **It copies the whole pool.** `getAssetFilesForExport()` returns **every** global asset (and every site asset), referenced or not — so each single-site export carries the entire shared library even when the site uses none of it.
+
+Asset references are stored in the markup with relative prefixes — `global/<path>` and `assets/<path>` (the viewer's `resolveAsset()` maps these to `/assets/global/…` and `/assets/<site>/…`; the export's `resolveAsset()` returns them as-is, relative to `index.html`). So the layout is driven entirely by those two prefixes.
+
+#### Options
+
+**Option 1 — Flatten global into `assets/` with reference rewriting *(recommended)*.**
+Copy the used global assets into the site's `assets/` tree and rewrite the baked references `global/<p>` → `assets/<p>` in `siteHtml` (and any config that carries asset URLs) before `composeIndexHtml()`. The export's runtime `resolveAsset()` already returns paths verbatim, so only the stored prefixes change. Result: one `assets/` folder, no `global/`.
+Handle the rare collision (a global and a site asset sharing the same relative path) by keeping the *site* asset authoritative and writing the colliding global file under a disambiguated name (e.g. `assets/shared-<name>` or `assets/<name>-<hash>`), rewriting only that one reference.
+
+**Option 2 — Bundle only *referenced* assets *(do this regardless)*.**
+Scan `siteHtml` (+ config) for `global/…` and `assets/…` references and include only those files instead of the whole pool. Smaller ZIP, and it shrinks the global set to exactly what's used — which also minimises the collision surface for Option 1. Naturally pairs with Option 1.
+
+**Option 3 — Namespace under `assets/` *(minimal effort)*.**
+Keep global files but place them at `assets/global/<p>` (a subfolder of `assets/`, not a top-level sibling) and rewrite `global/<p>` → `assets/global/<p>`. Removes the top-level `global/` but still has a literal "global" dir, so it only *partly* addresses the concern. No collision handling needed (global and site stay in separate subtrees).
+
+**Recommendation:** Option 2 + Option 1 — bundle only referenced assets, flattened into a single `assets/` tree with collision-safe rewriting, so an export contains just `<sitename>/{index.html, assets/}`.
+
+#### Touch points
+
+- `server/src/build/export.js` — rewrite `global/` references in `siteHtml` (and config asset URLs) before composing `index.html`; drop the `global/`-prefixed ZIP entries so global files land under `assets/`.
+- `server/src/storage/filesystem.js` — `getAssetFilesForExport()` gains a "referenced-only" filter (take the set of referenced paths, or scan the HTML there) and returns global files tagged with their target `assets/` path.
+- Build the collision map from the referenced-asset scan.
+
+**Scope:** export-only. The editor and viewer keep the `global/` vs `assets/` distinction — the shared pool is a real, useful concept there; it just shouldn't leak into a single-site static bundle.
+
+
+### A17 — Comprehensive automated testing (backend · frontend · unit · integration · system) ✅ done
+
+> **Status: 🟢 all five phases done, depth pass complete** — 466 tests across four suites, coverage ratchets in place, CI runs the full pyramid (component tests across chromium+firefox+webkit) on every push. The first "automation candidates" wave landed: an element smoke harness mounting every package, 12 elements with full MQTT behaviour tests, theme variable+screenshot regression, and E2E for inspector editing, move/nudge/undo, source mode, view management, copy-on-use drag (B15) and broker-restart reconnect. The tests pinned two new bugs: **paper-tabs leaks its MQTT subscription on disconnect**, and the **shortcuts modal documents arrow-nudge backwards** (plain = grid size, Ctrl/Shift = 1px, Alt = nothing) — see docs/TESTING.md "known issues". Remaining candidates are listed at the end of docs/TESTING.md.
+
+**Goal:** everything tested — backend *and* frontend, across the full pyramid (unit → integration → system/E2E), run in CI on every change.
+
+#### Where we are today
+
+| Layer | Tooling | Coverage |
+|---|---|---|
+| Backend — unit | Vitest (`server/vitest.config.mjs`) | **broad** — storage, topic-match, extract-elements, export (A15 ZIP layout, theme/class inlining, bundle cache + Rollup fallback), discovery, ai (config/conversations/providers/prompt), auth, git |
+| Backend — integration | Vitest + `supertest` + aedes | **broad** — sites, assets (incl. B15 copy-on-use), themes, history/certs, discovery, ai endpoints; Socket.IO hub with real clients + mqtt bridge against a real in-memory broker, incl. the full broker→bridge→hub→editor relay chain |
+| Frontend — logic unit | Vitest + happy-dom (`www/vitest.config.mjs`) | **partial** — connection topic matching/fan-out, mqtt payload parsing, view visibility, U25 class parser round-trip, U8 folder reconciliation, AI chat (SSE parse, output validation, tag correction), broker URI fields, inspector attribute helpers, monaco shadow-style sync |
+| Frontend — component (browser) | Vitest browser mode + Playwright (`www/vitest.browser.config.mjs`; chromium local, +firefox/webkit in CI) | **broad** — smoke harness mounts every element package (render, payload, visibility, subscription cleanup); full MQTT behaviour for button, switch, image, number, gauge, slider, progress, checkbox, contact, motion, select, input; FeezalElement base (control channel, baseAttribute, gating); feezal-site/-view; theme variables + distinctness + swatch screenshots |
+| System / E2E | Vitest + playwright-core + aedes (`www/vitest.e2e.config.mjs`) | **broad** — happy path (editor boot, palette drag, deploy, reload restore, viewer retained/live MQTT, export ZIP) plus editor flows (inspector topic editing → live broker value, move/nudge/undo, source mode incl. syntax-error deploy gating, view add/rename/navigate, copy-on-use asset drag incl. the B15 inspector refresh) and broker-restart reconnect through the bridge |
+
+206 backend + 106 frontend logic + 134 browser component (per browser; ×3 in CI) + 20 E2E tests pass — `npm run test:all` at the root chains everything (needs chromium via `npx playwright install chromium` and a built `www/dist`; on WSL also `libnss3`/`libnspr4`, see `vitest.browser.config.mjs`). CI (`.github/workflows/ci.yml`) runs all four suites on ubuntu — component tests across chromium+firefox+webkit — with coverage gates (`coverage.thresholds`, ratchet up, never down) and uploads the coverage reports as artifacts. Known issues pinned by tests (fix separately, then remove the exceptions): paper-tabs MQTT subscription leak, editor boot `querySelectorAll`-on-null errors, shortcuts-modal arrow-nudge documentation. The remaining automation candidates live at the end of docs/TESTING.md.
+
+#### Target — one runner, four layers
+
+Standardise on **Vitest** everywhere (already the backend runner; its browser mode covers real DOM) so there's one config style, one assertion API, one coverage report.
+
+**1. Backend unit** — cover every logic module with a temp-dir/mocked-IO harness:
+- `build/export.js` — assert the ZIP layout and entry names (directly locks in A15's `<sitename>/` wrap and A16's asset flattening), theme/class inlining, the tree-shaken bundle path.
+- `build/extract-elements.js`, `build/elements.js` — tag/package extraction from sample markup.
+- `build/git.js` — init/commit/`showFile`/restore against a temp repo (incl. the A14 legacy-filename fallback).
+- `storage` — extend with `copyAssetUnique` collision suffixing, `getSiteAtVersion` legacy fallback, `updateAssetRefs`.
+- `ai/prompt.js`, `ai/providers.js` — prompt assembly and provider request shaping with `fetch` mocked.
+- `auth/*`, `mqtt/discovery.js` — pure logic paths.
+
+**2. Backend integration** — Express + `supertest`, extend beyond site CRUD:
+- Assets: upload / list / rename / mkdir / **transfer (copy + `unique`)** — the copy-on-use path end-to-end.
+- Certs (N8), user themes, git history endpoints (list/file/restore), AI endpoints.
+- **Socket.IO hub** — boot the server, connect a client, exercise `getSite` / deploy / `elementsChanged`.
+- **In-memory MQTT broker** (e.g. `aedes`) so `mqtt/bridge.js` and discovery are tested against a real broker instead of mocks.
+
+**3. Frontend unit / component** — stand up a `www` Vitest config:
+- *Logic-only* modules in `happy-dom`/`jsdom` (fast, no rendering): the U25 class parser (`_parseClassesStyle`/`_syncClassesStyle` round-trip), U8 folder reconciliation, topic/attribute helpers, `resolveAsset`.
+- *Real web components* in **Vitest browser mode** (Playwright provider) for shadow-DOM/Lit lifecycle: `feezal-site` view visibility, `feezal-view`, element rendering, inspector wiring. (`@open-wc/testing` patterns apply.)
+
+**4. System / E2E** — Playwright driving the whole stack: start the server + an in-memory broker, then script real flows — create a site, drag an element, **drag a global asset (copy-on-use) and assert it lands in the site**, edit in source mode and apply, deploy, open the viewer and assert a retained MQTT message renders, **export the ZIP and assert `<sitename>/index.html` + flattened assets**. This is the layer that would have caught the drag/drop wiring the unit tests can't.
+
+#### Infrastructure
+
+- **CI runs on Linux.** The rolldown native binding is platform-specific (`@rolldown/binding-linux-x64-gnu` vs `…-win32-x64-msvc`) — a Windows-populated `node_modules` fails on Windows and vice-versa. CI must install fresh on Linux; document that Windows contributors either `npm install` on Windows or run tests via **WSL** (confirmed working: `wsl bash -lc "cd …/server && npm test"`).
+- **Root `npm test`** that fans out to `server` and `www` (npm workspaces or a top-level script), so one command runs the whole suite.
+- **Coverage** via `vitest --coverage` (v8) with a gate that ratchets up over time; publish the report in CI.
+- **Shared fixtures/helpers** — temp `dataDir` bootstrap (already used), an in-memory broker helper, a headless editor bootstrap for component tests.
+
+#### Suggested phasing
+
+1. Fill backend unit + integration gaps (cheap, high value; hardens A14/A15/A16 immediately). ✅ *done — incl. export ZIP + broker/hub integration*
+2. Stand up frontend logic-unit tests (no rendering) — quick wins on parsers/reconcilers. ✅ *done — `www/test/`, happy-dom*
+3. Add component (browser-mode) tests for the core custom elements. ✅ *foothold done — `www/test-browser/`, `npm run test:browser`*
+4. Add the Playwright E2E happy-path last (most expensive, highest confidence). ✅ *happy path done — `www/test-e2e/`, `npm run test:e2e`*
+5. Wire coverage + CI gate once each layer has a foothold. ✅ *done — thresholds in both vitest configs, full pyramid in `ci.yml`*
+
+
+### A14 — Restructure the data directory (lowercase layout + file renames) ✅ done
+
+Reorganise `<dataDir>` so every top-level entry is a **lowercase, single-purpose folder**, sites live under a dedicated `sites/` parent (no longer scattered at the root among system directories), and the two per-site files are renamed to match the site-centric naming: **`views.html` → `site.html`** and **`viewer.json` → `site.json`**.
+
+**No migration.** This is a clean break — new/empty data dirs use the new layout; existing data dirs are **not** auto-migrated (users move/rename folders and files manually if they want to keep old data). This keeps the change to path constants only, with no migration code to write, test, or maintain. See the [git-history caveat](#a14-git-history-caveat) below for the one behavioural consequence of renaming under an existing git repo.
+
+#### Current layout — sites and system dirs share the root
+
+```
+<dataDir>
+├── <siteName>/            ← each site sits at the TOP level (e.g. Default/)
+│   ├── views.html
+│   ├── viewer.json
+│   ├── assets/
+│   └── .git/
+├── _global/
+│   └── assets/
+├── themes/                ← user CSS themes (<slug>.css)
+├── elements/             ← user-installed packages (N4)
+├── certs/<siteName>/     ← MQTT TLS certs (N8)
+├── ai.json               ← AI provider config
+└── ai/conversations/     ← AI conversation history
+```
+
+Because sites and system directories share the root, `listSites()` must **guess** which top-level dirs are sites by excluding a reserved-name list (`_global`, `themes`, anything starting with `_` — see `RESERVED_SITE_NAMES` / `isReservedSiteName` in `server/src/storage/filesystem.js`, duplicated in `server/src/routes/api.js`). Every new system dir (`elements/`, `certs/`, `ai/`) is another dir that happens *not* to be excluded and is only safe because it doesn't collide with a real site name. A user site literally named `themes` or `elements` would break.
+
+#### Target layout (all-lowercase)
+
+```
+<dataDir>
+├── ai/
+│   ├── config.json       ← was ai.json
+│   └── conversations/    ← was ai/conversations/
+├── global/               ← was _global/
+│   └── assets/
+├── sites/                ← NEW parent — every child is unambiguously a site
+│   └── default/
+│       ├── site.html     ← was views.html
+│       ├── site.json     ← was viewer.json
+│       ├── assets/
+│       ├── certs/        ← was <dataDir>/certs/<site>/ — now nested per-site (N8)
+│       └── .git/
+├── themes/               ← user CSS themes (<slug>.css)
+├── elements/             ← user-installed element packages (N4)
+└── icons/                ← future — feezal-icons-* icon sets (N4 / N20)
+```
+
+**Wins:**
+- **`listSites()` becomes exact, not heuristic** — read `sites/`, return every child dir. `RESERVED_SITE_NAMES` / `isReservedSiteName` disappear (both copies), and a site may be named anything (`themes`, `elements`, `_global` — no longer special).
+- **Every root entry is one clear, lowercase purpose**; the add-on stores (`themes/`, `elements/`, future `icons/`) sit together as siblings.
+- **A site is fully self-contained** — its git repo, `assets/`, and now `certs/` all live under `sites/<name>/`. Nothing per-site is scattered at the root.
+- **New system data has an obvious home** — a new top-level folder, never something `listSites()` has to learn to skip.
+
+#### Global assets are an editor-only library (copy-on-use)
+
+`<dataDir>/global/assets/` is a **shared convenience library available only in the editor** (the Assets sidebar's *Global* tab) — it is **not** a runtime location that any site references. The moment a global asset is actually *used*, it becomes a site asset:
+
+- **Copy-on-use.** Dragging a global asset onto a view (or otherwise placing it) **copies the file into the current site's `sites/<name>/assets/`** and sets the element's `src` to the **site-relative** reference (`/assets/<site>/<path>`) — never `/assets/global/<path>`. The global entry stays in the library as a reusable template; the site gets its own independent copy.
+- **Collision handling.** If a file of the same name already exists in the site's assets, disambiguate on copy (suffix `-1`, `-2`, … — or, if the bytes are identical, reuse the existing site copy and skip the write).
+
+**Why this is the right model:**
+- **Every site is self-contained.** All assets a site references live under its own `assets/`. There is no cross-site runtime dependency on the shared pool, and deleting/renaming a global asset can never break an already-built site.
+- **The viewer never resolves `global/` for rendered content.** No deployed markup references the global pool; the `/assets/global` static route remains only so the editor's *Global* tab can browse/preview the library.
+- **Export becomes trivially correct.** A single-site bundle only ever contains `assets/` — there is simply no `global/` reference to bundle. This **supersedes A16**: the "`global/` subfolder inside the export" problem disappears at the source, leaving A16 as nothing more than deleting the now-dead global-bundling branch in `export.js`.
+
+**Implementation:**
+- `www/src/feezal-sidebar-assets.js` — in the drag-to-canvas drop path, when `_category === 'global'`, first copy the file to the site via the existing `POST /api/assets/:site/transfer` (`{srcCategory:'global', destCategory:'site', copy:true}`, which returns the destination path and already handles the filesystem copy through `storage.copyAsset`), then set the element `src` to `/assets/<site>/<destPath>`. `_assetSrc()`'s `global` branch is then only used for library preview, never for a stored reference.
+- **Server:** no new endpoint required — transfer/`copyAsset` already exist. (An optional convenience `POST /api/assets/:site/use-global` could wrap the copy + collision-suffix in one call.)
+- **No migration.** Existing sites that already reference `/assets/global/…` keep working via the static route; only new placements copy. An optional one-shot "localise global references" action could rewrite + copy them into the site later, but it is not required.
+
+#### Touch points — folder moves (path constants)
+
+| Concern | Today | New |
+|---|---|---|
+| Site dir | `<dataDir>/<name>` (`_sitePath`) | `<dataDir>/sites/<name>` |
+| List sites | `readdir(dataDir)` + reserved-name filter | `readdir(<dataDir>/sites)`, no filter |
+| Global assets | `<dataDir>/_global/assets` | `<dataDir>/global/assets` |
+| Site assets | `<dataDir>/<name>/assets` | `<dataDir>/sites/<name>/assets` |
+| Themes | `<dataDir>/themes` | `<dataDir>/themes` *(unchanged)* |
+| Elements | `<dataDir>/elements` | `<dataDir>/elements` *(unchanged)* |
+| Icons *(future)* | — | `<dataDir>/icons` |
+| Certs | `<dataDir>/certs/<name>` | `<dataDir>/sites/<name>/certs` |
+| AI config | `<dataDir>/ai.json` | `<dataDir>/ai/config.json` |
+| AI conversations | `<dataDir>/ai/conversations` | `<dataDir>/ai/conversations` *(unchanged)* |
+
+Files to update: `server/src/storage/filesystem.js` (`_sitePath`, `_assetBase`, `GLOBAL_DIR`, `listSites`, drop reserved-name logic), `server/src/routes/api.js` (static-route + cert + theme + `siteRepoDir` paths, drop the duplicated `RESERVED_SITE_NAMES`), `server/src/app.js` (the `/assets/global`, `/assets/:site`, `/themes`, `/user-elements` static mounts), `server/src/ai/config.js`, `server/src/ai/conversations.js`, `server/src/build/export.js` (user-theme lookup), and `server/src/socket/hub.js` (cert dir → now under the site dir). Centralising these as named constants (or a small `paths.js` helper) while touching them would remove the current duplication (e.g. `RESERVED_SITE_NAMES` defined twice).
+
+#### Touch points — file renames (`views.html` → `site.html`, `viewer.json` → `site.json`)
+
+The rename is contained by the storage abstraction — almost every server access goes through **two constants** in `server/src/storage/filesystem.js`:
+
+```js
+const VIEWS_FILE  = 'site.html';   // was 'views.html'
+const CONFIG_FILE = 'site.json';   // was 'viewer.json'
+```
+
+`getSite`, `saveSite`, `getSiteAtVersion`, and `updateAssetRefs` all reference these constants, so flipping the two values covers the read/write/commit paths at once. Consumers that go through the storage layer need **no** change:
+
+- **Export** (`server/src/build/export.js`) — consumes `storage.getSite()` → `{html, config}`, never the raw filenames. ✅ No change (only stale "views.html" comments to tidy).
+- **Viewer route** (`server/src/app.js`) — uses `storage.getSite()` / `getSiteAtVersion()`, not literal filenames. ✅ No change.
+- **Deploy** — the editor sends `{html, …, viewer}` over the socket; the server writes via `saveSite()` → constants. ✅ No change.
+
+Places that **do** hardcode the old filename and must be updated:
+
+- **Git viewer / history overlay (N16)** — `www/src/feezal-history-bar.js` hardcodes `?path=views.html` when fetching a historical file; change to `site.html`. The server route `GET /api/sites/:name/history/:sha/file` validates `path` with `/^[\w.-]+$/` (no allowlist), so it accepts the new name without change — only the frontend caller is hardcoded.
+- **Comments / docs** referencing the old names (cosmetic): `server/src/build/git.js`, `server/src/build/extract-elements.js`, `server/src/ai/config.js`, `server/src/routes/api.js`, `server/src/app.js`, `server/src/storage/filesystem.js`, and `www/src/feezal-app-editor.js` / `feezal-sidebar-themes.js` inline comments; plus `docs/user-guide.md` (mentions `viewer.json`). Update opportunistically.
+- **Roadmap cross-refs** — U25 and several other entries in this file describe storage as `views.html` / `viewer.json`; refresh them when A14 lands.
+
+<a id="a14-git-history-caveat"></a>
+**Git-history caveat (git viewer).** git auto-commit is filename-agnostic (`git add -A`), so a renamed file is committed automatically with no code change. But `getSiteAtVersion()` / the history overlay resolve a version via `git show <sha>:site.html`, which **fails for commits made before the rename** (those blobs are named `views.html`). Per "no migration" this is accepted: pre-rename history is not viewable under the new names. If graceful history is wanted, `showFile()` can fall back to the legacy name on a not-found (`git show <sha>:views.html`) — a small, optional robustness tweak, not required for the MVP.
+
+#### Open questions
+
+- **Icons vs. unified package store.** The layout gives `feezal-icons-*` sets their own top-level `icons/`, parallel to `elements/`/`themes/`. N4 (Package Manager), however, currently plans to install *all* package types — elements, themes, icon-sets — into a single `<dataDir>/elements/` dir picked up by one discovery scan. Decide before both land: either split installed packages into `elements/` + `icons/` (+ theme packages?) by type, or keep N4's unified store and treat top-level `themes/`/`icons/` strictly as the *user-authored* CSS/asset dirs (distinct from installed npm packages). Align the two entries.
+- **Certs, git, and serving.** Nesting `certs/` inside `sites/<name>/` keeps the site self-contained, but the private key must never be committed or served — verify a per-site `.gitignore` (or the commit staging) excludes `certs/`, and that no static mount exposes it.
+- **Site-name validation.** With sites confined to `sites/`, a site name can no longer collide with a root system dir (`themes`, `elements`, …), so the reserved-name list goes away entirely. A site name now only needs to be a valid single path segment — confirm validation still rejects path separators, `..`, and empty names.
+
+
+### A15 — Export ZIP: wrap contents in a `<sitename>/` folder ✅ done
+
+The static export (`createExport()` in `server/src/build/export.js`) currently writes all ZIP entries **at the archive root**:
+
+```
+<sitename>.zip
+├── index.html
+├── global/…      ← global assets
+└── assets/…      ← site assets
+```
+
+Unzipping spills these loose files into whatever directory the user extracts to. The desired behaviour is a single top-level folder named after the site, so an extract yields one tidy `<sitename>/` directory:
+
+```
+<sitename>.zip
+└── <sitename>/
+    ├── index.html
+    ├── global/…
+    └── assets/…
+```
+
+**Change is minimal** — prefix every archive entry name with `<sitename>/`. In the `createExport()` finalise block:
+
+```js
+const root = `${dirName}/`;                       // dirName = sanitised site name
+archive.append(indexHtml, {name: root + 'index.html'});
+// …
+archive.file(…, {name: root + 'global/' + file});
+archive.file(…, {name: root + 'assets/' + file});
+```
+
+**Notes:**
+- **The HTML entry is already named `index.html`** (see `archive.append(indexHtml, {name: 'index.html'})`) — the second half of the request ("rename the html to `index.html`") is already satisfied; it just moves *into* the new folder unchanged.
+- **Relative asset paths stay valid.** `index.html` references assets as relative `global/…` and `assets/…` paths (`resolveAsset()` returns them as-is). Because `index.html`, `global/`, and `assets/` all move together into `<sitename>/`, every relative reference is preserved — no path rewriting needed.
+- **Folder-name sanitisation.** The site name becomes a ZIP path segment, so sanitise it (strip `/`, `\`, `..`, leading dots; collapse to a safe slug) rather than trusting the raw name. Reuse the site-name validation A14 settles on. The download filename (`<siteName>.zip`, set in `feezal-app-editor.js` `_export()`) can keep using the raw name or the same slug — keep them consistent.
+- **Optional:** if any hosting-target docs (A12) or the export help text describe the "loose files at root" layout, update them to the wrapped layout.
+
+> **Status: ✅ implemented.** Entries are wrapped under a sanitised `<sitename>/` root. Follow-up A16 addresses the `global/` subfolder that now sits inside it.
+
+
 ### A8 — Per-site tree-shaking for static HTML export ✅ implemented
 
 **Approach used:** Option A (per-export Vite build) with graceful Rollup fallback.
@@ -1316,6 +2311,179 @@ This makes the workflow **idempotent**: re-running the same tag after a partial 
 
 The existing `release-npm.yml` stub in `A5` covers the broad strokes but does not yet handle the multi-package publish loop, the `www/dist/` copy step, or the version pre-check.
 
+### A9 — Mobile app packaging: PWA export + Capacitor project template ✅ all tiers implemented
+
+Turn a feezal export into an installable mobile app. The approach is layered — the tiers are independent and each delivers value on its own.
+
+#### Why not a single solution
+
+Four categories of "wrapping HTML in a native app" exist; they differ enormously in complexity and constraints:
+
+| Approach | Toolchain required | App store | Offline | Effort |
+|---|---|---|---|---|
+| PWA (`manifest.json` + service worker) | None | No (home screen install) | ✅ | Low |
+| Capacitor / Cordova project template | Android Studio or Xcode on user's machine | Optional | ✅ | Medium |
+| Cloud build (EAS, Bitrise) | None (cloud) | ✅ | ✅ | High |
+| TWA (Trusted Web Activity) | Android Studio | Google Play | ✅ | Medium, Android-only, needs live URL |
+
+React Native is the wrong abstraction — it replaces the web layer with native UI components written in JavaScript/JSX. There is no path from an existing HTML export to a React Native app.
+
+**Flutter** is a nuanced case. Its `webview_flutter` package can load a local HTML file in a native `WebView` (Android's `WebView` / iOS's `WKWebView`) — technically the same underlying WebView that Capacitor uses. So a minimal Flutter app *can* wrap the feezal export with identical runtime characteristics. The downsides compared to Capacitor for this specific use case: Flutter bundles its own engine (~15–25 MB APK overhead vs ~3–5 MB for Capacitor), and the project template would require Dart/`pubspec.yaml` rather than the JavaScript tooling feezal users already know. Flutter becomes the *better* choice if the app eventually grows beyond a passive viewer — e.g. native BLE/MQTT, background alerting, or native push notifications — because its native plugin ecosystem and performance at those layers is excellent. For now, Capacitor is the pragmatic default; Flutter is worth revisiting if deeper native integration is ever needed.
+
+The critical constraint: **feezal's server is a Node.js process** and may run on a Raspberry Pi, NAS, or a small Linux box. It cannot invoke Gradle or Xcode — those toolchains can only run on the user's dev machine. The server can, however, generate and ZIP project templates that the user then opens in their IDE.
+
+---
+
+#### Tier 1 — PWA toggle in Site Settings (viewer **and** export) ✅ done
+
+> **Status: ✅ implemented** — `viewer.pwa` toggle in Site Settings; per-site `manifest.webmanifest` + scope-corrected `sw.js` + icon routes (`server/src/build/pwa.js`, wired in `app.js`); export gains manifest/sw/icons with an http-guarded registration (byte-identical when off); editor-side canvas icon pipeline (`www/src/feezal-pwa-icons.js`) with the interact.js crop dialog (`feezal-pwa-icon-dialog`, safe-zone circle, maskable background picker, live previews); both entry points (Site Settings + Asset Manager "Set as PWA icon" with auto-enable toast); icons + source + crop meta stored in `sites/<name>/pwa/` via `PUT/GET/DELETE /api/sites/:name/pwa-icons`. Covered by 13 server unit/route tests, 3 export tests, 9 canvas/dialog component tests and 6 E2E tests (incl. a real `serviceWorker.ready` on the served viewer).
+
+A per-site **"Enable PWA" checkbox in Site Settings** (the `feezal-sidebar-viewer` "Site" tab, next to page title/theme). Persisted as `viewer.pwa: true|false` (default **off**) in the site config (`site.json`), deployed like every other viewer setting. When enabled, **both** delivery paths become installable Progressive Web Apps:
+
+**a) The served viewer** (`/viewer/<site>`) — the server's `viewerHandler` (`server/src/app.js`) injects, only when `viewer.pwa` is set:
+- `<link rel="manifest" href="/viewer/<site>/manifest.webmanifest">`, `<meta name="theme-color">` and `apple-touch-icon` links.
+- A small registration snippet: `navigator.serviceWorker.register('/viewer/<site>/sw.js')`.
+- Two new sibling routes (registered *before* the `:site` viewer route):
+  - `GET /viewer/<site>/manifest.webmanifest` — generated per site: `name`/`short_name` = site name, `start_url` + `scope` = `/viewer/<site>`, `display: "standalone"`, theme/background colors (static defaults first; deriving them from the active theme's `--primary-background-color` is a follow-up), icons from `www/favicon/`.
+  - `GET /viewer/<site>/sw.js` — minimal cache-first app shell (the viewer page, `/viewer-bundle.js`, icons); everything else network-first. Serving it *under* the site path gives it the right scope without `Service-Worker-Allowed` headers. Live MQTT keeps working offline→online because `feezal-connection` already reconnects.
+
+**b) The export** (`createExport()`) — when `viewer.pwa` is set, the ZIP additionally contains `manifest.webmanifest` (relative `start_url: "."`, `scope: "."`), `sw.js` and the icon set, and the generated `index.html` gains the same manifest/meta links plus a registration snippet guarded by `location.protocol.startsWith('http')` — service workers can't register from `file://`, so the offline bundle stays exactly as functional as today and turns installable the moment it's hosted on any static server. With the toggle **off**, the export is byte-identical to today's output.
+
+**c) Custom app icon — one upload, feezal generates every format (first cut, editor-side).**
+The user provides a **single image** (PNG / JPEG / WebP / SVG); all conversions happen **in the editor via the Canvas API** — no server-side image dependency (`sharp`/`jimp` stay out; the server may be a Pi/NAS, and the editor is by definition a modern browser). SVG rasterizes for free via `<img>` → canvas. Warn when the source is smaller than 512×512 (soft upscale).
+
+*Crop dialog* (shared by both entry points):
+- A 1:1-locked crop rectangle over the image preview, **movable and resizable** — implemented with interact.js (already a dependency; same drag/resize machinery as the canvas).
+- An **always-visible safe-zone circle** inscribed at 80% of the crop area (dashed outline, outside dimmed) — shows what survives Android's adaptive-icon masks and iOS corner rounding.
+- A **maskable background color picker**, defaulting to the active theme's `--primary-background-color`, overridable; the picked value is persisted for regeneration.
+- Live preview of both variants: the plain icon and a circle-masked rendering (what Android launchers will actually show).
+
+*Generated set* (canvas `toBlob('image/png')` from the confirmed crop):
+- `purpose: "any"`: `icon-192.png`, `icon-512.png`, plus `apple-touch-icon.png` (180×180 — iOS applies its own rounding, so the plain variant is correct).
+- `purpose: "maskable"`: `maskable-192.png`, `maskable-512.png` — the crop scaled to the 80% safe zone, centered on a full-bleed square of the chosen background color (transparency never leaks into maskable icons). The manifest lists the two purposes as **separate entries** — never `"any maskable"` on one file (the classic double-crop mistake).
+
+*Storage & API*: `sites/<name>/pwa/` (precedent: `certs/`) — the generated PNGs, the original `source.*`, and a `pwa.json` holding crop rect + background color, so the set can be **regenerated** (button in Site Settings; e.g. after a theme switch — no auto-regeneration on theme change, that would be a surprising deploy side effect). `PUT /api/sites/:name/pwa-icons` (generated set + source in one request), `DELETE` resets to the default feezal icons. Deliberately *not* in `assets/` — invisible to the Asset Manager's rename/delete and out of A16's referenced-only export logic; the export copies `pwa/` explicitly, the viewer serves it at `/viewer/<site>/icons/*`.
+
+*Entry points* (both in the first cut):
+1. **Site Settings** (primary): upload field + current-icon preview + Regenerate + Reset, next to the "Enable PWA" checkbox.
+2. **Asset Manager context menu** — "Set as PWA icon" on any image asset: opens the same crop dialog with that asset preloaded; if the PWA toggle is off it is switched on, announced via toast.
+
+*Default icons* when no custom icon is set — ✅ already available: `www/favicon/` contains `web-app-manifest-192x192.png`, `web-app-manifest-512x512.png`, `apple-touch-icon.png`, `favicon.svg`, `favicon.ico`, and a `site.webmanifest` skeleton to crib from.
+
+**Result:** with the checkbox on, Chrome on Android offers "Add to Home Screen" for the live viewer URL *and* for a hosted export; Safari on iOS installs via the share menu. The installed icon launches the dashboard standalone (no browser chrome) with offline app-shell support.
+
+No app store, no signing, no developer accounts. This covers the majority of home-automation dashboard use cases.
+
+**Testing (A17):** unit — manifest route shape (two icon purposes when a custom icon is set), `pwa: false` leaves viewer page + export untouched, export gains the PWA entries when on; component (browser mode) — the canvas crop/convert pipeline (sizes, maskable padding + background fill, SVG source) and the crop-dialog interactions; E2E — toggle the checkbox in Site Settings, deploy, assert the manifest link + a successful `navigator.serviceWorker.ready` on the served viewer, set an icon via the Asset Manager context menu, and check the export-ZIP entry list.
+
+---
+
+#### Tier 2 — Capacitor project export (Android/iOS app without app-store submission) — 2a ✅ done
+
+> **Status: Tier 2a ✅ implemented** — `server/src/build/capacitor.js` (scaffold: pinned Capacitor 7 `package.json` with `npm run android|ios|assets` convenience scripts via a tiny `scripts/platform.mjs`, `capacitor.config.json` with cleartext enabled for `ws://`, personalised step-by-step `README.md`, `resources/icon.png` from the A9 PWA icon) + `GET /api/sites/:name/export-capacitor` (appId validation, `mqtt://` guard, `viewer.app` defaults); editor: `feezal-capacitor-dialog` (live appId derivation, icon preview, localhost-broker warning) reachable from the deploy caret menu and the Site Settings "Mobile app" block; `viewer.app = {name, id}` persisted via deploy. Docs: `docs/MOBILE-APPS.md`. Covered by 11 server tests + 5 E2E tests (incl. the real ZIP download).
+
+One export serves both platforms — a Capacitor project is platform-agnostic until `npx cap add <platform>` runs, so there are no separate Android/iOS exports and the server never vendors the platform templates (no drift with Capacitor releases).
+
+**Entry points (mirrors the A9 icon pattern):**
+1. **Deploy caret menu** (next to "Export ZIP"): *"Export mobile app project…"* — the primary, discoverable home.
+2. **Site Settings**, below the PWA section: a *"Mobile app"* block with app name / app ID fields (see persistence below) and the same export action.
+
+Both open the **pre-export dialog**: app name + app ID (`io.feezal.<slug>` derived from the site name — sanitised for reverse-DNS: lowercase, umlauts/spaces stripped — but editable), a preview of the icon that will be used (the A9 PWA icon source; hint to set one when missing), and a **broker-reachability warning** when the connection URI host is `localhost`/`127.0.0.1` — the phone can't reach that; the #1 "app shows nothing" trap. One confirm → ZIP downloads.
+
+**Persistence:** the dialog's values are stored as `viewer.app = {name, id}` in `site.json`, so re-exports keep them; the Site Settings block edits the same values.
+
+**What gets exported** (architecture: project scaffold, user builds — the server never runs Capacitor CLI/Gradle/Xcode):
+```
+my-dashboard/
+  package.json              pinned @capacitor/* versions + convenience scripts:
+                            "android": cap add android + sync + open,
+                            "ios":     cap add ios + sync + open,
+                            "assets":  @capacitor/assets icon/splash generation
+  capacitor.config.json     appId, appName, webDir: "www"
+                            (+ android:usesCleartextTraffic pre-set — ws:// brokers)
+  www/                      the A16 export (relative refs = WebView-safe)
+  resources/icon.png        the A9 PWA icon source (512+) — `npm run assets`
+                            generates ALL native icons + splash screens from it
+  README.md                 generated per site (see below)
+```
+
+**User workflow — three commands:** unzip on a dev machine → `npm install` → `npm run android` (opens Android Studio, press Run with the phone connected) or `npm run ios` (opens Xcode on a Mac). `npm run assets` first if they want the native icons.
+
+**The generated README.md** is personalised ("*Wohnzimmer* as an Android app") and step-by-step for the no-store path:
+- Prerequisites: Node 20+, Android Studio + JDK 17 (Android) / Xcode 15+ on a Mac (iOS).
+- Android sideload: enable developer mode + USB debugging → Run from Android Studio (or `adb install app-debug.apk`). Permanent, no accounts.
+- iOS sideload: sign in Xcode with a **free Apple ID** (app re-signs every 7 days — documented honestly), device trust step; the paid Developer Program ($99/y) makes it last a year / enables distribution.
+- Broker note: the app must reach the broker over the network — the configured URI is echoed here, with the localhost warning repeated when applicable.
+- Capacitor version pinning and how to update it independently of feezal.
+
+A generic repo page (`docs/mobile-apps.md`) covers the same for linking from the UI.
+
+#### Tier 2b — optional server-side APK build via Docker (powerful hosts only) ✅ done
+
+> **Status: ✅ implemented** — `server/src/docker.js` (dockerode; socket discovery, cached engine detection, capability gating, volume/pull/archive helpers — shared with A13) + `server/src/build/apk.js` (single-job build manager: project in via `putArchive`, live log over SSE, 30-min timeout, cancel, APK out via `getArchive`; named volumes `feezal-gradle-cache`/`feezal-npm-cache`). Routes: `GET /api/server/capabilities`, `POST /api/sites/:name/build-apk` (403 without opt-in / 409 busy / 202 job), SSE `…/events`, `…/result`, `DELETE` cancel. Dialog: capability-gated "Build APK on server" button with live log pane + APK download. Build image pinned `mingc/android-build-box:1.29.0` (first tag with JDK 21 — Capacitor 7 needs it; `npm install --include=dev` because the image sets `NODE_ENV=production`), override via `FEEZAL_ANDROID_BUILD_IMAGE`; the site icon is baked in via `capacitor-assets` (best-effort). Verified end-to-end against a real engine: a live `putArchive → build → getArchive` produced a working `app-debug.apk`. Covered by 12 mocked/route tests + a daemon-gated real-Docker integration test + an E2E capability-off test; the full build is a manual TESTING.md item.
+
+For feezal instances on capable x86_64 hosts, the pre-export dialog additionally offers **"Build APK on this server"** — producing a ready-to-sideload `app-debug.apk` with zero local toolchain.
+
+**How feezal starts the build container — Docker Engine API, no bind mounts:**
+
+- A shared module **`server/src/docker.js`** (deliberately also the groundwork for [A13](#a13--update--restart-feezal-from-the-ui)) talks to the Docker Engine API via **`dockerode`** — socket discovery (`DOCKER_HOST` or `/var/run/docker.sock`; Podman's docker-compatible socket works too), engine info, container lifecycle, log streaming, archive in/out, digest-pinned image pulls.
+- **No bind mounts, ever**: feezal streams the generated Capacitor project into the created container via `putArchive` (a tar upload) and pulls `app-debug.apk` back out via `getArchive`. This is what makes the design **deployment-agnostic** — bind-mount paths are resolved by the *host* daemon and would break the moment feezal itself runs in a container (its `/tmp` is not a host path). With archives, the same code works whether feezal is bare-metal or a container starting *siblings* through a mounted socket.
+- The single exception: the **Gradle/SDK cache** is a **named volume** (`feezal-gradle-cache` at `/root/.gradle`) — named volumes are referenced by name, not path, so they are sibling-safe. First build ~5–15 min (image + dependency downloads, network required); warm builds ~1–3 min.
+- Build container: `mingc/android-build-box` **pinned by digest** (it ships Node, needed for `npm install`/`cap add`), overridable via `FEEZAL_ANDROID_BUILD_IMAGE`. Build script: `npm install && npx cap add android && npx cap sync && cd android && ./gradlew assembleDebug`.
+
+**Consent + capability model:**
+
+- **Opt-in required**: the Docker socket is root-equivalent on the host, so the feature activates only when `FEEZAL_DOCKER_BUILDS=1` (or `--enable-docker-builds`) **and** the socket is reachable **and** the engine reports x86_64 (`aapt2` has no official linux-arm64 builds — Pi-class hosts degrade to Tier 2a automatically).
+- A capabilities endpoint (`GET /api/server/capabilities` → `{dockerBuilds: true|false}`) drives the dialog button's visibility.
+
+**Job model (a 15-minute HTTP request dies at every proxy):**
+
+- `POST /api/sites/:name/build-apk` → job id (single build at a time, lock).
+- **SSE progress stream** (same pattern as the AI chat) pipes the container log live into the dialog; cancel = kill container; 30-min timeout.
+- `GET …/build-apk/result` → the APK download; container auto-removed after extraction.
+- **Debug-signed deliberately**: debug APKs sideload fine, which is exactly the no-store use case. Release signing (user keystore management) is out of scope.
+
+**Deployment matrix (why bare-metal needs no redesign):**
+
+| feezal runs as | Requirement | Build containers are |
+|---|---|---|
+| Docker container (current distribution) | mount `/var/run/docker.sock` into the feezal container + opt-in flag | siblings on the host daemon |
+| Bare metal (future) | Docker (or Podman with docker socket) installed on the host + opt-in flag | ordinary local containers — same code path |
+| No Docker available | — | button absent; Tier 2a project export always works |
+
+Deliberately **no native-toolchain builds** on bare metal (detecting ANDROID_HOME/JDK/Gradle on arbitrary hosts is a support-matrix nightmare) — the container *is* the toolchain encapsulation, regardless of how feezal itself is installed.
+
+**Housekeeping:** the image is ~5 GB plus the ~2 GB cache volume — spec includes a maintenance action ("remove build image + cache") even if it lands later.
+
+- **iOS stays impossible server-side** — Xcode only runs on macOS and Apple's licensing forbids macOS VMs on non-Apple hardware; unsigned IPAs cannot be sideloaded, so there is no Linux workaround. iOS remains the Tier 2a Xcode path.
+
+**Testing (A17):** unit — appId slug derivation, scaffold file set, README generation (localhost warning present/absent), capacitor.config content; E2E — dialog flow from both entry points, persisted `viewer.app` round-trip, export ZIP entry list + README content. Tier 2b: feature-detection fallback logic unit-tested; the Docker build itself gets a manual TESTING.md item (CI runners can't spare 15-minute Android builds).
+
+**Cloud builds (EAS, CI-hosted Gradle/Xcode) were considered and rejected** — they require third-party accounts and uploading signing keys to external services, which contradicts feezal's self-hosted, privacy-focused nature. Tier 2a/2b cover the need without leaving the user's infrastructure.
+
+---
+
+### A21 — Licensing model: AGPL-3.0 core, MIT element SDK and viewer runtime ✅ implemented
+
+**Decision (July 2026):** three tiers:
+
+- **Core (server + editor): AGPL-3.0-only.**
+- **Element SDK (`@feezal/feezal-element`) and all official elements/themes: MIT** *(already the case)* — community elements subclass the base class without any copyleft infection; keeps the A20 ecosystem friction-free.
+- **Viewer runtime (the code bundled into static dashboard exports): MIT** — exported dashboards stay license-clean artifacts users can publish anywhere; the copyleft-protected asset is the server + editor.
+
+**Rationale:**
+- GPLv3 only triggers on *distribution*, which leaves the **SaaS loophole**: someone could run feezal as a hosted dashboard service without ever distributing it, hence without any source obligations. **AGPL-3.0 closes this** (network use triggers source obligations) — the standard choice for server-side software. Self-hosting users are unaffected; they already have the source.
+- Noncommercial source-available licenses (PolyForm NC, CC BY-NC, FSL/BUSL) were considered and rejected: they are not open source (no distro/community packaging, blanket corporate bans on NC-licensed software), which would chill the ecosystem A20 depends on. AGPL provides strong protection against proprietary exploitation while staying genuinely open source.
+- `-only` rather than `-or-later`: keeps control over future license terms in the copyright holder's hands.
+
+**Implementation (July 2026) — all items done:**
+- [x] `LICENSE` (AGPL-3.0-only, official SPDX text) at repo root; MIT `LICENSE` files in all 72 packages (`www/packages/@feezal/*` + `packages/create-feezal-element`).
+- [x] SPDX ids fixed: `"AGPL-3.0-only"` in root/`server`/`www` package.json; `"MIT"` in all element/theme/SDK packages incl. the ~49 that had no `license` field at all; `create-feezal-element` → MIT (its scaffold already generated MIT elements).
+- [x] MIT viewer boundary marked: the traced **9-file viewer-runtime set** in `www/src` (`viewer-main.js`, `feezal-app-viewer.js`, `feezal-site.js`, `feezal-view.js`, `feezal-connection.js`, `feezal-connection-mqtt.js`, `feezal-connection-feezal.js`, `feezal-history-bar.js`, `feezal-monaco-loader.js` — the set covers both export paths: the filtered per-site build in `server/src/build/export.js` and the fallback full `viewer-bundle.js`) carries per-file `SPDX-License-Identifier: MIT` headers. Shared-with-editor files are MIT because MIT-in-AGPL composes, not the reverse. *(The orphaned `src/feezal-connection-node-red.js` — imported nowhere — was deleted when this item was archived, July 2026.)*
+- [x] **CLA**: `CLA.md` = **FLA-2.1** (fetched from the official contributoragreements.org template — 2.1 superseded the 2.0 originally planned), individual+entity, exclusive grant, traditional patent license, jurisdiction Germany. Chosen because German law does not permit copyright assignment — the FLA's exclusive-license-grant model is drafted for German/EU law, gives the maintainer relicensing rights, and contractually guarantees the software always remains FOSS. Enforcement: `.github/workflows/cla.yml` (CLA Assistant Lite, `contributor-assistant/github-action`), signatures stored in-repo at `.github/cla-signatures.json`; explained in `CONTRIBUTING.md`. Activates automatically on the first external PR. *Optional remaining: lawyer review of the final text.*
+- [x] Dependency license gate: `scripts/check-licenses.js` (dependency-free; walks all three `package-lock.json`s, production deps only, allowlist, fails CI on anything else) wired into `.github/workflows/ci.yml` as the `license-gate` job. Local run: 628 production deps checked, all clean (permissive + MPL-2.0 build-time + CC-BY-3.0 spdx-exceptions data file). Core stack confirmed AGPLv3-compatible: Lit (BSD-3), Shoelace (MIT), @material/web (Apache-2.0), Monaco (MIT), mqtt.js (MIT), Express/Socket.IO (MIT), interact.js (MIT).
+- [x] Model stated in README (License section) and `docs/element-spec.md` (licensing note: subclassing the MIT base class does not place elements under AGPL).
+
 ---
 
 ## Documentation
@@ -1323,5 +2491,101 @@ The existing `release-npm.yml` stub in `A5` covers the broad strokes but does no
 ### D1 — Element spec (highest priority) ✅ done
 `element-spec.md` fully rewritten. Covers: package & naming conventions, `FeezalElement` base class API, `static get feezal()` descriptor in full (palette, attributes with all supported types + `help`/`tooltip`, styles, description, links, restrict, defaultStyle), MQTT subscribe/publish contract, CSS custom property conventions, editor vs viewer mode, publishing checklist, and a complete worked example (toggle button).
 
+### D2 — Self-hosting guide ✅ done
+Covered by `docs/user-guide.md` — nginx/Caddy reverse proxy setup, HTTPS, proxy auth, Docker deployment, and CLI configuration are all documented.
+
 ### D3 — User guide ✅ done
 `docs/user-guide.md` written. Covers: installation & CLI flags, editor layout overview, working with views, placing & configuring elements, right-click context menu, attribute & style inspector, MQTT data binding patterns (basic display, publish, wildcard, dynamic subscriptions, common use-case table), themes, connection settings, site management, static export, asset manager, and keyboard shortcut reference.
+
+### N17 — Asset Manager: view modes, file search, and thumb size slider ✅ done
+
+Three UX improvements implemented in eezal-sidebar-assets.js:
+- **View modes**: toggle between Thumbs (grid_view), List (list), and Details (iew_list). Persisted in localStorage. Details view has sortable columns (name/type/size/date).
+- **File search**: inline search input filters assets case-insensitively across all folders in the current category. Shows flat results; breadcrumb is hidden while search is active. Esc / × to clear.
+- **Thumb size slider**: range slider (48–160 px, step 8) in thumbs mode. Controls --thumb-size CSS variable. Persisted in localStorage.
+
+### N18 — Asset Manager: move/copy cross-scope transfers ✅ done
+
+Context menu for file tiles/rows gains 
+
+### N17 — Asset Manager: view modes, file search, and thumb size slider ✅ done
+
+Three UX improvements implemented in `feezal-sidebar-assets.js`:
+- **View modes**: toggle between Thumbs (`grid_view`), List (`list`), and Details (`view_list`). Persisted in `localStorage`. Details view has sortable columns (name/type/size/date).
+- **File search**: inline search input filters assets case-insensitively across all folders in the current category. Shows flat results; breadcrumb is hidden while search is active. Esc / × to clear.
+- **Thumb size slider**: range slider (48–160 px, step 8) in thumbs mode. Controls `--thumb-size` CSS variable. Persisted in `localStorage`.
+
+### N18 — Asset Manager: move/copy cross-scope transfers ✅ done
+
+Context menu for file tiles/rows gains "Move to site" / "Copy to site" (from global) and "Move to global" / "Copy to global" (from site). Server implements `POST /api/assets/:site/transfer` with `{srcCategory, srcPath, destCategory, destPath, copy}`. On move, `storage.updateAssetRefs()` walks `views.html` and `viewer.json` for the site and replaces the old asset URL with the new one, then auto-commits.
+
+### N20 — Element housekeeping: remove deprecated packages, rename `material-text-field` ✅ done
+
+- Removed `feezal-element-material-progress-circular`, `feezal-element-material-progress-linear`, and `feezal-element-material-value` package directories.
+- Renamed `feezal-element-material-text-field` → `feezal-element-material-input` (palette label "Input"). Backward-compat alias `feezal-element-material-text-field` registered with a console deprecation warning.
+- `www/package.json`, `scripts/generate-elements.js`, and `www/editor/feezal-elements.js` updated accordingly.
+
+### N21 — Site `/theme` subtopic for runtime theme switching ✅ done
+
+Added `<site>/theme` subscription in `feezal-site.js` `connectedCallback`. Payload: full class name (`feezal-theme-dark-mint`) or just the suffix (`dark-mint`). Removes all existing `feezal-theme-*` classes from `<body>` and applies the new one. Ephemeral (resets on reload).
+
+### N22 — Document site topics in user guide ✅ done
+
+Added **Section 8 — Site topics** to `docs/user-guide.md`, documenting `<site>/reload`, `<site>/view`, `<site>/theme`, `<site>/addclass`, `<site>/removeclass`. Includes instructions for setting the site subscribe topic, a reference table, and `mosquitto_pub` examples. Existing sections 8–12 renumbered to 9–13.
+
+### E36 — Dialog element (eezal-element-material-dialog) ✅ done
+
+Pseudo-element — invisible labelled placeholder in the editor (120×40 px). In the viewer it opens a viewport-centred modal on an MQTT message matching payload-open (open by default) and closes on payload-close (close), ESC, backdrop click, or button press.
+
+Configurable title, Material icon, HTML message body, OK button and Cancel button (each with label, publish topic, and payload). Backdrop click behaviour controlled by close-on-backdrop. Panel dimensions via width and max-height.
+
+Editor shows a static open-state preview overlay alongside the canvas placeholder so the author can see the layout and button styling.
+
+**Package:** www/packages/@feezal/feezal-element-material-dialog/
+
+### E37 — Countdown confirmation dialog (eezal-element-material-countdown-dialog) ✅ done
+
+Pseudo-element — 120×40 px canvas placeholder. On payload-open opens a viewport-centred modal and starts a countdown from duration seconds. A shrinking SVG circular ring visualises progress; the ring turns amber at warn-seconds and red at half that threshold. The body message supports a {seconds} placeholder replaced live.
+
+At zero the element publishes payload-confirm to publish-confirm and closes. Pressing Cancel publishes payload-cancel to publish-cancel and closes. ESC also triggers the cancel action.
+
+**Package:** www/packages/@feezal/feezal-element-material-countdown-dialog/
+
+### E42 - material-plant auto-discovery from multi-sensor device groups (done)
+
+Added per-metric message-property-* attributes to plant element. Server: getDeviceGroups() in discovery.js and GET /api/discovery/device-groups endpoint.
+
+### E40 — Select / dropdown element (feezal-element-material-select) + discovery wiring (done)
+
+Added MQTT auto-discovery descriptor (component: select; maps state_topic -> subscribe, command_topic -> publish, options -> join-transformed comma string, name -> label). Fixed _options getter to accept both comma-separated strings (from discovery) and JSON arrays. Added CSS custom properties for theming: --feezal-select-text-color, --feezal-select-background-color, --feezal-select-popup-background-color, --feezal-select-border-color, all wired to the appropriate MD3 system tokens including the menu container background to fix the dark-on-dark popup issue.
+
+### E41 — CSS custom property audit (done for slider, checkbox, chip, select, fab/B13)
+
+- slider: added --feezal-slider-track-color (inactive), --feezal-slider-knob-color (separate from track), --feezal-slider-track-width, --feezal-slider-knob-size; wired to MD3 direct tokens.
+- checkbox: added --feezal-checkbox-inactive-color, --feezal-checkbox-label-color, --feezal-checkbox-size; wired to MD3 outline and container tokens.
+- chip: added --feezal-chip-text-color, --feezal-chip-outline-color, --feezal-chip-active-color, --feezal-chip-inactive-color; wired to MD3 filter-chip tokens.
+- fab (B13 fix): --feezal-fab-color now correctly maps to --md-sys-color-primary-container (and on-primary-container -> #fff) instead of --md-sys-color-primary, which is what md-fab variant=primary actually uses for its background.
+
+## Near-term Improvements
+
+### N15 ✅ — Source view (Monaco editor for view HTML)
+
+A **Design / Source** toggle (`code` icon, Ctrl+Shift+U) in the view toolbar opens a Monaco HTML editor on the active view's `innerHTML`. Format button (auto-formats on first open), Discard button. Source → canvas via `DOMParser`; parse errors shown inline. Ctrl+S applies source and deploys. View navigation while in source mode commits source first. `feezal-sidebar-inspector.rebindView()` re-attaches interact.js handles after innerHTML rewrite.
+
+**Implemented in:** `feezal-app-editor.js`, `feezal-sidebar-inspector.js`, `feezal-monaco-loader.js`.
+
+### N16 ✅ — Source / diff view in commit history
+
+Three new per-commit icon buttons in the history sidebar: **View source** (`code` — read-only Monaco HTML editor), **Diff vs. current** (`difference` — MonacoDiffEditor, historical left / current right), **Diff vs. parent** (`compare_arrows` — MonacoDiffEditor, parent left / this commit right). Full-viewport overlay, Esc to close, spinner while loading. New server endpoint `GET /api/sites/:name/history/:sha/file?path=views.html` uses the existing `git.showFile()` helper.
+
+**Implemented in:** `feezal-sidebar-history.js`, `server/src/routes/api.js`.
+
+## Editor UX
+
+### U7 ✅ — Monaco editor for template attributes
+
+Elements add `editor: true` to their template attribute descriptor (e.g. `feezal-element-basic-template`). The inspector renders `feezal-template-editor` (new Lit component) instead of `sl-textarea` for those attributes. The component lazy-loads Monaco on first use, shows a spinner during load, debounces change events (300 ms), syncs theme (`vs` / `vs-dark` from `feezal.app._darkMode`), and includes an expand overlay button for large templates. Phase 1 static completion provider triggers on `${` and offers `msg.payload`, `msg.topic`, `msg.payloadString`, `JSON.stringify(…)`, plus extra `variables` from the descriptor (e.g. `seconds` for countdown-dialog). Phase 2 (live payload key completions) deferred — requires server-side payload caching.
+
+Shared infrastructure: `feezal-monaco-loader.js` (single lazy `import('monaco-editor')` cache), `vite-plugin-monaco-editor` in `vite.config.js` (workers: `editorWorkerService`, `html`, `css`, `typescript`). Monaco adds ~3 MB / 984 kB gzip to the editor's async chunks — viewer bundle unaffected.
+
+**Implemented in:** `feezal-template-editor.js` (new), `feezal-monaco-loader.js` (new), `feezal-sidebar-inspector-attributes.js`, `vite.config.js`, `www/package.json`, `feezal-element-basic-template` v1.0.2.

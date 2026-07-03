@@ -9,11 +9,12 @@
 5. [MQTT data binding patterns](#5-mqtt-data-binding-patterns)
 6. [Themes](#6-themes)
 7. [Connection settings](#7-connection-settings)
-8. [Site management](#8-site-management)
-9. [Static export](#9-static-export)
-10. [Assets](#10-assets)
-11. [Keyboard shortcuts](#11-keyboard-shortcuts)
-12. [Reverse proxy setup (nginx)](#12-reverse-proxy-setup-nginx)
+8. [Site topics](#8-site-topics)
+9. [Site management](#9-site-management)
+10. [Static export](#10-static-export)
+11. [Assets](#11-assets)
+12. [Keyboard shortcuts](#12-keyboard-shortcuts)
+13. [Reverse proxy setup (nginx)](#13-reverse-proxy-setup-nginx)
 
 ---
 
@@ -46,6 +47,20 @@ docker run -d --name feezal -p 3000:3000 -v feezal-data:/data ghcr.io/feezal/fee
 | `--password` | *(none)* | Password to protect the editor |
 | `--public-viewer` | `true` | Allow viewer access without a password |
 
+**Optional Docker-powered features (opt-in via environment variables)**
+
+These need the Docker socket mounted into the feezal container
+(`-v /var/run/docker.sock:/var/run/docker.sock`). The socket is
+root-equivalent on the host — only enable what you use:
+
+| Env variable | Enables |
+|---|---|
+| `FEEZAL_DOCKER_BUILDS=1` | **Build APK on server** in the mobile-app export dialog (x86_64 hosts — see [MOBILE-APPS.md](MOBILE-APPS.md)) |
+| `FEEZAL_DOCKER_SELFUPDATE=1` | **Restart** / **Update…** buttons in Editor Settings — update pulls the new image via a one-shot [watchtower](https://containrrr.dev/watchtower/) run and recreates the container with identical config |
+| `FEEZAL_ALLOW_RESTART=1` | Restart button without Docker (bare metal) — feezal exits and relies on your supervisor (systemd `Restart=always`, pm2) to bring it back |
+
+With self-update enabled, the manual update steps above turn into one click.
+
 ---
 
 ## 2. Editor overview
@@ -77,7 +92,7 @@ The editor is a single-page application divided into four areas:
 | Themes | Switch the viewer theme |
 | Assets | Upload and manage images / files |
 | Connection | Configure the MQTT broker |
-| Editor | Grid, snap, and canvas settings |
+| Editor | Grid, snap, canvas, and MQTT-preview settings |
 
 **Right sidebar** shows the Attribute and Style inspectors for whichever element(s) are selected. A small badge at the top-right of the tab strip shows what is selected (`view: view1`, `basic-number`, `3 elements`, etc.).
 
@@ -106,6 +121,18 @@ Right-click the tab and choose **Delete view**, or select the view on the canvas
 ### Navigate views in the viewer
 
 The built-in tab bar is shown at the top of the viewer by default. For custom navigation, drop a **Navigation** element (`feezal-element-navigation`) onto the canvas and optionally set `hide-tabbar` to hide the built-in bar.
+
+### Tip: keeping pseudo-elements out of your main views
+
+Some elements are **invisible placeholders** — they have no visible canvas representation but listen to MQTT and act at runtime. Examples include **Connection Status** (`feezal-element-connection-status`), **Dialog** (`feezal-element-material-dialog`), and **Countdown Dialog** (`feezal-element-material-countdown-dialog`).
+
+Dropping these onto your main views works, but they add coloured placeholder boxes that clutter the canvas. A cleaner approach is to create a dedicated view — call it **_system**, **_global**, or **hidden** — and place all pseudo-elements there. That view never appears in the viewer tab bar (set the Navigation element's `views` attribute to only list the real views), so the placeholders are invisible to end-users but still active site-wide.
+
+### PIN Lock (`feezal-element-system-pin`) — casual guard, **not real security**
+
+The **PIN Lock** element (System category) covers a view with a full-screen PIN keypad in the viewer until the correct PIN is entered — handy for a settings or admin page on a shared / kiosk display. Drop it onto the view you want to protect; because inactive views are hidden, the overlay only appears while that view is on screen. Options: `pin` (the required code), `prompt` (text above the keypad), and `remember` (stay unlocked for the rest of the browser session).
+
+> ⚠️ **This is not real security.** The PIN is stored in plain text in the page source, and the overlay is just a `<div>` in the browser — anyone can read the PIN in the page source or remove the overlay with the browser's developer tools in seconds. Treat it purely as a *casual* speed-bump to stop a passer-by tapping the wrong screen. **Never** use it to protect anything sensitive; for that, put the dashboard (or the specific view) behind real server-side authentication (see [Reverse-proxy authentication](#reverse-proxy-authentication-authentik--authelia)).
 
 ---
 
@@ -175,9 +202,22 @@ publish = lights/kitchen/set
 
 On interaction the element publishes to that topic. The payload format depends on the element (e.g. `ON` / `OFF` for a switch, a numeric value for a slider).
 
-### Wildcard subscriptions
+### Runtime control topics
 
-feezal uses `<topic>/#` internally so a single subscription covers the topic and all sub-topics. For example, subscribing to `home/device` also receives messages on `home/device/state`, `home/device/power`, etc. The `messageProperty` path resolves from the full message object `{topic, payload}`.
+Beyond the primary `subscribe` topic, every element listens on a small set of **reserved control sub-topics**. Publishing to them changes the element's attributes, inline styles, or CSS classes live — without rebuilding the dashboard. The payload is read through `messageProperty` (default `payload`), just like the primary topic.
+
+| Topic | Payload | Effect |
+|---|---|---|
+| `<subscribe>/setattribute` | object, e.g. `{ "icon": "wifi", "label": "Kitchen" }` | set each attribute |
+| `<subscribe>/removeattribute` | `"icon"` or `["icon","label"]` | remove each attribute |
+| `<subscribe>/setstyle` | object, e.g. `{ "color": "red", "opacity": "0.5" }` | merge into inline style |
+| `<subscribe>/removestyle` | `"color"` or `["color","opacity"]` | remove each style property |
+| `<subscribe>/addclass` | CSS class name | add a CSS class |
+| `<subscribe>/removeclass` | CSS class name | remove a CSS class |
+
+These are **exact** subscriptions — feezal does **not** subscribe to `<subscribe>/#`. Telemetry your device happens to publish on neighbouring topics (e.g. `<subscribe>/linkquality`, `<subscribe>/power`) is therefore ignored and never ends up on the element.
+
+> **Editor preview.** By default these runtime changes apply only in the **viewer**, not while you edit. The *Editor → "Prevent MQTT element manipulation in editor"* setting (on by default) keeps live broker values from being written onto elements and accidentally saved. Turn it off if you want to preview live MQTT-driven changes inside the editor.
 
 ### Dynamic subscriptions
 
@@ -254,7 +294,48 @@ The **Last Will** and **On Connect** sections (collapsed by default) let you con
 
 ---
 
-## 8. Site management
+## 8. Site topics
+
+The feezal server subscribes to a set of reserved MQTT subtopics under the **site subscribe topic** configured in Connection settings. Publishing to these topics lets any MQTT client control all viewers of a site in real time — useful for remote control from Node-RED, Home Assistant, or `mosquitto_pub`.
+
+### Setting the site subscribe topic
+
+1. Open the **Connection** tab in the editor sidebar.
+2. Set the **Site subscribe** field (e.g. `feezal/myhome`).
+3. Save the site.
+
+All subtopics below are relative to this base topic.
+
+### Available topics
+
+| Topic | Payload | Effect |
+|---|---|---|
+| `<site>/reload` | any | All connected viewers reload the page |
+| `<site>/view` | view name (string) | All connected viewers navigate to the named view |
+| `<site>/theme` | theme name (string) | Switch the active theme on all viewers |
+| `<site>/addclass` | CSS class name | Add a CSS class to `<body>` on all viewers |
+| `<site>/removeclass` | CSS class name | Remove a CSS class from `<body>` on all viewers |
+
+### Theme switching
+
+The `theme` subtopic accepts either the full theme class name (e.g. `feezal-theme-dark-mint`) or just the suffix (e.g. `dark-mint`). The viewer removes all currently active `feezal-theme-*` classes and applies the new one. The switch is **ephemeral** — it resets on page reload.
+
+### Example: navigate all viewers via command line
+
+```sh
+# Navigate all viewers to the "living-room" view
+mosquitto_pub -h localhost -t feezal/myhome/view -m living-room
+
+# Switch all viewers to the dark-mint theme
+mosquitto_pub -h localhost -t feezal/myhome/theme -m dark-mint
+
+# Reload all viewers
+mosquitto_pub -h localhost -t feezal/myhome/reload -m 1
+```
+
+---
+
+## 9. Site management
 
 feezal can host multiple independent dashboards (sites) on one server.
 
@@ -270,7 +351,7 @@ The editor URL follows the pattern `http://localhost:3000/editor/#/<siteName>`. 
 
 ---
 
-## 9. Static export
+## 10. Static export
 
 A static export packages the entire viewer into a **single self-contained `index.html`** file (all JavaScript inlined). The result works from a `file://` URL and on any static file host — no server required.
 
@@ -297,7 +378,7 @@ A static export packages the entire viewer into a **single self-contained `index
 
 ---
 
-## 10. Assets
+## 11. Assets
 
 The **Assets** tab on the left sidebar provides a file manager for images and other static files.
 
@@ -326,7 +407,7 @@ Use the folder tree on the left of the Assets panel to navigate directories. Dra
 
 ---
 
-## 11. Keyboard shortcuts
+## 12. Keyboard shortcuts
 
 | Shortcut | Action |
 |---|---|
@@ -343,7 +424,7 @@ Use the folder tree on the left of the Assets panel to navigate directories. Dra
 
 ---
 
-## 12. Reverse proxy setup (nginx)
+## 13. Reverse proxy setup (nginx)
 
 Running feezal behind nginx lets you add HTTPS, a custom domain, and (optionally) upstream authentication.
 

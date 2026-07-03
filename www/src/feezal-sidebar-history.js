@@ -33,6 +33,7 @@ class FeezalSidebarHistory extends LitElement {
         _confirmRestore: {state: true},  // {sha, label} | null
         _error:          {state: true},
         _busy:           {state: true},  // sha of in-flight operation
+
     };
 
     static styles = css`
@@ -201,6 +202,12 @@ class FeezalSidebarHistory extends LitElement {
             this._error = `Restore failed: ${err.message}`;
             this._busy = null;
         }
+    }
+
+    // ── (N16 moved to feezal-history-bar in the viewer) ─────────────────
+
+    _REMOVED_N16_placeholder() {
+        // N16 source/diff overlay moved to feezal-history-bar (viewer ?sha= bar)
     }
 
     render() {

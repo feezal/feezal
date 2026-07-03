@@ -1,7 +1,11 @@
 import {LitElement, html, css, render, nothing} from 'lit';
 
-const RESERVED_SITE_NAMES = ['_global', 'themes', 'certs'];
-const isReservedSiteName = n => RESERVED_SITE_NAMES.includes(n) || n.startsWith('_');
+// A14: sites live under <dataDir>/sites/, so they no longer collide with system
+// dirs — a site name only has to be a safe single path segment (mirrors the
+// server's isValidSiteName in routes/api.js).
+const isValidSiteName = n =>
+    typeof n === 'string' && n.length > 0 && n.length <= 128 &&
+    !/[\\/]/.test(n) && !n.startsWith('.');
 
 /**
  * feezal-site-manager
@@ -250,7 +254,7 @@ class FeezalSiteManager extends LitElement {
     async _createSite() {
         const name = this._newName.trim();
         if (!name) { this._newError = 'Name is required.'; return; }
-        if (isReservedSiteName(name)) { this._newError = `"${name}" is a reserved name and cannot be used.`; return; }
+        if (!isValidSiteName(name)) { this._newError = `"${name}" is not a valid site name.`; return; }
         if (this.sites.includes(name)) { this._newError = 'A site with that name already exists.'; return; }
         this._busy = true;
         try {
@@ -280,7 +284,7 @@ class FeezalSiteManager extends LitElement {
     async _duplicateSite(name) {
         const newName = prompt(`Duplicate "${name}" as:`, `${name}-copy`);
         if (!newName) return;
-        if (isReservedSiteName(newName)) { alert(`"${newName}" is a reserved name and cannot be used.`); return; }
+        if (!isValidSiteName(newName)) { alert(`"${newName}" is not a valid site name.`); return; }
         if (this.sites.includes(newName)) { alert(`"${newName}" already exists.`); return; }
         this._busy = true;
         try {
@@ -323,7 +327,7 @@ class FeezalSiteManager extends LitElement {
         const oldName = this._renaming;
         const newName = this._renameValue.trim();
         if (!newName || newName === oldName) { this._cancelRename(); return; }
-        if (isReservedSiteName(newName)) { alert(`"${newName}" is a reserved name and cannot be used.`); return; }
+        if (!isValidSiteName(newName)) { alert(`"${newName}" is not a valid site name.`); return; }
         if (this.sites.includes(newName)) { alert(`"${newName}" already exists.`); return; }
         this._busy = true;
         try {
@@ -374,8 +378,12 @@ class FeezalSiteManager extends LitElement {
         // Keep the body-level portal in sync with current dropdown state.
         // Rendering into document.body ensures the dropdown is in the root
         // stacking context and appears above all shadow-DOM canvas elements.
+        // host: this is required so method-reference listeners in the portal
+        // template (@keydown="${this._onRenameKeydown}", @click="${this._confirmRename}",
+        // …) are invoked with the component as `this` — without it they throw
+        // and rename/cancel silently do nothing.
         if (this._portalEl) {
-            render(this._portalTpl(), this._portalEl);
+            render(this._portalTpl(), this._portalEl, {host: this});
         }
     }
 

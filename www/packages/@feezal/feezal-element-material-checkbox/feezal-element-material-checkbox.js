@@ -30,7 +30,10 @@ class FeezalElementMaterialCheckbox extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height',
-                {property: '--feezal-checkbox-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Checkbox active/checked colour.'},
+                {property: '--feezal-checkbox-color',         type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Checkbox fill and border colour when checked.'},
+                {property: '--feezal-checkbox-inactive-color', type: 'color', default: 'var(--divider-color, #757575)', help: 'Border colour when unchecked.'},
+                {property: '--feezal-checkbox-label-color',    type: 'color', default: 'var(--primary-text-color, #333)', help: 'Label text colour.'},
+                {property: '--feezal-checkbox-size',           default: '18px', help: 'Checkbox box size, e.g. "18px" or "24px".'},
             ],
             defaultStyle: {width: '140px', height: '40px'},
         };
@@ -53,14 +56,37 @@ class FeezalElementMaterialCheckbox extends FeezalElement {
             gap: 8px;
             padding: 4px;
             box-sizing: border-box;
-            --feezal-checkbox-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
-            --md-sys-color-primary: var(--feezal-checkbox-color);
+            /* Let the MD3 state layer (hover/focus ripple) extend past the element
+               edges instead of being clipped — it is centred on the box and larger
+               than it, so it can't fit inside a small checkbox element. */
+            overflow: visible;
+            /* E38: scale the box + label with the element size (cqmin = 1% of the
+               smaller of width/height). An explicit --feezal-checkbox-size still wins. */
+            container-type: size;
+            --feezal-checkbox-color:          var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --feezal-checkbox-inactive-color: var(--divider-color, #757575);
+            --feezal-checkbox-label-color:    var(--primary-text-color, #333);
+            --feezal-checkbox-size:           55cqmin;
+            /* MD3 token wiring */
+            --md-sys-color-primary:                          var(--feezal-checkbox-color);
+            --md-checkbox-selected-container-color:          var(--feezal-checkbox-color);
+            --md-checkbox-selected-focus-container-color:    var(--feezal-checkbox-color);
+            --md-checkbox-selected-hover-container-color:    var(--feezal-checkbox-color);
+            --md-checkbox-selected-pressed-container-color:  var(--feezal-checkbox-color);
+            --md-checkbox-outline-color:                     var(--feezal-checkbox-inactive-color);
+            --md-checkbox-hover-outline-color:               var(--feezal-checkbox-inactive-color);
+            --md-checkbox-focus-outline-color:               var(--feezal-checkbox-inactive-color);
+            /* Correct size tokens (the box is --md-checkbox-container-size, not handle-*). */
+            --md-checkbox-container-size:                     var(--feezal-checkbox-size);
+            --md-checkbox-icon-size:                          calc(var(--feezal-checkbox-size) * 0.9);
+            --md-checkbox-state-layer-size:                   calc(var(--feezal-checkbox-size) * 1.7);
         }
         label {
-            font-size: 14px;
-            color: var(--primary-text-color, #333);
+            font-size: 32cqmin;
+            color: var(--feezal-checkbox-label-color);
             cursor: pointer;
             user-select: none;
+            white-space: nowrap;
         }
         .editor-ph {
             display: flex;
@@ -71,11 +97,11 @@ class FeezalElementMaterialCheckbox extends FeezalElement {
             padding: 4px;
             box-sizing: border-box;
             font-size: 14px;
-            color: var(--primary-text-color, #555);
+            color: var(--feezal-checkbox-label-color, var(--primary-text-color, #555));
         }
         .editor-ph .box {
-            width: 18px;
-            height: 18px;
+            width: var(--feezal-checkbox-size, 18px);
+            height: var(--feezal-checkbox-size, 18px);
             border: 2px solid var(--feezal-checkbox-color);
             border-radius: 2px;
             flex-shrink: 0;
@@ -95,7 +121,7 @@ class FeezalElementMaterialCheckbox extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (!feezal.isEditor && this.subscribe) {
+        if (this.subscribe) {
             this.addSubscription(this.subscribe, msg => {
                 const v = this.getProperty(msg, this.messageProperty);
                 this._checked = v === this.payloadOn || v === true || v === 1 || v === '1' || v === 'true';
@@ -110,9 +136,6 @@ class FeezalElementMaterialCheckbox extends FeezalElement {
     }
 
     render() {
-        if (feezal.isEditor) {
-            return html`<div class="editor-ph"><div class="box"></div>${this.label || 'Checkbox'}</div>`;
-        }
         return html`
             <md-checkbox
                 ?checked="${this._checked}"

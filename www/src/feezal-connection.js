@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2019-2026 Sebastian Raff — feezal viewer runtime
 import {LitElement} from 'lit';
 
 /**
@@ -109,11 +111,11 @@ class FeezalConnection extends LitElement {
                 this.dispatchEvent(new Event('disconnected'));
             });
 
-            if (!feezal.isEditor) {
-                this.conn.addEventListener('message', event => {
-                    this._spreadMessage(event.detail);
-                });
-            }
+            this.conn.addEventListener('message', event => {
+                const msg = event.detail;
+                console.log('[feezal-msg] topic=%s payload=%o retain=%o', msg.topic, msg.payload, msg.retain);
+                this._spreadMessage(msg);
+            });
         });
     }
 
@@ -128,7 +130,7 @@ class FeezalConnection extends LitElement {
     }
 
     sub(topic, options, callback) {
-        if (feezal.isEditor || !topic) {
+        if (!topic) {
             return;
         }
 

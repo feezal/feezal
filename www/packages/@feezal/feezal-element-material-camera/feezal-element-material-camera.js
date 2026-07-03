@@ -16,9 +16,9 @@ class FeezalElementMaterialCamera extends FeezalElement {
             },
             attributes: [
                 {name: 'src',            type: 'string',    default: '',       help: 'Camera feed URL (MJPEG stream, HLS playlist, or image URL).'},
+                {name: 'subscribe',      type: 'mqttTopic',                    help: 'MQTT topic that publishes the image or stream URL. Overrides `src` when a message is received. Also serves as the base topic for dynamic attribute overrides via `<subscribe>/#`.'},
                 {name: 'type',           type: 'select',    options: ['mjpeg', 'hls', 'image'], default: 'mjpeg',
                     help: 'Feed type. mjpeg = continuous multipart stream via <img>; hls = HLS video via <video>; image = static image with optional auto-refresh.'},
-                {name: 'subscribe-src',  type: 'mqttTopic', help: 'Optional: MQTT topic carrying the URL — overrides src when received.'},
                 {name: 'refresh',        type: 'number',    default: 0,        help: 'Auto-refresh interval in seconds for image type (0 = disabled).'},
                 {name: 'show-controls',  type: 'boolean',   default: false,    help: 'Show native video controls (HLS type only).'},
                 {name: 'label',          type: 'string',    default: '',       help: 'Optional overlay label shown at the bottom of the feed.'},
@@ -37,7 +37,6 @@ class FeezalElementMaterialCamera extends FeezalElement {
     static properties = {
         src:            {type: String,  reflect: true},
         type:           {type: String,  reflect: true},
-        subscribeSrc:   {type: String,  reflect: true, attribute: 'subscribe-src'},
         refresh:        {type: Number,  reflect: true},
         showControls:   {type: Boolean, reflect: true, attribute: 'show-controls'},
         label:          {type: String,  reflect: true},
@@ -77,7 +76,6 @@ class FeezalElementMaterialCamera extends FeezalElement {
         super();
         this.src          = '';
         this.type         = 'mjpeg';
-        this.subscribeSrc = '';
         this.refresh      = 0;
         this.showControls = false;
         this.label        = '';
@@ -90,12 +88,10 @@ class FeezalElementMaterialCamera extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (feezal.isEditor) return;
-
         this._activeSrc = this.src;
 
-        if (this.subscribeSrc) {
-            this.addSubscription(this.subscribeSrc, msg => {
+        if (this.subscribe) {
+            this.addSubscription(this.subscribe, msg => {
                 const v = this.getProperty(msg, this.messageProperty);
                 if (v) this._activeSrc = String(v);
             });
@@ -138,12 +134,6 @@ class FeezalElementMaterialCamera extends FeezalElement {
     }
 
     render() {
-        if (feezal.isEditor) {
-            return html`
-                ${this._placeholder()}
-                ${this.label ? html`<div class="overlay-label">${this.label}</div>` : ''}`;
-        }
-
         const src = this._feedSrc();
 
         if (!src) {

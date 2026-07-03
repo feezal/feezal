@@ -1,0 +1,6 @@
+{
+  "name": "@feezal/feezal-element-system-pin",
+  "version": "0.1.1",
+  "license": "MIT",
+  "main": "feezal-element-system-pin.js"
+}

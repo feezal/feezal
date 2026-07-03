@@ -6,7 +6,9 @@ import '@shoelace-style/shoelace/dist/components/input/input.js';
 class FeezalPalette extends LitElement {
     static properties = {
         categories: {type: Array},
-        filter: {type: String}
+        filter: {type: String},
+        _collapsed: {state: true},
+        _componentCtx: {state: true}   // U32: {x, y, name} context menu on a component entry
     };
 
     static styles = css`
@@ -41,6 +43,21 @@ class FeezalPalette extends LitElement {
             height: 36px;
             box-sizing: border-box;
             color: var(--feezal-color, inherit);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .header:hover { background: var(--feezal-btn-hover, rgba(0,0,0,0.05)); }
+        .header .chevron { margin-left: auto; font-size: 18px; opacity: 0.55; }
+        .material-icons {
+            font-family: 'Material Icons';
+            font-weight: normal; font-style: normal;
+            font-size: inherit; line-height: 1; letter-spacing: normal; text-transform: none;
+            display: inline-block; white-space: nowrap; word-wrap: normal; direction: ltr;
+            -webkit-font-feature-settings: 'liga'; font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
         }
         .element {
             box-sizing: border-box;
@@ -58,12 +75,36 @@ class FeezalPalette extends LitElement {
         sl-input::part(base) { background: var(--feezal-bg, #fff); border-color: var(--feezal-border, #ccc); }
         sl-input::part(base):focus-within { border-color: var(--feezal-border, #ccc); box-shadow: none; }
         sl-input::part(input) { background: var(--feezal-bg, #fff); color: var(--sl-input-color, #333); }
+        /* U32: context menu on component entries */
+        .component-ctx {
+            position: fixed; z-index: 1000; min-width: 150px;
+            background: var(--feezal-bg, #fff); color: var(--feezal-color, #333);
+            border: 1px solid var(--feezal-border, #ccc); border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2); padding: 4px 0; font-size: 13px;
+        }
+        .component-ctx .item { padding: 5px 12px; cursor: pointer; }
+        .component-ctx .item:hover { background: var(--sl-color-primary-600, #0284c7); color: #fff; }
+        .component-ctx .item.danger:hover { background: #c62828; }
     `;
 
     constructor() {
         super();
         this.categories = [];
         this.filter = '';
+        this._collapsed = new Set();
+        try {
+            this._collapsed = new Set(JSON.parse(localStorage.getItem('feezal-palette-collapsed') || '[]'));
+        } catch { /* corrupt value — start expanded */ }
+    }
+
+    _toggleCategory(name) {
+        const next = new Set(this._collapsed);
+        if (next.has(name)) next.delete(name);
+        else next.add(name);
+        this._collapsed = next;
+        try {
+            localStorage.setItem('feezal-palette-collapsed', JSON.stringify([...next]));
+        } catch { /* quota — non-fatal */ }
     }
 
     render() {
@@ -77,18 +118,65 @@ class FeezalPalette extends LitElement {
                 </sl-input>
             </div>
             <div id="palette-list">
-                ${this.categories.map(cat => html`
+                ${this.categories.map(cat => {
+                    // A filter force-expands every category so matches are always visible.
+                    const collapsed = !this.filter && this._collapsed.has(cat.name);
+                    return html`
                     <div class="category">
-                        <div class="header">${cat.name}</div>
-                        ${cat.elements.map(el => html`
+                        <div class="header" @click="${() => this._toggleCategory(cat.name)}">
+                            ${cat.name}
+                            ${this.filter ? '' : html`<span class="material-icons chevron">${collapsed ? 'chevron_right' : 'expand_more'}</span>`}
+                        </div>
+                        ${collapsed ? '' : cat.elements.map(el => html`
                             <div class="element"
                                 style="${el.color ? `background-color:${el.color}` : ''}"
-                                data-el="${el.el}">${el.name}</div>
+                                data-el="${el.el}"
+                                data-component="${el.component || ''}"
+                                @contextmenu="${el.component ? e => this._componentCtxMenu(e, el.component) : null}">${el.name}</div>
                         `)}
                     </div>
-                `)}
+                `;})}
             </div>
+            ${this._componentCtx ? html`
+                <div class="component-ctx" style="left:${this._componentCtx.x}px;top:${this._componentCtx.y}px"
+                    @mousedown="${e => e.stopPropagation()}">
+                    <div class="item" @click="${() => this._componentCtxAction('edit')}">Edit component</div>
+                    <div class="item" @click="${() => this._componentCtxAction('rename')}">Rename…</div>
+                    <div class="item danger" @click="${() => this._componentCtxAction('delete')}">Delete…</div>
+                </div>
+            ` : ''}
         `;
+    }
+
+    // U32: right-click menu on a Components palette entry — component
+    // lifecycle must work even when no instance exists on any view.
+    _componentCtxMenu(e, name) {
+        e.preventDefault();
+        e.stopPropagation();
+        this._componentCtx = {x: e.clientX, y: e.clientY, name};
+        const close = ev => {
+            if (ev.type === 'keydown' && ev.key !== 'Escape') return;
+            // Don't close on mousedown inside the menu — this capture-phase
+            // listener fires before the item's click event; closing here would
+            // remove the item from the DOM before its @click can run.
+            if (ev.type === 'mousedown' && ev.composedPath().some(el => el.classList?.contains('component-ctx'))) return;
+            this._componentCtx = null;
+            document.removeEventListener('mousedown', close, true);
+            document.removeEventListener('keydown', close, true);
+        };
+        setTimeout(() => {
+            document.addEventListener('mousedown', close, true);
+            document.addEventListener('keydown', close, true);
+        }, 0);
+    }
+
+    _componentCtxAction(action) {
+        const name = this._componentCtx?.name;
+        this._componentCtx = null;
+        if (!name) return;
+        if (action === 'edit') feezal.app._openComponentEdit(name);
+        else if (action === 'rename') feezal.app._componentRenameOpen(name);
+        else if (action === 'delete') feezal.app._componentDeleteRequest(name);
     }
 
     connectedCallback() {
@@ -101,8 +189,28 @@ class FeezalPalette extends LitElement {
         });
     }
 
+    /** Public: rebuild the category list (called after site load / component changes). */
+    refresh() {
+        this._rebuildCategories();
+    }
+
     _rebuildCategories() {
         const categories = {};
+
+        // U32: the site's own components come first — one palette entry per
+        // <template feezal-component> definition; dropping creates an instance.
+        const componentTemplates = feezal.site
+            ? [...feezal.site.querySelectorAll('template[feezal-component]')]
+            : [];
+        componentTemplates.forEach(template => {
+            const name = template.getAttribute('feezal-component');
+            if (!name) return;
+            if (!this.filter || name.toLowerCase().includes(this.filter.toLowerCase())) {
+                (categories.Components = categories.Components || [])
+                    .push({el: 'feezal-component', name, component: name});
+            }
+        });
+
         // feezal.elements contains package names like '@feezal/feezal-element-paper-button'.
         // The actual custom element tag is the package name without the @scope/ prefix.
         (feezal.elements || []).forEach(pkgName => {
@@ -124,7 +232,7 @@ class FeezalPalette extends LitElement {
         this.categories = Object.entries(categories)
             .map(([name, elements]) => ({name, elements}))
             .sort((a, b) => {
-                const ORDER = ['Basic', 'Device', 'System', 'Material', 'Paper'];
+                const ORDER = ['Components', 'Basic', 'Layout', 'System', 'Device', 'Material', 'Paper'];
                 const ai = ORDER.indexOf(a.name);
                 const bi = ORDER.indexOf(b.name);
                 if (ai === -1 && bi === -1) return a.name.localeCompare(b.name);
@@ -145,6 +253,11 @@ class FeezalPalette extends LitElement {
                 onstart: event => {
                     const viewRect = feezal.view.getBoundingClientRect();
                     this.newElem = document.createElement(event.target.dataset.el);
+                    // U32: component entries create an instance of the named
+                    // component — declared param defaults apply automatically.
+                    if (event.target.dataset.component) {
+                        this.newElem.setAttribute('name', event.target.dataset.component);
+                    }
                     feezal.view.append(this.newElem);
                     const newElementRect = this.newElem.getBoundingClientRect();
                     feezal.editor.initElem(this.newElem, true);

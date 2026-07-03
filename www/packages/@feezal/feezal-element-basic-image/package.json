@@ -1,5 +1,6 @@
 {
-    "name":  "@feezal/feezal-element-basic-image",
-    "version":  "1.0.1",
-    "main":  "feezal-element-basic-image.js"
+    "name": "@feezal/feezal-element-basic-image",
+    "version": "1.0.1",
+    "license": "MIT",
+    "main": "feezal-element-basic-image.js"
 }

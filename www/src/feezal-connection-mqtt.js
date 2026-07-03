@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2019-2026 Sebastian Raff — feezal viewer runtime
 import {LitElement} from 'lit';
 import mqtt from 'mqtt';
 

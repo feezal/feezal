@@ -167,11 +167,11 @@ class FeezalElementMaterialContact extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
-                {property: '--feezal-contact-open-color',   type: 'color', default: 'var(--warning-color, #ff9800)', help: 'Colour shown when contact is open.'},
-                {property: '--feezal-contact-tilt-color',   type: 'color', default: 'var(--info-color, #2196f3)',    help: 'Colour shown when window is tilted.'},
+                {property: '--feezal-contact-open-color',   type: 'color', default: 'var(--primary-color)', help: 'Colour shown when contact is open.'},
+                {property: '--feezal-contact-tilt-color',   type: 'color', default: 'var(--info-color)',    help: 'Colour shown when window is tilted.'},
                 {property: '--feezal-contact-closed-color', type: 'color', default: 'var(--primary-text-color)',     help: 'SVG outline colour when contact is closed.'},
                 {property: '--feezal-contact-text-color',   type: 'color', default: 'var(--primary-text-color)',     help: 'Label text colour.'},
-                {property: '--feezal-contact-error-color',  type: 'color', default: 'var(--error-color, #b00020)',   help: 'Unavailability badge colour.'},
+                {property: '--feezal-contact-error-color',  type: 'color', default: 'var(--error-color)',   help: 'Unavailability badge colour.'},
             ],
             restrict:     {minWidth: 60, minHeight: 80},
             defaultStyle: {width: '80px', height: '120px'},
@@ -268,7 +268,6 @@ class FeezalElementMaterialContact extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (feezal.isEditor) return;
 
         if (this.subscribeAvailability) {
             this.addSubscription(this.subscribeAvailability, msg => {
@@ -327,16 +326,6 @@ class FeezalElementMaterialContact extends FeezalElement {
         let contacts = [];
         try { contacts = JSON.parse(this.contacts); } catch { contacts = []; }
         const isMulti = contacts.length > 0;
-
-        if (feezal.isEditor) {
-            return html`
-                <div class="svg-wrap">
-                    <svg class="contact" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-                        ${this._shapeSvg('closed')}
-                    </svg>
-                </div>
-                ${this.label ? html`<div class="label">${this.label}</div>` : ''}`;
-        }
 
         return html`
             ${!this._available ? html`<div class="unavail">${UNAVAIL}</div>` : ''}

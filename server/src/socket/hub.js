@@ -27,6 +27,30 @@ function createHub(io, {storage, logger}) {
     // In-memory message cache: topic → last message object
     const cache = {};
 
+    /**
+     * Known-retained last-value cache — replayed to newly subscribing sockets.
+     *
+     * The broker strips the RETAIN flag on live deliveries [MQTT-3.3.1-9]:
+     * retain=1 only ever marks the stored-retained replay right after
+     * subscribing. A topic seen with retain=1 is therefore known to be in the
+     * broker's retained store — a state topic. Every later message on it
+     * (delivered with retain=0 even when the publisher set retain) refreshes
+     * the cached payload, so replay always serves the last value. An empty
+     * payload evicts — the MQTT retained-clear convention; its live delivery
+     * also arrives as retain=0 + empty. Topics never seen retained (commands,
+     * reload, …) are never cached, so no stale command is ever replayed.
+     */
+    function updateCache(message) {
+        const empty = message.payload === '' || message.payload === null || message.payload === undefined;
+        if (empty) {
+            delete cache[message.topic];
+        } else if (message.retain) {
+            cache[message.topic] = {cached: true, ...message};
+        } else if (cache[message.topic]) {
+            cache[message.topic] = {...cache[message.topic], payload: message.payload};
+        }
+    }
+
     // Per-socket subscription tracking: socket.id → Set<topic>
     const socketSubscriptions = new Map();
 
@@ -57,7 +81,7 @@ function createHub(io, {storage, logger}) {
 
                 // Reconnect bridge if connection settings changed
                 const certDir = storage.dataDir
-                    ? path.join(storage.dataDir, 'certs', siteName)
+                    ? path.join(storage.dataDir, 'sites', siteName, 'certs')
                     : null;
                 bridge.connect(data.connection, logger, certDir);
 
@@ -81,7 +105,7 @@ function createHub(io, {storage, logger}) {
                 callback({views, viewer});
                 // Auto-connect bridge with the stored connection config
                 const certDir = storage.dataDir
-                    ? path.join(storage.dataDir, 'certs', site)
+                    ? path.join(storage.dataDir, 'sites', site, 'certs')
                     : null;
                 bridge.connect(viewer?.connection, logger, certDir);
             } catch (err) {
@@ -96,10 +120,24 @@ function createHub(io, {storage, logger}) {
                 logger.debug('subscribe ' + topic);
                 subscriptions.add(topic);
 
-                // Replay cached messages that match the new subscription
-                Object.keys(cache)
-                    .filter(t => topicMatch(t, topic) !== null)
-                    .forEach(t => socket.emit('input', cache[t]));
+                // Replay only cached retained messages that match the new subscription
+                const matches = Object.keys(cache)
+                    .filter(t => topicMatch(t, topic) !== null);
+                matches.forEach(t => {
+                    logger.debug('hub: cache replay topic=' + t + ' to socket=' + socket.id);
+                    socket.emit('input', cache[t]);
+                });
+            });
+        });
+
+        // ------------------------------------------------------------------ unsubscribe
+        // The client emits this when the last subscriber of a topic goes away
+        // (element deleted / replaced) — without a handler the per-socket set
+        // grew stale and kept replaying topics nothing listens to anymore.
+        socket.on('unsubscribe', topics => {
+            topics.forEach(topic => {
+                logger.debug('unsubscribe ' + topic);
+                subscriptions.delete(topic);
             });
         });
 
@@ -107,7 +145,7 @@ function createHub(io, {storage, logger}) {
         socket.on('send', message => {
             logger.debug('send ' + message.topic);
             bridge.insertTopic(message.topic);
-            cache[message.topic] = {cached: true, ...message};
+            updateCache(message);
             // Forward to the MQTT broker so feezal-backend viewers can publish
             bridge.publish(message);
             // Echo back so the editor can observe its own publishes
@@ -141,7 +179,7 @@ function createHub(io, {storage, logger}) {
      */
     function broadcast(message) {
         bridge.insertTopic(message.topic);
-        cache[message.topic] = {cached: true, ...message};
+        updateCache(message);
         io.sockets.sockets.forEach((socket, id) => {
             const subs = socketSubscriptions.get(id);
             if (subs && [...subs].some(t => topicMatch(message.topic, t) !== null)) {

@@ -297,4 +297,39 @@ function clearEntities() {
     entities.clear();
 }
 
-module.exports = { handleMessage, getDiscoveredEntities, getDiscoveredEntity, clearEntities };
+/**
+ * Group all known entities by device (device.identifiers[0]).
+ * Entities without device info are excluded.
+ * Each group carries an `elementHint` ("plant" when a moisture sensor is present).
+ */
+function getDeviceGroups() {
+    const groups = new Map();
+
+    for (const entity of entities.values()) {
+        const devId = entity.config?.device?.identifiers?.[0];
+        if (!devId) continue;
+
+        if (!groups.has(devId)) {
+            groups.set(devId, {
+                deviceId:   devId,
+                deviceName: entity.config.device.name || devId,
+                device:     entity.config.device,
+                entities:   [],
+                elementHint: null,
+            });
+        }
+        groups.get(devId).entities.push(entity);
+    }
+
+    // Compute elementHint per group
+    for (const group of groups.values()) {
+        const hasMoisture = group.entities.some(
+            e => e.component === 'sensor' && e.config?.device_class === 'moisture'
+        );
+        if (hasMoisture) group.elementHint = 'plant';
+    }
+
+    return [...groups.values()];
+}
+
+module.exports = { handleMessage, getDiscoveredEntities, getDiscoveredEntity, clearEntities, getDeviceGroups };

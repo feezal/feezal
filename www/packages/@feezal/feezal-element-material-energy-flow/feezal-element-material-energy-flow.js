@@ -18,7 +18,7 @@ const LOAD_COLOR    = '#90a4ae';
 class FeezalElementMaterialEnergyFlow extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Energy Flow', category: 'Material', color: '#4a6080', icon: 'electric_bolt'},
+            palette: {name: 'Energy', category: 'Material', color: '#4a6080', icon: 'electric_bolt'},
             description: 'Animated energy-flow diagram: Solar → House ← Grid, House ↔ Battery.',
             attributes: [
                 {name: 'subscribe-solar',             type: 'mqttTopic', help: 'Topic for solar generation (W, always positive).'},
@@ -122,7 +122,6 @@ class FeezalElementMaterialEnergyFlow extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (feezal.isEditor) return;
         const sub = (topic, cb) => { if (topic) this.addSubscription(topic, cb); };
         sub(this.subscribeSolar,      msg => { this._solar   = parseFloat(this.getProperty(msg, this.msgPropSolar      || this.messageProperty)); });
         sub(this.subscribeGrid,       msg => { this._grid    = parseFloat(this.getProperty(msg, this.msgPropGrid       || this.messageProperty)); });
@@ -161,7 +160,7 @@ class FeezalElementMaterialEnergyFlow extends FeezalElement {
     }
 
     render() {
-        const isEdit = feezal.isEditor;
+        const isEdit = false;
         const hasBatt = this.showBattery;
         const anim = this.animate !== false;
 
@@ -176,11 +175,13 @@ class FeezalElementMaterialEnergyFlow extends FeezalElement {
         const battX  = 250;
         const nr = 28;
 
-        const solarFlow = isEdit ? 3200 : this._solar;
-        const gridFlow  = isEdit ? -500 : this._grid;
-        const loadFlow  = isEdit ? 1200 : this._load;
-        const battFlow  = isEdit ? 800  : this._battery;
-        const soc       = isEdit ? 72   : this._soc;
+        // When unconfigured, show demo values as visual hints.
+        // Real MQTT data (non-null) always takes priority via null-coalescing.
+        const solarFlow = this._solar   ?? (isEdit ? 3200 : null);
+        const gridFlow  = this._grid    ?? (isEdit ? -500 : null);
+        const loadFlow  = this._load    ?? (isEdit ? 1200 : null);
+        const battFlow  = this._battery ?? (isEdit ? 800  : null);
+        const soc       = this._soc     ?? (isEdit ? 72   : null);
 
         const gridColor = (gridFlow ?? 0) >= 0 ? GRID_IMP_COLOR : GRID_EXP_COLOR;
 
@@ -192,13 +193,13 @@ class FeezalElementMaterialEnergyFlow extends FeezalElement {
                 ${hasBatt ? this._flowLine(cx + nr + 2, cy, battX - nr - 2, cy, BATT_COLOR, battFlow, anim) : ''}
 
                 <!-- Nodes -->
-                ${this._node(solarX, solarY, nr, 'wb_sunny', this.pvLabel || 'Solar', solarFlow, SOLAR_COLOR, isEdit)}
-                ${this._node(cx, cy, nr + 4, 'home', this.loadLabel || 'House', loadFlow, LOAD_COLOR, isEdit)}
-                ${this._node(gridX, cy, nr, 'electrical_services', this.gridLabel || 'Grid', this._grid, gridColor, isEdit)}
-                ${hasBatt ? this._node(battX, cy, nr, 'battery_charging_full', this.batteryLabel || 'Battery', battFlow, BATT_COLOR, isEdit) : ''}
+                ${this._node(solarX, solarY, nr, 'wb_sunny', this.pvLabel || 'Solar', solarFlow, SOLAR_COLOR, false)}
+                ${this._node(cx, cy, nr + 4, 'home', this.loadLabel || 'House', loadFlow, LOAD_COLOR, false)}
+                ${this._node(gridX, cy, nr, 'electrical_services', this.gridLabel || 'Grid', this._grid, gridColor, false)}
+                ${hasBatt ? this._node(battX, cy, nr, 'battery_charging_full', this.batteryLabel || 'Battery', battFlow, BATT_COLOR, false) : ''}
 
                 <!-- SOC on battery -->
-                ${hasBatt && !isEdit && soc != null ? svg`
+                ${hasBatt && soc != null ? svg`
                     <text x="${battX}" y="${cy + nr + 34}" text-anchor="middle" font-size="8"
                         fill="${BATT_COLOR}" opacity="0.8">${Math.round(soc)}%</text>` : ''}
             </svg>`;

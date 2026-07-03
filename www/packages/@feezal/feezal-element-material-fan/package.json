@@ -1,5 +1,6 @@
 {
   "name": "@feezal/feezal-element-material-fan",
   "version": "1.0.4",
+  "license": "MIT",
   "main": "feezal-element-material-fan.js"
 }

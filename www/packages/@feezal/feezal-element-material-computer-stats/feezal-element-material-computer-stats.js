@@ -35,7 +35,7 @@ function ringColor(value, defaultColor, warn, crit) {
 class FeezalElementMaterialComputerStats extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Computer Stats', category: 'Material', color: '#4a6080', icon: 'memory'},
+            palette: {name: 'Stats', category: 'Material', color: '#4a6080', icon: 'memory'},
             description: 'Concentric ring gauges for CPU, RAM, GPU and other system metrics.',
             attributes: [
                 {name: 'subscribe-cpu',             type: 'mqttTopic', help: 'Topic for CPU usage (0–100%).'},
@@ -211,7 +211,6 @@ class FeezalElementMaterialComputerStats extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (feezal.isEditor) return;
         for (const def of this._ringDefs) {
             const topic = def.topic || this._topicFor(def.slot);
             if (!topic) continue;
@@ -260,34 +259,6 @@ class FeezalElementMaterialComputerStats extends FeezalElement {
     }
 
     render() {
-        if (feezal.isEditor) {
-            const defs = this._ringDefs;
-            return html`
-                <div class="container">
-                    <div class="ring-wrap">
-                        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                            ${defs.map((def, i) => {
-                                const r = 46 - i * 9;
-                                if (r < 5) return svg``;
-                                const sample = 0.4 + i * 0.07;
-                                const d = arcPath(50, 50, r, Math.min(sample, 0.95));
-                                const bg = `M 50 ${50 - r} A ${r} ${r} 0 1 1 ${49.999} ${50 - r}`;
-                                return svg`
-                                    <path d="${bg}" fill="none" stroke="#e0e0e0" stroke-width="6" stroke-linecap="round" opacity="0.4"/>
-                                    ${d ? svg`<path d="${d}" fill="none" stroke="${def.color}" stroke-width="6" stroke-linecap="round" opacity="0.7"/>` : ''}`;
-                            })}
-                        </svg>
-                    </div>
-                    ${this.showLegend ? html`
-                        <div class="legend">
-                            ${defs.map(def => html`
-                                <div class="legend-row">
-                                    <div class="legend-dot" style="background:${def.color}"></div>
-                                    <span>${def.label}</span>
-                                </div>`)}
-                        </div>` : ''}
-                </div>`;
-        }
         return html`
             <div class="container">
                 <div class="ring-wrap">${this._renderRings()}</div>

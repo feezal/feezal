@@ -1,8 +1,9 @@
 {
-    "name":  "@feezal/feezal-theme-light-orange",
-    "version":  "1.0.0",
-    "main":  "feezal-theme-light-orange.js",
-    "feezal":  {
-                   "type":  "theme"
-               }
+    "name": "@feezal/feezal-theme-light-orange",
+    "version": "1.0.0",
+    "license": "MIT",
+    "main": "feezal-theme-light-orange.js",
+    "feezal": {
+        "type": "theme"
+    }
 }

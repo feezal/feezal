@@ -1,28 +1,24 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 
-let _leafletCssInjected = false;
+// Cached, shareable Leaflet stylesheet. Leaflet's CSS MUST live inside each
+// map's shadow root — document.head styles do not cross the shadow boundary, so
+// without this the tiles render unpositioned (scattered) instead of as a grid.
+// A constructable stylesheet can be adopted into many shadow roots at once.
+let _leafletSheet = null; // CSSStyleSheet | false (inline import failed) | null (not loaded)
 
 async function getLeaflet() {
     const L = (await import('leaflet')).default ?? (await import('leaflet'));
-    if (!_leafletCssInjected) {
+    if (_leafletSheet === null) {
         try {
             const cssText = (await import('leaflet/dist/leaflet.css?inline')).default;
-            const s = Object.assign(document.createElement('style'), {
-                id: 'feezal-leaflet-css',
-                textContent: cssText,
-            });
-            document.head.appendChild(s);
+            const sheet = new CSSStyleSheet();
+            sheet.replaceSync(cssText);
+            _leafletSheet = sheet;
         } catch {
-            // CSS inline import failed — fall back to a link element
-            const link = Object.assign(document.createElement('link'), {
-                id: 'feezal-leaflet-link',
-                rel: 'stylesheet',
-                href: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
-            });
-            document.head.appendChild(link);
+            // Inline import unavailable — signal the fallback (<link> in shadow root).
+            _leafletSheet = false;
         }
-        _leafletCssInjected = true;
     }
     // Fix default icon URLs (bundler strips the image URLs from Leaflet's defaults)
     delete L.Icon.Default.prototype._getIconUrl;
@@ -68,7 +64,8 @@ class FeezalElementMaterialMap extends FeezalElement {
                 {name: 'home-lat',         type: 'number',    help: 'Home/default map centre latitude.'},
                 {name: 'home-lon',         type: 'number',    help: 'Home/default map centre longitude.'},
                 {name: 'tile-url',         type: 'string',    help: 'Tile server URL template. Default: OpenStreetMap'},
-                {name: 'follow',           type: 'boolean',   help: 'Pan the map to follow the tracked position.'},
+                {name: 'follow',           type: 'boolean',   help: 'Pan the map to follow the most recently updated position. Takes precedence over auto-fit.'},
+                {name: 'auto-fit',         type: 'boolean',   help: 'Zoom/pan so all pins are visible at once — on load and every time the view becomes active. Ignored when follow is on. Default: on'},
                 {name: 'stale-minutes',    type: 'number',    help: 'Mark a person as stale (greyed) after this many minutes. Default: 60'},
             ],
             styles: ['top', 'left', 'width', 'height'],
@@ -89,6 +86,7 @@ class FeezalElementMaterialMap extends FeezalElement {
         homeLon:         {type: Number,  reflect: true, attribute: 'home-lon'},
         tileUrl:         {type: String,  reflect: true, attribute: 'tile-url'},
         follow:          {type: Boolean, reflect: true},
+        autoFit:         {type: Boolean, reflect: true, attribute: 'auto-fit'},
         staleMinutes:    {type: Number,  reflect: true, attribute: 'stale-minutes'},
     };
 
@@ -137,21 +135,39 @@ class FeezalElementMaterialMap extends FeezalElement {
         this.homeLon         = -0.09;
         this.tileUrl         = '';
         this.follow          = false;
+        this.autoFit         = true;
         this.staleMinutes    = 60;
         this._map            = null;
         this._L              = null;
+        this._resizeObserver = null;
         this._markers        = new Map(); // key → {marker, ts}
         this._lat            = null;
         this._lon            = null;
     }
 
     async firstUpdated() {
-        if (feezal.isEditor) return;
         try {
             const L = await getLeaflet();
             this._L = L;
             const mapEl = this.shadowRoot.getElementById('map');
             if (!mapEl) return;
+
+            // Leaflet's CSS must live inside this shadow root or tiles render
+            // unpositioned. Adopt the shared stylesheet (preferred) or fall back
+            // to a <link> appended into the shadow root (which also crosses the
+            // boundary, unlike one in document.head).
+            if (_leafletSheet) {
+                this.shadowRoot.adoptedStyleSheets = [
+                    ...this.shadowRoot.adoptedStyleSheets,
+                    _leafletSheet,
+                ];
+            } else if (_leafletSheet === false &&
+                       !this.shadowRoot.querySelector('link[data-leaflet]')) {
+                this.shadowRoot.appendChild(Object.assign(document.createElement('link'), {
+                    rel: 'stylesheet',
+                    href: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+                })).setAttribute('data-leaflet', '');
+            }
 
             const lat  = this.homeLat ?? 51.505;
             const lon  = this.homeLon ?? -0.09;
@@ -171,6 +187,17 @@ class FeezalElementMaterialMap extends FeezalElement {
             }).addTo(this._map);
 
             this._setupSubscriptions();
+
+            // Leaflet computes tile coverage from the container size at init
+            // time; if layout has not settled yet it only loads the tiles for
+            // the area it thinks is visible and the rest stays blank (B12 —
+            // half the map invisible). Recompute once layout is flushed and on
+            // every subsequent resize (e.g. when resized in the editor).
+            requestAnimationFrame(() => this._map && this._map.invalidateSize());
+            this._resizeObserver = new ResizeObserver(() => {
+                if (this._map) this._map.invalidateSize();
+            });
+            this._resizeObserver.observe(mapEl);
         } catch (err) {
             console.error('[feezal-map] Leaflet load failed:', err);
         }
@@ -229,31 +256,33 @@ class FeezalElementMaterialMap extends FeezalElement {
     _handleOwntracks(msg) {
         const L = this._L;
         if (!L || !msg) return;
-        let payload;
-        try {
-            payload = typeof msg === 'object' ? msg : JSON.parse(msg);
-        } catch { return; }
+
+        // Subscription callbacks deliver a wrapper {topic, payload}; the actual
+        // OwnTracks object lives in payload (resolved via message-property).
+        const topic   = msg.topic || '';
+        const payload = this.getProperty(msg, this.messageProperty);
+        if (!payload || typeof payload !== 'object') return;
 
         if (payload._type !== 'location' || payload.lat == null) return;
 
-        // Derive person key from topic
-        const topic = payload._topic || '';
+        // Derive person key from topic: owntracks/<user>/<device>
         const parts = topic.split('/');
-        const key  = parts.slice(-2).join('/') || `person-${Object.keys(this._markers).length}`;
+        const key  = parts.slice(-2).join('/') || `person-${this._markers.size}`;
         const tid  = payload.tid || key.split('/').pop().substring(0, 2).toUpperCase();
         const staleMs = (this.staleMinutes || 60) * 60 * 1000;
         const isStale = payload.tst && (Date.now() - payload.tst * 1000) > staleMs;
         const color = isStale ? '#9e9e9e' : '#e91e63';
 
-        this._updateMarker(key, payload.lat, payload.lon, color, tid, payload);
+        this._updateMarker(key, payload.lat, payload.lon, color, tid, topic);
     }
 
-    _updateMarker(key, lat, lon, color, label, data) {
+    _updateMarker(key, lat, lon, color, label, popupText) {
         const L = this._L;
         const map = this._map;
         if (!L || !map) return;
         if (isNaN(lat) || isNaN(lon)) return;
 
+        let added = false;
         if (this._markers.has(key)) {
             const {marker} = this._markers.get(key);
             marker.setLatLng([lat, lon]);
@@ -261,19 +290,56 @@ class FeezalElementMaterialMap extends FeezalElement {
         } else {
             const marker = L.marker([lat, lon], {icon: circleIcon(L, color, label)})
                 .addTo(map);
-            if (data && data.topic) {
-                marker.bindPopup(`<b>${data.topic}</b>`);
+            if (popupText) {
+                marker.bindPopup(`<b>${popupText}</b>`);
             }
             this._markers.set(key, {marker});
+            added = true;
         }
 
         if (this.follow) {
+            // Follow wins: keep the most recently updated position centred.
             map.setView([lat, lon], map.getZoom());
+        } else if (this.autoFit && added) {
+            // Re-frame only when a new pin appears, not on every position update,
+            // so the map stays stable while pins move.
+            this._fitToMarkers();
+        }
+    }
+
+    /** Zoom/pan so every current pin is visible at once. */
+    _fitToMarkers() {
+        const L = this._L;
+        const map = this._map;
+        if (!L || !map || this._markers.size === 0) return;
+        const markers = [...this._markers.values()].map(m => m.marker);
+        if (markers.length === 1) {
+            map.setView(markers[0].getLatLng(), this.zoom ?? 13);
+        } else {
+            map.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
+        }
+    }
+
+    updated(changed) {
+        super.updated(changed);
+        // When the containing view goes from hidden → visible the map container
+        // has just regained a real size (it was display:none, i.e. 0×0). Recompute
+        // the size and re-frame the pins once layout has flushed.
+        if (changed.has('visible') && this.visible) {
+            requestAnimationFrame(() => {
+                if (!this._map) return;
+                this._map.invalidateSize();
+                if (this.autoFit && !this.follow) this._fitToMarkers();
+            });
         }
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
+        if (this._resizeObserver) {
+            this._resizeObserver.disconnect();
+            this._resizeObserver = null;
+        }
         if (this._map) {
             this._map.remove();
             this._map = null;
@@ -281,16 +347,6 @@ class FeezalElementMaterialMap extends FeezalElement {
     }
 
     render() {
-        if (feezal.isEditor) {
-            return html`
-                <div class="editor-ph">
-                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"
-                            fill="#4a6080"/>
-                    </svg>
-                    <span>Map${this.owntracksMode ? ' (OwnTracks)' : ''}</span>
-                </div>`;
-        }
         return html`<div id="map"></div>`;
     }
 }

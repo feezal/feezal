@@ -89,6 +89,11 @@ class FeezalSidebarInspectorStyles extends LitElement {
         .row { display: flex; align-items: flex-end; gap: 4px; margin-bottom: 4px; }
         .row sl-input, .row sl-select { flex: 1; }
         .row input[type=color] { width: 36px; height: 32px; padding: 2px; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; flex-shrink: 0; }
+        /* N20: a var() colour that can't be resolved shows a checkerboard so the author knows */
+        .row input[type=color].unresolved::-webkit-color-swatch {
+            background-image: repeating-conic-gradient(#bbb 0% 25%, #fff 0% 50%);
+            background-size: 8px 8px;
+        }
         /* Dark mode: style Shoelace parts via inherited CSS vars */
         sl-input::part(form-control-label), sl-select::part(form-control-label) { color: var(--sl-input-label-color, inherit); }
         sl-input::part(base), sl-select::part(combobox) { background: var(--feezal-bg, #fff); border-color: var(--feezal-border, #ccc); color: var(--feezal-color, #333); }
@@ -208,7 +213,7 @@ class FeezalSidebarInspectorStyles extends LitElement {
         const {top, left, width} = this._varPos;
         return html`
             <div class="fields-wrap">
-            ${this.items.map((item, idx) => html`
+            ${this.items.map((item, idx) => { const colorHex = item.color ? this._toColorHex(item) : ''; return html`
                 ${item.custom && (idx === 0 || !this.items[idx - 1].custom) ? html`
                     <div class="custom-sep"></div>
                 ` : ''}
@@ -240,7 +245,8 @@ class FeezalSidebarInspectorStyles extends LitElement {
                         `}
                         ${item.color ? html`
                             <input type="color"
-                                .value="${this._toColorHex(item.value)}"
+                                class="${colorHex ? '' : 'unresolved'}"
+                                .value="${colorHex || '#000000'}"
                                 @input="${e => this._colorInput(e, idx)}">
                         ` : ''}
                         ${item.custom ? html`
@@ -249,7 +255,7 @@ class FeezalSidebarInspectorStyles extends LitElement {
                         ` : ''}
                     </div>
                 </div>
-            `)}
+            `; })}
             </div>
             ${visible ? html`
                 <ul class="var-list"
@@ -349,13 +355,75 @@ class FeezalSidebarInspectorStyles extends LitElement {
         feezal.app.change();
     }
 
-    _toColorHex(value) {
-        if (!value || value.startsWith('#')) {
-            return value || '#000000';
-        }
+    /**
+     * Resolve a CSS colour value to a `#rrggbb` hex for the native colour swatch.
+     * Handles `var(--x)`, `var(--x, fallback)`, `color-mix(…)`, rgb/named colours by
+     * resolving them against the selected element's computed styles (N20).
+     * Returns '' when the value cannot be resolved to an opaque colour.
+     */
+    _toColorHex(item) {
+        const value = this._effectiveColorValue(item);
+        if (!value) return '';
+        const v = String(value).trim();
+        // Fast path: already a hex literal.
+        const hexMatch = v.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+        if (hexMatch) return v.length === 4
+            ? '#' + [...v.slice(1)].map(c => c + c).join('')
+            : v.toLowerCase();
+        // Anything else (var(), color-mix(), rgb(), named) → resolve via a probe
+        // in the element's shadow root so its custom properties resolve correctly.
+        return this._resolveColor(v);
+    }
 
-        // Try to parse rgb/rgba
-        return value;
+    /**
+     * The colour to show in the swatch: the inline value if set, otherwise the
+     * element's *effective* colour for this property (so un-customised colours
+     * show their real default/theme colour rather than black).
+     */
+    _effectiveColorValue(item) {
+        if (item.value) return item.value;
+        const el = this.selectedElems && this.selectedElems[0];
+        if (!el) return item.default || '';
+        const cs = getComputedStyle(el);
+        if (item.property.startsWith('--')) {
+            return cs.getPropertyValue(item.property).trim() || item.default || '';
+        }
+        if (item.property === 'background') return cs.backgroundColor;
+        if (item.property === 'color')      return cs.color;
+        return cs.getPropertyValue(item.property).trim() || item.default || '';
+    }
+
+    _resolveColor(value) {
+        const el = this.selectedElems && this.selectedElems[0];
+        if (!el) return '';
+        // Resolve inside the element's shadow root so its `:host`-defined
+        // --feezal-* custom properties (and inherited theme vars) apply — a
+        // light-DOM child would NOT see the :host vars.
+        const root = el.shadowRoot || el;
+        let probe;
+        try {
+            probe = document.createElement('span');
+            probe.style.cssText = 'display:none!important;position:absolute';
+            probe.style.color = value;
+            if (!probe.style.color) return '';   // browser rejected the value
+            root.appendChild(probe);
+            return this._rgbToHex(getComputedStyle(probe).color);
+        } catch {
+            return '';
+        } finally {
+            if (probe && probe.parentNode) probe.parentNode.removeChild(probe);
+        }
+    }
+
+    _rgbToHex(rgb) {
+        const m = rgb && rgb.match(/rgba?\(([^)]+)\)/i);
+        if (!m) return '';
+        const parts = m[1].split(/[,\s/]+/).map(s => parseFloat(s)).filter(n => !isNaN(n));
+        if (parts.length < 3) return '';
+        const [r, g, b, a] = parts;
+        if (a === 0) return '';   // fully transparent = unresolved var with no fallback
+        const hex = n => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
+        return '#' + hex(r) + hex(g) + hex(b);
     }
 
     _colorInput(e, idx) {

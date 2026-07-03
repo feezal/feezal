@@ -67,7 +67,7 @@ class StorageAdapter {
 
     // ── Assets ─────────────────────────────────────────────────────────────
 
-    /** @returns {Promise<{global: Array, site: Array}>} */
+    /** @returns {Promise<{global: Array, site: Array, globalDirs: string[], siteDirs: string[]}>} */
     async listAssets(siteName) { // eslint-disable-line no-unused-vars
         throw new Error('Not implemented');
     }

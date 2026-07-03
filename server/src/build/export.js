@@ -7,6 +7,8 @@ const crypto = require('node:crypto');
 
 const {ZipArchive} = require('archiver');
 const {extractUsedElements, tagsToPackages, partitionPackages} = require('./extract-elements.js');
+const {siteIconArtifacts} = require('./icons.js');
+const pwa = require('./pwa.js');
 
 /**
  * In-memory cache: sorted-package-list hash  →  {code, sizeKb, elemCount}
@@ -68,6 +70,8 @@ async function buildFilteredBundle(wwwDir, siteHtml, theme, logger) {
     const entryLines = [
         "import './feezal-connection.js';",
         "import './feezal-app-viewer.js';",
+        "import './feezal-component.js';",
+        "import './feezal-icon.js';",
         ...resolvable.map(pkg => `import '${pkg}';`)
     ];
     const entryPath = path.join(wwwDir, 'src', '_export-entry.js');
@@ -131,6 +135,108 @@ async function buildFilteredBundle(wwwDir, siteHtml, theme, logger) {
     } finally {
         await fs.unlink(entryPath).catch(() => {});
     }
+}
+
+/**
+ * A16: plan the asset bundle for a static export.
+ *
+ * Only assets actually *referenced* by the site (markup, config, user theme
+ * CSS) are bundled, and everything lands in a single `assets/` tree next to
+ * index.html — the editor-only `global/` pool never leaks into the bundle.
+ *
+ * Recognised reference forms in `scanText`:
+ *   /assets/<site>/<p>   current copy-on-use form (absolute server URL)
+ *   /assets/global/<p>   legacy global reference (absolute server URL)
+ *   assets/<p>           relative site form (already export-ready)
+ *   global/<p>           relative legacy global form
+ *
+ * Site assets keep their relative path under `assets/` and are authoritative
+ * on collisions; a referenced global asset whose path is already taken gets a
+ * `-1`, `-2`, … suffix before the extension. Absolute references are always
+ * rewritten to the relative `assets/…` form so the bundle works on file://.
+ *
+ * @returns {{entries: Array<{abs: string, zip: string}>,
+ *            rewrites: Array<[string, string]>}}
+ */
+function planExportAssets(scanText, siteName, assetFiles) {
+    const entries = [];
+    const rewrites = [];
+    if (!assetFiles) return {entries, rewrites};
+
+    const pools = {
+        site:   {base: assetFiles.site.base,   files: new Set(assetFiles.site.files)},
+        global: {base: assetFiles.global.base, files: new Set(assetFiles.global.files)},
+    };
+    const decode = s => { try { return decodeURIComponent(s); } catch { return s; } };
+    const poolPath = (pool, raw) => {
+        const p = decode(raw);
+        if (pools[pool].files.has(p)) return p;
+        if (pools[pool].files.has(raw)) return raw;
+        return null;                                   // referenced but not on disk
+    };
+
+    // ── collect references ───────────────────────────────────────────────
+    // refText is the exact substring in the document (tail encoding preserved).
+    const refs = [];
+    const escapedSite = siteName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const absRe = new RegExp(`/assets/(global|${escapedSite})/([^"'()\\s>]+)`, 'g');
+    for (const m of scanText.matchAll(absRe)) {
+        refs.push({text: m[0], tail: m[2], pool: m[1] === 'global' ? 'global' : 'site'});
+    }
+    // relative forms only in attribute/url positions to avoid matching prose
+    const relRe = /(["'(=])(global|assets)\/([^"'()\s>]+)/g;
+    for (const m of scanText.matchAll(relRe)) {
+        refs.push({text: m[2] + '/' + m[3], tail: m[3], pool: m[2] === 'global' ? 'global' : 'site', relative: true});
+    }
+
+    // ── assign ZIP paths: site first (authoritative), then global ───────
+    const taken = new Map();     // zip-relative path under assets/ → source key
+    const zipped = new Set();    // de-dupe entries
+    const addEntry = (pool, diskPath, target) => {
+        const zip = 'assets/' + target;
+        if (zipped.has(zip)) return;
+        zipped.add(zip);
+        entries.push({abs: path.join(pools[pool].base, diskPath), zip});
+    };
+
+    for (const ref of refs.filter(r => r.pool === 'site')) {
+        const p = poolPath('site', ref.tail);
+        if (p === null) continue;
+        taken.set(p, 'site:' + p);
+        addEntry('site', p, p);
+        if (!ref.relative) rewrites.push([ref.text, 'assets/' + ref.tail]);
+    }
+
+    const globalTarget = new Map();  // disk path → assigned target
+    for (const ref of refs.filter(r => r.pool === 'global')) {
+        const p = poolPath('global', ref.tail);
+        if (p === null) continue;
+        let target = globalTarget.get(p);
+        if (!target) {
+            target = p;
+            let n = 0;
+            while (taken.has(target) && taken.get(target) !== 'global:' + p) {
+                n += 1;
+                target = p.replace(/(\.[^./\\]*)?$/, ext => `-${n}${ext || ''}`);
+            }
+            taken.set(target, 'global:' + p);
+            globalTarget.set(p, target);
+            addEntry('global', p, target);
+        }
+        // renamed targets are written raw (matching how the markup stores names)
+        rewrites.push([ref.text, 'assets/' + (target === p ? ref.tail : target)]);
+    }
+
+    // longest-first so absolute forms never get clipped by relative ones
+    rewrites.sort((a, b) => b[0].length - a[0].length);
+    return {entries, rewrites};
+}
+
+/** Apply [from, to] pairs to a string (no-op for empty input). */
+function applyRewrites(text, rewrites) {
+    let out = text;
+    for (const [from, to] of rewrites) out = out.split(from).join(to);
+    return out;
 }
 
 /**
@@ -241,7 +347,20 @@ window.feezal = {
  * @param {object} [logger]  Optional logger with debug/info/error methods.
  * @returns {Promise<Buffer>} ZIP file buffer
  */
-async function createExport(wwwDir, siteName, {html: siteHtml, config}, logger = console, storage = null) {
+async function createExport(wwwDir, siteName, site, logger = console, storage = null) {
+    const bundle = await buildExportBundle(wwwDir, siteName, site, logger, storage);
+    return zipBundle(siteName, bundle);
+}
+
+/**
+ * Build the export content without zipping — index.html plus the file
+ * entries (assets, PWA files). Reused by the Capacitor project export
+ * (A9 Tier 2), which nests the same content under www/.
+ *
+ * @returns {Promise<{indexHtml: string,
+ *          entries: Array<{zip: string, abs?: string, content?: string}>}>}
+ */
+async function buildExportBundle(wwwDir, siteName, {html: siteHtml, config}, logger = console, storage = null) {
     const distDir = path.join(wwwDir, 'dist');
     const connectionConfig = (config && config.connection) || null;
     const theme = (config && config.viewer && config.viewer.theme) || null;
@@ -307,11 +426,38 @@ async function createExport(wwwDir, siteName, {html: siteHtml, config}, logger =
         logger.debug(`export: full bundle size: ${Math.round(inlineJs.length / 1024)} kB`);
     }
 
-    logger.debug('export: composing HTML...');
-    const indexHtml = composeIndexHtml(siteName, siteHtml, connectionConfig, inlineJs, themeOverrides, userThemeCss, classes);
+    // ------------------------------------------------------------------
+    // N23: per-site icon tree-shaking. Icon sets are not part of the viewer
+    // bundle — append a mini-registration containing only the icons this
+    // site references. Runs after the bundle (either path), so
+    // feezal.registerIcons is defined when the appended statements execute.
+    // User-installed sets cannot be shaken (single-file install bundles) and
+    // are not folded into exports — flagged in the log.
+    // ------------------------------------------------------------------
+    try {
+        const userElementsDir = storage && storage.dataDir
+            ? path.join(storage.dataDir, 'elements')
+            : null;
+        const {inlineJs: iconJs, userModuleUrls} = siteIconArtifacts({
+            wwwDir, userElementsDir, siteHtml, logger
+        });
+        if (iconJs) {
+            inlineJs += '\n;' + iconJs;
+            logger.debug(`export: appended tree-shaken icon registrations (${Math.round(iconJs.length / 1024)} kB)`);
+        }
+        if (userModuleUrls.length) {
+            logger.warn(`export: ${userModuleUrls.length} user-installed icon set(s) in use are not included in the export`);
+        }
+    } catch (err) {
+        logger.warn('export: icon registration failed: ' + err.message);
+    }
 
-    logger.debug('export: creating ZIP...');
-
+    // ------------------------------------------------------------------
+    // A16: referenced-only assets, flattened into a single assets/ tree.
+    // Absolute /assets/… references are rewritten to relative assets/…
+    // so the bundle works from file://; legacy global/ references are
+    // flattened (collision-suffixed) into the same tree.
+    // ------------------------------------------------------------------
     let assetFiles = null;
     if (storage) {
         try {
@@ -321,6 +467,80 @@ async function createExport(wwwDir, siteName, {html: siteHtml, config}, logger =
         }
     }
 
+    const scanText = [
+        siteHtml,
+        userThemeCss,
+        JSON.stringify(themeOverrides),
+        JSON.stringify(classes),
+        JSON.stringify(connectionConfig || {})
+    ].join('\n');
+    const plan = planExportAssets(scanText, siteName, assetFiles);
+    logger.debug(`export: bundling ${plan.entries.length} referenced asset(s), ${plan.rewrites.length} reference rewrite(s)`);
+
+    siteHtml = applyRewrites(siteHtml, plan.rewrites);
+    userThemeCss = applyRewrites(userThemeCss, plan.rewrites);
+    const rewriteJson = obj => JSON.parse(applyRewrites(JSON.stringify(obj), plan.rewrites));
+    const finalOverrides = rewriteJson(themeOverrides);
+    const finalClasses = rewriteJson(classes);
+
+    logger.debug('export: composing HTML...');
+    let indexHtml = composeIndexHtml(siteName, siteHtml, connectionConfig, inlineJs, finalOverrides, userThemeCss, finalClasses);
+
+    // ------------------------------------------------------------------
+    // A9: when the site opts in (viewer.pwa), the bundle becomes an
+    // installable PWA — manifest + service worker + icons, all relative.
+    // The registration is http-guarded: service workers can't register
+    // from file://, so the offline bundle behaves exactly as before.
+    // ------------------------------------------------------------------
+    const pwaFiles = [];   // [{name, content}] strings appended to the ZIP
+    const pwaIconEntries = [];   // [{abs, zip}]
+    if (pwa.pwaEnabled(config)) {
+        const iconOpts = {dataDir: storage && storage.dataDir, siteName, wwwDir};
+        const icons = pwa.availableIcons(iconOpts);
+        const meta = (storage && storage.dataDir) ? pwa.readPwaMeta(storage.dataDir, siteName) : null;
+
+        const manifest = pwa.buildManifest({
+            siteName,
+            startUrl: './',
+            scope: './',
+            iconBase: 'icons/',
+            icons,
+            meta,
+        });
+        pwaFiles.push({name: 'manifest.webmanifest', content: JSON.stringify(manifest, null, 2)});
+        pwaFiles.push({name: 'sw.js', content: pwa.buildServiceWorker({
+            cacheName: `feezal-pwa-${siteName}`,
+            shell: ['./', ...icons.map(icon => 'icons/' + icon.name)],
+        })});
+        for (const icon of icons) {
+            pwaIconEntries.push({abs: icon.file, zip: 'icons/' + icon.name});
+        }
+
+        indexHtml = pwa.injectPwaTags(indexHtml, {
+            manifestUrl: 'manifest.webmanifest',
+            appleTouchIconUrl: icons.some(i => i.name === 'apple-touch-icon.png')
+                ? 'icons/apple-touch-icon.png' : null,
+            themeColor: (meta && meta.backgroundColor) || undefined,
+            swUrl: 'sw.js',
+            httpGuard: true,
+        });
+        logger.debug(`export: PWA enabled — manifest + sw + ${pwaIconEntries.length} icon(s)`);
+    }
+
+    return {
+        indexHtml,
+        entries: [
+            // A16: one flat assets/ tree with only the referenced files.
+            ...plan.entries.map(entry => ({zip: entry.zip, abs: entry.abs})),
+            // A9: PWA manifest, service worker and icons (only when opted in).
+            ...pwaFiles.map(file => ({zip: file.name, content: file.content})),
+            ...pwaIconEntries.map(entry => ({zip: entry.zip, abs: entry.abs})),
+        ],
+    };
+}
+
+/** Zip a bundle under a single top-level <sitename>/ folder (A15). */
+function zipBundle(siteName, bundle) {
     return new Promise((resolve, reject) => {
         const chunks = [];
         const sink = new Writable({
@@ -332,15 +552,19 @@ async function createExport(wwwDir, siteName, {html: siteHtml, config}, logger =
         sink.on('finish', () => resolve(Buffer.concat(chunks)));
         archive.pipe(sink);
 
-        archive.append(indexHtml, {name: 'index.html'});
+        // Sanitise the name to a safe single path segment (defence-in-depth;
+        // names are already validated).
+        const dirName = String(siteName)
+            .replace(/[\\/]/g, '_')
+            .replace(/\.\.+/g, '.')
+            .replace(/^\.+/, '')
+            .trim() || 'site';
+        const root = dirName + '/';
 
-        if (assetFiles) {
-            for (const file of assetFiles.global.files) {
-                archive.file(path.join(assetFiles.global.base, file), {name: 'global/' + file});
-            }
-            for (const file of assetFiles.site.files) {
-                archive.file(path.join(assetFiles.site.base, file), {name: 'assets/' + file});
-            }
+        archive.append(bundle.indexHtml, {name: root + 'index.html'});
+        for (const entry of bundle.entries) {
+            if (entry.abs) archive.file(entry.abs, {name: root + entry.zip});
+            else archive.append(entry.content, {name: root + entry.zip});
         }
 
         archive.finalize();
@@ -348,3 +572,7 @@ async function createExport(wwwDir, siteName, {html: siteHtml, config}, logger =
 }
 
 module.exports = createExport;
+// reused by the Capacitor project export + exposed for unit tests
+module.exports.buildExportBundle = buildExportBundle;
+module.exports.planExportAssets = planExportAssets;
+module.exports.applyRewrites = applyRewrites;

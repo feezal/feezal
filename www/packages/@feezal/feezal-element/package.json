@@ -1,29 +1,27 @@
 {
-    "author":  {
-                   "name":  "Sebastian Raff",
-                   "email":  "hobbyquaker@gmail.com"
-               },
-    "bugs":  {
-                 "url":  "https://github.com/feezal/node-red-contrib-feezal/issues"
-             },
-    "dependencies":  {
-                         "@polymer/polymer":  "^3.0.0"
-                     },
-    "deprecated":  false,
-    "description":  "",
-    "feezal":  {
-
-               },
-    "homepage":  "https://github.com/feezal/node-red-contrib-feezal#readme",
-    "license":  "MIT",
-    "main":  "feezal-element.js",
-    "name":  "@feezal/feezal-element",
-    "repository":  {
-                       "type":  "git",
-                       "url":  "git+https://github.com/feezal/node-red-contrib-feezal.git"
-                   },
-    "scripts":  {
-                    "test":  "echo \"Error: no test specified\" \u0026\u0026 exit 1"
-                },
-    "version":  "1.0.0"
+    "author": {
+        "name": "Sebastian Raff",
+        "email": "hobbyquaker@gmail.com"
+    },
+    "bugs": {
+        "url": "https://github.com/feezal/node-red-contrib-feezal/issues"
+    },
+    "dependencies": {
+        "@polymer/polymer": "^3.0.0"
+    },
+    "deprecated": false,
+    "description": "",
+    "feezal": {},
+    "homepage": "https://github.com/feezal/node-red-contrib-feezal#readme",
+    "license": "MIT",
+    "main": "feezal-element.js",
+    "name": "@feezal/feezal-element",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/feezal/node-red-contrib-feezal.git"
+    },
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "version": "1.0.0"
 }

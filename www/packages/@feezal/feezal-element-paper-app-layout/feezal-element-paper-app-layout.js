@@ -128,7 +128,7 @@ class FeezalElementPaperAppLayout extends FeezalPolymerElement {
         return {
             palette: {
                 category: 'Paper',
-                name: 'App Layout',
+                name: 'App',
                 color: '#4a6080'
             },
             attributes: [
@@ -157,11 +157,7 @@ class FeezalElementPaperAppLayout extends FeezalPolymerElement {
     }
     connectedCallback() {
         super.connectedCallback();
-        if (feezal.isEditor) {
-            this.$.placeholder.style.display = 'block';
-        } else {
-            this.$.container.style.display = 'block';
-        }
+        this.$.container.style.display = 'block';
     }
 }
 

@@ -18,6 +18,10 @@ const discovery = require('./discovery.js');
 
 // ── Trie ───────────────────────────────────────────────────────────────────
 const topicTrie = {};
+// Symbol marker so terminal (actually-seen) topics are distinguishable from
+// pure intermediate segments — and invisible to Object.keys() so the
+// completion walk below is unaffected.
+const TERMINAL = Symbol('terminal');
 
 function insertTopic(topic) {
     if (!topic || /[#+]/.test(topic)) return;
@@ -26,10 +30,44 @@ function insertTopic(topic) {
         if (!node[seg]) node[seg] = {};
         node = node[seg];
     }
+    node[TERMINAL] = true;
+}
+
+/** Flat list of every topic actually seen (U26 — for the AI topic-search tool). */
+function getAllTopics() {
+    const out = [];
+    (function walk(node, prefix) {
+        if (node[TERMINAL]) out.push(prefix);
+        for (const seg of Object.keys(node)) {
+            walk(node[seg], prefix ? prefix + '/' + seg : seg);
+        }
+    })(topicTrie, '');
+    return out;
 }
 
 function _clearTrie() {
     for (const key of Object.keys(topicTrie)) delete topicTrie[key];
+    lastPayloads.clear();
+}
+
+// ── Last-payload store (U26) ────────────────────────────────────────────────
+// topic → { payload, raw, retain, ts }. Updated for EVERY message (not just
+// retained, unlike the hub's replay cache) so the AI payload-peek tool can see
+// current state topics. Bounded (oldest-evicted) to cap memory on busy brokers.
+const lastPayloads = new Map();
+const LAST_PAYLOAD_CAP = 20000;
+
+function recordPayload(topic, parsed, raw, retain) {
+    if (lastPayloads.has(topic)) lastPayloads.delete(topic);   // refresh insertion order
+    else if (lastPayloads.size >= LAST_PAYLOAD_CAP) {
+        lastPayloads.delete(lastPayloads.keys().next().value); // evict oldest
+    }
+    lastPayloads.set(topic, {payload: parsed, raw, retain, ts: Date.now()});
+}
+
+/** Last-known payload for an exact topic, or null if none seen. */
+function getLastPayload(topic) {
+    return lastPayloads.get(topic) || null;
 }
 
 function getTopicCompletions(prefix) {
@@ -127,16 +165,18 @@ function _doConnect(uri, options) {
         client.subscribe('#', {qos: 0});
     });
 
-    client.on('message', (topic, payload) => {
+    client.on('message', (topic, payload, packet) => {
         insertTopic(topic);
         discovery.handleMessage(topic, payload);
+        const payloadStr = payload ? payload.toString() : '';
+        let parsed = payloadStr;
+        if (payloadStr.startsWith('{') || payloadStr.startsWith('[')) {
+            try { parsed = JSON.parse(payloadStr); } catch {}
+        }
+        const retain = packet && packet.retain === true;
+        recordPayload(topic, parsed, payloadStr, retain);
         if (_relayCallback) {
-            let payloadStr = payload ? payload.toString() : '';
-            let parsed = payloadStr;
-            if (payloadStr.startsWith('{') || payloadStr.startsWith('[')) {
-                try { parsed = JSON.parse(payloadStr); } catch {}
-            }
-            _relayCallback({topic, payload: parsed});
+            _relayCallback({topic, payload: parsed, retain});
         }
     });
 
@@ -173,4 +213,4 @@ function publish(message) {
     _logger?.debug('mqtt-bridge: publish ' + message.topic);
 }
 
-module.exports = { connect, disconnect, publish, insertTopic, getTopicCompletions, setRelayCallback, getDiscoveredEntities: discovery.getDiscoveredEntities, getDiscoveredEntity: discovery.getDiscoveredEntity };
+module.exports = { connect, disconnect, publish, insertTopic, getTopicCompletions, getAllTopics, getLastPayload, recordPayload, setRelayCallback, getDiscoveredEntities: discovery.getDiscoveredEntities, getDiscoveredEntity: discovery.getDiscoveredEntity, getDeviceGroups: discovery.getDeviceGroups };

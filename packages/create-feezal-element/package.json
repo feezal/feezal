@@ -1,18 +1,18 @@
 {
-    "name":  "@feezal/create-feezal-element",
-    "version":  "1.0.0",
-    "description":  "Scaffold a new feezal element package",
-    "license":  "GPLv3",
-    "bin":  {
-                "create-feezal-element":  "./index.js"
-            },
-    "engines":  {
-                    "node":  "\u003e=18"
-                },
-    "keywords":  [
-                     "feezal",
-                     "create",
-                     "scaffold",
-                     "element"
-                 ]
+    "name": "@feezal/create-feezal-element",
+    "version": "1.0.0",
+    "description": "Scaffold a new feezal element package",
+    "license": "MIT",
+    "bin": {
+        "create-feezal-element": "./index.js"
+    },
+    "engines": {
+        "node": ">=18"
+    },
+    "keywords": [
+        "feezal",
+        "create",
+        "scaffold",
+        "element"
+    ]
 }

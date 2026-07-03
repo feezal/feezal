@@ -167,7 +167,7 @@ class FeezalElementBasicRepeater extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (!feezal.isEditor && this.subscribe) {
+        if (this.subscribe) {
             // Wait for first render so #container exists before we start receiving messages
             this.updateComplete.then(() => {
                 this.addSubscription(this.subscribe, msg => this._onMessage(msg));
@@ -294,27 +294,6 @@ class FeezalElementBasicRepeater extends FeezalElement {
     // ── Render ────────────────────────────────────────────────────────────────
 
     render() {
-        if (feezal.isEditor) {
-            const count = Math.max(0, Math.min(20, this.previewCount || 3));
-            const tag = this.childElement || '—';
-            return html`
-                <div class="editor-outer">
-                    <div class="editor-header">
-                        <span class="icon">view_list</span>
-                        <span class="tag">${tag}</span>
-                        <span class="count">${count}&times;</span>
-                    </div>
-                    <div class="editor-items">
-                        ${Array.from({length: count}, (_, i) => html`
-                            <div class="editor-item">
-                                <span class="icon">widgets</span>${tag} ${i + 1}
-                            </div>
-                        `)}
-                    </div>
-                </div>
-            `;
-        }
-
         const [flexDir, flexWrap] = this.direction === 'row-wrap'
             ? ['row', 'wrap']
             : [this.direction || 'column', 'nowrap'];

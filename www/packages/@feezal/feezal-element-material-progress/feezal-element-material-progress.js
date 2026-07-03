@@ -210,7 +210,7 @@ class FeezalElementMaterialProgress extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        if (!feezal.isEditor && this.subscribe) {
+        if (this.subscribe) {
             this.addSubscription(this.subscribe, msg => {
                 const v = parseFloat(this.getProperty(msg, this.messageProperty));
                 if (!isNaN(v)) this._value = v;
@@ -224,13 +224,6 @@ class FeezalElementMaterialProgress extends FeezalElement {
     }
 
     _renderLinear() {
-        if (feezal.isEditor) {
-            return html`
-                <div class="editor-linear">
-                    ${this.label ? html`<div class="label-row"><span>${this.label}</span></div>` : ''}
-                    <div class="editor-bar"></div>
-                </div>`;
-        }
         return html`
             <div class="linear-wrap">
                 ${this.label || this.showValue ? html`
@@ -246,18 +239,17 @@ class FeezalElementMaterialProgress extends FeezalElement {
     }
 
     _renderCircular() {
-        /* In the editor render a fixed 60% arc so the ring is visible. */
-        const p = feezal.isEditor ? 0.6 : (this.indeterminate ? 0.25 : this._progress);
+        const p = this.indeterminate ? 0.25 : this._progress;
         const dashArr = `${p} ${1 - p}`;
         return html`
             <div class="circular-wrap">
                 <div class="svg-area">
                     <svg class="ring-svg" xmlns="http://www.w3.org/2000/svg">
                         <circle class="track-circle" pathLength="1" stroke-dasharray="1"></circle>
-                        <circle class="indicator-circle ${!feezal.isEditor && this.indeterminate ? 'spin' : ''}"
+                        <circle class="indicator-circle ${this.indeterminate ? 'spin' : ''}"
                             pathLength="1" stroke-dasharray="${dashArr}"></circle>
                     </svg>
-                    ${this.showValue && !feezal.isEditor ? html`
+                    ${this.showValue ? html`
                         <div class="centre-value">
                             ${Math.round(this._value)}<span class="centre-unit">${this.unit}</span>
                         </div>` : ''}
