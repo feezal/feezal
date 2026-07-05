@@ -3,8 +3,10 @@
     // this repo are installed under WSL — Windows node cannot load their
     // Linux native bindings (rolldown/esbuild etc.), so npm must never run
     // through powershell.exe here.
+    // NO args: VS Code has built-in wsl.exe handling and appends "-e" plus
+    // the command tokens itself ("wsl.exe -e npm run test"). Custom args
+    // double up with that and break the invocation.
     "terminal.integrated.automationProfile.windows": {
-        "path": "C:\\Windows\\System32\\wsl.exe",
-        "args": ["-e", "bash", "-c"]
+        "path": "C:\\Windows\\System32\\wsl.exe"
     }
 }
