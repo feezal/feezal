@@ -12,17 +12,30 @@ export default defineConfig({
             provider: 'v8',
             // lcov for the Codecov upload, text/html for humans
             reporter: ['text', 'html', 'lcov'],
-            include: ['src/**/*.js'],
+            include: [
+                'src/**/*.js',
+                // The element SDK base class — the foundation every element
+                // builds on, held to (near) full coverage below.
+                'packages/@feezal/feezal-element/feezal-element.js'
+            ],
             // A17 ratchet: this measures the happy-dom logic-unit layer only —
             // the big Lit UI files are exercised by the browser/E2E layers,
             // which v8 coverage doesn't see. Floors sit just below current
-            // values (19/14/16/20 as of the palette/packages/history/pwa-icons
+            // values (20.5/15.5/18/21.5 as of the feezal-element base-class
             // tests). Raise, never lower.
             thresholds: {
-                statements: 18,
-                branches: 13,
-                functions: 15,
-                lines: 19
+                statements: 20,
+                branches: 15,
+                functions: 17,
+                lines: 21,
+                // Per-file ratchet: the element base class stays at (near)
+                // 100% — it underpins every element package.
+                'packages/@feezal/feezal-element/feezal-element.js': {
+                    statements: 100,
+                    branches: 95,
+                    functions: 100,
+                    lines: 100
+                }
             }
         }
     }

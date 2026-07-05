@@ -60,6 +60,7 @@ export class FeezalElement extends LitElement {
     constructor() {
         super();
         this._subscriptions = [];
+        this._subscribed = false;
         this.messageProperty = 'payload';
         this.dynamicSubscriptions = false;
         this.visible = false;
@@ -96,7 +97,12 @@ export class FeezalElement extends LitElement {
     }
 
     _subscribe() {
-        if (!this.subscribe) {
+        // The _subscribed guard makes this idempotent: an element that mounts
+        // with visible already set (the attribute reflects, so it can arrive
+        // from saved view HTML) hits _subscribe from both connectedCallback
+        // and the first updated() — without the guard every topic would be
+        // subscribed twice and each message processed twice.
+        if (!this.subscribe || this._subscribed) {
             return;
         }
 
@@ -107,6 +113,8 @@ export class FeezalElement extends LitElement {
         if (feezal.isEditor && feezal.preventEditorMqtt !== false) {
             return;
         }
+
+        this._subscribed = true;
 
         const base      = this.subscribe;
         const elemClass = window.customElements.get(this.localName);
@@ -154,6 +162,7 @@ export class FeezalElement extends LitElement {
     }
 
     _unsubscribe() {
+        this._subscribed = false;
         const sub = this._subscriptions.shift();
         if (sub) {
             feezal.connection.unsubscribe(sub);
