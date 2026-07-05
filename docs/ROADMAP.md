@@ -57,6 +57,7 @@ Work in progress — priorities and scope are not final.
 - [E73 — Text ticker (`feezal-element-basic-ticker`)](#e73--text-ticker-feezal-element-basic-ticker--implemented) ✅
 - [E74 — QR code (`feezal-element-basic-qrcode`)](#e74--qr-code-feezal-element-basic-qrcode--implemented) ✅
 - [E75 — Data table (`feezal-element-basic-table`)](#e75--data-table-feezal-element-basic-table) 💡
+- [E76 — QR code content assistant (typed presets for `basic-qrcode`)](#e76--qr-code-content-assistant-typed-presets-for-basic-qrcode)
 
 **Editor UX**
 
@@ -983,6 +984,34 @@ Generalized N-node energy/material flow diagram (grid→house→consumers, water
 **Default size:** 400×300 px.
 
 **Relates:** N2 (repeater — free-form sibling; the table is the dense/tabular case), E32 (event rows from wildcards — different source model), E66 (fleet board is a specialized table), E61 (alarm table shares sorting + severity classes), U18 (classes for conditional formatting).
+
+### E76 — QR code content assistant (typed presets for `basic-qrcode`)
+
+Improve E74 (implemented): today the `value` attribute is a raw string the user must hand-author — fine for URLs, error-prone for everything with a scheme syntax (nobody remembers `WIFI:S:<ssid>;T:WPA;P:<pw>;;` escaping). Add a **content assistant**: a custom inspector (N6) for the `value` attribute with a **type picker** and per-type fields that *generate* the value.
+
+**Preset types and their fields → generated value:**
+
+| Type | Fields | Generated value |
+|---|---|---|
+| Text / raw *(default)* | value (textarea) | verbatim — today's behaviour |
+| Web URL | url | `https://…` (prefixes the scheme when missing) |
+| WiFi | ssid, password, security (`WPA`/`WEP`/`nopass`), hidden ☐ | `WIFI:S:<ssid>;T:<sec>;P:<pw>;H:true;;` with proper `\` escaping of `\;,":` |
+| E-mail | to, subject?, body? | `mailto:<to>?subject=…&body=…` (URL-encoded) |
+| Phone | number | `tel:+…` |
+| SMS | number, message? | `SMSTO:<number>:<message>` |
+| Geo | lat, lon | `geo:<lat>,<lon>` |
+| Contact (vCard) | name, phone?, email?, org?, url? | minimal vCard 3.0 (`BEGIN:VCARD…END:VCARD`) |
+
+**Inspector behaviour:**
+
+- The generated string is written into the plain `value` attribute — **`value` stays the single source of truth**: source-mode edits, MQTT payloads (baseAttribute) and the existing element are untouched; the assistant is pure editor UX, nothing ships in the viewer bundle.
+- **Round-trip:** on open, the inspector parses the current value back into type + fields when it matches a known scheme (`WIFI:`, `mailto:`, `tel:`, `SMSTO:`, `geo:`, `BEGIN:VCARD`, URL) — otherwise it opens on *Text / raw* with the string as-is. Unparseable-but-prefixed values fall back to raw rather than destroying anything.
+- A read-only preview row shows the generated string so the user learns/verifies the syntax; the canvas QR updates live as fields change (normal attribute flow).
+- WiFi password field uses a masked input with reveal toggle; note stays: the value lands in the saved site HTML — same visibility rules as any attribute (see the N10 credential docs).
+
+**Implementation sketch:** `feezal: {inspector: …}` custom-inspector module in the `feezal-element-basic-qrcode` package (editor-only per the established pattern — inspectors may use `<sl-*>` without importing Shoelace); pure generate/parse helper functions (`buildWifi()`, `parseWifi()`, …) unit-testable without DOM. The E2E can reuse the existing qrcode coverage: pick WiFi, fill fields, assert the attribute + rendered module path changed.
+
+**Relates:** E74 (the element, implemented), N6 (custom inspector machinery), N10 (credentials-in-HTML visibility note), material-dialog inspector (the editor-only Shoelace pattern to copy).
 
 ## Editor UX
 
