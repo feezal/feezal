@@ -25,12 +25,7 @@ describe('topicMatch', () => {
         });
 
         it('matches # when topic equals the prefix (zero remaining segments)', () => {
-            // 'a/#' should match 'a' — the '#' level captures the empty suffix
-            // According to MQTT spec 'a' matches 'a/#'. topicMatch returns null for 'a' vs 'a/#'
-            // because the loop exits before hitting the '#'. This is acceptable behaviour.
-            // Documenting current behaviour here:
-            const result = topicMatch('a', 'a/b/#');
-            expect(result).toBeNull();
+            expect(topicMatch('a', 'a/#')).toEqual([]);
         });
     });
 
