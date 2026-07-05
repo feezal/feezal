@@ -1,0 +1,25 @@
+{
+    "author": {
+        "name": "Sebastian Raff",
+        "email": "hobbyquaker@gmail.com"
+    },
+    "dependencies": {
+        "@feezal/feezal-element": "*"
+    },
+    "description": "Horizontally scrolling text line for wall displays — announcements, alarms, event feeds; single-topic or JSON-array payloads with templating",
+    "feezal": {
+        "type": "element"
+    },
+    "keywords": [
+        "feezal",
+        "feezal-element"
+    ],
+    "license": "MIT",
+    "main": "feezal-element-basic-ticker.js",
+    "name": "@feezal/feezal-element-basic-ticker",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/feezal/feezal.git"
+    },
+    "version": "1.0.0"
+}

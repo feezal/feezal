@@ -57,8 +57,8 @@ Work in progress — priorities and scope are not final.
 - [E70 — Sankey diagram (`feezal-element-basic-sankey`)](#e70--sankey-diagram-feezal-element-basic-sankey) 💡
 - [E71 — Value-driven icon variants (`feezal-element-basic-icon-value`)](#e71--value-driven-icon-variants-feezal-element-basic-icon-value--implemented) ✅
 - [E72 — Plain icon (`feezal-element-basic-icon`)](#e72--plain-icon-feezal-element-basic-icon--implemented) ✅
-- [E73 — Text ticker (`feezal-element-basic-ticker`)](#e73--text-ticker-feezal-element-basic-ticker) 💡
-- [E74 — QR code (`feezal-element-basic-qrcode`)](#e74--qr-code-feezal-element-basic-qrcode) 💡
+- [E73 — Text ticker (`feezal-element-basic-ticker`)](#e73--text-ticker-feezal-element-basic-ticker--implemented) ✅
+- [E74 — QR code (`feezal-element-basic-qrcode`)](#e74--qr-code-feezal-element-basic-qrcode--implemented) ✅
 - [E75 — Data table (`feezal-element-basic-table`)](#e75--data-table-feezal-element-basic-table) 💡
 
 **Editor UX**
@@ -1020,54 +1020,15 @@ Generalized N-node energy/material flow diagram (grid→house→consumers, water
 
 **Relates:** N23, E71 (value-driven variant sibling).
 
-### E73 — Text ticker (`feezal-element-basic-ticker`) 💡 idea
+### E73 — Text ticker (`feezal-element-basic-ticker`) ✅ implemented
 
-*Peakboard research (July 2026): Peakboard ships a Text-Ticker control — the scrolling announcement line is a wall-display staple feezal lacks.*
-
-A horizontally scrolling text line for wall displays: announcements, active alarms, news, event feeds. Content modes:
-
-- **Static** `text` attribute.
-- **Single topic** — `subscribe` payload replaces the text.
-- **Multi-message** — a JSON-array payload; each entry (string or object) renders through `template` with the E32 token conventions (`{payload}`, `{json:path}`), items joined by a configurable `separator` glyph.
-
-**Implementation notes:** CSS keyframe animation on `transform` (GPU-friendly), content duplicated once for a seamless wrap, animation suspended when the tab is hidden or the element is offscreen (`visibilitychange` + `IntersectionObserver`) — cheap on weak wall-tablet GPUs (same concern as E58). `speed` is px/s so the pace is independent of content length.
-
-**Attributes:**
-
-| Attribute | Type | Default | Description |
-|---|---|---|---|
-| `subscribe` | mqttTopic | — | Text or JSON-array payload |
-| `text` | string | `""` | Static content (used when no payload received yet) |
-| `template` | string | `{payload}` | Per-item format in array mode (E32 tokens) |
-| `separator` | string | ` • ` | Joiner between items in array mode |
-| `speed` | number | `60` | Scroll speed in px/s |
-| `direction` | `left` \| `right` | `left` | Scroll direction |
-| `pause-on-hover` | boolean | `true` | Pause while hovered/touched |
-
-**Default size:** 400×40 px.
+> **Status: ✅ implemented (July 2026)** — horizontally scrolling text line for wall displays (Peakboard-research origin). Content modes: static `text`, single topic (the subscribe payload replaces `text` via `baseAttribute`), and **JSON-array payloads** rendered per-entry through `template` (`{payload}`, `{topic}`, `{json:path}` tokens — the E32 conventions) joined by `separator`. Attributes: `speed` (px/s, so pace is content-length-independent), `direction` (left/right), `pause-on-hover` (string-typed, default on — `"false"` disables). Implementation: the track holds the content twice and animates `transform` 0 → −50 % for a seamless wrap (GPU-friendly); duration = measured run width / speed (ResizeObserver, length-based fallback), set imperatively so it never triggers a render cycle; animation suspends while the tab is hidden or the element is offscreen (`visibilitychange` + `IntersectionObserver` — the E58 wall-tablet perf concern); the editor renders a static track. Default size 400×40. **13 unit tests** (content modes, tokens, flags, editor/viewer, hidden-tab suspension).
 
 **Relates:** E32 (logbook — same feed, persistent form), E53 (notification — same events, transient form), N26 (view playlist, archived)/A18 (signage).
 
-### E74 — QR code (`feezal-element-basic-qrcode`) 💡 idea
+### E74 — QR code (`feezal-element-basic-qrcode`) ✅ implemented
 
-*Peakboard research (July 2026): Peakboard ships a QR Code control — trivially simple, disproportionately useful on shared/wall displays.*
-
-Renders a QR code from a static `value` or a live `subscribe` payload. Canonical uses: **scan-to-open this dashboard on your phone** (value = the site's viewer URL), guest WiFi (`WIFI:S:<ssid>;T:WPA;P:<pw>;;` payload), deep links to a Grafana dashboard or device manual next to the matching element.
-
-**Implementation notes:** render as inline **SVG with `currentColor`** so the code follows the active theme (mind scanner contrast — themes with low-contrast text colours need the explicit `color`/`background` overrides). Dependency budget matters (viewer/export bundle): pick a tiny zero-dep MIT encoder (`qrcode-generator`-class, ~10 kB) — no canvas, no heavyweight lib. Editor preview renders the real code.
-
-**Attributes:**
-
-| Attribute | Type | Default | Description |
-|---|---|---|---|
-| `subscribe` | mqttTopic | — | Payload becomes the encoded value |
-| `value` | string | `""` | Static value (fallback when no payload) |
-| `ecc` | `L` \| `M` \| `Q` \| `H` | `M` | Error-correction level |
-| `color` | color | `currentColor` | Module colour |
-| `background` | color | `transparent` | Background colour |
-| `label` | string | `""` | Optional caption below the code |
-
-**Default size:** 160×160 px.
+> **Status: ✅ implemented (July 2026)** — QR code from a static `value` or a live subscribe payload (`baseAttribute`, Peakboard-research origin). Canonical uses: scan-to-open the dashboard on a phone, guest WiFi (`WIFI:S:<ssid>;T:WPA;P:<pw>;;`), deep links. Rendered as inline **SVG** (`shape-rendering: crispEdges`, 2-module quiet zone) with two themeable colour descriptors — `--feezal-qrcode-color` (default `var(--primary-text-color)`) and `--feezal-qrcode-background` (default transparent; the inspector help notes dark themes need a light background for scanner contrast). `ecc` L/M/Q/H (default M), optional `label` caption doubling as the SVG `aria-label`. Encoder: **`qrcode-generator`** (MIT, zero-dep) with UTF-8 pre-encoding for non-ASCII content; data-too-long renders an error note instead of crashing and recovers on the next valid payload. Editor renders the real code (placeholder when unconfigured). Default size 160×160. **11 unit tests** (encoding incl. UTF-8/version growth/ECC density, payload re-encode, caption/aria, error + recovery, editor/viewer).
 
 **Relates:** A9 (PWA/mobile — the scan-to-phone pairing), N10 (never encode credentials beyond the deliberate WiFi use).
 

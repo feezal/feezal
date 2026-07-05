@@ -6,8 +6,10 @@ import '@feezal/feezal-element-basic-iframe';
 import '@feezal/feezal-element-basic-image';
 import '@feezal/feezal-element-basic-navigation';
 import '@feezal/feezal-element-basic-number';
+import '@feezal/feezal-element-basic-qrcode';
 import '@feezal/feezal-element-basic-repeater';
 import '@feezal/feezal-element-basic-template';
+import '@feezal/feezal-element-basic-ticker';
 import '@feezal/feezal-element-basic-view';
 import '@feezal/feezal-element-connection-status';
 import '@feezal/feezal-element-layout-app';
@@ -80,8 +82,10 @@ window.feezal.elements = [
   "@feezal/feezal-element-basic-image",
   "@feezal/feezal-element-basic-navigation",
   "@feezal/feezal-element-basic-number",
+  "@feezal/feezal-element-basic-qrcode",
   "@feezal/feezal-element-basic-repeater",
   "@feezal/feezal-element-basic-template",
+  "@feezal/feezal-element-basic-ticker",
   "@feezal/feezal-element-basic-view",
   "@feezal/feezal-element-connection-status",
   "@feezal/feezal-element-layout-app",
