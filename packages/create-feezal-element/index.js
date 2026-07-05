@@ -138,7 +138,9 @@ function packageJson(scope, tag) {
         version: '0.1.0',
         description: '',
         main: `${tag}.js`,
-        keywords: ['feezal', 'element'],
+        // 'feezal-element' is the keyword the Package Manager's registry
+        // search filters on — without it a published package is not findable.
+        keywords: ['feezal', 'feezal-element'],
         license: 'MIT'
     }, null, 2) + '\n';
 }

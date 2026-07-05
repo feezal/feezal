@@ -17,10 +17,10 @@ Work in progress — priorities and scope are not final.
 - [N10 — Credential security: live viewer bridge + export runtime prompt](#n10--credential-security-live-viewer-bridge--export-runtime-prompt)
 - [N12 — Export bundle: strip mqtt.js for feezal-bridge users](#n12--export-bundle-strip-mqttjs-for-feezal-bridge-users-partial) *(partial)*
 - [N13 — Lighter MQTT client for export bundle](#n13--lighter-mqtt-client-for-export-bundle-️-tbd) ⚠️
-- [N23 — Icon-set packages (`feezal-icons-*`) + package-manager follow-ups](#n23--icon-set-packages-feezal-icons---package-manager-follow-ups)
 - [N24 — Viewer presence + per-client control topics](#n24--viewer-presence--per-client-control-topics-️-reviewrefinement-needed) ⚠️
 - [N25 — Bridge last-value replay ("synthetic retain")](#n25--bridge-last-value-replay-synthetic-retain-most-likely-not) ❌ *(most likely not)*
 - [N26 — View playlist / signage rotation](#n26--view-playlist--signage-rotation)
+- [N27 — Live viewer: load user-installed element/theme packages](#n27--live-viewer-load-user-installed-elementtheme-packages)
 
 **Element Ecosystem**
 - [E7 — Swipe gesture element](#e7--swipe-gesture-element)
@@ -183,80 +183,13 @@ client.json_send('my/topic', payload);
 ### N2b — Repeater with live canvas sub-elements *(future)*
 Each repeater child becomes individually selectable and configurable on the editor canvas. Requires a virtual sub-editor context — significantly more complex, deferred until the MVP repeater is proven useful.
 
+### N27 — Live viewer: load user-installed element/theme packages
 
+Residual from N4/N23 (both archived; the icons type is handled — viewer pages get server-inlined tree-shaken icon registrations). User-installed **element** and **theme** packages under `<dataDir>/elements/` load in the editor (`/editor/feezal-elements.js` re-discovers per request) but not in the **live viewer**, whose bundle contains only built-in packages.
 
-### N23 — Icon-set packages (`feezal-icons-*`) + package-manager follow-ups
+**Likely mechanism (to verify/decide):** install bundles are self-contained ESM served from `/user-elements/<pkg>/…`, so injecting `<script type="module" src="…">` tags for installed packages into viewer pages should just work — mirror how icon registrations are inlined. Decide the static-export story: append the bundles to the export (they're single files) vs. document as unsupported like user icon sets.
 
-Follow-up work carried over from **N4 (Package Manager)**, which shipped for elements and themes (see the archive). The install pipeline (`server/src/build/install.js`), the `/api/elements*` routes, and the Package Manager sidebar tab (`www/src/feezal-sidebar-packages.js`) already handle the `feezal-element-*` / `feezal-theme-*` types end to end. This entry captures the three parts that were **deliberately deferred**: the `feezal-icons-*` third type (blocked on the `registerIcons()` contract), the theme authoring docs + scaffold, and end-to-end validation of the live npm-registry install path.
-
-#### 1 — Icon-set packages (`feezal-icons-*`) — the deferred third type
-
-> **Status: infrastructure ✅ implemented (July 2026)** — `www/src/feezal-icon.js` (MIT viewer runtime: `feezal.registerIcons()` registry with font/render modes, `window.feezal.iconSets`, `feezal-iconsets-changed` event, and the shared `<feezal-icon>` resolver element incl. not-installed fallback; imported by editor, viewer bundle and the filtered-export entry); server discovery (`_scan()` matches `feezal-icons-*`, type `icons`), install pipeline (`PREFIXES`/`typeKeyword`/allowlist + **sidecar asset copy** — fonts/SVGs/LICENSE files land next to the bundle), registry search + install routes accept `icons`; the multi-set **icon picker** per the decided UX (chip row, `set:` prefix scoping, grouped All view, last-used persistence, keyboard cursor, empty-state so a stale query can never hide the popup); `docs/icons-spec.md` written. Covered by 12 registry/element unit tests, 7 picker-grouping unit tests, 3 server tests and **5 E2E tests** (chips appear on live registration, prefixed value written, `set:` scoping, `<feezal-icon>` render-mode glyph in the input).
-> **Reference packages ✅ authored + shipped as built-ins with per-site tree-shaking (July 2026)** — see the decided block below. Along the way the E2E exposed and fixed a **pre-existing N4 bug**: `/editor/feezal-elements.js` served a startup-time discovery snapshot, so packages installed at runtime (elements, themes, icons alike) never loaded until a server restart — the route now re-discovers per request.
-> **Tree-shaking architecture (`server/src/build/icons.js`):** icon packages declare their data module via `feezal: {set, icons}`; full sets load **only in the editor** (dynamic module route, `/node_modules/…` static). Viewer pages get a server-inlined mini-registration with just the icons the site HTML references (`extractUsedIcons` matches only *known* set prefixes — no URL/topic false positives; data modules parsed once and mtime-cached; `</script>`-escaped inlining), and static exports get the same registration appended to the bundle (both the filtered and the fallback path). A dashboard using a dozen MDI icons ships ~2 kB of icon data instead of 5 MB. User-installed sets aren't shakeable (single-file install bundles): the viewer loads their full module, exports log a warning and skip them. Dynamic (runtime-chosen) icon names aren't covered — documented in icons-spec §4a.
-> **Element migration ✅ (July 2026):** all seven elements that render a *user-configurable* icon (layout-app, material-badge/-button/-dialog/-fab/-icon-button/-navbar) now render through `<feezal-icon>` — prefixed icons (`mdi:sofa`, `knx-uf:light_ball`) display on the canvas, in the viewer and in exports; bare Material names unchanged. Exception: **material-energy-flow** draws its node icons as SVG `<text>` glyphs (an HTML element can't live inside SVG text) — it stays Material-names-only. Elements with *hardcoded* icons (media-player transport, etc.) intentionally keep their Material spans.
-> **Still open:** `@feezal/create-feezal-icons` scaffold; the live-viewer gap for user-installed packages of *other* types (elements/themes — pre-existing N4 gap; icons are now handled); live registry-install validation (§3).
-
-A third package type installable through the existing manager. An icon-set package is a module that, on import, registers one or more named icon sets (a webfont via `@font-face`/`<link>` and/or a set of SVG symbols) and advertises its icon names to the editor. It surfaces in the icon picker (N19/N20) alongside the built-in Material set.
-
-**The `registerIcons()` contract** (shape settled July 2026 — see the decisions below; validate it by implementing the two reference packages):
-
-```js
-window.feezal.registerIcons(setName, { font?, names: string[], render?(name) });
-```
-
-Design decisions (settled July 2026 — was: font-vs-SVG, picker integration, naming collisions):
-
-- **Both modes.** The hook supports a webfont ligature list (`font` + `names`) *and* an explicit `render(name) → SVGElement/string`; a font set needs only `{font, names}`, an SVG set needs `render`. The two reference packages below exercise one mode each.
-- **`set:name` prefix convention (HA-style).** Icon attribute values are namespaced by set: `mdi:lightbulb`, `knx-uf:sunblind`. A **bare name stays built-in Material** — every existing saved site keeps working unchanged. Prefixes solve cross-set collisions, make values self-describing on copy-paste, and are the syntax every Home-Assistant user already knows.
-- **Shared `<feezal-icon name="mdi:lightbulb">` resolver element** (viewer runtime → MIT + SPDX header per A21, imported by `viewer-main.js` and the filtered-export entry like `feezal-component`). It resolves the prefix through the registry and renders via the set's mode (font class/ligature or `render()`); bare names render the Material ligature exactly as today. The picker grid, the input's glyph preview, and icon-bearing elements all render through it, so elements stay set-agnostic and installed sets work everywhere automatically — including static exports (the set's assets ship via the sidecar-asset install path below).
-
-**Icon picker UX (N19 extension, decided):**
-- **Set-chooser chip row** at the top of the existing grid popup: `[All] [Material] [MDI] [KNX-UF] …`, populated from the registry (built-in Material first, then registered sets in install order). Clicking a chip filters the grid to that set; the selected chip is **persisted in localStorage** and the popup reopens on the last-used set (Material on first run).
-- **Autocomplete stays type-to-filter** (substring, as today), with two additions: typing a `set:` prefix in the input auto-selects the matching chip and filters within that set; in the **All** chip, matches render grouped under small set-name headers (existing 90-tile cap kept, applied per view). Selecting a tile writes the prefixed name (bare name for Material).
-- **Keyboard navigation** in the grid reuses the topic-autocomplete cursor pattern already in `feezal-sidebar-inspector-attributes.js`.
-- *Nice-to-have (not blocking):* a "recently used" row above the grid (localStorage, ~12 entries); a subtle "set not installed" fallback state in `<feezal-icon>` (renders the raw name + tooltip) when a saved site references an uninstalled set, so nothing crashes and the gap is visible.
-
-**Discovery plumbing (the minimal server + editor additions):**
-
-1. **`_scan()` prefix** — extend the filter in `server/src/build/elements.js` from `feezal-element-*` / `feezal-theme-*` to also match `feezal-icons-*`, tagging `type: 'icons'`.
-2. **Module generation** — in `generateElementsModule()`, `import` each icons package (so it self-registers) and expose the discovered set names as `window.feezal.iconSets` (mirroring `window.feezal.themes`).
-3. **Registration hook** — implement `window.feezal.registerIcons(...)` per the contract above; the picker and any icon-rendering element read from the merged registry.
-
-**Install-writer change (sidecar assets).** Icon sets may ship font/SVG asset files alongside the JS entry. The install writer (`server/src/build/install.js`) currently writes the bundled entry + a minimal `package.json`; for `feezal-icons-*` it must **also copy the package's non-JS asset files** (fonts/SVGs referenced by the entry) into `<dataDir>/elements/<pkg>/` so they are served from `/user-elements/…`. The Rollup-to-ESM bundle step itself is unchanged (a no-op passthrough when there are no bare specifiers to inline).
-
-**UI already accounts for icons.** The Package Manager type filter is *All / Elements / Themes / Icons* and the registry search keyword for icons is `feezal-icons`; the sidebar copy adapts per type ("new icons available"). Enabling icons is mostly server discovery + the `registerIcons()` contract, not new UI.
-
-**Candidate first-party sets — validated against the ioBroker vis ecosystem (research, July 2026).** What vis/vis-2 offers today: eight official vis-1-era icon *adapters* (`icons-mfd-png/svg` = the KNX-UF set, `icons-material-png/svg`, `icons-ultimate-png`, `icons-open-icon-library-png`, `icons-fatcow-hosting` ≈3900 icons CC BY 3.0, `icons-icons8` ≈4300 icons under a *proprietary* license, `icons-addictive-flavour-png`) that surface only as file-manager paths, plus the third-party **inventwo icontwo** set (large smarthome SVG collection incl. 3D/room/device icons — MIT repo but embeds "several icons from Icons8", so its licensing is contaminated for repackaging) and the MDI webfont bundled by vis-materialdesign. vis-2 adds a *Material Icon Selector* in newer widgets, but the legacy sets stay path-based — the icon story is fragmented across three mechanisms. Conclusions for feezal:
-
-- **`feezal-icons-mdi`** (Pictogrammers **Material Design Icons**, Apache-2.0, ~7000 glyphs) — the de-facto smarthome standard (Home Assistant's default; vis users bolt it on by hand). Webfont + name list → the reference implementation for the contract's **font mode**. Highest priority.
-- **`feezal-icons-knx-uf`** (the **KNX-UF iconset**, OpenAutomationProject, ~900 purpose-built home-automation SVGs, CC BY-SA 3.0 + partly Ubuntu Font License) — the set behind vis's most-used `icons-mfd-*` adapters; domain vocabulary no generic set has (KNX/HVAC/blinds/sensors). SVG symbols → the reference implementation for the contract's **render/SVG mode**. Note: CC BY-SA requires attribution — document that exported dashboards embedding these icons carry the notice.
-- **Deliberately skip:** icons8 (proprietary license — vis redistributes it, feezal must not), inventwo (excellent set but Icons8-contaminated; at most document manual install or ask upstream about a clean subset), the PNG-era sets (fatcow, ultimate, open-icon-library, addictive-flavour, mfd-png) — fixed-colour PNGs can't follow `currentColor`/theme variables and look dated.
-- **Contract consequence:** require SVG or webfont (no raster) so every icon themes with the active `feezal-theme-*` — a visible differentiator over vis-2, where the PNG-era sets ignore theming entirely. Conveniently, the two reference packages exercise *both* `registerIcons()` modes — settle the contract by building exactly these two.
-
-**Decided (July 2026): ship two first-party icon packages together with the `registerIcons()` contract** — the contract is settled by implementing them:
-
-- [x] **`@feezal/feezal-icons-mdi`** ✅ *(authored July 2026, `packages/feezal-icons-mdi/`)* — 7447 Pictogrammers Material Design Icons, HA-compatible kebab names (`mdi:lightbulb`), generated from `@mdi/js` 7.4.47 (Pictogrammers Free License: icons Apache-2.0). **Correction to the original plan:** the MDI *webfont* is class+codepoint based (not ligature) and cannot reach shadow DOM — the package uses **render mode** (inline SVG path data, `currentColor`-themed). Font mode stays covered by unit tests; Google *Material Symbols* is the natural future ligature-font candidate.
-- [x] **`@feezal/feezal-icons-knx-uf`** ✅ *(authored July 2026, `packages/feezal-icons-knx-uf/`)* — all 940 KNX-UF icons (`knx-uf:fts_sunblind`), SVGO-optimized 8 MB → 2.1 MB, the set's fixed white strokes mapped to **currentColor** at generation time so the icons follow the active theme (upstream is white-only). Ships upstream `LICENSE.txt` (CC BY-SA 3.0 DE) + `AUTHORS.txt`; README states that exports embedding the icons carry attribution + share-alike for the artwork.
-- Validated end to end: unit tests import the real package entries against the real registry (incl. an all-940-icons theming sweep); E2E covers editor chips/picking with the real glyphs, the tree-shaken viewer page (used icon inlined, unused set absent), the export ZIP carrying the shaken registration, and a user-dropped set loading its full module. **Both packages live in `www/packages/@feezal/` as built-ins** — affordable because of the per-site tree-shaking above (full data loads only in the editor); npm publish is no longer required for them to work out of the box.
-
-- **`docs/icons-spec.md`** — package naming + the `feezal-icons` npm keyword; the `registerIcons(setName, { font?, names, render?(name) })` hook; how to ship a webfont (`@font-face`) and/or SVG symbols plus the sidecar assets the installer copies; how names surface/group in the picker.
-- **`@feezal/create-feezal-icons`** scaffold — generates a font-based and/or SVG-based starter set + the `registerIcons()` call.
-
-Ship this once the first `feezal-icons-*` package is authored — this matches N4's original phasing (elements+themes first, icons when needed).
-
-#### 2 — Theme authoring docs + `create-feezal-theme` scaffold
-
-Themes install and load today, but authors have no spec or scaffold to *create* a shareable `feezal-theme-*` package (elements have both `docs/element-spec.md` and `@feezal/create-feezal-element`). Close the gap:
-
-- **`docs/theme-spec.md`** — package naming + the required npm `feezal-theme` keyword; the self-injecting convention (a dependency-free ESM that appends a `<style class="feezal-theme-<slug>">` to `document.head` on import — see `feezal-theme-solarized-dark`); the full set of themeable `--feezal-*` / MD3 CSS variables (cross-reference `element-spec.md §5.1`); and the discovery contract (`window.feezal.themes`). Clarify the **two theme flavours**: a published npm `feezal-theme-*` package (shareable, installed via the manager, lands in `<dataDir>/elements/<pkg>/`) vs a local `.css` theme authored in the editor and stored in `<dataDir>/themes/` (U16) — same CSS vars, different distribution.
-- **`@feezal/create-feezal-theme`** scaffold CLI (mirrors create-feezal-element): prompts for name/scope, emits the `package.json` (with the `feezal-theme` keyword), the self-injecting module, and a starter variable block (optionally cloned from a chosen built-in theme).
-
-Keep the scaffolds a consistent **`create-feezal-*` family** (or fold into one `create-feezal-package --type element|theme|icons`).
-
-#### 3 — Live npm-registry install path validation
-
-The install pipeline is unit-tested and the Vite bundling is validated offline against the real staging layout, but the **live** path (real `npm install` from the public registry → bundle → load in a browser) has not been validated end to end. Verify it in a real environment against a published `feezal-*` package: search → install → `elementsChanged` → reload → the package appears in its registry (palette / theme picker / icon picker). Also confirm the "update available" badge (best-effort npm-registry latest-version query in `GET /api/elements`) and the air-gapped manual-drop path.
+**Relates:** N4/N23 (archive), A8 (export tree-shaking — exported user elements would need their tags recognized by `extract-elements.js`).
 
 ### N8 — MQTT TLS certificate management
 
@@ -1890,7 +1823,7 @@ Both neighbouring ecosystems have per-user stories (HA: per-user views/dashboard
 Feezal's "widgets are plain npm packages" model is better infrastructure than vis-2's adapter-bound React widgets or HA's HACS-distributed frontend hacks — but it only compounds if third parties can actually build on it. vis-2 ships an official widget template + dev harness; HA's ecosystem thrives on documentation and HACS distribution. Feezal currently offers `docs/element-spec.md` and nothing else.
 
 **Scope:**
-- **Scaffolding CLI:** `npm create feezal-element` (and `feezal-theme`, `feezal-icons` once N23 settles the contract) — interactive prompts (name, category, attributes), emits a buildable package with the base-class wiring, inspector metadata, and tests.
+- **Scaffolding CLI:** ✅ *(done, July 2026 — N23)* all three CLIs exist as a consistent family (`packages/create-feezal-{element,theme,icons}`), emit registry-searchable keywords and the `feezal` manifest field, and are covered by `server/test/scaffolds.test.js`. Possible later extension: interactive attribute prompts and generated tests for elements.
 - **GitHub template repositories:** `feezal/feezal-element-template`, `feezal-theme-template` — the "Use this template" path for people who start from GitHub rather than npm.
 - **Dev harness:** run a local element package against a running feezal instance with hot reload (today the feedback loop is build → install → reload).
 - **Discovery/distribution:** the N4 package manager already installs from npm — establish the `feezal-element` npm keyword convention and add a "community elements" browse/search view fed by the npm registry; later, a curated gallery page. *(Validation, July 2026: Ignition Exchange — the free community marketplace for views/templates/symbols — is widely credited as what keeps that ecosystem alive; the gallery is the end-state to aim for.)*
@@ -1902,8 +1835,8 @@ Feezal's "widgets are plain npm packages" model is better infrastructure than vi
 
 ## Open Questions
 
-**Package Manager (N4 shipped for elements+themes; icon sets → N23)**
-- Icon-set contract: is a `feezal-icons-*` package a webfont + name list, registered SVG symbols, or both? Settle the `registerIcons()` shape before the first icon package is published. *(Now tracked in N23.)*
+**Package Manager (N4 and N23 shipped — both archived)**
+- ~~Icon-set contract: is a `feezal-icons-*` package a webfont + name list, registered SVG symbols, or both?~~ **Settled (N23):** both modes — `{font, names}` for ligature webfonts, `render(name)` for SVG — see `docs/icons-spec.md` §3.
 
 **History-in-payload convention (E69, E70, comparison/ad-hoc trends)**
 Several analytics elements need historical data feezal deliberately doesn't store (real history = E28/A11 Grafana). Middle ground to decide: a documented convention where an **external aggregator (she, Node-RED) publishes a retained JSON series to a topic and the element only renders it** — settle the series JSON shape once (timestamps + values, units, buckets?) and reuse it across carpet plot, Sankey totals, comparison charts, and possibly E30's future first-load backfill. Keeps feezal storage-free while unlocking the whole analytics category.

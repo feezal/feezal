@@ -46,6 +46,8 @@ Then open [http://localhost:3000/editor/](http://localhost:3000/editor/) and con
 - [User Guide](docs/user-guide.md) — editor walkthrough, views, elements, MQTT patterns, themes, keyboard shortcuts and more
 - [Development Guide](docs/development.md) — repo layout, dev setup, build pipeline, versioning and release process
 - [Element Authoring Spec](docs/element-spec.md) — how to build and publish custom palette elements
+- [Theme Authoring Spec](docs/theme-spec.md) — how to build and publish theme packages
+- [Icon-Set Authoring Spec](docs/icons-spec.md) — how to build and publish icon-set packages
 - [Roadmap](docs/ROADMAP.md) — planned features and design specs
 - [Roadmap Archive](docs/ROADMAP-ARCHIVE.md) — completed items
 

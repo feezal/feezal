@@ -47,9 +47,11 @@ feezal/                         ← repo root
     viewer-src/viewer.html      ← viewer HTML entry
     vite.config.js
     package.json                ← npm workspaces: ["packages/@feezal/*"]
-    packages/@feezal/           ← all element and theme packages live here
+    packages/@feezal/           ← all element, theme and icon-set packages live here
   packages/
     create-feezal-element/      ← "create-feezal-element" npm package (CLI scaffolder)
+    create-feezal-theme/        ← "create-feezal-theme" npm package (CLI scaffolder)
+    create-feezal-icons/        ← "create-feezal-icons" npm package (CLI scaffolder)
 ```
 
 The `www/package.json` declares `"workspaces": ["packages/@feezal/*"]`. After `npm install` inside `www/`, npm creates symlinks from `www/node_modules/@feezal/*` → `www/packages/@feezal/*`. The element discovery scanner (`server/src/build/elements.js`) and the Vite build resolve elements via those symlinks.
@@ -243,13 +245,15 @@ No Vite build or lint step is run in CI — only the server-side code is tested 
 
 All official elements and themes live in `www/packages/@feezal/`. They are declared as workspace dependencies in `www/package.json` and npm workspaces symlinks them into `www/node_modules/@feezal/` after `npm install`. They are included in every release automatically.
 
-### Scaffolding a new element
+### Scaffolding a new element, theme or icon set
 
 ```sh
 npm run create-element
+npm run create-theme
+npm run create-icons
 ```
 
-This runs the scaffolder (`packages/create-feezal-element/index.js`). For elements intended to ship with feezal, place the new package in `www/packages/@feezal/` and add it to the `dependencies` in `www/package.json`. See [element-spec.md](element-spec.md) for the full authoring specification.
+These run the scaffolders in `packages/create-feezal-*/`. For packages intended to ship with feezal, place the new package in `www/packages/@feezal/` and add it to the `dependencies` in `www/package.json`. See [element-spec.md](element-spec.md), [theme-spec.md](theme-spec.md) and [icons-spec.md](icons-spec.md) for the authoring specifications.
 
 ---
 
