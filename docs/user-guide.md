@@ -315,10 +315,35 @@ All subtopics below are relative to this base topic.
 | `<site>/theme` | theme name (string) | Switch the active theme on all viewers |
 | `<site>/addclass` | CSS class name | Add a CSS class to `<body>` on all viewers |
 | `<site>/removeclass` | CSS class name | Remove a CSS class from `<body>` on all viewers |
+| `<site>/playlist` | `on` \| `off` \| `pause` \| `next` \| `prev` | Control the view playlist (see below) |
 
 ### Theme switching
 
 The `theme` subtopic accepts either the full theme class name (e.g. `feezal-theme-dark-mint`) or just the suffix (e.g. `dark-mint`). The viewer removes all currently active `feezal-theme-*` classes and applies the new one. The switch is **ephemeral** — it resets on page reload.
+
+### View playlist (signage rotation)
+
+The viewer can cycle through a configured list of views automatically — turning any feezal site into digital signage for wall displays. Configure it in **Site Settings → Site → View playlist**:
+
+- **Rotate views** — enables the rotation (the steady state; a viewer starts rotating right after load).
+- **Views** — comma-separated view names, in rotation order. Append `:seconds` to override the dwell time per view: `overview:30, energy, weather:15`.
+- **Dwell** — default seconds per view (`10` when empty).
+- **Resume after** — idle seconds before rotation resumes after an interruption (`60` when empty).
+- **Transition** — `none` or `fade` (fades views in on every switch).
+
+**Interaction pause:** any user interaction (touch, mouse, keyboard, scroll) pauses the rotation; it resumes automatically after the idle timeout. A direct `<site>/view` command or in-dashboard navigation pauses it the same way.
+
+**Runtime control** via `<site>/playlist`: `on` / `off` switch rotation (publish retained to define the steady state), `pause` suspends until the idle timeout, `next` / `prev` jump within the playlist immediately.
+
+The playlist runs entirely client-side, so it works identically in the live viewer and in **static exports**. In the editor it never rotates.
+
+```sh
+# Stop rotation on all viewers (retained → survives reloads)
+mosquitto_pub -h localhost -t feezal/myhome/playlist -m off -r
+
+# Jump to the next playlist view
+mosquitto_pub -h localhost -t feezal/myhome/playlist -m next
+```
 
 ### Example: navigate all viewers via command line
 

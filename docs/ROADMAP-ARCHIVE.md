@@ -113,6 +113,26 @@ The three parts deliberately deferred from N4, all shipped July 2026. Full desig
 
 **Residual → N27:** live-viewer loading of user-installed element/theme packages (pre-existing N4 gap; icons are handled via the inlined registrations).
 
+### N26 — View playlist / signage rotation ✅ done
+
+*Origin — Peakboard research (July 2026): rotating content on wall displays is a digital-signage staple. Implemented July 2026.*
+
+A per-site **playlist**: an ordered list of views, each with a dwell time, looping in the viewer — purely client-side (a timer driving the existing view-switch machinery in `feezal-site.js`), so it works identically in the live viewer and in **static exports**, with zero server involvement.
+
+**Configuration — reflected attributes on `<feezal-site>`** (they travel with the serialized site HTML): `playlist` (comma-separated `name` or `name:seconds` entries; unknown views are filtered out), `playlist-enabled` (boolean — the steady state, rotation starts right after load), `playlist-dwell` (default seconds, 10), `playlist-resume` (idle seconds before resuming after an interruption, 60), `playlist-transition` (`none` | `fade` — fade is a CSS animation on the view's display toggle, gated to the viewer via a `feezal-viewer` host class). Edited in **Site Settings → Site → View playlist** (switch, views input with per-view dwell syntax, dwell/resume number fields, transition select).
+
+**Runtime control** via the new site control subtopic `<site>/playlist` (additive to `view|reload|theme|addclass|removeclass`): `on` / `off` (retained defines the steady state — the replay arrives like any subscription), `pause` (suspends until the idle timeout), `next` / `prev` (immediate jump, wraps both directions, works even while paused). Unknown payloads are ignored.
+
+**Interaction pause:** any user interaction (pointerdown/keydown/wheel/touchstart on `window`) pauses rotation and (re-)arms the resume timer — a wall panel stays touchable without fighting the carousel. A direct `<site>/view` command or in-dashboard navigation pauses the same way (detected in `updated()`: view switches not flagged as playlist-initiated count as activity; the initial view assignment is exempt). On resume the playlist advances immediately. **The editor never rotates** (all engine paths are `feezal.isEditor`-guarded).
+
+**Also fixed along the way:** the Site tab in `feezal-sidebar-viewer` was never seeded from the loaded `<feezal-site>` attributes (Title/topics showed blank after an editor reload) — the `getSite` handler in `feezal-sidebar-inspector.js` now seeds the whole site object; and `_applySite()` now removes an attribute when its field is cleared (previously stale values survived in the saved HTML).
+
+**Open questions resolved:** paused state does not survive a reload (retained `off` covers the steady-state case); retained `on`/`off` defines the steady state (yes — matches `theme`); progress indicator not built (revisit on demand as a companion element).
+
+**Covered by** `www/test/feezal-site-playlist.test.js` (20 tests: parsing, rotation/wrap/per-entry dwell, enable gating, interaction+command pause/resume, all five control payloads, editor inertness, teardown) plus `_applySite`/`_setSite` round-trip tests in `feezal-sidebar-viewer.test.js`. Documented in the user guide (site-topics table + "View playlist (signage rotation)" section).
+
+**Deferred to N24:** per-client playlist enable (hallway panel rotates, phones don't) — joins the client-scoped command set when N24 lands.
+
 ### N11 — Dual snap lines per axis ✅ done
 
 While dragging an element, up to two vertical (left/right) and two horizontal (top/bottom) alignment guides can now appear at once, instead of a single winner-takes-all line per axis.

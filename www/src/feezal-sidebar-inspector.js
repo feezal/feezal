@@ -462,6 +462,23 @@ class FeezalSidebarInspector extends LitElement {
                         viewerSidebar.pwa = Boolean(viewerConfig && viewerConfig.pwa);
                         // A9 Tier 2a: mobile-app export settings
                         viewerSidebar.app = (viewerConfig && viewerConfig.app) || {};
+                        // Seed the Site tab from the loaded <feezal-site>
+                        // attributes — they are the persisted source of truth
+                        // (they travel with the serialized site HTML).
+                        if (feezal.site) {
+                            const attr = name => feezal.site.getAttribute(name) || '';
+                            viewerSidebar.site = {
+                                name: feezal.siteName,
+                                pageTitle: attr('page-title'),
+                                subscribe: attr('subscribe'),
+                                publish: attr('publish'),
+                                playlist: attr('playlist'),                      // N26
+                                playlistEnabled: feezal.site.hasAttribute('playlist-enabled'),
+                                playlistDwell: attr('playlist-dwell'),
+                                playlistResume: attr('playlist-resume'),
+                                playlistTransition: attr('playlist-transition')
+                            };
+                        }
                     }
 
                     this._keyboard();

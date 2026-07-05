@@ -414,6 +414,41 @@ class FeezalSidebarViewer extends LitElement {
                         @sl-change="${e => this._setSite('publish', e.target.value)}">
                     </sl-input>
 
+                    <div class="section-label">View playlist</div>
+                    <sl-switch size="small" ?checked="${s.playlistEnabled === true}"
+                        @sl-change="${e => this._setSite('playlistEnabled', e.target.checked)}">
+                        Rotate views (signage mode)
+                    </sl-switch>
+                    <div class="pwa-hint">
+                        Cycles through the listed views in the viewer. Any user
+                        interaction pauses the rotation; it resumes after the idle
+                        timeout. Control at runtime via
+                        <code>&lt;subscribe&gt;/playlist</code>:
+                        on · off · pause · next · prev.
+                    </div>
+                    <sl-input label="Views" size="small"
+                        placeholder="overview:30, energy, weather:15"
+                        help-text="Comma-separated view names, optional :seconds per view"
+                        .value="${s.playlist || ''}"
+                        @sl-change="${e => this._setSite('playlist', e.target.value)}">
+                    </sl-input>
+                    <div class="row">
+                        <sl-input label="Dwell (s)" size="small" type="number" placeholder="10"
+                            .value="${s.playlistDwell || ''}"
+                            @sl-change="${e => this._setSite('playlistDwell', e.target.value)}">
+                        </sl-input>
+                        <sl-input label="Resume after (s)" size="small" type="number" placeholder="60"
+                            .value="${s.playlistResume || ''}"
+                            @sl-change="${e => this._setSite('playlistResume', e.target.value)}">
+                        </sl-input>
+                    </div>
+                    <sl-select label="Transition" size="small"
+                        .value="${s.playlistTransition || 'none'}"
+                        @sl-change="${e => this._setSite('playlistTransition', e.target.value === 'none' ? '' : e.target.value)}">
+                        <sl-option value="none">none</sl-option>
+                        <sl-option value="fade">fade</sl-option>
+                    </sl-select>
+
                     <div class="section-label">Progressive Web App</div>
                     <sl-switch size="small" ?checked="${this.pwa}"
                         @sl-change="${e => this._setPwa(e.target.checked)}">
@@ -511,6 +546,10 @@ class FeezalSidebarViewer extends LitElement {
                     feezal.site.setAttribute(attr, attr);
                 } else if (value) {
                     feezal.site.setAttribute(attr, value);
+                } else {
+                    // Clearing a field removes the attribute — otherwise a stale
+                    // value would survive in the serialized site HTML.
+                    feezal.site.removeAttribute(attr);
                 }
             });
         }

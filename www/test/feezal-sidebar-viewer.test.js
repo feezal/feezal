@@ -1,4 +1,4 @@
-import {describe, it, expect} from 'vitest';
+import {describe, it, expect, vi} from 'vitest';
 
 import '../src/feezal-sidebar-viewer.js';
 
@@ -78,5 +78,48 @@ describe('_buildUri() — structured fields to broker URI', () => {
             _protocol: 'mqtts', _host: 'broker', _port: '8883',
             _username: 'alice', _password: 'secret'
         });
+    });
+});
+
+describe('_setSite() / _applySite() — site attribute round-trip', () => {
+    function makeWithSite(siteObj = {}) {
+        feezal.site = document.createElement('div');
+        feezal.app = {change: vi.fn()};
+        const el = makeSidebar();
+        el.site = {name: 'default', ...siteObj};
+        return el;
+    }
+
+    it('writes string values as kebab-case attributes on feezal.site', () => {
+        const el = makeWithSite();
+        el._setSite('pageTitle', 'My Dashboard');
+        el._setSite('playlist', 'home:30, kitchen');
+        expect(feezal.site.getAttribute('page-title')).toBe('My Dashboard');
+        expect(feezal.site.getAttribute('playlist')).toBe('home:30, kitchen');
+        expect(feezal.app.change).toHaveBeenCalledWith(true);
+    });
+
+    it('boolean true sets a presence attribute, false removes it (playlist-enabled)', () => {
+        const el = makeWithSite();
+        el._setSite('playlistEnabled', true);
+        expect(feezal.site.hasAttribute('playlist-enabled')).toBe(true);
+        el._setSite('playlistEnabled', false);
+        expect(feezal.site.hasAttribute('playlist-enabled')).toBe(false);
+    });
+
+    it('clearing a field removes the stale attribute from the site', () => {
+        const el = makeWithSite();
+        el._setSite('playlist', 'home,kitchen');
+        expect(feezal.site.hasAttribute('playlist')).toBe(true);
+        el._setSite('playlist', '');
+        expect(feezal.site.hasAttribute('playlist')).toBe(false);
+    });
+
+    it('numeric playlist settings land as attributes', () => {
+        const el = makeWithSite();
+        el._setSite('playlistDwell', '15');
+        el._setSite('playlistResume', '120');
+        expect(feezal.site.getAttribute('playlist-dwell')).toBe('15');
+        expect(feezal.site.getAttribute('playlist-resume')).toBe('120');
     });
 });

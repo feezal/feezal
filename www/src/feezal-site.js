@@ -14,7 +14,14 @@ class FeezalSite extends LitElement {
         persistant: {type: Boolean, reflect: true},
         pageTitle: {type: String, attribute: 'page-title', reflect: true},
         subscribe: {type: String, attribute: 'subscribe', reflect: true},
-        publish: {type: String, attribute: 'publish', reflect: true}
+        publish: {type: String, attribute: 'publish', reflect: true},
+        // N26 — view playlist / signage rotation. All reflected so the config
+        // travels with the serialized site HTML (live viewer AND static export).
+        playlist: {type: String, reflect: true},
+        playlistEnabled: {type: Boolean, attribute: 'playlist-enabled', reflect: true},
+        playlistDwell: {type: Number, attribute: 'playlist-dwell', reflect: true},
+        playlistResume: {type: Number, attribute: 'playlist-resume', reflect: true},
+        playlistTransition: {type: String, attribute: 'playlist-transition', reflect: true}
     };
 
     static styles = css`
@@ -47,6 +54,16 @@ class FeezalSite extends LitElement {
         :host(.dark) {
             --primary-background-color: black;
         }
+        /* N26 — optional fade on view switches. Views toggle display, and a
+           none→block transition restarts the animation. Viewer-only: the
+           feezal-viewer class is added in connectedCallback outside the editor. */
+        :host(.feezal-viewer[playlist-transition="fade"]) ::slotted(feezal-view) {
+            animation: feezal-view-fade-in 0.5s ease;
+        }
+        @keyframes feezal-view-fade-in {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+        }
     `;
 
     static get feezal() {
@@ -60,6 +77,15 @@ class FeezalSite extends LitElement {
                 '--error-color'
             ]
         };
+    }
+
+    constructor() {
+        super();
+        this.playlist = '';
+        this.playlistEnabled = false;
+        this.playlistDwell = 10;
+        this.playlistResume = 60;
+        this.playlistTransition = 'none';
     }
 
     render() {
@@ -105,6 +131,22 @@ class FeezalSite extends LitElement {
                     .forEach(c => document.body.classList.remove(c));
                 document.body.classList.add(cls);
             });
+            feezal.connection.sub(this.subscribe + '/playlist', message => {
+                this._playlistCommand(String(message.payload ?? '').trim().toLowerCase());
+            });
+        }
+
+        if (!feezal.isEditor) {
+            // N26 — playlist / signage rotation (viewer only, purely client-side:
+            // works identically in the live viewer and in static exports).
+            this.classList.add('feezal-viewer');
+            this._playlistOn = this.playlistEnabled;
+            this._playlistActivity = () => this._playlistUserActivity();
+            for (const type of ['pointerdown', 'keydown', 'wheel', 'touchstart']) {
+                window.addEventListener(type, this._playlistActivity, {passive: true});
+            }
+
+            this._playlistArm();
         }
 
         if (this.pageTitle) {
@@ -112,9 +154,119 @@ class FeezalSite extends LitElement {
         }
     }
 
+    // ── N26: view playlist / signage rotation ────────────────────────────────
+
+    /** Parse the playlist attribute (`name` or `name:seconds`, comma-separated) into existing views. */
+    _playlistEntries() {
+        const names = new Set([...feezal.views].map(v => v.getAttribute('name')));
+        return String(this.playlist || '')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean)
+            .map(entry => {
+                const match = entry.match(/^(.*?)(?::(\d+))?$/);
+                return {name: match[1].trim(), dwell: match[2] ? Number(match[2]) : null};
+            })
+            .filter(e => names.has(e.name));
+    }
+
+    /** Schedule the next rotation step (dwell of the current entry, else the default). */
+    _playlistArm() {
+        clearTimeout(this._playlistTimer);
+        this._playlistTimer = null;
+        if (feezal.isEditor || !this._playlistOn || this._playlistResumeTimer) {
+            return;
+        }
+
+        const entries = this._playlistEntries();
+        if (entries.length < 2) {
+            return;
+        }
+
+        const current = entries.find(e => e.name === this.view);
+        const dwell = (current?.dwell || this.playlistDwell || 10) * 1000;
+        this._playlistTimer = setTimeout(() => this._playlistAdvance(1), dwell);
+    }
+
+    /** Switch to the next/previous playlist entry and re-arm the timer. */
+    _playlistAdvance(direction) {
+        const entries = this._playlistEntries();
+        if (entries.length === 0) {
+            return;
+        }
+
+        const idx = entries.findIndex(e => e.name === this.view);
+        const next = (idx + direction + entries.length) % entries.length;
+        const target = entries[next].name;
+        if (target !== this.view) {
+            this._playlistSwitching = true;
+            this.view = target;
+        }
+
+        this._playlistArm();
+    }
+
+    /**
+     * Any user interaction (or a direct view command / navigation element)
+     * pauses rotation; it resumes after the configured idle timeout. Repeated
+     * activity keeps re-arming the resume timer.
+     */
+    _playlistUserActivity() {
+        if (feezal.isEditor || !this._playlistOn) {
+            return;
+        }
+
+        clearTimeout(this._playlistTimer);
+        this._playlistTimer = null;
+        clearTimeout(this._playlistResumeTimer);
+        this._playlistResumeTimer = setTimeout(() => {
+            this._playlistResumeTimer = null;
+            this._playlistAdvance(1);
+        }, (this.playlistResume || 60) * 1000);
+    }
+
+    /** `<site>/playlist` control commands: on / off / pause / next / prev. */
+    _playlistCommand(cmd) {
+        switch (cmd) {
+            case 'on':
+                this._playlistOn = true;
+                clearTimeout(this._playlistResumeTimer);
+                this._playlistResumeTimer = null;
+                this._playlistArm();
+                break;
+            case 'off':
+                this._playlistOn = false;
+                clearTimeout(this._playlistTimer);
+                clearTimeout(this._playlistResumeTimer);
+                this._playlistTimer = this._playlistResumeTimer = null;
+                break;
+            case 'pause':
+                this._playlistUserActivity();
+                break;
+            case 'next':
+                this._playlistAdvance(1);
+                break;
+            case 'prev':
+                this._playlistAdvance(-1);
+                break;
+            // unknown payloads are ignored
+        }
+    }
+
     updated(changed) {
         if (changed.has('view')) {
             this._viewChanged(this.view);
+            // N26: a view switch not initiated by the playlist itself (MQTT view
+            // command, navigation element, swipe) counts as user activity — the
+            // rotation pauses and resumes after the idle timeout. The initial
+            // view assignment (old value undefined) is not a switch.
+            if (!feezal.isEditor && changed.get('view') !== undefined) {
+                if (this._playlistSwitching) {
+                    this._playlistSwitching = false;
+                } else {
+                    this._playlistUserActivity();
+                }
+            }
         }
     }
 
@@ -184,6 +336,17 @@ class FeezalSite extends LitElement {
         if (this._bgObserver) {
             this._bgObserver.disconnect();
             this._bgObserver = null;
+        }
+
+        clearTimeout(this._playlistTimer);
+        clearTimeout(this._playlistResumeTimer);
+        this._playlistTimer = this._playlistResumeTimer = null;
+        if (this._playlistActivity) {
+            for (const type of ['pointerdown', 'keydown', 'wheel', 'touchstart']) {
+                window.removeEventListener(type, this._playlistActivity);
+            }
+
+            this._playlistActivity = null;
         }
     }
 }

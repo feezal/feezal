@@ -19,7 +19,6 @@ Work in progress — priorities and scope are not final.
 - [N13 — Lighter MQTT client for export bundle](#n13--lighter-mqtt-client-for-export-bundle-️-tbd) ⚠️
 - [N24 — Viewer presence + per-client control topics](#n24--viewer-presence--per-client-control-topics-️-reviewrefinement-needed) ⚠️
 - [N25 — Bridge last-value replay ("synthetic retain")](#n25--bridge-last-value-replay-synthetic-retain-most-likely-not) ❌ *(most likely not)*
-- [N26 — View playlist / signage rotation](#n26--view-playlist--signage-rotation)
 - [N27 — Live viewer: load user-installed element/theme packages](#n27--live-viewer-load-user-installed-elementtheme-packages)
 
 **Element Ecosystem**
@@ -298,22 +297,6 @@ The private key remains exclusively in `dataDir/certs/` on the feezal server (N8
 - If built: global vs. per-topic opt-in; cache TTL/size limits; marking replayed messages (a `synthetic` flag?) so elements/scripts can distinguish them from live traffic.
 
 **Relates:** E49 (local retained cache is the page-local sibling), N10 (bridge-for-everything mode would widen this feature's reach), site connection settings.
-
-### N26 — View playlist / signage rotation
-
-*Origin — Peakboard research (July 2026): rotating content on wall displays is a digital-signage staple (Peakboard ships a slideshow control; cycling andon/KPI boards are a core use case). feezal's site control topics already let an external automation switch views — but plain rotation shouldn't require an external publisher.*
-
-**Concept:** a per-site **playlist** — an ordered list of views, each with a dwell time, looping in the viewer. Purely client-side (a timer driving the existing view-switch machinery), so it works identically in the live viewer and in static exports, no server involved.
-
-- **Config** in Site Settings sidebar: enable on/off, default dwell seconds, ordered view list (subset of the site's views, per-view dwell override), transition (`none` | `fade`).
-- **Runtime control** via a new site control subtopic (additive to the existing `view|reload|theme|addclass|removeclass` set): `<site>/playlist` with payloads `on` / `off` / `next` / `prev` / `pause`. A direct `view` command while the playlist runs switches immediately and pauses rotation (resume via idle timeout below).
-- **Interaction pause:** any user interaction (pointer/touch/key) pauses rotation; it resumes after a configurable idle timeout — a wall panel stays touchable without fighting the carousel.
-- **Per-client (N24):** once client-scoped control topics exist, `playlist` joins the per-client command set — the hallway panel rotates, phones don't. Until N24 lands the site-wide topic is all-or-nothing.
-- **Editor never rotates** — playlist is viewer-only behaviour.
-
-**Open questions:** should the paused state survive a reload (localStorage) or reset; optional progress indicator (dots / thin progress bar overlay) — built-in toggle vs. a tiny companion element; whether `on`/`off` sent retained should define the steady state (probably yes — matches how `theme` works).
-
-**Relates:** A18 (kiosk/wall-panel mode — this is its content half), N24 (per-client enable), E7 (swipe navigation coexists — a swipe pauses like any interaction), site control topics (N22 docs).
 
 ### Element platform conventions
 
@@ -1063,7 +1046,7 @@ A horizontally scrolling text line for wall displays: announcements, active alar
 
 **Default size:** 400×40 px.
 
-**Relates:** E32 (logbook — same feed, persistent form), E53 (notification — same events, transient form), N26/A18 (signage).
+**Relates:** E32 (logbook — same feed, persistent form), E53 (notification — same events, transient form), N26 (view playlist, archived)/A18 (signage).
 
 ### E74 — QR code (`feezal-element-basic-qrcode`) 💡 idea
 
