@@ -1,0 +1,10 @@
+{
+    // Run tasks (incl. the NPM Scripts sidebar) inside WSL. node_modules in
+    // this repo are installed under WSL — Windows node cannot load their
+    // Linux native bindings (rolldown/esbuild etc.), so npm must never run
+    // through powershell.exe here.
+    "terminal.integrated.automationProfile.windows": {
+        "path": "C:\\Windows\\System32\\wsl.exe",
+        "args": ["-e", "bash", "-c"]
+    }
+}
