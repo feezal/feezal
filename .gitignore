@@ -11,4 +11,4 @@
 /www/coverage-e2e
 /www/coverage-e2e-raw
 /www/.vitest-attachments
-
+.claude/settings.local.json
