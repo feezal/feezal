@@ -174,11 +174,13 @@ class FeezalHistoryBar extends LitElement {
             ${this._overlay ? this._renderOverlay() : ''}
             <div id="bar">
                 <a class="nav-link ${!prevSha ? 'disabled' : ''}"
-                   href="${prevSha ? `/viewer/${siteName}?sha=${prevSha}` : '#'}">
+                   href="${prevSha ? `/viewer/${siteName}?sha=${prevSha}` : '#'}"
+                   @click="${this._navigate}">
                     <span class="material-icons" style="font-size:14px">arrow_back</span> Older
                 </a>
                 <a class="nav-link ${!nextSha ? 'disabled' : ''}"
-                   href="${nextSha ? `/viewer/${siteName}?sha=${nextSha}` : '#'}">
+                   href="${nextSha ? `/viewer/${siteName}?sha=${nextSha}` : '#'}"
+                   @click="${this._navigate}">
                     Newer <span class="material-icons" style="font-size:14px">arrow_forward</span>
                 </a>
 
@@ -201,7 +203,8 @@ class FeezalHistoryBar extends LitElement {
                     </div>
                 ` : ''}
 
-                <a class="nav-link" href="/viewer/${siteName}" title="Return to live version">
+                <a class="nav-link" href="/viewer/${siteName}" title="Return to live version"
+                   @click="${this._navigate}">
                     ✕ Live
                 </a>
             </div>
@@ -271,6 +274,23 @@ class FeezalHistoryBar extends LitElement {
         this._overlay = {...this._overlay, thisContent, otherContent};
         await this.updateComplete;
         this._mountMonacoDiff(thisContent, otherContent);
+    }
+
+    /**
+     * Navigate keeping the currently selected view: the plain hrefs carry no
+     * fragment, so following them would drop the #/view hash and reset the
+     * dashboard to its first view on every history step. Appending the hash
+     * at click time preserves whatever view the user is looking at — across
+     * Older/Newer pagination and back to Live.
+     */
+    _navigate(event) {
+        event.preventDefault();
+        this._go(event.currentTarget.getAttribute('href') + location.hash);
+    }
+
+    /** Extracted for tests — happy-dom cannot observe real navigation. */
+    _go(url) {
+        window.location.href = url;
     }
 
     _closeOverlay() {

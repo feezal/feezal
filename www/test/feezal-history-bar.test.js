@@ -172,3 +172,57 @@ describe('_fetchFile()', () => {
         await expect(el._fetchFile('demo', 'abc')).rejects.toThrow('not found');
     });
 });
+
+describe('view-persistent navigation', () => {
+    afterEach(() => {
+        location.hash = '';
+    });
+
+    async function clickLink(el, matchText) {
+        const link = [...el.shadowRoot.querySelectorAll('a')]
+            .find(a => a.textContent.includes(matchText));
+        link.dispatchEvent(new Event('click', {cancelable: true, bubbles: true}));
+        return link;
+    }
+
+    it('Older keeps the currently selected view (hash) across the reload', async () => {
+        const el = await attachBar(BANNER);
+        const go = vi.spyOn(el, '_go').mockImplementation(() => {});
+        location.hash = '#/kitchen';
+        await clickLink(el, 'Older');
+        expect(go).toHaveBeenCalledWith('/viewer/demo?sha=bbbbbbb2222222#/kitchen');
+    });
+
+    it('Newer keeps the hash too', async () => {
+        const el = await attachBar({...BANNER, nextSha: 'ddddddd4444444'});
+        const go = vi.spyOn(el, '_go').mockImplementation(() => {});
+        location.hash = '#/energy';
+        await clickLink(el, 'Newer');
+        expect(go).toHaveBeenCalledWith('/viewer/demo?sha=ddddddd4444444#/energy');
+    });
+
+    it('returning to Live keeps the view as well', async () => {
+        const el = await attachBar(BANNER);
+        const go = vi.spyOn(el, '_go').mockImplementation(() => {});
+        location.hash = '#/bath';
+        await clickLink(el, 'Live');
+        expect(go).toHaveBeenCalledWith('/viewer/demo#/bath');
+    });
+
+    it('navigates cleanly when no view hash is set', async () => {
+        const el = await attachBar(BANNER);
+        const go = vi.spyOn(el, '_go').mockImplementation(() => {});
+        await clickLink(el, 'Older');
+        expect(go).toHaveBeenCalledWith('/viewer/demo?sha=bbbbbbb2222222');
+    });
+
+    it('the click default (href navigation without the hash) is prevented', async () => {
+        const el = await attachBar(BANNER);
+        vi.spyOn(el, '_go').mockImplementation(() => {});
+        location.hash = '#/kitchen';
+        const link = [...el.shadowRoot.querySelectorAll('a')].find(a => a.textContent.includes('Older'));
+        const event = new Event('click', {cancelable: true, bubbles: true});
+        link.dispatchEvent(event);
+        expect(event.defaultPrevented).toBe(true);
+    });
+});
