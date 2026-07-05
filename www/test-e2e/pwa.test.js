@@ -74,7 +74,9 @@ describe('PWA toggle', () => {
 
     it('enabling via Site Settings + deploy activates manifest and service worker', async () => {
         await openSiteSettingsTab();
-        await page.locator('feezal-sidebar-viewer sl-switch').click();
+        // #pwa-switch: the Site tab holds several sl-switches (via-server,
+        // playlist, PWA) — target the PWA one specifically.
+        await page.locator('feezal-sidebar-viewer #pwa-switch').click();
         await page.locator('#btn-deploy-main').click();
 
         await expect.poll(async () =>

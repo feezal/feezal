@@ -372,7 +372,7 @@ class FeezalSidebarViewer extends LitElement {
                     </sl-select>
 
                     <div class="section-label">Connection mode</div>
-                    <sl-switch size="small"
+                    <sl-switch id="via-server-switch" size="small"
                         ?checked="${isTcp || c.viaServer === true}"
                         ?disabled="${isTcp}"
                         @sl-change="${e => this._setConn('viaServer', e.target.checked)}">
@@ -498,7 +498,7 @@ class FeezalSidebarViewer extends LitElement {
                     </sl-input>
 
                     <div class="section-label">View playlist</div>
-                    <sl-switch size="small" ?checked="${s.playlistEnabled === true}"
+                    <sl-switch id="playlist-switch" size="small" ?checked="${s.playlistEnabled === true}"
                         @sl-change="${e => this._setSite('playlistEnabled', e.target.checked)}">
                         Rotate views (signage mode)
                     </sl-switch>
@@ -533,7 +533,7 @@ class FeezalSidebarViewer extends LitElement {
                     </sl-select>
 
                     <div class="section-label">Progressive Web App</div>
-                    <sl-switch size="small" ?checked="${this.pwa}"
+                    <sl-switch id="pwa-switch" size="small" ?checked="${this.pwa}"
                         @sl-change="${e => this._setPwa(e.target.checked)}">
                         Enable PWA (installable app)
                     </sl-switch>
