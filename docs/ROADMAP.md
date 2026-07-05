@@ -20,6 +20,7 @@ Work in progress — priorities and scope are not final.
 - [N23 — Icon-set packages (`feezal-icons-*`) + package-manager follow-ups](#n23--icon-set-packages-feezal-icons---package-manager-follow-ups)
 - [N24 — Viewer presence + per-client control topics](#n24--viewer-presence--per-client-control-topics-️-reviewrefinement-needed) ⚠️
 - [N25 — Bridge last-value replay ("synthetic retain")](#n25--bridge-last-value-replay-synthetic-retain-most-likely-not) ❌ *(most likely not)*
+- [N26 — View playlist / signage rotation](#n26--view-playlist--signage-rotation)
 
 **Element Ecosystem**
 - [E7 — Swipe gesture element](#e7--swipe-gesture-element)
@@ -57,6 +58,9 @@ Work in progress — priorities and scope are not final.
 - [E70 — Sankey diagram (`feezal-element-basic-sankey`)](#e70--sankey-diagram-feezal-element-basic-sankey) 💡
 - [E71 — Value-driven icon variants (`feezal-element-basic-icon-value`)](#e71--value-driven-icon-variants-feezal-element-basic-icon-value--implemented) ✅
 - [E72 — Plain icon (`feezal-element-basic-icon`)](#e72--plain-icon-feezal-element-basic-icon--implemented) ✅
+- [E73 — Text ticker (`feezal-element-basic-ticker`)](#e73--text-ticker-feezal-element-basic-ticker) 💡
+- [E74 — QR code (`feezal-element-basic-qrcode`)](#e74--qr-code-feezal-element-basic-qrcode) 💡
+- [E75 — Data table (`feezal-element-basic-table`)](#e75--data-table-feezal-element-basic-table) 💡
 
 **Editor UX**
 
@@ -361,6 +365,22 @@ The private key remains exclusively in `dataDir/certs/` on the feezal server (N8
 - If built: global vs. per-topic opt-in; cache TTL/size limits; marking replayed messages (a `synthetic` flag?) so elements/scripts can distinguish them from live traffic.
 
 **Relates:** E49 (local retained cache is the page-local sibling), N10 (bridge-for-everything mode would widen this feature's reach), site connection settings.
+
+### N26 — View playlist / signage rotation
+
+*Origin — Peakboard research (July 2026): rotating content on wall displays is a digital-signage staple (Peakboard ships a slideshow control; cycling andon/KPI boards are a core use case). feezal's site control topics already let an external automation switch views — but plain rotation shouldn't require an external publisher.*
+
+**Concept:** a per-site **playlist** — an ordered list of views, each with a dwell time, looping in the viewer. Purely client-side (a timer driving the existing view-switch machinery), so it works identically in the live viewer and in static exports, no server involved.
+
+- **Config** in Site Settings sidebar: enable on/off, default dwell seconds, ordered view list (subset of the site's views, per-view dwell override), transition (`none` | `fade`).
+- **Runtime control** via a new site control subtopic (additive to the existing `view|reload|theme|addclass|removeclass` set): `<site>/playlist` with payloads `on` / `off` / `next` / `prev` / `pause`. A direct `view` command while the playlist runs switches immediately and pauses rotation (resume via idle timeout below).
+- **Interaction pause:** any user interaction (pointer/touch/key) pauses rotation; it resumes after a configurable idle timeout — a wall panel stays touchable without fighting the carousel.
+- **Per-client (N24):** once client-scoped control topics exist, `playlist` joins the per-client command set — the hallway panel rotates, phones don't. Until N24 lands the site-wide topic is all-or-nothing.
+- **Editor never rotates** — playlist is viewer-only behaviour.
+
+**Open questions:** should the paused state survive a reload (localStorage) or reset; optional progress indicator (dots / thin progress bar overlay) — built-in toggle vs. a tiny companion element; whether `on`/`off` sent retained should define the steady state (probably yes — matches how `theme` works).
+
+**Relates:** A18 (kiosk/wall-panel mode — this is its content half), N24 (per-client enable), E7 (swipe navigation coexists — a swipe pauses like any interaction), site control topics (N22 docs).
 
 ### Element platform conventions
 
@@ -1083,6 +1103,85 @@ Generalized N-node energy/material flow diagram (grid→house→consumers, water
 > **Status: ✅ implemented (July 2026)** — displays a single icon, nothing else: configured via the icon picker (bare Material or set-prefixed) or driven by the **subscribe payload** (payload = icon name), so a topic can switch the symbol at runtime. One colour property `--feezal-icon-color` (default `var(--primary-text-color)`). **Click-through:** the host has `pointer-events: none`, so it can decorate a button (or anything) without blocking it; the editor re-enables pointer events via the `feezal-editable` class, keeping it selectable/draggable on the canvas. Caveat (icons-spec §4a): payload-driven *set-prefixed* icons render in viewers/exports only if referenced statically somewhere in the site (tree-shaken registrations) — bare Material names always work. 7 unit tests + 2 E2E (viewer click-through onto a real publishing button, payload switch, editor selectability).
 
 **Relates:** N23, E71 (value-driven variant sibling).
+
+### E73 — Text ticker (`feezal-element-basic-ticker`) 💡 idea
+
+*Peakboard research (July 2026): Peakboard ships a Text-Ticker control — the scrolling announcement line is a wall-display staple feezal lacks.*
+
+A horizontally scrolling text line for wall displays: announcements, active alarms, news, event feeds. Content modes:
+
+- **Static** `text` attribute.
+- **Single topic** — `subscribe` payload replaces the text.
+- **Multi-message** — a JSON-array payload; each entry (string or object) renders through `template` with the E32 token conventions (`{payload}`, `{json:path}`), items joined by a configurable `separator` glyph.
+
+**Implementation notes:** CSS keyframe animation on `transform` (GPU-friendly), content duplicated once for a seamless wrap, animation suspended when the tab is hidden or the element is offscreen (`visibilitychange` + `IntersectionObserver`) — cheap on weak wall-tablet GPUs (same concern as E58). `speed` is px/s so the pace is independent of content length.
+
+**Attributes:**
+
+| Attribute | Type | Default | Description |
+|---|---|---|---|
+| `subscribe` | mqttTopic | — | Text or JSON-array payload |
+| `text` | string | `""` | Static content (used when no payload received yet) |
+| `template` | string | `{payload}` | Per-item format in array mode (E32 tokens) |
+| `separator` | string | ` • ` | Joiner between items in array mode |
+| `speed` | number | `60` | Scroll speed in px/s |
+| `direction` | `left` \| `right` | `left` | Scroll direction |
+| `pause-on-hover` | boolean | `true` | Pause while hovered/touched |
+
+**Default size:** 400×40 px.
+
+**Relates:** E32 (logbook — same feed, persistent form), E53 (notification — same events, transient form), N26/A18 (signage).
+
+### E74 — QR code (`feezal-element-basic-qrcode`) 💡 idea
+
+*Peakboard research (July 2026): Peakboard ships a QR Code control — trivially simple, disproportionately useful on shared/wall displays.*
+
+Renders a QR code from a static `value` or a live `subscribe` payload. Canonical uses: **scan-to-open this dashboard on your phone** (value = the site's viewer URL), guest WiFi (`WIFI:S:<ssid>;T:WPA;P:<pw>;;` payload), deep links to a Grafana dashboard or device manual next to the matching element.
+
+**Implementation notes:** render as inline **SVG with `currentColor`** so the code follows the active theme (mind scanner contrast — themes with low-contrast text colours need the explicit `color`/`background` overrides). Dependency budget matters (viewer/export bundle): pick a tiny zero-dep MIT encoder (`qrcode-generator`-class, ~10 kB) — no canvas, no heavyweight lib. Editor preview renders the real code.
+
+**Attributes:**
+
+| Attribute | Type | Default | Description |
+|---|---|---|---|
+| `subscribe` | mqttTopic | — | Payload becomes the encoded value |
+| `value` | string | `""` | Static value (fallback when no payload) |
+| `ecc` | `L` \| `M` \| `Q` \| `H` | `M` | Error-correction level |
+| `color` | color | `currentColor` | Module colour |
+| `background` | color | `transparent` | Background colour |
+| `label` | string | `""` | Optional caption below the code |
+
+**Default size:** 160×160 px.
+
+**Relates:** A9 (PWA/mobile — the scan-to-phone pairing), N10 (never encode credentials beyond the deliberate WiFi use).
+
+### E75 — Data table (`feezal-element-basic-table`) 💡 idea
+
+*Peakboard research (July 2026): Table/ListView and Styled Tile Collection are Peakboard's workhorse controls, and **Hub Lists** — central read/write tables shared by every screen — power its team-board/shift-plan/pick-list use cases. feezal has no table element at all; a retained JSON topic can play the Hub-Lists role with zero new infrastructure.*
+
+**MVP (read-only):** `subscribe` receives a **JSON array of objects**; the element renders it as a table. `columns` (JSON attribute, custom inspector per N6: key, label, width, align, format) — when unset, columns auto-derive from the first row's keys. Per-column value formatting (decimals, unit suffix, ISO date → locale string). Click-to-sort headers, optional text-filter box, `max-rows`, sticky header. **Conditional formatting** via the established map convention: `row-class-map` and per-column `class-map` (payload value or numeric threshold → CSS class; colours come from U18 classes/theme vars) — the answer to Peakboard's most-used non-scripting feature.
+
+**Phase 2 (write-back — the MQTT-native Hub-Lists analog):** columns flagged `editable` render as inputs; commits publish the **whole updated array retained** to `publish` (default: the subscribe topic). Optional row add/delete. Every open viewer sees the same table live — team boards, shift plans, pick lists, simple checklists. Documented caveat: **last-writer-wins** on a whole-array retained payload, no merging — fine for the target use cases; anything transactional belongs in a real backend, not a dashboard.
+
+**Attributes:**
+
+| Attribute | Type | Default | Description |
+|---|---|---|---|
+| `subscribe` | mqttTopic | — | JSON-array-of-objects payload |
+| `publish` | mqttTopic | `""` | Write-back topic (phase 2; defaults to `subscribe`) |
+| `columns` | string | `[]` | JSON column config; empty = auto from first row |
+| `sortable` | boolean | `true` | Click-to-sort headers |
+| `filter` | boolean | `false` | Show text-filter box |
+| `max-rows` | number | `0` | Row cap, `0` = unlimited |
+| `row-class-map` | string | `{}` | Value/threshold → row CSS class |
+| `editable` | boolean | `false` | Enable phase-2 editing (per-column flag in `columns`) |
+| `empty-text` | string | `No data` | Placeholder when the array is empty |
+
+> **Conventions:** single state topic · auto-discovery: none · custom inspector for `columns` (N6). See [Element platform conventions](#element-platform-conventions).
+
+**Default size:** 400×300 px.
+
+**Relates:** N2 (repeater — free-form sibling; the table is the dense/tabular case), E32 (event rows from wildcards — different source model), E66 (fleet board is a specialized table), E61 (alarm table shares sorting + severity classes), U18 (classes for conditional formatting).
 
 ## Editor UX
 
