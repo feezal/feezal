@@ -328,6 +328,125 @@ window.feezal = {
 }
 
 /**
+ * N10: never bake broker credentials into a static export — anyone holding
+ * the file could read them. Credentials (URI userinfo or username/password
+ * fields) are stripped and replaced by a `credentialPrompt` flag; the
+ * exported viewer asks for them at runtime (feezal-connection-mqtt) and
+ * keeps them in session/local storage on the device. The viaServer flag is
+ * dropped too — exports are always direct browser connections.
+ */
+function sanitizeExportConnection(connectionConfig, logger = console) {
+    if (!connectionConfig) return null;
+    const sanitized = {...connectionConfig};
+    delete sanitized.viaServer;
+    let hadCredentials = false;
+    if (sanitized.username || sanitized.password) {
+        hadCredentials = true;
+        delete sanitized.username;
+        delete sanitized.password;
+    }
+    if (sanitized.uri) {
+        try {
+            const u = new URL(sanitized.uri);
+            if (u.username || u.password) {
+                hadCredentials = true;
+                u.username = '';
+                u.password = '';
+                sanitized.uri = u.toString();
+            }
+        } catch { /* unparseable URI — leave as-is */ }
+    }
+    if (hadCredentials) {
+        sanitized.credentialPrompt = true;
+        logger.info('export: broker credentials stripped — the exported viewer will prompt at runtime');
+    }
+    return sanitized;
+}
+
+/**
+ * N8/N10: exports do TLS in the browser — the CA / client certificate
+ * uploaded on the server can never apply there. When the site has TLS
+ * material, ship per-platform setup instructions in the ZIP (the
+ * certificates themselves are deliberately NOT included: a private key in
+ * a static file would be a liability).
+ */
+function buildTlsSetupMd(siteName, {ca, mtls}) {
+    const lines = [
+        `# TLS setup for the "${siteName}" dashboard`,
+        '',
+        'This exported dashboard connects to your MQTT broker **directly from the',
+        'browser** (`wss://`). TLS is handled by the browser itself, so the',
+        'certificates configured on the feezal server are **not** part of this',
+        'export and cannot be — browsers only trust certificates from the',
+        'operating system / browser certificate store.',
+        '',
+        '> **Shortcut:** if you can put a publicly trusted certificate (e.g.',
+        '> Let\'s Encrypt) on your broker, do that — every device then works',
+        '> without any of the steps below.',
+        ''
+    ];
+    if (ca) {
+        lines.push(
+            '## Trust the broker\'s CA certificate',
+            '',
+            'Your broker uses a self-signed or private-CA certificate. Import the',
+            'CA certificate (`ca.pem` / `.crt`) **on every device** that opens this',
+            'dashboard:',
+            '',
+            '- **Windows:** double-click the certificate → *Install Certificate* →',
+            '  *Local Machine* → store: *Trusted Root Certification Authorities*',
+            '  (or `certmgr.msc`).',
+            '- **macOS:** double-click to open *Keychain Access* → add to the',
+            '  *System* keychain → set *Trust* → *Always Trust*.',
+            '- **Linux:** copy to `/usr/local/share/ca-certificates/` and run',
+            '  `sudo update-ca-certificates` (Debian/Ubuntu) or use `trust anchor`',
+            '  (Fedora/Arch). Chrome/Chromium may additionally need',
+            '  `certutil -d sql:$HOME/.pki/nssdb -A -t "C,," -n broker-ca -i ca.pem`.',
+            '- **Firefox (all platforms):** Firefox keeps its own store — Settings →',
+            '  *Privacy & Security* → *Certificates* → *View Certificates* →',
+            '  *Authorities* → *Import*, tick *Trust this CA to identify websites*.',
+            '- **Android:** Settings → *Security* → *Encryption & credentials* →',
+            '  *Install a certificate* → *CA certificate*.',
+            '- **iOS:** AirDrop/mail the file, install the profile under Settings →',
+            '  *General* → *VPN & Device Management*, then enable full trust under',
+            '  Settings → *General* → *About* → *Certificate Trust Settings*.',
+            ''
+        );
+    }
+    if (mtls) {
+        lines.push(
+            '## Client certificate (mTLS)',
+            '',
+            'Your broker requires mutual TLS. The client certificate and private',
+            'key are **not** included in this export. Obtain them from whoever',
+            'operates the broker (as a `.p12`/`.pfx` bundle) and install them in',
+            'the OS / browser certificate store of every device — the browser',
+            'presents the certificate automatically when the broker requests it',
+            'during the TLS handshake:',
+            '',
+            '- **Windows:** double-click the `.p12`/`.pfx` → Certificate Import',
+            '  Wizard → *Personal* store.',
+            '- **macOS:** double-click → *Keychain Access* → *login* keychain.',
+            '- **Linux (Chrome/Chromium):**',
+            '  `pk12util -d sql:$HOME/.pki/nssdb -i client.p12`',
+            '- **Firefox:** Settings → *Certificates* → *View Certificates* →',
+            '  *Your Certificates* → *Import*.',
+            '- **Android/iOS:** install the `.p12` as a user certificate / identity',
+            '  profile (same paths as the CA import above).',
+            ''
+        );
+    }
+    lines.push(
+        '---',
+        '',
+        'See the feezal user guide (*TLS and self-signed brokers*) for the full',
+        'explanation of which connection modes use which certificate store.',
+        ''
+    );
+    return lines.join('\n');
+}
+
+/**
  * Builds a static export ZIP for the given site.
  *
  * The ZIP contains a single index.html with all viewer JS inlined — no
@@ -362,7 +481,7 @@ async function createExport(wwwDir, siteName, site, logger = console, storage = 
  */
 async function buildExportBundle(wwwDir, siteName, {html: siteHtml, config}, logger = console, storage = null) {
     const distDir = path.join(wwwDir, 'dist');
-    const connectionConfig = (config && config.connection) || null;
+    const connectionConfig = sanitizeExportConnection((config && config.connection) || null, logger);
     const theme = (config && config.viewer && config.viewer.theme) || null;
     const themeOverrides = (config && config.viewer && config.viewer.themeOverrides) || {};
     const classes = (config && config.viewer && config.viewer.classes) || {};
@@ -527,6 +646,23 @@ async function buildExportBundle(wwwDir, siteName, {html: siteHtml, config}, log
         logger.debug(`export: PWA enabled — manifest + sw + ${pwaIconEntries.length} icon(s)`);
     }
 
+    // ------------------------------------------------------------------
+    // N8/N10: TLS setup instructions. Exports terminate TLS in the browser,
+    // so uploaded CA / client certificates cannot apply — when the site has
+    // TLS material, ship a TLS-SETUP.md (never the certificates themselves).
+    // ------------------------------------------------------------------
+    const securityFiles = [];
+    if (storage && storage.dataDir) {
+        const certsDir = path.join(storage.dataDir, 'sites', siteName, 'certs');
+        const fsSync = require('fs');
+        const hasCa = fsSync.existsSync(path.join(certsDir, 'ca.pem'));
+        const hasClientCert = fsSync.existsSync(path.join(certsDir, 'client.crt'));
+        if (hasCa || hasClientCert) {
+            securityFiles.push({name: 'TLS-SETUP.md', content: buildTlsSetupMd(siteName, {ca: hasCa, mtls: hasClientCert})});
+            logger.info(`export: site uses ${hasClientCert ? 'mTLS' : 'a private CA'} — TLS-SETUP.md included (certificates are NOT in the export)`);
+        }
+    }
+
     return {
         indexHtml,
         entries: [
@@ -535,6 +671,8 @@ async function buildExportBundle(wwwDir, siteName, {html: siteHtml, config}, log
             // A9: PWA manifest, service worker and icons (only when opted in).
             ...pwaFiles.map(file => ({zip: file.name, content: file.content})),
             ...pwaIconEntries.map(entry => ({zip: entry.zip, abs: entry.abs})),
+            // N8/N10: TLS setup instructions when the site has TLS material.
+            ...securityFiles.map(file => ({zip: file.name, content: file.content})),
         ],
     };
 }

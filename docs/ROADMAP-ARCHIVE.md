@@ -133,6 +133,31 @@ A per-site **playlist**: an ordered list of views, each with a dwell time, loopi
 
 **Deferred to N24:** per-client playlist enable (hallway panel rotates, phones don't) — joins the client-scoped command set when N24 lands.
 
+### N8 — MQTT TLS certificate management ✅ done
+
+Shipped in two stages; full design history (incl. the corrected TLS-termination map) in git history of the roadmap entry.
+
+- **CA trust certificate** *(first stage)* — Connection sidebar TLS section (upload file / paste PEM, CN badge, remove with confirmation); JSON certs API `GET`/`POST`/`DELETE /api/sites/:name/certs` (types `ca`/`cert`/`key`, presence-only GET, PEM sanitised); stored at `<dataDir>/sites/<name>/certs/` (A14 layout, gitignored); the bridge passes `ca.pem` as the mqtt.js `ca` option and reconnects on deploy.
+- **Client certificate (mTLS)** *(July 2026)* — sidebar **Client certificate (mTLS)** section with cert + key rows (upload/paste/remove; shared paste area; shown for `mqtts://`/`wss://`); the bridge loads `client.crt`/`client.key` alongside the CA. Options assembly extracted to `buildConnectOptions()` (exported, unit-tested: full mTLS set, CA-only, missing files skipped individually). The private key is stored server-side and never served back.
+- **Termination-map documentation** *(July 2026)* — the original "TLS is terminated in Node.js, the browser is uninvolved" framing was wrong for direct viewers/exports. user-guide §7 gained **"TLS and self-signed brokers"**: who terminates TLS where (server: editor/bridged viewers/the bridge's own connection — browser: direct `wss://` viewers and every static export), per-platform CA-import steps (Windows/macOS/Linux/Firefox/Android/iOS), the Let's-Encrypt-first recommendation, and the mTLS OS-store story; sidebar hints state the server-side scope of uploaded certs. Exports ship `TLS-SETUP.md` (see N10).
+
+### N9 — MQTT protocol transport and version ✅ done
+
+- **Backend bridge for `mqtt://`/`mqtts://`** and the **export hard error** for non-WebSocket protocols were already in place (viewer route picks `backend=feezal` for TCP protocols; editor export dialog + server-side 4xx with the actionable ws/wss message).
+- **Configurable protocol version** *(July 2026)* — **MQTT version** select in the Connection sidebar (`3.1.1` default / `5.0`), stored as `connection.protocolVersion` (integer 4/5) in `viewer.json`, passed as the mqtt.js `protocolVersion` option by **both** the browser client (`feezal-connection-mqtt`) and the server bridge; a version change triggers a bridge reconnect. Unit-tested on both sides.
+- **Explicitly not included:** MQTT 5 *Retain-As-Published* subscriptions in the bridge (the B16 residual — topics first retained after server start miss the replay cache until reconnect). Revisit if that gap ever bites in practice.
+
+### N10 — Credential security: live viewer bridge + export runtime prompt ✅ done
+
+*(July 2026.)* MQTT credentials and TLS private keys are no longer visible in page source or export bundles.
+
+- **Live viewer — server bridge for all modes:** new **"Connect via server (recommended)"** toggle in the Connection sidebar (`connection.viaServer`; forced + disabled for `mqtt://`/`mqtts://`, which cannot be opened from a browser). The viewer route honours it (`backend=feezal`) **and strips the connection config from bridged viewer pages** — credentials never reach the page source. Direct mode shows an explicit warning in the sidebar (credentials embedded and readable by anyone who can open the viewer).
+- **Static export — runtime credential prompt:** exports never contain credentials. `sanitizeExportConnection()` strips URI userinfo and `username`/`password` fields (and the meaningless `viaServer` flag) and sets `credentialPrompt`; the exported viewer (`feezal-connection-mqtt`) then shows a hand-rolled login overlay on first load (no Shoelace — viewer rule): broker URL (pre-filled, editable), username, password, **Remember on this device** (localStorage; default sessionStorage, cleared with the tab). Authorization failures (CONNACK 4/5 or auth-flavoured errors) clear the stored credentials and re-prompt with an error note; credential-less exports connect without any dialog.
+- **~~Config sidecar alternative~~ dropped by decision (July 2026)** — one mechanism only, the runtime prompt.
+- **mTLS + static export:** no hard error; certificates are **never** put into the ZIP. When the site has TLS material, the export includes a generated **`TLS-SETUP.md`** (CA-trust import per platform; mTLS client-certificate section when a client cert is present) — this supersedes the originally planned separate `MTLS-SETUP.md`, and together with the sidebar hints replaces the planned export-dialog warning (kept the export flow prompt-free).
+- **Documentation:** user-guide §7 got the **connection-mode comparison table** (via server vs. direct: data path, credential visibility, TLS termination, protocols, server dependency) and §10 a **"Credentials — the runtime prompt"** walkthrough (behaviour, Remember semantics, forgetting a device, the always-direct nature of exports).
+- **Tests:** export credential-stripping + TLS-SETUP suite (7), connection-mqtt runtime-prompt suite (8) + protocol version (2), bridge `buildConnectOptions` (5); full server + www suites green.
+
 ### N11 — Dual snap lines per axis ✅ done
 
 While dragging an element, up to two vertical (left/right) and two horizontal (top/bottom) alignment guides can now appear at once, instead of a single winner-takes-all line per axis.

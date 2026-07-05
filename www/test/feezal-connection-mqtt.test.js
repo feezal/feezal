@@ -15,7 +15,8 @@ function makeFakeClient() {
         emit: (event, ...args) => (handlers[event] || []).forEach(cb => cb(...args)),
         publish: vi.fn(),
         subscribe: vi.fn(),
-        unsubscribe: vi.fn()
+        unsubscribe: vi.fn(),
+        end: vi.fn()
     };
 }
 
@@ -154,5 +155,110 @@ describe('publish / subscribe', () => {
         expect(client.subscribe).toHaveBeenCalledWith('a/b');
         expect(client.unsubscribe).toHaveBeenCalledTimes(1);
         expect(client.unsubscribe).toHaveBeenCalledWith('a/b');
+    });
+});
+
+describe('MQTT protocol version (N9)', () => {
+    it('defaults to 3.1.1 (protocolVersion 4)', () => {
+        makeElement({uri: 'ws://b'}).connect();
+        expect(mqtt.connect.mock.calls[0][1].protocolVersion).toBe(4);
+    });
+
+    it('passes protocolVersion 5 when configured (number or string)', () => {
+        makeElement({uri: 'ws://b', protocolVersion: 5}).connect();
+        makeElement({uri: 'ws://b', protocolVersion: '5'}).connect();
+        expect(mqtt.connect.mock.calls[0][1].protocolVersion).toBe(5);
+        expect(mqtt.connect.mock.calls[1][1].protocolVersion).toBe(5);
+    });
+});
+
+describe('runtime credential prompt (N10 — static exports)', () => {
+    const KEY = 'feezal-mqtt-credentials';
+    const overlay = () => document.querySelector('#feezal-credential-prompt');
+
+    beforeEach(() => {
+        sessionStorage.clear(); // localStorage is cleared by the shared setup
+    });
+
+    function submitPrompt({username = '', password = '', remember = false, uri} = {}) {
+        const form = overlay().querySelector('form');
+        if (uri !== undefined) form.querySelector('[name=uri]').value = uri;
+        form.querySelector('[name=username]').value = username;
+        form.querySelector('[name=password]').value = password;
+        form.querySelector('[name=remember]').checked = remember;
+        form.dispatchEvent(new Event('submit', {cancelable: true}));
+    }
+
+    it('shows the prompt instead of connecting when nothing is stored', () => {
+        const el = makeElement({uri: 'wss://broker:8884', credentialPrompt: true});
+        el.connect();
+        expect(mqtt.connect).not.toHaveBeenCalled();
+        expect(overlay()).toBeTruthy();
+        expect(overlay().querySelector('[name=uri]').value).toBe('wss://broker:8884');
+    });
+
+    it('submit stores the credentials in sessionStorage and connects with them', () => {
+        const el = makeElement({uri: 'wss://broker:8884', credentialPrompt: true});
+        el.connect();
+        submitPrompt({username: 'alice', password: 's3cret'});
+        expect(overlay()).toBeNull();
+        expect(JSON.parse(sessionStorage.getItem(KEY))).toMatchObject({username: 'alice', password: 's3cret'});
+        expect(localStorage.getItem(KEY)).toBeNull();
+        const [uri, options] = mqtt.connect.mock.calls[0];
+        expect(uri).toBe('wss://broker:8884');
+        expect(options.username).toBe('alice');
+        expect(options.password).toBe('s3cret');
+    });
+
+    it('the Remember checkbox persists to localStorage instead', () => {
+        const el = makeElement({uri: 'wss://b', credentialPrompt: true});
+        el.connect();
+        submitPrompt({username: 'a', password: 'b', remember: true});
+        expect(localStorage.getItem(KEY)).toBeTruthy();
+        expect(sessionStorage.getItem(KEY)).toBeNull();
+    });
+
+    it('an edited broker URL in the prompt wins over the baked one', () => {
+        const el = makeElement({uri: 'wss://old', credentialPrompt: true});
+        el.connect();
+        submitPrompt({username: 'a', password: 'b', uri: 'wss://new:9001'});
+        expect(mqtt.connect.mock.calls[0][0]).toBe('wss://new:9001');
+    });
+
+    it('uses stored credentials without prompting', () => {
+        sessionStorage.setItem(KEY, JSON.stringify({uri: 'wss://stored', username: 'u', password: 'p'}));
+        const el = makeElement({uri: 'wss://baked', credentialPrompt: true});
+        el.connect();
+        expect(overlay()).toBeNull();
+        const [uri, options] = mqtt.connect.mock.calls[0];
+        expect(uri).toBe('wss://stored');
+        expect(options.username).toBe('u');
+    });
+
+    it('an authorization error clears stored credentials and re-prompts', () => {
+        sessionStorage.setItem(KEY, JSON.stringify({username: 'u', password: 'wrong'}));
+        const el = makeElement({uri: 'wss://b', credentialPrompt: true});
+        el.connect();
+        client.emit('error', Object.assign(new Error('Connection refused: Not authorized'), {code: 5}));
+        expect(client.end).toHaveBeenCalledWith(true);
+        expect(sessionStorage.getItem(KEY)).toBeNull();
+        expect(overlay()).toBeTruthy();
+        expect(overlay().querySelector('[data-role=error]')).toBeTruthy();
+    });
+
+    it('non-auth errors do not clear credentials or prompt', () => {
+        sessionStorage.setItem(KEY, JSON.stringify({username: 'u', password: 'p'}));
+        const el = makeElement({uri: 'wss://b', credentialPrompt: true});
+        el.connect();
+        client.emit('error', new Error('connack timeout'));
+        expect(sessionStorage.getItem(KEY)).toBeTruthy();
+        expect(overlay()).toBeNull();
+    });
+
+    it('without the credentialPrompt flag nothing changes', () => {
+        const el = makeElement({uri: 'ws://plain'});
+        el.connect();
+        expect(overlay()).toBeNull();
+        expect(mqtt.connect.mock.calls[0][1].username).toBeUndefined();
     });
 });

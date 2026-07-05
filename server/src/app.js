@@ -200,16 +200,21 @@ async function createApp(config) {
             // config is stored as {viewer, connection}; feezal-connection expects
             // the inner connection object (with uri, clientId, etc.), not the wrapper.
             const connectionConfig = (config && config.connection) || null;
-            const connectionAttr = connectionConfig && Object.keys(connectionConfig).length
-                ? ` config='${JSON.stringify(connectionConfig).replace(/'/g, '&#39;')}'`
-                : '';
 
             // mqtt:// and mqtts:// cannot be opened from the browser directly — the
             // browser's WebSocket API only supports ws:// and wss://.  Route these
-            // through the feezal server's Socket.IO bridge instead.
+            // through the feezal server's Socket.IO bridge instead. N10: the user
+            // can also opt ws://-family connections into the bridge ("connect via
+            // server") so broker credentials never reach the viewer page.
             const connectionUri = connectionConfig?.uri || '';
-            const usesBridge = /^mqtts?:\/\//.test(connectionUri);
+            const usesBridge = /^mqtts?:\/\//.test(connectionUri) || connectionConfig?.viaServer === true;
             const backendValue = usesBridge ? 'feezal' : 'mqtt';
+
+            // N10: bridged viewers talk Socket.IO only — the broker config
+            // (incl. credentials in the URI) must not be injected into the page.
+            const connectionAttr = !usesBridge && connectionConfig && Object.keys(connectionConfig).length
+                ? ` config='${JSON.stringify(connectionConfig).replace(/'/g, '&#39;')}'`
+                : '';
 
             // Inject the persisted theme class into the feezal-site root element.
             // For historical previews use the viewer config captured at that commit.

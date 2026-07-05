@@ -178,3 +178,59 @@ describe('against a real broker (aedes)', () => {
         expect(bridge.getAllTopics()).toContain('int/still/here');
     });
 });
+
+describe('buildConnectOptions (N8 TLS material / N9 protocol version)', () => {
+    const {mkdtemp, rm, writeFile} = require('fs/promises');
+    const {tmpdir} = require('os');
+    const {join} = require('path');
+
+    it('defaults: protocolVersion 4 (3.1.1), no credentials, bridge client id', async () => {
+        const opts = await bridge.buildConnectOptions({uri: 'mqtt://b'}, null);
+        expect(opts.protocolVersion).toBe(4);
+        expect(opts.username).toBeUndefined();
+        expect(opts.password).toBeUndefined();
+        expect(opts.ca).toBeUndefined();
+        expect(opts.clientId).toMatch(/^feezal-bridge-/);
+    });
+
+    it('passes protocolVersion 5 and credentials from the config', async () => {
+        const opts = await bridge.buildConnectOptions(
+            {protocolVersion: 5, username: 'u', password: 'p'}, null);
+        expect(opts.protocolVersion).toBe(5);
+        expect(opts.username).toBe('u');
+        expect(opts.password).toBe('p');
+    });
+
+    it('coerces a string "5" and falls back to 4 for anything else', async () => {
+        expect((await bridge.buildConnectOptions({protocolVersion: '5'}, null)).protocolVersion).toBe(5);
+        expect((await bridge.buildConnectOptions({protocolVersion: 3}, null)).protocolVersion).toBe(4);
+    });
+
+    it('loads CA, client cert and key from the cert dir (mTLS)', async () => {
+        const dir = await mkdtemp(join(tmpdir(), 'feezal-bridge-certs-'));
+        try {
+            await writeFile(join(dir, 'ca.pem'), 'CA-PEM');
+            await writeFile(join(dir, 'client.crt'), 'CLIENT-CRT');
+            await writeFile(join(dir, 'client.key'), 'CLIENT-KEY');
+            const opts = await bridge.buildConnectOptions({}, dir);
+            expect(opts.ca.toString()).toBe('CA-PEM');
+            expect(opts.cert.toString()).toBe('CLIENT-CRT');
+            expect(opts.key.toString()).toBe('CLIENT-KEY');
+        } finally {
+            await rm(dir, {recursive: true, force: true});
+        }
+    });
+
+    it('missing cert files are skipped individually (CA-only setups)', async () => {
+        const dir = await mkdtemp(join(tmpdir(), 'feezal-bridge-certs-'));
+        try {
+            await writeFile(join(dir, 'ca.pem'), 'CA-ONLY');
+            const opts = await bridge.buildConnectOptions({}, dir);
+            expect(opts.ca.toString()).toBe('CA-ONLY');
+            expect(opts.cert).toBeUndefined();
+            expect(opts.key).toBeUndefined();
+        } finally {
+            await rm(dir, {recursive: true, force: true});
+        }
+    });
+});

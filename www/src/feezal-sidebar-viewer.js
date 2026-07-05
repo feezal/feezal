@@ -26,7 +26,7 @@ class FeezalSidebarViewer extends LitElement {
         pwa:          {type: Boolean},
         app:          {type: Object},   // A9 Tier 2a: {name, id} for the mobile-app export
         _certStatus:  {state: true},
-        _showPaste:   {state: true},
+        _pasteFor:    {state: true},   // null | 'ca' | 'cert' | 'key' — open paste area
         _pemText:     {state: true},
         _certBusy:    {state: true},
         _pwaIcons:    {state: true},   // {custom, meta} | null
@@ -127,7 +127,7 @@ class FeezalSidebarViewer extends LitElement {
         this.pwa         = false;
         this.app         = {};
         this._certStatus = null;
-        this._showPaste  = false;
+        this._pasteFor   = null;
         this._pemText    = '';
         this._certBusy   = false;
         this._pwaIcons   = null;
@@ -199,17 +199,17 @@ class FeezalSidebarViewer extends LitElement {
         } catch { /* ignore — server may not have a dataDir */ }
     }
 
-    async _uploadPem(pem) {
+    async _uploadPem(pem, type = 'ca') {
         this._certBusy = true;
         try {
             const r = await fetch(`/api/sites/${encodeURIComponent(feezal.siteName)}/certs`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({type: 'ca', pem}),
+                body: JSON.stringify({type, pem}),
             });
             if (r.ok) {
-                this._showPaste = false;
-                this._pemText   = '';
+                this._pasteFor = null;
+                this._pemText  = '';
                 await this._loadCertStatus();
             }
         } catch { /* ignore */ }
@@ -230,10 +230,10 @@ class FeezalSidebarViewer extends LitElement {
         this.renderRoot.querySelector('#dlg-remove-ca')?.hide();
     }
 
-    _handleFileUpload(e) {
+    _handleFileUpload(e, type = 'ca') {
         const file = e.target.files[0];
         if (!file) return;
-        file.text().then(text => this._uploadPem(text));
+        file.text().then(text => this._uploadPem(text, type));
         e.target.value = '';
     }
 
@@ -282,10 +282,60 @@ class FeezalSidebarViewer extends LitElement {
         }
     }
 
+    // One mTLS cert row (type 'cert' | 'key'): status badge + upload/paste/remove.
+    _mtlsRow(type, label, accept) {
+        const present = this._certStatus?.[type];
+        return html`
+            <div class="cert-info-row">
+                <span style="font-size:13px;color:var(--feezal-color,#333)">${label}</span>
+                ${present ? html`
+                    <span class="cert-badge-ok">✓</span>
+                    <button class="cert-remove-btn" title="Remove ${label.toLowerCase()}"
+                        @click="${() => this._removeCert(type)}">
+                        ✕
+                    </button>
+                ` : html`
+                    <span class="cert-badge-none">none</span>
+                    <sl-button size="small" ?loading="${this._certBusy}"
+                        @click="${() => this.renderRoot.querySelector(`#${type}-file-input`).click()}">
+                        Upload
+                    </sl-button>
+                    <sl-button size="small" variant="text"
+                        @click="${() => { this._pasteFor = this._pasteFor === type ? null : type; }}">
+                        ${this._pasteFor === type ? 'Cancel' : 'Paste'}
+                    </sl-button>
+                `}
+            </div>
+            <input id="${type}-file-input" type="file" accept="${accept}"
+                @change="${e => this._handleFileUpload(e, type)}">
+        `;
+    }
+
+    // Shared PEM paste area — open for at most one cert type at a time.
+    _pasteArea(type) {
+        if (this._pasteFor !== type) return '';
+        return html`
+            <sl-textarea size="small" rows="5"
+                placeholder="-----BEGIN ...-----&#10;..."
+                .value="${this._pemText}"
+                @sl-input="${e => this._pemText = e.target.value}">
+            </sl-textarea>
+            <div class="cert-save-row">
+                <sl-button size="small" variant="primary"
+                    ?disabled="${!this._pemText.includes('-----BEGIN ')}"
+                    ?loading="${this._certBusy}"
+                    @click="${() => this._uploadPem(this._pemText, type)}">
+                    Save
+                </sl-button>
+            </div>
+        `;
+    }
+
     render() {
         const c = this.connection;
         const s = this.site;
         const isTls = c._protocol === 'mqtts' || c._protocol === 'wss';
+        const isTcp = c._protocol === 'mqtt' || c._protocol === 'mqtts';
         const hasCa = this._certStatus?.ca;
         return html`
             <sl-tab-group>
@@ -314,6 +364,35 @@ class FeezalSidebarViewer extends LitElement {
                             @sl-change="${e => { this.connection = {...this.connection, _port: e.target.value}; this._buildUri(); this._applyConnection(); feezal.app.change(true); }}">
                         </sl-input>
                     </div>
+                    <sl-select label="MQTT version" size="small"
+                        .value="${String(c.protocolVersion || 4)}"
+                        @sl-change="${e => this._setConn('protocolVersion', Number(e.target.value))}">
+                        <sl-option value="4">3.1.1</sl-option>
+                        <sl-option value="5">5.0</sl-option>
+                    </sl-select>
+
+                    <div class="section-label">Connection mode</div>
+                    <sl-switch size="small"
+                        ?checked="${isTcp || c.viaServer === true}"
+                        ?disabled="${isTcp}"
+                        @sl-change="${e => this._setConn('viaServer', e.target.checked)}">
+                        Connect via server (recommended)
+                    </sl-switch>
+                    <div class="pwa-hint">
+                        ${isTcp || c.viaServer === true ? html`
+                            The viewer talks only to the feezal server — broker credentials
+                            never appear in the viewer page source.
+                            ${isTcp ? html`<br><em>mqtt:// and mqtts:// cannot be opened from
+                            a browser, so the server connection is required.</em>` : ''}
+                        ` : html`
+                            <strong>Direct mode:</strong> the viewer connects to the broker
+                            itself — the broker URL <em>and credentials</em> are embedded in
+                            the viewer page source, readable by anyone who can open the
+                            viewer. Static exports are always direct, but never contain
+                            credentials — they prompt for them at runtime.
+                        `}
+                    </div>
+
                     <div class="section-label">Authentication</div>
                     <sl-input label="Username" size="small" placeholder="(none)"
                         .value="${c._username || ''}"
@@ -348,28 +427,32 @@ class FeezalSidebarViewer extends LitElement {
                                     Upload file
                                 </sl-button>
                                 <sl-button size="small" variant="text"
-                                    @click="${() => { this._showPaste = !this._showPaste; }}">
-                                    ${this._showPaste ? 'Cancel' : 'Paste PEM'}
+                                    @click="${() => { this._pasteFor = this._pasteFor === 'ca' ? null : 'ca'; }}">
+                                    ${this._pasteFor === 'ca' ? 'Cancel' : 'Paste PEM'}
                                 </sl-button>
                             </div>
                             <input id="ca-file-input" type="file" accept=".pem,.crt,.cer,.ca"
-                                @change="${this._handleFileUpload}">
-                            ${this._showPaste ? html`
-                                <sl-textarea size="small" rows="5"
-                                    placeholder="-----BEGIN CERTIFICATE-----&#10;..."
-                                    .value="${this._pemText}"
-                                    @sl-input="${e => this._pemText = e.target.value}">
-                                </sl-textarea>
-                                <div class="cert-save-row">
-                                    <sl-button size="small" variant="primary"
-                                        ?disabled="${!this._pemText.includes('-----BEGIN ')}"
-                                        ?loading="${this._certBusy}"
-                                        @click="${() => this._uploadPem(this._pemText)}">
-                                        Save
-                                    </sl-button>
-                                </div>
-                            ` : ''}
+                                @change="${e => this._handleFileUpload(e, 'ca')}">
                         `}
+                        ${this._pasteArea('ca')}
+                        <div class="pwa-hint">
+                            Trusts a self-signed / private CA for <strong>server-side</strong>
+                            connections (editor, bridge). Direct browser viewers and static
+                            exports use the device's own certificate store instead — see
+                            "TLS and self-signed brokers" in the user guide.
+                        </div>
+
+                        <div class="section-label">Client certificate (mTLS)</div>
+                        ${this._mtlsRow('cert', 'Certificate', '.pem,.crt,.cer')}
+                        ${this._pasteArea('cert')}
+                        ${this._mtlsRow('key', 'Private key', '.pem,.key')}
+                        ${this._pasteArea('key')}
+                        <div class="pwa-hint">
+                            For brokers requiring mutual TLS. Used by server-side connections
+                            only — the private key never leaves the server. Direct viewers and
+                            exports need the certificate in the device's OS store (exports
+                            include a TLS-SETUP.md with instructions).
+                        </div>
                     ` : ''}
 
                     <div class="section-label">Client</div>

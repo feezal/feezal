@@ -413,3 +413,86 @@ describe('bundle build', () => {
         expect(existsSync(join(wwwDir, 'src', '_export-entry.js'))).toBe(false);
     });
 });
+
+describe('credential security (N10)', () => {
+    function embeddedConfig(html) {
+        const m = html.match(/config='([^']*)'/);
+        return m ? JSON.parse(m[1].replace(/&#39;/g, "'")) : null;
+    }
+
+    it('strips URI credentials and sets the credentialPrompt flag', async () => {
+        const {text} = await exportSite({
+            config: {connection: {backend: 'mqtt', uri: 'wss://alice:s3cret@broker:8884'}}
+        });
+        const html = text('mysite/index.html');
+        expect(html).not.toContain('s3cret');
+        expect(html).not.toContain('alice');
+        const cfg = embeddedConfig(html);
+        expect(cfg.credentialPrompt).toBe(true);
+        expect(cfg.uri).toBe('wss://broker:8884/');
+    });
+
+    it('strips username/password fields too', async () => {
+        const {text} = await exportSite({
+            config: {connection: {backend: 'mqtt', uri: 'wss://broker:8884', username: 'bob', password: 'hunter2'}}
+        });
+        const cfg = embeddedConfig(text('mysite/index.html'));
+        expect(cfg.username).toBeUndefined();
+        expect(cfg.password).toBeUndefined();
+        expect(cfg.credentialPrompt).toBe(true);
+        expect(text('mysite/index.html')).not.toContain('hunter2');
+    });
+
+    it('drops the viaServer flag (exports are always direct)', async () => {
+        const {text} = await exportSite({
+            config: {connection: {backend: 'mqtt', uri: 'wss://broker:8884', viaServer: true}}
+        });
+        const cfg = embeddedConfig(text('mysite/index.html'));
+        expect(cfg.viaServer).toBeUndefined();
+        expect(cfg.credentialPrompt).toBeUndefined();
+    });
+
+    it('credential-less configs are exported unchanged (no prompt flag)', async () => {
+        const {text} = await exportSite({
+            config: {connection: {backend: 'mqtt', uri: 'ws://broker:9001'}}
+        });
+        const cfg = embeddedConfig(text('mysite/index.html'));
+        expect(cfg.uri).toBe('ws://broker:9001');
+        expect(cfg.credentialPrompt).toBeUndefined();
+    });
+});
+
+describe('TLS setup instructions (N8/N10)', () => {
+    async function withCerts(siteName, files) {
+        const certsDir = join(dataDir, 'sites', siteName, 'certs');
+        await mkdir(certsDir, {recursive: true});
+        for (const [file, content] of Object.entries(files)) {
+            await writeFile(join(certsDir, file), content);
+        }
+    }
+
+    it('ships TLS-SETUP.md for a CA-only site — CA section, no mTLS section, no cert content', async () => {
+        await withCerts('tlssite', {'ca.pem': 'SECRET-CA-PEM'});
+        const zip = await exportSite({name: 'tlssite', storage: {dataDir}});
+        expect(zip.names).toContain('tlssite/TLS-SETUP.md');
+        const md = zip.text('tlssite/TLS-SETUP.md');
+        expect(md).toContain("Trust the broker's CA certificate");
+        expect(md).not.toContain('Client certificate (mTLS)');
+        expect(md).not.toContain('SECRET-CA-PEM');
+        expect(zip.names.some(n => n.endsWith('.pem'))).toBe(false);
+    });
+
+    it('adds the mTLS section when a client certificate is present', async () => {
+        await withCerts('mtlssite', {'ca.pem': 'CA', 'client.crt': 'CRT', 'client.key': 'TOP-SECRET-KEY'});
+        const zip = await exportSite({name: 'mtlssite', storage: {dataDir}});
+        const md = zip.text('mtlssite/TLS-SETUP.md');
+        expect(md).toContain('Client certificate (mTLS)');
+        expect(md).not.toContain('TOP-SECRET-KEY');
+        expect(zip.names.some(n => n.includes('client.key'))).toBe(false);
+    });
+
+    it('no TLS-SETUP.md without TLS material', async () => {
+        const zip = await exportSite({name: 'plainsite', storage: {dataDir}});
+        expect(zip.names).not.toContain('plainsite/TLS-SETUP.md');
+    });
+});

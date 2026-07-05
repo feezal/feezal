@@ -96,6 +96,7 @@ function getTopicCompletions(prefix) {
 let client          = null;
 let activeUri       = null;
 let activeCertDir   = null;
+let activeVersion   = null;
 let _logger         = null;
 let _relayCallback  = null;
 
@@ -116,8 +117,11 @@ function connect(config, logger, certDir) {
         return;
     }
 
-    // Skip if already connected to the same broker with the same cert dir
-    if (activeUri === uri && activeCertDir === (certDir || null)) {
+    // N9: MQTT protocol version — 4 (3.1.1, default) or 5 (MQTT 5.0).
+    const protocolVersion = Number(config.protocolVersion) === 5 ? 5 : 4;
+
+    // Skip if already connected to the same broker with the same cert dir + version
+    if (activeUri === uri && activeCertDir === (certDir || null) && activeVersion === protocolVersion) {
         _logger?.debug('mqtt-bridge: already connected to ' + uri);
         return;
     }
@@ -127,26 +131,44 @@ function connect(config, logger, certDir) {
     discovery.clearEntities();
     activeUri = uri;
     activeCertDir = certDir || null;
+    activeVersion = protocolVersion;
 
     _logger?.info('mqtt-bridge: connecting to ' + uri);
 
+    buildConnectOptions(config, certDir)
+        .then(options => _doConnect(uri, options))
+        .catch(err => _logger?.error('mqtt-bridge: ' + err.message));
+}
+
+/**
+ * mqtt.js connect options from the stored connection config: credentials,
+ * protocol version (N9) and — when a cert dir is given — the site's TLS
+ * material (N8: CA trust + mTLS client cert/key). Exported for tests.
+ */
+async function buildConnectOptions(config, certDir) {
     const options = {
         clientId:  'feezal-bridge-' + Math.random().toString(16).slice(2, 10),
         reconnectPeriod: 5000,
-        connectTimeout: 10000
+        connectTimeout: 10000,
+        // N9: MQTT protocol version — 4 (3.1.1, default) or 5 (MQTT 5.0)
+        protocolVersion: Number(config.protocolVersion) === 5 ? 5 : 4
     };
     if (config.username) options.username = config.username;
     if (config.password) options.password = config.password;
 
-    // Load TLS CA cert if present (N8)
-    const doConnect = certDir
-        ? fs.readFile(path.join(certDir, 'ca.pem'))
-            .then(ca => { options.ca = ca; })
-            .catch(() => { /* no CA cert — connect without it */ })
-            .then(() => _doConnect(uri, options))
-        : Promise.resolve(_doConnect(uri, options));
+    if (certDir) {
+        const loadPem = (file, key) =>
+            fs.readFile(path.join(certDir, file))
+                .then(pem => { options[key] = pem; })
+                .catch(() => { /* file not present — connect without it */ });
+        await Promise.all([
+            loadPem('ca.pem', 'ca'),
+            loadPem('client.crt', 'cert'),
+            loadPem('client.key', 'key')
+        ]);
+    }
 
-    doConnect.catch(err => _logger?.error('mqtt-bridge: ' + err.message));
+    return options;
 }
 
 function _doConnect(uri, options) {
@@ -157,6 +179,7 @@ function _doConnect(uri, options) {
         client = null;
         activeUri = null;
         activeCertDir = null;
+        activeVersion = null;
         return;
     }
 
@@ -195,6 +218,7 @@ function disconnect() {
         client       = null;
         activeUri    = null;
         activeCertDir = null;
+        activeVersion = null;
     }
 }
 
@@ -213,4 +237,4 @@ function publish(message) {
     _logger?.debug('mqtt-bridge: publish ' + message.topic);
 }
 
-module.exports = { connect, disconnect, publish, insertTopic, getTopicCompletions, getAllTopics, getLastPayload, recordPayload, setRelayCallback, getDiscoveredEntities: discovery.getDiscoveredEntities, getDiscoveredEntity: discovery.getDiscoveredEntity, getDeviceGroups: discovery.getDeviceGroups };
+module.exports = { connect, disconnect, publish, insertTopic, getTopicCompletions, getAllTopics, getLastPayload, recordPayload, setRelayCallback, buildConnectOptions, getDiscoveredEntities: discovery.getDiscoveredEntities, getDiscoveredEntity: discovery.getDiscoveredEntity, getDeviceGroups: discovery.getDeviceGroups };

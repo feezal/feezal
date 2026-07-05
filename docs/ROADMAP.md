@@ -12,9 +12,6 @@ Work in progress — priorities and scope are not final.
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
-- [N8 — MQTT TLS certificate management](#n8--mqtt-tls-certificate-management)
-- [N9 — MQTT protocol transport and version](#n9--mqtt-protocol-transport-and-version)
-- [N10 — Credential security: live viewer bridge + export runtime prompt](#n10--credential-security-live-viewer-bridge--export-runtime-prompt)
 - [N12 — Export bundle: strip mqtt.js for feezal-bridge users](#n12--export-bundle-strip-mqttjs-for-feezal-bridge-users-partial) *(partial)*
 - [N13 — Lighter MQTT client for export bundle](#n13--lighter-mqtt-client-for-export-bundle-️-tbd) ⚠️
 - [N24 — Viewer presence + per-client control topics](#n24--viewer-presence--per-client-control-topics-️-reviewrefinement-needed) ⚠️
@@ -130,7 +127,7 @@ This handles all combinations: fixed×fixed, fixed×auto, auto×auto.
 
 Exports over `ws://`/`wss://` (the only permitted export mode) no longer bundle socket.io-client (~40 kB) — ✅ fixed by stubbing out `feezal-connection-feezal.js` in the Vite export plugin.
 
-Remaining: exports always bundle mqtt.js (~280 kB) even when the live site uses the feezal bridge. This case is currently blocked at export time (`mqtt://`/`mqtts://` → error), so the remaining waste is theoretical until N9 (bridge mode export) is implemented.
+Remaining: exports always bundle mqtt.js (~280 kB) even when the live site uses the feezal bridge. This case is currently blocked at export time (`mqtt://`/`mqtts://` → error), so the remaining waste is theoretical unless bridge-mode export ever gets built (N9 is archived; mqtt:// exports deliberately error).
 
 ### N13 — Lighter MQTT client for export bundle ⚠️ TBD
 
@@ -189,79 +186,6 @@ Residual from N4/N23 (both archived; the icons type is handled — viewer pages 
 **Likely mechanism (to verify/decide):** install bundles are self-contained ESM served from `/user-elements/<pkg>/…`, so injecting `<script type="module" src="…">` tags for installed packages into viewer pages should just work — mirror how icon registrations are inlined. Decide the static-export story: append the bundles to the export (they're single files) vs. document as unsupported like user icon sets.
 
 **Relates:** N4/N23 (archive), A8 (export tree-shaking — exported user elements would need their tags recognized by `extract-elements.js`).
-
-### N8 — MQTT TLS certificate management
-
-Two sub-features for secure broker connections, both server-side (TLS is terminated in Node.js; the browser is uninvolved).
-
-**CA trust certificate (TLS servers):**
-When connecting to an MQTT broker over TLS (`mqtts://`, `wss://`) that uses a self-signed or private CA certificate, the Node.js MQTT client needs to trust that CA. A file-upload control in the Connection settings sidebar lets the user upload a PEM-format CA certificate. Additionally: a text input where users can paste PEM. The server stores it at `dataDir/certs/<siteName>/ca.pem` and passes it as the `ca` option to `mqtt.js`. The sidebar shows the current status ("CA cert: ✓ uploaded" / "none") with a remove button.
-
-**Client certificate — mTLS:**
-For brokers that require mutual TLS authentication, the user uploads both a PEM client certificate and a PEM private key. Stored as `dataDir/certs/<siteName>/client.crt` and `dataDir/certs/<siteName>/client.key` (the key is never served back to the browser). Passed as `cert` and `key` options to the MQTT client. The upload slots are shown only when the selected protocol is `mqtts://` or `wss://`.
-
-**API surface:**
-- `POST /api/sites/:name/certs` — multipart form upload; accepts `ca`, `cert`, and `key` fields.
-- `DELETE /api/sites/:name/certs/:type` — removes a previously uploaded file (`ca`, `cert`, or `key`).
-- `GET /api/sites/:name/certs` — returns which cert files are currently present (names only, never content).
-
-### N9 — MQTT protocol transport and version
-
-**Browser protocol limitation and backend bridge:**
-Browsers cannot open raw TCP-based MQTT (`mqtt://` / `mqtts://`) — only WebSocket (`ws://` / `wss://`). When the user selects `mqtt://` or `mqtts://` in the connection form (N7), the broker connection must be proxied through the feezal server: the backend establishes the TCP connection to the broker and relays messages to the browser via the existing Socket.IO channel ("feezal bridge" mode, `feezal-connection-feezal.js`).
-
-**Export error for non-WebSocket protocols:**
-A statically exported site has no feezal server to relay through. When the user triggers an export while `mqtt://` or `mqtts://` is selected, the export must surface a clear, actionable error rather than silently producing a broken bundle:
-
-> *"Static export is not supported with mqtt:// or mqtts:// connections. Exported sites connect directly from the browser and require a WebSocket-capable MQTT broker (ws:// or wss://). Switch the connection protocol to ws:// or wss:// before exporting."*
-
-**Configurable MQTT protocol version:**
-Add a `version` selector to the Connection UI (`sl-select`: **3.1.1** / **5.0**). The value is stored in `viewer.json` alongside the URI and passed to the MQTT client as the `protocolVersion` option (integer `4` for MQTT 3.1.1, integer `5` for MQTT 5.0 — per the `mqtt.js` API). The feezal bridge relay must honour the same setting when it opens the upstream TCP connection. Default: **3.1.1** (current implicit behaviour, no breaking change).
-
-### N10 — Credential security: live viewer bridge + export runtime prompt
-
-MQTT credentials (username, password) and TLS private keys (N8 mTLS) must not be visible in page source or export bundles. The threat model differs between deployment modes:
-
-#### Live viewer (feezal server running) — server-side bridge
-
-The feezal backend already acts as an MQTT relay for `mqtt://`/`mqtts://` connections (the "feezal bridge" in `feezal-connection-feezal.js`). Extend this to cover **all** connection modes, including `ws://`/`wss://`. The browser speaks only to the feezal server via Socket.IO; the server holds all credentials and opens the MQTT connection entirely on the backend side. Nothing sensitive is injected into the viewer HTML.
-
-This fully solves the live-viewer case: credentials live in `viewer.json` on the server filesystem, mTLS keys stay in `dataDir/certs/` and are never served to the browser.
-
-The Connection sidebar should expose this as an explicit toggle: **"Connect via server (recommended)"** / **"Connect directly from browser"** — with a warning when direct mode is selected explaining that credentials will be present in the page source.
-
-#### Static export — runtime credential prompt
-
-A static export has no server to relay through. Any credential baked into the HTML is readable by whoever has the file. The preferred approach:
-
-**Preferred: Runtime credential prompt.** The exported site detects that connection credentials are missing or redacted (a sentinel value in the baked config) and shows a login dialog on first load:
-- Fields: **broker URL**, **username**, **password** (if the broker requires auth).
-- Credentials are stored in `sessionStorage` (cleared when the tab closes) or optionally `localStorage` (persisted across reloads, user's choice via a "Remember" checkbox).
-- The exported HTML contains the broker host/port but **not** the credentials — the sensitive parts are supplied at runtime by the person who opens the page.
-- Suitable for kiosk/shared-display setups where the operator enters credentials once.
-
-**Alternative: Config sidecar.** The ZIP includes a `config.js` template with placeholder credentials. The user populates and serves it separately; `index.html` reads `window.FEEZAL_CONFIG` at startup. The ZIP is safe to commit or share without containing any secrets.
-
-**mTLS + static export — OS certificate store path (no hard error).**
-
-Two questions arise naturally:
-
-**Q: Why not let the user paste the PEM cert/key at first run, like username/password?**
-Different authentication layers:
-- **Username/password** is an MQTT application-layer credential — `mqtt.js` constructs the CONNECT packet in JavaScript, fully controllable from JS. Runtime prompt + `sessionStorage`/`localStorage` storage is feasible (see above).
-- **mTLS client certificates** authenticate at the **TLS handshake layer**, which runs *below* the WebSocket. The browser's TLS stack drives it — the WebSocket API has no interface for passing a PEM string programmatically. The browser only uses certificates from the OS/browser certificate store. Pasting a PEM key into a dialog would store bytes that the TLS stack never sees.
-
-**Q: Why not tell the user to import the cert into the OS/browser certificate store?**
-This actually *works* — and is the right answer for static exports. When the broker requests a client certificate during the WSS handshake, the browser intercepts with its native certificate picker. The user selects the installed cert, the handshake completes with full mTLS. `mqtt.js` in the browser uses the native `WebSocket` API and gets mTLS for free, without any code changes.
-
-**Revised approach for static export with mTLS:**
-- The export proceeds (no hard error), but the client cert/key are **not** embedded in the ZIP (they would be a security liability in a static file).
-- The export dialog shows a prominent, actionable warning:
-  > *"This site uses mTLS client authentication. The client certificate and private key are not included in the export — they must be installed in the OS/browser certificate store on any device that opens this dashboard. The browser will present the certificate automatically when the broker requests it."*
-- The exported ZIP includes a `MTLS-SETUP.md` with step-by-step OS instructions (Windows: Certificate Manager / MMC snap-in; macOS: Keychain Access; Linux: `certutil` / browser settings; Firefox: Preferences → Privacy → Certificates).
-- The `viewer.json` baked into the export contains only the broker host/port and protocol — no cert paths, no key material.
-
-The private key remains exclusively in `dataDir/certs/` on the feezal server (N8). For the live-viewer path it is used directly by the Node.js MQTT client; for static export the user installs it alongside the cert in their OS store (standard operational practice for mTLS deployments).
 
 ### N24 — Viewer presence + per-client control topics ⚠️ review/refinement needed
 

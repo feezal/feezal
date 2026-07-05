@@ -286,11 +286,55 @@ Open the **Connection** tab on the left sidebar.
 | Protocol | `ws` / `wss` / `mqtt` / `mqtts` |
 | Host | Broker hostname or IP |
 | Port | Broker port (default `9001` for ws, `8883` for mqtts) |
+| MQTT version | `3.1.1` (default) or `5.0` — used by the viewer and the server bridge |
+| Connect via server | Route the viewer through the feezal server instead of connecting directly (see below) |
 | Username / Password | Optional broker credentials |
 
-Settings are stored in the site's `viewer.json` and are sent to the viewer on load. They are **not** used by the editor itself — only the viewer connects to the broker.
+Settings are stored in the site's `viewer.json`. The feezal **server** always connects to the broker with them (it powers the editor canvas, topic autocomplete, device discovery and the AI tools); the **viewer** additionally connects directly from the browser unless *Connect via server* is enabled.
 
-The **Last Will** and **On Connect** sections (collapsed by default) let you configure the MQTT last-will message and a message to publish when the viewer first connects.
+The **Last Will** and **On Connect** sections let you configure the MQTT last-will message and a message to publish when the viewer first connects.
+
+### Connection mode — via server or direct
+
+The viewer can reach the broker two ways:
+
+| | Via server (recommended) | Direct from browser |
+|---|---|---|
+| Data path | browser → feezal server → broker | browser → broker |
+| Broker credentials | stay on the server — **never in the page source** | embedded in the viewer page source, readable by anyone who can open the viewer |
+| TLS to the broker | terminated by the server — the uploaded CA / client certificate applies | terminated by the browser — only the device's certificate store applies |
+| Protocols | all (`mqtt`, `mqtts`, `ws`, `wss`) | `ws` / `wss` only |
+| Requires the feezal server at runtime | yes | no |
+
+`mqtt://` and `mqtts://` always use the server — browsers can only open WebSockets. For `ws://`/`wss://` the toggle is yours: choose **via server** when the viewer is served by feezal anyway (credentials stay private, TLS is handled centrally); choose **direct** when viewers must keep working while the feezal server is down, or as a stepping stone to a static export (exports are always direct — but never contain credentials, see [Static export](#10-static-export)).
+
+### TLS and self-signed brokers
+
+Who does the TLS handshake decides which certificate store matters:
+
+| Connection | TLS terminated by | A self-signed broker needs |
+|---|---|---|
+| Editor, bridged viewers, the server's own broker connection | the feezal **server** | the CA uploaded in **Connection → TLS** |
+| Direct `wss://` viewers, every **static export** | the **browser** | the CA imported into each device's OS/browser trust store |
+
+The browser side is a platform limit, not a feezal one — web pages cannot supply a CA programmatically.
+
+**The easy way out:** put a publicly trusted certificate (e.g. **Let's Encrypt**) on your broker. Every device then connects with zero setup, and none of the steps below are needed.
+
+**Manual CA import** (for direct viewers and exports with a private CA) — import the CA certificate on *every* device that opens the dashboard:
+
+- **Windows:** double-click the certificate → *Install Certificate* → *Local Machine* → *Trusted Root Certification Authorities* (or `certmgr.msc`).
+- **macOS:** double-click → *Keychain Access* → *System* keychain → set *Trust* to *Always Trust*.
+- **Linux:** copy to `/usr/local/share/ca-certificates/` + `sudo update-ca-certificates` (Debian/Ubuntu) or `trust anchor` (Fedora/Arch); Chromium may also need `certutil -d sql:$HOME/.pki/nssdb -A -t "C,," -n broker-ca -i ca.pem`.
+- **Firefox:** has its own store — Settings → *Privacy & Security* → *Certificates* → *Import* → tick *Trust this CA to identify websites*.
+- **Android:** Settings → *Security* → *Encryption & credentials* → *Install a certificate* → *CA certificate*.
+- **iOS:** install the profile (Settings → *General* → *VPN & Device Management*), then enable it under *General* → *About* → *Certificate Trust Settings*.
+
+Static exports that use TLS material ship these instructions as a `TLS-SETUP.md` inside the ZIP.
+
+### Client certificates (mTLS)
+
+For brokers that require mutual TLS, upload the client certificate and private key under **Connection → Client certificate (mTLS)**. They are used by **server-side** connections only (the key never leaves the server — the API can store it but never returns it). Direct viewers and exports need the client certificate installed in the device's OS store instead (as a `.p12`/`.pfx`); the browser presents it automatically during the handshake. Exports include the setup steps in `TLS-SETUP.md`.
 
 ---
 
@@ -390,16 +434,28 @@ A static export packages the entire viewer into a **single self-contained `index
 
 - The feezal viewer application bundle.
 - All element packages used in the site.
-- The MQTT connection configuration (broker URL, credentials).
+- The MQTT connection configuration — broker URL only, **never credentials** (see below).
 - All site assets (images, etc.) referenced in the views, copied alongside `index.html`.
+- `TLS-SETUP.md` with per-platform certificate instructions, when the site uses TLS material.
+
+**Credentials — the runtime prompt**
+
+An exported `index.html` is a plain file: anything baked into it can be read by whoever holds it. feezal therefore **strips the broker username and password from every export**. If your broker requires authentication, the exported dashboard shows a small **login dialog on first load**:
+
+- **Broker URL** (pre-filled, editable — handy when the broker is reachable under a different address than from the editor), **Username**, **Password**.
+- Credentials are kept in the browser's **session storage** by default — gone when the tab closes. Tick **Remember on this device** to keep them in local storage across reloads (kiosk/wall-panel setups: enter once, done).
+- Wrong credentials? The dialog reappears with an error after the broker rejects them.
+- To make a device forget remembered credentials, clear the site's browser data (or use a private window for one-off access).
+
+Exports without configured credentials connect straight away, no dialog.
 
 **Notes**
 
-- The exported dashboard still requires a reachable MQTT broker at runtime — only the feezal server is eliminated.
+- The exported dashboard still requires a reachable MQTT broker at runtime — only the feezal server is eliminated. Exports always connect **directly from the browser** (the *Connect via server* mode does not apply — there is no server).
 - If your broker requires WSS (WebSocket over TLS), the exported file must be served from HTTPS (browser security restriction) or opened in a native WebSocket context.
 - **HTTPS → WSS requirement** — if the exported `index.html` is served over `https://`, the broker connection **must** use `wss://`. Browsers block mixed-content connections: a page loaded from HTTPS cannot open a plain (non-TLS) WebSocket to a `ws://` broker. Make sure your broker URL uses `wss://` whenever the dashboard is hosted on HTTPS.
 - Global assets (shared across sites) are also bundled.
-- **TLS CA certificates** — any CA certificate you uploaded in the Connection settings is stored server-side and used only by the feezal server's MQTT bridge. It is **not** included in the export. If your `wss://` broker uses a self-signed or private CA certificate, you must install that CA certificate in the **OS or browser trust store** of every device that will open the exported dashboard. This is standard procedure for private TLS deployments.
+- **TLS certificates are never part of an export.** The CA / client certificate you uploaded in the Connection settings is server-side material; exports do TLS in the browser. For self-signed/private-CA brokers (and mTLS), each device needs the certificates in its OS/browser store — the ZIP's `TLS-SETUP.md` walks through it per platform, and [TLS and self-signed brokers](#tls-and-self-signed-brokers) has the background. The painless alternative remains a publicly trusted certificate (Let's Encrypt) on the broker.
 
 ---
 
