@@ -131,16 +131,29 @@ cd server && npx vitest run
 
 ## 3. Versioning
 
+### Bump + tag
+
+`scripts/release.js` bumps the version in the root, `server/` and `www/` package.json (and the version fields of their lockfiles), commits `chore(release): vX.Y.Z` and creates the `vX.Y.Z` tag — it requires a clean working tree and never pushes:
+
+```sh
+npm run release          # patch bump
+npm run release:minor
+npm run release:major
+node scripts/release.js 2.1.0            # explicit version
+node scripts/release.js patch --dry-run  # preview only
+```
+
+In VS Code the three `release*` scripts appear in the Explorer's **NPM Scripts** view (enable via the Explorer's ⋯ menu) with a one-click ▶ run button.
+
 ### Git tags
 
 Releases are triggered by pushing a **`v*` tag**:
 
 ```sh
-git tag v1.2.0
-git push origin v1.2.0
+git push origin master v1.2.0
 ```
 
-The Docker publish workflow fires on this event and pushes both a versioned tag and `latest` to GHCR. There is no separate "release branch" — `master` is always the release branch.
+The Docker publish workflow fires on this event and pushes both a versioned tag and `latest` to GHCR. There is no separate "release branch" — `master` is always the release branch. Pushing the tag is deliberately left manual — the release script only prepares the commit + tag locally.
 
 ---
 

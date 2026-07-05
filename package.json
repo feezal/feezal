@@ -12,7 +12,10 @@
     "test:all": "npm test && npm run test:browser && npm run test:e2e",
     "create-element": "node packages/create-feezal-element/index.js",
     "create-theme": "node packages/create-feezal-theme/index.js",
-    "create-icons": "node packages/create-feezal-icons/index.js"
+    "create-icons": "node packages/create-feezal-icons/index.js",
+    "release": "node scripts/release.js patch",
+    "release:minor": "node scripts/release.js minor",
+    "release:major": "node scripts/release.js major"
   },
   "author": "Sebastian Raff <hobbyquaker@gmail.com>",
   "license": "AGPL-3.0-only",
