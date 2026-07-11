@@ -4,24 +4,35 @@
         "email": "hobbyquaker@gmail.com"
     },
     "bugs": {
-        "url": "https://github.com/feezal/node-red-contrib-feezal/issues"
+        "url": "https://github.com/feezal/feezal/issues"
     },
     "dependencies": {
-        "@polymer/polymer": "^3.0.0"
+        "@polymer/polymer": "^3.0.0",
+        "lit": "^3.2.0"
     },
-    "deprecated": false,
-    "description": "",
+    "description": "Base classes for feezal dashboard elements — FeezalElement (Lit 3), FeezalPolymerElement (legacy paper elements) and the shared conditions engine",
     "feezal": {},
-    "homepage": "https://github.com/feezal/node-red-contrib-feezal#readme",
+    "files": [
+        "feezal-element.js",
+        "feezal-conditions.js",
+        "feezal-polymer-element.js",
+        "LICENSE"
+    ],
+    "homepage": "https://github.com/feezal/feezal#readme",
+    "keywords": [
+        "feezal",
+        "feezal-element"
+    ],
     "license": "MIT",
     "main": "feezal-element.js",
     "name": "@feezal/feezal-element",
+    "publishConfig": {
+        "access": "public"
+    },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/feezal/node-red-contrib-feezal.git"
-    },
-    "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "url": "git+https://github.com/feezal/feezal.git",
+        "directory": "www/packages/@feezal/feezal-element"
     },
     "version": "3.0.0"
 }

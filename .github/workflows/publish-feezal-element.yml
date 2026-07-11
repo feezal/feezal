@@ -1,0 +1,59 @@
+name: Publish @feezal/feezal-element
+
+# Publishes www/packages/@feezal/feezal-element to npm whenever the version in
+# its package.json differs from the version on the registry. Idempotent: a push
+# without a version bump (or a re-run) is a no-op.
+#
+# Auth: npm Trusted Publishing (OIDC) — configure on npmjs.com under
+# @feezal/feezal-element → Settings → Trusted Publisher (GitHub Actions,
+# repository feezal/feezal, workflow publish-feezal-element.yml).
+# No npm token / GitHub secret required; provenance is attested automatically.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'www/packages/@feezal/feezal-element/**'
+      - '.github/workflows/publish-feezal-element.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # OIDC token for npm trusted publishing
+
+jobs:
+  publish:
+    name: Publish to npm on version change
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: www/packages/@feezal/feezal-element
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      # Trusted publishing requires npm >= 11.5.1
+      - name: Update npm
+        run: npm install -g npm@latest
+
+      - name: Compare local and published version
+        id: version
+        run: |
+          LOCAL=$(node -p "require('./package.json').version")
+          PUBLISHED=$(npm view "@feezal/feezal-element" version 2>/dev/null || echo 'none')
+          echo "local=$LOCAL" >> "$GITHUB_OUTPUT"
+          echo "published=$PUBLISHED" >> "$GITHUB_OUTPUT"
+          echo "local: $LOCAL / published: $PUBLISHED"
+
+      - name: Publish
+        if: steps.version.outputs.local != steps.version.outputs.published
+        run: npm publish
+
+      - name: Already up to date
+        if: steps.version.outputs.local == steps.version.outputs.published
+        run: echo "Version ${{ steps.version.outputs.local }} is already on the registry — skipping."
