@@ -35,9 +35,19 @@ describe('FilesystemStorage', () => {
     });
 
     describe('getSite / saveSite', () => {
-        it('returns default html when site does not exist', async () => {
+        it('returns default html with default topics when site does not exist', async () => {
             const {html} = await storage.getSite('nonexistent');
-            expect(html).toContain('<feezal-site>');
+            expect(html).toContain('<feezal-site subscribe="feezal/nonexistent/set" publish="feezal/nonexistent">');
+        });
+
+        it('omits default topics for names unsafe in topics/attributes', async () => {
+            // Site names may contain quotes, spaces and MQTT wildcards — such
+            // names get no default topics instead of broken ones.
+            for (const name of ['my site', 'a"b', 'x+y', 'x#']) {
+                const {html} = await storage.getSite(name);
+                expect(html).toContain('<feezal-site>');
+                expect(html).not.toContain('subscribe=');
+            }
         });
 
         it('round-trips html and config', async () => {
@@ -89,6 +99,64 @@ describe('FilesystemStorage', () => {
             await storage.renameSite('before', 'after');
             expect(await storage.listSites()).not.toContain('before');
             expect(await storage.listSites()).toContain('after');
+        });
+    });
+
+    describe('default site topics follow rename/clone (unless customised)', () => {
+        const withTopics = (sub, pub) =>
+            `<feezal-site subscribe="${sub}" publish="${pub}"><feezal-view name="v1"></feezal-view></feezal-site>`;
+
+        it('rename retargets topics that still match the old defaults', async () => {
+            await storage.saveSite('old', {html: withTopics('feezal/old/set', 'feezal/old'), config: {}});
+            await storage.renameSite('old', 'new');
+            const {html} = await storage.getSite('new');
+            expect(html).toContain('subscribe="feezal/new/set"');
+            expect(html).toContain('publish="feezal/new"');
+        });
+
+        it('rename leaves user-customised topics alone', async () => {
+            await storage.saveSite('old', {html: withTopics('home/cmnd', 'home/stat'), config: {}});
+            await storage.renameSite('old', 'new');
+            const {html} = await storage.getSite('new');
+            expect(html).toContain('subscribe="home/cmnd"');
+            expect(html).toContain('publish="home/stat"');
+        });
+
+        it('rename retargets each attribute independently (one default, one customised)', async () => {
+            await storage.saveSite('old', {html: withTopics('feezal/old/set', 'home/stat'), config: {}});
+            await storage.renameSite('old', 'new');
+            const {html} = await storage.getSite('new');
+            expect(html).toContain('subscribe="feezal/new/set"');
+            expect(html).toContain('publish="home/stat"');
+        });
+
+        it('rename does not touch element-level topics inside the views', async () => {
+            const html = '<feezal-site subscribe="feezal/old/set" publish="feezal/old">'
+                + '<feezal-view name="v1"><feezal-element-basic-number subscribe="feezal/old/temp">'
+                + '</feezal-element-basic-number></feezal-view></feezal-site>';
+            await storage.saveSite('old', {html, config: {}});
+            await storage.renameSite('old', 'new');
+            const loaded = await storage.getSite('new');
+            expect(loaded.html).toContain('<feezal-site subscribe="feezal/new/set" publish="feezal/new">');
+            expect(loaded.html).toContain('feezal-element-basic-number subscribe="feezal/old/temp"');
+        });
+
+        it('clone retargets default topics to the clone name', async () => {
+            await storage.saveSite('src', {html: withTopics('feezal/src/set', 'feezal/src'), config: {}});
+            await storage.cloneSite('src', 'copy');
+            const copy = await storage.getSite('copy');
+            expect(copy.html).toContain('subscribe="feezal/copy/set"');
+            expect(copy.html).toContain('publish="feezal/copy"');
+            // The source keeps its own topics.
+            const src = await storage.getSite('src');
+            expect(src.html).toContain('publish="feezal/src"');
+        });
+
+        it('a never-deployed site (empty html file) serves fresh defaults after rename', async () => {
+            await storage.saveSite('old', {html: '', config: {}});   // POST /sites shape
+            await storage.renameSite('old', 'new');
+            const {html} = await storage.getSite('new');
+            expect(html).toContain('subscribe="feezal/new/set"');
         });
     });
 

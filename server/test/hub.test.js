@@ -79,8 +79,10 @@ describe('getSite / deploy', () => {
     it('returns a default scaffold for an unknown site', async () => {
         const client = await connectClient();
         const res = await emitAck(client, 'getSite', 'does-not-exist');
-        // FilesystemStorage seeds unknown sites with a one-view scaffold.
-        expect(res.views).toContain('<feezal-site>');
+        // FilesystemStorage seeds unknown sites with a one-view scaffold
+        // carrying the default topics (subscribe feezal/<site>/set,
+        // publish feezal/<site>).
+        expect(res.views).toContain('<feezal-site subscribe="feezal/does-not-exist/set" publish="feezal/does-not-exist">');
         expect(res.views).toContain('<feezal-view name="view1"');
         expect(res.viewer).toEqual({});
     });

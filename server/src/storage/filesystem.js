@@ -14,11 +14,41 @@ const GLOBAL_DIR = 'global';       // A14 — was _global
 // A14: sites live under <dataDir>/sites/, so a site name can no longer collide
 // with a root-level system dir. It only has to be a safe single path segment.
 
-const DEFAULT_SITE_HTML = `<feezal-site><feezal-view name="view1" style="
+// Site names may contain quotes, spaces or MQTT wildcards (+, #) — only this
+// safe subset gets interpolated into topic attributes / topic strings.
+const TOPIC_SAFE_NAME = /^[\w-]+$/;
+
+/** The default site topics: subscribe feezal/<name>/set, publish feezal/<name>.
+ * Applied to fresh sites; renameSite/cloneSite retarget them as long as the
+ * user hasn't customised them. */
+const defaultSiteTopics = name => TOPIC_SAFE_NAME.test(name)
+    ? {subscribe: `feezal/${name}/set`, publish: `feezal/${name}`}
+    : null;
+
+function defaultSiteHtml(name) {
+    const topics = defaultSiteTopics(name);
+    const attrs = topics ? ` subscribe="${topics.subscribe}" publish="${topics.publish}"` : '';
+    return `<feezal-site${attrs}><feezal-view name="view1" style="
         width: 100%;
         height: 100%;
         background: var(--primary-background-color);
     "></feezal-view></feezal-site>`;
+}
+
+/**
+ * Rewrite the <feezal-site> subscribe/publish attributes from the OLD name's
+ * defaults to the NEW name's — each attribute independently, and only when it
+ * still carries the old default (a user-customised topic is never touched).
+ * Element-level subscribe/publish attributes inside the views are left alone.
+ */
+function retargetDefaultTopics(html, oldName, newName) {
+    const oldTopics = defaultSiteTopics(oldName);
+    const newTopics = defaultSiteTopics(newName);
+    if (!html || !oldTopics || !newTopics) return html;
+    return html.replace(/<feezal-site\b[^>]*>/, tag => tag
+        .replace(`subscribe="${oldTopics.subscribe}"`, `subscribe="${newTopics.subscribe}"`)
+        .replace(`publish="${oldTopics.publish}"`, `publish="${newTopics.publish}"`));
+}
 
 class FilesystemStorage extends StorageAdapter {
     /**
@@ -66,12 +96,12 @@ class FilesystemStorage extends StorageAdapter {
     }
 
     async getSite(name) {
-        let html = DEFAULT_SITE_HTML;
+        let html = defaultSiteHtml(name);
         let config = {};
 
         try {
             const raw = await fs.readFile(path.join(this._sitePath(name), VIEWS_FILE), 'utf8');
-            html = raw.trim() ? raw : DEFAULT_SITE_HTML;
+            html = raw.trim() ? raw : defaultSiteHtml(name);
         } catch {
             // Site not yet saved — return defaults
         }
@@ -104,7 +134,7 @@ class FilesystemStorage extends StorageAdapter {
             const raw = await this._showFileLegacy(repo, sha, CONFIG_FILE, 'viewer.json');
             if (raw) config = JSON.parse(raw);
         } catch { /* config absent in older commits — non-fatal */ }
-        return {html: html || DEFAULT_SITE_HTML, config};
+        return {html: html || defaultSiteHtml(name), config};
     }
 
     /**
@@ -161,6 +191,9 @@ class FilesystemStorage extends StorageAdapter {
         // Give the clone its own independent git history (drop the source's .git).
         const newPath = this._sitePath(newName);
         await fs.rm(path.join(newPath, '.git'), {recursive: true, force: true});
+        // Default topics follow the new name (before the initial commit) —
+        // customised topics stay pointed at whatever the user set.
+        await this._retargetTopics(newName, name);
         try { await initRepo(newPath, newName); } catch (err) {
             this._logger.warn(`git: clone init failed for "${newName}": ${err.message}`);
         }
@@ -169,6 +202,28 @@ class FilesystemStorage extends StorageAdapter {
     async renameSite(name, newName) {
         // The .git directory moves with the site directory — history is preserved.
         await fs.rename(this._sitePath(name), this._sitePath(newName));
+        // Default topics follow the new name; customised topics stay put.
+        if (await this._retargetTopics(newName, name)) {
+            try { await autoCommit(this._sitePath(newName), newName); } catch (err) {
+                this._logger.warn(`git: rename topic-retarget commit failed for "${newName}": ${err.message}`);
+            }
+        }
+    }
+
+    /** Rewrite site.html of `siteName` from `oldName`'s default topics to its
+     * own (see retargetDefaultTopics). Returns true if the file changed. */
+    async _retargetTopics(siteName, oldName) {
+        const file = path.join(this._sitePath(siteName), VIEWS_FILE);
+        let html;
+        try {
+            html = await fs.readFile(file, 'utf8');
+        } catch {
+            return false;   // never saved — getSite serves fresh defaults anyway
+        }
+        const updated = retargetDefaultTopics(html, oldName, siteName);
+        if (updated === html) return false;
+        await fs.writeFile(file, updated, 'utf8');
+        return true;
     }
 
     // ── Asset helpers ──────────────────────────────────────────────────────
