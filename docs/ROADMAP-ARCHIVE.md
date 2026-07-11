@@ -2,6 +2,77 @@
 
 ## Bugs
 
+### B16 — Retained-topic replay cache evicted by live updates ✅ fixed
+
+Elements sometimes got no payload on frontend connect even though their topics are *always published retained*. Root cause chain in `server/src/socket/hub.js`: the replay cache evicted a topic whenever a message arrived with `retain=false` — but per **[MQTT-3.3.1-9] the broker strips the RETAIN flag on every delivery to an established subscription**, regardless of how the publisher set it. `retain=1` only ever marks the stored-retained replay right after subscribing. So the first state update after server start (published retained!) arrived as `retain=0` and evicted the topic; the busier the topic, the more reliably its replay was missing. **Fix — known-retained last-value cache:** a topic ever delivered with `retain=1` (i.e. provably in the broker's retained store) stays cached; every later message refreshes the cached payload (replay is always the last value); only an **empty payload** evicts (the MQTT retained-clear convention — its live delivery also arrives as `retain=0` + empty, previously mis-cached as an empty replay). Topics never seen retained (commands, `reload`) are never cached — the anti-command-replay guarantee is unchanged. Covered by 4 hub unit tests + a full-chain aedes integration test reproducing the exact scenario (retained store predates server start → live retained update → late frontend still gets the fresh replay).
+
+**Residual gap (documented, → N9):** topics whose *first* retained publish happens *after* the feezal server started are never seen with `retain=1` (the bridge's `#` subscription is already established), so they don't enter the replay cache until the next server restart/reconnect. Detecting publisher retain on live deliveries requires MQTT 5 *Retain As Published* subscriptions — belongs to N9 (protocol version).
+
+**Second layer (found while verifying, ✅ fixed):** with the replay working, editor elements *still* missed retained state ~50/50 per page load. `feezal-connection-feezal` dispatched its `connected` event `bubbles + composed` from inside the wrapper's shadow root — the event crossed the shadow boundary and fired on the wrapper host *in addition to* the wrapper's own re-dispatch, so `getSite`/`loadViews` ran **twice**, every element was built twice, and the hub replay raced the second generation. The backend event is no longer composed (the wrapper's re-dispatch is the single public `connected`); the hub also gained the previously missing `unsubscribe` handler (per-socket subscription sets grew stale). E2E `editor-replay.test.js` loads the editor three times against a broker with pre-existing retained state and asserts elements reflect it every time, with exactly one element generation.
+
+### B25 — dialog elements: inconsistent header/close bar — unify + make it configurable ✅ fixed
+
+`material-dialog-view` always showed a header bar (title + top-right ✕, gated by `show-close`), while `material-dialog` only rendered a title-text-only header when `title` was set — no ✕, no `show-close`. **Fixed** — same header contract on both:
+
+- **material-dialog 1.1.2:** ported the dialog-view header — shared `_headerTemplate()` (inline-styles variant for the portal, class variant for the editor preview) with title + top-right ✕ wired to `_close()`; new `show-close` attribute (default `true`, parity with dialog-view); `.dialog-header`/`.dialog-close` CSS added.
+- **Both elements:** new **`hide-header`** boolean (default `false`) hides the bar entirely, regardless of `title`/`show-close`. *Deliberately inverted from the planned `show-header`:* Lit reflects constructor defaults, so a default-true boolean can never persist its "off" state across save/reload (absent attribute → constructor `true` again) — a default-false `hide-header` survives. Precedence: `hide-header` wins; otherwise the bar shows when `title` or `show-close`.
+- **Live sync:** property changes while a dialog is open (title / show-close / hide-header / sizing / a new message's template) now re-render the open portal — previously the portal only rendered on open/close. (dialog-view re-renders chrome only; the imperative view clone is untouched.)
+- Inspector checkbox rows for the new attributes on both elements; 6 unit tests (default ✕ parity, ✕ closes, no-header combinations, hide-header on both, live update); TESTING.md header-parity bullet. dialog-view 1.0.2.
+
+### B24 — dialog elements: no min-height / height attribute — dialog collapses to ~50px ✅ fixed
+
+Both dialog elements exposed only `width` / `max-height`, so a dialog with little content collapsed to ~50px with no way to raise the floor. **Fixed** — `height` and `min-height` convenience attributes on both, empty preserves auto sizing:
+
+- **material-dialog-view 1.0.1:** attributes → `--feezal-dialog-view-height` / new `--feezal-dialog-view-min-height` tokens (descriptor, `SIZE_TOKENS`, reflected properties, portal `style.setProperty`, panel CSS in shadow preview + portal, inspector Layout rows).
+- **material-dialog 1.1.1:** `height:` / `min-height:` appended to both `panelStyle` builders (portal + editor preview), descriptor + reflected properties, inspector Layout rows.
+- Covered by 4 unit tests (explicit sizing reaches the portal panel/tokens; empty keeps auto), TESTING.md dialog-sizing bullet.
+
+### B23 — basic-navigation: active-view highlight not synced with actual active view ✅ fixed
+
+The element highlighted the wrong (or no) view on first load, and never followed view switches made by anything else (URL hash, `material-navbar`, programmatic navigation) — it only tracked its own clicks, via a custom `view-changed` event that only it dispatched. **Fixed** (`@feezal/feezal-element-basic-navigation` 1.0.1) by porting material-navbar's (E46) proven mechanism: the active view is read from `feezal-site`'s reflected `view` attribute and followed via a **MutationObserver** (`attributeFilter: ['view']`), with a `firstUpdated` late-attach for the case where `feezal.site` only becomes available after connect. `_navigate` now sets the reflected `feezal.site.view` property (drives `updateVisibility` + hash sync) instead of `setAttribute` + custom event; the `view-changed` event had no other listeners and is gone. Covered by 4 unit tests (initial highlight, external switch, late view, click navigation).
+
+### B22 — material-select: right border hidden when element width is below ~210px ✅ fixed
+
+`md-outlined-select` ships `:host{min-width:210px}` — below that element width the inner control kept its intrinsic minimum, overflowed the host and the right border was clipped. **Fixed** (`@feezal/feezal-element-material-select` 1.1.1): `min-inline-size: 0` on the inner `md-outlined-select` (outer shadow rule beats the `:host` default), so the control shrinks with the element at any width — same pattern as the slider's `min-inline-size: 0` (E38).
+
+### B21 — Active view-tab underline sits above the tab-bar/canvas separator border ✅ fixed
+
+The active tab's blue underline was an `inset box-shadow` inside the 39px tab, while the bar drew its 2px separator as a `border-bottom` *below* the tabs — so the underline sat 2px above the separator instead of coinciding with it. **Fixed** in `feezal-app-editor.js`: the separator is now an inset shadow on `#view-tabs` (drawn *behind* the tabs), tabs are 41px with a 2px transparent `border-bottom` occupying the same rows, and the active tab (and `folder.contains-active`) colours that border — the underline sits exactly ON the separator, material-style. `background-clip: padding-box` keeps hover/folder backgrounds out of the border area so the separator stays visible under them; the `drop-end` hint and dark mode carry the separator in their composite shadows. Total bar height unchanged (41px).
+
+### B20 — New element dropped from palette does not snap until re-dragged ✅ fixed
+
+The palette drag created the new element and moved it by raw `dx`/`dy` — no snap anywhere; only a subsequent re-drag (interact.js snap modifier on the element) snapped. **Fixed** in `feezal-palette.js`: the palette drag now tracks the raw, unsnapped position (`_dragPos`, view-local px, so snapping never accumulates into the drag delta), sets `feezal.editor.dragElement` for the duration of the drag, and routes every position through the inspector's `_snap()` (`_applySnappedPos()`), applying the returned target within its range per axis. The initial drop therefore snaps exactly like a re-drag — grid **and** element-edge snapping, including the guide lines, which are hidden again on drop.
+
+**Follow-up (same root cause, fixed):** the palette drag also lacked the view-bounds **restrict** a regular element drag has (interact `restrict` modifier in `initAbsolute`) — the new element could be dragged outside the view/viewport and only stopped at the borders after drop + re-drag. `_applySnappedPos()` now clamps the displayed position to the view rect (incl. the 1px bottom reserve against a spurious scrollbar); the raw `_dragPos` stays unclamped so the drag-back-to-palette **cancel gesture** (`x + width < 0` in `onend`) keeps working — the cancel check now reads the raw position instead of the clamped style. Covered by 4 unit tests.
+
+### B19 — Server crash on `send` with undefined topic (unguarded `bridge.publish`) ✅ fixed
+
+A `send` message with an undefined `topic` reached `bridge.publish`, which passed it straight to `client.publish(undefined, …)` — mqtt.js throws synchronously inside `_removeTopicAliasAndRecoverTopicName` (`Cannot read properties of undefined (reading 'toString')`) and the whole server process crashed. A malformed `send` from any client could take down the server.
+
+**Fixed (defense in depth):**
+- `bridge.publish` (`server/src/mqtt/bridge.js`) bails out (warn + return) unless `message.topic` is a non-empty string.
+- The `send` handler (`server/src/socket/hub.js`) drops malformed messages before `insertTopic`/`updateCache`/echo run.
+- Same crash class closed in `subscribe`/`unsubscribe`: non-array payloads are ignored, non-string topic entries filtered.
+- Regression tests in `hub.test.js` (server survives a malformed-send barrage and still processes valid sends) and `bridge.test.js` (`publish()` never throws on invalid topics).
+
+**Open follow-up:** *why* the editor emitted `send` with an undefined topic in the first place (the upstream trigger) was not reproduced — if it reappears, the server now logs `hub: ignoring send without topic` with the client address instead of dying.
+
+### B18 — White line between canvas and view-tab-bar after deleting an element ✅ fixed
+
+Two coupled defects in the editor's element-delete path (`_deleteElems()` in `www/src/feezal-sidebar-inspector.js`):
+
+1. **White line:** the editor gives `feezal-site` `tabindex=1` and focuses it programmatically (keyboard shortcuts / element selection). The browser's **default focus ring** then draws along the canvas edges — visible as a white line between the tab bar and the canvas, most obviously after deleting an element (the site keeps focus while nothing is selected, so the ring is no longer read as "selection"). **Fixed:** `feezal-site:focus { outline: none }` in the editor's injected site stylesheet — the focus is a programmatic shortcut target, not tab-navigation.
+2. **Empty selection:** `_deleteElems()` set `selectedElems = []`, leaving the inspector blank. **Fixed:** after deletion the active view is selected (`selectElement(null)` — same path as a click on empty canvas), and the deleted elements are also dropped from DragSelect's selection/selectables sets (stale node references). Bonus: the view-selected tab tint (`--tab-active-color`) was dead — it targeted the pre-U8 `#tabs` id and the CSS var had lost its consumer; both repaired (`#view-tabs`, `.ftab.view.active` colour).
+
+### B17 — Slider elements unusable with sub-integer value ranges (Homematic 0–1) ✅ fixed
+
+Root-cause analysis July 2026 (Homematic dimmer, `LEVEL` datapoint 0–1). Sibling of the material-light publish-rounding fix that shipped in `@feezal/feezal-element-material-light` 1.1.1 (`pctToRaw` — publish granularity follows the configured brightness range). The same integer-grained assumption remained in both slider elements:
+
+- **material-slider — `step` defaulted to `1`:** with `min=0` / `max=1` the underlying `md-slider` had exactly two valid positions. **Fixed** (1.0.7): when `step` is not explicitly set, the default is derived from the range — `(max − min) / 100` (`deriveStep()`, unit-tested) — so the default 0–100 range keeps step 1 and a 0–1 range gets 0.01; an explicit `step` attribute wins; empty/0/invalid counts as unset.
+- **paper-slider — no `step` at all:** the element didn't expose `step`, and `paper-slider`'s internal default is also `1`. **Fixed** (1.0.2): `step` attribute exposed (default `1` for back-compat) and passed through to the inner `paper-slider`.
+
+**Relates:** E77 (light element, same Homematic 0–1 motivation), material-light 1.1.1 (`pctToRaw`, the shipped third leg of this analysis).
+
 ### B14 — Editor grid: vertical lines ignore the grid colour, and the grid is offset by the toolbar ✅ fixed
 
 Two defects in the editor grid overlay (`_gridSizeChanged()` in `www/src/feezal-sidebar-inspector.js`):
@@ -80,6 +151,38 @@ When many elements are present on the canvas or the grid size is small, too many
 ---
 
 ## Near-term Improvements
+
+### N28 — Font Awesome icon set (`feezal-icons-fa`) ✅ implemented
+
+A `feezal-icons-*` package wrapping **Font Awesome Free** — the third bundled set after `feezal-icons-mdi` and `feezal-icons-knx-uf`. The **brands** style (~600 logos: GitHub, Spotify, …) fills a real gap — MDI carries only a shrinking brand set.
+
+**Implemented (July 2026), `@feezal/feezal-icons-fa` 1.0.0 (bundled workspace package):**
+
+- **Three sets, one package** (the settled N28 decision): `fa-solid` (2001), `fa-regular` (273), `fa-brands` (603) from Font Awesome Free **7.3.0** — icon values `fa-solid:house`, `fa-regular:heart`, `fa-brands:github`, three picker chips.
+- **`render(name)` SVG mode** (mandatory — FA's webfont is class+codepoint): generated data modules per style (`icons-{solid,regular,brands}.js`, spec-§4a format, ~2 MB total, editor-only), produced by the committed `generate.mjs` from `@fortawesome/fontawesome-free` (`npm install --no-save` + run; documented in the README). Normalisation strips the per-file license comment + `xmlns`; paths keep their `currentColor` fill; varying viewBox widths are fine (unsized SVG, `<feezal-icon>` sizes to 1em).
+- **Server support for multi-set packages:** `discoverIconPackages()` now accepts the plural manifest `feezal.sets: [{set, icons}, …]` (one discovery entry per set; singular form unchanged; user-module URLs deduped) — so per-site tree-shaking shakes each style from its own data module. Documented in **icons-spec §1** (the package slug names the family, not a single set).
+- **Licensing:** CC BY 4.0 — FA's `LICENSE.txt` ships in the package, attribution in the README; Pro styles out of scope.
+- 4 www unit tests (three-set registration, per-style volume + expected names, SVG normalisation, unknown-name fallback, `<feezal-icon>` end-to-end) + 2 server tests (plural-manifest discovery, per-set tree-shaking); TESTING.md picker/tree-shaking bullet.
+
+**Relates:** N23 (the icon-set contract this rides on), E71/E72 (icon elements as consumers), A20 (ecosystem tooling).
+
+### N24 — Viewer presence + per-client control topics ✅ implemented
+
+*Origin — Node-RED research (July 2026): uibuilder's stable `clientId` and Dashboard 2.0's `msg._client` both exist because site-wide control topics are all-or-nothing broadcasts — you couldn't tell the hallway panel to switch views without also switching every phone.*
+
+**Implemented (July 2026) — MQTT-native, pure topic convention, on by default** (disable: Viewer Settings → Site → *Viewer presence*, `presence="off"` on `<feezal-site>`). Full reference: **docs/presence.md**.
+
+- **Topic convention (as decided):** one subtree per client under the site topic — `<site>/clients/<id>/status` (retained status JSON, cleared on disconnect) plus per-client commands mirroring the site-wide set (`view|reload|theme|playlist|addclass|removeclass`) and the per-client-only `rename`. Site-wide control topics unchanged — the subtree is additive. All-clients presence is one subscription (`+/status`), a per-client ACL one pattern.
+- **Viewer runtime** (`www/src/feezal-presence.js`, imported by `viewer-main.js`): per-browser client ID (`viewer-x7k2` style, `localStorage`, topic-safe charset, private-mode fallback), dismissible plain-DOM corner toasts ("Connected as …"), retained status `{view, connectedSince, lastChange, connection: direct|bridge, userAgent}` republished on every view change (attribute observer — catches nav elements, swipe, hash, MQTT alike), collision detection via the own-status subscription (warn once, proceed — last-writer-wins, no auto-suffixing), rename flow (clear old retained status → persist → resubscribe subtree → republish → re-register the server-side clear).
+- **Offline = cleared topic, no heartbeat:** direct-MQTT viewers register a broker **LWT** via the new `feezal.presenceWill()` hook in `feezal-connection-mqtt.js` (an explicitly configured LWT wins); bridge viewers register their status topic over Socket.IO (`presence` event) and `server/src/socket/hub.js` publishes the retained clear on disconnect (hub cache + broker).
+- **Retain plumbing** (prerequisite, all layers): `feezal-connection.pub(topic, payload, {retain})` → mqtt.js publish options → hub `send` → `bridge.publish(…, {retain})`.
+- **`feezal-site` refactor:** shared `applyControlCommand(cmd, payload)` consumed by both the site-wide and per-client subscriptions; fixed a pre-existing leak where addclass/removeclass re-subscribed on every view switch.
+- **Editor Clients panel** (`www/src/feezal-sidebar-clients.js`, devices icon in the sidebar rail): live rows from `<site>/clients/+/status` (id, view, connection, online-since, UA) with Switch-view / Set-theme / Reload / Rename actions — deliberately just an MQTT client of the convention.
+- 12 www unit tests (identity, enable/disable, will shape, retained status + view republish, command routing, rename incl. resubscribe + old-status clear, collision, toasts) + hub disconnect-clear/malformed-registration tests + bridge retain-forward/retained-clear tests; TESTING.md §12 checklist; **docs/presence.md** (convention, payload, rename/collisions, privacy, automation examples).
+
+**Deferred (unchanged):** per-client MQTT credentials / broker ACL mapping → N10/A19.
+
+**Relates:** A18 (kiosk remote management), E49 (scripts as automation consumers), E62 (client presence list element consumes the same convention), N10/A19 (credentials/ACLs).
 
 ### N4 — Package Manager (elements + themes) ✅ done
 
@@ -254,6 +357,423 @@ Elements now subscribe and render live in the editor exactly as in the viewer. T
 
 
 ## Element Ecosystem
+
+### E58 — Frosted-glass element family (`feezal-element-glass-*`) ✅ implemented
+
+Translucent blurred cards over a wallpaper — the "make it look like Apple Home" request: squircles, `backdrop-filter` frost, soft depth, springy micro-interactions.
+
+**Implemented (July 2026), `@feezal/feezal-element-glass-{scene,sensor,light,contact,shutter}` + `@feezal/feezal-theme-glass`, all 1.0.0 — built-in packages (ship with feezal like basic/material; no external repo/npm publish):**
+
+- **`feezal-theme-glass`:** gradient wallpaper as an inline SVG data URI (no binary assets) painting the site canvas + body, plus the frost variables the family consumes (`--feezal-glass-blur/tint/on-tint/solid/border/color/muted/accent/radius`); **light frost by default, dark frost follows `prefers-color-scheme`**; generic feezal/HA vars set so non-glass elements stay legible.
+- **Family conventions:** hand-rolled Lit (no UI library in the viewer bundle); frost = `backdrop-filter: blur(var(--feezal-glass-blur))` over the tint; **`degrade` boolean on every card** swaps the live blur for a semi-opaque solid (`--feezal-glass-solid`) — zero per-frame GPU cost for weak wall tablets; squircle via `@supports (corner-shape: squircle)` progressive enhancement over a generous radius (honest name `glass`, no trademark cosplay); `:active` scale micro-interaction.
+- **glass-scene** — icon + label squircle publishing a payload on tap; optional state topic + `payload-active` highlight.
+- **glass-sensor** — big numeral + unit + label + icon, `decimals`, sensor discovery.
+- **Device cards match their material siblings** (refined during implementation: same capabilities + same custom-inspector pattern as the device-* elements):
+  - **glass-light** — material-light's wiring contract for the on/off + brightness subset, same attribute names: `payload-mode` json/separate, `subscribe-state`/`publish-state`/`payload-on`/`payload-off`, `on-off-source: brightness` (E77 Homematic derivation incl. `1.005` OLD_LEVEL restore), `subscribe/publish-brightness` + `brightness-min/max` with material-light's exact `pctToRaw` scaling, availability badge, per-topic message-properties, light discovery (schema → payload-mode). Tile UX: tap toggles, **long-press or ⋯ flips** to the brightness slider. **CT/RGB/HS/effects deliberately not ported** — the glass tile has no UI surface for them; colour lights use material-light. Two-tab Topics/Config N6 inspector (capability-gated availability, brightness-source-aware sections).
+  - **glass-contact** — material-contact's full contract (payload-open/closed/tilted incl. the boolean-coercing `payloadMatch`, availability with JSON `{state}` tolerance, `type` → icon mapping + explicit `icon` override, binary_sensor discovery with `device_class` valueMap); flat attribute form like the material sibling.
+  - **glass-shutter** — material-cover's full contract (json/separate `payload-mode`, `json-map`, position + state-string inference, up/stop/down payloads, optional tilt topics → slider row, `invert`, `show-position`, availability, cover discovery); the frost shade layer descends as the cover closes, vertical drag on the card sets the position; two-tab N6 inspector adapted from material-cover's (gated Tilt/Availability sections).
+- 21 www unit tests (scene publish/active, sensor formatting, contact state/availability parity, light separate/json/E77/flip/slider/editor-guard, shutter json inference/commands/separate/invert/tilt gating, inspector + discovery registration); TESTING.md §6 family list + notes.
+
+**Deferred:** room-group card and media card (the roadmap's remaining first-cut sketch members — superseded in priority by the device trio during implementation), sample-based auto-contrast tint, pre-blurred-wallpaper degrade variant (the solid-card degrade ships), measuring the degrade default on real Pi/tablet hardware (manual QA note instead).
+
+**Relates:** E55 (front/back flip sibling), E29, A16 (wallpaper asset export), E38, A18 (wall tablets — the degrade switch targets them).
+
+### E55 — Metro tile element family (`feezal-element-metro-*`) ✅ implemented
+
+**Implemented (July 2026), `@feezal/feezal-element-metro-{tile,switch,light,climate,sensor,media,contact}` + `@feezal/feezal-theme-metro`, all 0.1.0 — built-in packages (ship with feezal like basic/material; no external repo/npm publish):**
+
+- **Shared base class `MetroTileBase`** (exported by the metro-tile package, the concrete packages depend on it): flat accent tile, `size` grid (1x1/2x2/4x2/4x4 → 70/150/310 px on a 70+10 grid, rewrites inline width/height, manual resize stays possible), label/icon/badge slots, and the **3D Y-flip**: ⋯ affordance only when `renderBack()` returns content, front tap = `baseAction()`, flip back via ⋯/outside tap, instant under `prefers-reduced-motion`, flip state per-client (never published).
+- **metro-tile** — the generic tile doubles as `metro-navigate`: tap publishes a payload and/or jumps to a view; optional live badge from a topic. (Base package must define a real element — the palette and smoke harness expect every `feezal-element-*` package to register its tag.)
+- **metro-switch** — whole-tile toggle (accent = ON, `--feezal-metro-off-color` = OFF); back: explicit ON/OFF; per-state `icon-on`/`icon-off`. Discovery: `switch`.
+- **metro-light** — toggle front with brightness %; back offers ON/OFF + the active `mode`'s sliders (brightness / brightness_ct / color_temp / rgb / hs). The MQTT wiring contract mirrors material-light: `payload-mode` separate|json (zigbee2mqtt JSON shape), E77 `on-off-source: brightness` (HmIP/Homematic dimmers, numeric OLD_LEVEL payload-on published verbatim), kelvin/mired conversion, per-topic `message-property-*`; N6 two-tab inspector and the discovery descriptor are ports of material-light's (schema → payload-mode, capability ranges, supported_color_modes → mode).
+- **metro-climate** — current temp front; back: clamped setpoint stepper + mode chips (`modes` bare-string list). Discovery: `climate` (temps, mode topics, min/max/step).
+- **metro-sensor** — big value front; back: recent-trend SVG polyline + min/max over the last `points` values. Discovery: `sensor`.
+- **metro-media** — track/artist front, tap = play/pause payload; back: prev/play/next + volume slider; state topic drives the icon.
+- **metro-contact** — front-only status tile mirroring material-contact: `type` SVG visuals (window with tilt + mirror, door, generic, waterleak, firealarm, garagedoor), the same payload coercion, availability `!` badge, `icon-open`/`icon-closed` per-state icon overrides; tile colour = accent/open/tilt. Discovery: `binary_sensor` incl. `device_class` → type.
+- **feezal-theme-metro** — near-black WP7 start-screen theme, cyan default accent, classic accent palette documented for per-tile overrides.
+- E29/E48-overlap settled as scoped: detail-on-the-back inline; no Shoelace (hand-rolled flat controls per the viewer-dependency rule).
+- 11 browser behaviour tests (`test-browser/feezal-elements-metro.test.js`); TESTING.md §6 category list + family note. Live-tile notification flips stay a follow-up, as scoped.
+
+A new element set in the design of Microsoft's **Metro** design language (the Windows Phone 7 / Windows 8 start-screen live tiles): flat solid-color tiles, sharp corners, white iconography and typography, everything on a strict size grid. The signature interaction: every tile can **flip to its back side** with the classic 3D Y-axis rotation — **front = the one base action, back = the details**.
+
+**Concept:**
+
+- **Tile sizes: `1x1`, `2x2`, `4x2`, `4x4`** grid units (one attribute, like the Metro small/medium/wide/large tiles). A shared base unit makes mixed tiles align into the iconic mosaic; snapping tile sizes to the editor grid (multiples of the configured grid size) keeps the mosaic effortless without needing a dedicated layout container.
+- **Front / back split:** the front carries only the primary state + one base control — light: name, icon, an on/off switch (or the whole tile toggles on tap, Metro-style); thermostat: current temperature; media: track + play/pause. Flipping reveals the detail controls: brightness + color-temperature picker, setpoint stepper + mode, volume/seek/source. Small sizes (`1x1`) may be front-only.
+- **Flip mechanics:** CSS 3D (`perspective` + `rotateY(180deg)`, `backface-visibility: hidden`) in a shared base class — front tap fires the base action, so the flip needs its own affordance: a corner ellipsis "⋯" (the Metro app-bar glyph), and flip-back via "⋯"/outside tap. Flip state is per-client UI state, not published.
+- **Family (first cut):** `metro-light`, `metro-switch`, `metro-climate`, `metro-sensor` (value + trend on the back), `metro-media`, `metro-contact` — plus `metro-navigate` (a tile that jumps to a view; start-screen-as-navigation). Later: live-tile-style **notification flips** (the periodic content flip Metro tiles are famous for) for sensor tiles.
+- **Shared base class** (`feezal-element-metro-tile`) owns size grid, accent color, flip machinery and front/back slots; concrete elements fill the faces — keeps per-element code small, guarantees family consistency.
+- **Theming:** accent color from the theme (`--feezal-metro-accent` falling back to the primary color); a matching **`feezal-theme-metro`** package (dark background, accent palette à la WP7 lime/cyan/magenta) completes the look but the tiles must look right on the existing themes too.
+
+**Notes:** the per-tile detail-on-the-back answers the same need as E29's `more` action and E48's dialog-view, just inline — settle the overlap when implementing (a metro tile could alternatively open a dialog-view for *full* detail); viewer-dependency rule applies (no Shoelace in the elements — hand-rolled Lit; the pickers can reuse what material-light already ships); auto-discovery should wire the family like the material set.
+
+**Relates:** E29 (compact-state pattern, `more` action), E48 (detail panels), E38 (scaling within the size grid), N23 (icon set — Metro wants the Segoe-style glyph look), U3 (grouping keeps mosaics intact), A20 (family ships as npm packages).
+
+### E59 — Terminal / retro-CRT element family (`feezal-element-tui-*`) ✅ implemented
+
+**Implemented (July 2026), `@feezal/feezal-element-tui-{value,checkbox,menu,sparkline,log,ascii,panel,crt}` + `@feezal/feezal-theme-tui`, all 0.1.0 — built-in packages (ship with feezal like basic/material; no external repo/npm publish):**
+
+- Shared phosphor look via `--feezal-tui-color/bg/glow/font` (green default) — glow is layered text-shadow, `--feezal-tui-glow: 0` disables; all blink/flicker animation gated on `prefers-reduced-motion`.
+- **tui-value** — `label……: value` dot-leader row (CSS-clipped dot run, no width math); blinking cursor block for 2 s after each message. Discovery: `sensor`.
+- **tui-checkbox** (initially shipped as tui-toggle, renamed) — `[X] label` checkbox, Space/Enter + click, material-switch payload contract. Discovery: `switch`.
+- **tui-menu** — `[1] Lights` hotkey menu (items objectList: label/publish/payload, hotkeys 1–9 auto-assigned), digit keypress when focused, entry flash on activation; vertical/horizontal.
+- **tui-sparkline** — `▁▂▃▅▇` block graph of the last `points` values, min/max fixed or auto.
+- **tui-log** — timestamped scrolling feed; MQTT wildcards allowed, `max-lines` ring buffer, optional topic prefix, auto-scroll.
+- **tui-ascii** — baked 3×5 block font (digits, `:.%-°+`, small letter set) sized via container-query units; `baseAttribute: value`. Discovery: `sensor`.
+- **tui-panel** — real box-drawing frame (`┌─ TITLE ─┐`, single/double) measured against live monospace metrics via ResizeObserver so it closes cleanly at any size; wraps an embedded view by reusing `feezal-element-basic-view` internally (same composition as layout-flex regions).
+- **tui-crt** — opt-in decorative overlay: scanlines (strength attr), vignette, flicker **off by default** (accessibility/battery, per the roadmap note) and suppressed by `prefers-reduced-motion`; click-through in the viewer, selectable in the editor.
+- **feezal-theme-tui** — green-phosphor page theme (HA-style vars mapped); amber/white variants by overriding `--feezal-tui-color`, per the "variant via var, not separate family" decision.
+- Box-drawing joins between separate elements stayed a non-goal (each element frames itself), as scoped.
+- 13 browser behaviour tests (`test-browser/feezal-elements-tui.test.js`); the test-helper fake connection learned MQTT wildcard matching for the log tests. TESTING.md §6 category list + family note.
+
+Monospace, box-drawing borders, green/amber phosphor glow, optional scanline/flicker overlay — the **system console** aesthetic. The nichest of the styled families but the cheapest to build (it is mostly typography and border characters), with huge nerd appeal and a natural pairing with E49: a script element computing values that render into a live "console".
+
+**Family (first cut):**
+
+- **`tui-panel`** — a box-drawing-framed container (`┌─ TITLE ─┐`) wrapping other elements (nesting like `layout-flex`).
+- **`tui-value`** — `label........: value` dot-leader readout rows; blinking cursor block on change.
+- **`tui-log`** — scrolling message feed from a topic (E32's logbook in terminal clothes; shared guts if E32 lands first).
+- **`tui-sparkline`** — block-character graph (`▁▂▃▅▇`) of recent values — a chart with zero chart library.
+- **`tui-toggle` / `tui-menu`** — `[ X ]` checkbox and numbered hotkey menu (`[1] Lights  [2] Heating`) publishing on click/keypress.
+- **`tui-ascii`** — big-type banner display (figlet-style numerals for clocks/sensors, font baked in).
+
+**Styling:** one `feezal-theme-tui` with phosphor variants (green/amber/white); glow via layered `text-shadow`; the CRT overlay (scanlines, vignette, subtle flicker) is a per-view opt-in element or theme flag — **off by default**, it's an accessibility hazard (flicker) and battery cost.
+
+**Notes:** monospace metrics are the layout grid — elements size in `ch`/`lh` units so borders align across neighbouring elements (the editor's px-grid snapping needs to tolerate that, relates E38); box-drawing joins between separate elements are a non-goal for the MVP (each element frames itself); flicker/animation must respect `prefers-reduced-motion`.
+
+**Relates:** E49 (script → console synergy), E32 (logbook), E34 (countdown in figlet type), N23 (no icons needed — that's the point), A20 (packaging).
+
+### E56 — Analog cockpit element family (`feezal-element-panel-*`) ✅ implemented
+
+**Implemented (July 2026), `@feezal/feezal-element-panel-{led,switch,7seg,gauge,knob}` — built-in packages (ships with feezal like basic/material; no external repo/npm publish):**
+
+- **panel-led** — pilot light: boolean cast or exact `payload-on`/`payload-off`; optional `states` objectList mapping payload → colour + steady/blink/blink-fast; radial-gradient lens with glow, recessed bezel. Discovery: `binary_sensor`.
+- **panel-switch** (initially shipped as panel-toggle, renamed) — bat-handle flip switch on a screwed plate with snap-overshoot lever animation; `guard` adds the red safety cover (first tap opens, auto-closes after 4 s); material-switch MQTT contract. Discovery: `switch`.
+- **panel-7seg** — seven-segment readout with ghost segments, decimal point, minus and a letter subset (`Err`); value right-aligned into `digits` cells, optional fixed `decimals`; `baseAttribute: value`. Discovery: `sensor`.
+- **panel-gauge** — 240° dial, tick scale with numerals, `zones` objectList (green/amber/red bands), under-damped needle **spring** on its own rAF (writes the SVG transform directly — no per-frame re-render). Discovery: `sensor`.
+- **panel-knob** — hand-rolled drag-to-turn (pointer angle, 270° throw — `<round-slider>` evaluated and skipped: no wrap-around arc + first-class detents/keyboard wanted), scroll wheel + arrow/Home/End keys, optional `detents` snapping to `step`; publishes throttled (200 ms) while dragging, always on release; incoming state ignored mid-drag. Discovery: `number`.
+- Shared cockpit look via family CSS vars `--feezal-panel-face/bezel/text` (point-of-use fallbacks so a theme can set them once for all five) + per-element accent vars; publish guards in the editor everywhere; canvas drag unaffected (editor pointer-events discipline).
+- 13 browser behaviour tests (`test-browser/feezal-elements-panel.test.js`) + smoke-harness mounting; TESTING.md §6 category list + family note.
+
+Skeuomorphic **instrument-panel controls** — the "virtual hardware" aesthetic the MQTT/Node-RED crowd loves: dashboards that look like a machine console, not an app. More than a skin, because it introduces **interaction types the current set doesn't have**.
+
+**Family (first cut):**
+
+- **`panel-toggle`** — a real flip toggle switch (guard-cover variant as an attribute for "are you sure" actions) with a satisfying snap animation.
+- **`panel-knob`** — **rotary knob**: drag-to-turn (pointer angle) + scroll-wheel + keyboard arrows; detents optional; min/max/step; publishes like the slider but *feels* like hardware. The marquee element of the family — dimmers, volume, setpoints. **Candidate backing lib:** **`<round-slider>`** (Lit; the same round slider Home Assistant uses for its thermostat/light cards) — a proven circular drag control to wrap instead of hand-rolling the pointer-angle math; evaluate whether it covers detents/keyboard, else hand-roll over its SVG approach.
+- **`panel-gauge`** — analog needle gauge (240° arc, configurable range/zones — green/amber/red bands); needle physics (spring damping) convey rate-of-change in a way a number can't. VU-meter variant (level from a topic, peak hold).
+- **`panel-led`** — indicator lamp (steady/blinking states by payload mapping, color per state), the classic status pilot light.
+- **`panel-7seg`** — seven-segment / Nixie-style numeric display for sensor values.
+
+**Styling:** brushed metal / dark console surfaces, engraved labels, screw-head corner details as an opt-out flourish; a restrained **Dieter-Rams / hi-fi** variant (matte, minimal) selectable per theme rather than a separate family. Needs to degrade gracefully on the existing flat themes (the physics/interaction still carry the value).
+
+**Notes:** knob/gauge rendering is SVG-in-shadow-DOM (crisp at any size, themeable via CSS custom properties, relates to E51's machinery); drag-to-turn needs the same interact.js pointer discipline as the canvas (editor mode must not fight element drag); auto-discovery wiring like the material set (dimmer → knob, sensor → gauge).
+
+**Relates:** E38 (elements scale to their box — gauges/knobs are naturally square), E51 (SVG rendering), N23 (glyphs), A20 (npm packaging), existing material-slider/light (shared publish conventions).
+
+### E25 — Time picker element (`feezal-element-material-time-picker`) ✅ implemented
+
+An interactive time input publishing a selected time to MQTT — the scheduling companion ("turn on lights at …").
+
+**Implemented (July 2026), `@feezal/feezal-element-material-time-picker` 1.0.0:**
+
+- **MD3 outlined text field with `type="time"`** (browser-native picker; `show-seconds` switches the field step to 1 s) plus a **touch-optimised wheel picker** opened by the trailing clock icon: drum-roll columns (hours / minutes / optional seconds) with CSS scroll-snap, centre-row highlight, tap-to-select, Cancel/OK — rendered as a fixed overlay inside the element's shadow DOM (no Shoelace in the viewer bundle).
+- **Payload contract:** subscribe accepts `HH:MM`, `HH:MM:SS` or numeric seconds since midnight (wrapping at 24 h); publish emits the configured `format` (`HH:MM` | `HH:MM:SS` | `seconds`). Exported `parseTime`/`formatTime` helpers, unit-tested round-trip.
+- **All roadmap attributes:** `subscribe`/`message-property`, `publish`, `format`, `step` (minute increment of the wheel), `label`, `show-seconds`, `publish-on-change` (publish on every drum settle instead of only on OK/field commit), plus `disabled`; `--feezal-time-picker-color` accent var; default size 160×60, publish guarded in the editor.
+- 7 www unit tests (parse/format contract); TESTING.md §6 entry + element-specific note.
+
+### E52 — Schedule editor element (`feezal-element-material-schedule`) ✅ implemented
+
+A UI for **editing schedules, not executing them** — the element renders the retained schedule JSON from the subscribe topic and publishes edits back; the consumer (she, Node-RED, a thermostat adapter) owns the actual scheduling. Niagara-style weekly editor; ThingsBoard paywalls this — a real differentiator.
+
+**Implemented (July 2026), `@feezal/feezal-element-material-schedule` 1.0.0 — all refined decisions honoured:**
+
+- **Generic feezal JSON contract**, documented as a deliverable in **docs/schedule-format.md**: `{type: boolean|number, week: {mon…sun: [{from, to, value}]}, default, exceptions}`; `"HH:MM"` wall-clock strings (`"24:00"` valid as `to`), half-open intervals, `exceptions` reserved from day one and **preserved verbatim** through the edit round-trip.
+- **Boolean + number types:** on/off painting AND setpoint-per-block via the `type` attribute (`min`/`max`/`step-value` bound numeric editing; new blocks seed from the last used value, else the step-rounded midpoint). A typed payload wins over the attribute for rendering (console warning on mismatch); unparseable/missing payloads start an empty schedule of the configured type — never crash.
+- **Explicit Save:** dirty indicator ("● unsaved"), Save publishes the whole document **retained**, Revert restores the last received payload; a remote update arriving **while dirty** never clobbers the draft — a "changed remotely" hint appears and the user decides (Save overwrites / Revert adopts). Save is editor-guarded.
+- **Timezone: naive wall-clock** — no TZ field, no conversion; documented in the format contract (consumer's clock wins).
+- **Drag-paint grid** (pointer events, `touch-action: none`): drag on empty space creates a block (snapped to the `step` attribute: 5/10/15/30/60 min), block edges resize (7 px handles), tap selects → toolbar with Delete and (number type) a clamped value input; blocks clamp to the free gap containing the drag start — **no overlaps** (`clampBlock`); hour gridlines + tick axis, Monday-first columns.
+- **"Effective value now", client-side:** chip ("now: 21.5 → 22:00" — block value until block end, else `default` until the next block/midnight) plus a dashed now-line on today's column, refreshed every 30 s. Exceptions are ignored in the MVP (documented); the optional consumer `status-topic` remains a later refinement.
+- **No custom N6 inspector needed** (as anticipated): plain attribute descriptors suffice — the grid lives in the element. No `@material/web` imports (custom rendering) — fully unit-testable.
+- 23 www unit tests (time helpers, gap clamping, format round-trip incl. exceptions preservation and invalid-block dropping, `effectiveNow` incl. Monday-first mapping, dirty/save/revert/remote-hint flows, block editing, editor publish guard); TESTING.md §6 entries.
+
+**Later tiers (unchanged):** exceptions/holiday editing UI (tier 2), reusable calendar objects (tier 3), enum type, `status-topic`, live/debounced publish mode.
+
+**Relates:** she (consumer), E25 (time picker), E67 (irrigation — E52 publishes the plan, E67 does live control), E61 (alarm family — same "contract as deliverable" pattern).
+
+### E51 — SVG element (`feezal-element-basic-svg`) ✅ implemented
+
+Renders an SVG **inline** (shadow DOM, not `<img>`) and binds its *internals* to MQTT — the floor-plan / schematic use case (rooms light up, pipes recolor with flow temperature, a needle rotates with a sensor value).
+
+**Implemented (July 2026), `@feezal/feezal-element-basic-svg` 1.0.0 — all three tiers in one release, as decided:**
+
+- **Tier 1 — Display:** `src` asset-only, fetched + sanitized (DOMPurify SVG profile — strips `<script>`, `on*` handlers) + injected inline into the shadow DOM; scales viewBox-driven to the element box with a `preserve-aspect-ratio` attribute; unconfigured/error hints in place of the drawing.
+- **Tier 2 — Value bindings:** `bindings` JSON attribute with the decided row schema — `selector` + `subscribe` + `target` (`fill|stroke|opacity|visibility|class|text|rotate|translate|scale`) + at most one mapping field: `map` (discrete lookup), `range` (clamped linear interpolation, numbers AND `#hex` colors via channel lerp), `format` (`${value}` template); no field = raw passthrough. **No-match semantics as decided: revert to the SVG's pristine value** (captured per node/target on first apply) — unmatched map key or non-numeric range input restores the original. Transforms apply with `transform-box: fill-box; transform-origin: center`. Rows honour the global `message-property` and subscribe through the base-class `_subscribe()` path, so `dynamic-subscriptions` gating applies.
+- **Tier 3 — Click regions:** rows with `publish` + `payload` make the sub-shape clickable — hover cursor, focus ring, `tabindex`/`role=button` with Enter/Space, publish guarded in the editor.
+- **Custom N6 inspector** (same-file, Shoelace tags without import): src / preserve-aspect-ratio / message-property plus per-row cards — selector, topic, target select, mode select (raw|map|range|format) with mode-specific mini-editors (map key→value pairs, range in/out, format template) and click publish/payload; add/remove rows; persisted via `feezal-attribute-changed` as the JSON attribute (source of truth). Editor canvas renders the SVG live with an "N bindings" badge.
+- 19 www unit tests (mapping semantics incl. clamping + color lerp, sanitize, pristine revert, rotate transform, nested message-property, unparseable-bindings tolerance, click regions incl. editor guard, badge); TESTING.md §6 entries.
+
+**Deferred (unchanged):** selector picking by clicking a shape on the canvas (editor pick mode, Tier 2b); inline light-DOM markup storage. **Known limitation (documented in TESTING.md):** static exports opened from `file://` cannot `fetch` the SVG asset (browser restriction) — hosted exports and the live viewer work; inlining the SVG at export time is a possible follow-up.
+
+**Relates:** E50 (siblings — deliberate schema separation, decided; host-level conditions work on this element for free), E49 (computed values feeding bindings), A16 (the `src` reference participates in referenced-asset export), N6.
+
+### E49 — Script element (`feezal-element-system-script`) ✅ implemented
+
+Client-side scripting glue — subscribe, compute, publish page-locally (or to the broker), any display element shows it. Deliberately minimal; NOT an automation engine (24/7 logic belongs in she/Node-RED). Full user documentation: **docs/script-element.md**.
+
+**Implemented (July 2026), `@feezal/feezal-element-system-script` 1.0.0 — the whole MVP cut, all roadmap decisions honoured:**
+
+- **Pseudo-element** (System category): code chip + `name` in the editor, invisible in the viewer; `name` attribute only.
+- **Execution model as decided:** viewer-only (hard rule — never runs in the editor), main-thread, full DOM access, no sandbox; runs once per page load after the connection is up (`connected` event), wrapped per-script in its own **async function scope** via `new Function` (top-level `const`/`let` don't collide; top-level `await` works); uncaught errors — sync, async and in callbacks — logged with the `[name]` prefix. Edits apply on the next viewer page load (`<site>/reload` pushes one).
+- **Persistence as decided:** source in a `<script type="text/feezal">` child (raw-text parsing — code containing `<` survives; browsers never execute unknown types); editable in source view as ordinary HTML.
+- **Full `fzl` API:** `sub(topic, cb)` (origin-agnostic, wildcards, returns unsubscribe fn, not gated by `dynamic-subscriptions`), `pub(topic, value)` (page-local `{local: true}`, no retain), `mqtt.pub(topic, value, {retain})`, `onViewChange(cb)` (fires immediately + on every switch via a `view`-attribute observer), `log(…)`.
+- **Payload convention as decided:** object/array-only JSON auto-parse in both directions (raw string on parse failure; `"1.5"` stays a string); publishing stringifies objects/arrays, `String()`s the rest.
+- **Dedicated Monaco editor:** the custom N6 inspector embeds `feezal-template-editor`, which gained `language` + `typedefs` support — the script edits as JavaScript with **`fzl.d.ts` completions** (registered once via `javascriptDefaults.addExtraLib`) and the existing expand-to-fullscreen overlay.
+- **Caveats documented** (docs/script-element.md): per-client `fzl.mqtt.pub` multiplication, no local last-value replay, dual-source topic shadowing, busy-loop freeze, `unsafe-eval` CSP requirement, ephemeral DOM changes.
+- 17 www unit tests (payload convention, run-once/connected-gating, editor suppression, per-script scoping, top-level await, error prefixing, full fzl API incl. unsubscribe + onViewChange, `<` in source, typedefs export); TESTING.md §6 entries.
+
+**Deferred (unchanged):** `run` attribute (`view-active` lifecycle), source-view syntax highlighting for `text/feezal`. **Non-goals (unchanged):** cron/solar, single-instance/server-side execution.
+
+**Relates:** E50 (condition rows bind script-computed topics), U32 (a component param can be a script-fed topic), N2b, N10 (CSP note).
+
+### E48 — Dialog-view element (`feezal-element-material-dialog-view`) ✅ implemented
+
+**Status: ✅ implemented** — shipped as `@feezal/feezal-element-material-dialog-view` 1.0.2 (MIT), matching the spec below; a `feezal-element-paper-dialog-view` sibling also exists for the paper design system.
+
+A modal dialog that shows a **feezal view** as its body instead of an HTML template. It is the view-embedding sibling of the existing `material-dialog` (E43 gave that element a template body; this one swaps the template for a live embedded view). This lets an author build a rich "more-info" / settings / detail panel as a normal view on the canvas — with real live elements — and pop it up modally from anywhere via MQTT (or, later, from a tile's `more` action, E29).
+
+**Relationship to neighbours.** `material-dialog` renders a template string (`${msg.*}`) — good for simple confirm/alert dialogs. This element renders an entire view (its own elements, layout, and MQTT bindings stay live inside the dialog) — good for interactive detail panels. It reuses the same **view-embedding mechanism** as `feezal-element-basic-view` / the layout elements (E47): clone the target `<feezal-view name>` with `cloneNode(true)` and clear the `display:none` that `feezal-site` puts on inactive views, so the embedded copy renders and its child elements run their normal lifecycle. Like `material-dialog`, the overlay is rendered into a `document.body` portal in the viewer so it is never clipped by a `display:none` view or a CSS-transformed canvas ancestor.
+
+**Editor behaviour:** a pseudo-element — a ~120×40 px placeholder on the canvas (mirrors `material-dialog`). A **Preview** button in the inspector opens the dialog with the selected view so the author can see it. The `view` attribute uses the standard `dropdown: 'views'` picker (as `basic-view` does) with `baseAttribute: 'view'`.
+
+**Viewer behaviour:** opens on `payload-open`, closes on `payload-close`, backdrop click (`close-on-backdrop`), ESC, or the optional OK/Cancel buttons (each publishes a configurable payload, same as `material-dialog`). Guard against a view embedding itself (a dialog-view whose `view` is the view it lives on) to avoid infinite recursion.
+
+**Attributes** (the `material-dialog` trigger/button set, with `template` replaced by `view`):
+
+| Attribute | Type | Default | Description |
+|---|---|---|---|
+| `view` | select (`dropdown: 'views'`) | — | The feezal view rendered as the dialog body |
+| `title` | string | `''` | Optional dialog title (header hidden when empty) |
+| `subscribe` | mqttTopic | — | Topic to listen on for open/close payloads |
+| `payload-open` | string | `open` | Payload that opens the dialog |
+| `payload-close` | string | `close` | Payload that closes the dialog silently |
+| `ok-label` / `ok-publish` / `ok-payload` | string / mqttTopic / string | `''` / — / `ok` | Optional OK button (hidden when label empty) |
+| `cancel-label` / `cancel-publish` / `cancel-payload` | string / mqttTopic / string | `''` / — / `cancel` | Optional Cancel button |
+| `close-on-backdrop` | boolean | `true` | Close when the backdrop is clicked |
+| `show-close` | boolean | `true` | Show a top-right ✕ close affordance |
+
+**Exposed CSS custom properties (dialog size + chrome).** Because the body is a whole view rather than a short message, sizing matters more than for `material-dialog` — expose it as themeable custom properties (defaulting to the current `material-dialog` sizing) rather than only fixed `width`/`max-height` attributes:
+
+| Property | Default | Controls |
+|---|---|---|
+| `--feezal-dialog-view-width` | `600px` | Panel width |
+| `--feezal-dialog-view-height` | `auto` | Panel height (`auto` fits the view; set to size a fixed panel) |
+| `--feezal-dialog-view-max-width` | `calc(100vw - 32px)` | Upper bound on width |
+| `--feezal-dialog-view-max-height` | `85vh` | Upper bound on height (body scrolls past this) |
+| `--feezal-dialog-view-radius` | `8px` | Panel corner radius |
+| `--feezal-dialog-view-padding` | `0` | Padding around the embedded view (0 lets the view own its full bleed) |
+| `--feezal-dialog-view-background` | `--md-sys-color-surface` | Panel background |
+| `--feezal-dialog-view-backdrop` | `rgba(0,0,0,0.5)` | Backdrop colour/opacity |
+
+The corresponding `width` / `max-height` string attributes may be kept as convenience shorthands that simply set the matching custom property, so simple cases don't need CSS.
+
+**Default size:** 120×40 px (pseudo-element placeholder).
+
+**Decisions (July 2026):**
+- **Destroy on close:** the cloned view is removed from the portal when the dialog closes; reopening clones fresh. Clean slate, subscriptions torn down while closed, broker-retained topics replay on reopen — matches the dialog's ephemeral nature and the dynamic-subscriptions model. (Keep-mounted was rejected: transient state retention isn't worth keeping the view's subscriptions live forever after first open — or adding pause/resume plumbing.)
+- **Respect the view's own chrome:** the embedded view renders exactly as it does standalone — its background *and* `--feezal-view-margin` are respected inside the dialog (WYSIWYG-faithful). The dialog's `--feezal-dialog-view-padding` default of `0` keeps the two spacing sources from stacking out of the box.
+
+**Parked (deliberately, until E29 lands):** the tile `more` action wiring — settled then, together with the tile element. Meanwhile the MQTT route already works with zero new mechanism: any element publishes the dialog's `payload-open` to its `subscribe` topic, optionally page-locally (E49's `{local: true}` flag) so it never touches the broker.
+
+### E53 — Notification / toast element (`feezal-element-system-notification`) ✅ implemented
+
+**Status: ✅ implemented (July 2026)** — shipped as spec'd below, with one deviation: `closable` became **`hide-close`** (default `false`), because a default-true boolean attribute cannot round-trip HTML attribute semantics (`closable="false"` would parse as *true*). Toasts render in a shared `feezal-notification-toasts` host appended to `document.body` (the dialog-portal pattern) that mirrors the site's `feezal-theme-*` class, so they escape hidden views and stay themed.
+
+Transient toast notifications driven by MQTT — "washing machine done", "alarm triggered". An invisible system element (editor chip like E49): subscribe to a topic; each message shows a toast with severity styling and timeout. Dashboard 2.0 ships `ui-notification` as a core widget; feezal has dialogs but nothing transient.
+
+**Decided:**
+- **Hand-rolled Lit toast stack — Shoelace stays editor-only** (viewer-bundle principle; note @material/web offers no snackbar/toast — planned but never shipped before maintenance mode). Prior art in-repo: the AI chat's mini-toast (`_showToast` in `feezal-ai-chat.js`); the element version adds severity styling, close button, per-toast timers, stacking. Styled via theme CSS custom properties.
+- **Position:** fixed **top-right** stack for the MVP; restyleable via user CSS (U18); per-element stack positions are a later enhancement.
+- **Payload handling — standard element conventions, no special contract:** `messageProperty` (standard dot-path) extracts the toast text; optional `severity-property` / `title-property` / `timeout-property` dot-paths pull per-message overrides from JSON payloads; element-level defaults apply otherwise. Plain string payloads render as-is.
+- **Editor behaviour:** live toasts **suppressed in editor mode**; a small custom inspector (N6) provides a **"Preview notification"** button — same pattern as material-dialog's "Preview Dialog" button — showing a sample toast from the current attributes.
+- **Always-active:** the subscription stays live regardless of the active view (opt-out of the `dynamic-subscriptions` pause) — notifications are a site-level concern, place the element once. *This pioneers the always-active mechanism E49 will reuse.*
+- **Multiple instances allowed** — channels by design: e.g. one element on `home/+/alert` (`severity="warning"`, sticky), another on `home/status/#` (info, 6 s).
+
+**Attributes:**
+
+| Attribute | Type | Default | Description |
+|---|---|---|---|
+| `subscribe` | mqttTopic | — | Topic or wildcard to toast |
+| `messageProperty` | string | — | Standard dot-path extraction for the toast text |
+| `title` | string | `""` | Static title line (optional) |
+| `title-property` | string | — | Dot-path: per-message title from the payload |
+| `severity` | `info` \| `success` \| `warning` \| `error` | `info` | Default severity styling |
+| `severity-property` | string | — | Dot-path: per-message severity from the payload |
+| `timeout` | number | `6` | Seconds until auto-dismiss; `0` = sticky until closed |
+| `timeout-property` | string | — | Dot-path: per-message timeout from the payload |
+| `hide-close` | boolean | `false` | Hide the dismiss (×) button |
+| `max-visible` | number | `4` | Stack cap; oldest toast dropped on overflow |
+| `dedupe` | boolean | `false` | Collapse consecutive identical messages |
+
+**Editor preview:** chip (bell icon + subscribed topic), like the E49/pin system-element pattern.
+
+**Deferred:** dismiss-publishes-ack, sound (browser autoplay policies), per-element stack positions, rate limiting beyond `dedupe` + `max-visible`.
+
+**Relates:** E49 (always-active mechanism, invisible-system-element pattern), E32 (logbook is the persistent sibling), E48 (dialog for blocking interactions), N6 (custom inspector), U18 (stack restyling via user CSS).
+
+### E71 — Value-driven icon variants (`feezal-element-basic-icon-value`) ✅ implemented
+
+> **Status: ✅ implemented (July 2026)** — icon that switches through a `_0.._100` variant family (the knx-uf blade/shutter/dim/measure families) based on the received value. `min`/`max` scale the payload to 0–100 %, rounded to the nearest tens step; 11 colour properties `--feezal-icon-value-color-0…-100` (default `var(--primary-text-color)`) colour the icon per step. Variant resolution goes through the registry (`feezal.iconSetNames`, new): tolerates the upstream `_00` zero alias and falls back to the nearest available step for partial families (`fts_shutter` has no zero variant). Its icon picker runs in **variant-family mode** (`iconVariants` attr-spec flag): only sets containing complete 11-step families get a chip, tiles show family bases with a mid-step preview, picking writes the base name. The export/viewer tree-shaker expands a used base name to all its `_NN` variants, so runtime-constructed names render outside the editor too. 12 unit tests (scaling, aliasing, nearest-step, colours), 4 picker unit tests, 2 E2E tests (canvas + variant picker) + viewer/export assertions.
+
+**Relates:** N23 (icon sets, `<feezal-icon>`, picker), E49 (a computed value could feed `value`).
+
+### E72 — Plain icon (`feezal-element-basic-icon`) ✅ implemented
+
+> **Status: ✅ implemented (July 2026)** — displays a single icon, nothing else: configured via the icon picker (bare Material or set-prefixed) or driven by the **subscribe payload** (payload = icon name), so a topic can switch the symbol at runtime. One colour property `--feezal-icon-color` (default `var(--primary-text-color)`). **Click-through:** the host has `pointer-events: none`, so it can decorate a button (or anything) without blocking it; the editor re-enables pointer events via the `feezal-editable` class, keeping it selectable/draggable on the canvas. Caveat (icons-spec §4a): payload-driven *set-prefixed* icons render in viewers/exports only if referenced statically somewhere in the site (tree-shaken registrations) — bare Material names always work. 7 unit tests + 2 E2E (viewer click-through onto a real publishing button, payload switch, editor selectability).
+
+**Relates:** N23, E71 (value-driven variant sibling).
+
+### E73 — Text ticker (`feezal-element-basic-ticker`) ✅ implemented
+
+> **Status: ✅ implemented (July 2026)** — horizontally scrolling text line for wall displays (Peakboard-research origin). Content modes: static `text`, single topic (the subscribe payload replaces `text` via `baseAttribute`), and **JSON-array payloads** rendered per-entry through `template` (`{payload}`, `{topic}`, `{json:path}` tokens — the E32 conventions) joined by `separator`. Attributes: `speed` (px/s, so pace is content-length-independent), `direction` (left/right), `pause-on-hover` (string-typed, default on — `"false"` disables). Implementation: the track holds the content twice and animates `transform` 0 → −50 % for a seamless wrap (GPU-friendly); duration = measured run width / speed (ResizeObserver, length-based fallback), set imperatively so it never triggers a render cycle; animation suspends while the tab is hidden or the element is offscreen (`visibilitychange` + `IntersectionObserver` — the E58 wall-tablet perf concern); the editor renders a static track. Default size 400×40. **13 unit tests** (content modes, tokens, flags, editor/viewer, hidden-tab suspension).
+
+**Relates:** E32 (logbook — same feed, persistent form), E53 (notification — same events, transient form), N26 (view playlist, archived)/A18 (signage).
+
+### E74 — QR code (`feezal-element-basic-qrcode`) ✅ implemented
+
+> **Status: ✅ implemented (July 2026)** — QR code from a static `value` or a live subscribe payload (`baseAttribute`, Peakboard-research origin). Canonical uses: scan-to-open the dashboard on a phone, guest WiFi (`WIFI:S:<ssid>;T:WPA;P:<pw>;;`), deep links. Rendered as inline **SVG** (`shape-rendering: crispEdges`, 2-module quiet zone) with two themeable colour descriptors — `--feezal-qrcode-color` (default `var(--primary-text-color)`) and `--feezal-qrcode-background` (default transparent; the inspector help notes dark themes need a light background for scanner contrast). `ecc` L/M/Q/H (default M), optional `label` caption doubling as the SVG `aria-label`. Encoder: **`qrcode-generator`** (MIT, zero-dep) with UTF-8 pre-encoding for non-ASCII content; data-too-long renders an error note instead of crashing and recovers on the next valid payload. Editor renders the real code (placeholder when unconfigured). Default size 160×160. **11 unit tests** (encoding incl. UTF-8/version growth/ECC density, payload re-encode, caption/aria, error + recovery, editor/viewer).
+
+**Relates:** A9 (PWA/mobile — the scan-to-phone pairing), N10 (never encode credentials beyond the deliberate WiFi use).
+
+### E81 — Navbar: attribute to set navbar item width ✅ implemented
+
+`material-navbar` items sized themselves (`flex: 0 1 auto`); item width was implicit.
+
+**Implemented (July 2026), `@feezal/feezal-element-material-navbar` 0.2.0:**
+
+- New **`item-width`** attribute: empty = auto (content-sized, unchanged default), a **CSS length** (`72px`) pins every item to that fixed flex-basis, **`equal`** makes all items share the bar evenly (`flex: 1 1 0`) — the common case without hand-picking a pixel value. Applied per-item as an inline flex-basis, so it composes with the existing `align` distribution; in vertical orientation the value applies to the item height (main axis).
+- Inspector: "Item width" input in the N6 inspector's Layout section (placeholder documents the three forms).
+- 4 unit tests (auto default, fixed length, equal, runtime change/removal); TESTING.md navbar bullet extended.
+
+**Relates:** E46 (`material-navbar`), E80 (navigation rail — same item-sizing consideration).
+
+### E79 — Button: state feedback (`subscribe`) + `disabled` attribute (material **and** paper) ✅ implemented
+
+Both button elements were publish-only fire-and-forget — no way to reflect the state they control (e.g. highlight while the scene/actor is active), and no `disabled` hook for E50 conditions on the material one.
+
+**Implemented (July 2026), `material-button` 1.1.0 + `paper-button` 1.1.0 — identical attribute contract:**
+
+- **State feedback:** `subscribe` (primary, per element-spec §4.0 — the base-class control channel comes along) + `message-property`; `payload-active` / `payload-inactive` (defaults `1` / `0`): a matching payload sets/clears the state, **anything else leaves it unchanged**; both empty = feature off (previous behaviour). The state is **reflected as a boolean `active` host attribute** so themes/classes can target `feezal-element-…-button[active]`.
+- **Colour tokens:** `--feezal-button-active-color` / `--feezal-button-inactive-color` exposed in `styles`, both defaulting to the base token so nothing changes until themed. Material: a private `--_btn-color` switches with `[active]` and feeds the MD3 tokens (`--md-sys-color-primary`; tonal's `secondary-container` now derives from it via `color-mix`), so **all five variants** render the state. Paper: mapped onto `--paper-button-background-color`.
+- **`disabled`:** boolean attribute — renders the underlying button disabled and blocks `_click` publishing (also guarded on direct calls). Documented as a **UI-only guard** (the MQTT topic stays writable — not a security boundary); the designated E50 `attribute`-action hook.
+- 5 new browser tests (Chromium-verified): active/inactive/unchanged payload mapping, custom payloads + `message-property` JSON path, disabled blocks publishing — for **both** elements; TESTING.md bullet. (Material-button behaviour lives in the browser suite — md-* components can't instantiate under happy-dom.)
+
+**Relates:** E50 (conditions — `disabled` is the designated attribute-action target), element-spec §4.0, E29 (tile shares the active-state colour pattern), E78 (paired material/paper parity work).
+
+### E78 — Contact: remove multi-contact mode ✅ implemented
+
+`feezal-element-material-contact` carried a second personality: the `contacts` attribute (JSON array of `{subscribe, label}`) switched it to a compact dot-grid room overview. Aggregating several sensors into one card is **composition**, not an element feature — room overviews should be built from single contact elements (U32 composed component or a repeater); keeping it meant every display element eventually growing its own bespoke multi-mode.
+
+**Implemented (July 2026), `@feezal/feezal-element-material-contact` 1.1.0:**
+
+- Dropped the `contacts` attribute/property, the multi-grid render branch + CSS, the per-contact subscription loop and the `_multiOpen` state — the element is single-contact only (`subscribe` + payload mapping), simplifying its E38 scaling story. Two leftover debug `console.log`s in the subscription handler removed along the way.
+- **Breaking for saved views using `contacts`:** the attribute is silently ignored — the element falls back to single mode (empty `subscribe` → editor placeholder). Migration: one contact element per sensor inside a composed component. *(The original entry suggested riding the next lockstep major; shipped now as a minor on explicit request, with the fallback + migration documented.)*
+- Browser behaviour test updated to assert the graceful legacy-attribute fallback; TESTING.md migration bullet; description updated (composition pointer instead of the multi-mode mention).
+
+**Relates:** U32 (composed components — the intended replacement), N2b (repeater as the dynamic alternative), U35 (archived — contact never joined its adoption list), E38 (simpler scaling without the grid mode).
+
+### E76 — QR code content assistant (typed presets for `basic-qrcode`) ✅ implemented
+
+The `value` attribute was a raw string the user had to hand-author — fine for URLs, error-prone for scheme syntaxes (`WIFI:S:<ssid>;T:WPA;P:<pw>;;` escaping).
+
+**Implemented (July 2026), `@feezal/feezal-element-basic-qrcode` 1.1.0:**
+
+- **N6 custom inspector** (`feezal-element-basic-qrcode-inspector`, in the element package, editor-only, `<sl-*>` without importing Shoelace) with a **type picker** and per-type fields generating the value: Text/raw (default, verbatim), Web URL (auto-prefixes `https://` when the scheme is missing), WiFi (`WIFI:S:…;T:…;P:…;H:true;;` with proper `\;,":` escaping; masked password with reveal toggle + credential-visibility hint; `nopass` omits P), E-mail (`mailto:` with URL-encoded subject/body), Phone (`tel:`), SMS (`SMSTO:num:msg`), Geo (`geo:lat,lon`), Contact (minimal vCard 3.0). The inspector also carries the element's remaining attributes (subscribe / message-property / ecc / label) since N6 inspectors replace the whole panel.
+- **`value` stays the single source of truth** — the assistant only writes the plain attribute; source mode, MQTT baseAttribute payloads and the viewer bundle are untouched.
+- **Round-trip:** on open the current value is parsed back into type + fields for all known schemes; unknown or unparseable-but-prefixed values open on Text/raw with the string as-is (never destroyed). Switching the type alone emits nothing — the value is only rewritten when a field is edited.
+- A read-only **Generated value** preview shows the produced string; the canvas QR updates live via the normal attribute flow.
+- Pure exported helpers `buildQrValue()` / `parseQrValue()` with 12 unit tests (per-type generation incl. WiFi escaping, full round-trips, URL detection, raw fallback) + 2 inspector behaviour tests (parse-on-open + regenerate-on-edit, type-switch never clobbers); TESTING.md bullet.
+
+**Relates:** E74 (the element), N6 (custom inspector machinery), N10 (credentials-in-HTML visibility note).
+
+### E87 — Rename `paper-card-template` → `paper-card` and flesh out attributes/styles ✅ implemented
+
+A paper **card** (heading + optional image + elevation, with a templated body) is genuinely useful and distinct from `basic-template` — but the old element was under-built, mis-named, and used the legacy `topic` + Polymer pattern.
+
+**Implemented (July 2026), `@feezal/feezal-element-paper-card` 1.0.0 (new package; `feezal-element-paper-card-template` removed):**
+
+- **Renamed:** package/tag `feezal-element-paper-card` , palette `Paper / Card`. Rebuilt on the **Lit base** (was Polymer wrapping `@polymer/paper-card`); paper elevation shadows (0–5, the paper-styles shadow classes) are reproduced natively with a box-shadow transition (the old `animated-shadow` toggle is gone — the transition is always on and only matters when elevation changes at runtime).
+- **Migration:** the old tag stays registered as a **deprecated alias** in the new package — it maps the legacy `topic` attribute onto `subscribe` (explicit `subscribe` wins) and logs a deprecation warning, so saved dashboards keep rendering unchanged. The alias never appears in the palette (only package-name tags do).
+- **Platform conventions:** primary `subscribe` attribute (was legacy `topic`); the body uses the **same `${msg.*}` templating idiom as `basic-template`** (light-DOM `<template>` child, `${msg.payload}`/`${msg.topic}`) — one templating story across both elements. (`message-property` deliberately not added: the template receives the whole message, matching `basic-template`'s contract.)
+- **More attributes:** `heading`, new `subhead`, `image` + new `image-height`, `elevation` (0–5). The old half-baked hidden `actions` row machinery was dropped; an actions row remains future work if wanted.
+- **More exposed styles:** `padding`, `border-radius`, `background`, `border`, `overflow` added alongside position/size/font, plus the token descriptors `--paper-card-background-color`, `--paper-card-header-color`, `--content-overflow`.
+- 7 unit tests (palette identity, header/subhead/image rendering, hidden header, templated body, elevation reflection, alias `topic`→`subscribe` mapping + deprecation warning + explicit-subscribe precedence); TESTING.md §6 entry renamed + migration bullet; `www/package.json` + `vite.config.js` references updated.
+
+**Relates:** `basic-template` / E82 (the plain templating sibling), E86 (paper family modernisation), U32 (a card-framed template is also achievable as a composed component).
+
+### E86 — Paper dialogs: parity with material dialogs + split into two elements ✅ implemented
+
+`feezal-element-paper-dialog` was a non-functional stub (hardcoded `<h2>Header</h2>` + lorem ipsum, only a `subscribe` attribute) while the material side had two fully-featured dialogs.
+
+**Implemented (July 2026):**
+
+- **`feezal-element-paper-dialog` 1.1.0** — full rewrite as the templated-body twin of `material-dialog`: title, `${msg.*}` templated content, OK/Cancel publish, payload-open/close, ESC/backdrop/✕ close, document.body **portal** (never trapped in a display:none view), live portal updates, editor preview panel.
+- **`feezal-element-paper-dialog-view` 1.0.0** *(new package)* — the view-embedding twin of `material-dialog-view` (E48): clones the chosen `<feezal-view>` live into the dialog body (`baseAttribute: 'view'`, recursion guard, dynamic-subscription wake-up), same portal + token-mirroring machinery. Registered in `www/package.json` (alphabetical) and auto-discovered by the server.
+- **Parity is unit-asserted:** both paper elements expose the **exactly identical attribute set** as their material counterparts (the tests compare the descriptors) — incl. the **B24** sizing attributes (`width`/`height`/`min-height`/`max-height`) and the **B25** header contract (`show-close`, `hide-header`, unified title + ✕ bar). `paper-dialog-view` shares the `--feezal-dialog-view-*` token names with the material sibling (theming knowledge transfers); the paper look comes from its defaults.
+- **Paper chrome:** 2px corners, paper elevation shadow, flat uppercase text buttons (primary-coloured OK, neutral Cancel), `--paper-dialog-background-color`/`--paper-dialog-color` theme tokens, 20px/500 title.
+- **Implementation decision:** rebuilt on the **Lit base** instead of wrapping `@polymer/paper-dialog` — the portal/payload/B24/B25 contract can't be expressed through iron-overlay-behavior, and parity is the point; the paper look is reproduced with paper design tokens (the `@polymer/paper-dialog*` dependencies are dropped). The paper dialogs use the generic attribute inspector (no custom N6 inspector — the material ones keep theirs; can be added later if grouping is wanted).
+- 11 unit tests (attribute-set parity ×2, portal open/close, template body, OK/Cancel publish, B25 header + hide-header, B24 sizing, view embedding, missing-view error, token mirroring); TESTING.md paper-parity bullet + `dialog-view` in the paper element list.
+
+**Relates:** E48 (material-dialog-view), B24/B25 (the settled attribute contract this parity targets), E79 (material/paper parity theme).
+
+### E82 — Template: `click-through` attribute (pointer-events passthrough) ✅ implemented
+
+Allow a `basic-template` element to be layered **over** an interactive element (e.g. a button) without swallowing pointer events — useful for overlaying decorative/computed HTML on top of a control.
+
+**Implemented (July 2026), `@feezal/feezal-element-basic-template` 1.1.0:**
+
+- New `click-through` boolean attribute (default `false` = previous behaviour; safe default-false pattern, so nothing is serialized unless enabled). When set, the host gets `pointer-events: none` — clicks/taps pass through to whatever sits beneath in stacking order.
+- **Editor caveat solved in pure CSS:** the rule is `:host([click-through]:not(.feezal-editable))` — the editor marks every canvas element with `feezal-editable` (stripped from saved/deployed HTML by `_clean()`), so on the canvas the element stays selectable/draggable with zero mode-detection JS; in the viewer the class is absent and the passthrough applies.
+- **Scope (documented in the help text):** whole-element passthrough — interactive content *inside* the template is not clickable either while enabled.
+- 4 unit tests (descriptor, gated CSS rule, two-way reflection, off-by-default) + a templating regression test; TESTING.md bullet.
+
+**Relates:** U33 (stacking order — click-through is most useful once elements are layered predictably), E50 (conditions can toggle `click-through` from MQTT state via an `attribute` action row).
+
+### E77 — Light: on/off derived from brightness (Homematic dimmer mode) ✅ implemented
+
+Homematic dimmers have **no dedicated on/off datapoint** — off is simply `LEVEL = 0`. With only `subscribe-brightness` / `publish-brightness` configured, `feezal-element-material-light` was dead: `_on` started `false` and nothing ever set it, the ring drag was gated on `_on`, and the centre tap published `on`/`off` to the empty `publish-state` topic while still flipping the local `_on` — the UI lied. (Analysis July 2026.)
+
+**Implemented (July 2026), `@feezal/feezal-element-material-light` 1.2.0:**
+
+- **New attribute `on-off-source`** — `select`, `topic | brightness`, default **`topic`** (explicit opt-in, not a heuristic — zigbee lamps retain their last brightness while off, so auto-deriving would show every zigbee lamp as "on"; the default leaves all existing elements untouched, and JSON mode / HA auto-discovery never hit the separate-mode paths).
+- **Derive:** the `subscribe-brightness` handler sets `_on = raw !== effOff` where `effOff` = numeric `payload-off`, else `brightness-min` (the default `'off'` string degrades gracefully to the minimum); the last non-off percent is remembered (`_lastBrt`) for toggle-on restore.
+- **Toggle via brightness:** publishes to `publish-brightness` instead of `publish-state` — **off** → numeric `payload-off` verbatim, else the raw minimum, `_brt = 0` locally; **on** → numeric `payload-on` verbatim (in-range values predict `_brt` locally; **out-of-range values like Homematic's `1.005` OLD_LEVEL restore are treated as device commands** — published verbatim, `_on` optimistic, `_brt` untouched until the device echoes the actual level), non-numeric `payload-on` restores the remembered `_lastBrt` (fallback 100 %) through `pctToRaw`.
+- **Ring drag from off:** in brightness mode the ring stays draggable while off (dragging from off to 30 % is the natural way to turn a dimmer on); on release `_on = final > 0`. Topic mode keeps the `_on` gate.
+- **JSON-mode consistency:** `_applyJsonState` derives `_on` from the brightness field when the message carries no state key (a present state key still wins — zigbee2mqtt off-retains-brightness unaffected).
+- **Folded-in fix — dead inspector attributes:** the N6 inspector's State section wrote `subscribe-state` / `message-property-state` but the runtime read neither — topic-based on/off configured through the Topics tab had silently never worked in separate mode. Both are now supported (descriptor, properties, runtime), with `subscribe` fallback for back-compat with saved views; the state subscription is skipped entirely in brightness mode.
+- **Inspector:** Config tab → *State payloads* gains the "On/off source" select (separate mode only) with `1`/`0` placeholders and the Homematic `1.005` OLD_LEVEL tip when brightness-sourced; the Topics tab replaces the State inputs with an "unused — derives from Brightness" hint in brightness mode.
+- 12 new unit tests (derive + effOff, toggle off/on, `_lastBrt` restore, 1.005 verbatim without `_brt` prediction + device echo, drag-from-off + release derivation, topic-mode untouched, subscribe-state fix + fallback, json state-absent fallback); TESTING.md real-device bullet.
+
+**Relates:** B17 (slider elements, same Homematic 0–1 motivation — archived), material-light 1.1.1 (`pctToRaw`), N6 (custom inspector).
+
+### E50 — Per-element conditions (visibility / class / style / attributes) ✅ implemented
+
+Every element gets an optional list of **conditions** that declaratively bind its visibility, CSS classes, styles, or attributes to MQTT topics — or page-locally published ones (E49) — feezal's answer to HA's per-card visibility conditions. Previously this required imperative `addclass`/`setstyle` control-topic plumbing from Node-RED; conditions make the 80% case a pure inspector configuration.
+
+**Not a wrapper element (design decision, July 2026).** An earlier draft was a container element wrapping one child — rejected after a codebase survey (the canvas machinery assumes elements are direct children of the view). Per-element conditions match the HA mental model — *select element → set condition → done* — and needed zero canvas work. To condition a whole region, embed a named view (`basic-view` / `layout-*`) and condition *that* element.
+
+**Implemented (July 2026), `@feezal/feezal-element` 1.1.0:**
+
+- **Shared engine** `feezal-conditions.js` in `@feezal/feezal-element` — host-agnostic, wired into **both** base classes (Lit `FeezalElement` and Polymer `FeezalPolymerElement`), so every element gets conditions with zero per-element code. Exposes `parseConditions()` / `evalCondition()` (unit-tested pure functions) and a `FeezalConditions` controller (connect/disconnect keyed to the element lifecycle and the `visible`/`dynamic-subscriptions` gating, idempotent for an unchanged attribute).
+- **Row schema** (persisted as the `conditions` JSON attribute — round-trips through the Monaco source editor): `subscribe` topic, optional `property` dot-path (default `payload`), `operator` (`=`, `!=`, `>`, `<`, `>=`, `<=`, `matches`; default `=`), compare `value`, and `action`:
+  `show`/`hide` (AND-combined; optional `keep-layout` → `visibility:hidden` instead of `display:none`) · `class` (add while matched) · `style` (`{prop: value}` map) · `attribute` (`attribute` + `attribute-value`, plain `setAttribute` so Lit reflection reacts like an inspector edit).
+- **Semantics:** rows evaluate independently against the last value on their topic; unmatched rows revert to the element's **pristine** value (captured before any effect); several matching rows on the same style property or attribute → **later row wins** (full-state recompute, not per-row patching); no effect until the first message arrives (locally-published topics have no replay — E49 decision); malformed JSON/rows are dropped silently; runtime edits of the attribute resubscribe and revert old effects.
+- **Editor:** a third **Conditions** tab in the inspector (single-element selection; not views or component instances) with N6-style rows — topic input with MQTT autocomplete that accepts free text incl. `${param}` (U32 stamp-time parameterization), operator/value/action controls, per-action fields (class name; style key/value rows; attribute name select from the element's declared descriptor attributes with custom… fallback; keep-layout checkbox), add/reorder/remove; tab label shows the row count. Elements with conditions get a **👁 badge** (top-left, injected-CSS mask like the lock badge). **Effects are never applied in the editor.**
+- 21 engine unit tests + 6 inspector-panel tests; TESTING.md §4 "Conditions (E50)" checklist; element-spec §4.5 documents the author-facing contract.
+
+**Deferred (from the original entry):** conditions on a whole `feezal-component` instance (needs its own handling — `feezal-component` doesn't extend `FeezalElement`); fade transition on visibility toggle; "preview conditions in editor" toggle; `${value}` payload interpolation in effect values (E49 covers it meanwhile); multi-select editing. Documented behaviours: an attribute the element itself rewrites at runtime is last-writer-wins; condition-applied values live only in the viewer's DOM and are never persisted.
+
+**Relates:** E49 (combined logic via script), E51 (SVG value bindings reuse the row UI/plumbing — sequencing satisfied: E50 landed first), U3, U32 (`${param}` composability), N6, E79 (`disabled` as the designated attribute-action target).
 
 ### E46 — Material navbar (`feezal-element-material-navbar`) ✅ done
 
@@ -1192,6 +1712,160 @@ A single-marker shorthand via top-level `subscribe-lat` / `subscribe-lon` (or `s
 
 ## Editor UX
 
+### U32 — Composed elements: reusable parameterized components ✅ MVP implemented
+
+> **Status: ✅ MVP implemented (July 2026)** — `www/src/feezal-component.js` (generic instance element, MIT/viewer-runtime per A21: stamps in `connectedCallback` idempotently, DOM-level `${param}` substitution incl. text nodes and nested inert templates, `MutationObserver` re-stamp filtering out class/style/locked churn, template-bbox sizing); `_clean()` empties instances + drops pseudo-views; deploy `elements` recursion into `template.content`; inspector wiring via `isCanvasElement()` (instances draggable, resize disabled); param inspector from `feezal-params` (typed controls; **boolean params edit as a true/false dropdown** — substitution is textual); palette **Components** category (first in order, right-click menu for edit/rename/delete so lifecycle works with zero instances); "Create component…" dialog with parameterize-as table; "Edit component" pseudo-view + banner with Done/Cancel, auto-commit on deploy/source-mode/tab-switch; detach; rename (template + all instances, one undo step); delete refuses with **[Detach all & delete]** while instances exist. Covered by 12 component unit tests + 6 app-editor unit tests + **8 E2E tests** (stamping, live re-stamp, palette, create via ctx menu + dialog, deploy persists empty instances, edit + Done re-stamps, detach with translated positions).
+> Known limitations / follow-ups: undo *while* editing a component exits the edit mode (snapshots are cleaned of pseudo-views on restore); instance size derives from inline px styles only; AI-apply tag validation (`feezal-ai-chat.js`) still rejects `feezal-component` in generated HTML; **latent server quirk found during E2E:** the deploy formatter (prettyhtml in `server/src/socket/hub.js`) does not escape raw `"` inside attribute values — editor-serialized HTML is always entity-escaped so normal deploys are safe, but direct-API deploys with raw quotes produce broken HTML.
+
+Turn a selection of elements into a **named, reusable component with declared parameters** — build once, instantiate many times, edit centrally. This is the single most-requested capability in both neighbouring ecosystems: HA power users beg for "reusable/linked master cards" (only fragile custom cards like decluttering-card/streamline-card deliver it), and vis's grouping-with-exported-attributes is one of its most-used features. Because feezal dashboards are literally HTML with custom elements, a component is *just more HTML* — it rides the existing machinery (source round-trip, git history, export, live preview) instead of fighting it. *(Further validation from the BMS world, July 2026: Niagara integrators name relativized templates — one graphic serving many devices via a relative binding root — as the framework's single most-praised feature; U32's `topic-prefix` parameter is exactly this.)*
+
+**Storage format — a `<template>` in `site.html`:** the definition is a `<template feezal-component="name">` child of `<feezal-site>` (before the views), with `${param}` placeholders in attribute values and a `feezal-params` JSON attribute declaring each parameter's type/default/label. Instances are a single **generic element** `<feezal-component name="...">` carrying the parameter values:
+
+```html
+<feezal-site>
+  <template feezal-component="room-card"
+            feezal-params='{"prefix": {"type": "mqttTopic"},
+                            "label":  {"type": "string", "default": "Room"}}'>
+    <feezal-element-material-light subscribe="${prefix}/light/state" publish="${prefix}/light/set"
+        style="left:0; top:0; width:180px; height:56px"></feezal-element-material-light>
+    <feezal-element-basic-number subscribe="${prefix}/climate/temperature" label="${label}"
+        style="left:0; top:64px; width:180px; height:40px"></feezal-element-basic-number>
+  </template>
+
+  <feezal-view name="home">
+    <feezal-component name="room-card" prefix="home/livingroom" label="Living room"
+        style="left:20px; top:20px"></feezal-component>
+  </feezal-view>
+</feezal-site>
+```
+
+**Decided (not open):**
+- **Generic `<feezal-component name="…">`**, *not* a dynamically registered tag per component. Dynamic `customElements.define()` would mean registration-order timing, collisions with real element packages, and no way to un-define on rename/delete (the registry is append-only). The generic element looks up its template by `name` and stamps it.
+- **Light-DOM stamping.** The instance stamps the substituted template content into its light DOM — children are ordinary feezal elements that subscribe to MQTT themselves, so live data in editor and viewer works with zero extra code, and user CSS classes (U18) and theme variables apply normally.
+- **DOM-level substitution, never string-replace on serialized HTML.** Walk the stamped fragment and replace `${param}` inside attribute values and text nodes — values are inert by construction (no markup-injection via param values). This also makes **style params free**: `style` and CSS custom properties are just attributes, so an accent-colour parameter works from day one.
+- **`${param}` placeholder syntax** — bare `{...}` collides with the JSON many element attributes already carry (state-maps, event lists). This becomes the house templating syntax; N2b (repeater) should adopt the same.
+- **Declared, typed parameters.** `feezal-params` metadata drives the inspector with the existing typed controls (`mqttTopic` params get topic autocomplete, colour params the colour picker, …).
+- **Strict no-override.** An instance can set *only* declared params — no per-instance tweaking of arbitrary sub-element attributes. "Edit the definition, all instances follow" is therefore always true; divergence has exactly one spelling: **Detach**.
+- **Fixed-size instances (MVP).** An instance's size is the template's bounding box; resize handles are suppressed (same mechanism as `locked` elements). Uniform `transform: scale()` resizing is the likely future enhancement — revisit together with E38; no free-resize (children would just clip).
+
+**Editing workflow:**
+- **Create:** multi-select (or a U3 group) → context menu → **"Create component…"** → dialog: component name + a table of all sub-element attributes with a "parameterize as…" column (current concrete value becomes the param default). The selected elements are replaced on canvas by an instance whose params equal the old values — visually nothing changes.
+- **Insert:** palette gets a **Components** category listing the site's components; drag to canvas like any element.
+- **Edit definition:** context menu on any instance → **"Edit component"** → the template opens on the canvas as a pseudo-view (all normal editing tools work). On save, every instance re-stamps — instances stamp from the live template node, so this is cheap and instant.
+- **Detach:** replaces a `<feezal-component>` with its substituted, expanded markup (the "ungroup" analog) when one instance needs to diverge.
+
+**Runtime/viewer:** the generic `feezal-component` element ships in the viewer bundle; stamping + substitution happens in `connectedCallback`, re-stamp on attribute change. No special live-data handling needed (children are normal elements).
+
+**Implementation gotcha:** export tree-shaking (`extract-elements.js`) scans site HTML for used element tags — it must also scan **inside `<template>` content**, which is inert and invisible to a naive `querySelectorAll` on the document (use `template.content`).
+
+**Scope & sharing:**
+- **MVP: per-site only** — definitions in `site.html` get git versioning, Monaco source editing, and static export for free.
+- **Global library later**, mirroring the asset manager: `<dataDir>/global/components/`, inserting **copies into the site** (same copy-on-use pattern as global assets — sites stay self-contained, exports hermetic).
+- **npm sharing later** (A20): a component being one self-contained `<template>` block makes a `feezal-component-*` package trivially a single file.
+
+**Deferred:** nesting components in components; conditional/computed params (explicitly out of scope — that is E49's job: a param can simply be a topic that a script element publishes page-locally).
+
+**Refinement pass (July 2026) — the five former gaps, resolved against the actual editor internals. Implementation-ready.**
+
+1. **Serialization stripping — one choke point.** All three serialization paths (deploy, Monaco source mode, clipboard) already funnel through the single `_clean()` in `feezal-app-editor.js`; add one step there: empty every `<feezal-component>`'s light DOM before serializing. Instances persist as empty tags; `connectedCallback` re-stamps, so paste, undo (`restoreViews`), and source round-trip all repopulate for free. **Corrected gotcha:** the old warning about `extract-elements.js` was wrong — the server scanner is *regex on the raw HTML string* and already matches tags inside `<template>` markup; no change needed there. The genuinely affected path is the **client-side deploy `elements` enumeration** (`feezal-app-editor.js` `_deploy()`), which walks the cleaned DOM clone with `querySelectorAll` and cannot see into inert `template.content` — it must recurse into every `template[feezal-component].content` explicitly, or exported/deployed sites lose the packages used only inside components.
+2. **Interaction suppression — mostly solved by construction.** The inspector wires only *direct view children* with tag prefix `feezal-element-` (`feezal-sidebar-inspector.js` `_viewChanged()`); stamped children are nested inside the instance, so they are never enumerated, never get `.feezal-editable`, never join DragSelect. Remaining work: (a) extend the enumeration filter to also wire the `feezal-component` tag itself; (b) give instances the standard `initElem()` glass overlay so clicks on stamped children select the instance; (c) the `locked` pattern (`initElem`/`setLocked`) is the reference for any residual suppression. U3 is *not* required (and remains unimplemented) — multi-select is the creation gesture.
+3. **"Edit component" — decided: pseudo-view tab + banner.** "Edit component" creates a temporary `<feezal-view feezal-component-edit="<name>">` populated with a clone of `template.content` (raw `${param}` placeholders visible; placeholder-literal MQTT subscriptions are harmless — nothing publishes to `${prefix}/light/state`), adds it to `feezal.app.views`/the tab bar with distinct tab styling, and shows a banner with **Done**/**Cancel**. Done: write the children back into the `<template>`, remove the pseudo-view, re-stamp all instances — **once, on commit** (decided; no live re-stamp while editing), single `change()`. Deploy and source-mode entry **auto-commit an open component edit first** (the exact pattern `_deploy()` already uses for source mode). Belt-and-braces: `_clean()` also drops any `[feezal-component-edit]` view so a pseudo-view can never leak into persistence.
+4. **Lifecycle — decided.** *Delete with live instances:* refuse, with a dialog naming the instance count and views, offering **[Detach all & delete] [Cancel]** — no silent breakage, no dangling instances in saved sites. *Rename:* rewrites the template's `feezal-component` attr and every instance's `name` in one operation (one undo step). *Names:* kebab-case `[a-z][a-z0-9-]*`, unique per site, validated in the create/rename dialogs; component names live in their own namespace (no `feezal-element-` prefix), so collisions with element tags are impossible.
+5. **Undo atomicity — free by construction.** Undo is whole-site `innerHTML` snapshots (`addHistory()`), and `<template>` definitions live inside `<feezal-site>`, so template + canvas mutations land in the *same* snapshot. Create / Detach / Edit-commit / Rename / Delete each call `change()` exactly once, at the end.
+
+**Additional implementation notes:**
+- **New file `www/src/feezal-component.js`** — the generic instance element: stamps in `connectedCallback`; re-stamps via a `MutationObserver` on its own attributes (a generic element cannot declare `static observedAttributes` for unknown param names). It ships in the viewer bundle → it is part of the **MIT viewer runtime (A21)**: give it the `SPDX-License-Identifier: MIT` header and import it from `viewer-main.js`.
+- **Palette:** add `'Components'` to the fixed category `ORDER` (first — site-specific components are the user's own vocabulary); the category is rebuilt from `feezal.site.querySelectorAll('template[feezal-component]')` on site change, since `_rebuildCategories()` currently derives only from `feezal.elements`. Drag-drop inserts an instance with the declared defaults.
+- **Inspector on an instance:** `feezal-params` metadata drives the existing typed controls (`mqttTopic` → topic autocomplete, colour → picker, …); stamped children's attributes/styles are not editable (strict no-override — divergence is spelled **Detach**).
+- **Copy/paste of instances** works by construction: the clipboard path runs `_clean()` (empty tag), paste re-stamps on connect.
+
+**Sequencing (updated):** U3 remains unimplemented and is **not** a prerequisite — gap 2 turned out to need almost none of U3's machinery. U32 can start directly; multi-select is the creation gesture. If U3 lands first it upgrades the gesture to "group → create component", nothing more.
+
+**Relates:** U3 (grouping is the natural creation gesture), N2b (repeater should repeat a component — shared `${...}` templating), E38 (scaling), E49 (computed values), A20 (distribution channel), E48 (dialog-view shows view-reuse demand).
+
+### U33 — Element stacking order via context menu ✅ implemented
+
+> **Status: ✅ implemented (July 2026)** — context-menu group (Bring to front / Bring forward / Send backward / Send to back) with smart enable/disable, keyboard shortcuts `Ctrl+]`/`[` and `Ctrl+Shift+]`/`[` (shifted-key spellings `}`/`{` handled), multi-selection moves as a block preserving relative order (forward/backward step across exactly one non-selected editable sibling), one undo step per reorder, locked elements may be restacked. Pure helpers (`stackingSiblings`/`stackingState`/`reorderElements`) exported and unit-tested (16 tests); 7 E2E tests drive menu, keyboard, disabled states, multi-select, undo and deploy.
+> **Bug found & fixed along the way:** DragSelect writes cumulative inline `z-index` junk on every selection (+1/−1 per add/remove, 9999 during drags, never balanced) — it polluted saved sites and painted over DOM order, silently defeating the whole premise of this item. Resolution: canvas stacking is DOM order, *period* — an injected editor rule (`feezal-view > .feezal-editable { z-index: auto !important }`) neutralizes inline z-index live, and `_clean()` strips it from every serialized save (also self-healing sites polluted in the past). **Supersedes the "hand-set z-index" caveat below:** z-index on canvas elements is editor-managed and does not survive a save — the stacking-order actions are the sanctioned mechanism.
+
+Right-click an element (or a multi-selection) → **Bring to front** / **Send to back** (and, optionally, **Bring forward** / **Send backward**) to control which element paints on top when elements overlap. Crucially this reorders the elements in the **HTML**, not via `z-index` — the DOM sibling order is the source of truth, so the change is legible in the source editor and diffs cleanly in git history.
+
+#### Why DOM order (not `z-index`)
+
+feezal dashboard elements are absolutely-positioned **light-DOM children of `<feezal-view>`** (slotted through the view; positioned by `child-position: absolute` + inline `left`/`top`). For siblings sharing the same effective `z-index`, **paint order follows DOM order** — a later sibling paints on top. Because `z-index` is a reserved/hidden property (it's filtered out of the inspector — see N1), elements normally carry no explicit `z-index`, so **DOM order already fully determines stacking**. Reordering children is therefore the natural, `z-index`-free way to change stacking, and it matches exactly what the user asked for.
+
+**Persistence is free.** Reordering is just moving a child node within its parent view. The editor already serializes the view's light DOM to `views.html` on `feezal.app.change()`, so the new order persists with **no new data model** and shows up as a plain reordering in the source view and git diff. This mirrors the existing `_ctxCopyToView()` / `_duplicateElems()` paths, which already do `feezal.view.append(clone)` + `feezal.app.change()`.
+
+#### Where it plugs in
+
+All in **`www/src/feezal-sidebar-inspector.js`** (the element context menu), alongside the existing Cut/Copy/Duplicate/Delete/Lock items:
+
+1. **Menu items** — in `render()`'s `cm.onElem` block, add a separated group. Enable/disable smartly: "Bring to front" / "Bring forward" disabled when the selection is already frontmost; "Send to back" / "Send backward" disabled when already backmost.
+2. **Actions** — new `_ctxAction()` cases operating on the parent view's **editable siblings** (`.feezal-editable`), so system nodes are never disturbed:
+   - **Bring to front** → `view.append(el)` (move to end).
+   - **Send to back** → `view.prepend(el)` (move to start).
+   - **Bring forward / Send backward** → swap with the next / previous `.feezal-editable` sibling (`el.nextElementSibling`-style, skipping non-editable nodes).
+   - Then `feezal.app.change()` (one undo step via the existing history machinery) and refresh the selection.
+3. **Optional keyboard shortcuts** — `Ctrl+Shift+]` / `Ctrl+Shift+[` (front/back) and `Ctrl+]` / `Ctrl+[` (forward/backward) in `_keyHandler`, with matching rows in the shortcuts (`?`) modal.
+
+#### Details & decisions
+
+- **Multi-selection:** move all selected elements as a block, **preserving their relative order** — sort `selectedElems` by current DOM index before appending/prepending so their internal stacking is retained.
+- **Skip non-element siblings.** A view can contain non-`feezal-element` nodes (e.g. the `<style id="feezal-classes">` block from U25, or component pseudo-view artefacts). Operate relative to `.feezal-editable` siblings; moving before/after a `<style>` node is harmless (it doesn't paint) but the "forward/backward" step must count only editable elements.
+- **Locked elements:** reordering changes neither position nor size, so it should be allowed even on `locked` elements (unlike drag/resize). *(Confirm this is the desired behaviour.)*
+- **Explicit `z-index` caveat:** if a user has hand-set a `z-index` on an element via the source editor, DOM reordering won't visibly restack it (an explicit `z-index` wins over paint order). This is an edge case since `z-index` is hidden from the inspector; document it rather than trying to rewrite `z-index` values.
+- **Grouping (U3):** once groups land, front/back should act on the whole group as a unit; not a prerequisite here.
+- **`feezal-component` instances (U32):** an instance is a single node, so it reorders like any element — no special handling.
+
+**Effort:** small — a few context-menu items plus 3–4 DOM helpers, reusing the existing `change()`/history and `.feezal-editable` conventions.
+
+### U34 — Bundle size breakdown in the editor ✅ implemented
+
+Show the user how big the export bundle is and **what makes it that big** — the export size used to be a single opaque number, so "should I drop this heavy element?" had no data.
+
+**Implemented (July 2026):**
+
+- **Data source (as sketched):** the filtered Vite build in `server/src/build/export.js` already carries per-module byte attribution — the output chunk's `modules` map (`renderedLength` + rendered `code` per module id). `buildBundleReport()` aggregates it into buckets: one per `@feezal/feezal-{element,theme,icons}-*` package, `@feezal/feezal-element (runtime)`, one per top-level vendor dep (lit, mqtt, …), and `feezal core` (www/src viewer runtime + virtual helper modules). Handles workspace real paths (symlink-resolved `packages/@feezal/…`), scoped deps and win32 ids.
+- **Minified + gzip, honestly labelled estimates:** per-module data is pre-minification, so bucket bytes are pro-rata scaled to the exact minified total; per-bucket gzip compresses each bucket's concatenated source independently and normalises so the columns add up to the exact whole-bundle gzip. Totals are exact, rows carry `estimate: true`.
+- **Cached with the bundle** (same key — the report is a by-product of the build that already runs) and served by `GET /api/sites/:name/bundle-report` via `exportBundleReport()`, which also appends the post-build tree-shaken icon registrations as an `icons (tree-shaken)` bucket. Falls back to an error (→ dialog warning) when only the unattributable full-bundle fallback is available.
+- **UI — the decided cheap MVP:** Export now opens `feezal-export-dialog` (new `www/src/feezal-export-dialog.js`): totals header (minified / ~gzip kB), sorted plain-CSS bar list with per-row name, kB, ~gz kB, % of total, top-3 contributors highlighted; **Download ZIP** button does the actual export (the mqtt:// guard dialog is unchanged). First-run note while the build runs; re-opening is instant (cache).
+- 9 server tests (bucketing, normalisation, null-metadata fallback, report ⇄ export cache sharing, fallback throw) + 4 www tests (formatKb, render/sort/highlight, error states); TESTING.md §10 checklist entry.
+
+**Not done (as scoped):** treemap/pie upgrade, live-viewer bundle report, "zip contents" (assets/fonts/icons) breakdown.
+
+**Relates:** N12/N13 (export bundle slimming — this makes the win visible), A8 (the filtered build this piggybacks on), N27 (user-installed packages would appear as buckets once exportable).
+
+### U36 — Inspector: debounced live-apply on typing (not only on blur) ✅ implemented
+
+Text/number inputs in the attribute and style inspectors only committed on blur/Enter (Shoelace `sl-change`) — no canvas feedback while typing.
+
+**Implemented (July 2026):**
+
+- **Debounced live-commit on `sl-input`** for the free-text controls in both panels — default text/number inputs, textareas, colour text inputs and topic inputs in the attributes panel (`_liveChange`/`_flushChange`); the style value inputs in the styles panel (`_liveInput` composing with the existing `var(--…)` autocomplete). The canvas updates `LIVE_APPLY_DEBOUNCE_MS` (250 ms, a shared exported constant) after the last keystroke.
+- **`sl-change` is the immediate flush:** blur/Enter (and a picked topic completion / var-autocomplete selection) cancels the pending debounce and commits right away.
+- **Undo coalescing:** live commits apply to the element **without** a history checkpoint (`feezal.app.change()` suppressed); the flush pushes exactly one — a typing burst is one undo step. (Side-effect fix: the default text and topic inputs previously *never* checkpointed history on commit — the dead `_blur`/`hasChange` path; they now do, via the flush.)
+- **Context-switch safety:** pending timers are cancelled whenever `selectedElems` changes in either panel, so a debounced value can never fire against a different element.
+- **Caret safety:** the re-render writes back the identical typed string (no caret move); in the styles panel a transiently invalid live value ("re" of "red") keeps the typed text in the item instead of resetting the input mid-typing (the flush keeps the old reset-to-last-valid behaviour).
+- **Discrete controls unchanged:** selects, checkboxes, the colour picker swatch, dropdowns, the list editor and the icon picker keep their immediate `sl-change` commits.
+- 7 unit tests (burst applies once after the debounce without history, flush cancels + single checkpoint, burst+flush = one undo step, selection-switch cancel — for both panels); TESTING.md live-apply bullet.
+
+**Relates:** the attribute/style inspector panels, U35 (same inspector surface), the undo/history machinery (`feezal.app.change(noHistory)` gating).
+
+### U35 — Generic list editor for label/value array attributes ✅ implemented
+
+Several elements carried a **JSON array attribute** that the generic inspector rendered as a raw JSON string input — hand-editing `[{"value":"a","label":"Option A"},…]` is exactly the syntax the inspector exists to avoid.
+
+**Implemented (July 2026):**
+
+- **New descriptor type `type: 'objectList'`** with an `itemFields` spec (`{key, type?, options?, placeholder?}`; field types `string` | `number` (emits numbers) | `color` (text + swatch) | `select`; default `[{key:'label'},{key:'value'}]`). A single field with an empty `key` switches to **bare-string items** (`["low","high"]`). The legacy `list: true` + `columns` form maps onto the same control.
+- **The control** (`feezal-editable-list`, reworked — the old `list:true` variant was broken and unused): one row per item with per-field inputs, ＋ add, per-row ✕ delete, and **HTML5 drag-handle reordering**. The raw JSON attribute string stays the single source of truth (source mode / MQTT `setattribute` / saved views untouched); **unparseable values fall back to a raw text input — never destroyed**.
+- **Adopted** in the six raw-JSON elements: `material-radio` `options` (1.0.4), `material-select` `options` (1.1.2), `material-alarm-panel` `modes` (0.1.2), `material-humidifier` `modes` (0.1.2), `material-fan` `preset-modes` (bare strings, 1.0.5), `material-computer-stats` `rings` (`{slot,label,color,max}` with colour swatch + numeric max, 1.0.3).
+- 8 unit tests (row rendering, add/delete, per-field patch, drag reorder, bare mode, number emission, invalid-JSON fallback + raw pass-through, empty value); element-spec §3.2.1 rewritten for the new type; TESTING.md list-editor section.
+
+**Deferred (from the entry):** `mqttTopic` autocomplete inside list fields (plain text works meanwhile); adopting the control inside the custom N6 inspectors (navbar/layout-app/layout-responsive keep their hand-rolled rows — they'd mainly gain drag-sort) and climate's raw-JSON textarea (lives in its custom inspector).
+
+**Relates:** N6 (custom inspector machinery — this removes the main reason small elements needed one), element-spec §3.2.1, U32 (composed-element params could reuse the control later).
+
 ### U9 — AI coding assistant ✅ done
 
 > **Status: 🔨 Phases 1–3 done.** Phases 1 & 2 (design + source mode, OpenAI-compatible / Ollama / Anthropic providers, server-side conversations + history, file context) and Phase 3 (agent/tools mode — archived U26/U27; new-view creation via the `<!-- @new-view: Name -->` directive) are implemented. The template-editor sparkle button was **dropped** (not wanted). Minor Phase-2 polish remains deferred (Monaco diff-overlay, whole-document source scope, context-window ring). See [Phasing](#phasing).
@@ -1949,6 +2623,25 @@ The current update indicator compares the npm `latest` tag string directly again
 ---
 
 ## Architecture & Infrastructure
+
+### A13 — Update / restart feezal from the UI ✅ implemented
+
+> **Status: ✅ implemented** — shared `server/src/docker.js`: capability detection (`selfUpdate` = `FEEZAL_DOCKER_SELFUPDATE=1` + reachable engine + feezal itself in a container; `restart` additionally via `FEEZAL_ALLOW_RESTART=1` for supervised bare-metal), `restartSelf()` (Engine API restart on the own container, identified by `FEEZAL_CONTAINER_NAME` or hostname) and `updateSelf()` (one-shot `containrrr/watchtower:1.7.1 --run-once --cleanup <name>` sibling). Routes: `POST /api/server/restart` (202, then restart or `process.exit(0)` for the process-manager path) and `POST /api/server/update` (202 + log). UI: capability-gated "Server" section in Editor Settings with Restart/Update buttons (confirm dialogs, poll-until-back + auto-reload). Admin-only gating still waits for N10/A3. Mocked-client tests cover capability gating, the watchtower container spec and the 403/202 route behavior; live restart/update against a real containerized feezal is a manual TESTING.md item.
+
+Allow an admin user to trigger a feezal server update or restart from within the editor, without SSH access to the host.
+
+#### Decided approach
+
+**Docker deployments (the current distribution):** reuse the shared **`server/src/docker.js`** module built for A9 Tier 2b (dockerode over the mounted socket).
+
+- **Restart** (keep current image): Engine API restart on feezal's own container — it identifies itself via the container id in `/proc/self/cgroup` / hostname.
+- **Update** (pull new image + recreate): a container cannot `docker rm` *itself* and survive — instead feezal launches a **one-shot watchtower sibling** (`containrrr/watchtower --run-once <feezal-container>`): watchtower pulls the new image, recreates the feezal container with identical config, and exits. This merges the old "socket" and "sidecar" options — no permanently running sidecar, no shared secret, and the socket that Tier 2b already mounts is the only privilege needed.
+- **Opt-in, separately from builds**: `FEEZAL_DOCKER_SELFUPDATE=1` — a user may want server-side APK builds but not a self-updating dashboard (or vice versa). Both flags require the mounted socket; both surface through `GET /api/server/capabilities`.
+- **UI**: update/restart as distinct actions in Editor Settings, with the same SSE job/progress pattern as the Tier 2b build (pull progress + watchtower log streamed live). Admin-only once N10/A3 lands; until then gated like other editor-wide actions.
+
+**Bare metal (future):** the process-manager path — feezal's endpoint calls `process.exit(0)` and relies on a restart-configured supervisor (systemd `Restart=always`, pm2, s6). *Restart only*; self-*update* on bare metal stays out of scope (package/git management on arbitrary hosts is not feezal's business — documented, with the Docker path as the recommended setup for one-click updates).
+
+**Rejected:** permanent sidecar (extra moving part + secret channel for no gain over the one-shot sibling), external webhook (not self-contained; users who want Portainer/CI hooks can already point them at feezal's container without feezal's involvement).
 
 ### A16 — Export asset layout: drop the `global/` subfolder ✅ done
 

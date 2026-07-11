@@ -43,7 +43,7 @@ class FeezalElementMaterialAlarmPanel extends FeezalElement {
                     help: 'Dot-notation path to the state value within the MQTT message. Default "payload" uses msg.payload; use e.g. "payload.state" to navigate into a JSON payload.'},
                 {name: 'publish-action', type: 'mqttTopic',
                     help: 'Topic to publish arm/disarm actions to as JSON: {"action":"arm_home","code":"1234"}. Action is the mode value when arming, or "disarm" when disarming.'},
-                {name: 'modes', type: 'string', default: '[{"value":"armed_home","label":"Home"},{"value":"armed_away","label":"Away"}]',
+                {name: 'modes', type: 'objectList', itemFields: [{key: 'value'}, {key: 'label'}], default: '[{"value":"armed_home","label":"Home"},{"value":"armed_away","label":"Away"}]',
                     help: 'JSON array of arm-mode buttons: [{"value":"armed_home","label":"Home"},{"value":"armed_away","label":"Away"}]. Pressing a button arms the panel in that mode.'},
                 {name: 'require-code-to-arm', type: 'boolean', default: true,
                     help: 'Whether a PIN is required to arm. If off, arming publishes with an empty code. Disarming always requires the code.'},

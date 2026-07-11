@@ -53,7 +53,16 @@ export async function build(cfg) {
     const entry = readFileSync(entryPath, 'utf8');
     appendFileSync(new URL('./calls.log', import.meta.url), 'x');
     if (entry.includes('explode')) throw new Error('boom');
-    return {output: [{type: 'chunk', isEntry: true, code: '//VITE_BUNDLE\\n//' + JSON.stringify(entry)}]};
+    // modules: static per-module attribution so the U34 report path is live
+    return {output: [{type: 'chunk', isEntry: true,
+        code: '//VITE_BUNDLE\\n//' + JSON.stringify(entry),
+        modules: {
+            '/www/node_modules/@feezal/feezal-element-material-switch/feezal-element-material-switch.js':
+                {renderedLength: 600, code: 'S'.repeat(600)},
+            '/www/node_modules/lit/index.js': {renderedLength: 300, code: 'L'.repeat(300)},
+            '/www/src/feezal-app-viewer.js': {renderedLength: 100, code: 'V'.repeat(100)},
+        }
+    }]};
 }
 `);
 
@@ -264,6 +273,15 @@ describe('index.html composition', () => {
         expect(html).toContain('window.feezal');
     });
 
+    it('the export entry bundles the presence runtime (N24 — exported viewers announce themselves)', async () => {
+        // The fake vite echoes the generated entry file into the bundle, so
+        // the entry's import list is assertable here. Without this import an
+        // exported site never publishes its retained status: no viewer-id
+        // toast, invisible in the editor's Clients panel.
+        const zip = await exportSite();
+        expect(zip.text('mysite/index.html')).toContain('feezal-presence.js');
+    });
+
     it('embeds the connection config with single quotes escaped', async () => {
         const zip = await exportSite({
             config: {connection: {uri: 'ws://broker:9001', clientId: "it's"}}
@@ -411,6 +429,97 @@ describe('bundle build', () => {
         await exportSite();
         const {existsSync} = require('fs');
         expect(existsSync(join(wwwDir, 'src', '_export-entry.js'))).toBe(false);
+    });
+});
+
+describe('bundle size report (U34)', () => {
+    const {bucketForModuleId, buildBundleReport, exportBundleReport} = createExport;
+
+    describe('bucketForModuleId', () => {
+        it('buckets feezal packages by name (node_modules and workspace paths)', () => {
+            expect(bucketForModuleId('/w/node_modules/@feezal/feezal-element-material-switch/index.js'))
+                .toBe('@feezal/feezal-element-material-switch');
+            expect(bucketForModuleId('/w/packages/@feezal/feezal-theme-dark-mint/theme.js'))
+                .toBe('@feezal/feezal-theme-dark-mint');
+            expect(bucketForModuleId('/w/node_modules/@feezal/feezal-icons-fa/index.js'))
+                .toBe('@feezal/feezal-icons-fa');
+        });
+
+        it('separates the shared element runtime from the element packages', () => {
+            expect(bucketForModuleId('/w/packages/@feezal/feezal-element/feezal-element.js'))
+                .toBe('@feezal/feezal-element (runtime)');
+        });
+
+        it('buckets vendor deps by top-level package, scoped-aware', () => {
+            expect(bucketForModuleId('/w/node_modules/lit/index.js')).toBe('lit');
+            expect(bucketForModuleId('/w/node_modules/lit/node_modules/lit-html/x.js')).toBe('lit');
+            expect(bucketForModuleId('/w/node_modules/@shoelace-style/shoelace/dist/x.js'))
+                .toBe('@shoelace-style/shoelace');
+        });
+
+        it('viewer runtime and virtual helper modules land in "feezal core"', () => {
+            expect(bucketForModuleId('/w/www/src/feezal-app-viewer.js')).toBe('feezal core');
+            expect(bucketForModuleId('\0vite/modulepreload-polyfill.js')).toBe('feezal core');
+        });
+
+        it('normalises win32 backslash paths', () => {
+            expect(bucketForModuleId('C:\\w\\node_modules\\lit\\index.js')).toBe('lit');
+        });
+    });
+
+    describe('buildBundleReport', () => {
+        const chunk = () => ({
+            code: 'M'.repeat(500),   // "minified" whole-bundle output
+            modules: {
+                '/w/node_modules/@feezal/feezal-element-material-switch/a.js': {renderedLength: 600, code: 'a'.repeat(600)},
+                '/w/node_modules/lit/index.js': {renderedLength: 300, code: 'b'.repeat(300)},
+                '/w/www/src/feezal-app-viewer.js': {renderedLength: 100, code: 'c'.repeat(100)},
+            }
+        });
+
+        it('scales rendered shares to the exact minified total, sorted desc', () => {
+            const report = buildBundleReport(chunk());
+            expect(report.totalMinified).toBe(500);
+            expect(report.buckets.map(b => b.name)).toEqual([
+                '@feezal/feezal-element-material-switch', 'lit', 'feezal core']);
+            // pro-rata: 600/300/100 of 1000 rendered → 300/150/50 of 500 minified
+            expect(report.buckets.map(b => b.minified)).toEqual([300, 150, 50]);
+        });
+
+        it('per-bucket gzip estimates add up to the exact whole-bundle gzip', () => {
+            const report = buildBundleReport(chunk());
+            const sum = report.buckets.reduce((s, b) => s + b.gzip, 0);
+            expect(Math.abs(sum - report.totalGzip)).toBeLessThanOrEqual(report.buckets.length);
+            expect(report.estimate).toBe(true);
+        });
+
+        it('returns null without usable module metadata (fallback bundle)', () => {
+            expect(buildBundleReport(null)).toBeNull();
+            expect(buildBundleReport({code: 'x'})).toBeNull();
+            expect(buildBundleReport({code: 'x', modules: {}})).toBeNull();
+        });
+    });
+
+    describe('exportBundleReport', () => {
+        it('reports the filtered build per bucket and shares the export bundle cache', async () => {
+            const html = '<feezal-site><feezal-element-material-switch></feezal-element-material-switch></feezal-site>';
+            const report = await exportBundleReport(wwwDir, 'report-site', {html, config: {}}, logger, null);
+            expect(report.buckets.map(b => b.name)).toContain('@feezal/feezal-element-material-switch');
+            expect(report.elemCount).toBe(1);
+            expect(report.totalMinified).toBeGreaterThan(0);
+            expect(report.totalGzip).toBeGreaterThan(0);
+
+            // Same cache key as the export itself → no second Vite build.
+            const before = await buildCallCount();
+            await exportSite({name: 'report-site', html});
+            expect(await buildCallCount()).toBe(before);
+        });
+
+        it('throws when only the unattributable fallback bundle is available', async () => {
+            const html = '<feezal-site><feezal-element-material-explode></feezal-element-material-explode></feezal-site>';
+            await expect(exportBundleReport(wwwDir, 'boom', {html, config: {}}, logger, null))
+                .rejects.toThrow();
+        });
     });
 });
 

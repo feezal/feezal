@@ -1,0 +1,6 @@
+{
+  "name": "@feezal/feezal-element-tui-value",
+  "version": "3.0.0",
+  "license": "MIT",
+  "main": "feezal-element-tui-value.js"
+}

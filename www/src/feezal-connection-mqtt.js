@@ -62,6 +62,14 @@ class FeezalConnectionMqtt extends LitElement {
 
         if (cfg.lwt && cfg.lwp) {
             options.will = {topic: cfg.lwt, payload: cfg.lwp, retain: false, qos: 0};
+        } else {
+            // N24: viewer presence — the presence module provides a will that
+            // clears the retained status topic on ungraceful disconnect
+            // (retained empty publish). An explicitly configured LWT wins.
+            const presenceWill = window.feezal?.presenceWill?.();
+            if (presenceWill) {
+                options.will = {topic: presenceWill.topic, payload: presenceWill.payload ?? '', retain: presenceWill.retain === true, qos: 0};
+            }
         }
 
         this.client = mqtt.connect(uri, options);
@@ -127,9 +135,10 @@ class FeezalConnectionMqtt extends LitElement {
     }
 
     publish(message, _options = {}) {
-        console.log('[feezal-mqtt-pub] connected=%o topic=%s payload=%o', this.connected, message.topic, message.payload);
+        console.log('[feezal-mqtt-pub] connected=%o topic=%s payload=%o retain=%o', this.connected, message.topic, message.payload, message.retain);
         if (this.connected && message.topic) {
-            this.client.publish(message.topic, String(message.payload));
+            // N24: retained publishes (presence status) pass the flag through.
+            this.client.publish(message.topic, String(message.payload), {retain: message.retain === true});
             console.log('[feezal-mqtt-pub] sent OK');
         } else {
             console.warn('[feezal-mqtt-pub] BLOCKED — connected=%o topic=%s', this.connected, message.topic);

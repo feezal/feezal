@@ -9,9 +9,9 @@ import '@shoelace-style/shoelace/dist/components/switch/switch.js';
 /**
  * feezal-element-layout-flex (E9)
  *
- * A flexbox container. Its regions are `feezal-element-basic-view` children (light
+ * A flexbox container. Its regions are `feezal-element-layout-view` children (light
  * DOM) that each embed a named `feezal-view`. The container's own flex settings are
- * attributes; each region's flex sizing is stored as inline styles on its basic-view.
+ * attributes; each region's flex sizing is stored as inline styles on its layout-view.
  * Regions are managed through the custom inspector (add/remove/reorder, per-region
  * flex, and "edit" navigation to that region's view).
  *
@@ -51,7 +51,7 @@ class FeezalElementLayoutFlex extends FeezalElement {
         :host { display: block; box-sizing: border-box; overflow: hidden; }
         .flex { width: 100%; height: 100%; box-sizing: border-box; }
         /* Regions must be allowed to shrink below their content size in flex. */
-        ::slotted(feezal-element-basic-view) { min-width: 0; min-height: 0; }
+        ::slotted(feezal-element-layout-view) { min-width: 0; min-height: 0; }
         .empty {
             position: absolute; inset: 0;
             display: flex; align-items: center; justify-content: center; text-align: center;
@@ -96,7 +96,7 @@ customElements.define('feezal-element-layout-flex', FeezalElementLayoutFlex);
 export {FeezalElementLayoutFlex};
 
 // ─── N6 custom inspector ────────────────────────────────────────────────────────
-// Manages the container's flex attributes and its region (basic-view) children.
+// Manages the container's flex attributes and its region (layout-view) children.
 
 const DIRS    = ['row', 'column', 'row-reverse', 'column-reverse'];
 const JUSTIFY = ['flex-start', 'flex-end', 'center', 'space-between', 'space-around', 'space-evenly'];
@@ -167,7 +167,7 @@ class FeezalElementLayoutFlexInspector extends LitElement {
     // ── Helpers ──────────────────────────────────────────────────────────────
     _regions() {
         return this.element
-            ? [...this.element.children].filter(c => c.localName === 'feezal-element-basic-view')
+            ? [...this.element.children].filter(c => c.localName === 'feezal-element-layout-view')
             : [];
     }
     _viewNames() {
@@ -237,7 +237,7 @@ class FeezalElementLayoutFlexInspector extends LitElement {
     _addRegion() {
         const name = this._uniqueViewName('region');
         this._createView(name);
-        const bv = document.createElement('feezal-element-basic-view');
+        const bv = document.createElement('feezal-element-layout-view');
         bv.setAttribute('view', name);
         // Grow equally, allow shrink below content, fill the cross axis.
         bv.style.flexGrow = '1';
@@ -251,7 +251,7 @@ class FeezalElementLayoutFlexInspector extends LitElement {
     _removeRegion(bv) { bv.remove(); this._refresh(); }
     _move(bv, dir) {
         const sib = dir < 0 ? bv.previousElementSibling : bv.nextElementSibling;
-        if (!sib || sib.localName !== 'feezal-element-basic-view') return;
+        if (!sib || sib.localName !== 'feezal-element-layout-view') return;
         if (dir < 0) this.element.insertBefore(bv, sib);
         else this.element.insertBefore(sib, bv);
         this._refresh();

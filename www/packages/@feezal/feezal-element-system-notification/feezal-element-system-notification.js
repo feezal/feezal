@@ -167,7 +167,7 @@ customElements.define('feezal-notification-toasts', FeezalNotificationToasts);
 class FeezalElementSystemNotification extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Notification', category: 'System', color: '#607d8b', icon: 'notifications'},
+            palette: {name: 'Notification', category: 'System', color: '#455a64', icon: 'notifications'},
             description: 'Shows a transient toast notification for every message on the subscribed topic. ' +
                 'Pseudo-element — position/size don\'t matter; toasts appear top-right regardless of the ' +
                 'active view, so one element per site is enough.',
@@ -186,7 +186,7 @@ class FeezalElementSystemNotification extends FeezalElement {
                 {name: 'dedupe', type: 'boolean', default: false, help: 'Suppress a toast that is identical to the most recent visible one.'},
             ],
             restrict: {minWidth: 24, minHeight: 24},
-            defaultStyle: {width: '40px', height: '40px'},
+            defaultStyle: {width: '140px', height: '40px'},
             inspector: 'feezal-element-system-notification-inspector',
         };
     }

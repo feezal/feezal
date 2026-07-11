@@ -134,7 +134,16 @@ describe('publish / subscribe', () => {
         el.connect();
         client.emit('connect');
         el.publish({topic: 'a/b', payload: 42});
-        expect(client.publish).toHaveBeenCalledWith('a/b', '42');
+        expect(client.publish).toHaveBeenCalledWith('a/b', '42', {retain: false});
+    });
+
+    // N24: presence status is a retained publish; the flag must reach mqtt.js.
+    it('publish() forwards the retain flag', () => {
+        const el = makeElement({uri: 'ws://b'});
+        el.connect();
+        client.emit('connect');
+        el.publish({topic: 'a/b', payload: 'on', retain: true});
+        expect(client.publish).toHaveBeenCalledWith('a/b', 'on', {retain: true});
     });
 
     it('publish() is blocked while disconnected or without a topic', () => {

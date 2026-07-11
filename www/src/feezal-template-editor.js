@@ -12,17 +12,30 @@ import {loadMonaco, syncMonacoStyles} from './feezal-monaco-loader.js';
  *   - label {string}      Label shown above the editor.
  *   - variables {Array}   Variable names in scope (e.g. ['msg', 'seconds']).
  *   - darkMode {boolean}  Sync Monaco theme to editor dark mode.
+ *   - language {string}   Monaco language id (default 'html'). E49 script
+ *                         editing passes 'javascript'.
+ *   - typedefs {string}   Optional .d.ts source registered as an extra lib
+ *                         for the JS language service (completions/hover for
+ *                         e.g. the fzl API). Only used with language
+ *                         'javascript'/'typescript'.
  *
  * Events:
  *   - feezal-change  Fired (debounced 300 ms) when content changes.
  *                    detail: { value: string }
  */
+
+// addExtraLib must happen once per unique typedef source, not per editor
+// instance — the language service is global.
+const _registeredTypedefs = new Set();
+
 class FeezalTemplateEditor extends LitElement {
     static properties = {
         value:     {type: String},
         label:     {type: String},
         variables: {type: Array},
         darkMode:  {type: Boolean},
+        language:  {type: String},
+        typedefs:  {type: String},
         _loading:  {state: true},
         _expanded: {state: true}
     };
@@ -42,6 +55,14 @@ class FeezalTemplateEditor extends LitElement {
             line-height: 1; display: flex; align-items: center;
         }
         .icon-btn:hover { background: rgba(0,0,0,0.08); }
+        .material-icons {
+            font-family: 'Material Icons';
+            font-weight: normal; font-style: normal;
+            font-size: inherit; line-height: 1; letter-spacing: normal; text-transform: none;
+            display: inline-block; white-space: nowrap; word-wrap: normal; direction: ltr;
+            -webkit-font-feature-settings: 'liga'; font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
+        }
         .icon-btn .material-icons { font-size: 16px; }
 
         .editor-wrap {
@@ -86,6 +107,8 @@ class FeezalTemplateEditor extends LitElement {
         this.label     = 'template';
         this.variables = ['msg'];
         this.darkMode  = false;
+        this.language  = 'html';
+        this.typedefs  = '';
         this._loading  = true;
         this._expanded = false;
         this._editor   = null;         // inline Monaco instance
@@ -166,11 +189,12 @@ class FeezalTemplateEditor extends LitElement {
         if (!wrap) return;
 
         this._registerCompletions(monaco);
+        this._registerTypedefs(monaco);
 
         const theme = this.darkMode ? 'vs-dark' : 'vs';
         this._editor = monaco.editor.create(wrap, {
             value:            this.value ?? '',
-            language:         'html',
+            language:         this.language || 'html',
             theme,
             minimap:          {enabled: false},
             lineNumbers:      'on',
@@ -221,7 +245,7 @@ class FeezalTemplateEditor extends LitElement {
         const theme = this.darkMode ? 'vs-dark' : 'vs';
         this._overlayEditor = monaco.editor.create(wrap, {
             value:            this._editor?.getValue() ?? this.value ?? '',
-            language:         'html',
+            language:         this.language || 'html',
             theme,
             minimap:          {enabled: false},
             lineNumbers:      'on',
@@ -253,11 +277,25 @@ class FeezalTemplateEditor extends LitElement {
     }
 
     /**
+     * E49: feed the JS language service the caller's typedefs (fzl API) so
+     * script editing gets completions + hover docs. Global + once per source.
+     */
+    _registerTypedefs(monaco) {
+        if (!this.typedefs || !/^(javascript|typescript)$/.test(this.language || '')) return;
+        if (_registeredTypedefs.has(this.typedefs)) return;
+        const defaults = monaco.languages.typescript?.javascriptDefaults;
+        if (!defaults) return;
+        _registeredTypedefs.add(this.typedefs);
+        defaults.addExtraLib(this.typedefs, `ts:feezal-${_registeredTypedefs.size}.d.ts`);
+    }
+
+    /**
      * Register a completion provider for `${…}` expressions in HTML.
      * Phase 1: static suggestions from the `variables` descriptor field.
      */
     _registerCompletions(monaco) {
         if (this._providerDispose) return; // register once per component lifetime
+        if ((this.language || 'html') !== 'html') return; // ${…} helper is HTML-template-only
 
         const getVars = () => this.variables || ['msg'];
 
@@ -292,7 +330,6 @@ class FeezalTemplateEditor extends LitElement {
                     const msgItems = [
                         ['msg.payload',                          'Full MQTT payload (string or parsed object)'],
                         ['msg.topic',                            'MQTT topic string'],
-                        ['msg.payloadString',                    'Raw payload as string'],
                         ['JSON.stringify(msg.payload, null, 2)', 'Pretty-printed payload']
                     ];
                     for (const [label, detail] of msgItems) {

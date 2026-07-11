@@ -1,0 +1,17 @@
+{
+    "author": {
+        "name": "Sebastian Raff",
+        "email": "hobbyquaker@gmail.com"
+    },
+    "dependencies": {
+        "@feezal/feezal-element": "*"
+    },
+    "description": "Paper card with heading, image, elevation and a templated body",
+    "feezal": {
+        "type": "element"
+    },
+    "license": "MIT",
+    "main": "feezal-element-paper-card.js",
+    "name": "@feezal/feezal-element-paper-card",
+    "version": "3.0.0"
+}

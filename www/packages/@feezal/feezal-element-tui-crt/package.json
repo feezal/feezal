@@ -1,0 +1,6 @@
+{
+  "name": "@feezal/feezal-element-tui-crt",
+  "version": "3.0.0",
+  "license": "MIT",
+  "main": "feezal-element-tui-crt.js"
+}

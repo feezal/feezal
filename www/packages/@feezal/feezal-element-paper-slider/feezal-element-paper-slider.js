@@ -17,11 +17,12 @@ class FeezalElementPaperSlider extends FeezalPolymerElement {
                 }
             </style>
             <paper-slider id="slider"
-                noink="[[noink]]" 
-                pin="[[pin]]" 
-                disabled="[[disabled]]" 
+                noink="[[noink]]"
+                pin="[[pin]]"
+                disabled="[[disabled]]"
                 min="[[min]]"
                 max="[[max]]"
+                step="[[step]]"
             >[[label]]</paper-slider>
         `;
     }
@@ -45,6 +46,13 @@ class FeezalElementPaperSlider extends FeezalPolymerElement {
             max: {
                 type: Number,
                 value: 100,
+                reflectToAttribute: true
+            },
+            // B17: paper-slider's internal step default is 1, which makes
+            // sub-integer ranges (Homematic LEVEL 0–1) unusable — expose it.
+            step: {
+                type: Number,
+                value: 1,
                 reflectToAttribute: true
             },
             disabled: {
@@ -87,6 +95,7 @@ class FeezalElementPaperSlider extends FeezalPolymerElement {
                 'publish',
                 {name: 'min', size: 'half'},
                 {name: 'max', size: 'half'},
+                {name: 'step', size: 'half', help: 'Step size (default 1). Set e.g. 0.01 for sub-integer ranges like Homematic 0–1.'},
                 {name: 'immediate', size: 'half'},
                 {name: 'immediateThrottle', size: 'half'},
                 {name: 'pin'},

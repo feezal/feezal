@@ -719,6 +719,22 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
         }
     });
 
+    // U34: bundle size breakdown for the static export — per-contributor
+    // byte attribution from the same filtered Vite build the export runs
+    // (shared in-memory cache, so report ⇄ export don't build twice).
+    router.get('/sites/:name/bundle-report', async (req, res) => {
+        const name = req.params.name;
+        logger.debug(`bundle report requested for site '${name}'`);
+        try {
+            const site = await storage.getSite(name);
+            const report = await createExport.exportBundleReport(wwwDir, name, site, logger, storage);
+            res.json(report);
+        } catch (err) {
+            logger.warn(`bundle report error for '${name}': ${err.message}`);
+            res.status(500).json({error: err.message});
+        }
+    });
+
     // A9 Tier 2a: export the site as a ready-to-build Capacitor project.
     // ?appName= and ?appId= override (and usually mirror) viewer.app.
     router.get('/sites/:name/export-capacitor', async (req, res) => {

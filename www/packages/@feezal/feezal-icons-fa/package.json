@@ -1,0 +1,29 @@
+{
+    "name": "@feezal/feezal-icons-fa",
+    "version": "3.0.0",
+    "description": "Font Awesome Free (solid + regular + brands, ~2900 icons) for feezal — fa-solid:/fa-regular:/fa-brands: values, theme-aware inline SVG",
+    "license": "CC-BY-4.0",
+    "main": "index.js",
+    "type": "module",
+    "feezal": {
+        "type": "icons",
+        "sets": [
+            {"set": "fa-solid",   "icons": "icons-solid.js"},
+            {"set": "fa-regular", "icons": "icons-regular.js"},
+            {"set": "fa-brands",  "icons": "icons-brands.js"}
+        ]
+    },
+    "keywords": [
+        "feezal-icons",
+        "feezal",
+        "fontawesome",
+        "font-awesome",
+        "icons",
+        "smarthome"
+    ],
+    "author": "Sebastian Raff <hobbyquaker@gmail.com>",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/feezal/feezal.git"
+    }
+}

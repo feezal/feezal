@@ -497,6 +497,24 @@ class FeezalSidebarViewer extends LitElement {
                         @sl-change="${e => this._setSite('publish', e.target.value)}">
                     </sl-input>
 
+                    <div class="section-label">Viewer presence</div>
+                    <sl-switch id="presence-switch" size="small" ?checked="${s.presence !== 'off'}"
+                        @sl-change="${e => this._setSite('presence', e.target.checked ? '' : 'off')}">
+                        Announce connected viewers
+                    </sl-switch>
+                    <div class="pwa-hint">
+                        Each viewer publishes retained status JSON (client id, current
+                        view, connected-since, user agent) to
+                        <code>&lt;publish&gt;/clients/&lt;id&gt;/status</code> and obeys
+                        per-client commands (<code>view · reload · theme · playlist ·
+                        addclass · removeclass · rename</code>) under
+                        <code>&lt;subscribe&gt;/clients/&lt;id&gt;/…</code>.
+                        Requires the Publish Topic; without a Subscribe Topic viewers
+                        announce themselves but take no commands. The status sits
+                        retained on the broker while the viewer is online — turn off
+                        to publish nothing. See the Clients sidebar for the live list.
+                    </div>
+
                     <div class="section-label">View playlist</div>
                     <sl-switch id="playlist-switch" size="small" ?checked="${s.playlistEnabled === true}"
                         @sl-change="${e => this._setSite('playlistEnabled', e.target.checked)}">

@@ -1,5 +1,6 @@
 /* global feezal */
 import {LitElement, html, css} from 'lit';
+import {FeezalConditions} from './feezal-conditions.js';
 
 /**
  * Shared base styles — identical to the Polymer dom-module 'feezal-style-element'.
@@ -55,6 +56,10 @@ export class FeezalElement extends LitElement {
         messageProperty:      {type: String,  reflect: true, attribute: 'message-property'},
         dynamicSubscriptions: {type: Boolean, reflect: true, attribute: 'dynamic-subscriptions'},
         visible:              {type: Boolean, reflect: true},
+        // E50: JSON list of condition rows (visibility/class/style/attribute
+        // bound to MQTT topics). Never reflected — the attribute is the
+        // source of truth; effects only apply in the viewer.
+        conditions:           {type: String,  attribute: 'conditions'},
     };
 
     constructor() {
@@ -64,6 +69,7 @@ export class FeezalElement extends LitElement {
         this.messageProperty = 'payload';
         this.dynamicSubscriptions = false;
         this.visible = false;
+        this._conditions = new FeezalConditions(this);
     }
 
     connectedCallback() {
@@ -71,21 +77,32 @@ export class FeezalElement extends LitElement {
         this.classList.add('feezal-element');
         if (this.visible || !this.dynamicSubscriptions) {
             this._subscribe();
+            this._conditions.connect();
         }
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         this._unsubscribe();
+        this._conditions.disconnect();
     }
 
     updated(changed) {
         if (changed.has('visible') && this.dynamicSubscriptions) {
             if (this.visible) {
                 this._subscribe();
+                this._conditions.connect();
             } else {
                 this._unsubscribe();
+                this._conditions.disconnect();
             }
+        }
+
+        // E50: conditions added/edited/removed at runtime → restart the
+        // engine. connect() is idempotent for an unchanged attribute, so the
+        // first update after mount is a no-op.
+        if (changed.has('conditions') && (this.visible || !this.dynamicSubscriptions)) {
+            this._conditions.connect();
         }
     }
 

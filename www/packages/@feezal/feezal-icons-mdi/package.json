@@ -1,6 +1,6 @@
 {
     "name": "@feezal/feezal-icons-mdi",
-    "version": "1.0.0",
+    "version": "3.0.0",
     "description": "Pictogrammers Material Design Icons (7400+ icons) for feezal — mdi:<name> values, theme-aware inline SVG",
     "license": "Apache-2.0",
     "main": "index.js",

@@ -1,0 +1,6 @@
+{
+    "name": "@feezal/feezal-element-material-schedule",
+    "version": "3.0.0",
+    "main": "feezal-element-material-schedule.js",
+    "license": "MIT"
+}

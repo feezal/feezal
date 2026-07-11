@@ -242,6 +242,49 @@ class FeezalPalette extends LitElement {
             });
     }
 
+    /**
+     * B20: position the dragged new element at its (possibly snapped) location.
+     * `_dragPos` holds the raw, unsnapped position in view-local px so snapping
+     * never accumulates into the drag delta; the inspector's `_snap()` works in
+     * client coordinates of the element's top-left and returns a target + range
+     * (same contract interact.js uses for the regular element drag).
+     *
+     * The displayed position is additionally clamped to the view bounds —
+     * mirroring the interact `restrict` modifier a regular element drag has
+     * (initAbsolute in feezal-sidebar-inspector.js, incl. the 1px bottom
+     * reserve against a spurious scrollbar). Only the DISPLAYED position is
+     * clamped: `_dragPos` stays raw so dragging far left back over the
+     * palette still cancels the creation in onend (x + width < 0).
+     */
+    _applySnappedPos() {
+        if (!this.newElem || !this._dragPos) {
+            return;
+        }
+
+        const viewRect = feezal.view.getBoundingClientRect();
+        const clientX = this._dragPos.x + viewRect.x;
+        const clientY = this._dragPos.y + viewRect.y;
+        let {x, y} = this._dragPos;
+
+        const snap = feezal.editor._snap(clientX, clientY);
+        if (snap) {
+            if (snap.x !== undefined && Math.abs(snap.x - clientX) <= snap.range) {
+                x = snap.x - viewRect.x;
+            }
+
+            if (snap.y !== undefined && Math.abs(snap.y - clientY) <= snap.range) {
+                y = snap.y - viewRect.y;
+            }
+        }
+
+        const elRect = this.newElem.getBoundingClientRect();
+        x = Math.max(0, Math.min(x, viewRect.width - elRect.width));
+        y = Math.max(0, Math.min(y, viewRect.height - elRect.height - 1));
+
+        this.newElem.style.left = Math.round(x) + 'px';
+        this.newElem.style.top = Math.round(y) + 'px';
+    }
+
     _initInteract() {
         interact('.element', {context: this.renderRoot})
             .draggable({
@@ -262,40 +305,44 @@ class FeezalPalette extends LitElement {
                     const newElementRect = this.newElem.getBoundingClientRect();
                     feezal.editor.initElem(this.newElem, true);
                     this.newElem.style.outlineWidth = '2px';
-                    this.newElem.style.top = (event.clientY - viewRect.y - (newElementRect.height / 2)) + 'px';
-                    this.newElem.style.left = (event.clientX - viewRect.x - (newElementRect.width / 2)) + 'px';
+                    // B20: track the unsnapped position (view-local px) and let the
+                    // inspector's snap machinery treat the new element like a normal
+                    // element drag — the initial drop snaps exactly like a re-drag,
+                    // including grid/element snapping and the guide lines.
+                    this._dragPos = {
+                        x: event.clientX - viewRect.x - (newElementRect.width / 2),
+                        y: event.clientY - viewRect.y - (newElementRect.height / 2)
+                    };
+                    feezal.editor.dragElement = this.newElem;
+                    this._applySnappedPos();
                 },
                 onmove: event => {
-                    if (event.dx) {
-                        const x = (Number.parseFloat(this.newElem.style.left) || 0) + event.dx;
-                        this.newElem.style.left = x + 'px';
-                    }
-
-                    if (event.dy) {
-                        const y = (Number.parseFloat(this.newElem.style.top) || 0) + event.dy;
-                        this.newElem.style.top = y + 'px';
-                    }
+                    this._dragPos.x += event.dx;
+                    this._dragPos.y += event.dy;
+                    this._applySnappedPos();
                 },
                 onend: () => {
+                    feezal.editor.dragElement = null;
+                    for (const id of ['#vsnap1', '#vsnap2', '#hsnap1', '#hsnap2']) {
+                        const line = feezal.container.querySelector(id);
+                        if (line) line.style.display = 'none';
+                    }
+
                     if (!this.newElem) {
                         return;
                     }
 
-                    let x = Number.parseFloat(this.newElem.style.left);
-                    const y = Number.parseFloat(this.newElem.style.top);
-
-                    if (x + this.newElem.getBoundingClientRect().width < 0) {
+                    // Cancel gesture: dragging far left back over the palette
+                    // removes the element. Checked against the RAW drag
+                    // position — the displayed position is clamped to the view
+                    // bounds by _applySnappedPos() and can never go negative.
+                    if (this._dragPos.x + this.newElem.getBoundingClientRect().width < 0) {
                         this.newElem.remove();
                         delete this.newElem;
                         return;
                     }
 
-                    if (x < 0) {
-                        x = 0;
-                    }
-
-                    this.newElem.style.left = x + 'px';
-                    this.newElem.style.top = y + 'px';
+                    this._applySnappedPos();
                     feezal.editor.selectElement(this.newElem);
                     this.newElem.style.outlineWidth = null;
                     feezal.app.change();

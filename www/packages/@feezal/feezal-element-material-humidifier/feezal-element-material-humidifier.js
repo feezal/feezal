@@ -110,7 +110,7 @@ class FeezalElementMaterialHumidifier extends FeezalElement {
                 {name: 'message-property-mode', type: 'string', default: 'payload',
                     help: 'Dot-notation path within mode messages. Default: payload'},
                 {name: 'publish-mode',   type: 'mqttTopic', help: 'Topic to publish the selected mode to.'},
-                {name: 'modes', type: 'string', default: '',
+                {name: 'modes', type: 'objectList', itemFields: [{key: 'value'}, {key: 'label'}], default: '',
                     help: 'JSON array of mode objects: [{"value":"normal","label":"Normal"},{"value":"eco","label":"Eco"}]. When non-empty, a chip row is shown.'},
                 // ── Type / range / display ─────────────────────────────────────
                 {name: 'type', type: 'select', options: ['humidifier', 'dehumidifier'], default: 'humidifier',

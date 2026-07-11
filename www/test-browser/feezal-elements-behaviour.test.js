@@ -12,7 +12,10 @@ import '@feezal/feezal-element-material-contact';
 import '@feezal/feezal-element-material-motion';
 import '@feezal/feezal-element-material-select';
 import '@feezal/feezal-element-material-input';
-import {setupFeezal, mount} from './helpers.js';
+import '@feezal/feezal-element-paper-button';
+import '@feezal/feezal-element-paper-tabs';
+import '@feezal/feezal-element-paper-dropdown';
+import {setupFeezal, mount, until} from './helpers.js';
 
 let feezal;
 
@@ -140,19 +143,19 @@ describe('contact', () => {
         expect(el._contactState).toBe('tilted');
     });
 
-    it('tracks multiple contacts from the contacts JSON attribute', async () => {
+    it('E78: a legacy contacts attribute falls back to single-contact mode (multi-contact removed)', async () => {
         const el = await mount('feezal-element-material-contact', {
             contacts: JSON.stringify([
                 {subscribe: 'w/1', label: 'One'},
                 {subscribe: 'w/2', label: 'Two'}
             ])
         });
-        feezal.connection.deliver('w/2', 'ON');
         await el.updateComplete;
-        const dots = el.shadowRoot.querySelectorAll('.multi-dot');
-        expect(dots).toHaveLength(2);
-        expect(dots[0].classList.contains('open')).toBe(false);
-        expect(dots[1].classList.contains('open')).toBe(true);
+        // Multi-contact mode was removed — the attribute is ignored, the
+        // element renders the single-contact SVG (compose multiple contact
+        // elements for room overviews instead).
+        expect(el.shadowRoot.querySelector('.multi-dot')).toBeNull();
+        expect(el.shadowRoot.querySelector('svg.contact')).not.toBeNull();
     });
 
     it('shows the unavailable marker when the availability topic reports offline', async () => {
@@ -237,5 +240,98 @@ describe('input', () => {
         field.value = 'a';
         field.dispatchEvent(new Event('input'));
         expect(feezal.connection.published).toEqual([{topic: 'cmnd/live', payload: 'a'}]);
+    });
+});
+
+// E79: paper-button parity — same state-feedback + disabled contract as
+// feezal-element-material-button (see its test file for the material side).
+describe('paper-button (E79)', () => {
+    it('active/inactive payloads toggle the reflected [active] attribute; others leave it unchanged', async () => {
+        const el = await mount('feezal-element-paper-button', {
+            label: 'Scene', publish: 'cmnd/scene', subscribe: 'stat/scene'
+        });
+        expect(el.hasAttribute('active')).toBe(false);
+
+        feezal.connection.deliver('stat/scene', '1');       // default payload-active
+        expect(el.hasAttribute('active')).toBe(true);
+        feezal.connection.deliver('stat/scene', 'other');
+        expect(el.hasAttribute('active')).toBe(true);       // unchanged on other payloads
+        feezal.connection.deliver('stat/scene', '0');       // default payload-inactive
+        expect(el.hasAttribute('active')).toBe(false);
+    });
+
+    it('disabled blocks publishing (UI guard)', async () => {
+        const el = await mount('feezal-element-paper-button', {
+            label: 'Go', publish: 'cmnd/x'
+        });
+        el.disabled = true;
+        el._click();
+        expect(feezal.connection.published).toEqual([]);
+        el.disabled = false;
+        el._click();
+        expect(feezal.connection.published).toEqual([{topic: 'cmnd/x', payload: '1'}]);
+    });
+});
+
+// U35 adoption: paper-tabs items — JSON array (list editor) + legacy slash format.
+describe('paper-tabs items (U35)', () => {
+    it('accepts a JSON array of tab names (what the list editor writes)', async () => {
+        const el = await mount('feezal-element-paper-tabs', {items: '["One","Two","Three"]'});
+        expect(el.arrItems).toEqual(['One', 'Two', 'Three']);
+        expect(el.shadowRoot.querySelectorAll('paper-tab')).toHaveLength(3);
+    });
+
+    it('legacy slash-separated strings keep working', async () => {
+        const el = await mount('feezal-element-paper-tabs', {items: 'One/Two'});
+        expect(el.arrItems).toEqual(['One', 'Two']);
+    });
+});
+
+// U35 adoption: paper-dropdown items — {name, value} rows from the list editor.
+describe('paper-dropdown items (U35)', () => {
+    it('renders paper-items from the JSON items attribute', async () => {
+        const el = await mount('feezal-element-paper-dropdown', {
+            items: JSON.stringify([{name: 'One', value: '1'}, {name: 'Two', value: '2'}])
+        });
+        await new Promise(r => setTimeout(r, 0));   // dom-repeat stamps async
+        const opts = el.shadowRoot.querySelectorAll('paper-item');
+        expect(opts).toHaveLength(2);
+        expect(opts[0].textContent.trim()).toBe('One');
+        expect(opts[1].getAttribute('data-value')).toBe('2');
+    });
+});
+
+// layout-app hide-header: bar removed; floating hamburger keeps the overlay
+// drawer reachable when narrow.
+describe('layout-app hide-header', () => {
+    it('renders the top bar by default and none with hide-header', async () => {
+        await import('@feezal/feezal-element-layout-app');
+        const withBar = await mount('feezal-element-layout-app', {title: 'T'});
+        expect(withBar.shadowRoot.querySelector('.bar')).not.toBeNull();
+        withBar.remove();
+
+        const noBar = await mount('feezal-element-layout-app', {title: 'T', 'hide-header': ''});
+        expect(noBar.shadowRoot.querySelector('.bar')).toBeNull();
+        noBar.remove();
+    });
+
+    it('narrow + hide-header shows a floating hamburger that opens the drawer', async () => {
+        await import('@feezal/feezal-element-layout-app');
+        const el = await mount('feezal-element-layout-app', {'hide-header': '', breakpoint: '768'});
+        el.style.cssText = 'display:block;width:400px;height:300px;';
+        // ResizeObserver tick — delivery timing varies by engine (webkit on CI
+        // needs well over one frame), so wait for the effect, not a fixed time.
+        await until(() => el._narrow);
+        await el.updateComplete;
+
+        expect(el._narrow).toBe(true);
+        const fab = el.shadowRoot.querySelector('.fab-menu');
+        expect(fab).not.toBeNull();
+        fab.click();
+        await el.updateComplete;
+        expect(el.shadowRoot.querySelector('.drawer').classList.contains('open')).toBe(true);
+        // Hamburger hidden while the drawer is open (scrim closes it instead).
+        expect(el.shadowRoot.querySelector('.fab-menu')).toBeNull();
+        el.remove();
     });
 });

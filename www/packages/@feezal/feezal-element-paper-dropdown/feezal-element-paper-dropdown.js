@@ -67,8 +67,13 @@ class FeezalElementPaperDropdown extends FeezalPolymerElement {
                 'label',
                 'placeholder',
                 {
+                    // U35: list editor — one row per option ({value} published,
+                    // {name} shown). Stored as a JSON array attribute (Polymer
+                    // reflection HTML-escapes the quotes; the editor handles it).
                     name: 'items',
-                    elemProperties: ['name', 'value']
+                    type: 'objectList',
+                    itemFields: [{key: 'value'}, {key: 'name', placeholder: 'label'}],
+                    help: 'Dropdown options — one row per option (value published, name shown).'
                 }
             ],
             baseAttribute: 'value',

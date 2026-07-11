@@ -165,7 +165,9 @@ describe('message fan-out', () => {
         el.conn = {publish: vi.fn()};
         el.connected = true;
         el.pub('a/b', 'on', {retain: true});
-        expect(el.conn.publish).toHaveBeenCalledWith({topic: 'a/b', payload: 'on'}, {retain: true});
+        // N24: the retain flag travels inside the message so backends (mqtt
+        // direct AND the socket bridge) can forward it to the broker.
+        expect(el.conn.publish).toHaveBeenCalledWith({topic: 'a/b', payload: 'on', retain: true}, {retain: true});
     });
 
     it('pub() is blocked while disconnected', () => {

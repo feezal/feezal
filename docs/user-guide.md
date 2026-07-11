@@ -124,7 +124,7 @@ The built-in tab bar is shown at the top of the viewer by default. For custom na
 
 ### Tip: keeping pseudo-elements out of your main views
 
-Some elements are **invisible placeholders** — they have no visible canvas representation but listen to MQTT and act at runtime. Examples include **Connection Status** (`feezal-element-connection-status`), **Dialog** (`feezal-element-material-dialog`), and **Countdown Dialog** (`feezal-element-material-countdown-dialog`).
+Some elements are **invisible placeholders** — they have no visible canvas representation but listen to MQTT and act at runtime. Examples include **Connection Status** (`feezal-element-system-connection-status`), **Dialog** (`feezal-element-material-dialog`), and **Countdown Dialog** (`feezal-element-material-countdown-dialog`).
 
 Dropping these onto your main views works, but they add coloured placeholder boxes that clutter the canvas. A cleaner approach is to create a dedicated view — call it **_system**, **_global**, or **hidden** — and place all pseudo-elements there. That view never appears in the viewer tab bar (set the Navigation element's `views` attribute to only list the real views), so the placeholders are invisible to end-users but still active site-wide.
 

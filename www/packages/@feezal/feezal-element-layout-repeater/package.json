@@ -1,0 +1,6 @@
+{
+    "name": "@feezal/feezal-element-layout-repeater",
+    "version": "3.0.0",
+    "license": "MIT",
+    "main": "feezal-element-layout-repeater.js"
+}

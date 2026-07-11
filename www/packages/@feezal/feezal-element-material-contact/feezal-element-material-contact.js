@@ -133,7 +133,7 @@ class FeezalElementMaterialContact extends FeezalElement {
     static get feezal() {
         return {
             palette: {name: 'Contact', category: 'Device', color: '#1565c0', icon: 'sensor_window'},
-            description: 'Window / door contact sensor. Shows open or closed state as a stylised SVG. Supports multi-contact mode for a compact room overview.',
+            description: 'Window / door contact sensor. Shows open or closed state as a stylised SVG. For room overviews compose multiple contact elements (U32 component or repeater).',
             discovery: {
                 component: 'binary_sensor',
                 map: {
@@ -149,14 +149,12 @@ class FeezalElementMaterialContact extends FeezalElement {
                 },
             },
             attributes: [
-                {name: 'subscribe',              type: 'mqttTopic', help: 'State topic (single-contact mode).'},
+                {name: 'subscribe',              type: 'mqttTopic', help: 'Contact state topic.'},
                 {name: 'message-property',       type: 'string',    default: 'payload', help: 'Property path within the message payload (dot-notation). Blank = top-level payload.'},
                 {name: 'payload-open',           type: 'string',    default: 'ON',    help: 'Payload value meaning the contact is open.'},
                 {name: 'payload-closed',         type: 'string',    default: 'OFF',   help: 'Payload value meaning the contact is closed.'},
                 {name: 'type',                   type: 'select',    options: ['window', 'door', 'generic', 'waterleak', 'firealarm', 'garagedoor'], default: 'window',
                     help: 'Visual style — window frame, door, generic circle, water droplet (leak), flame (fire/smoke alarm), or garage door.'},
-                {name: 'contacts',               type: 'string',    default: '[]',
-                    help: 'JSON array of {subscribe, label} for multi-contact mode (up to 8). Overrides single subscribe.'},
                 {name: 'label',                  type: 'string',    default: '',      help: 'Optional card label shown below the visual.'},
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability.'},
                 {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
@@ -183,7 +181,6 @@ class FeezalElementMaterialContact extends FeezalElement {
         payloadOpen:           {type: String,  reflect: true, attribute: 'payload-open'},
         payloadClosed:         {type: String,  reflect: true, attribute: 'payload-closed'},
         type:                  {type: String,  reflect: true},
-        contacts:              {type: String,  reflect: true},
         label:                 {type: String,  reflect: true},
         subscribeAvailability: {type: String,  reflect: true, attribute: 'subscribe-availability'},
         payloadAvailable:      {type: String,  reflect: true, attribute: 'payload-available'},
@@ -193,7 +190,6 @@ class FeezalElementMaterialContact extends FeezalElement {
         mirror:                {type: Boolean, reflect: true},
         discoveryId:           {type: String,  reflect: true, attribute: 'discovery-id'},
         _contactState: {state: true},  // 'closed' | 'open' | 'tilted'
-        _multiOpen:  {state: true},
         _available:  {state: true},
     };
 
@@ -228,19 +224,6 @@ class FeezalElementMaterialContact extends FeezalElement {
             color: var(--feezal-contact-text-color);
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;
         }
-        .multi-grid {
-            display: flex; flex-wrap: wrap; gap: 5px;
-            width: 100%; justify-content: center; padding: 4px; flex: 1;
-        }
-        .multi-dot {
-            width: 14px; height: 14px; border-radius: 50%;
-            border: 2px solid currentColor; box-sizing: border-box;
-            flex-shrink: 0;
-        }
-        .multi-dot.open {
-            background: var(--feezal-contact-open-color);
-            border-color: var(--feezal-contact-open-color);
-        }
     `];
 
     constructor() {
@@ -249,7 +232,6 @@ class FeezalElementMaterialContact extends FeezalElement {
         this.payloadOpen           = 'ON';
         this.payloadClosed         = 'OFF';
         this.type                  = 'window';
-        this.contacts              = '[]';
         this.label                 = '';
         this.subscribeAvailability = '';
         this.payloadAvailable      = 'online';
@@ -259,7 +241,6 @@ class FeezalElementMaterialContact extends FeezalElement {
         this.mirror                = false;
         this.discoveryId           = '';
         this._contactState = 'closed';
-        this._multiOpen    = {};
         this._available    = true;
     }
 
@@ -282,24 +263,14 @@ class FeezalElementMaterialContact extends FeezalElement {
             });
         }
 
-        let contacts = [];
-        try { contacts = JSON.parse(this.contacts); } catch { contacts = []; }
-
-        if (contacts.length > 0) {
-            for (const c of contacts) {
-                if (!c.subscribe) continue;
-                this.addSubscription(c.subscribe, msg => {
-                    const v = this.getProperty(msg, this.messageProperty);
-                    const isOpen = payloadMatch(v, this.payloadOpen);
-                    this._multiOpen = {...this._multiOpen, [c.subscribe]: isOpen};
-                });
-            }
-        } else if (this.subscribe) {
+        // E78: multi-contact mode removed — the element is single-contact
+        // only; compose multiple contact elements (U32 component / repeater)
+        // for room overviews. Saved views still carrying a `contacts`
+        // attribute fall back to this single-contact path (empty subscribe →
+        // editor placeholder).
+        if (this.subscribe) {
             this.addSubscription(this.subscribe, msg => {
                 const v = this.getProperty(msg, this.messageProperty);
-                const s = String(v);
-                console.log('[contact] topic=%s raw=%o str=%s payloadOpen=%s payloadClosed=%s payloadTilted=%s',
-                    this.subscribe, v, s, this.payloadOpen, this.payloadClosed, this.payloadTilted);
                 if (this.payloadTilted && payloadMatch(v, this.payloadTilted)) {
                     this._contactState = 'tilted';
                 } else if (payloadMatch(v, this.payloadOpen)) {
@@ -307,7 +278,6 @@ class FeezalElementMaterialContact extends FeezalElement {
                 } else {
                     this._contactState = 'closed';
                 }
-                console.log('[contact] → state=%s', this._contactState);
             });
         }
     }
@@ -323,25 +293,13 @@ class FeezalElementMaterialContact extends FeezalElement {
     }
 
     render() {
-        let contacts = [];
-        try { contacts = JSON.parse(this.contacts); } catch { contacts = []; }
-        const isMulti = contacts.length > 0;
-
         return html`
             ${!this._available ? html`<div class="unavail">${UNAVAIL}</div>` : ''}
-            ${isMulti ? html`
-                <div class="multi-grid">
-                    ${contacts.map(c => html`
-                        <div class="multi-dot ${this._multiOpen[c.subscribe] ? 'open' : ''}"
-                             title="${c.label || c.subscribe}"></div>`)}
-                </div>
-            ` : html`
-                <div class="svg-wrap">
-                    <svg class="contact" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-                        ${this._shapeSvg(this._contactState)}
-                    </svg>
-                </div>
-            `}
+            <div class="svg-wrap">
+                <svg class="contact" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+                    ${this._shapeSvg(this._contactState)}
+                </svg>
+            </div>
             ${this.label ? html`<div class="label">${this.label}</div>` : ''}`;
     }
 }

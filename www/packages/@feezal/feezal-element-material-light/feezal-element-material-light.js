@@ -38,6 +38,18 @@ function angleToPct(deg) {
     return Math.max(0, Math.min(100, Math.round(n / ARC_SWEEP * 100)));
 }
 
+// Ring % → raw MQTT value. Rounds to the granularity of 1 % of the range so
+// sub-integer ranges survive (Homematic dimmers use a 0–1 LEVEL: 49 % → 0.49)
+// while integer ranges (0–100, 0–254) keep publishing whole numbers.
+// Pure — exported for tests.
+export function pctToRaw(pct, min, max) {
+    const value = min + (pct / 100) * (max - min);
+    const step = Math.abs(max - min) / 100;
+    if (step >= 1 || step === 0) return Math.round(value);
+    const decimals = Math.min(6, Math.ceil(-Math.log10(step)));
+    return Number(value.toFixed(decimals));
+}
+
 // ─── Colour helpers ───────────────────────────────────────────────────────────
 function kelvinToRgb(k) {
     // Simple warm-to-cool interpolation: 2700 K (warm) → 6500 K (cool)
@@ -140,9 +152,13 @@ class FeezalElementMaterialLight extends FeezalElement {
                 {name: 'json-map',  type: 'string', default: '', help: 'json mode: optional JSON string overriding the default property→key map.'},
                 {name: 'message-property',  type: 'string', default: 'payload', help: 'Property path within message payloads (dot-notation). json mode: extracts the JSON state object; separate mode: global fallback for all topics.'},
                 // On/off
+                {name: 'on-off-source',     type: 'select', options: ['topic', 'brightness'], default: 'topic',
+                    help: 'topic = dedicated on/off state topic; brightness = derive on/off from the brightness value (off when it equals payload-off — e.g. Homematic dimmers, LEVEL 0–1).'},
+                {name: 'subscribe-state',   type: 'mqttTopic', help: 'Separate mode: on/off state topic. Falls back to `subscribe` when empty (back-compat).'},
+                {name: 'message-property-state', type: 'string', default: 'payload', help: 'Property path for the on/off state topic. Defaults to message-property.'},
                 {name: 'publish-state',     type: 'mqttTopic', help: 'Topic to publish on/off.'},
-                {name: 'payload-on',        type: 'string',    default: 'on',  help: 'Payload representing "on".'},
-                {name: 'payload-off',       type: 'string',    default: 'off', help: 'Payload representing "off".'},
+                {name: 'payload-on',        type: 'string',    default: 'on',  help: 'Payload representing "on". on-off-source=brightness: compared against / published to the brightness topic; Homematic: 1.005 restores the last brightness (OLD_LEVEL).'},
+                {name: 'payload-off',       type: 'string',    default: 'off', help: 'Payload representing "off". on-off-source=brightness: numeric value compared against the brightness topic (non-numeric falls back to brightness-min).'},
                 // Brightness
                 {name: 'subscribe-brightness', type: 'mqttTopic', help: 'Current brightness (0–100 %).'},
                 {name: 'publish-brightness',   type: 'mqttTopic', help: 'Publish brightness on ring release.'},
@@ -211,6 +227,9 @@ class FeezalElementMaterialLight extends FeezalElement {
         payloadMode:        {type: String, reflect: true, attribute: 'payload-mode'},
         publish:            {type: String, reflect: true, attribute: 'publish'},
         jsonMap:            {type: String, reflect: true, attribute: 'json-map'},
+        onOffSource:        {type: String, reflect: true, attribute: 'on-off-source'},
+        subscribeState:     {type: String, reflect: true, attribute: 'subscribe-state'},
+        msgPropState:       {type: String, reflect: true, attribute: 'message-property-state'},
         publishState:       {type: String, reflect: true, attribute: 'publish-state'},
         payloadOn:          {type: String, reflect: true, attribute: 'payload-on'},
         payloadOff:         {type: String, reflect: true, attribute: 'payload-off'},
@@ -368,6 +387,9 @@ class FeezalElementMaterialLight extends FeezalElement {
         this.payloadMode         = 'separate';
         this.publish             = '';
         this.jsonMap             = '';
+        this.onOffSource         = 'topic';
+        this.subscribeState      = '';
+        this.msgPropState        = '';
         this.publishState        = '';
         this.payloadOn           = 'on';
         this.payloadOff          = 'off';
@@ -419,6 +441,9 @@ class FeezalElementMaterialLight extends FeezalElement {
         this._coldWhite = null;
         this._dragBrt   = null;
         this._available = true;
+        // E77: widget-remembered last non-off brightness % for toggle-on
+        // restore in on-off-source=brightness mode.
+        this._lastBrt   = null;
         // Non-reactive drag flags
         this.__ctDragging = false;
     }
@@ -456,9 +481,14 @@ class FeezalElementMaterialLight extends FeezalElement {
         }
 
         // ── Separate (per-topic) mode ──────────────────────────────────────
-        if (this.subscribe) {
-            this.addSubscription(this.subscribe, msg => {
-                const v = this.getProperty(msg, this.messageProperty);
+        // E77: on/off state topic — `subscribe-state` (the attribute the N6
+        // inspector always wrote) with `subscribe` fallback for back-compat
+        // with saved views. Skipped entirely in on-off-source=brightness mode
+        // (the brightness value is the single source of truth there).
+        const stateTopic = this.subscribeState || this.subscribe;
+        if (stateTopic && this.onOffSource !== 'brightness') {
+            this.addSubscription(stateTopic, msg => {
+                const v = this.getProperty(msg, this.msgPropState || this.messageProperty);
                 this._on = v === this.payloadOn || v === true || v === 1 || v === '1' ||
                            (typeof v === 'string' && v.toLowerCase() === 'on');
             });
@@ -470,6 +500,13 @@ class FeezalElementMaterialLight extends FeezalElement {
                     const min = this.brightnessMin ?? 0;
                     const max = this.brightnessMax ?? 100;
                     this._brt = max === min ? 0 : Math.max(0, Math.min(100, (v - min) / (max - min) * 100));
+                    // E77: Homematic dimmers have no on/off datapoint — off is
+                    // simply LEVEL = effOff. Derive on/off from the raw value
+                    // and remember the last non-off % for toggle-on restore.
+                    if (this.onOffSource === 'brightness') {
+                        this._on = v !== this._effOffRaw();
+                        if (this._on) this._lastBrt = this._brt;
+                    }
                 }
             });
         }
@@ -543,6 +580,12 @@ class FeezalElementMaterialLight extends FeezalElement {
         if (!isNaN(bri)) {
             const max = this.brightnessMax || 100;
             this._brt = Math.max(0, Math.min(100, (bri / max) * 100));
+            // E77 (consistency): when the message carries no state key, derive
+            // on/off from the brightness field. Not needed for zigbee2mqtt
+            // (always sends state), harmless otherwise.
+            if (state === undefined || state === null) {
+                this._on = bri > 0;
+            }
         }
 
         let ct = Number(get(map.color_temp));
@@ -585,9 +628,16 @@ class FeezalElementMaterialLight extends FeezalElement {
 
         if (dist <= CENTER_R) {
             this._handleCenterTap(dx, dy, dist);
-        } else if (this._on && dist <= TRACK_R + RING_W) {
+        } else if ((this._on || this._dragFromOffAllowed()) && dist <= TRACK_R + RING_W) {
             this._startBrtDrag(e, sx, sy);
         }
+    }
+
+    /** E77: in on-off-source=brightness mode dragging from "off" to 30 % is the
+     * natural way to turn a dimmer on — the ring stays draggable while off.
+     * In topic mode the drag stays gated on _on (unchanged behaviour). */
+    _dragFromOffAllowed() {
+        return this.payloadMode !== 'json' && this.onOffSource === 'brightness';
     }
 
     _handleCenterTap(dx, dy, dist) {
@@ -602,10 +652,61 @@ class FeezalElementMaterialLight extends FeezalElement {
         }
     }
 
+    /** E77: the raw brightness value that means "off" in on-off-source=brightness
+     * mode — numeric payload-off wins, the default 'off' string degrades
+     * gracefully to brightness-min. */
+    _effOffRaw() {
+        const n = Number(this.payloadOff);
+        return (this.payloadOff !== '' && this.payloadOff !== null && !isNaN(n))
+            ? n
+            : (this.brightnessMin ?? 0);
+    }
+
     _toggle() {
+        // E77: Homematic dimmer mode — on/off IS the brightness value; publish
+        // to the brightness topic instead of the (nonexistent) state topic.
+        if (this.payloadMode !== 'json' && this.onOffSource === 'brightness') {
+            this._toggleViaBrightness();
+            return;
+        }
+
         this._on = !this._on;
         const payload = this._on ? this.payloadOn : this.payloadOff;
         this._pub(this.publishState, payload, {[this._jsonMap.state]: payload});
+    }
+
+    _toggleViaBrightness() {
+        const min = this.brightnessMin ?? 0;
+        const max = this.brightnessMax ?? 100;
+        if (this._on) {
+            // OFF → numeric payload-off verbatim, else the raw minimum.
+            this._on = false;
+            this._brt = 0;
+            const offNum = Number(this.payloadOff);
+            const raw = (this.payloadOff !== '' && !isNaN(offNum)) ? String(this.payloadOff) : String(min);
+            this._pub(this.publishBrightness, raw, {[this._jsonMap.brightness]: raw});
+            return;
+        }
+
+        this._on = true;
+        const onNum = Number(this.payloadOn);
+        if (this.payloadOn !== '' && !isNaN(onNum)) {
+            // Numeric payload-on → publish verbatim. In-range values predict
+            // the local brightness; out-of-range values are device commands
+            // (Homematic OLD_LEVEL 1.005 = "restore last level") — the actual
+            // level is unknown until the device echoes it, so _brt stays.
+            this._pub(this.publishBrightness, String(this.payloadOn), {[this._jsonMap.brightness]: onNum});
+            if (onNum >= Math.min(min, max) && onNum <= Math.max(min, max)) {
+                this._brt = max === min ? 0 : Math.max(0, Math.min(100, (onNum - min) / (max - min) * 100));
+            }
+        } else {
+            // Non-numeric payload-on ('on') → restore the widget-remembered
+            // last brightness (fallback 100 %) through pctToRaw.
+            const pct = this._lastBrt ?? 100;
+            this._brt = pct;
+            const raw = pctToRaw(pct, min, max);
+            this._pub(this.publishBrightness, String(raw), {[this._jsonMap.brightness]: raw});
+        }
     }
 
     _pickColor(dx, dy, dist) {
@@ -639,10 +740,16 @@ class FeezalElementMaterialLight extends FeezalElement {
             const final = this._dragBrt;
             this._dragBrt = null;
             this._brt = final;
+            // E77: in brightness mode the level IS the on/off state — releasing
+            // at 0 turns off, anything else turns (or keeps) on.
+            if (this._dragFromOffAllowed()) {
+                this._on = final > 0;
+                if (final > 0) this._lastBrt = final;
+            }
             const min = this.brightnessMin ?? 0;
             const max = this.brightnessMax ?? 100;
-            const raw = Math.round(min + (final / 100) * (max - min));
-            const jsonRaw = Math.round((final / 100) * (this.brightnessMax || 100));
+            const raw = pctToRaw(final, min, max);
+            const jsonRaw = pctToRaw(final, 0, this.brightnessMax || 100);
             this._pub(this.publishBrightness, String(raw), {[this._jsonMap.brightness]: jsonRaw});
         };
         document.addEventListener('pointermove', onMove);
@@ -1112,12 +1219,20 @@ class FeezalElementMaterialLightInspector extends LitElement {
         }
 
         // separate mode → always-on State section + capability-gated sections
+        // E77: with on-off-source=brightness the state topics are unused —
+        // on/off derives from (and publishes to) the Brightness topics.
+        const brightnessSource = (this._val('on-off-source') || 'topic') === 'brightness';
         return html`
             <div class="section">
                 <div class="sec-head">State</div>
                 <div class="sec-body">
-                    ${this._topicInput({attr: 'subscribe-state', label: 'Subscribe'})}
-                    ${this._topicInput({attr: 'publish-state',   label: 'Publish'})}
+                    ${brightnessSource ? html`
+                        <div class="hint">On/off derives from the <b>Brightness</b> topic
+                            (On/off source: brightness) — state topics are unused.</div>
+                    ` : html`
+                        ${this._topicInput({attr: 'subscribe-state', label: 'Subscribe'})}
+                        ${this._topicInput({attr: 'publish-state',   label: 'Publish'})}
+                    `}
                 </div>
             </div>
             ${LIGHT_SECTIONS.map(sec => {
@@ -1169,21 +1284,47 @@ class FeezalElementMaterialLightInspector extends LitElement {
                 </div>
             </div>
 
+            ${(() => {
+                // E77: brightness-derived on/off (Homematic dimmers — no
+                // dedicated on/off datapoint, off is LEVEL = 0).
+                const brightnessSource = (this._val('on-off-source') || 'topic') === 'brightness';
+                return html`
             <div class="section">
                 <div class="sec-head">State payloads</div>
-                <div class="sec-body row">
-                    <div class="field">
-                        <label>On</label>
-                        <sl-input size="small" autocomplete="off" value="${this._val('payload-on') || 'on'}"
-                            @sl-change="${e => this._onInput('payload-on', e)}"></sl-input>
+                <div class="sec-body">
+                    ${isJson ? '' : html`
+                        <div class="field">
+                            <label>On/off source</label>
+                            <sl-select size="small" value="${this._val('on-off-source') || 'topic'}"
+                                @sl-change="${e => this._onSelect('on-off-source', e)}">
+                                <sl-option value="topic">topic (dedicated on/off state topic)</sl-option>
+                                <sl-option value="brightness">brightness (derive on/off from the level)</sl-option>
+                            </sl-select>
+                        </div>`}
+                    <div class="row">
+                        <div class="field">
+                            <label>On</label>
+                            <sl-input size="small" autocomplete="off"
+                                value="${brightnessSource ? this._val('payload-on') : (this._val('payload-on') || 'on')}"
+                                placeholder="${brightnessSource ? '1' : ''}"
+                                @sl-change="${e => this._onInput('payload-on', e)}"></sl-input>
+                        </div>
+                        <div class="field">
+                            <label>Off</label>
+                            <sl-input size="small" autocomplete="off"
+                                value="${brightnessSource ? this._val('payload-off') : (this._val('payload-off') || 'off')}"
+                                placeholder="${brightnessSource ? '0' : ''}"
+                                @sl-change="${e => this._onInput('payload-off', e)}"></sl-input>
+                        </div>
                     </div>
-                    <div class="field">
-                        <label>Off</label>
-                        <sl-input size="small" autocomplete="off" value="${this._val('payload-off') || 'off'}"
-                            @sl-change="${e => this._onInput('payload-off', e)}"></sl-input>
-                    </div>
+                    ${brightnessSource ? html`
+                        <div class="hint">Compared against / published to the <b>Brightness</b> topic.
+                            Empty Off falls back to the brightness minimum; non-numeric On restores the
+                            last brightness. Homematic: set On to <b>1.005</b> to restore the last
+                            brightness device-side (OLD_LEVEL).</div>` : ''}
                 </div>
-            </div>
+            </div>`;
+            })()}
 
             ${brEnabled ? html`
                 <div class="section">

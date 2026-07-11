@@ -59,7 +59,7 @@ class FeezalElementMaterialComputerStats extends FeezalElement {
                 {name: 'show-legend',        type: 'boolean',   help: 'Show a colour legend to the right of the rings.'},
                 {name: 'show-labels',        type: 'boolean',   help: 'Show percentage values on active rings.'},
                 {name: 'host-label',         type: 'string',    help: 'Text shown in the centre of the rings (e.g. hostname).'},
-                {name: 'rings',              type: 'string',    help: 'JSON array of custom ring definitions: [{slot,label,color,max}]. Overrides defaults.'},
+                {name: 'rings',              type: 'objectList', itemFields: [{key: 'slot'}, {key: 'label'}, {key: 'color', type: 'color'}, {key: 'max', type: 'number'}], help: 'Custom ring definitions — one row per ring (slot, label, colour, max). Overrides the defaults. Stored as a JSON array.'},
             ],
             styles: ['top', 'left', 'width', 'height'],
             defaultStyle: {width: '220px', height: '220px'},

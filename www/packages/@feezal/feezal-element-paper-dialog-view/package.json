@@ -1,0 +1,17 @@
+{
+    "author": {
+        "name": "Sebastian Raff",
+        "email": "hobbyquaker@gmail.com"
+    },
+    "dependencies": {
+        "@feezal/feezal-element": "*"
+    },
+    "description": "Paper-styled modal dialog embedding a live feezal view",
+    "feezal": {
+        "type": "element"
+    },
+    "license": "MIT",
+    "main": "feezal-element-paper-dialog-view.js",
+    "name": "@feezal/feezal-element-paper-dialog-view",
+    "version": "3.0.0"
+}

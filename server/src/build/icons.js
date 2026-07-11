@@ -53,16 +53,28 @@ function discoverIconPackages(wwwDir, userElementsDir) {
                     continue;
                 }
                 const meta = pj.feezal || {};
-                const set = meta.set || entry.replace(/^feezal-icons-/, '');
-                const iconsFile = meta.icons ? path.join(abs, meta.icons) : null;
-                out.push({
-                    name: path.relative(baseDir, abs).split(path.sep).join('/'),
-                    set,
-                    kind,
-                    dir: abs,
-                    main: pj.main || 'index.js',
-                    iconsFile: iconsFile && fs.existsSync(iconsFile) ? iconsFile : null
-                });
+                const name = path.relative(baseDir, abs).split(path.sep).join('/');
+                const main = pj.main || 'index.js';
+                // N28: a package may register SEVERAL sets (Font Awesome:
+                // fa-solid / fa-regular / fa-brands) via the plural form
+                // `feezal.sets: [{set, icons}, …]` — one discovery entry per
+                // set, sharing the package identity. The singular
+                // `feezal.set` + `feezal.icons` form stays supported.
+                const declared = Array.isArray(meta.sets) && meta.sets.length > 0
+                    ? meta.sets
+                    : [{set: meta.set || entry.replace(/^feezal-icons-/, ''), icons: meta.icons}];
+                for (const d of declared) {
+                    if (!d || !d.set) continue;
+                    const iconsFile = d.icons ? path.join(abs, d.icons) : null;
+                    out.push({
+                        name,
+                        set: d.set,
+                        kind,
+                        dir: abs,
+                        main,
+                        iconsFile: iconsFile && fs.existsSync(iconsFile) ? iconsFile : null
+                    });
+                }
             }
         };
         walk(baseDir);
@@ -165,7 +177,10 @@ function siteIconArtifacts({wwwDir, userElementsDir, siteHtml, logger = console}
             }
             if (Object.keys(subset).length) parts.push(registrationJs(pkg.set, subset));
         } else if (pkg.kind === 'user') {
-            userModuleUrls.push(`/user-elements/${pkg.name}/${pkg.main}`);
+            const url = `/user-elements/${pkg.name}/${pkg.main}`;
+            // N28: multi-set packages yield one discovery entry per set —
+            // load the module once.
+            if (!userModuleUrls.includes(url)) userModuleUrls.push(url);
         }
     }
 

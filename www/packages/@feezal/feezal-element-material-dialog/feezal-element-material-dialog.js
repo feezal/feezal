@@ -33,7 +33,11 @@ class FeezalElementMaterialDialog extends FeezalElement {
                 {name: 'cancel-publish',   type: 'mqttTopic',                    help: 'Topic published when Cancel is pressed. If empty, closes silently.'},
                 {name: 'cancel-payload',   type: 'string',    default: 'cancel', help: 'Payload published when Cancel is pressed.'},
                 {name: 'close-on-backdrop',type: 'boolean',   default: true,     help: 'Close the dialog when the backdrop is clicked.'},
+                {name: 'show-close',       type: 'boolean',   default: true,     help: 'Show a top-right ✕ close affordance (same as Dialog View).'},
+                {name: 'hide-header',      type: 'boolean',   default: false,    help: 'Hide the header bar (title + ✕) entirely, regardless of title/show-close. (Default-false boolean so the setting survives save/reload.)'},
                 {name: 'width',            type: 'string',    default: '480px',  help: 'Dialog panel width.'},
+                {name: 'height',           type: 'string',    default: '',       help: 'Dialog panel height. Empty: auto (content height).'},
+                {name: 'min-height',       type: 'string',    default: '',       help: 'Dialog panel minimum height — raises the floor so a dialog with little content does not collapse.'},
                 {name: 'max-height',       type: 'string',    default: '80vh',   help: 'Dialog panel max height.'},
             ],
             styles: ['top', 'left'],
@@ -56,7 +60,11 @@ class FeezalElementMaterialDialog extends FeezalElement {
         cancelPublish:   {type: String,  reflect: true, attribute: 'cancel-publish'},
         cancelPayload:   {type: String,  reflect: true, attribute: 'cancel-payload'},
         closeOnBackdrop: {type: Boolean, reflect: true, attribute: 'close-on-backdrop'},
+        showClose:       {type: Boolean, reflect: true, attribute: 'show-close'},
+        hideHeader:      {type: Boolean, reflect: true, attribute: 'hide-header'},
         width:           {type: String,  reflect: true},
+        height:          {type: String,  reflect: true},
+        minHeight:       {type: String,  reflect: true, attribute: 'min-height'},
         maxHeight:       {type: String,  reflect: true, attribute: 'max-height'},
         _open:           {state: true},
         _msg:            {state: true},
@@ -119,12 +127,29 @@ class FeezalElementMaterialDialog extends FeezalElement {
             to   { opacity:1; transform: translate(-50%, -50%); }
         }
         .dialog-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
             padding: 16px 20px 0;
             font-size: 16px;
             font-weight: 600;
             font-family: 'Roboto', sans-serif;
             color: var(--primary-text-color, #333);
         }
+        .dialog-header .spacer { flex: 1; }
+        .dialog-close {
+            font-family: 'Material Icons';
+            font-style: normal;
+            font-size: 20px;
+            line-height: 1;
+            border: none;
+            background: none;
+            color: var(--secondary-text-color, #777);
+            cursor: pointer;
+            padding: 2px;
+            border-radius: 50%;
+        }
+        .dialog-close:hover { background: rgba(0,0,0,0.08); }
         .dialog-body {
             padding: 12px 20px;
             flex: 1;
@@ -190,7 +215,11 @@ class FeezalElementMaterialDialog extends FeezalElement {
         this.cancelPublish = '';
         this.cancelPayload = 'cancel';
         this.closeOnBackdrop = true;
+        this.showClose     = true;
+        this.hideHeader    = false;
         this.width         = '480px';
+        this.height        = '';
+        this.minHeight     = '';
         this.maxHeight     = '80vh';
         this._open         = false;
         this._msg          = {};
@@ -252,16 +281,22 @@ class FeezalElementMaterialDialog extends FeezalElement {
         // In the viewer the overlay is rendered into a document.body portal so
         // it is never trapped inside a display:none view or a CSS-transformed
         // canvas ancestor.
-        if (!feezal.isEditor && changed.has('_open')) {
-            if (this._open) {
-                if (!this._portal) {
-                    this._portal = document.createElement('div');
-                    this._portal.setAttribute('feezal-dialog-portal', '');
+        if (!feezal.isEditor) {
+            if (changed.has('_open')) {
+                if (this._open) {
+                    if (!this._portal) {
+                        this._portal = document.createElement('div');
+                        this._portal.setAttribute('feezal-dialog-portal', '');
+                    }
+                    document.body.appendChild(this._portal);
+                    render(this._renderPortalContent(), this._portal);
+                } else {
+                    this._clearPortal();
                 }
-                document.body.appendChild(this._portal);
+            } else if (this._open && this._portal) {
+                // B25: keep the open portal in sync with live property changes
+                // (title / show-close / hide-header / a new message's template).
                 render(this._renderPortalContent(), this._portal);
-            } else {
-                this._clearPortal();
             }
         }
     }
@@ -284,10 +319,34 @@ class FeezalElementMaterialDialog extends FeezalElement {
         if (this.closeOnBackdrop) this._close();
     }
 
+    /**
+     * B25: unified header bar — title + top-right ✕ — matching Dialog View.
+     * hide-header removes the bar entirely; otherwise it shows when a title
+     * or the close affordance (show-close, default on) is present.
+     * `inline: true` renders with inline styles for the portal (which has no
+     * shadow stylesheet), `false` uses the shadow classes (editor preview).
+     */
+    _headerTemplate(inline) {
+        if (this.hideHeader) return html``;
+        if (!this.dialogTitle && !this.showClose) return html``;
+        const closeBtn = this.showClose
+            ? (inline
+                ? html`<button style="font-family:'Material Icons';font-style:normal;font-size:20px;line-height:1;border:none;background:none;color:var(--secondary-text-color,#777);cursor:pointer;padding:2px;border-radius:50%;" title="Close" @click=${() => this._close()}>close</button>`
+                : html`<button class="dialog-close" title="Close" @click=${() => this._close()}>close</button>`)
+            : html``;
+        return inline
+            ? html`<div style="display:flex;align-items:center;gap:8px;padding:16px 20px 0;font-size:16px;font-weight:600;font-family:Roboto,sans-serif;"><span>${this.dialogTitle}</span><span style="flex:1"></span>${closeBtn}</div>`
+            : html`<div class="dialog-header"><span>${this.dialogTitle}</span><span class="spacer"></span>${closeBtn}</div>`;
+    }
+
     _renderPortalContent() {
         const panelStyle = [
             `width:${this.width || '480px'}`,
             'max-width:calc(100vw - 32px)',
+            // B24: explicit height / min-height so the dialog can be made
+            // taller than its content (empty keeps today's auto behaviour).
+            `height:${this.height || 'auto'}`,
+            `min-height:${this.minHeight || 'auto'}`,
             `max-height:${this.maxHeight || '80vh'}`,
             'position:fixed',
             'top:50%',
@@ -323,7 +382,7 @@ class FeezalElementMaterialDialog extends FeezalElement {
             <div style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;"
                  @click=${() => this._handleBackdropClick()}></div>
             <div style="${panelStyle}">
-                ${this.dialogTitle ? html`<div style="padding:16px 20px 0;font-size:16px;font-weight:600;font-family:Roboto,sans-serif;">${this.dialogTitle}</div>` : html``}
+                ${this._headerTemplate(true)}
                 <div style="padding:12px 20px;flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;gap:8px;font-family:Roboto,sans-serif;">
                     ${iconTpl}${msgTpl}
                 </div>
@@ -334,7 +393,7 @@ class FeezalElementMaterialDialog extends FeezalElement {
     }
 
     _renderDialogPanel() {
-        const panelStyle = `width:${this.width || '480px'};max-height:${this.maxHeight || '80vh'};`;
+        const panelStyle = `width:${this.width || '480px'};height:${this.height || 'auto'};min-height:${this.minHeight || 'auto'};max-height:${this.maxHeight || '80vh'};`;
 
         const iconTpl  = this.icon ? html`<feezal-icon class="dialog-icon" name="${this.icon}"></feezal-icon>` : html``;
         const body     = this._evalTemplate();
@@ -350,7 +409,7 @@ class FeezalElementMaterialDialog extends FeezalElement {
 
         return html`
             <div class="dialog-panel" style="${panelStyle}">
-                ${this.dialogTitle ? html`<div class="dialog-header">${this.dialogTitle}</div>` : html``}
+                ${this._headerTemplate(false)}
                 <div class="dialog-body">${iconTpl}${msgTpl}</div>
                 ${(this.okLabel || this.cancelLabel) ? html`<div class="dialog-footer">${cancelTpl}${okTpl}</div>` : html``}
             </div>`;
@@ -545,6 +604,16 @@ class FeezalElementMaterialDialogInspector extends FeezalElement {
                         .value=${el.width || ''}
                         @sl-change=${e => this._set('width', e.target.value)}>
                     </sl-input>
+                    <sl-input label="height" size="small" autocomplete="off" placeholder="auto"
+                        .value=${el.height || ''}
+                        @sl-change=${e => this._set('height', e.target.value)}>
+                    </sl-input>
+                </div>
+                <div class="row half-row">
+                    <sl-input label="min-height" size="small" autocomplete="off" placeholder="auto"
+                        .value=${el.minHeight || ''}
+                        @sl-change=${e => this._set('min-height', e.target.value)}>
+                    </sl-input>
                     <sl-input label="max-height" size="small" autocomplete="off"
                         .value=${el.maxHeight || ''}
                         @sl-change=${e => this._set('max-height', e.target.value)}>
@@ -555,6 +624,20 @@ class FeezalElementMaterialDialogInspector extends FeezalElement {
                         ?checked=${el.closeOnBackdrop}
                         @sl-change=${e => this._set('close-on-backdrop', e.target.checked)}>
                         close-on-backdrop
+                    </sl-checkbox>
+                </div>
+                <div class="row">
+                    <sl-checkbox
+                        ?checked=${el.showClose}
+                        @sl-change=${e => this._set('show-close', e.target.checked)}>
+                        show-close
+                    </sl-checkbox>
+                </div>
+                <div class="row">
+                    <sl-checkbox
+                        ?checked=${el.hideHeader}
+                        @sl-change=${e => this._set('hide-header', e.target.checked)}>
+                        hide-header
                     </sl-checkbox>
                 </div>
             </div>

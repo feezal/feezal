@@ -4,6 +4,7 @@ const path = require('path');
 const fs   = require('fs').promises;
 const {Writable} = require('stream');
 const crypto = require('node:crypto');
+const zlib = require('node:zlib');
 
 const {ZipArchive} = require('archiver');
 const {extractUsedElements, tagsToPackages, partitionPackages} = require('./extract-elements.js');
@@ -11,10 +12,82 @@ const {siteIconArtifacts} = require('./icons.js');
 const pwa = require('./pwa.js');
 
 /**
- * In-memory cache: sorted-package-list hash  →  {code, sizeKb, elemCount}
+ * In-memory cache: sorted-package-list hash  →  {code, sizeKb, elemCount, report}
  * Cleared on server restart.  Keyed by a SHA-256 of the element+theme list.
  */
 const _bundleCache = new Map();
+
+/**
+ * U34: map one Rollup module id to a size-report bucket.
+ *
+ * Buckets: one per `@feezal/feezal-{element,theme,icons}-*` package, the
+ * shared element runtime, one per top-level npm dependency (lit, mqtt, …),
+ * and "feezal core" for the viewer runtime in www/src plus virtual helper
+ * modules (Vite polyfills, commonjs shims — a few hundred bytes).
+ */
+function bucketForModuleId(id) {
+    const p = String(id).replace(/^\0/, '').replace(/\\/g, '/');
+    // Feezal packages by name — matches both node_modules/@feezal/… and the
+    // workspace real path packages/@feezal/… (Vite resolves the symlink).
+    const feezalPkg = p.match(/@feezal\/(feezal-(?:element|theme|icons)-[a-z0-9-]+)\//);
+    if (feezalPkg) return '@feezal/' + feezalPkg[1];
+    if (/@feezal\/feezal-element\//.test(p)) return '@feezal/feezal-element (runtime)';
+    const dep = p.match(/node_modules\/((?:@[^/]+\/)?[^/]+)/);
+    if (dep) return dep[1];
+    return 'feezal core';
+}
+
+/**
+ * U34: aggregate an output chunk's per-module byte attribution into buckets.
+ *
+ * Rollup's `modules` map carries pre-minification `renderedLength`/`code`
+ * per module id (Vite minifies the finished chunk afterwards), so per-bucket
+ * numbers are pro-rata estimates normalised to the exact totals: minified
+ * bytes scale each bucket's rendered share to `chunk.code.length`; gzip
+ * compresses each bucket's concatenated source independently and scales the
+ * results so they add up to the whole-bundle gzip. Totals are exact.
+ *
+ * Returns null when the build carries no usable module metadata.
+ */
+function buildBundleReport(chunk) {
+    if (!chunk || !chunk.modules || !chunk.code) return null;
+
+    const buckets = new Map();   // name → {rendered, code}
+    let totalRendered = 0;
+    for (const [id, mod] of Object.entries(chunk.modules)) {
+        const rendered = (mod && mod.renderedLength) || 0;
+        if (!rendered) continue;
+        const name = bucketForModuleId(id);
+        const bucket = buckets.get(name) || {rendered: 0, code: ''};
+        bucket.rendered += rendered;
+        if (mod.code) bucket.code += mod.code;
+        buckets.set(name, bucket);
+        totalRendered += rendered;
+    }
+    if (!totalRendered) return null;
+
+    const totalMinified = chunk.code.length;
+    const totalGzip = zlib.gzipSync(chunk.code).length;
+
+    const raw = [...buckets].map(([name, bucket]) => ({
+        name,
+        rendered: bucket.rendered,
+        // no rendered source (tree-shaken re-exports etc.) → assume the
+        // average compression ratio via the normalisation below
+        gzRaw: bucket.code ? zlib.gzipSync(bucket.code).length : bucket.rendered,
+    }));
+    const gzSum = raw.reduce((sum, r) => sum + r.gzRaw, 0);
+
+    const rows = raw
+        .map(r => ({
+            name: r.name,
+            minified: Math.round((r.rendered / totalRendered) * totalMinified),
+            gzip: Math.round((r.gzRaw / gzSum) * totalGzip),
+        }))
+        .sort((a, b) => b.minified - a.minified);
+
+    return {totalMinified, totalGzip, estimate: true, buckets: rows};
+}
 
 /**
  * Build a minimal IIFE bundle containing only the feezal packages actually
@@ -29,7 +102,8 @@ const _bundleCache = new Map();
  * @param {string|null} theme      Active theme name (e.g. 'feezal-theme-dark-mint')
  *                                 or null for the default theme.
  * @param {object}      logger
- * @returns {Promise<string>}  Minified IIFE JS string.
+ * @returns {Promise<{code: string, report: object|null}>}
+ *          Minified IIFE JS string + U34 per-bucket size report.
  */
 async function buildFilteredBundle(wwwDir, siteHtml, theme, logger) {
     const nodeModulesDir = path.join(wwwDir, 'node_modules');
@@ -62,16 +136,20 @@ async function buildFilteredBundle(wwwDir, siteHtml, theme, logger) {
     if (_bundleCache.has(cacheKey)) {
         const cached = _bundleCache.get(cacheKey);
         logger.debug(`export: cache hit (${cached.sizeKb} kB, ${cached.elemCount} elements)`);
-        return cached.code;
+        return {code: cached.code, report: cached.report};
     }
 
     // Generate a temporary entry file that imports only the needed packages.
     // feezal-app-viewer.js already imports feezal-site.js and feezal-view.js.
+    // feezal-presence.js is part of the viewer runtime (N24: status toast,
+    // retained presence status, per-client commands) — viewer-main.js imports
+    // it for the served viewer; exports need it here too.
     const entryLines = [
         "import './feezal-connection.js';",
         "import './feezal-app-viewer.js';",
         "import './feezal-component.js';",
         "import './feezal-icon.js';",
+        "import './feezal-presence.js';",
         ...resolvable.map(pkg => `import '${pkg}';`)
     ];
     const entryPath = path.join(wwwDir, 'src', '_export-entry.js');
@@ -130,8 +208,11 @@ async function buildFilteredBundle(wwwDir, siteHtml, theme, logger) {
         const sizeKb = Math.round(chunk.code.length / 1024);
         logger.debug(`export: filtered bundle built in ${elapsed} ms — ${sizeKb} kB (${resolvable.length} elements)`);
 
-        _bundleCache.set(cacheKey, {code: chunk.code, sizeKb, elemCount: resolvable.length});
-        return chunk.code;
+        // U34: per-contributor size report — a by-product of this build.
+        const report = buildBundleReport(chunk);
+
+        _bundleCache.set(cacheKey, {code: chunk.code, sizeKb, elemCount: resolvable.length, report});
+        return {code: chunk.code, report};
     } finally {
         await fs.unlink(entryPath).catch(() => {});
     }
@@ -513,6 +594,7 @@ async function buildExportBundle(wwwDir, siteName, {html: siteHtml, config}, log
     // Option A: per-site filtered Vite build (tree-shaking + minification)
     // ------------------------------------------------------------------
     let inlineJs = await buildFilteredBundle(wwwDir, siteHtml, theme, logger)
+        .then(result => result.code)
         .catch(err => {
             logger.warn(`export: filtered Vite build failed (${err.message}), falling back to full bundle`);
             return null;
@@ -677,6 +759,53 @@ async function buildExportBundle(wwwDir, siteName, {html: siteHtml, config}, log
     };
 }
 
+/**
+ * U34: bundle size breakdown for a site's static export — what makes the
+ * inlined viewer JS as big as it is.
+ *
+ * Runs (or cache-hits — same key as the export itself) the filtered Vite
+ * build and returns its per-bucket report, plus the tree-shaken icon
+ * registrations that get appended after the bundle. Throws when no report
+ * is available (Vite build failed → the export would use the unattributable
+ * full-bundle fallback).
+ *
+ * @returns {Promise<{totalMinified: number, totalGzip: number,
+ *          estimate: boolean, elemCount: number,
+ *          buckets: Array<{name: string, minified: number, gzip: number}>}>}
+ */
+async function exportBundleReport(wwwDir, siteName, {html: siteHtml, config}, logger = console, storage = null) {
+    const theme = (config && config.viewer && config.viewer.theme) || null;
+    const {report} = await buildFilteredBundle(wwwDir, siteHtml, theme, logger);
+    if (!report) throw new Error('build produced no per-module metadata');
+
+    // Copy — the cached report must stay pristine across calls.
+    const out = {
+        ...report,
+        elemCount: report.buckets.filter(b => /^@feezal\/feezal-element-/.test(b.name)).length,
+        buckets: report.buckets.map(bucket => ({...bucket})),
+    };
+
+    // N23 icon registrations are appended after the Vite bundle — size them
+    // as their own bucket so the totals match the actual inlined JS.
+    try {
+        const userElementsDir = storage && storage.dataDir
+            ? path.join(storage.dataDir, 'elements')
+            : null;
+        const {inlineJs: iconJs} = siteIconArtifacts({wwwDir, userElementsDir, siteHtml, logger});
+        if (iconJs) {
+            const gzip = zlib.gzipSync(iconJs).length;
+            out.buckets.push({name: 'icons (tree-shaken)', minified: iconJs.length, gzip});
+            out.totalMinified += iconJs.length;
+            out.totalGzip += gzip;
+            out.buckets.sort((a, b) => b.minified - a.minified);
+        }
+    } catch (err) {
+        logger.warn('bundle report: icon sizing failed: ' + err.message);
+    }
+
+    return out;
+}
+
 /** Zip a bundle under a single top-level <sitename>/ folder (A15). */
 function zipBundle(siteName, bundle) {
     return new Promise((resolve, reject) => {
@@ -714,3 +843,7 @@ module.exports = createExport;
 module.exports.buildExportBundle = buildExportBundle;
 module.exports.planExportAssets = planExportAssets;
 module.exports.applyRewrites = applyRewrites;
+// U34: bundle size breakdown
+module.exports.exportBundleReport = exportBundleReport;
+module.exports.buildBundleReport = buildBundleReport;
+module.exports.bucketForModuleId = bucketForModuleId;

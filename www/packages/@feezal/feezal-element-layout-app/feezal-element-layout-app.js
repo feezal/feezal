@@ -11,8 +11,10 @@ import '@shoelace-style/shoelace/dist/components/switch/switch.js';
  *
  * A full-bleed app shell: a top app bar + a collapsible left navigation drawer,
  * whose content area embeds a named view and swaps it as the user picks drawer
- * entries (the bar/drawer chrome persists). Modern MD3/Lit rewrite of the legacy
- * paper-app-layout, in the Layout category.
+ * entries (the bar/drawer chrome persists). Modern MD3/Lit replacement for the
+ * legacy paper-app-layout (removed), in the Layout category. The top bar can be
+ * hidden entirely (hide-header) — a floating hamburger keeps the overlay drawer
+ * reachable.
  *
  * Embed & swap: in the viewer the active entry's <feezal-view> is cloned into
  * the content pane (inactive display:none stripped); in the editor a placeholder
@@ -31,10 +33,14 @@ class FeezalElementLayoutApp extends FeezalElement {
             attributes: [
                 {name: 'items', type: 'json', default: '[]', help: 'Drawer entries [{label, icon, view}] (managed in the inspector).'},
                 {name: 'title', type: 'string', default: '', help: 'Top-bar title.'},
+                {name: 'hide-header', type: 'boolean', default: false,
+                    help: 'Hide the top app bar (title + actions). When the drawer is in overlay mode a floating hamburger button appears over the content instead.'},
                 {name: 'subscribe-title', type: 'string', help: 'Optional — drive the title from an MQTT topic.'},
                 {name: 'active-view', type: 'string', help: 'Initially selected content view (defaults to the first entry).'},
                 {name: 'breakpoint', type: 'number', default: 768, help: 'Element width below which the drawer becomes an overlay.'},
                 {name: 'drawer-persistent', type: 'boolean', default: true, help: 'If off, the drawer is always an overlay (hamburger at all sizes).'},
+                {name: 'entry-style', type: 'select', options: ['pill', 'list'], default: 'pill',
+                    help: 'Drawer entry look: "pill" = MD3 rounded chips with side inset; "list" = flat edge-to-edge rows, hover/active highlight the full drawer width.'},
                 {name: 'actions', type: 'json', default: '[]', help: 'Top-bar action buttons [{icon, publish, payload}] (managed in the inspector).'},
                 'subscribe',
                 'publish',
@@ -48,10 +54,12 @@ class FeezalElementLayoutApp extends FeezalElement {
     static properties = {
         items:           {type: String,  reflect: true},
         title:           {type: String,  reflect: true},
+        hideHeader:      {type: Boolean, reflect: true, attribute: 'hide-header'},
         subscribeTitle:  {type: String,  reflect: true, attribute: 'subscribe-title'},
         activeView:      {type: String,  reflect: true, attribute: 'active-view'},
         breakpoint:      {type: Number,  reflect: true},
         drawerPersistent:{type: Boolean, reflect: true, attribute: 'drawer-persistent'},
+        entryStyle:      {type: String,  reflect: true, attribute: 'entry-style'},
         actions:         {type: String,  reflect: true},
         _active:         {state: true},
         _narrow:         {state: true},
@@ -92,6 +100,11 @@ class FeezalElementLayoutApp extends FeezalElement {
         .entry.active { background: var(--feezal-app-active-indicator, var(--md-sys-color-secondary-container, rgba(2,132,199,0.16)));
             color: var(--feezal-app-active-color, var(--md-sys-color-on-secondary-container, var(--primary-color, #0284c7))); font-weight: 600; }
         .entry .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* entry-style="list": flat edge-to-edge rows — no pill radius, no side
+           inset; hover/active highlight the full drawer width. */
+        :host([entry-style="list"]) .drawer { padding: 8px 0; gap: 0; }
+        :host([entry-style="list"]) .entry { border-radius: 0; padding: 11px 16px; }
         .content { flex: 1; min-width: 0; position: relative; overflow: auto; }
         #content { width: 100%; height: 100%; }
         .ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
@@ -101,6 +114,16 @@ class FeezalElementLayoutApp extends FeezalElement {
                 linear-gradient(45deg, rgba(128,128,128,0.06) 25%, transparent 25%, transparent 75%, rgba(128,128,128,0.06) 75%);
             background-size: 20px 20px; background-position: 0 0, 10px 10px; }
         .scrim { position: absolute; inset: 0; background: rgba(0,0,0,0.4); z-index: 3; }
+
+        /* hide-header: floating hamburger so the overlay drawer stays reachable */
+        .fab-menu {
+            position: absolute; top: 10px; left: 10px; z-index: 5;
+            width: 42px; height: 42px; border-radius: 50%; border: none; cursor: pointer;
+            background: var(--feezal-app-bar-bg, var(--md-sys-color-primary, var(--primary-color, #0284c7)));
+            color: var(--feezal-app-bar-color, var(--md-sys-color-on-primary, #fff));
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            display: flex; align-items: center; justify-content: center;
+        }
 
         /* Narrow: drawer becomes an overlay driven by the hamburger. */
         :host(.narrow) .drawer { position: absolute; top: 0; bottom: 0; left: 0; z-index: 4; transform: translateX(-100%);
@@ -112,10 +135,12 @@ class FeezalElementLayoutApp extends FeezalElement {
         super();
         this.items = '[]';
         this.title = '';
+        this.hideHeader = false;
         this.subscribeTitle = '';
         this.activeView = '';
         this.breakpoint = 768;
         this.drawerPersistent = true;
+        this.entryStyle = 'pill';
         this.actions = '[]';
         this._active = '';
         this._narrow = false;
@@ -207,14 +232,17 @@ class FeezalElementLayoutApp extends FeezalElement {
         const showHam = this._narrow;
         return html`
             <div class="shell">
-                <div class="bar">
-                    ${showHam ? html`<button class="iconbtn" title="Menu" @click="${() => { this._drawerOpen = !this._drawerOpen; }}"><span class="mi">menu</span></button>` : ''}
-                    <div class="title">${title}</div>
-                    <div class="actions">
-                        ${this._actions().map(a => html`<button class="iconbtn" title="${a.icon}" @click="${() => this._doAction(a)}"><feezal-icon class="mi" name="${a.icon}"></feezal-icon></button>`)}
-                    </div>
-                </div>
+                ${this.hideHeader ? '' : html`
+                    <div class="bar">
+                        ${showHam ? html`<button class="iconbtn" title="Menu" @click="${() => { this._drawerOpen = !this._drawerOpen; }}"><span class="mi">menu</span></button>` : ''}
+                        <div class="title">${title}</div>
+                        <div class="actions">
+                            ${this._actions().map(a => html`<button class="iconbtn" title="${a.icon}" @click="${() => this._doAction(a)}"><feezal-icon class="mi" name="${a.icon}"></feezal-icon></button>`)}
+                        </div>
+                    </div>`}
                 <div class="body">
+                    ${this.hideHeader && showHam && !this._drawerOpen ? html`
+                        <button class="fab-menu" title="Menu" @click="${() => { this._drawerOpen = true; }}"><span class="mi">menu</span></button>` : ''}
                     <div class="drawer ${this._drawerOpen ? 'open' : ''}">
                         ${entries.length === 0
                             ? html`<div style="opacity:.6;padding:10px;font-size:12px">${feezal.isEditor ? 'Add drawer entries in the inspector →' : ''}</div>`
@@ -326,6 +354,11 @@ class FeezalElementLayoutAppInspector extends LitElement {
                         <input .value="${this._attr('title')}" @change="${e => this._emit('title', e.target.value)}"></div>
                     <div class="field"><label>Subscribe title (MQTT)</label>
                         <input .value="${this._attr('subscribe-title')}" placeholder="mqtt/topic" @change="${e => this._emit('subscribe-title', e.target.value)}"></div>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:11px">
+                        <sl-switch size="small" ?checked="${this.element.hasAttribute('hide-header')}"
+                            @sl-change="${e => this._emit('hide-header', e.target.checked)}"></sl-switch>
+                        Hide top bar (floating hamburger when the drawer is an overlay)
+                    </label>
                 </div>
             </div>
 
@@ -350,7 +383,8 @@ class FeezalElementLayoutAppInspector extends LitElement {
                                     <div class="field"><label>label</label>
                                         <input .value="${e.label ?? ''}" placeholder="${e.view || ''}" @change="${ev => this._setEntry(i, 'label', ev.target.value)}"></div>
                                     <div class="field"><label>icon</label>
-                                        <input .value="${e.icon ?? ''}" placeholder="e.g. home" @change="${ev => this._setEntry(i, 'icon', ev.target.value)}"></div>
+                                        <feezal-icon-input .value="${e.icon ?? ''}" placeholder="e.g. home"
+                                            @feezal-change="${ev => { ev.stopPropagation(); this._setEntry(i, 'icon', ev.detail.value); }}"></feezal-icon-input></div>
                                 </div>
                             </div>`)}
                 </div>
@@ -363,7 +397,9 @@ class FeezalElementLayoutAppInspector extends LitElement {
                     ${acts.map((a, i) => html`
                         <div class="item">
                             <div class="grid" style="margin-top:0">
-                                <div class="field"><label>icon</label><input .value="${a.icon ?? ''}" placeholder="e.g. refresh" @change="${e => this._setAct(i, 'icon', e.target.value)}"></div>
+                                <div class="field"><label>icon</label>
+                                    <feezal-icon-input .value="${a.icon ?? ''}" placeholder="e.g. refresh"
+                                        @feezal-change="${e => { e.stopPropagation(); this._setAct(i, 'icon', e.detail.value); }}"></feezal-icon-input></div>
                                 <div class="field"><label>publish topic</label><input .value="${a.publish ?? ''}" placeholder="mqtt/topic" @change="${e => this._setAct(i, 'publish', e.target.value)}"></div>
                                 <div class="field"><label>payload</label><input .value="${a.payload ?? ''}" @change="${e => this._setAct(i, 'payload', e.target.value)}"></div>
                                 <button class="ib danger" title="Remove" @click="${() => this._removeAct(i)}">&times;</button>
@@ -375,6 +411,12 @@ class FeezalElementLayoutAppInspector extends LitElement {
             <div class="section">
                 <div class="sec-head">Drawer</div>
                 <div class="sec-body">
+                    <div class="field"><label>Entry style</label>
+                        <sl-select size="small" value="${this._attr('entry-style', 'pill') === 'list' ? 'list' : 'pill'}"
+                            @sl-change="${e => this._emit('entry-style', e.target.value)}">
+                            <sl-option value="pill">pill — rounded chips with inset</sl-option>
+                            <sl-option value="list">list — flat full-width rows</sl-option>
+                        </sl-select></div>
                     <div class="field"><label>Overlay breakpoint (px)</label>
                         <input type="number" .value="${this._attr('breakpoint', '768')}" @change="${e => this._emit('breakpoint', e.target.value)}"></div>
                     <label style="display:flex;align-items:center;gap:8px;font-size:11px">

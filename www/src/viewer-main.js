@@ -24,6 +24,9 @@ import './feezal-connection.js';
 // Viewer app components
 import './feezal-app-viewer.js';
 import './feezal-site.js';
+// N24: viewer presence + per-client control topics. Imported before the
+// mqtt backend connects so feezal.presenceWill is available for the LWT.
+import './feezal-presence.js';
 import './feezal-view.js';
 import './feezal-component.js';
 // Icon registry MUST be defined before element packages are imported —

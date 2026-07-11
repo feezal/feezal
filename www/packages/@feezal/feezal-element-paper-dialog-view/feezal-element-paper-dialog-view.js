@@ -1,0 +1,521 @@
+/* global feezal */
+import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {render} from 'lit';
+
+/**
+ * feezal-element-paper-dialog-view (E86)
+ *
+ * Paper-styled counterpart of feezal-element-material-dialog-view (E48) — a
+ * modal dialog whose body is a live feezal *view* (not an HTML template). It
+ * clones the chosen `<feezal-view name>` (like feezal-element-layout-view) so
+ * the embedded elements keep their normal lifecycle and MQTT bindings while
+ * shown modally. Drop-in equivalent of the material element with the
+ * identical attribute set (incl. B24 sizing + B25 header contract); only the
+ * chrome differs (paper sheet: 2px corners, paper elevation shadow, flat
+ * uppercase text buttons, paper theme tokens).
+ *
+ * Pseudo-element: a ~120×40 px placeholder on the canvas. Opens on an MQTT
+ * message (payload-open); closes on payload-close, backdrop click, ESC, the ✕
+ * affordance, or the optional OK/Cancel buttons.
+ *
+ * In the viewer the overlay is rendered into a document.body portal so it is
+ * never clipped by a display:none view or a CSS-transformed canvas ancestor.
+ *
+ * Panel sizing/chrome shares the --feezal-dialog-view-* custom-property
+ * names with the material sibling (theming knowledge transfers); the paper
+ * look comes from this element's defaults.
+ */
+
+// Custom-property token suffixes copied from the host onto the body portal
+// (the portal lives outside this element's shadow tree, so :host props don't
+// cascade to it — we mirror them explicitly).
+const SIZE_TOKENS = ['width', 'height', 'min-height', 'max-width', 'max-height', 'radius', 'padding', 'background', 'backdrop'];
+
+class FeezalElementPaperDialogView extends FeezalElement {
+    static get feezal() {
+        return {
+            palette: {name: 'Dialog View', category: 'Paper', color: '#4a6080'},
+            description: 'Opens a modal dialog showing a feezal view (with its live elements) when an ' +
+                'MQTT message is received. Paper-styled twin of the Material Dialog View — identical attributes.',
+            attributes: [
+                {name: 'view',              dropdown: 'views',                    label: 'View', help: 'The feezal view rendered as the dialog body.'},
+                {name: 'title',             type: 'string',    default: '',       help: 'Dialog title text. Header hidden when empty.'},
+                {name: 'subscribe',         type: 'mqttTopic',                    help: 'Topic to listen on for open/close payloads.'},
+                {name: 'payload-open',      type: 'string',    default: 'open',   help: 'Payload that opens the dialog.'},
+                {name: 'payload-close',     type: 'string',    default: 'close',  help: 'Payload that closes the dialog silently.'},
+                {name: 'ok-label',          type: 'string',    default: '',       help: 'OK button label. Hidden when empty.'},
+                {name: 'ok-publish',        type: 'mqttTopic',                    help: 'Topic published when OK is pressed. If empty, closes silently.'},
+                {name: 'ok-payload',        type: 'string',    default: 'ok',     help: 'Payload published when OK is pressed.'},
+                {name: 'cancel-label',      type: 'string',    default: '',       help: 'Cancel button label. Hidden when empty.'},
+                {name: 'cancel-publish',    type: 'mqttTopic',                    help: 'Topic published when Cancel is pressed. If empty, closes silently.'},
+                {name: 'cancel-payload',    type: 'string',    default: 'cancel', help: 'Payload published when Cancel is pressed.'},
+                {name: 'close-on-backdrop', type: 'boolean',   default: true,     help: 'Close the dialog when the backdrop is clicked.'},
+                {name: 'show-close',        type: 'boolean',   default: true,     help: 'Show a top-right ✕ close affordance.'},
+                {name: 'hide-header',       type: 'boolean',   default: false,    help: 'Hide the header bar (title + ✕) entirely, regardless of title/show-close. (Default-false boolean so the setting survives save/reload.)'},
+                {name: 'width',             type: 'string',    default: '',       help: 'Convenience: sets --feezal-dialog-view-width (e.g. "600px").'},
+                {name: 'height',            type: 'string',    default: '',       help: 'Convenience: sets --feezal-dialog-view-height (e.g. "400px"). Empty: auto (content height).'},
+                {name: 'min-height',        type: 'string',    default: '',       help: 'Convenience: sets --feezal-dialog-view-min-height (e.g. "300px") — raises the floor so a dialog with little content does not collapse.'},
+                {name: 'max-height',        type: 'string',    default: '',       help: 'Convenience: sets --feezal-dialog-view-max-height (e.g. "85vh").'},
+            ],
+            baseAttribute: 'view',
+            styles: ['top', 'left'],
+            defaultStyle: {width: '120px', height: '40px'},
+        };
+    }
+
+    static properties = {
+        view:            {type: String,  reflect: true},
+        dialogTitle:     {type: String,  reflect: true, attribute: 'title'},
+        subscribe:       {type: String,  reflect: true},
+        payloadOpen:     {type: String,  reflect: true, attribute: 'payload-open'},
+        payloadClose:    {type: String,  reflect: true, attribute: 'payload-close'},
+        okLabel:         {type: String,  reflect: true, attribute: 'ok-label'},
+        okPublish:       {type: String,  reflect: true, attribute: 'ok-publish'},
+        okPayload:       {type: String,  reflect: true, attribute: 'ok-payload'},
+        cancelLabel:     {type: String,  reflect: true, attribute: 'cancel-label'},
+        cancelPublish:   {type: String,  reflect: true, attribute: 'cancel-publish'},
+        cancelPayload:   {type: String,  reflect: true, attribute: 'cancel-payload'},
+        closeOnBackdrop: {type: Boolean, reflect: true, attribute: 'close-on-backdrop'},
+        showClose:       {type: Boolean, reflect: true, attribute: 'show-close'},
+        hideHeader:      {type: Boolean, reflect: true, attribute: 'hide-header'},
+        width:           {type: String,  reflect: true},
+        height:          {type: String,  reflect: true},
+        minHeight:       {type: String,  reflect: true, attribute: 'min-height'},
+        maxHeight:       {type: String,  reflect: true, attribute: 'max-height'},
+        _open:           {state: true},
+    };
+
+    static styles = [feezalBaseStyles, css`
+        :host {
+            display: block;
+            overflow: visible;
+
+            /* ── Exposed panel sizing / chrome — shared token names with the
+                  material sibling, paper defaults ── */
+            --feezal-dialog-view-width: 600px;
+            --feezal-dialog-view-height: auto;
+            --feezal-dialog-view-min-height: auto;
+            --feezal-dialog-view-max-width: calc(100vw - 32px);
+            --feezal-dialog-view-max-height: 85vh;
+            --feezal-dialog-view-radius: 2px;
+            --feezal-dialog-view-padding: 0px;
+            --feezal-dialog-view-background: var(--paper-dialog-background-color, var(--primary-background-color, #fff));
+            --feezal-dialog-view-backdrop: rgba(0,0,0,0.6);
+        }
+
+        /* ── Editor placeholder ── */
+        .editor-placeholder {
+            width: 100%;
+            height: 100%;
+            min-width: 120px;
+            min-height: 36px;
+            border: 2px dashed #4a6080;
+            background: #eceff1;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #4a6080;
+            box-sizing: border-box;
+            user-select: none;
+        }
+        .editor-placeholder .icon {
+            font-family: 'Material Icons';
+            font-size: 18px;
+            font-style: normal;
+        }
+
+        /* ── Editor preview (static — no live clone) ── */
+        .backdrop {
+            position: fixed;
+            inset: 0;
+            background: var(--feezal-dialog-view-backdrop, rgba(0,0,0,0.6));
+            z-index: 9998;
+        }
+        .dialog-panel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 9999;
+            width: var(--feezal-dialog-view-width, 600px);
+            height: var(--feezal-dialog-view-height, auto);
+            min-height: var(--feezal-dialog-view-min-height, auto);
+            max-width: var(--feezal-dialog-view-max-width, calc(100vw - 32px));
+            max-height: var(--feezal-dialog-view-max-height, 85vh);
+            background: var(--feezal-dialog-view-background, #fff);
+            color: var(--paper-dialog-color, var(--primary-text-color, #333));
+            border-radius: var(--feezal-dialog-view-radius, 2px);
+            box-shadow: 0 16px 24px 2px rgba(0,0,0,0.14), 0 6px 30px 5px rgba(0,0,0,0.12), 0 8px 10px -5px rgba(0,0,0,0.4);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .dialog-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 20px 24px 0;
+            font-size: 20px;
+            font-weight: 500;
+            font-family: 'Roboto', sans-serif;
+            color: var(--paper-dialog-color, var(--primary-text-color, #333));
+        }
+        .dialog-header .spacer { flex: 1; }
+        .dialog-close {
+            font-family: 'Material Icons';
+            font-style: normal;
+            font-size: 20px;
+            line-height: 1;
+            border: none;
+            background: none;
+            color: var(--secondary-text-color, #777);
+            cursor: pointer;
+            padding: 2px;
+            border-radius: 50%;
+        }
+        .dialog-close:hover { background: rgba(0,0,0,0.08); }
+        .dialog-body {
+            flex: 1;
+            overflow: auto;
+            padding: var(--feezal-dialog-view-padding, 0px);
+            position: relative;
+        }
+        .preview-note {
+            width: 100%;
+            min-height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Roboto', sans-serif;
+            font-size: 13px;
+            color: #607d8b;
+            opacity: 0.85;
+            background-image:
+                linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%, #eee 100%),
+                linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%, #eee 100%);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 10px;
+            box-sizing: border-box;
+        }
+        .dialog-footer {
+            padding: 8px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+        .dialog-btn {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 2px;
+            font-size: 14px;
+            font-family: 'Roboto', sans-serif;
+            cursor: pointer;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: none;
+            transition: background 0.15s;
+        }
+        .dialog-btn-ok { color: var(--primary-color, #3f51b5); }
+        .dialog-btn-cancel { color: var(--secondary-text-color, #666); }
+        .dialog-btn:hover { background: rgba(0,0,0,0.07); }
+    `];
+
+    constructor() {
+        super();
+        this.view          = '';
+        this.dialogTitle   = '';
+        this.subscribe     = '';
+        this.payloadOpen   = 'open';
+        this.payloadClose  = 'close';
+        this.okLabel       = '';
+        this.okPublish     = '';
+        this.okPayload     = 'ok';
+        this.cancelLabel   = '';
+        this.cancelPublish = '';
+        this.cancelPayload = 'cancel';
+        this.closeOnBackdrop = true;
+        this.showClose     = true;
+        this.hideHeader    = false;
+        this.width         = '';
+        this.height        = '';
+        this.minHeight     = '';
+        this.maxHeight     = '';
+        this._open         = false;
+        this._portal       = null;
+    }
+
+    // Prevent the base class from subscribing via subscribe/# — managed manually.
+    _subscribe() { /* managed manually */ }
+
+    connectedCallback() {
+        super.connectedCallback();
+
+        if (this.subscribe) {
+            this.addSubscription(this.subscribe, msg => {
+                const payload = (msg && typeof msg === 'object') ? msg.payload : msg;
+                if (String(payload) === this.payloadOpen) {
+                    this._open = true;
+                } else if (String(payload) === this.payloadClose) {
+                    this._open = false;
+                }
+            });
+        }
+
+        this._onKeyDown = e => {
+            if (e.key === 'Escape' && this._open) this._close();
+        };
+        document.addEventListener('keydown', this._onKeyDown);
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        document.removeEventListener('keydown', this._onKeyDown);
+        this._clearPortal();
+    }
+
+    _clearPortal() {
+        if (this._portal) {
+            render(html``, this._portal);
+            this._portal.remove();
+        }
+    }
+
+    updated(changed) {
+        super.updated(changed);
+        // In the viewer the overlay is rendered into a document.body portal so
+        // it is never trapped inside a display:none view or a CSS-transformed
+        // canvas ancestor.
+        if (!feezal.isEditor) {
+            if (changed.has('_open')) {
+                if (this._open) {
+                    this._openPortal();
+                } else {
+                    this._clearPortal();
+                }
+            } else if (this._open && this._portal) {
+                // Keep the open portal's chrome in sync with live property
+                // changes (title / show-close / hide-header / sizing). Only the
+                // lit template re-renders — the imperatively injected view
+                // clone in .dialog-body is left untouched.
+                this._syncTokens();
+                render(this._renderPortalContent(), this._portal);
+            }
+        }
+    }
+
+    _close() {
+        this._open = false;
+    }
+
+    _handleOk() {
+        if (!feezal.isEditor && this.okPublish) feezal.connection.pub(this.okPublish, this.okPayload);
+        this._close();
+    }
+
+    _handleCancel() {
+        if (!feezal.isEditor && this.cancelPublish) feezal.connection.pub(this.cancelPublish, this.cancelPayload);
+        this._close();
+    }
+
+    _handleBackdropClick() {
+        if (this.closeOnBackdrop) this._close();
+    }
+
+    /** Mirror the host's --feezal-dialog-view-* props onto the portal root so
+     * the panel (outside this shadow tree) can resolve them, applying the
+     * sizing convenience attributes on top. */
+    _syncTokens() {
+        const cs = getComputedStyle(this);
+        for (const t of SIZE_TOKENS) {
+            const v = cs.getPropertyValue(`--feezal-dialog-view-${t}`).trim();
+            if (v) this._portal.style.setProperty(`--feezal-dialog-view-${t}`, v);
+        }
+        if (this.width) this._portal.style.setProperty('--feezal-dialog-view-width', this.width);
+        if (this.height) this._portal.style.setProperty('--feezal-dialog-view-height', this.height);
+        if (this.minHeight) this._portal.style.setProperty('--feezal-dialog-view-min-height', this.minHeight);
+        if (this.maxHeight) this._portal.style.setProperty('--feezal-dialog-view-max-height', this.maxHeight);
+    }
+
+    /** Build a live clone of the target view, or return an {error} sentinel. */
+    _buildViewClone() {
+        if (!this.view) return {error: 'No view selected.'};
+
+        // Recursion guard: a dialog-view must not embed the view it lives on.
+        const hostViewName = this.closest('feezal-view')?.getAttribute('name');
+        if (hostViewName && hostViewName === this.view) {
+            return {error: `Dialog View cannot embed its own view ("${this.view}").`};
+        }
+
+        const src = feezal.site && feezal.site.querySelector(`feezal-view[name="${this.view}"]`);
+        if (!src) return {error: `View "${this.view}" not found.`};
+
+        const clone = src.cloneNode(true);
+        // The source view may be inactive → carry a display:none from
+        // feezal-site.updateVisibility(); clear it so the embedded copy shows.
+        clone.style.display = '';
+        // Give absolutely-positioned child elements a containing block.
+        if (!clone.style.position) clone.style.position = 'relative';
+        // Make sure the embedded elements go live even if they use
+        // dynamic-subscriptions (which gate on `visible`).
+        clone.querySelectorAll('*').forEach(el => {
+            if (el.tagName.startsWith('FEEZAL-ELEMENT-')) el.visible = true;
+        });
+        return {clone};
+    }
+
+    _openPortal() {
+        if (!this._portal) {
+            this._portal = document.createElement('div');
+            this._portal.setAttribute('feezal-paper-dialog-view-portal', '');
+        }
+        document.body.appendChild(this._portal);
+        this._syncTokens();
+        render(this._renderPortalContent(), this._portal);
+
+        // Imperatively inject the cloned view (a DOM node, not a lit template).
+        const body = this._portal.querySelector('.dialog-body');
+        if (body) {
+            const {clone, error} = this._buildViewClone();
+            if (clone) {
+                body.replaceChildren(clone);
+            } else {
+                const note = document.createElement('div');
+                note.className = 'preview-note';
+                note.textContent = error;
+                body.replaceChildren(note);
+            }
+        }
+    }
+
+    _footerTemplate(handlerScope) {
+        const ok = this.okLabel
+            ? html`<button class="dialog-btn dialog-btn-ok" @click=${() => handlerScope._handleOk()}>${this.okLabel}</button>`
+            : html``;
+        const cancel = this.cancelLabel
+            ? html`<button class="dialog-btn dialog-btn-cancel" @click=${() => handlerScope._handleCancel()}>${this.cancelLabel}</button>`
+            : html``;
+        return (this.okLabel || this.cancelLabel)
+            ? html`<div class="dialog-footer">${cancel}${ok}</div>`
+            : html``;
+    }
+
+    _headerTemplate() {
+        // B25 contract: hide-header removes the whole bar, regardless of
+        // title/show-close; otherwise the bar shows when either is set.
+        if (this.hideHeader) return html``;
+        const closeBtn = this.showClose
+            ? html`<button class="dialog-close" title="Close" @click=${() => this._close()}>close</button>`
+            : html``;
+        if (!this.dialogTitle && !this.showClose) return html``;
+        return html`
+            <div class="dialog-header">
+                <span>${this.dialogTitle}</span>
+                <span class="spacer"></span>
+                ${closeBtn}
+            </div>`;
+    }
+
+    /** Portal content — the .dialog-body is filled imperatively in _openPortal(). */
+    _renderPortalContent() {
+        return html`
+            <style>
+                [feezal-paper-dialog-view-portal] * { box-sizing: border-box; }
+                [feezal-paper-dialog-view-portal] .backdrop {
+                    position: fixed; inset: 0;
+                    background: var(--feezal-dialog-view-backdrop, rgba(0,0,0,0.6)); z-index: 9998;
+                }
+                [feezal-paper-dialog-view-portal] .dialog-panel {
+                    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999;
+                    width: var(--feezal-dialog-view-width, 600px);
+                    height: var(--feezal-dialog-view-height, auto);
+                    min-height: var(--feezal-dialog-view-min-height, auto);
+                    max-width: var(--feezal-dialog-view-max-width, calc(100vw - 32px));
+                    max-height: var(--feezal-dialog-view-max-height, 85vh);
+                    background: var(--feezal-dialog-view-background, #fff);
+                    color: var(--paper-dialog-color, var(--primary-text-color, #333));
+                    border-radius: var(--feezal-dialog-view-radius, 2px);
+                    box-shadow: 0 16px 24px 2px rgba(0,0,0,0.14), 0 6px 30px 5px rgba(0,0,0,0.12), 0 8px 10px -5px rgba(0,0,0,0.4);
+                    display: flex; flex-direction: column; overflow: hidden;
+                    animation: feezal-paper-dialog-view-in 0.18s ease;
+                }
+                @keyframes feezal-paper-dialog-view-in {
+                    from { opacity: 0; transform: translate(-50%, -48%); }
+                    to   { opacity: 1; transform: translate(-50%, -50%); }
+                }
+                [feezal-paper-dialog-view-portal] .dialog-header {
+                    display: flex; align-items: center; gap: 8px;
+                    padding: 20px 24px 0; font-size: 20px; font-weight: 500;
+                    font-family: 'Roboto', sans-serif; color: var(--paper-dialog-color, var(--primary-text-color, #333));
+                }
+                [feezal-paper-dialog-view-portal] .dialog-header .spacer { flex: 1; }
+                [feezal-paper-dialog-view-portal] .dialog-close {
+                    font-family: 'Material Icons'; font-style: normal; font-size: 20px; line-height: 1;
+                    border: none; background: none; color: var(--secondary-text-color, #777);
+                    cursor: pointer; padding: 2px; border-radius: 50%;
+                }
+                [feezal-paper-dialog-view-portal] .dialog-close:hover { background: rgba(0,0,0,0.08); }
+                [feezal-paper-dialog-view-portal] .dialog-body {
+                    flex: 1; overflow: auto; padding: var(--feezal-dialog-view-padding, 0px); position: relative;
+                }
+                [feezal-paper-dialog-view-portal] .preview-note {
+                    width: 100%; min-height: 120px; display: flex; align-items: center; justify-content: center;
+                    font-family: 'Roboto', sans-serif; font-size: 13px; color: #607d8b; padding: 16px; text-align: center;
+                }
+                [feezal-paper-dialog-view-portal] .dialog-footer {
+                    padding: 8px; display: flex; justify-content: flex-end; gap: 8px;
+                }
+                [feezal-paper-dialog-view-portal] .dialog-btn {
+                    padding: 8px 12px; border: none; border-radius: 2px; font-size: 14px;
+                    font-family: 'Roboto', sans-serif; cursor: pointer; font-weight: 500;
+                    text-transform: uppercase; letter-spacing: 0.5px; background: none; transition: background .15s;
+                }
+                [feezal-paper-dialog-view-portal] .dialog-btn:hover { background: rgba(0,0,0,0.07); }
+                [feezal-paper-dialog-view-portal] .dialog-btn-ok { color: var(--primary-color, #3f51b5); }
+                [feezal-paper-dialog-view-portal] .dialog-btn-cancel { color: var(--secondary-text-color, #666); }
+            </style>
+            <div class="backdrop" @click=${() => this._handleBackdropClick()}></div>
+            <div class="dialog-panel">
+                ${this._headerTemplate()}
+                <div class="dialog-body"></div>
+                ${this._footerTemplate(this)}
+            </div>`;
+    }
+
+    /** Editor preview panel — static (no live clone) to avoid duplicating live
+     * elements onto the canvas; shows the selected view name. */
+    _renderPreviewPanel() {
+        const label = this.view
+            ? html`<div class="preview-note">View: <b>&nbsp;${this.view}</b></div>`
+            : html`<div class="preview-note">No view selected</div>`;
+        return html`
+            <div class="dialog-panel">
+                ${this._headerTemplate()}
+                <div class="dialog-body">${label}</div>
+                ${this._footerTemplate(this)}
+            </div>`;
+    }
+
+    render() {
+        if (feezal.isEditor) {
+            return html`
+                <div class="editor-placeholder">
+                    <span class="icon">web_asset</span>
+                    <span>Paper Dialog View</span>
+                </div>
+                ${this._open ? html`
+                    <div class="backdrop" @click=${() => { this._open = false; }}></div>
+                    ${this._renderPreviewPanel()}` : html``}`;
+        }
+
+        // Viewer: overlay is rendered into a document.body portal in updated().
+        return html``;
+    }
+}
+
+customElements.define('feezal-element-paper-dialog-view', FeezalElementPaperDialogView);
+
+export {FeezalElementPaperDialogView};

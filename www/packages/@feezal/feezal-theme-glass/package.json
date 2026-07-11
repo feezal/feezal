@@ -1,0 +1,10 @@
+{
+    "name": "@feezal/feezal-theme-glass",
+    "version": "3.0.0",
+    "main": "feezal-theme-glass.js",
+    "license": "MIT",
+    "description": "Frosted-glass theme (E58): gradient wallpaper + light/dark frost variables for the feezal-element-glass-* family.",
+    "feezal": {
+        "type": "theme"
+    }
+}

@@ -5,6 +5,7 @@ import {describe, it, expect} from 'vitest';
 import {iconSets} from '../src/feezal-icon.js';
 import '../packages/@feezal/feezal-icons-mdi/index.js';
 import '../packages/@feezal/feezal-icons-knx-uf/index.js';
+import '../packages/@feezal/feezal-icons-fa/index.js';
 
 describe('@feezal/feezal-icons-mdi', () => {
     const set = () => iconSets().get('mdi');
@@ -54,9 +55,40 @@ describe('@feezal/feezal-icons-knx-uf', () => {
     });
 });
 
+describe('@feezal/feezal-icons-fa (N28)', () => {
+    it('registers THREE sets from one package: fa-solid, fa-regular, fa-brands', () => {
+        expect(iconSets().get('fa-solid')).toBeTruthy();
+        expect(iconSets().get('fa-regular')).toBeTruthy();
+        expect(iconSets().get('fa-brands')).toBeTruthy();
+    });
+
+    it('carries the expected upstream volume per style', () => {
+        expect(iconSets().get('fa-solid').names.length).toBeGreaterThan(1900);
+        expect(iconSets().get('fa-regular').names.length).toBeGreaterThan(200);
+        expect(iconSets().get('fa-brands').names.length).toBeGreaterThan(500);
+        expect(iconSets().get('fa-solid').names).toContain('house');
+        expect(iconSets().get('fa-regular').names).toContain('heart');
+        expect(iconSets().get('fa-brands').names).toContain('github');
+    });
+
+    it('renders theme-aware, unsized inline SVG (license comment + xmlns stripped)', () => {
+        const svg = iconSets().get('fa-solid').render('house');
+        expect(svg).toMatch(/^<svg /);
+        expect(svg).toContain('viewBox=');
+        expect(svg).toContain('currentColor');
+        expect(svg).not.toContain('xmlns=');
+        expect(svg).not.toContain('<!--');
+        expect(svg).not.toMatch(/<svg[^>]*\swidth=/);            // 1em scaling works
+    });
+
+    it('renders empty for unknown names', () => {
+        expect(iconSets().get('fa-brands').render('not-a-brand')).toBe('');
+    });
+});
+
 describe('<feezal-icon> renders the packaged sets end to end', () => {
-    it('mounts mdi and knx-uf glyphs', () => {
-        for (const name of ['mdi:lightbulb', 'knx-uf:fts_sunblind']) {
+    it('mounts mdi, knx-uf and fa glyphs', () => {
+        for (const name of ['mdi:lightbulb', 'knx-uf:fts_sunblind', 'fa-solid:house', 'fa-brands:github']) {
             const el = document.createElement('feezal-icon');
             el.setAttribute('name', name);
             document.body.append(el);

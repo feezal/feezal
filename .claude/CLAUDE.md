@@ -14,7 +14,7 @@ feezal is a browser-based MQTT dashboard editor + viewer.
 
 - **`server/`** — Node.js/Express + Socket.IO backend. Entry: `server/src/app.js`. Discovers elements and themes at startup from `www/node_modules/@feezal/`.
 - **`www/`** — Vite front-end. Editor UI (`editor/index.html`) + viewer bundle (`src/viewer-main.js`). Framework: **Lit 3** + **Shoelace 2.20.1**. Build: `cd www && npm run build`.
-- **`www/src/`** — Built-in UI components (`feezal-sidebar-*.js`, `feezal-app-*.js`, etc.) and built-in elements (`feezal-element-connection-status.js`). These are part of the editor bundle.
+- **`www/src/`** — Built-in UI components (`feezal-sidebar-*.js`, `feezal-app-*.js`, etc.). These are part of the editor bundle.
 - **`www/packages/@feezal/`** — Element and theme packages living in the npm workspace. This is where new elements are created (see below). npm symlinks them into `www/node_modules/@feezal/` so Vite can resolve imports.
 - **`docs/element-spec.md`** — Full element authoring specification. **Always read this before working on any element.**
 

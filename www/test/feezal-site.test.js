@@ -124,6 +124,15 @@ describe('viewer control subscriptions', () => {
         document.body.classList.remove('feezal-theme-dark-mint');
     });
 
+    it('swaps the theme class on the site element too (deployed HTML bakes it there)', () => {
+        const site = makeViewerSite({subscribe: 'ctrl'});
+        site.classList.add('feezal-theme-old');
+        subscribedHandler(feezal.connection.sub, 'ctrl/theme')({payload: 'dark-mint'});
+        expect(site.classList.contains('feezal-theme-dark-mint')).toBe(true);
+        expect(site.classList.contains('feezal-theme-old')).toBe(false);
+        document.body.classList.remove('feezal-theme-dark-mint');
+    });
+
     it('accepts a full theme class name verbatim', () => {
         makeViewerSite({subscribe: 'ctrl'});
         subscribedHandler(feezal.connection.sub, 'ctrl/theme')({payload: 'feezal-theme-light-sky'});

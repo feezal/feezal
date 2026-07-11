@@ -10,7 +10,7 @@
  *
  * Handles:
  *  - Opening tags: <feezal-element-*  and  <feezal-theme-*
- *  - child-element="…" attributes (feezal-element-basic-repeater renders a
+ *  - child-element="…" attributes (feezal-element-layout-repeater renders a
  *    child element type that doesn't appear as a tag in the HTML itself)
  *
  * @param {string} siteHtml  Raw views.html content.

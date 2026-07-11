@@ -1,0 +1,9 @@
+{
+  "name": "@feezal/feezal-element-metro-light",
+  "version": "3.0.0",
+  "license": "MIT",
+  "main": "feezal-element-metro-light.js",
+  "dependencies": {
+    "@feezal/feezal-element-metro-tile": "*"
+  }
+}

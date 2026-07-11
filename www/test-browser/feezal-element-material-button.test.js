@@ -58,3 +58,45 @@ describe('publishing', () => {
         expect(feezal.connection.published).toEqual([]);
     });
 });
+
+// E79: state feedback + disabled — same contract as feezal-element-paper-button.
+describe('state feedback (E79)', () => {
+    it('active/inactive payloads toggle the reflected [active] attribute; others leave it unchanged', async () => {
+        const el = await mount('feezal-element-material-button', {
+            label: 'Scene', publish: 'cmnd/scene', subscribe: 'stat/scene'
+        });
+        expect(el.hasAttribute('active')).toBe(false);
+
+        feezal.connection.deliver('stat/scene', '1');       // default payload-active
+        await el.updateComplete;
+        expect(el.hasAttribute('active')).toBe(true);
+
+        feezal.connection.deliver('stat/scene', 'whatever');
+        await el.updateComplete;
+        expect(el.hasAttribute('active')).toBe(true);       // unchanged on other payloads
+
+        feezal.connection.deliver('stat/scene', '0');       // default payload-inactive
+        await el.updateComplete;
+        expect(el.hasAttribute('active')).toBe(false);
+    });
+
+    it('honours custom payload-active/-inactive and message-property', async () => {
+        const el = await mount('feezal-element-material-button', {
+            subscribe: 'stat/json', 'message-property': 'payload.state',
+            'payload-active': 'ON', 'payload-inactive': 'OFF'
+        });
+        feezal.connection.deliver('stat/json', {state: 'ON'});
+        await el.updateComplete;
+        expect(el.hasAttribute('active')).toBe(true);
+    });
+
+    it('disabled renders the md button disabled and blocks publishing', async () => {
+        const el = await mount('feezal-element-material-button', {
+            label: 'Go', publish: 'cmnd/x', disabled: ''
+        });
+        const btn = el.shadowRoot.querySelector('md-filled-button');
+        expect(btn.disabled).toBe(true);
+        el._click();                                        // even a direct call is guarded
+        expect(feezal.connection.published).toEqual([]);
+    });
+});

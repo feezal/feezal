@@ -71,7 +71,8 @@ class FeezalElementPaperTabs extends FeezalPolymerElement {
                 'messageProperty',
                 'publish',
                 'publishLocal',
-                {name: 'items', help: 'Slash-separated list of tab names'},
+                {name: 'items', type: 'objectList', itemFields: [{key: '', placeholder: 'tab name'}],
+                    help: 'Tab names — one per row. Stored as a JSON array; legacy slash-separated strings keep working.'},
                 {name: 'refresh', type: 'number', label: 'Refresh interval (s)'}
             ],
             baseAttribute: 'selected',
@@ -110,7 +111,19 @@ class FeezalElementPaperTabs extends FeezalPolymerElement {
 
     }
     _itemsChanged(items) {
-        this.arrItems = items.split('/')
+        // U35: the list editor stores a JSON array of tab names; legacy
+        // slash-separated strings ("One/Two") keep working as a fallback.
+        const raw = String(items ?? '').trim();
+        if (raw.startsWith('[')) {
+            try {
+                const arr = JSON.parse(raw);
+                if (Array.isArray(arr)) {
+                    this.arrItems = arr.map(String);
+                    return;
+                }
+            } catch { /* fall through to slash-split */ }
+        }
+        this.arrItems = raw ? raw.split('/') : [];
     }
 }
 

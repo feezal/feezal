@@ -1,7 +1,8 @@
 /**
  * E2E: N23 built-in reference icon packages + per-site tree-shaking:
- *   - @feezal/feezal-icons-mdi and -knx-uf (www/packages) load as full sets
- *     in the EDITOR via the dynamic feezal-elements.js module
+ *   - @feezal/feezal-icons-mdi, -knx-uf and -fa (www/packages; fa registers
+ *     three sets, N28) load as full sets in the EDITOR via the dynamic
+ *     feezal-elements.js module
  *   - the picker shows their chips; picking writes prefixed values
  *   - the VIEWER page does NOT load the full sets — the server inlines a
  *     tree-shaken mini-registration with only the icons the site uses
@@ -61,9 +62,9 @@ const iconInput = () => page
     .locator('feezal-sidebar-inspector-attributes .icon-wrap sl-input').first();
 
 describe('built-in icon packages in the editor', () => {
-    it('both bundled sets + the user set register as full sets', async () => {
+    it('the bundled sets + the user set register as full sets', async () => {
         await expect.poll(() => page.evaluate(() => [...window.feezal.iconSets].sort()), {timeout: 30_000})
-            .toEqual(['knx-uf', 'mdi', 'usertest']);
+            .toEqual(['fa-brands', 'fa-regular', 'fa-solid', 'knx-uf', 'mdi', 'usertest']);
         // Full sets in the editor (the picker offers everything).
         const sizes = await page.evaluate(() => new Promise(resolve => {
             import('/src/feezal-icon.js').then(m => {
@@ -81,7 +82,7 @@ describe('built-in icon packages in the editor', () => {
         await iconInput().locator('input').click();
         const chips = page.locator('feezal-sidebar-inspector-attributes .icon-set-chip');
         await expect.poll(async () => (await chips.allTextContents()).sort())
-            .toEqual(['All', 'knx-uf', 'material', 'mdi', 'usertest'].sort());
+            .toEqual(['All', 'fa-brands', 'fa-regular', 'fa-solid', 'knx-uf', 'material', 'mdi', 'usertest'].sort());
 
         await page.locator('feezal-sidebar-inspector-attributes .icon-set-chip', {hasText: /^mdi$/}).click();
         await iconInput().locator('input').fill('sofa');

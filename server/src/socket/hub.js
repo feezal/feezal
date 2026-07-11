@@ -116,7 +116,11 @@ function createHub(io, {storage, logger}) {
 
         // ------------------------------------------------------------------ subscribe
         socket.on('subscribe', topics => {
-            topics.forEach(topic => {
+            // B19: same crash class as send — a non-array payload throws in
+            // the handler and kills the process.
+            if (!Array.isArray(topics)) return;
+            const valid = topics.filter(t => typeof t === 'string' && t.length > 0);
+            valid.forEach(topic => {
                 logger.debug('subscribe ' + topic);
                 subscriptions.add(topic);
 
@@ -128,6 +132,11 @@ function createHub(io, {storage, logger}) {
                     socket.emit('input', cache[t]);
                 });
             });
+            // Ask the broker to replay its retained state for these filters —
+            // the cache above only knows topics this process has seen with
+            // retain=1; anything retained after the bridge's '#' subscribe is
+            // missing from it (the broker strips the flag on live deliveries).
+            bridge.refreshRetained(valid);
         });
 
         // ------------------------------------------------------------------ unsubscribe
@@ -135,6 +144,7 @@ function createHub(io, {storage, logger}) {
         // (element deleted / replaced) — without a handler the per-socket set
         // grew stale and kept replaying topics nothing listens to anymore.
         socket.on('unsubscribe', topics => {
+            if (!Array.isArray(topics)) return;   // B19: see subscribe
             topics.forEach(topic => {
                 logger.debug('unsubscribe ' + topic);
                 subscriptions.delete(topic);
@@ -143,6 +153,14 @@ function createHub(io, {storage, logger}) {
 
         // ------------------------------------------------------------------ send
         socket.on('send', message => {
+            // B19: a malformed send (missing/empty topic) must never reach
+            // bridge.publish — mqtt.js throws synchronously on an undefined
+            // topic and crashes the whole server. Drop it here.
+            if (!message || typeof message.topic !== 'string' || message.topic.length === 0) {
+                logger.warn('hub: ignoring send without topic from ' + address);
+                return;
+            }
+
             logger.debug('send ' + message.topic);
             bridge.insertTopic(message.topic);
             updateCache(message);
@@ -159,10 +177,27 @@ function createHub(io, {storage, logger}) {
             bridge.insertTopic(topic);
         });
 
+        // ------------------------------------------------------------------ presence (N24)
+        // Bridge-backend viewers register their retained status topic; the
+        // server clears it when the socket goes away — the bridge equivalent
+        // of a direct-MQTT viewer's broker LWT.
+        socket.on('presence', data => {
+            socket._presenceTopic = (data && typeof data.topic === 'string' && data.topic) ? data.topic : null;
+            if (socket._presenceTopic) logger.debug('presence ' + socket._presenceTopic);
+        });
+
         // ------------------------------------------------------------------ disconnect
         socket.on('disconnect', () => {
             logger.debug('disconnect ' + address);
             socketSubscriptions.delete(socket.id);
+            // N24: clear the viewer's retained presence status (empty retained
+            // publish) — locally (hub cache + connected sockets) and on the
+            // broker.
+            if (socket._presenceTopic) {
+                const clear = {topic: socket._presenceTopic, payload: '', retain: true};
+                broadcast(clear);
+                bridge.publish(clear);
+            }
         });
     });
 

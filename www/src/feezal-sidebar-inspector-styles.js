@@ -3,6 +3,7 @@ import {LitElement, html, css} from 'lit';
 import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/select/select.js';
 import '@shoelace-style/shoelace/dist/components/option/option.js';
+import {LIVE_APPLY_DEBOUNCE_MS} from './feezal-sidebar-inspector-attributes.js';
 
 /** Properties managed by the editor internals — must not be exposed for user editing. */
 const EDITOR_RESERVED_PROPS = new Set(['cursor', 'z-index', 'transform']);
@@ -202,6 +203,9 @@ class FeezalSidebarInspectorStyles extends LitElement {
 
     updated(changed) {
         if (changed.has('selectedElems')) {
+            // U36: never let a pending debounced live-commit fire against a
+            // different selection — the value belongs to the previous element.
+            this._cancelLiveTimers();
             this._selectedElemsChanged();
             // Re-collect vars when a new element is selected (theme may have changed)
             this._collectCssVars();
@@ -237,7 +241,7 @@ class FeezalSidebarInspectorStyles extends LitElement {
                                 .value="${item.mixed ? '' : (item.value || '')}"
                                 placeholder="${item.mixed ? '— varies —' : (item.default || '')}"
                                 data-property="${item.property}"
-                                @sl-input="${e => this._onVarInput(e, idx)}"
+                                @sl-input="${e => this._liveInput(e, idx)}"
                                 @keydown="${e => this._onVarKeydown(e, idx)}"
                                 @sl-change="${e => this._change(e, idx)}"
                                 @sl-blur="${e => this._blur(e, idx)}">
@@ -349,6 +353,13 @@ class FeezalSidebarInspectorStyles extends LitElement {
     }
 
     _applyValue(idx, value) {
+        // Definitive commit (var-autocomplete pick) — drop any pending
+        // debounced live-commit for the same field first (U36).
+        if (this._liveTimers) {
+            clearTimeout(this._liveTimers[idx]);
+            delete this._liveTimers[idx];
+        }
+
         const item = this.items[idx];
         this.selectedElems.forEach(el => el.style.setProperty(item.property, value));
         this.items = this.items.map((it, i) => i === idx ? {...it, value, invalid: false, mixed: false} : it);
@@ -451,21 +462,57 @@ class FeezalSidebarInspectorStyles extends LitElement {
         }
     }
 
+    /** sl-change (blur/Enter): flush — cancel any pending debounce and commit
+     * with a history checkpoint (U36). */
     _change(e, idx) {
+        if (this._liveTimers) {
+            clearTimeout(this._liveTimers[idx]);
+            delete this._liveTimers[idx];
+        }
+
+        this._changeValue(e.target.value, idx, true);
+    }
+
+    /** U36: debounced live-apply while typing — the style updates on the
+     * canvas ~LIVE_APPLY_DEBOUNCE_MS after the last keystroke, without a
+     * history checkpoint (blur/Enter pushes the single undo step). */
+    _liveInput(e, idx) {
+        this._onVarInput(e, idx);   // keep the var(--…) autocomplete behaviour
+        const value = e.target.value;
+        this._liveTimers ??= {};
+        clearTimeout(this._liveTimers[idx]);
+        this._liveTimers[idx] = setTimeout(() => {
+            delete this._liveTimers[idx];
+            this._changeValue(value, idx, false);
+        }, LIVE_APPLY_DEBOUNCE_MS);
+    }
+
+    _cancelLiveTimers() {
+        for (const t of Object.values(this._liveTimers || {})) clearTimeout(t);
+        this._liveTimers = {};
+    }
+
+    _changeValue(value, idx, history) {
         const item = this.items[idx];
+        if (!item) return;
         let invalid = false;
         this.selectedElems.forEach(el => {
             const previous = el.style.getPropertyValue(item.property);
-            if (previous !== e.target.value) {
-                el.style.setProperty(item.property, e.target.value);
+            if (previous !== value) {
+                el.style.setProperty(item.property, value);
                 invalid = invalid || (previous === el.style.getPropertyValue(item.property));
             }
         });
-        if (!invalid) {
+        if (history && !invalid) {
             feezal.app.change();
         }
 
-        this.items = this.items.map((it, i) => i === idx ? {...it, value: invalid ? it.value : e.target.value, invalid, mixed: false} : it);
+        // Live typing (history=false) keeps the typed text in the item even
+        // while it's transiently invalid ("re" of "red") — resetting it would
+        // stomp the input mid-typing (U36 caret safety). The flush keeps the
+        // old reset-to-last-valid behaviour.
+        const kept = (invalid && history) ? item.value : value;
+        this.items = this.items.map((it, i) => i === idx ? {...it, value: kept, invalid, mixed: false} : it);
     }
 
     setStyle(target, changes) {

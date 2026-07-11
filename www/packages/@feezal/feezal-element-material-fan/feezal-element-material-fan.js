@@ -58,7 +58,7 @@ class FeezalElementMaterialFan extends FeezalElement {
                 {name: 'subscribe-preset',       type: 'mqttTopic', help: 'Topic receiving current preset mode name.'},
                 {name: 'message-property-preset', type: 'string',   default: 'payload', help: 'Property path within preset messages. Defaults to message-property.'},
                 {name: 'publish-preset',         type: 'mqttTopic', help: 'Topic to publish selected preset mode name.'},
-                {name: 'preset-modes',           type: 'string',    default: '[]',
+                {name: 'preset-modes',           type: 'objectList', itemFields: [{key: '', placeholder: 'preset name'}], default: '[]',
                     help: 'JSON array of preset mode names, e.g. ["low","medium","high"].'},
                 {name: 'label',                  type: 'string',    default: '', help: 'Optional card label.'},
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Availability topic.'},

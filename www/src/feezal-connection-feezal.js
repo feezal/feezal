@@ -76,6 +76,13 @@ class FeezalConnectionFeezal extends LitElement {
         this.socket.emit('send', message);
     }
 
+    /** N24: register this client's presence status topic with the server —
+     * the hub clears it (retained empty publish) when the socket disconnects;
+     * the bridge-backend equivalent of a broker LWT. */
+    presence(statusTopic) {
+        this.socket.emit('presence', {topic: statusTopic});
+    }
+
     deploy(data, callback) {
         this.socket.emit('deploy', data, callback);
     }

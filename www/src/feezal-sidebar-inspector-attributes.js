@@ -1,5 +1,9 @@
 ﻿import {LitElement, html, css} from 'lit';
 
+// U36: trailing-debounce interval for live-apply-while-typing in the
+// attribute AND style inspectors (the styles panel imports this constant).
+export const LIVE_APPLY_DEBOUNCE_MS = 250;
+
 import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/textarea/textarea.js';
 import '@shoelace-style/shoelace/dist/components/select/select.js';
@@ -10,13 +14,25 @@ import MATERIAL_ICONS from './material-design-icons.js';
 import {iconSets} from './feezal-icon.js';
 
 /**
- * feezal-editable-list — a sortable list of key/value rows for attribute editing.
+ * feezal-editable-list (U35) — the generic list editor behind the
+ * `type: 'objectList'` attribute descriptor: one row per item with typed
+ * per-field inputs, ＋ add, per-row ✕ delete, and drag-handle reordering.
+ *
+ * The attribute stays the single source of truth: `value` is the raw JSON
+ * attribute string; edits emit `value-changed` with the items ARRAY (the
+ * inspector's _change serializes objects back to the JSON attribute).
+ * Unparseable non-empty values fall back to a raw text input (never
+ * destroyed). A single field with an empty `key` switches to bare-string
+ * items (e.g. `["eco","turbo"]`).
+ *
+ * Field spec: [{key, type?: 'string'|'number'|'color'|'select', options?, placeholder?}]
  */
 class FeezalEditableList extends LitElement {
     static properties = {
-        value: {type: Array},
-        columns: {type: Array},
-        label: {type: String}
+        value:  {type: String},
+        fields: {type: Array},
+        label:  {type: String},
+        _dragIdx: {state: true},
     };
 
     static styles = css`
@@ -25,53 +41,155 @@ class FeezalEditableList extends LitElement {
         button.add { background: none; border: 1px solid var(--feezal-border, #ccc); border-radius: 3px; cursor: pointer; padding: 2px 6px; margin-left: 6px; color: var(--feezal-color, inherit); }
         ul { list-style: none; margin: 4px 0; padding: 0; border-bottom: 1px solid var(--feezal-border, #ddd); }
         li { display: flex; align-items: center; gap: 4px; padding: 4px 0; }
-        li input { flex: 1; padding: 4px; background: var(--feezal-bg, white); color: var(--feezal-color, inherit); border: 1px solid var(--feezal-border, #ccc); border-radius: 3px; font-size: 12px; }
+        li.drop-target { box-shadow: inset 0 2px 0 var(--sl-color-primary-600, #0284c7); }
+        li input, li select { flex: 1; min-width: 0; padding: 4px; background: var(--feezal-bg, white); color: var(--feezal-color, inherit); border: 1px solid var(--feezal-border, #ccc); border-radius: 3px; font-size: 12px; box-sizing: border-box; }
+        li input[type=color] { flex: 0 0 28px; padding: 1px; height: 26px; cursor: pointer; }
         .del { background: none; border: none; cursor: pointer; color: #c62828; font-size: 16px; padding: 0 4px; }
-        .drag { cursor: move; color: var(--feezal-color, #999); opacity: 0.6; padding: 0 2px; }
+        .drag { cursor: move; color: var(--feezal-color, #999); opacity: 0.6; padding: 0 2px; user-select: none; }
+        .fallback-hint { font-size: 10px; color: #e65100; margin-top: 2px; }
+        .raw { width: 100%; box-sizing: border-box; padding: 4px; font-size: 12px;
+            background: var(--feezal-bg, white); color: var(--feezal-color, inherit);
+            border: 1px solid var(--feezal-border, #ccc); border-radius: 3px; }
     `;
 
     constructor() {
         super();
-        this.value = [];
-        this.columns = [];
+        this.value = '';
+        this.fields = [{key: 'label'}, {key: 'value'}];
         this.label = 'items';
+        this._dragIdx = null;
+    }
+
+    /** Bare mode: a single field with an empty key → items are plain strings. */
+    get _bare() {
+        return this.fields.length === 1 && !this.fields[0].key;
+    }
+
+    /** Parse the raw attribute string. Returns {items} or {error} (unparseable). */
+    _parse() {
+        // Robustness: accept a ready-made array too (the inspector normally
+        // hands us the attribute STRING, but never break if an array slips
+        // through a property binding).
+        if (Array.isArray(this.value)) return {items: this.value};
+        // Polymer's attribute reflection HTML-escapes quotes when it
+        // serializes array properties (paper-dropdown items) — unescape
+        // before parsing.
+        const raw = String(this.value ?? '').trim().replace(/&quot;/g, '"');
+        if (!raw) return {items: []};
+        try {
+            const arr = JSON.parse(raw);
+            if (!Array.isArray(arr)) return {error: true};
+            return {items: arr};
+        } catch {
+            return {error: true};
+        }
+    }
+
+    _emit(items) {
+        this.dispatchEvent(new CustomEvent('value-changed', {detail: {value: items}}));
     }
 
     render() {
+        const {items, error} = this._parse();
+
+        // Never destroy what we can't parse — raw fallback input instead.
+        if (error) {
+            return html`
+                <span class="list-label">${this.label}</span>
+                <input class="raw" .value="${this.value ?? ''}" autocomplete="off"
+                    @change="${e => this._emit(e.target.value)}">
+                <div class="fallback-hint">Not a JSON array — edit the raw value or fix it to get the list editor.</div>
+            `;
+        }
+
         return html`
             <span class="list-label">${this.label}</span>
-            <button class="add" @click="${this._add}">+</button>
+            <button class="add" title="Add item" @click="${() => this._add(items)}">+</button>
             <ul>
-                ${(this.value || []).map((item, rowIdx) => html`
-                    <li>
-                        <span class="drag">⠿</span>
-                        ${this.columns.map(col => html`
-                            <input .value="${item[col] || ''}"
-                                placeholder="${col}"
-                                autocomplete="off"
-                                @change="${e => this._propChanged(rowIdx, col, e.target.value)}">
-                        `)}
-                        <button class="del" @click="${() => this._remove(rowIdx)}">✕</button>
+                ${items.map((item, rowIdx) => html`
+                    <li class="${this._dragIdx !== null && this._dragOver === rowIdx ? 'drop-target' : ''}"
+                        @dragover="${e => this._onDragOver(e, rowIdx)}"
+                        @drop="${e => this._onDrop(e, rowIdx, items)}">
+                        <span class="drag" title="Drag to reorder" draggable="true"
+                            @dragstart="${e => this._onDragStart(e, rowIdx)}"
+                            @dragend="${() => { this._dragIdx = null; this._dragOver = null; }}">⠿</span>
+                        ${this.fields.map(f => this._fieldInput(item, rowIdx, f, items))}
+                        <button class="del" title="Remove item" @click="${() => this._remove(rowIdx, items)}">✕</button>
                     </li>
                 `)}
             </ul>
         `;
     }
 
-    _add() {
-        const newRow = Object.fromEntries(this.columns.map(k => [k, '']));
-        this.value = [...(this.value || []), newRow];
-        this.dispatchEvent(new CustomEvent('value-changed', {detail: {value: this.value}}));
+    _fieldInput(item, rowIdx, field, items) {
+        const val = this._bare ? (typeof item === 'string' ? item : String(item ?? '')) : (item?.[field.key] ?? '');
+        const set = v => this._propChanged(rowIdx, field, v, items);
+        if (field.type === 'select') {
+            return html`
+                <select .value="${val}" @change="${e => set(e.target.value)}">
+                    ${(field.options || []).map(opt => html`<option value="${opt}" ?selected="${opt === val}">${opt}</option>`)}
+                </select>`;
+        }
+        if (field.type === 'color') {
+            return html`
+                <input .value="${val}" placeholder="${field.placeholder ?? field.key}" autocomplete="off"
+                    @change="${e => set(e.target.value)}">
+                <input type="color" title="Pick colour" .value="${/^#[0-9a-fA-F]{6}$/.test(val) ? val : '#000000'}"
+                    @change="${e => set(e.target.value)}">`;
+        }
+        return html`
+            <input type="${field.type === 'number' ? 'number' : 'text'}"
+                .value="${String(val)}" placeholder="${field.placeholder ?? field.key}" autocomplete="off"
+                @change="${e => set(field.type === 'number' && e.target.value !== '' ? Number(e.target.value) : e.target.value)}">`;
     }
 
-    _remove(idx) {
-        this.value = this.value.filter((_, i) => i !== idx);
-        this.dispatchEvent(new CustomEvent('value-changed', {detail: {value: this.value}}));
+    // ── Row operations (always emit a NEW array — the attribute re-parses) ──
+
+    _add(items) {
+        const row = this._bare ? '' : Object.fromEntries(this.fields.map(f => [f.key, '']));
+        this._emit([...items, row]);
     }
 
-    _propChanged(rowIdx, col, value) {
-        this.value = this.value.map((row, i) => i === rowIdx ? {...row, [col]: value} : row);
-        this.dispatchEvent(new CustomEvent('value-changed', {detail: {value: this.value}}));
+    _remove(idx, items) {
+        this._emit(items.filter((_, i) => i !== idx));
+    }
+
+    _propChanged(rowIdx, field, value, items) {
+        this._emit(items.map((row, i) => {
+            if (i !== rowIdx) return row;
+            return this._bare ? value : {...(typeof row === 'object' && row !== null ? row : {}), [field.key]: value};
+        }));
+    }
+
+    // ── Drag & drop reordering ──
+
+    _onDragStart(e, idx) {
+        this._dragIdx = idx;
+        e.dataTransfer.effectAllowed = 'move';
+        // Firefox needs data for a drag to start.
+        e.dataTransfer.setData('text/plain', String(idx));
+    }
+
+    _onDragOver(e, idx) {
+        if (this._dragIdx === null) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (this._dragOver !== idx) {
+            this._dragOver = idx;
+            this.requestUpdate();
+        }
+    }
+
+    _onDrop(e, idx, items) {
+        e.preventDefault();
+        const from = this._dragIdx;
+        this._dragIdx = null;
+        this._dragOver = null;
+        if (from === null || from === idx) return;
+        const next = [...items];
+        const [moved] = next.splice(from, 1);
+        next.splice(idx, 0, moved);
+        this._emit(next);
     }
 }
 
@@ -402,11 +520,43 @@ class FeezalSidebarInspectorAttributes extends LitElement {
 
     updated(changed) {
         if (changed.has('selectedElems')) {
+            // U36: never let a pending debounced live-commit fire against a
+            // different selection — the value belongs to the previous element.
+            this._cancelLiveTimers();
             this._rebuildItems();
             this._fetchDiscoveryEntities(); // refresh device list for the picker/banner
             this._discoveryFilter = ''; // reset filter when selection changes
         }
         this._syncCustomInspector();
+    }
+
+    // ── U36: debounced live-apply while typing ────────────────────────────────
+    // Free-text inputs commit to the element ~LIVE_APPLY_DEBOUNCE_MS after the
+    // last keystroke (no history checkpoint — the canvas just updates live);
+    // sl-change (blur/Enter) flushes immediately WITH a single history
+    // checkpoint, so a typing burst is one undo step.
+
+    _liveChange(value, idx) {
+        this._liveTimers ??= {};
+        clearTimeout(this._liveTimers[idx]);
+        this._liveTimers[idx] = setTimeout(() => {
+            delete this._liveTimers[idx];
+            this._change(value, idx, false);
+        }, LIVE_APPLY_DEBOUNCE_MS);
+    }
+
+    _flushChange(value, idx) {
+        if (this._liveTimers) {
+            clearTimeout(this._liveTimers[idx]);
+            delete this._liveTimers[idx];
+        }
+
+        this._change(value, idx, true);
+    }
+
+    _cancelLiveTimers() {
+        for (const t of Object.values(this._liveTimers || {})) clearTimeout(t);
+        this._liveTimers = {};
     }
 
     render() {
@@ -529,11 +679,15 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         const labelAttr = elem.help ? '' : label;
 
         if (elem.list) {
+            // U35: objectList / list attributes — the raw JSON attribute string
+            // is the single source of truth; the control emits the items array
+            // (serialized back to JSON by _change) or the raw string when the
+            // current value is unparseable (fallback mode).
             return html`
                 <feezal-editable-list
                     label="${label}"
-                    .value="${value || []}"
-                    .columns="${elem.columns || []}"
+                    .value="${mixed ? '' : (value ?? '')}"
+                    .fields="${elem.itemFields}"
                     @value-changed="${e => this._change(e.detail.value, idx, true)}">
                 </feezal-editable-list>
             `;
@@ -569,7 +723,8 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                     autocomplete="off"
                     .value="${mixed ? '' : (value || '')}"
                     placeholder="${mixed ? '— varies —' : ''}"
-                    @sl-change="${e => this._change(e.target.value, idx, true)}">
+                    @sl-input="${e => this._liveChange(e.target.value, idx)}"
+                    @sl-change="${e => this._flushChange(e.target.value, idx)}">
                     ${labelSlot}
                 </sl-textarea>
             `;
@@ -592,7 +747,8 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                         autocomplete="off"
                         .value="${mixed ? '' : (value ?? '')}"
                         placeholder="${mixed ? '— varies —' : ''}"
-                        @sl-change="${e => this._change(e.target.value, idx, true)}">
+                        @sl-input="${e => this._liveChange(e.target.value, idx)}"
+                        @sl-change="${e => this._flushChange(e.target.value, idx)}">
                         ${labelSlot}
                     </sl-input>
                     <input type="color"
@@ -694,9 +850,9 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                         .value="${mixed ? '' : (value ?? '')}"
                         placeholder="${mixed ? '— varies —' : ''}"
                         @sl-focus="${e => this._onTopicInput(e.target.value, idx)}"
-                        @sl-input="${e => this._onTopicInput(e.target.value, idx)}"
+                        @sl-input="${e => { this._onTopicInput(e.target.value, idx); this._liveChange(e.target.value, idx); }}"
                         @sl-blur="${() => this._scheduleCloseCompletions(idx)}"
-                        @sl-change="${e => this._change(e.target.value, idx, false)}"
+                        @sl-change="${e => this._flushChange(e.target.value, idx)}"
                         @keydown="${e => this._onTopicKeydown(e, idx)}">
                         ${labelSlot}
                     </sl-input>
@@ -723,7 +879,8 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                 .value="${mixed ? '' : (value ?? '')}"
                 placeholder="${mixed ? '— varies —' : ''}"
                 min="${elem.min ?? ''}" max="${elem.max ?? ''}" step="${elem.step ?? ''}"
-                @sl-change="${e => this._change(e.target.value, idx, false)}">
+                @sl-input="${e => this._liveChange(e.target.value, idx)}"
+                @sl-change="${e => this._flushChange(e.target.value, idx)}">
                 ${labelSlot}
             </sl-input>
         `;
@@ -789,11 +946,13 @@ class FeezalSidebarInspectorAttributes extends LitElement {
     }
 
     _selectCompletion(val, idx) {
-        this._change(val, idx, false);
         if (val.endsWith('/')) {
-            // Descend into next level and stay open
+            // Descend into next level and stay open — intermediate state.
+            this._change(val, idx, false);
             this._fetchCompletions(val, idx);
         } else {
+            // A picked completion is a definitive commit (U36: flush).
+            this._flushChange(val, idx);
             this._completionIdx    = -1;
             this._completions      = [];
             this._completionCursor = -1;
@@ -927,7 +1086,14 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             feezal.editor.selectedElems.forEach(el => feezal.editor.setLocked(el, newValue));
         }
 
-        this.items = this.items.map((it, i) => i === idx ? {...it, value: newValue, invalid, mixed: false} : it);
+        // U35 fix: object values (list-editor arrays) are written to the
+        // attribute as JSON — keep item.value aligned with the attribute
+        // string, otherwise the re-render feeds the array to String-typed
+        // controls ("[object Object],…" + fallback UI).
+        const itemValue = (typeof newValue === 'object' && newValue !== null)
+            ? JSON.stringify(newValue)
+            : newValue;
+        this.items = this.items.map((it, i) => i === idx ? {...it, value: itemValue, invalid, mixed: false} : it);
 
         if (applyImmediately && !invalid) {
             feezal.app.change();
@@ -1004,21 +1170,24 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             const half = ['top', 'left', 'width', 'height'].includes(attrName) || attrSpec.size === 'half';
 
             // ── Smart control auto-detection ──────────────────────────────
+            // 0. U35: object/string list — explicit {type:'objectList'} (or the
+            //    legacy {list:true}) renders the generic list editor.
+            const isList = attrSpec.type === 'objectList' || Boolean(attrSpec.list);
             // 1. Boolean: explicit in spec ({checkbox:true} or {type:'boolean'}) OR Lit property
             //    Lit elementProperties uses camelCase keys → also check via cls.properties
             const litProp = cls.elementProperties?.get(attrName) ?? cls.properties?.[attrName];
             const isBool = Boolean(attrSpec.checkbox) || attrSpec.type === 'boolean'
                 || (litProp?.type === Boolean);
             // 2. Color: explicit {type:'color'} OR name contains "color"
-            const isColor = !isBool && !options && !attrSpec.textarea && !attrSpec.list
+            const isColor = !isBool && !options && !attrSpec.textarea && !isList
                 && (attrSpec.type === 'color' || attrName.toLowerCase().includes('color'));
             // 3. MQTT topic: explicit type, or name contains "topic", or the standard subscribe/publish attrs
-            const isTopic = !isBool && !isColor && !options && !attrSpec.textarea && !attrSpec.list
+            const isTopic = !isBool && !isColor && !options && !attrSpec.textarea && !isList
                 && (attrSpec.type === 'mqttTopic'
                     || attrName.toLowerCase().includes('topic')
                     || attrName === 'subscribe' || attrName === 'publish');
             // 4. Icon: explicit ({type:'icon'} / {iconPicker:true}) OR any attribute named icon* (N19)
-            const isIcon = !isBool && !isColor && !isTopic && !options && !attrSpec.textarea && !attrSpec.list
+            const isIcon = !isBool && !isColor && !isTopic && !options && !attrSpec.textarea && !isList
                 && (attrSpec.iconPicker || attrSpec.type === 'icon' || /^icon(-|$)/i.test(attrName));
 
             // Read value from ALL selected elements and detect mixed state.
@@ -1044,7 +1213,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                 half,
                 invalid: false,
                 elem: {
-                    input: !options && !attrSpec.textarea && !isBool && !attrSpec.list && !isColor && !isTopic && !isIcon,
+                    input: !options && !attrSpec.textarea && !isBool && !isList && !isColor && !isTopic && !isIcon,
                     inputType,
                     dropdown: Boolean(options),
                     options,
@@ -1055,8 +1224,12 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                     color: isColor,
                     mqttTopic: isTopic,
                     icon: isIcon,
-                    list: Boolean(attrSpec.list),
-                    columns: attrSpec.columns,
+                    list: isList,
+                    // U35: per-item field spec; legacy {columns:['a','b']}
+                    // converts to itemFields; default is the canonical
+                    // label/value pair.
+                    itemFields: attrSpec.itemFields
+                        || (attrSpec.columns ? attrSpec.columns.map(c => ({key: c})) : [{key: 'label'}, {key: 'value'}]),
                     tooltip: attrSpec.tooltip,
                     help: attrSpec.help || '',
                     template: Boolean(attrSpec.template),
@@ -1083,7 +1256,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                 elem: {
                     input: false, inputType: 'text', dropdown: false, options: null,
                     textarea: false, checkbox: true, color: false, mqttTopic: false, list: false,
-                    columns: undefined, tooltip: undefined,
+                    itemFields: undefined, tooltip: undefined,
                     help: 'Prevent this element from being moved or resized in the editor',
                     template: false, validator: undefined, min: undefined, max: undefined, step: undefined
                 }
@@ -1246,6 +1419,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                 <sl-select class="dp-select" size="small" hoist
                     placeholder="Link a discovered device\u2026"
                     value="${linkedId}"
+                    @sl-after-show="${() => this.renderRoot.querySelector('.dp-search')?.focus()}"
                     @sl-hide="${() => { this._discoveryFilter = ''; }}"
                     @sl-change="${e => this._onPickDiscovery(e.target.value)}">
                     ${showSearch ? html`
@@ -1353,9 +1527,12 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                 } else if (spec.transform === 'jsonStringify') {
                     value = JSON.stringify(raw);
                 } else if (spec.transform === 'colorMode') {
-                    // supported_color_modes array → a single feezal centre control
+                    // supported_color_modes array → a single feezal centre control.
+                    // color_temp maps to brightness_ct: CT-capable lamps are
+                    // effectively always dimmable, and plain color_temp would
+                    // hide the brightness control.
                     const modeMap = {
-                        color_temp: 'color_temp', xy: 'hs', hs: 'hs',
+                        color_temp: 'brightness_ct', xy: 'hs', hs: 'hs',
                         rgb: 'rgb', rgbw: 'rgb', rgbww: 'rgb', white: 'brightness',
                         brightness: 'brightness', onoff: 'brightness',
                     };

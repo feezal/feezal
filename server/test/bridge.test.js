@@ -164,6 +164,60 @@ describe('against a real broker (aedes)', () => {
         expect(received).toContainEqual(['out/null', '']);
     });
 
+    // N24: viewer presence — the bridge must forward the retain flag so a
+    // status lands in the broker's retained store and an empty retained
+    // publish clears it again.
+    it('publish() forwards retain: a retained status is replayed to late subscribers, an empty retained publish clears it', async () => {
+        bridge.publish({topic: 'pres/clients/p1/status', payload: '{"view":"home"}', retain: true});
+
+        // A client subscribing AFTER the publish only sees it if it was retained.
+        const late = mqtt.connect(uri);
+        await new Promise(resolve => late.once('connect', resolve));
+        const received = [];
+        late.on('message', (topic, payload, packet) => received.push([topic, payload.toString(), packet.retain]));
+        await new Promise(resolve => late.subscribe('pres/#', resolve));
+        await vi.waitFor(() => {
+            expect(received).toContainEqual(['pres/clients/p1/status', '{"view":"home"}', true]);
+        });
+
+        // Retained-clear: empty payload + retain → removed from the store.
+        bridge.publish({topic: 'pres/clients/p1/status', payload: '', retain: true});
+        await vi.waitFor(async () => {
+            const probe = mqtt.connect(uri);
+            await new Promise(resolve => probe.once('connect', resolve));
+            const seen = [];
+            probe.on('message', (topic, payload) => seen.push([topic, payload.toString()]));
+            await new Promise(resolve => probe.subscribe('pres/#', resolve));
+            await new Promise(resolve => setTimeout(resolve, 150));
+            await new Promise(resolve => probe.end(false, resolve));
+            expect(seen).toEqual([]);
+        }, {timeout: 5000});
+
+        await new Promise(resolve => late.end(false, resolve));
+    }, 15000);
+
+    it('publish() without retain does not retain (commands stay ephemeral)', async () => {
+        bridge.publish({topic: 'pres/clients/p1/reload', payload: '1'});
+
+        const late = mqtt.connect(uri);
+        await new Promise(resolve => late.once('connect', resolve));
+        const seen = [];
+        late.on('message', (topic, payload) => seen.push([topic, payload.toString()]));
+        await new Promise(resolve => late.subscribe('pres/clients/p1/reload', resolve));
+        await new Promise(resolve => setTimeout(resolve, 200));
+        expect(seen).toEqual([]);
+        await new Promise(resolve => late.end(false, resolve));
+    });
+
+    // B19: an undefined/empty topic used to reach mqtt.js and crash the
+    // process (TypeError in _removeTopicAliasAndRecoverTopicName).
+    it('publish() skips messages without a valid topic instead of throwing (B19)', () => {
+        expect(() => bridge.publish({payload: 'no topic'})).not.toThrow();
+        expect(() => bridge.publish({topic: '', payload: 'empty'})).not.toThrow();
+        expect(() => bridge.publish({topic: 42, payload: 'numeric'})).not.toThrow();
+        expect(() => bridge.publish(undefined)).not.toThrow();
+    });
+
     it('reconnecting to the same broker keeps the trie', () => {
         bridge.insertTopic('int/keep/me');
         bridge.connect({backend: 'mqtt', uri}, logger, null);   // same uri → no-op

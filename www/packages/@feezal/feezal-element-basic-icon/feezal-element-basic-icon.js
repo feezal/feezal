@@ -25,12 +25,14 @@ class FeezalElementBasicIcon extends FeezalElement {
                 name: 'Icon',
                 color: '#4a6080'
             },
-            description: 'Displays an icon — configured or from the subscribe payload (payload = icon name, e.g. mdi:sofa). Click-through: pointer events pass to elements beneath, so it can decorate a button without blocking it.',
+            description: 'Displays an icon — configured or from the subscribe payload (payload = icon name, e.g. mdi:sofa). Click-through by default: pointer events pass to elements beneath, so it can decorate a button without blocking it (set click-through: off to catch clicks instead).',
             baseAttribute: 'icon',
             attributes: [
                 'subscribe',
                 'messageProperty',
-                {name: 'icon', type: 'icon', help: 'Icon name — bare Material or set-prefixed (mdi:sofa, knx-uf:fts_sunblind); a subscribe payload overrides it at runtime.'}
+                {name: 'icon', type: 'icon', help: 'Icon name — bare Material or set-prefixed (mdi:sofa, knx-uf:fts_sunblind); a subscribe payload overrides it at runtime.'},
+                {name: 'click-through', type: 'select', options: ['on', 'off'], default: 'on',
+                    help: 'on (default): pointer events pass through to whatever sits beneath — the icon can decorate a button without blocking it. off: the icon catches clicks (blocks elements beneath). Editor selection is unaffected either way. (A select rather than a checkbox so the non-default "off" survives save/reload.)'}
             ],
             styles: [
                 'top', 'left', 'width', 'height',
@@ -44,7 +46,11 @@ class FeezalElementBasicIcon extends FeezalElement {
     static properties = {
         // icon is user config (reflected) AND the base attribute — a
         // subscribe payload overwrites it via setAttribute at runtime.
-        icon: {type: String, reflect: true}
+        icon: {type: String, reflect: true},
+        // click-through is 'on' (default) | 'off' — a string select rather
+        // than a boolean so the non-default "off" survives save/reload (a
+        // default-true boolean cannot persist false through Lit reflection).
+        clickThrough: {type: String, reflect: true, attribute: 'click-through'}
     };
 
     static styles = [FeezalElement.styles, css`
@@ -57,9 +63,13 @@ class FeezalElementBasicIcon extends FeezalElement {
             align-items: center;
             justify-content: center;
             container-type: size;
-            /* Click-through: pointer events pass to whatever lies beneath,
-               so the icon can sit on top of a button without blocking it. */
+            /* Click-through (default on): pointer events pass to whatever lies
+               beneath, so the icon can sit on top of a button without blocking
+               it. click-through="off" makes the icon catch clicks instead. */
             pointer-events: none;
+        }
+        :host([click-through="off"]) {
+            pointer-events: auto;
         }
         /* The editor needs the element clickable/draggable on the canvas. */
         :host(.feezal-editable) {
@@ -75,6 +85,7 @@ class FeezalElementBasicIcon extends FeezalElement {
     constructor() {
         super();
         this.icon = '';
+        this.clickThrough = 'on';
     }
 
     render() {

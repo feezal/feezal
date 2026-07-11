@@ -18,7 +18,7 @@ import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element
 class FeezalElementSystemPin extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Pin', category: 'System', color: '#607d8b', icon: 'lock'},
+            palette: {name: 'Pin', category: 'System', color: '#455a64', icon: 'lock'},
             description: 'Covers the view with a PIN entry overlay in the viewer until the correct PIN is ' +
                 'entered. Pseudo-element — position/size don\'t matter. NOT real security: the PIN is ' +
                 'visible in the page source and the overlay is trivially bypassable.',
@@ -28,7 +28,7 @@ class FeezalElementSystemPin extends FeezalElement {
                 {name: 'remember', type: 'boolean', default: false, help: 'Stay unlocked for the rest of the browser session (survives reload).'},
             ],
             restrict: {minWidth: 24, minHeight: 24},
-            defaultStyle: {width: '40px', height: '40px'},
+            defaultStyle: {width: '140px', height: '40px'},
         };
     }
 
@@ -50,6 +50,14 @@ class FeezalElementSystemPin extends FeezalElement {
             gap: 4px; box-sizing: border-box; font-size: 11px; text-align: center;
             color: var(--secondary-text-color, #777);
             border: 2px dashed var(--feezal-border, #bbb); border-radius: 6px;
+        }
+        .material-icons {
+            font-family: 'Material Icons';
+            font-weight: normal; font-style: normal;
+            font-size: inherit; line-height: 1; letter-spacing: normal; text-transform: none;
+            display: inline-block; white-space: nowrap; word-wrap: normal; direction: ltr;
+            -webkit-font-feature-settings: 'liga'; font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
         }
         .ph .material-icons { font-size: 16px; }
 

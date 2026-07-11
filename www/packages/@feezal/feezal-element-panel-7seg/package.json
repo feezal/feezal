@@ -1,0 +1,6 @@
+{
+  "name": "@feezal/feezal-element-panel-7seg",
+  "version": "3.0.0",
+  "license": "MIT",
+  "main": "feezal-element-panel-7seg.js"
+}

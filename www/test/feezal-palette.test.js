@@ -117,6 +117,56 @@ describe('_rebuildCategories()', () => {
     });
 });
 
+describe('_applySnappedPos clamping (palette-drag restrict)', () => {
+    // The palette drag moves the new element manually, so it doesn't get the
+    // interact `restrict` modifier a regular element drag has — the displayed
+    // position is clamped to the view bounds instead (raw _dragPos stays
+    // unclamped for the drag-back-to-palette cancel gesture).
+    function setup() {
+        feezal.view = {getBoundingClientRect: () => ({x: 0, y: 0, width: 800, height: 600})};
+        feezal.editor = {_snap: vi.fn(() => undefined)};
+        const palette = makePalette();
+        palette.newElem = document.createElement('div');
+        palette.newElem.getBoundingClientRect = () => ({width: 100, height: 50});
+        return palette;
+    }
+
+    it('keeps an in-bounds position unchanged', () => {
+        const palette = setup();
+        palette._dragPos = {x: 200, y: 150};
+        palette._applySnappedPos();
+        expect(palette.newElem.style.left).toBe('200px');
+        expect(palette.newElem.style.top).toBe('150px');
+    });
+
+    it('clamps negative positions to the view origin', () => {
+        const palette = setup();
+        palette._dragPos = {x: -250, y: -40};
+        palette._applySnappedPos();
+        expect(palette.newElem.style.left).toBe('0px');
+        expect(palette.newElem.style.top).toBe('0px');
+        // Raw position stays unclamped (cancel gesture reads it in onend).
+        expect(palette._dragPos.x).toBe(-250);
+    });
+
+    it('clamps to the far edges minus the element size (1px bottom reserve)', () => {
+        const palette = setup();
+        palette._dragPos = {x: 5000, y: 5000};
+        palette._applySnappedPos();
+        expect(palette.newElem.style.left).toBe('700px');   // 800 - 100
+        expect(palette.newElem.style.top).toBe('549px');    // 600 - 50 - 1
+    });
+
+    it('the border clamp wins over a snap target outside the view', () => {
+        const palette = setup();
+        feezal.editor._snap = () => ({x: 820, y: 610, range: 100});
+        palette._dragPos = {x: 790, y: 590};
+        palette._applySnappedPos();
+        expect(palette.newElem.style.left).toBe('700px');
+        expect(palette.newElem.style.top).toBe('549px');
+    });
+});
+
 describe('collapsed-category persistence', () => {
     it('toggles a category and persists the collapsed set', () => {
         const el = makePalette();

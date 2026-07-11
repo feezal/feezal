@@ -1,6 +1,7 @@
 /* global window, feezal */
 
 import {PolymerElement, html} from '@polymer/polymer/polymer-element.js';
+import {FeezalConditions} from './feezal-conditions.js';
 
 const styleElement = document.createElement('dom-module');
 
@@ -66,6 +67,12 @@ class FeezalPolymerElement extends PolymerElement {
                 type: Boolean,
                 value: false,
                 observer: '_visibleChanged'
+            },
+            // E50: JSON list of condition rows — shared engine, see
+            // feezal-conditions.js. The attribute is the source of truth.
+            conditions: {
+                type: String,
+                observer: '_conditionsChanged'
             }
         }
     }
@@ -162,6 +169,7 @@ class FeezalPolymerElement extends PolymerElement {
     constructor() {
         super();
         this._subscriptions = [];
+        this._conditions = new FeezalConditions(this);
     }
 
     connectedCallback() {
@@ -185,11 +193,13 @@ class FeezalPolymerElement extends PolymerElement {
         }
         if (this.visible || !this.dynamicSubscriptions) {
             this._subscribe();
+            this._conditions.connect();
         }
     }
     disconnectedCallback() {
         super.disconnectedCallback();
         this._unsubscribe();
+        this._conditions.disconnect();
     }
 
     _visibleChanged(visible) {
@@ -198,8 +208,18 @@ class FeezalPolymerElement extends PolymerElement {
         }
         if (visible) {
             this._subscribe();
+            this._conditions.connect();
         } else {
             this._unsubscribe();
+            this._conditions.disconnect();
+        }
+    }
+
+    // E50: conditions added/edited/removed at runtime → restart the engine
+    // (idempotent for an unchanged attribute value).
+    _conditionsChanged() {
+        if (this.isConnected && (this.visible || !this.dynamicSubscriptions)) {
+            this._conditions.connect();
         }
     }
 

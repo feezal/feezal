@@ -23,7 +23,7 @@ class FeezalElementMaterialSelect extends FeezalElement {
                 {name: 'message-property', type: 'string', default: 'payload',
                     help: 'Dot-notation path to the value within the MQTT message. Default "payload" uses msg.payload; use e.g. "payload.state" to navigate into a JSON payload.'},
                 {name: 'publish',   type: 'mqttTopic', help: 'Topic to publish selected value to.'},
-                {name: 'options',   type: 'string',    help: 'JSON array of options, e.g. [{"value":"1","label":"One"},{"value":"2","label":"Two"}]'},
+                {name: 'options',   type: 'objectList', itemFields: [{key: 'value'}, {key: 'label'}], help: 'Select options — one row per option (value published, label shown). Stored as a JSON array.'},
                 {name: 'disabled',  type: 'boolean',   help: 'Disable the select field.'},
             ],
             styles: [
@@ -72,6 +72,11 @@ class FeezalElementMaterialSelect extends FeezalElement {
         }
         md-outlined-select {
             width: 100%;
+            /* B22: md-outlined-select ships :host{min-width:210px} — below that
+               element width the control overflowed the host and its right border
+               was clipped. Let it shrink with the element instead (same pattern
+               as the slider's min-inline-size: 0, E38). */
+            min-inline-size: 0;
         }
         .editor-ph {
             display: flex;

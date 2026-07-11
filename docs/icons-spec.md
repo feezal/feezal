@@ -14,6 +14,7 @@ This document is the reference for building and publishing `feezal-icons-*` pack
 | Entry point | `package.json` `"main"` points to the module that calls `feezal.registerIcons(…)` on import |
 | Set name | `[a-z][a-z0-9-]*` — becomes the icon-name prefix (`mdi:lightbulb`) and the picker chip label |
 | `feezal` field | `"feezal": {"type": "icons", "set": "<set>", "icons": "icons.js"}` — `set` lets the server know your prefix without executing the package; `icons` names the data module that enables per-site tree-shaking (§4a) |
+| Multi-set packages (N28) | One package MAY register several sets when the artwork ships as separate namespaces (Font Awesome's styles): declare the plural form `"feezal": {"type": "icons", "sets": [{"set": "fa-solid", "icons": "icons-solid.js"}, …]}` — one data module per set, the entry calls `registerIcons()` once per set. The package slug then names the family (`feezal-icons-fa`), not a single set. |
 | License files | Ship the icon artwork's LICENSE/attribution files in the package — the installer copies them next to the bundle (important for attribution licenses like CC BY-SA) |
 
 ## 2. Icon names — the `set:name` convention

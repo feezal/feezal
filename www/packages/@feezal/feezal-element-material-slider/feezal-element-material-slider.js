@@ -2,6 +2,22 @@
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import '@material/web/slider/slider.js';
 
+/** B17: explicit step wins; otherwise derive from the range: (max − min) / 100.
+ *  The default 0–100 range yields 1 (today's behaviour); sub-integer ranges
+ *  (Homematic LEVEL 0–1) get a usable granularity instead of collapsing to
+ *  two positions. Exported for unit tests. */
+function deriveStep(step, min, max) {
+    const explicit = Number(step);
+    if (step !== undefined && step !== null && step !== '' && !isNaN(explicit) && explicit > 0) {
+        return explicit;
+    }
+
+    const range = Number(max) - Number(min);
+    if (!isFinite(range) || range <= 0) return 1;
+    // Round to avoid float noise (0.010000000000000002 → 0.01).
+    return Number((range / 100).toPrecision(12));
+}
+
 class FeezalElementMaterialSlider extends FeezalElement {
     static get feezal() {
         return {
@@ -18,7 +34,7 @@ class FeezalElementMaterialSlider extends FeezalElement {
                 {name: 'publish',  type: 'mqttTopic', help: 'Topic to publish the numeric value to on change.'},
                 {name: 'min',      type: 'number',  help: 'Minimum value.', default: 0},
                 {name: 'max',      type: 'number',  help: 'Maximum value.', default: 100},
-                {name: 'step',     type: 'number',  help: 'Step size.', default: 1},
+                {name: 'step',     type: 'number',  help: 'Step size. Empty: derived from the range — (max − min) / 100 — so sub-integer ranges (e.g. Homematic 0–1) stay usable; 1 for the default 0–100 range. An explicit value wins.'},
                 {name: 'labeled',  type: 'boolean', help: 'Show a value label bubble above the thumb while dragging.', default: false}
             ],
             styles: [
@@ -89,9 +105,15 @@ class FeezalElementMaterialSlider extends FeezalElement {
         this.publish = '';
         this.min     = 0;
         this.max     = 100;
-        this.step    = 1;
+        // B17: step is deliberately NOT defaulted to 1 — when unset it is
+        // derived from the range (see effectiveStep), so sub-integer ranges
+        // (Homematic LEVEL 0–1) don't collapse to two positions.
         this.labeled = false;
         this._value  = 0;
+    }
+
+    get effectiveStep() {
+        return deriveStep(this.step, this.min, this.max);
     }
 
     connectedCallback() {
@@ -114,7 +136,7 @@ class FeezalElementMaterialSlider extends FeezalElement {
     render() {
         return html`
             <md-slider
-                min="${this.min}" max="${this.max}" step="${this.step}"
+                min="${this.min}" max="${this.max}" step="${this.effectiveStep}"
                 value="${this._value}"
                 ?labeled="${this.labeled}"
                 @change="${this._change}">
@@ -123,4 +145,4 @@ class FeezalElementMaterialSlider extends FeezalElement {
 }
 
 customElements.define('feezal-element-material-slider', FeezalElementMaterialSlider);
-export {FeezalElementMaterialSlider};
+export {FeezalElementMaterialSlider, deriveStep};

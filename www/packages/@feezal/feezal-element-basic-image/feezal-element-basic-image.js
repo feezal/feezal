@@ -26,7 +26,9 @@ class FeezalElementBasicImage extends FeezalElement {
                 },
                 'subscribe',
                 {name: 'message-property', type: 'string', default: 'payload',
-                    help: 'Dot-notation path to the value within the MQTT message. Default "payload" uses msg.payload; use e.g. "payload.url" to navigate into a JSON payload.'}
+                    help: 'Dot-notation path to the value within the MQTT message. Default "payload" uses msg.payload; use e.g. "payload.url" to navigate into a JSON payload.'},
+                {name: 'click-through', type: 'boolean', default: false,
+                    help: 'Viewer: let clicks/taps pass through this element to whatever sits beneath it (e.g. a button under a decorative image). In the editor the element stays selectable/draggable.'}
             ],
             styles: ['top', 'left', 'width', 'height', 'border', 'border-radius', 'padding', 'background'],
             defaultStyle: {width: '100px', height: '80px'}
@@ -37,11 +39,18 @@ class FeezalElementBasicImage extends FeezalElement {
         src:       {type: String,  reflect: true},
         alt:       {type: String,  reflect: true},
         fit:       {type: String,  reflect: true},
+        clickThrough: {type: Boolean, reflect: true, attribute: 'click-through'},
         _dynSrc:   {state: true}
     };
 
     static styles = [feezalBaseStyles, css`
         :host { display: flex; box-sizing: border-box; overflow: hidden; }
+        /* E82 pattern (same as basic-template): click-through — pointer events
+           pass to whatever sits beneath. Gated on the ABSENCE of the editor's
+           feezal-editable class so the canvas element stays selectable. */
+        :host([click-through]:not(.feezal-editable)) {
+            pointer-events: none;
+        }
         img {
             width: 100%; height: 100%;
             object-fit: var(--img-fit, contain);
@@ -60,6 +69,7 @@ class FeezalElementBasicImage extends FeezalElement {
         this.src     = '';
         this.alt     = '';
         this.fit     = 'contain';
+        this.clickThrough = false;
         this._dynSrc = null;
     }
 

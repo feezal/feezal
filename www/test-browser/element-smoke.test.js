@@ -13,7 +13,7 @@ import {fakeConnection} from './helpers.js';
 
 // The generated module assigns onto window.feezal — it must exist first,
 // with enough surface for the more demanding elements (navigation, navbar,
-// basic-view touch feezal.site/views).
+// layout-view touch feezal.site/views).
 window.feezal = {
     isEditor: false,
     views: [],
@@ -42,7 +42,7 @@ const TAGS = window.feezal.elements.map(pkg => pkg.replace(/^@[^/]+\//, ''));
 
 // Per-element extra attributes so standalone mounting is meaningful.
 const EXTRA_ATTRS = {
-    'feezal-element-basic-repeater': {'child-element': 'feezal-element-basic-number'},
+    'feezal-element-layout-repeater': {'child-element': 'feezal-element-basic-number'},
     'feezal-element-material-select': {options: '[{"value":"a","label":"A"}]'},
     'feezal-element-basic-iframe': {src: 'about:blank'}
 };

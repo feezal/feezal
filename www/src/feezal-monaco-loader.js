@@ -10,17 +10,20 @@
  * Monaco is bundled by vite-plugin-monaco-editor as a set of separate async
  * chunks — the main editor bundle stays small and Monaco is fetched + cached
  * only on first use. The viewer bundle never imports this module.
+ *
+ * Imports ./monaco-slim.js (html/css/javascript only) instead of the stock
+ * 'monaco-editor' entry, which would bundle tokenizers for ~80 languages.
  */
 
 let _promise = null;
 
 /**
- * Load monaco-editor lazily (once). Returns the monaco namespace.
+ * Load monaco lazily (once). Returns the monaco namespace.
  * @returns {Promise<import('monaco-editor')>}
  */
 export function loadMonaco() {
     if (_promise) return _promise;
-    _promise = import('monaco-editor');
+    _promise = import('./monaco-slim.js');
     return _promise;
 }
 

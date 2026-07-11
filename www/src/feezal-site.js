@@ -115,25 +115,15 @@ class FeezalSite extends LitElement {
         }
 
         if (!feezal.isEditor && this.subscribe) {
-            feezal.connection.sub(this.subscribe + '/view', message => {
-                this.view = message.payload;
-            });
-            feezal.connection.sub(this.subscribe + '/reload', () => {
-                window.location.reload();
-            });
-            feezal.connection.sub(this.subscribe + '/theme', message => {
-                const raw = String(message.payload || '').trim();
-                // Accept either the full class name (feezal-theme-dark-mint) or just the suffix (dark-mint).
-                const cls = raw.startsWith('feezal-theme-') ? raw : 'feezal-theme-' + raw;
-                // Remove all currently active theme classes, then apply the new one.
-                [...document.body.classList]
-                    .filter(c => c.startsWith('feezal-theme-'))
-                    .forEach(c => document.body.classList.remove(c));
-                document.body.classList.add(cls);
-            });
-            feezal.connection.sub(this.subscribe + '/playlist', message => {
-                this._playlistCommand(String(message.payload ?? '').trim().toLowerCase());
-            });
+            // Site-wide control topics — every running viewer instance obeys
+            // them. N24 additionally mirrors the same command set per client
+            // under <subscribe>/clients/<id>/… (see feezal-presence.js); both
+            // paths route through applyControlCommand().
+            for (const cmd of ['view', 'reload', 'theme', 'playlist', 'addclass', 'removeclass']) {
+                feezal.connection.sub(this.subscribe + '/' + cmd, message => {
+                    this.applyControlCommand(cmd, message.payload);
+                });
+            }
         }
 
         if (!feezal.isEditor) {
@@ -225,6 +215,49 @@ class FeezalSite extends LitElement {
         }, (this.playlistResume || 60) * 1000);
     }
 
+    /**
+     * Apply one site control command — shared by the site-wide control topics
+     * (<subscribe>/<cmd>, all instances) and the N24 per-client variants
+     * (<subscribe>/clients/<id>/<cmd>, one instance).
+     */
+    applyControlCommand(cmd, payload) {
+        switch (cmd) {
+            case 'view':
+                this.view = payload;
+                break;
+            case 'reload':
+                window.location.reload();
+                break;
+            case 'theme': {
+                const raw = String(payload || '').trim();
+                // Accept either the full class name (feezal-theme-dark-mint) or just the suffix (dark-mint).
+                const cls = raw.startsWith('feezal-theme-') ? raw : 'feezal-theme-' + raw;
+                // Swap the theme class on the site element too, not just body: the
+                // deployed HTML bakes the active theme class onto <feezal-site>,
+                // and custom properties set directly on it would override the
+                // ones inherited from the new body class.
+                for (const el of [document.body, this]) {
+                    [...el.classList]
+                        .filter(c => c.startsWith('feezal-theme-'))
+                        .forEach(c => el.classList.remove(c));
+                    el.classList.add(cls);
+                }
+
+                break;
+            }
+            case 'playlist':
+                this._playlistCommand(String(payload ?? '').trim().toLowerCase());
+                break;
+            case 'addclass':
+                this.classList.add(payload);
+                break;
+            case 'removeclass':
+                this.classList.remove(payload);
+                break;
+            // unknown commands are ignored
+        }
+    }
+
     /** `<site>/playlist` control commands: on / off / pause / next / prev. */
     _playlistCommand(cmd) {
         switch (cmd) {
@@ -286,15 +319,9 @@ class FeezalSite extends LitElement {
         if (!feezal.isEditor && this.publish) {
             feezal.connection.pub(this.publish + '/view', view);
         }
-
-        if (!feezal.isEditor && this.subscribe) {
-            feezal.connection.sub(this.subscribe + '/addclass', message => {
-                this.classList.add(message.payload);
-            });
-            feezal.connection.sub(this.subscribe + '/removeclass', message => {
-                this.classList.remove(message.payload);
-            });
-        }
+        // (addclass/removeclass moved to connectedCallback with the other
+        // control topics — subscribing here re-subscribed them on EVERY view
+        // change, leaking one subscription pair per switch.)
     }
 
     updateVisibility() {

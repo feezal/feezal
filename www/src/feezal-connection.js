@@ -164,10 +164,20 @@ class FeezalConnection extends LitElement {
         if (options.local) {
             this._spreadMessage({topic, payload});
         } else if (this.conn && this.connected) {
-            this.conn.publish({topic, payload}, options);
+            // N24: retained publishes (viewer presence status) carry the flag
+            // through both backends (mqtt directly, bridge via the hub).
+            this.conn.publish({topic, payload, retain: options.retain === true}, options);
         } else {
             console.warn('[feezal-pub] BLOCKED — conn=%o connected=%o topic=%s', !!this.conn, this.connected, topic);
         }
+    }
+
+    /** N24: viewer-presence handshake — bridge-backend viewers register their
+     * status topic with the server so it can clear it (retained empty publish)
+     * when the socket disconnects; direct-MQTT viewers use a broker LWT
+     * instead. No-op on backends without presence support. */
+    presence(statusTopic) {
+        this.conn?.presence?.(statusTopic);
     }
 
     deploy(data, callback) {

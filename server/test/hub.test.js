@@ -180,6 +180,67 @@ describe('send / subscribe message bus', () => {
         expect(await seenPromise).toEqual([]);
     });
 
+    // B19: a malformed send (undefined topic) used to reach mqtt.js and crash
+    // the whole server process (packet.topic.toString() TypeError).
+    it('ignores malformed send/subscribe payloads instead of crashing (B19)', async () => {
+        const client = await connectClient();
+        client.emit('send', {payload: 'no topic here', retain: false});
+        client.emit('send', {topic: '', payload: 'empty topic'});
+        client.emit('send', {topic: 42, payload: 'numeric topic'});
+        client.emit('send', null);
+        client.emit('subscribe', 'not-an-array');
+        client.emit('subscribe', [null, 42, '']);
+        client.emit('unsubscribe', {nope: true});
+
+        // Server is still alive and processes a valid send afterwards.
+        const input = nextEvent(client, 'input');
+        client.emit('send', {topic: 'alive/ok', payload: 'still here', retain: false});
+        expect(await input).toMatchObject({topic: 'alive/ok', payload: 'still here'});
+    });
+
+    // N24: a bridge-backend viewer registers its retained status topic via
+    // the 'presence' event; the hub clears it on disconnect — the socket
+    // equivalent of a direct-MQTT viewer's broker LWT.
+    it('clears a registered presence topic on disconnect (N24)', async () => {
+        const viewer = await connectClient();
+        viewer.emit('presence', {topic: 'psite/clients/panel-1/status'});
+        viewer.emit('send', {topic: 'psite/clients/panel-1/status', payload: '{"view":"home"}', retain: true});
+
+        // The status is cached and replayed like any retained message.
+        const watcher = await connectClient();
+        const seenStatus = collect(watcher, 'input');
+        watcher.emit('subscribe', ['psite/clients/#']);
+        expect((await seenStatus).map(m => m.topic)).toContain('psite/clients/panel-1/status');
+
+        // Viewer goes away → watcher receives the retained-clear…
+        const seenClear = collect(watcher, 'input', 400);
+        viewer.close();
+        const clear = (await seenClear).find(m => m.topic === 'psite/clients/panel-1/status');
+        expect(clear).toMatchObject({payload: '', retain: true});
+
+        // …and the cache is evicted: a late subscriber gets no stale status.
+        const late = await connectClient();
+        const seenLate = collect(late, 'input');
+        late.emit('subscribe', ['psite/clients/#']);
+        expect(await seenLate).toEqual([]);
+    });
+
+    it('a disconnect without presence registration clears nothing (N24)', async () => {
+        const viewer = await connectClient();
+        viewer.emit('presence', {topic: 42});          // malformed → ignored
+        const echoed = nextEvent(viewer, 'input');     // send is processed once it echoes
+        viewer.emit('send', {topic: 'psite2/clients/x/status', payload: '{"view":"a"}', retain: true});
+        await echoed;
+        viewer.close();
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        const late = await connectClient();
+        const seen = collect(late, 'input');
+        late.emit('subscribe', ['psite2/clients/#']);
+        // Status survives — nothing registered, so nothing was cleared.
+        expect((await seen).map(m => m.topic)).toContain('psite2/clients/x/status');
+    });
+
     it('broadcast() reaches only sockets with a matching subscription', async () => {
         const subscribed = await connectClient();
         const unrelated = await connectClient();
@@ -312,7 +373,44 @@ describe('full chain: broker → bridge → hub → editor socket', () => {
         const replayed = collect(late, 'input', 400);
         late.emit('subscribe', ['always/#']);
         const replay = (await replayed).filter(m => m.topic === 'always/state');
-        expect(replay).toHaveLength(1);
-        expect(replay[0]).toMatchObject({cached: true, payload: 'v2'});
+        // Up to two deliveries: the hub cache replay plus the broker's
+        // refreshRetained() replay — every copy must carry the fresh value.
+        expect(replay.length).toBeGreaterThanOrEqual(1);
+        for (const m of replay) expect(m.payload).toBe('v2');
+    });
+
+    it('a topic first retained AFTER the bridge connected still replays to a late subscriber (N24 editor reload)', async () => {
+        // The user-reported bug: a viewer publishes its retained presence
+        // status while the server is already running. The bridge's standing
+        // '#' subscription only ever sees it live (retain=0, the broker
+        // strips the flag), so the hub's known-retained cache never learns
+        // the topic — a reloaded editor subscribing <site>/clients/+/status
+        // got nothing although the broker held the status retained.
+        // refreshRetained() re-subscribes the filter so the broker replays it.
+        await new Promise(resolve => pubClient.publish(
+            'late/clients/viewer-ab12/status',
+            JSON.stringify({connectedSince: '2026-07-11T00:00:00Z', view: 'Home'}),
+            {retain: true},
+            resolve
+        ));
+
+        const late = await connectClient();
+        await vi.waitFor(async () => {
+            const seen = collect(late, 'input', 250);
+            late.emit('subscribe', ['late/clients/+/status']);
+            const replay = (await seen).find(m => m.topic === 'late/clients/viewer-ab12/status');
+            expect(replay).toBeTruthy();
+            expect(replay.retain).toBe(true);
+            expect(replay.payload).toMatchObject({view: 'Home'});
+        }, {timeout: 5000});
+
+        // The broker replay also populated the hub cache — the next late
+        // subscriber is served even without the broker round trip.
+        const cached = await connectClient();
+        const replayed = collect(cached, 'input', 400);
+        cached.emit('subscribe', ['late/clients/+/status']);
+        const fromCache = (await replayed).filter(m => m.topic === 'late/clients/viewer-ab12/status');
+        expect(fromCache.length).toBeGreaterThanOrEqual(1);
+        expect(fromCache[0].payload).toMatchObject({view: 'Home'});
     });
 });

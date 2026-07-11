@@ -77,20 +77,43 @@ class FeezalElementBasicNavigation extends FeezalElement {
         this._activeView = '';
     }
 
+    // B23: the active view must follow the current view from ANY source
+    // (nav element / navbar / swipe / URL hash / deep link / MQTT), not only
+    // this element's own clicks. Same mechanism as material-navbar (E46): a
+    // MutationObserver on feezal-site's reflected `view` attribute — the old
+    // custom `view-changed` event only ever fired for this element's own
+    // navigation, so the highlight was wrong on first load and never followed
+    // external view switches.
     connectedCallback() {
         super.connectedCallback();
-        this._activeView = feezal.site?.getAttribute('view') || '';
-        this._onViewChange = () => {
-            this._activeView = feezal.site?.getAttribute('view') || '';
-        };
-        feezal.site?.addEventListener('view-changed', this._onViewChange);
+        this._readActive();
+        this._navObserver = new MutationObserver(() => this._readActive());
+        if (feezal.site) {
+            this._navObserver.observe(feezal.site, {attributes: true, attributeFilter: ['view']});
+            this._navObserverAttached = true;
+        }
     }
 
     disconnectedCallback() {
+        this._navObserver?.disconnect();
+        this._navObserverAttached = false;
         super.disconnectedCallback();
-        if (this._onViewChange) {
-            feezal.site?.removeEventListener('view-changed', this._onViewChange);
+    }
+
+    firstUpdated() {
+        // First-load timing: feezal.site may only become available (or gain
+        // its initial `view`) after this element connected — attach the
+        // observer late if needed and re-read the active view.
+        if (feezal.site && this._navObserver && !this._navObserverAttached) {
+            this._navObserver.observe(feezal.site, {attributes: true, attributeFilter: ['view']});
+            this._navObserverAttached = true;
         }
+
+        this._readActive();
+    }
+
+    _readActive() {
+        this._activeView = (feezal.site && (feezal.site.getAttribute('view') || feezal.site.view)) || '';
     }
 
     _viewList() {
@@ -108,8 +131,10 @@ class FeezalElementBasicNavigation extends FeezalElement {
 
     _navigate(viewName) {
         if (feezal.site) {
-            feezal.site.setAttribute('view', viewName);
-            feezal.site.dispatchEvent(new CustomEvent('view-changed', {detail: {view: viewName}}));
+            // B23: set the reflected property (like material-navbar) — drives
+            // updateVisibility + hash sync, and the attribute reflection is
+            // what all navigation elements' observers listen to.
+            feezal.site.view = viewName;
         }
     }
 

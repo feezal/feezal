@@ -1,0 +1,9 @@
+{
+  "name": "@feezal/feezal-theme-metro",
+  "version": "3.0.0",
+  "license": "MIT",
+  "main": "feezal-theme-metro.js",
+  "feezal": {
+    "type": "theme"
+  }
+}

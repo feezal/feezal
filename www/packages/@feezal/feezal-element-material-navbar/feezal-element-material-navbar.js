@@ -21,7 +21,7 @@ import '@shoelace-style/shoelace/dist/components/option/option.js';
 class FeezalElementMaterialNavbar extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Navbar', category: 'Material', color: '#4a7080', icon: 'bottom_navigation'},
+            palette: {name: 'Navbar', category: 'Material', color: '#4a6080', icon: 'bottom_navigation'},
             description: 'A navigation bar/rail that switches between views. Items are view names or ' +
                 '{label, view, icon, subscribe-badge} objects; empty auto-fills from all views. Active item ' +
                 'follows the current view from any source.',
@@ -32,6 +32,7 @@ class FeezalElementMaterialNavbar extends FeezalElement {
                 {name: 'show-labels', type: 'select', options: ['always', 'active', 'never'], default: 'always', help: 'When to show item labels.'},
                 {name: 'show-icons', type: 'boolean', default: true, help: 'Render item icons when provided.'},
                 {name: 'align', type: 'select', options: ['start', 'center', 'space-between'], default: 'space-between', help: 'How items distribute along the main axis.'},
+                {name: 'item-width', type: 'string', default: '', help: 'E81: item size along the bar — empty = auto (content-sized, today\'s behaviour), a CSS length (e.g. "72px") = fixed size, "equal" = all items share the bar evenly. Applies to the height in vertical orientation.'},
                 'subscribe',
                 'publish',
             ],
@@ -47,6 +48,7 @@ class FeezalElementMaterialNavbar extends FeezalElement {
         showLabels:  {type: String,  reflect: true, attribute: 'show-labels'},
         showIcons:   {type: Boolean, reflect: true, attribute: 'show-icons'},
         align:       {type: String,  reflect: true},
+        itemWidth:   {type: String,  reflect: true, attribute: 'item-width'},
         _active:     {state: true},
         _external:   {state: true},
         _badges:     {state: true},
@@ -93,6 +95,7 @@ class FeezalElementMaterialNavbar extends FeezalElement {
         this.showLabels = 'always';
         this.showIcons = true;
         this.align = 'space-between';
+        this.itemWidth = '';
         this._active = '';
         this._external = null;
         this._badges = {};
@@ -173,11 +176,22 @@ class FeezalElementMaterialNavbar extends FeezalElement {
             ${items.map(it => this._renderItem(it, it.view === active))}`;
     }
 
+    /** E81: item size along the bar — '' = auto (flex: 0 1 auto, the CSS
+     * default), 'equal' = items share the bar evenly, any CSS length = fixed
+     * flex-basis (main axis: width horizontally, height vertically). */
+    _itemStyle() {
+        const w = (this.itemWidth || '').trim();
+        if (!w) return '';
+        if (w === 'equal') return 'flex:1 1 0;';
+        return `flex:0 0 ${w};`;
+    }
+
     _renderItem(it, isActive) {
         const showLabel = this.showLabels === 'always' || (this.showLabels === 'active' && isActive);
         const badgeVal = it.badge != null ? this._badges[it.badge] : undefined;
         return html`
-            <button class="item ${isActive ? 'active' : ''}" @click="${() => this._navigate(it.view)}" title="${it.label}">
+            <button class="item ${isActive ? 'active' : ''}" style="${this._itemStyle()}"
+                @click="${() => this._navigate(it.view)}" title="${it.label}">
                 ${this.showIcons && it.icon ? html`<feezal-icon class="mi" name="${it.icon}"></feezal-icon>` : ''}
                 ${showLabel ? html`<span class="label">${it.label}</span>` : ''}
                 ${this._renderBadge(badgeVal)}
@@ -307,12 +321,20 @@ class FeezalElementMaterialNavbarInspector extends LitElement {
                             </sl-select>
                         </div>
                     </div>
-                    <div class="field">
-                        <label>Labels</label>
-                        <sl-select size="small" value="${this._attr('show-labels', 'always')}"
-                            @sl-change="${e => this._emit('show-labels', e.target.value)}">
-                            ${LABELS.map(l => html`<sl-option value="${l}">${l}</sl-option>`)}
-                        </sl-select>
+                    <div class="row">
+                        <div class="field">
+                            <label>Labels</label>
+                            <sl-select size="small" value="${this._attr('show-labels', 'always')}"
+                                @sl-change="${e => this._emit('show-labels', e.target.value)}">
+                                ${LABELS.map(l => html`<sl-option value="${l}">${l}</sl-option>`)}
+                            </sl-select>
+                        </div>
+                        <div class="field">
+                            <label>Item width</label>
+                            <sl-input size="small" autocomplete="off" placeholder="auto · 72px · equal"
+                                value="${this._attr('item-width', '')}"
+                                @sl-change="${e => this._emit('item-width', e.target.value)}"></sl-input>
+                        </div>
                     </div>
                 </div>
             </div>

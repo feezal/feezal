@@ -212,6 +212,31 @@ function _doConnect(uri, options) {
     });
 }
 
+/**
+ * Re-subscribe filters so the broker replays their retained messages —
+ * called by the hub on every socket subscribe. Needed because the broker
+ * strips the RETAIN flag on live deliveries [MQTT-3.3.1-9]: a message
+ * retained AFTER the bridge's '#' subscribe is only ever seen live
+ * (retain=0), so the hub's known-retained replay cache misses it and a
+ * reloading editor gets nothing. A fresh (overlapping) subscription makes
+ * the broker resend matching retained messages with retain=1 through the
+ * normal relay path, which both populates the cache and reaches the
+ * just-subscribed socket. The extra filter is dropped right after the
+ * SUBACK — the broker queues the retained replay while processing the
+ * SUBSCRIBE, so the later UNSUBSCRIBE cannot race it. '#' is skipped:
+ * that IS the standing relay subscription (its retained state was
+ * replayed at connect) and unsubscribing it would kill the relay.
+ */
+function refreshRetained(filters) {
+    if (!client) return;
+    const list = (Array.isArray(filters) ? filters : [filters])
+        .filter(f => typeof f === 'string' && f.length > 0 && f !== '#');
+    if (list.length === 0) return;
+    client.subscribe(list, {qos: 0}, err => {
+        if (!err && client) client.unsubscribe(list);
+    });
+}
+
 function disconnect() {
     if (client) {
         try { client.end(true); } catch {}
@@ -224,6 +249,14 @@ function disconnect() {
 
 /** Publish a message to the broker (used by the feezal-backend viewer). */
 function publish(message) {
+    // B19: an undefined/empty topic reaches mqtt.js synchronously
+    // (packet.topic.toString() in _sendPacket) and the throw takes the whole
+    // server process down — never forward a message without a valid topic.
+    if (!message || typeof message.topic !== 'string' || message.topic.length === 0) {
+        _logger?.warn('mqtt-bridge: publish skipped — invalid topic (' + JSON.stringify(message?.topic) + ')');
+        return;
+    }
+
     if (!client) {
         _logger?.warn('mqtt-bridge: publish skipped — no broker connection');
         return;
@@ -233,8 +266,10 @@ function publish(message) {
         : typeof message.payload === 'string'
             ? message.payload
             : JSON.stringify(message.payload);
-    client.publish(message.topic, payload);
-    _logger?.debug('mqtt-bridge: publish ' + message.topic);
+    // N24: forward the retain flag (viewer presence status is retained; an
+    // empty retained publish clears it).
+    client.publish(message.topic, payload, {retain: message.retain === true});
+    _logger?.debug('mqtt-bridge: publish ' + message.topic + (message.retain === true ? ' (retained)' : ''));
 }
 
-module.exports = { connect, disconnect, publish, insertTopic, getTopicCompletions, getAllTopics, getLastPayload, recordPayload, setRelayCallback, buildConnectOptions, getDiscoveredEntities: discovery.getDiscoveredEntities, getDiscoveredEntity: discovery.getDiscoveredEntity, getDeviceGroups: discovery.getDeviceGroups };
+module.exports = { connect, disconnect, publish, insertTopic, getTopicCompletions, getAllTopics, getLastPayload, recordPayload, setRelayCallback, buildConnectOptions, refreshRetained, getDiscoveredEntities: discovery.getDiscoveredEntities, getDiscoveredEntity: discovery.getDiscoveredEntity, getDeviceGroups: discovery.getDeviceGroups };

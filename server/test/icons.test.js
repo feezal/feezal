@@ -40,6 +40,23 @@ beforeAll(async () => {
         feezal: {type: 'icons', set: 'userset'}
     }));
     await writeFile(join(user, 'index.js'), '// bundled set');
+
+    // N28: multi-set package (Font Awesome pattern) — plural feezal.sets,
+    // one data module per set.
+    const multi = join(wwwDir, 'packages', '@feezal', 'feezal-icons-multi');
+    await mkdir(multi, {recursive: true});
+    await writeFile(join(multi, 'package.json'), JSON.stringify({
+        name: '@feezal/feezal-icons-multi', main: 'index.js',
+        feezal: {type: 'icons', sets: [
+            {set: 'multi-solid', icons: 'icons-solid.js'},
+            {set: 'multi-brands', icons: 'icons-brands.js'}
+        ]}
+    }));
+    await writeFile(join(multi, 'icons-solid.js'),
+        'export default ' + JSON.stringify({house: '<svg viewBox="0 0 10 10"><path d="M2 2"/></svg>'}) + ';\n');
+    await writeFile(join(multi, 'icons-brands.js'),
+        'export default ' + JSON.stringify({github: '<svg viewBox="0 0 10 10"><path d="M3 3"/></svg>'}) + ';\n');
+    await writeFile(join(multi, 'index.js'), '// full module');
 });
 
 afterAll(async () => {
@@ -56,6 +73,30 @@ describe('discoverIconPackages()', () => {
         expect(bundled.iconsFile).toBeTruthy();
         expect(user).toMatchObject({kind: 'user', main: 'index.js'});
         expect(user.iconsFile).toBeNull();
+    });
+
+    it('N28: a plural feezal.sets package yields one entry per set', () => {
+        const found = icons.discoverIconPackages(wwwDir, userDir);
+        const solid = found.find(p => p.set === 'multi-solid');
+        const brands = found.find(p => p.set === 'multi-brands');
+        expect(solid).toMatchObject({kind: 'bundled', name: '@feezal/feezal-icons-multi'});
+        expect(brands).toMatchObject({kind: 'bundled', name: '@feezal/feezal-icons-multi'});
+        expect(solid.iconsFile).toContain('icons-solid.js');
+        expect(brands.iconsFile).toContain('icons-brands.js');
+    });
+});
+
+describe('siteIconArtifacts() — multi-set package (N28)', () => {
+    it('shakes each set from its own data module', () => {
+        const {inlineJs} = icons.siteIconArtifacts({
+            wwwDir, userElementsDir: userDir,
+            siteHtml: '<x icon="multi-solid:house"></x><y icon="multi-brands:github"></y>'
+        });
+        expect(inlineJs).toContain('registerIcons("multi-solid"');
+        expect(inlineJs).toContain('"house"');
+        expect(inlineJs).toContain('registerIcons("multi-brands"');
+        expect(inlineJs).toContain('"github"');
+        expect(inlineJs).not.toContain('M2 2"/></svg>",');   // no cross-set bleed sanity
     });
 });
 

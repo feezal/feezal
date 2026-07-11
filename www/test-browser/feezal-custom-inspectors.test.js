@@ -139,6 +139,33 @@ describe('layout-app inspector', () => {
         expect(items(shell)).toEqual([]);
         expect(feezal.site.querySelector('feezal-view[name="page1"]')).not.toBeNull();
     });
+
+    it('entry-style select switches pill ↔ list; list renders flat edge-to-edge rows', async () => {
+        feezal.site = makeSite('main');
+        const shell = document.createElement('feezal-element-layout-app');
+        shell.setAttribute('items', JSON.stringify([{view: 'main', label: 'Main'}]));
+        document.body.append(shell);
+        await shell.updateComplete;
+
+        // default: MD3 pill with inset drawer padding
+        const entry = shell.shadowRoot.querySelector('.entry');
+        const drawer = shell.shadowRoot.querySelector('.drawer');
+        expect(getComputedStyle(entry).borderTopLeftRadius).toBe('24px');
+        expect(getComputedStyle(drawer).paddingLeft).toBe('8px');
+
+        const inspector = await mountInspector('feezal-element-layout-app-inspector', shell);
+        const drawerSection = [...inspector.shadowRoot.querySelectorAll('.section')].at(-1);
+        const styleSelect = drawerSection.querySelector('sl-select');
+        styleSelect.value = 'list';
+        styleSelect.dispatchEvent(new Event('sl-change'));
+
+        expect(shell.getAttribute('entry-style')).toBe('list');
+        await shell.updateComplete;
+        // flat rows: no radius, hover/active rectangle spans the full drawer width
+        expect(getComputedStyle(entry).borderTopLeftRadius).toBe('0px');
+        expect(getComputedStyle(drawer).paddingLeft).toBe('0px');
+        expect(entry.getBoundingClientRect().width).toBeCloseTo(drawer.clientWidth, 0);
+    });
 });
 
 describe('inspector-attributes host wiring', () => {

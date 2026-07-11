@@ -129,6 +129,7 @@ attributes: [
 | `'color'` | Text input + native colour picker |
 | `'select'` | Dropdown — requires `options` array |
 | `'mqttTopic'` | Text input with live MQTT topic autocomplete |
+| `'objectList'` | Generic list editor for JSON-array attributes (U35) — see §3.2.1 |
 
 Auto-detection rules (when `type` is omitted):
 - Attribute name contains `color` → colour picker
@@ -136,9 +137,20 @@ Auto-detection rules (when `type` is omitted):
 - Lit `static properties` declares the property as `Boolean` → checkbox
 - Otherwise → text input
 
-#### 3.2.1 `list` attributes
+#### 3.2.1 `objectList` attributes (U35)
 
-Set `list: true` and `columns: ['col1', 'col2']` to render a sortable list of key/value rows. The value is stored as a JSON array string on the element attribute.
+For attributes holding a **JSON array**, declare `type: 'objectList'` to get a comfortable list editor in the inspector — one row per item, ＋ add, per-row ✕ delete, drag-handle reordering — instead of a raw JSON string input:
+
+```js
+{name: 'options', type: 'objectList',
+ itemFields: [{key: 'value'}, {key: 'label'}],
+ help: 'One row per option.'}
+```
+
+- **`itemFields`** names the per-item fields and their input types: `{key, type?, options?, placeholder?}` with `type` one of `'string'` (default), `'number'` (emits numbers), `'color'` (text + swatch picker), `'select'` (requires `options`). Omitted → the canonical `[{key:'label'},{key:'value'}]` pair.
+- **Bare-string arrays** (`["low","high"]`): declare a single field with an empty key — `itemFields: [{key: '', placeholder: 'preset'}]`.
+- **The attribute stays the single source of truth:** the control parses/serializes the same JSON string attribute — source mode, MQTT `setattribute`, and saved views are untouched. An unparseable existing value falls back to a raw text input (never destroyed).
+- The legacy `list: true` + `columns: ['a','b']` form still works (columns map to string-typed `itemFields`).
 
 ### 3.3 `styles`
 
@@ -375,6 +387,17 @@ connectedCallback() {
 - Place each `message-property-<suffix>` descriptor immediately after its `subscribe-<suffix>` in the attributes array for clarity.
 - Add `message-property` to every element that subscribes, even simple single-topic ones.
 
+### 4.5 Per-element conditions (E50) — free for every element
+
+Every element (Lit **and** Polymer base) automatically supports a `conditions` attribute — a JSON list of rows that declaratively bind the element's **visibility, CSS classes, inline styles or attributes** to MQTT topics. There is **nothing an element author needs to do**: the shared engine (`feezal-conditions.js` in `@feezal/feezal-element`) subscribes, evaluates and applies effects on the host element. Authors should merely be aware that:
+
+- any attribute they declare can be driven by a condition row (`action: "attribute"` uses plain `setAttribute`/`removeAttribute`, so Lit reflection applies it like an inspector edit);
+- an attribute the element itself also rewrites at runtime is **last-writer-wins** — don't fight the engine, document the behaviour;
+- effects are **viewer-only**; in the editor a badge (👁) marks conditioned elements and the Conditions inspector tab edits the rows;
+- condition subscriptions follow the same `visible` / `dynamic-subscriptions` gating as regular ones.
+
+Row schema and semantics (operators `=`, `!=`, `>`, `<`, `>=`, `<=`, `matches`; actions `show`/`hide` (AND-combined, optional `keep-layout`), `class`, `style`, `attribute`; unmatched rows revert to the element's pristine value; later matching rows win on conflicts) are documented in the header of `feezal-conditions.js`.
+
 ---
 
 ## 5. CSS custom property conventions
@@ -549,9 +572,9 @@ Since **N14 (live elements in editor)**, feezal elements subscribe and render li
 - Do **not** render a static placeholder instead of your element's real template.
 - Do **not** use `feezal.isEditor` to substitute fake data for the entire render — only use it for unconfigured-state hints.
 
-### Exception: `feezal-element-basic-view`
+### Exception: `feezal-element-layout-view`
 
-`feezal-element-basic-view` keeps its `isEditor` check to avoid recursive canvas rendering — embedding a live sub-view inside the editor would create an editing loop.
+`feezal-element-layout-view` keeps its `isEditor` check to avoid recursive canvas rendering — embedding a live sub-view inside the editor would create an editing loop.
 
 ---
 

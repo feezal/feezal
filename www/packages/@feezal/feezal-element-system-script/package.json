@@ -1,0 +1,6 @@
+{
+    "name": "@feezal/feezal-element-system-script",
+    "version": "3.0.0",
+    "main": "feezal-element-system-script.js",
+    "license": "MIT"
+}

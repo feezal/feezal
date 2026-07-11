@@ -10,6 +10,7 @@ import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
 
 import './feezal-sidebar-inspector-styles.js';
 import './feezal-sidebar-inspector-attributes.js';
+import './feezal-sidebar-inspector-conditions.js';
 
 // U32: everything the canvas machinery treats as a first-class element —
 // regular feezal elements plus component instances. Stamped children inside a
@@ -261,10 +262,19 @@ class FeezalSidebarInspector extends LitElement {
         const stacking = cm.visible && cm.onElem && feezal.view
             ? stackingState(feezal.view, selNonView)
             : {canFront: false, canBack: false, canForward: false, canBackward: false};
+        // E50: the Conditions tab is offered for a single selected element
+        // (not the view, not component instances — those are a later
+        // iteration; see the E50 archive entry).
+        const canConditions = !this.viewSelected && this.selectedElems.length === 1 &&
+            Boolean(this.selectedElems[0]?.localName?.startsWith?.('feezal-element-'));
+        const condCount = canConditions ? this._conditionCount(this.selectedElems[0]) : 0;
         return html`
-            <sl-tab-group>
+            <sl-tab-group @sl-tab-show="${e => { this._activeTab = e.detail.name; }}">
                 <sl-tab slot="nav" panel="attributes">Attributes</sl-tab>
                 <sl-tab slot="nav" panel="styles">Styles</sl-tab>
+                ${canConditions ? html`
+                    <sl-tab slot="nav" panel="conditions">Conditions${condCount ? ` · ${condCount}` : ''}</sl-tab>
+                ` : ''}
                 ${selLabel ? html`<div slot="nav" class="sel-badge" title="${selLabel}">${selLabel}</div>` : ''}
                 <sl-tab-panel name="attributes">
                     <feezal-sidebar-inspector-attributes
@@ -276,6 +286,14 @@ class FeezalSidebarInspector extends LitElement {
                         .selectedElems="${this.selectedElems}">
                     </feezal-sidebar-inspector-styles>
                 </sl-tab-panel>
+                ${canConditions ? html`
+                    <sl-tab-panel name="conditions">
+                        <feezal-sidebar-inspector-conditions
+                            .selectedElems="${this.selectedElems}"
+                            @conditions-changed="${() => this.requestUpdate()}">
+                        </feezal-sidebar-inspector-conditions>
+                    </sl-tab-panel>
+                ` : ''}
             </sl-tab-group>
             ${cm.visible ? html`
                 <div class="ctx-menu"
@@ -416,6 +434,10 @@ class FeezalSidebarInspector extends LitElement {
             // SVG lock icon (Material Design) encoded for data URL
             const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z'/></svg>`;
             const url = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+            // E50: eye decorator for elements carrying conditions (effects are
+            // never applied in the editor — the badge is the affordance).
+            const eyeSvg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z'/></svg>`;
+            const eyeUrl = `url("data:image/svg+xml,${encodeURIComponent(eyeSvg)}")`;
             style.textContent = `
                 .feezal-editable[locked]::after {
                     content: '';
@@ -426,6 +448,18 @@ class FeezalSidebarInspector extends LitElement {
                     background-color: rgba(var(--feezal-selection-rgb, 2,132,199), 0.9);
                     -webkit-mask: ${url} center / contain no-repeat;
                     mask: ${url} center / contain no-repeat;
+                    pointer-events: none;
+                    z-index: 1000;
+                }
+                .feezal-editable[conditions]:not([conditions=""])::before {
+                    content: '';
+                    display: block;
+                    position: absolute;
+                    top: -1px; left: -1px;
+                    width: 14px; height: 14px;
+                    background-color: rgba(var(--feezal-selection-rgb, 2,132,199), 0.9);
+                    -webkit-mask: ${eyeUrl} center / contain no-repeat;
+                    mask: ${eyeUrl} center / contain no-repeat;
                     pointer-events: none;
                     z-index: 1000;
                 }
@@ -476,7 +510,8 @@ class FeezalSidebarInspector extends LitElement {
                                 playlistEnabled: feezal.site.hasAttribute('playlist-enabled'),
                                 playlistDwell: attr('playlist-dwell'),
                                 playlistResume: attr('playlist-resume'),
-                                playlistTransition: attr('playlist-transition')
+                                playlistTransition: attr('playlist-transition'),
+                                presence: attr('presence')                       // N24: '' = on (default), 'off' = disabled
                             };
                         }
                     }
@@ -520,6 +555,39 @@ class FeezalSidebarInspector extends LitElement {
         document.removeEventListener('keydown', this._snapKeyDown);
         document.removeEventListener('keyup', this._snapKeyUp);
         this._gridRO?.disconnect();
+    }
+
+    /**
+     * Capture a DOM-identity-independent snapshot of the current element
+     * selection: {tag, idx} per selected element, indexed among the active
+     * view's canvas children. Used by undo (feezal-app-editor._undo):
+     * restoreViews() replaces the site's innerHTML wholesale, so the node
+     * references in selectedElems die with the swap.
+     */
+    captureSelection() {
+        if (this.viewSelected || !feezal.view) return [];
+        const children = [...feezal.view.children].filter(isCanvasElement);
+        return this.selectedElems
+            .map(el => ({tag: el.localName, idx: children.indexOf(el)}))
+            .filter(s => s.idx >= 0);
+    }
+
+    /**
+     * Re-select the captured elements after a restore. A capture entry only
+     * matches when the same tag sits at the same index — structural undos
+     * (delete/paste/restack) may shift indices, and silently selecting a
+     * different element type would be worse than falling back. When nothing
+     * matches, the view selection restoreViews() ended with simply stands.
+     */
+    restoreSelection(captured) {
+        if (!captured || captured.length === 0 || !feezal.view) return;
+        const children = [...feezal.view.children].filter(isCanvasElement);
+        const matched = captured
+            .map(s => children[s.idx])
+            .filter((el, i) => el && el.localName === captured[i].tag);
+        if (matched.length > 0) {
+            this.selectElement(matched);
+        }
     }
 
     restoreViews(html) {
@@ -585,6 +653,28 @@ class FeezalSidebarInspector extends LitElement {
 
         if (changed.has('view')) {
             this._viewChanged();
+        }
+
+        // E50: if the selection changed away from a single element while the
+        // Conditions tab was active, the tab is gone — fall back to Attributes
+        // so sl-tab-group isn't left pointing at a missing panel.
+        if (changed.has('selectedElems') && this._activeTab === 'conditions') {
+            const single = !this.viewSelected && this.selectedElems.length === 1 &&
+                Boolean(this.selectedElems[0]?.localName?.startsWith?.('feezal-element-'));
+            if (!single) {
+                this._activeTab = 'attributes';
+                this.shadowRoot.querySelector('sl-tab-group')?.show?.('attributes');
+            }
+        }
+    }
+
+    /** E50: number of condition rows on an element (for the tab label). */
+    _conditionCount(el) {
+        try {
+            const rows = JSON.parse(el?.getAttribute?.('conditions') || '[]');
+            return Array.isArray(rows) ? rows.length : 0;
+        } catch {
+            return 0;
         }
     }
 
@@ -985,13 +1075,29 @@ class FeezalSidebarInspector extends LitElement {
     }
 
     _deleteElems() {
-        this.selectedElems.forEach(el => el.remove());
-        this.selectedElems = [];
+        // B18: drop the deleted elements from DragSelect's bookkeeping too —
+        // stale references to removed nodes otherwise linger in its selection
+        // and selectables sets.
+        const ds = this.dragselect && this.dragselect[this.view];
+        this.selectedElems.forEach(el => {
+            if (ds) {
+                ds.removeSelection(el);
+                ds.removeSelectables(el);
+            }
+
+            el.remove();
+        });
+        // B18: don't leave an empty selection behind — select the active view
+        // (exactly like a click on empty canvas), so the inspector shows the
+        // view and the canvas/tab-bar state re-renders instead of going blank.
+        this.selectElement(null);
         feezal.app.change();
     }
 
     _selectedElemsChanged() {
-        const tabs = feezal.app.shadowRoot.querySelector('#tabs');
+        // B18: the tab bar is #view-tabs (U8 folder-aware bar) — the old #tabs
+        // selector matched nothing, so the view-selected tint never showed.
+        const tabs = feezal.app.shadowRoot.querySelector('#view-tabs');
         if (tabs) {
             if (this.selectedElems.length === 1 && this.selectedElems[0].tagName === 'FEEZAL-VIEW') {
                 tabs.style.setProperty('--tab-active-color', 'orange');

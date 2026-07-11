@@ -20,24 +20,26 @@ import './feezal-site.js';
 import './feezal-view.js';
 import './feezal-component.js';
 import './feezal-icon.js';
+import './feezal-icon-input.js';
 import './feezal-sidebar-inspector.js';
 import {stripCanvasZIndex} from './feezal-sidebar-inspector.js';
 import './feezal-sidebar-assets.js';
 import './feezal-sidebar-themes.js';
 import './feezal-sidebar-viewer.js';
+import './feezal-sidebar-clients.js';
 import './feezal-sidebar-editor.js';
 import './feezal-site-manager.js';
 import './feezal-sidebar-history.js';
 import './feezal-sidebar-packages.js';
 import './feezal-ai-chat.js';
 import './feezal-capacitor-dialog.js';
+import './feezal-export-dialog.js';
 
 class FeezalAppEditor extends LitElement {
     static properties = {
         views:           {type: Array},
         changes:         {type: Boolean},
         deploying:       {type: Boolean},
-        exporting:       {type: Boolean},
         viewSelected:    {type: Boolean},
         sidebar:         {type: String},
         _navView:        {state: true},
@@ -139,7 +141,10 @@ class FeezalAppEditor extends LitElement {
         #view-tabs {
             flex: 1; min-width: 0; display: flex; align-items: stretch;
             overflow-x: auto; overflow-y: hidden; background: #f5f5f5;
-            border-bottom: 2px solid var(--sl-color-neutral-200, #d4d4d8);
+            /* B21: the separator is drawn as an inset shadow (behind the tabs)
+               instead of a border below them, so the active tab's own
+               border-bottom coincides with the separator line. */
+            box-shadow: inset 0 -2px 0 var(--sl-color-neutral-200, #d4d4d8);
             scrollbar-width: none;
         }
         #view-tabs::-webkit-scrollbar { height: 0; }
@@ -192,23 +197,31 @@ class FeezalAppEditor extends LitElement {
             background: #252525; color: rgba(255,255,255,0.88); border-color: #444;
         }
         :host(.dark) .component-param-table input::placeholder { color: rgba(255,255,255,0.35); }
-        #view-tabs.drop-end { box-shadow: inset -3px 0 0 var(--sl-color-primary-600, #0284c7); }
+        #view-tabs.drop-end { box-shadow: inset -3px 0 0 var(--sl-color-primary-600, #0284c7), inset 0 -2px 0 var(--sl-color-neutral-200, #d4d4d8); }
         .ftab {
             flex: 0 0 auto; box-sizing: border-box;
             display: flex; align-items: center; gap: 4px;
-            height: 39px; padding: 0 12px;
+            height: 41px; padding: 0 12px;
             padding-left: calc(12px + var(--depth, 0) * 16px);
             font-size: 14px; color: #444; cursor: pointer; white-space: nowrap;
             border-right: 1px solid rgba(0,0,0,0.06);
+            /* B21: the tab's 2px bottom border occupies the same rows as the
+               bar separator (drawn behind the tabs as an inset shadow on
+               #view-tabs) — so the active underline sits ON the separator,
+               not above it. background-clip keeps hover/folder backgrounds
+               out of the border area so the separator stays visible there. */
             border-bottom: 2px solid transparent;
+            background-clip: padding-box;
             position: relative; user-select: none;
         }
         .ftab:hover { background: #e9e9e9; }
-        .ftab.view.active { color: var(--sl-color-primary-600, #0284c7); box-shadow: inset 0 -2px 0 currentColor; }
+        /* --tab-active-color: set by the inspector while the view itself is
+           selected (orange), so view-selection is visible in the tab bar. */
+        .ftab.view.active { color: var(--tab-active-color, var(--sl-color-primary-600, #0284c7)); border-bottom-color: currentColor; }
         .ftab.folder { background: rgba(0,0,0,0.035); color: #555; }
         .ftab.folder:hover { background: rgba(0,0,0,0.07); }
         .ftab.folder.open { background: rgba(2,132,199,0.12); }
-        .ftab.folder.contains-active { color: var(--sl-color-primary-600, #0284c7); box-shadow: inset 0 -2px 0 currentColor; }
+        .ftab.folder.contains-active { color: var(--sl-color-primary-600, #0284c7); border-bottom-color: currentColor; }
         .ftab .ftab-icon { font-size: 18px; opacity: 0.7; }
         .ftab .ftab-caret { font-size: 18px; opacity: 0.6; margin-left: -2px; }
         .ftab .ftab-sep { opacity: 0.5; margin: 0 1px; }
@@ -536,7 +549,8 @@ class FeezalAppEditor extends LitElement {
         :host(.dark) .nav-btn.active { color: white; background: rgba(255,255,255,0.22); }
         :host(.dark) #sidebar-resize { background: #3d3d3d; }
         :host(.dark) #sidebar-resize:hover { background: rgba(2,132,199,0.5); }
-        :host(.dark) #view-tabs { background: #2e2e2e; border-bottom-color: #3d3d3d; }
+        :host(.dark) #view-tabs { background: #2e2e2e; box-shadow: inset 0 -2px 0 #3d3d3d; }
+        :host(.dark) #view-tabs.drop-end { box-shadow: inset -3px 0 0 var(--sl-color-primary-400, #38bdf8), inset 0 -2px 0 #3d3d3d; }
         :host(.dark) .ftab { color: rgba(255,255,255,0.7); border-right-color: rgba(255,255,255,0.06); }
         :host(.dark) .ftab:hover { background: rgba(255,255,255,0.08); }
         :host(.dark) .ftab.view.active { color: var(--sl-color-primary-400, #38bdf8); }
@@ -565,11 +579,13 @@ class FeezalAppEditor extends LitElement {
         :host(.dark) feezal-sidebar-inspector,
         :host(.dark) feezal-sidebar-themes,
         :host(.dark) feezal-sidebar-viewer,
+        :host(.dark) feezal-sidebar-clients,
         :host(.dark) feezal-sidebar-editor,
         :host(.dark) feezal-sidebar-assets,
         :host(.dark) feezal-sidebar-history,
         :host(.dark) feezal-sidebar-packages,
         :host(.dark) feezal-capacitor-dialog,
+        :host(.dark) feezal-export-dialog,
         :host(.dark) feezal-ai-chat {
             --feezal-bg:     #2e2e2e;
             --feezal-bg-sub: #262626;
@@ -601,7 +617,8 @@ class FeezalAppEditor extends LitElement {
             --feezal-sel-badge-border: #0ea5e9;
         }
         /* Same panel color as the #viewdialog/#deletedialog family above */
-        :host(.dark) feezal-capacitor-dialog {
+        :host(.dark) feezal-capacitor-dialog,
+        :host(.dark) feezal-export-dialog {
             --sl-panel-background-color: #2e2e2e;
             --sl-panel-border-color: #3d3d3d;
             --feezal-btn-hover-border: #666;
@@ -683,7 +700,6 @@ class FeezalAppEditor extends LitElement {
         this.views            = [];
         this.changes          = false;
         this.deploying        = false;
-        this.exporting        = false;
         this.viewSelected     = true;
         this._navView         = '';
         this._history         = [];
@@ -778,6 +794,15 @@ class FeezalAppEditor extends LitElement {
             feezal-site::-webkit-scrollbar-thumb       { background: ${thumb}; border-radius: 4px; }
             feezal-site::-webkit-scrollbar-thumb:hover { background: ${thumbHover}; }
             feezal-site::-webkit-scrollbar-corner      { background: var(--feezal-canvas-bg, #888); }
+
+            /* B18: the editor gives feezal-site tabindex=1 and focuses it
+               programmatically (keyboard shortcuts / element selection). The
+               browser's default focus ring then draws along the canvas edges —
+               visible as a white line between the tab bar and the canvas,
+               most obviously after deleting an element (site keeps focus while
+               nothing is selected). The focus is a programmatic shortcut
+               target, not tab-navigation — suppress the ring. */
+            feezal-site:focus, feezal-site:focus-visible { outline: none; }
         `;
     }
 
@@ -856,16 +881,16 @@ class FeezalAppEditor extends LitElement {
                     <div id="btn-deploy-wrap">
                         <button id="btn-deploy-main"
                             class="${this.changes ? 'has-changes' : ''}"
-                            ?disabled="${this.deploying || this.exporting || (this._sourceMode && !!this._sourceError)}"
+                            ?disabled="${this.deploying || (this._sourceMode && !!this._sourceError)}"
                             @click="${this._deploy}">
-                            ${(this.deploying || this.exporting)
+                            ${this.deploying
                                 ? html`<div class="spinner"></div>`
                                 : html`<span class="material-icons">upload_file</span>`}
                             Deploy
                         </button>
                         <button id="btn-deploy-caret"
                             class="${this.changes ? 'has-changes' : ''}"
-                            ?disabled="${this.deploying || this.exporting || (this._sourceMode && !!this._sourceError)}"
+                            ?disabled="${this.deploying || (this._sourceMode && !!this._sourceError)}"
                             @click="${this._toggleActionMenu}">
                             <span class="material-icons">arrow_drop_down</span>
                         </button>
@@ -888,6 +913,7 @@ class FeezalAppEditor extends LitElement {
                         </div>
                     ` : ''}
                     <feezal-capacitor-dialog></feezal-capacitor-dialog>
+                    <feezal-export-dialog></feezal-export-dialog>
 
                     ${this._aiConfigured && this._sourceMode && !this._aiPanelOpen ? html`
                         <button class="icon-btn" title="AI assistant"
@@ -907,6 +933,7 @@ class FeezalAppEditor extends LitElement {
                         <button class="icon-btn ${this.sidebar === 'inspector' ? 'active' : ''}" title="Inspector" @click="${() => this._setSidebar('inspector')}"><span class="material-icons">tune</span></button>
                         <button class="icon-btn ${this.sidebar === 'themes' ? 'active' : ''}" title="Theme" @click="${() => this._setSidebar('themes')}"><span class="material-icons">palette</span></button>
                         <button class="icon-btn ${this.sidebar === 'viewer' ? 'active' : ''}" title="Site Settings" @click="${() => this._setSidebar('viewer')}"><span class="material-icons">cast</span></button>
+                        <button class="icon-btn ${this.sidebar === 'clients' ? 'active' : ''}" title="Clients" @click="${() => this._setSidebar('clients')}"><span class="material-icons">devices</span></button>
                         <button class="icon-btn ${this.sidebar === 'assets' ? 'active' : ''}" title="Assets" @click="${() => this._setSidebar('assets')}"><span class="material-icons">perm_media</span></button>
                         <button class="icon-btn ${this.sidebar === 'history' ? 'active' : ''}" title="Version history" @click="${() => this._setSidebar('history')}"><span class="material-icons">history</span></button>
                         <button class="icon-btn ${this.sidebar === 'packages' ? 'active' : ''}" title="Packages" @click="${() => this._setSidebar('packages')}"><span class="material-icons">widgets</span></button>
@@ -1066,6 +1093,7 @@ class FeezalAppEditor extends LitElement {
                     <feezal-sidebar-themes class="sidebar-panel" ?hidden="${this.sidebar !== 'themes'}" .viewSelected="${this.viewSelected}"></feezal-sidebar-themes>
                     <feezal-sidebar-packages class="sidebar-panel" ?hidden="${this.sidebar !== 'packages'}"></feezal-sidebar-packages>
                     <feezal-sidebar-viewer class="sidebar-panel" ?hidden="${this.sidebar !== 'viewer'}"></feezal-sidebar-viewer>
+                    <feezal-sidebar-clients class="sidebar-panel" ?hidden="${this.sidebar !== 'clients'}"></feezal-sidebar-clients>
                     <feezal-sidebar-editor class="sidebar-panel"
                         ?hidden="${this.sidebar !== 'editor'}"
                         .themeMode="${this._themeMode}"
@@ -1908,6 +1936,11 @@ class FeezalAppEditor extends LitElement {
     _setSidebar(name) {
         this.sidebar = name;
         localStorage.setItem('sidebar', name);
+        // N24: opening the Clients tab re-checks the site topic (it may have
+        // changed since the panel first attached its wildcard subscription).
+        if (name === 'clients') {
+            this.shadowRoot.querySelector('feezal-sidebar-clients')?.activate?.();
+        }
     }
 
     _onResizeStart(e) {
@@ -1958,10 +1991,18 @@ class FeezalAppEditor extends LitElement {
             return;
         }
         if (this._history.length > 1) {
+            const inspector = this.shadowRoot.querySelector('feezal-sidebar-inspector');
+            // Keep the element selection across the undo: restoreViews()
+            // replaces the site's innerHTML (node references die), so capture
+            // a (tag, index) identity first and re-match on the restored DOM.
+            // A structural undo that removed/shifted the element falls back to
+            // the view selection.
+            const selection = inspector.captureSelection();
             this._history.pop();
             const prevHtml = this._history[this._history.length - 1];
             this.requestUpdate();
-            this.shadowRoot.querySelector('feezal-sidebar-inspector').restoreViews(prevHtml);
+            inspector.restoreViews(prevHtml);
+            inspector.restoreSelection(selection);
         }
     }
 
@@ -2073,16 +2114,9 @@ class FeezalAppEditor extends LitElement {
             return;
         }
 
-        this.exporting = true;
-        const a = document.createElement('a');
-        a.href = `/api/sites/${feezal.siteName}/export`;
-        a.download = `${feezal.siteName}.zip`;
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        // Reset state after a short delay — we can't detect download completion
-        setTimeout(() => { this.exporting = false; }, 2000);
+        // U34: the export dialog shows the bundle size breakdown and hosts
+        // the actual ZIP download button.
+        this.shadowRoot.querySelector('feezal-export-dialog').open();
     }
 
     // -------------------------------------------------------------------
