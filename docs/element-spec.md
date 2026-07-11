@@ -13,9 +13,37 @@ This document is the single reference for building, publishing, and configuring 
 | npm scope | Must be published under an npm scope, e.g. `@yourscope/feezal-element-mywidget` |
 | Element name | `feezal-element-<category>-<name>`, e.g. `feezal-element-basic-gauge` |
 | Reserved categories | `basic` and `paper` are owned by the feezal project |
-| One element per package | The package name, filename and custom-element tag name must all be identical |
+| One element per package | The package name, filename and custom-element tag name must all be identical. **Exception:** multi-element family packages, see §1.1. |
 | Entry point | `package.json` `"main"` must point to the JS file that calls `customElements.define(…)` |
 | Versioning | Bump the **patch** version in `package.json` with every change. Major versions are lockstep across all `@feezal/*` packages; minor/patch are independent. |
+
+### 1.1 Multi-element family packages (N29 Phase B)
+
+A themed element *family* may ship as **one package defining many custom-element tags**. The package is named with the **plural** prefix — `feezal-elements-<family>` (e.g. `@feezal/feezal-elements-metro`) — and declares its exposed tags in a load-bearing manifest in `package.json`:
+
+```json
+{
+  "name": "@feezal/feezal-elements-metro",
+  "main": "index.js",
+  "keywords": ["feezal", "feezal-element", "feezal-elements", "mqtt", "dashboard"],
+  "feezal": {
+    "type": "elements",
+    "elements": [
+      "feezal-element-metro-tile",
+      "feezal-element-metro-live-tile",
+      "feezal-element-metro-appbar"
+    ]
+  }
+}
+```
+
+- The entry point imports every element module and `customElements.define()`s **all** listed tags; a shared family base class is bundled once (the point of this shape over per-element packages).
+- `feezal.elements` lists the **tag names** the bundle defines. This manifest is how the editor palette, the `window.feezal.elements` registry and export tree-shaking learn which tags the package exposes — a tag not listed there is invisible to the editor.
+- The individual tags keep the standard `feezal-element-<category>-<name>` form; each element follows every other rule in this spec unchanged.
+- `feezal.type` must be `"elements"`. (`"bundle"` is the N29 Phase A *aggregator* shape: a code-less package whose `feezal.elements` lists member **package names** installed separately.)
+- Keywords: carry **both** `feezal-element` and `feezal-elements` so the package is found under the Elements and Sets filters of the in-editor package search.
+
+See [element-families.md](element-families.md) for the family repo layout, publishing and dev workflow.
 
 ---
 

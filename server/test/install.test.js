@@ -186,6 +186,36 @@ describe('install — sidecar asset copy (N23 icon sets)', () => {
     });
 });
 
+describe('install — multi-element family packages (N29 Phase B)', () => {
+    let dataDir;
+    beforeEach(async () => { dataDir = await mkdtemp(join(tmpdir(), 'feezal-pm-')); });
+    afterEach(async () => { await rm(dataDir, {recursive: true, force: true}); });
+
+    async function fakePkg(rel, pkg) {
+        const dir = join(dataDir, 'elements', ...rel.split('/'));
+        await mkdir(dir, {recursive: true});
+        await writeFile(join(dir, 'package.json'), JSON.stringify(pkg));
+        await writeFile(join(dir, 'index.js'), '/* bundle */');
+    }
+
+    const FAMILY = '@feezal/feezal-elements-metro';
+
+    it('lists an installed family with type "elements" (one row, no member dirs)', async () => {
+        await fakePkg(FAMILY, {name: FAMILY, version: '3.2.1', main: 'index.js',
+            feezal: {type: 'elements', elements: ['feezal-element-metro-tile', 'feezal-element-metro-appbar']}});
+        const list = await pm.listInstalled(dataDir);
+        expect(list).toHaveLength(1);
+        expect(list[0]).toMatchObject({name: FAMILY, version: '3.2.1', type: 'elements'});
+    });
+
+    it('removes a family as a single unit', async () => {
+        await fakePkg(FAMILY, {name: FAMILY, version: '3.2.1', main: 'index.js',
+            feezal: {type: 'elements', elements: ['feezal-element-metro-tile']}});
+        await pm.removePackage(dataDir, FAMILY);
+        expect(await pm.listInstalled(dataDir)).toEqual([]);
+    });
+});
+
 describe('discovery — feezal-icons-* packages (N23)', () => {
     it('discoverElements tags icons packages with type "icons"', async () => {
         const {discoverElements} = require('../src/build/elements.js');
@@ -200,5 +230,59 @@ describe('discovery — feezal-icons-* packages (N23)', () => {
         } finally {
             await rm(wwwDir, {recursive: true, force: true});
         }
+    });
+});
+
+describe('discovery — multi-element family packages (N29 Phase B)', () => {
+    const {discoverElements, generateElementsModule, elementTags} = require('../src/build/elements.js');
+    let wwwDir;
+    beforeEach(async () => { wwwDir = await mkdtemp(join(tmpdir(), 'feezal-www-')); });
+    afterEach(async () => { await rm(wwwDir, {recursive: true, force: true}); });
+
+    async function pkg(rel, json) {
+        const dir = join(wwwDir, 'node_modules', ...rel.split('/'));
+        await mkdir(dir, {recursive: true});
+        await writeFile(join(dir, 'package.json'), JSON.stringify(json));
+    }
+
+    it('registers a family as one element entry carrying its declared tags', async () => {
+        await pkg('@feezal/feezal-elements-metro', {name: '@feezal/feezal-elements-metro', main: 'index.js',
+            feezal: {type: 'elements', elements: ['feezal-element-metro-tile', 'feezal-element-metro-appbar']}});
+        const found = discoverElements(wwwDir, null, {info() {}, debug() {}});
+        expect(found).toHaveLength(1);
+        expect(found[0]).toMatchObject({
+            bare: '@feezal/feezal-elements-metro', type: 'element', main: 'index.js',
+            tags: ['feezal-element-metro-tile', 'feezal-element-metro-appbar'],
+        });
+    });
+
+    it('skips Phase A set markers (feezal.type "bundle")', async () => {
+        await pkg('@feezal/feezal-elements-eink', {name: '@feezal/feezal-elements-eink',
+            feezal: {type: 'bundle', elements: ['@feezal/feezal-element-eink-value']}});
+        expect(discoverElements(wwwDir, null, {info() {}, debug() {}})).toEqual([]);
+    });
+
+    it('window.feezal.elements gets tag names: family tags expanded, scope stripped from singles', async () => {
+        await pkg('@feezal/feezal-element-basic-gauge', {name: '@feezal/feezal-element-basic-gauge', main: 'index.js'});
+        await pkg('@feezal/feezal-elements-metro', {name: '@feezal/feezal-elements-metro', main: 'index.js',
+            feezal: {type: 'elements', elements: ['feezal-element-metro-tile']}});
+        const found = discoverElements(wwwDir, null, {info() {}, debug() {}});
+        expect(elementTags(found).sort()).toEqual(['feezal-element-basic-gauge', 'feezal-element-metro-tile']);
+        const module_ = generateElementsModule(found);
+        expect(module_).toContain('"feezal-element-metro-tile"');
+        expect(module_).toContain('"feezal-element-basic-gauge"');
+        expect(module_).not.toContain('@feezal/feezal-element-basic-gauge');
+    });
+
+    it('a user-installed family gets one import for its single bundle', async () => {
+        const userDir = join(wwwDir, 'user-elements');
+        const dir = join(userDir, '@feezal', 'feezal-elements-metro');
+        await mkdir(dir, {recursive: true});
+        await writeFile(join(dir, 'package.json'), JSON.stringify({name: '@feezal/feezal-elements-metro', main: 'index.js',
+            feezal: {type: 'elements', elements: ['feezal-element-metro-tile', 'feezal-element-metro-appbar']}}));
+        const found = discoverElements(wwwDir, userDir, {info() {}, debug() {}});
+        const module_ = generateElementsModule(found);
+        expect(module_).toContain("import '/user-elements/@feezal/feezal-elements-metro/index.js';");
+        expect(module_.match(/import '\/user-elements/g)).toHaveLength(1);
     });
 });

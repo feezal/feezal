@@ -25,6 +25,14 @@
  * unit. Removing the set removes exactly the members that record membership;
  * discovery skips the marker (the feezal-elements- dir name matches no
  * element/theme/icons prefix).
+ *
+ * Multi-element families (N29 Phase B): a `feezal-elements-*` package carrying
+ * `feezal: {type: 'elements', elements: [<tag>, …]}` ships ONE bundle whose
+ * entry defines every listed custom-element tag (shared family base class
+ * bundled once). It installs exactly like a single element — one dir, one
+ * index.js — with the tag manifest preserved in the written package.json so
+ * discovery/palette/export know which tags it exposes. Remove/update treat it
+ * as one unit; there are no member dirs.
  */
 
 const fs   = require('fs');
@@ -269,7 +277,7 @@ async function _installBundleMembers({staging, wwwDir, dataDir, pkg, pj, logger}
  */
 async function installPackage({wwwDir, dataDir, pkg, version, logger = console}) {
     if (!isAllowedPackage(pkg)) {
-        throw new Error(`"${pkg}" is not an installable feezal package (expected feezal-element-*, feezal-theme-* or feezal-icons-*)`);
+        throw new Error(`"${pkg}" is not an installable feezal package (expected feezal-element-*, feezal-elements-*, feezal-theme-* or feezal-icons-*)`);
     }
     const type = derivePkgType(pkg);
     const spec = version ? `${pkg}@${version}` : pkg;
@@ -285,10 +293,26 @@ async function installPackage({wwwDir, dataDir, pkg, version, logger = console})
         const installedDir = path.join(staging, 'node_modules', ...String(pkg).split('/'));
         const pj = JSON.parse(await fsp.readFile(path.join(installedDir, 'package.json'), 'utf8'));
 
-        // N29 Phase A: a bundle package has no code — expand its members from
-        // the same staging install (they are dependencies, so npm already
-        // fetched them) and write a code-less marker dir for the set itself.
-        if (type === 'bundle' || (pj.feezal && pj.feezal.type === 'bundle')) {
+        // N29: the plural feezal-elements- prefix covers both set shapes;
+        // the manifest's feezal.type decides which pipeline applies.
+        // Phase B: a multi-element family ships one bundle defining all its
+        // tags — install it like a single element, preserving the tag
+        // manifest so discovery/palette/export know what it exposes.
+        const isFamily = pj.feezal && pj.feezal.type === 'elements';
+        if (isFamily) {
+            const tags = Array.isArray(pj.feezal.elements) ? pj.feezal.elements : [];
+            if (!tags.length) {
+                throw new Error(`"${pkg}" is a multi-element package but its feezal.elements tag list is empty or missing`);
+            }
+            for (const tag of tags) {
+                if (!/^feezal-element-[a-z0-9][\w-]*$/.test(String(tag))) {
+                    throw new Error(`"${pkg}" declares an invalid element tag "${tag}" (expected feezal-element-<category>-<name>)`);
+                }
+            }
+        } else if (type === 'bundle' || (pj.feezal && pj.feezal.type === 'bundle')) {
+            // Phase A: a bundle package has no code — expand its members from
+            // the same staging install (they are dependencies, so npm already
+            // fetched them) and write a code-less marker dir for the set itself.
             const result = await _installBundleMembers({staging, wwwDir, dataDir, pkg, pj, logger});
             return {...result, stdout, stderr};
         }
@@ -307,10 +331,12 @@ async function installPackage({wwwDir, dataDir, pkg, version, logger = console})
             const copied = await _copyAssets(installedDir, destDir);
             logger.debug?.(`install: copied ${copied} sidecar asset file(s) for ${pkg}`);
         }
+        // Phase B family: the written manifest keeps the declared tag list.
+        const feezalMeta = isFamily ? {type: 'elements', elements: pj.feezal.elements} : {type};
         await fsp.writeFile(path.join(destDir, 'package.json'),
-            JSON.stringify({name: pj.name || pkg, version: pj.version || '0.0.0', main: 'index.js', feezal: {type}}, null, 2));
+            JSON.stringify({name: pj.name || pkg, version: pj.version || '0.0.0', main: 'index.js', feezal: feezalMeta}, null, 2));
 
-        return {ok: true, name: pj.name || pkg, version: pj.version || '0.0.0', type, stdout, stderr};
+        return {ok: true, name: pj.name || pkg, version: pj.version || '0.0.0', type: feezalMeta.type, stdout, stderr};
     } catch (err) {
         err.stdout = stdout + (err.stdout || '');
         err.stderr = stderr + (err.stderr || '');

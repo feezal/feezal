@@ -152,6 +152,41 @@ When many elements are present on the canvas or the grid size is small, too many
 
 ## Near-term Improvements
 
+### N29 — Element *sets*: one-click install of many elements (bundle / multi-element packages) ✅ done
+
+**Problem.** The N4 Package Manager already removes hand-`npm install` — users search npm and click Install in the Packages sidebar ([feezal-sidebar-packages.js](../www/src/feezal-sidebar-packages.js)), and [install.js](../server/src/build/install.js) does `npm install` → Vite-bundle → drop into `<dataDir>/elements/<pkg>/`. But **one npm package = one element**, so installing a whole design system or a family (the material set, or a styled/framework family like E55–E63 / E83–E85) means N separate installs. There is no "install this set" unit — which is exactly what a community gallery (A20) wants to offer.
+
+Shipped in two phases; Phase A's marker was designed so Phase B is a compatible extension.
+
+#### Phase A — meta / aggregator package (MVP, minimal change) ✅ implemented (July 2026)
+
+A package named `feezal-elements-*` (plural) carrying a `feezal: {type: "bundle", elements: [...]}` marker whose `package.json` only lists member `feezal-element-*` packages as **dependencies** — no element code of its own. The install pipeline **detects a bundle and expands it**: members are bundled from the same staging `npm install` (they're dependencies, so npm already fetched them), landing each in its own `<dataDir>/elements/<member>/` dir.
+
+**Implemented decisions** (pathfinder set: `@feezal/feezal-elements-eink`):
+- Name prefix `feezal-elements-` → type `bundle` in `derivePkgType`/`isAllowedPackage`; registry-search keyword for sets is **`feezal-elements`** (aggregator packages must carry it in their `keywords`).
+- Each written member records its owner in `feezal.set`; the set itself gets a **code-less marker dir** (manifest-only `package.json`) so it shows in the installed list and can be updated/removed as a unit — discovery skips it by name prefix, so nothing changed in `_scan`/palette/registry/export.
+- **Remove semantics:** removing the set removes exactly the members whose `feezal.set` matches it (individually installed members and members owned by another set survive); removing a single member leaves the set alone.
+- Packages sidebar: **Sets** filter, `set` chip, members grouped/indented under their set row in the All/Sets views (type filters stay flat).
+- Cost accepted as designed: a 20-element set = 20 bundled files, shared base classes inlined per member (no dedup — see Phase B).
+
+#### Phase B — true multi-element package (one dir, many tags; code-dedup) ✅ implemented (July 2026)
+
+The package ships **one bundle** and declares its exposed tags in a manifest: `feezal: {type: "elements", elements: ["feezal-element-x-a", "feezal-element-x-b", …]}` on a `feezal-elements-*` (plural) package — `feezal.type` distinguishes it from a Phase A marker (`"bundle"`). Discovery registers **all listed tags** from that single import; a shared **family base class** is bundled **once** instead of per element. This is the shipping unit for the design-system families (see [element-families.md](element-families.md)).
+
+**Implemented decisions** — the three `tag == package-name` assumptions now read the manifest:
+
+1. **Discovery** — `_scan` in [elements.js](../server/src/build/elements.js) matches `feezal-elements-*` dirs, skips Phase A markers (`feezal.type "bundle"` / no tag list), and pushes one element entry carrying `tags: [...]` from the manifest.
+2. **The registry contents** — `window.feezal.elements` (dynamic route + build-time `writeElementsFile`, via the shared `elementTags()` helper) now carries **custom-element tag names**: families expanded from their manifest, single-element packages' `@scope/` stripped. All consumers (palette, source-mode tag completion, AI catalogue, browser smoke test) already stripped the scope, so the change is backward- and forward-compatible; the palette's strip stays as belt-and-braces against a stale cached registry.
+3. **Export tree-shaking** — `tagsToPackages(tags, tagMap)` in [extract-elements.js](../server/src/build/extract-elements.js) resolves family tags through a map built by the new `buildTagToPackageMap(nodeModulesDir)` (manifest scan, any scope) and dedupes multiple tags into their one family package; unmapped tags keep the `@feezal/${tag}` convention.
+4. **Install pipeline** — [install.js](../server/src/build/install.js) routes `feezal.type === "elements"` through the regular single-package path (one Vite bundle, one `<dataDir>/elements/<pkg>/` dir) with the tag manifest preserved in the written `package.json`; tags are validated against the `feezal-element-*` form. `listInstalled` reports type `elements`; remove/update treat the family as one unit (no member dirs, no reference counting needed — one of the reasons Phase B won for families).
+5. **Packages sidebar** — type `elements` shows under the **Sets** filter with the `set` chip (single row, no member indentation).
+
+Server unit tests cover Phase B discovery (tags entry, marker skip), registry emission, tag-map building/dedup, and family list/remove.
+
+**End state reached:** the styled/framework families ship in this shape (element-spec §1.1 documents the manifest contract); the community gallery (A20) can offer "install this set" as a first-class action.
+
+**Relates:** N4 (the package-manager pipeline this builds on), N27 (live-viewer loading of installed packages — a set must load in the viewer too, same gap), A20 (community ecosystem / curated gallery — sets are the unit it distributes), E55–E63 / E80 / E83–E85 (families that ship as multi-element packages — the primary beneficiaries), A8 (export tree-shaking — the Phase B `tagsToPackages` change).
+
 ### N28 — Font Awesome icon set (`feezal-icons-fa`) ✅ implemented
 
 A `feezal-icons-*` package wrapping **Font Awesome Free** — the third bundled set after `feezal-icons-mdi` and `feezal-icons-knx-uf`. The **brands** style (~600 logos: GitHub, Spotify, …) fills a real gap — MDI carries only a shrinking brand set.

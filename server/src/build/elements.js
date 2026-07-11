@@ -69,6 +69,23 @@ function discoverElements(wwwDir, userElementsDir, logger) {
 }
 
 /**
+ * N29 Phase B: the custom-element tag names exposed by the discovered element
+ * packages, in discovery order. Single-element packages expose exactly their
+ * bare name (without the @scope/); multi-element family packages expose every
+ * tag declared in their feezal.elements manifest. This is what goes into
+ * window.feezal.elements — the palette, source-mode completion and the AI
+ * catalogue all consume tags, not package names.
+ *
+ * @param {Array} elements  Output of discoverElements() / _scan()
+ * @returns {string[]}
+ */
+function elementTags(elements) {
+    return elements
+        .filter(el => el.type === 'element')
+        .flatMap(el => el.tags || [el.bare.replace(/^@[^/]+\//, '')]);
+}
+
+/**
  * Generates the JavaScript module body for the dynamic GET /editor/feezal-elements.js route.
  *
  * Uses absolute URL paths (e.g. /node_modules/...) so the browser resolves them without
@@ -104,11 +121,7 @@ function generateElementsModule(elements) {
         .map(el => `import '/node_modules/${el.bare}/${el.main}';`)
         .join('\n');
 
-    const elementNames = JSON.stringify(
-        elements.filter(el => el.type === 'element').map(el => el.bare),
-        null,
-        '  '
-    );
+    const elementNames = JSON.stringify(elementTags(elements), null, '  ');
     const themeNames = JSON.stringify(
         elements.filter(el => el.type === 'theme').map(el => el.bare),
         null,
@@ -167,11 +180,7 @@ async function writeElementsFile(wwwDir, logger) {
             .map(el => `import '${el.builtin ? el.importPath : el.bare}';`).join('\n') +
         '\n\n' +
         'window.feezal.elements = ' +
-            JSON.stringify(
-                elements.filter(el => el.type === 'element').map(el => el.bare),
-                null,
-                '  '
-            ) +
+            JSON.stringify(elementTags(elements), null, '  ') +
         ';\n\n' +
         'window.feezal.themes = ' +
             JSON.stringify(
@@ -201,9 +210,11 @@ function _scan(dir, baseDir, elements, kind) {
         .forEach(p => _scan(path.join(dir, p), baseDir, elements, kind));
 
     // Collect matching packages
+    // (the prefixes are mutually exclusive: 'feezal-elements-x' has an 's'
+    //  where 'feezal-element-' requires the dash)
     list
         .filter(p => !BLACKLIST.has(p))
-        .filter(p => p.startsWith('feezal-element-') || p.startsWith('feezal-theme-') || p.startsWith('feezal-icons-'))
+        .filter(p => p.startsWith('feezal-element-') || p.startsWith('feezal-elements-') || p.startsWith('feezal-theme-') || p.startsWith('feezal-icons-'))
         .forEach(p => {
             const absolute = path.join(dir, p);
             const pkgPath = path.join(absolute, 'package.json');
@@ -212,10 +223,25 @@ function _scan(dir, baseDir, elements, kind) {
             }
 
             const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-            const type = p.startsWith('feezal-element-') ? 'element'
-                : (p.startsWith('feezal-icons-') ? 'icons' : 'theme');
             const bare = path.relative(baseDir, absolute).split(path.sep).join('/');
             const main = pkg.main || 'index.js';
+
+            // N29 Phase B: a feezal-elements-* package is a multi-element
+            // family — ONE bundle whose exposed tags are declared in the
+            // feezal.elements manifest. Phase A set markers (feezal.type
+            // 'bundle') are code-less aggregators and are skipped, exactly
+            // as when the prefix filter didn't match them at all.
+            if (p.startsWith('feezal-elements-')) {
+                const manifest = pkg.feezal || {};
+                if (manifest.type === 'bundle' || !Array.isArray(manifest.elements) || manifest.elements.length === 0) {
+                    return;
+                }
+                elements.push({absolute, bare, type: 'element', main, kind, builtin: false, tags: manifest.elements.slice()});
+                return;
+            }
+
+            const type = p.startsWith('feezal-element-') ? 'element'
+                : (p.startsWith('feezal-icons-') ? 'icons' : 'theme');
             elements.push({absolute, bare, type, main, kind, builtin: false});
         });
 }
@@ -238,4 +264,4 @@ function fetchMaterialIcons(wwwDir) {
         });
 }
 
-module.exports = {discoverElements, generateElementsModule, writeElementsFile};
+module.exports = {discoverElements, generateElementsModule, writeElementsFile, elementTags};

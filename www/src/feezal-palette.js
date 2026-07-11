@@ -211,8 +211,10 @@ class FeezalPalette extends LitElement {
             }
         });
 
-        // feezal.elements contains package names like '@feezal/feezal-element-paper-button'.
-        // The actual custom element tag is the package name without the @scope/ prefix.
+        // feezal.elements contains custom-element tag names — multi-element
+        // family packages (N29 Phase B) contribute every tag their manifest
+        // declares. The scope-strip stays as belt-and-braces for a stale
+        // cached feezal-elements.js that still holds package names.
         (feezal.elements || []).forEach(pkgName => {
             const tagName = pkgName.replace(/^@[^/]+\//, '');
             const cls = window.customElements.get(tagName);

@@ -1,5 +1,8 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+
 /**
  * Utilities for extracting the set of feezal element/theme packages actually
  * used by a site so that the static export can bundle only those.
@@ -33,16 +36,59 @@ function extractUsedElements(siteHtml) {
 }
 
 /**
- * Map element/theme tag names to their @feezal/ npm package names.
+ * N29 Phase B: build a tag → package-name lookup for multi-element family
+ * packages (feezal-elements-*, any scope) found in node_modules. Their tags
+ * do NOT equal their package name, so tagsToPackages() needs this map to
+ * keep them from being dropped out of static exports. Phase A set markers
+ * (feezal.type 'bundle') list member *packages*, not tags — skipped.
+ *
+ * @param {string} nodeModulesDir  Absolute path to node_modules.
+ * @returns {Object<string, string>}  e.g. {'feezal-element-metro-tile': '@feezal/feezal-elements-metro'}
+ */
+function buildTagToPackageMap(nodeModulesDir) {
+    const map = {};
+    let entries;
+    try { entries = fs.readdirSync(nodeModulesDir); } catch { return map; }
+
+    const familyDirs = [];
+    for (const entry of entries) {
+        if (entry.startsWith('@')) {
+            let scoped;
+            try { scoped = fs.readdirSync(path.join(nodeModulesDir, entry)); } catch { continue; }
+            scoped.filter(s => s.startsWith('feezal-elements-'))
+                .forEach(s => familyDirs.push({dir: path.join(nodeModulesDir, entry, s), name: `${entry}/${s}`}));
+        } else if (entry.startsWith('feezal-elements-')) {
+            familyDirs.push({dir: path.join(nodeModulesDir, entry), name: entry});
+        }
+    }
+
+    for (const {dir, name} of familyDirs) {
+        try {
+            const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+            const manifest = pkg.feezal || {};
+            if (manifest.type === 'bundle' || !Array.isArray(manifest.elements)) continue;
+            for (const tag of manifest.elements) map[tag] = pkg.name || name;
+        } catch { /* corrupt or code-less dir — ignore */ }
+    }
+    return map;
+}
+
+/**
+ * Map element/theme tag names to their npm package names.
  *
  * 'feezal-element-material-switch'  →  '@feezal/feezal-element-material-switch'
  * 'feezal-theme-dark-mint'          →  '@feezal/feezal-theme-dark-mint'
  *
+ * N29 Phase B: tags declared by a multi-element family package resolve
+ * through `tagMap` (see buildTagToPackageMap) instead of the `@feezal/${tag}`
+ * convention; several tags collapsing into one family package are deduplicated.
+ *
  * @param {string[]} tags
+ * @param {Object<string, string>} [tagMap]  tag → package-name overrides
  * @returns {string[]}
  */
-function tagsToPackages(tags) {
-    return tags.map(tag => `@feezal/${tag}`);
+function tagsToPackages(tags, tagMap = {}) {
+    return [...new Set(tags.map(tag => tagMap[tag] || `@feezal/${tag}`))];
 }
 
 /**
@@ -55,8 +101,6 @@ function tagsToPackages(tags) {
  * @returns {{ resolvable: string[], missing: string[] }}
  */
 function partitionPackages(nodeModulesDir, packages) {
-    const fs = require('fs');
-    const path = require('path');
     const resolvable = [];
     const missing = [];
     for (const pkg of packages) {
@@ -68,4 +112,4 @@ function partitionPackages(nodeModulesDir, packages) {
     return {resolvable, missing};
 }
 
-module.exports = {extractUsedElements, tagsToPackages, partitionPackages};
+module.exports = {extractUsedElements, tagsToPackages, buildTagToPackageMap, partitionPackages};

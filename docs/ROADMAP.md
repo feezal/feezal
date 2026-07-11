@@ -15,7 +15,6 @@ Work in progress — priorities and scope are not final.
 - [N13 — Lighter MQTT client for export bundle](#n13--lighter-mqtt-client-for-export-bundle-️-tbd) ⚠️
 - [N25 — Bridge last-value replay ("synthetic retain")](#n25--bridge-last-value-replay-synthetic-retain-most-likely-not) ❌ *(most likely not)*
 - [N27 — Live viewer: load user-installed element/theme packages](#n27--live-viewer-load-user-installed-elementtheme-packages)
-- [N29 — Element *sets*: one-click install of many elements (bundle / multi-element packages)](#n29--element-sets-one-click-install-of-many-elements-bundle--multi-element-packages)
 - [N30 — layout-app breaks the site active-view MQTT contract](#n30--layout-app-breaks-the-site-active-view-mqtt-contract-️-refinement-needed) ⚠️ *(refinement needed)*
 
 **Element Ecosystem**
@@ -188,37 +187,6 @@ Residual from N4/N23 (both archived; the icons type is handled — viewer pages 
 - If built: global vs. per-topic opt-in; cache TTL/size limits; marking replayed messages (a `synthetic` flag?) so elements/scripts can distinguish them from live traffic.
 
 **Relates:** E49 (page-local publishes deliberately have no replay either — a client-side cache was rejected there too), N10 (bridge-for-everything mode would widen this feature's reach), site connection settings.
-
-### N29 — Element *sets*: one-click install of many elements (bundle / multi-element packages)
-
-**Problem.** The N4 Package Manager already removes hand-`npm install` — users search npm and click Install in the Packages sidebar ([feezal-sidebar-packages.js](../www/src/feezal-sidebar-packages.js)), and [install.js](../server/src/build/install.js) does `npm install` → Vite-bundle → drop into `<dataDir>/elements/<pkg>/`. But **one npm package = one element**, so installing a whole design system or a family (the material set, or a styled/framework family like E55–E63 / E83–E85) means N separate installs. There is no "install this set" unit — which is exactly what a community gallery (A20) wants to offer.
-
-Ship in two phases; design Phase A's marker so Phase B is a compatible extension.
-
-#### Phase A — meta / aggregator package (MVP, minimal change) ✅ implemented (July 2026)
-
-A package named `feezal-elements-*` (plural) carrying a `feezal: {type: "bundle", elements: [...]}` marker whose `package.json` only lists member `feezal-element-*` packages as **dependencies** — no element code of its own. The install pipeline **detects a bundle and expands it**: members are bundled from the same staging `npm install` (they're dependencies, so npm already fetched them), landing each in its own `<dataDir>/elements/<member>/` dir.
-
-**Implemented decisions** (pathfinder set: `@feezal/feezal-elements-eink`):
-- Name prefix `feezal-elements-` → type `bundle` in `derivePkgType`/`isAllowedPackage`; registry-search keyword for sets is **`feezal-elements`** (aggregator packages must carry it in their `keywords`).
-- Each written member records its owner in `feezal.set`; the set itself gets a **code-less marker dir** (manifest-only `package.json`) so it shows in the installed list and can be updated/removed as a unit — discovery skips it by name prefix, so nothing changed in `_scan`/palette/registry/export.
-- **Remove semantics:** removing the set removes exactly the members whose `feezal.set` matches it (individually installed members and members owned by another set survive); removing a single member leaves the set alone. Full reference counting deferred to Phase B.
-- Packages sidebar: **Sets** filter, `set` chip, members grouped/indented under their set row in the All/Sets views (type filters stay flat).
-- Cost accepted as designed: a 20-element set = 20 bundled files, shared base classes inlined per member (no dedup — see Phase B).
-
-#### Phase B — true multi-element package (one dir, many tags; code-dedup)
-
-The package ships **one bundle** and declares its exposed tags in a manifest, e.g. `feezal: {elements: ["feezal-element-x-a", "feezal-element-x-b", …]}`. Discovery registers **all listed tags** from that single import. This is the better long-term unit for design-system families (E80, E83–E85) because a shared **family base class** is bundled **once** instead of per element.
-
-Discovery and the install/bundle pipeline already tolerate a package that `customElements.define()`s many elements (12 packages define helper elements today). The blockers are **three `tag == package-name` assumptions** that must learn to read the manifest:
-
-1. **Palette build** — [feezal-palette.js](../www/src/feezal-palette.js) derives one tag per package via `pkgName.replace(/^@[^/]+\//,'')` and looks up exactly that class; must iterate the package's declared tags instead.
-2. **The registry contents** — `generateElementsModule` / `writeElementsFile` in [elements.js](../server/src/build/elements.js) emit package **bare names** into `window.feezal.elements`; must emit the actual tag names (or a package→tags map).
-3. **Export tree-shaking** — `tagsToPackages` in [extract-elements.js](../server/src/build/extract-elements.js) maps a used tag back to a package by `@feezal/${tag}`; needs a tag→package lookup so multi-element-package tags aren't dropped from static exports.
-
-**End state:** official `@feezal/*` sets and the styled/framework families migrate to Phase B for the dedup win; the community gallery (A20) offers "install this set" as a first-class action.
-
-**Relates:** N4 (archive — the package-manager pipeline this builds on), N27 (live-viewer loading of installed packages — a set must load in the viewer too, same gap), A20 (community ecosystem / curated gallery — sets are the unit it distributes), E55–E63 / E80 / E83–E85 (families that "ship as npm packages" — the primary beneficiaries), A8 (export tree-shaking — the Phase B `tagsToPackages` change).
 
 ### N30 — layout-app breaks the site active-view MQTT contract ⚠️ refinement needed
 

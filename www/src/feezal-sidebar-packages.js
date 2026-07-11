@@ -10,7 +10,9 @@ import {LitElement, html, css} from 'lit';
  * panel offers a reload to pick up the new package. N29: installing a
  * feezal-elements-* set expands it into its member elements server-side;
  * installed members are grouped (indented) under their set row, and removing
- * the set removes its members.
+ * the set removes its members. A Phase B multi-element family (one package,
+ * one bundle, many tags — type 'elements') is a single row under the Sets
+ * filter with no member rows.
  */
 const TYPES = [
     {key: 'all',     label: 'All'},
@@ -20,8 +22,10 @@ const TYPES = [
     {key: 'bundle',  label: 'Sets'},
 ];
 
-// N29: 'bundle' is the wire name; show it as "set" to users.
-const typeLabel = t => (t === 'bundle' ? 'set' : t);
+// N29: 'bundle' (Phase A aggregator) and 'elements' (Phase B multi-element
+// family) are the wire names; both show as "set" to users.
+const isSetType = t => t === 'bundle' || t === 'elements';
+const typeLabel = t => (isSetType(t) ? 'set' : t);
 
 class FeezalSidebarPackages extends LitElement {
     static properties = {
@@ -156,7 +160,7 @@ class FeezalSidebarPackages extends LitElement {
         const bundles = new Set(all.filter(p => p.type === 'bundle').map(p => p.name));
         const top = all.filter(p => !(p.set && bundles.has(p.set)));
         const rows = [];
-        for (const p of (this._filter === 'bundle' ? top.filter(t => t.type === 'bundle') : top)) {
+        for (const p of (this._filter === 'bundle' ? top.filter(t => isSetType(t.type)) : top)) {
             rows.push({p, member: false});
             if (p.type === 'bundle') {
                 all.filter(m => m.set === p.name).forEach(m => rows.push({p: m, member: true}));

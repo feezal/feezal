@@ -7,7 +7,7 @@ const crypto = require('node:crypto');
 const zlib = require('node:zlib');
 
 const {ZipArchive} = require('archiver');
-const {extractUsedElements, tagsToPackages, partitionPackages} = require('./extract-elements.js');
+const {extractUsedElements, tagsToPackages, buildTagToPackageMap, partitionPackages} = require('./extract-elements.js');
 const {siteIconArtifacts} = require('./icons.js');
 const pwa = require('./pwa.js');
 
@@ -108,9 +108,11 @@ function buildBundleReport(chunk) {
 async function buildFilteredBundle(wwwDir, siteHtml, theme, logger) {
     const nodeModulesDir = path.join(wwwDir, 'node_modules');
 
-    // Determine which element packages the site actually needs.
+    // Determine which element packages the site actually needs. Tags exposed
+    // by multi-element family packages (N29 Phase B) resolve through the
+    // manifest map instead of the @feezal/<tag> convention.
     const usedTags = extractUsedElements(siteHtml);
-    const usedPackages = tagsToPackages(usedTags);
+    const usedPackages = tagsToPackages(usedTags, buildTagToPackageMap(nodeModulesDir));
 
     // Add the active theme package if it is a built-in one (i.e. package exists).
     const themePackage = theme ? `@feezal/${theme}` : null;
