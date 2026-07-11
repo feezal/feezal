@@ -56,6 +56,17 @@ describe('installed packages', () => {
         expect(names).toEqual(['@feezal/feezal-theme-bar']);
     });
 
+    it('offers an Icons segment that filters icon sets (N23)', async () => {
+        const el = await attachPanel();
+        el._installed = [...INSTALLED, {name: '@feezal/feezal-icons-fa', version: '1.0.0', type: 'icons'}];
+        const seg = [...el.shadowRoot.querySelectorAll('.seg button')].map(b => b.textContent.trim());
+        expect(seg).toContain('Icons');
+        el._filter = 'icons';
+        await el.updateComplete;
+        const names = [...el.shadowRoot.querySelectorAll('.row .name')].map(n => n.textContent.trim());
+        expect(names).toEqual(['@feezal/feezal-icons-fa']);
+    });
+
     it('offers an update only for outdated packages', async () => {
         const el = await attachPanel();
         const rows = [...el.shadowRoot.querySelectorAll('.row')];

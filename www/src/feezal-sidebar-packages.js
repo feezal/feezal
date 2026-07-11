@@ -16,6 +16,7 @@ const TYPES = [
     {key: 'all',     label: 'All'},
     {key: 'element', label: 'Elements'},
     {key: 'theme',   label: 'Themes'},
+    {key: 'icons',   label: 'Icons'},
     {key: 'bundle',  label: 'Sets'},
 ];
 
