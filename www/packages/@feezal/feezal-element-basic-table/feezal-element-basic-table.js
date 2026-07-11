@@ -17,8 +17,8 @@ import {FeezalElement, html, css} from '@feezal/feezal-element';
  * info are pre-styled from the theme state colours).
  *
  * Write-back (`editable`): columns flagged editable render as inputs; every
- * commit publishes the WHOLE updated array (retained by default) to
- * `publish` (falls back to the subscribe topic), plus optional row
+ * commit publishes the WHOLE updated array (retained when `retain` is set)
+ * to `publish` (falls back to the subscribe topic), plus optional row
  * add/delete. Last-writer-wins on the whole-array payload — fine for team
  * boards / shift plans / pick lists; anything transactional belongs in a
  * real backend.
@@ -56,7 +56,7 @@ class FeezalElementBasicTable extends FeezalElement {
                 color: '#4a6080',
                 icon: 'table_chart'
             },
-            description: 'Renders a JSON array of objects as a table — sortable, filterable, with per-column formatting and conditional row/cell classes. With editable enabled, edits publish the whole updated array (retained), making a retained topic a simple shared read/write list.',
+            description: 'Renders a JSON array of objects as a table — sortable, filterable, with per-column formatting and conditional row/cell classes. With editable enabled, edits publish the whole updated array, making a retained topic a simple shared read/write list.',
             attributes: [
                 {name: 'subscribe', type: 'mqttTopic', help: 'Topic carrying a JSON array of row objects.'},
                 {name: 'message-property', type: 'string', default: 'payload',
@@ -77,7 +77,7 @@ class FeezalElementBasicTable extends FeezalElement {
                 {name: 'empty-text', type: 'string', default: 'No data', help: 'Placeholder text shown when the array is empty.'},
                 {name: 'editable', type: 'boolean', help: 'Enable write-back: columns flagged editable render as inputs, plus row add/delete. Every commit publishes the WHOLE updated array — last writer wins.'},
                 {name: 'publish', type: 'mqttTopic', help: 'Write-back topic for edits. Empty = publish back to the subscribe topic.'},
-                {name: 'retain', type: 'select', options: ['true', 'false'], default: 'true', help: 'Publish edits with the MQTT retain flag so every (re)connecting viewer sees the current table.'}
+                {name: 'retain', type: 'boolean', help: 'Publish edits with the MQTT retain flag so every (re)connecting viewer sees the current table.'}
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'font-size',
@@ -88,10 +88,10 @@ class FeezalElementBasicTable extends FeezalElement {
                     default: 'var(--secondary-text-color, #757575)',
                     help: 'Header text colour.'},
                 {property: '--feezal-table-surface-color', type: 'color',
-                    default: 'var(--feezal-bg, #fff)',
+                    default: 'var(--secondary-background-color, var(--feezal-bg, #fff))',
                     help: 'Table background (also behind the sticky header).'},
                 {property: '--feezal-table-border-color', type: 'color',
-                    default: 'var(--feezal-border, #e0e0e0)',
+                    default: 'var(--divider-color, var(--feezal-border, #e0e0e0))',
                     help: 'Row separator and border colour.'}
             ],
             restrict: {minWidth: 120, minHeight: 60},
@@ -110,7 +110,7 @@ class FeezalElementBasicTable extends FeezalElement {
         emptyText:   {type: String, reflect: true, attribute: 'empty-text'},
         editable:    {type: Boolean, reflect: true},
         publish:     {type: String, reflect: true},
-        retain:      {type: String, reflect: true},
+        retain:      {type: Boolean, reflect: true},
         _data:       {state: true},
         _sortKey:    {state: true},
         _sortDir:    {state: true},
@@ -124,8 +124,8 @@ class FeezalElementBasicTable extends FeezalElement {
             font-size: 13px;
             --feezal-table-text-color: var(--primary-text-color, var(--feezal-color, #333));
             --feezal-table-header-color: var(--secondary-text-color, #757575);
-            --feezal-table-surface-color: var(--feezal-bg, #fff);
-            --feezal-table-border-color: var(--feezal-border, #e0e0e0);
+            --feezal-table-surface-color: var(--secondary-background-color, var(--feezal-bg, #fff));
+            --feezal-table-border-color: var(--divider-color, var(--feezal-border, #e0e0e0));
             color: var(--feezal-table-text-color);
             background: var(--feezal-table-surface-color);
         }
@@ -227,7 +227,7 @@ class FeezalElementBasicTable extends FeezalElement {
         this.emptyText = 'No data';
         this.editable = false;
         this.publish = '';
-        this.retain = 'true';
+        this.retain = false;
         this._data = null;
         this._sortKey = null;
         this._sortDir = 1;
@@ -391,7 +391,7 @@ class FeezalElementBasicTable extends FeezalElement {
     _publishData() {
         const topic = this.publish || this.subscribe;
         if (topic) {
-            feezal.connection.pub(topic, JSON.stringify(this._data), {retain: this.retain !== 'false'});
+            feezal.connection.pub(topic, JSON.stringify(this._data), {retain: this.retain});
         }
         this.requestUpdate();
     }

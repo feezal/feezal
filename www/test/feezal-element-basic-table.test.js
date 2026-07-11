@@ -268,24 +268,24 @@ describe('write-back (phase 2)', () => {
         expect(tds[1].querySelector('input')).toBeTruthy();
     });
 
-    it('a commit publishes the WHOLE updated array retained, preserving number types', async () => {
+    it('a commit publishes the WHOLE updated array (non-retained by default), preserving number types', async () => {
         const el = await mountEditable();
         await commitCell(el, 0, '7');
         expect(feezal.connection.pub).toHaveBeenCalledTimes(1);
         const [topic, payload, options] = feezal.connection.pub.mock.calls[0];
         expect(topic).toBe('hub/list'); // publish defaults to the subscribe topic
         expect(JSON.parse(payload)).toEqual([{name: 'bolts', qty: 7}, {name: 'nuts', qty: 3}]);
-        expect(options).toEqual({retain: true});
+        expect(options).toEqual({retain: false});
     });
 
-    it('publish topic and retain=false are honoured; unchanged values do not publish', async () => {
-        const el = await mountEditable({publish: 'hub/list/set', retain: 'false'});
+    it('publish topic and the retain flag are honoured; unchanged values do not publish', async () => {
+        const el = await mountEditable({publish: 'hub/list/set', retain: ''});
         await commitCell(el, 0, '5'); // unchanged
         expect(feezal.connection.pub).not.toHaveBeenCalled();
         await commitCell(el, 0, '9');
         const [topic, , options] = feezal.connection.pub.mock.calls[0];
         expect(topic).toBe('hub/list/set');
-        expect(options).toEqual({retain: false});
+        expect(options).toEqual({retain: true});
     });
 
     it('add row appends an empty row, delete removes it — each publishing the array', async () => {
