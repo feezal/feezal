@@ -15,10 +15,18 @@ describe('install — pure helpers', () => {
         expect(pm.derivePkgType('react')).toBe(null);
     });
 
+    it('derives bundle type from the plural feezal-elements- prefix (N29)', () => {
+        expect(pm.derivePkgType('@feezal/feezal-elements-eink')).toBe('bundle');
+        expect(pm.derivePkgType('feezal-elements-hmi')).toBe('bundle');
+        // the plural prefix must not swallow regular element names (and vice versa)
+        expect(pm.derivePkgType('@feezal/feezal-element-eink-value')).toBe('element');
+    });
+
     it('allows only valid feezal add-on names', () => {
         expect(pm.isAllowedPackage('feezal-element-x')).toBe(true);
         expect(pm.isAllowedPackage('@scope/feezal-theme-y')).toBe(true);
         expect(pm.isAllowedPackage('feezal-icons-x')).toBe(true);   // N23
+        expect(pm.isAllowedPackage('@feezal/feezal-elements-eink')).toBe(true); // N29
         expect(pm.isAllowedPackage('react')).toBe(false);
         expect(pm.isAllowedPackage('../evil')).toBe(false);
         expect(pm.isAllowedPackage('')).toBe(false);
@@ -28,6 +36,7 @@ describe('install — pure helpers', () => {
         expect(pm.typeKeyword('element')).toBe('feezal-element');
         expect(pm.typeKeyword('theme')).toBe('feezal-theme');
         expect(pm.typeKeyword('icons')).toBe('feezal-icons');
+        expect(pm.typeKeyword('bundle')).toBe('feezal-elements');   // N29
     });
 
     it('resolves install dirs, preserving @scope/', () => {
@@ -66,6 +75,75 @@ describe('install — list / remove', () => {
     it('rejects removing a non-feezal / traversal name', async () => {
         await expect(pm.removePackage(dataDir, '../../etc')).rejects.toThrow();
         await expect(pm.removePackage(dataDir, 'react')).rejects.toThrow();
+    });
+});
+
+describe('install — element sets (N29 Phase A)', () => {
+    let dataDir;
+    beforeEach(async () => { dataDir = await mkdtemp(join(tmpdir(), 'feezal-pm-')); });
+    afterEach(async () => { await rm(dataDir, {recursive: true, force: true}); });
+
+    async function fakePkg(rel, pkg, withCode = true) {
+        const dir = join(dataDir, 'elements', ...rel.split('/'));
+        await mkdir(dir, {recursive: true});
+        await writeFile(join(dir, 'package.json'), JSON.stringify(pkg));
+        if (withCode) await writeFile(join(dir, 'index.js'), '/* bundle */');
+    }
+
+    const SET = '@feezal/feezal-elements-eink';
+
+    async function installedSet() {
+        // What _installBundleMembers writes: code-less marker + members recording the set.
+        await fakePkg(SET, {name: SET, version: '3.0.1',
+            feezal: {type: 'bundle', elements: ['@feezal/feezal-element-eink-value', '@feezal/feezal-element-eink-clock']}}, false);
+        await fakePkg('@feezal/feezal-element-eink-value',
+            {name: '@feezal/feezal-element-eink-value', version: '3.0.1', main: 'index.js', feezal: {type: 'element', set: SET}});
+        await fakePkg('@feezal/feezal-element-eink-clock',
+            {name: '@feezal/feezal-element-eink-clock', version: '3.0.1', main: 'index.js', feezal: {type: 'element', set: SET}});
+    }
+
+    it('lists the set marker with type bundle and members with their set', async () => {
+        await installedSet();
+        const list = await pm.listInstalled(dataDir);
+        expect(list.find(p => p.name === SET)).toMatchObject({type: 'bundle', version: '3.0.1'});
+        expect(list.find(p => p.name === '@feezal/feezal-element-eink-value')).toMatchObject({type: 'element', set: SET});
+        expect(list.filter(p => p.set === SET)).toHaveLength(2);
+    });
+
+    it('removing the set removes its members and the marker', async () => {
+        await installedSet();
+        await pm.removePackage(dataDir, SET);
+        expect(await pm.listInstalled(dataDir)).toEqual([]);
+    });
+
+    it('removing the set spares members owned by another set or installed individually', async () => {
+        await installedSet();
+        // individually installed (no set) — listed in the manifest but not owned by it
+        await fakePkg('@feezal/feezal-element-eink-state',
+            {name: '@feezal/feezal-element-eink-state', version: '3.0.1', main: 'index.js', feezal: {type: 'element'}});
+        await fakePkg(SET, {name: SET, version: '3.0.1',
+            feezal: {type: 'bundle', elements: [
+                '@feezal/feezal-element-eink-value', '@feezal/feezal-element-eink-clock', '@feezal/feezal-element-eink-state']}}, false);
+        await pm.removePackage(dataDir, SET);
+        const names = (await pm.listInstalled(dataDir)).map(p => p.name);
+        expect(names).toEqual(['@feezal/feezal-element-eink-state']);
+    });
+
+    it('removing a single member leaves the set marker and its siblings alone', async () => {
+        await installedSet();
+        await pm.removePackage(dataDir, '@feezal/feezal-element-eink-clock');
+        const names = (await pm.listInstalled(dataDir)).map(p => p.name).sort();
+        expect(names).toEqual(['@feezal/feezal-element-eink-value', SET].sort());
+    });
+
+    it('a malicious bundle manifest cannot delete outside the elements dir', async () => {
+        await fakePkg(SET, {name: SET, version: '1.0.0',
+            feezal: {type: 'bundle', elements: ['../../secrets', 'react', 'feezal-elements-nested']}}, false);
+        await writeFile(join(dataDir, 'canary.txt'), 'still here');
+        await pm.removePackage(dataDir, SET); // must not throw, must not touch non-feezal names
+        const {readFile: rf} = await import('fs/promises');
+        expect(await rf(join(dataDir, 'canary.txt'), 'utf8')).toBe('still here');
+        expect(await pm.listInstalled(dataDir)).toEqual([]);
     });
 });
 

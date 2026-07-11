@@ -4,16 +4,23 @@ import {LitElement, html, css} from 'lit';
 /**
  * feezal-sidebar-packages (N4) — Package Manager sidebar tab.
  *
- * Search the npm registry for feezal add-on packages (elements / themes),
- * install / update / remove them. Installs are one blocking server step
- * (npm + bundle); the server emits `elementsChanged` and the panel offers a
- * reload to pick up the new package.
+ * Search the npm registry for feezal add-on packages (elements / themes /
+ * element sets), install / update / remove them. Installs are one blocking
+ * server step (npm + bundle); the server emits `elementsChanged` and the
+ * panel offers a reload to pick up the new package. N29: installing a
+ * feezal-elements-* set expands it into its member elements server-side;
+ * installed members are grouped (indented) under their set row, and removing
+ * the set removes its members.
  */
 const TYPES = [
     {key: 'all',     label: 'All'},
     {key: 'element', label: 'Elements'},
     {key: 'theme',   label: 'Themes'},
+    {key: 'bundle',  label: 'Sets'},
 ];
+
+// N29: 'bundle' is the wire name; show it as "set" to users.
+const typeLabel = t => (t === 'bundle' ? 'set' : t);
 
 class FeezalSidebarPackages extends LitElement {
     static properties = {
@@ -44,6 +51,7 @@ class FeezalSidebarPackages extends LitElement {
         .btn:disabled { opacity: 0.5; cursor: default; }
         h4 { margin: 12px 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; }
         .row { display: flex; align-items: center; gap: 6px; padding: 6px; border: 1px solid var(--feezal-border, #e0e0e0); border-radius: 6px; margin-bottom: 5px; }
+        .row.member { margin-left: 14px; }
         .row .meta { flex: 1; min-width: 0; }
         .row .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .row .name a { color: inherit; text-decoration: none; }
@@ -133,8 +141,31 @@ class FeezalSidebarPackages extends LitElement {
 
     _isInstalled(name) { return this._installed.some(p => p.name === name); }
 
+    /**
+     * Installed rows for the active filter. In the All and Sets views, set
+     * members are grouped (indented) under their set instead of listed
+     * top-level; type filters stay flat so e.g. Elements shows every element.
+     * A member whose set is no longer installed is shown top-level.
+     */
+    _installedView() {
+        const all = this._installed;
+        if (this._filter !== 'all' && this._filter !== 'bundle') {
+            return all.filter(p => p.type === this._filter).map(p => ({p, member: false}));
+        }
+        const bundles = new Set(all.filter(p => p.type === 'bundle').map(p => p.name));
+        const top = all.filter(p => !(p.set && bundles.has(p.set)));
+        const rows = [];
+        for (const p of (this._filter === 'bundle' ? top.filter(t => t.type === 'bundle') : top)) {
+            rows.push({p, member: false});
+            if (p.type === 'bundle') {
+                all.filter(m => m.set === p.name).forEach(m => rows.push({p: m, member: true}));
+            }
+        }
+        return rows;
+    }
+
     render() {
-        const installed = this._filter === 'all' ? this._installed : this._installed.filter(p => p.type === this._filter);
+        const installed = this._installedView();
         const results = this._results.filter(r => !this._isInstalled(r.name));
         return html`
             <div class="seg">
@@ -164,9 +195,9 @@ class FeezalSidebarPackages extends LitElement {
                 <h4>Search results</h4>
                 ${results.map(r => this._resultRow(r))}` : ''}
 
-            <h4>Installed${this._filter !== 'all' ? ` · ${this._filter}s` : ''}</h4>
+            <h4>Installed${this._filter !== 'all' ? ` · ${typeLabel(this._filter)}s` : ''}</h4>
             ${installed.length
-                ? installed.map(p => this._installedRow(p))
+                ? installed.map(({p, member}) => this._installedRow(p, member))
                 : html`<div class="empty">No packages installed${this._filter !== 'all' ? ` of this type` : ''} yet.</div>`}
 
             ${this._output ? html`<pre class="out">${this._output}</pre>` : ''}
@@ -181,26 +212,29 @@ class FeezalSidebarPackages extends LitElement {
                     <div class="name">${r.name}</div>
                     <div class="sub">${r.version} · ${r.description || r.author || ''}</div>
                 </div>
-                <span class="chip">${r.type}</span>
+                <span class="chip">${typeLabel(r.type)}</span>
                 <button class="btn primary" ?disabled="${!!this._busy}" @click="${() => this._install(r)}">
                     ${busy ? html`<span class="spin"></span>` : 'Install'}
                 </button>
             </div>`;
     }
 
-    _installedRow(p) {
+    _installedRow(p, member = false) {
         const busy = this._busy === p.name;
         const outdated = p.latest && p.latest !== p.version;
+        const isBundle = p.type === 'bundle';
         return html`
-            <div class="row">
+            <div class="row ${member ? 'member' : ''}">
                 <div class="meta">
                     <div class="name"><a href="https://www.npmjs.com/package/${p.name}" target="_blank" rel="noopener noreferrer">${p.name}</a></div>
-                    <div class="sub">${p.version} · ${p.type}</div>
+                    <div class="sub">${p.version} · ${typeLabel(p.type)}</div>
                 </div>
                 ${outdated ? html`<span class="badge" title="Update available">→ ${p.latest}</span>` : ''}
                 ${outdated ? html`<button class="btn" ?disabled="${!!this._busy}" @click="${() => this._update(p)}">
                     ${busy ? html`<span class="spin"></span>` : 'Update'}</button>` : ''}
-                <button class="btn danger" ?disabled="${!!this._busy}" @click="${() => this._remove(p)}">
+                <button class="btn danger" ?disabled="${!!this._busy}"
+                    title="${isBundle ? 'Removes the set and its member elements' : ''}"
+                    @click="${() => this._remove(p)}">
                     ${busy ? html`<span class="spin"></span>` : 'Remove'}
                 </button>
             </div>`;

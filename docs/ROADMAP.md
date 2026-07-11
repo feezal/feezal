@@ -195,12 +195,16 @@ Residual from N4/N23 (both archived; the icons type is handled — viewer pages 
 
 Ship in two phases; design Phase A's marker so Phase B is a compatible extension.
 
-#### Phase A — meta / aggregator package (MVP, minimal change)
+#### Phase A — meta / aggregator package (MVP, minimal change) ✅ implemented (July 2026)
 
-A package (e.g. `@feezal/feezal-elements-material`, or any package carrying a `feezal: {type: "bundle", elements: [...]}` marker) whose `package.json` only lists member `feezal-element-*` packages as **dependencies** — no element code of its own. The install pipeline **detects a bundle and expands it**: loop over members and run the *existing* single-package `npm install` → bundle → write for each, landing each member in its own `<dataDir>/elements/<member>/` dir.
+A package named `feezal-elements-*` (plural) carrying a `feezal: {type: "bundle", elements: [...]}` marker whose `package.json` only lists member `feezal-element-*` packages as **dependencies** — no element code of its own. The install pipeline **detects a bundle and expands it**: members are bundled from the same staging `npm install` (they're dependencies, so npm already fetched them), landing each in its own `<dataDir>/elements/<member>/` dir.
 
-- **Why it's the right MVP:** the invariant that the whole editor/viewer/export relies on — **directory name = package name = custom-element tag** — stays intact, so discovery ([elements.js](../server/src/build/elements.js) `_scan`), the palette, the `window.feezal.elements` registry, and export tree-shaking need **zero change**. Almost all the work is in [install.js](../server/src/build/install.js): extend `isAllowedPackage`/`derivePkgType` for the bundle marker, and make `installPackage` iterate members (each member still produces a normal per-element install).
-- **Cost / decisions:** a 20-element set = 20 bundled files (no shared-code dedup — see Phase B); **Update/Remove semantics** — does Remove drop the whole set or individual members, and what if a member is also pulled in by another installed set? (reference-count members, or record set membership in each member's written `package.json`). List UI should group members under their set.
+**Implemented decisions** (pathfinder set: `@feezal/feezal-elements-eink`):
+- Name prefix `feezal-elements-` → type `bundle` in `derivePkgType`/`isAllowedPackage`; registry-search keyword for sets is **`feezal-elements`** (aggregator packages must carry it in their `keywords`).
+- Each written member records its owner in `feezal.set`; the set itself gets a **code-less marker dir** (manifest-only `package.json`) so it shows in the installed list and can be updated/removed as a unit — discovery skips it by name prefix, so nothing changed in `_scan`/palette/registry/export.
+- **Remove semantics:** removing the set removes exactly the members whose `feezal.set` matches it (individually installed members and members owned by another set survive); removing a single member leaves the set alone. Full reference counting deferred to Phase B.
+- Packages sidebar: **Sets** filter, `set` chip, members grouped/indented under their set row in the All/Sets views (type filters stay flat).
+- Cost accepted as designed: a 20-element set = 20 bundled files, shared base classes inlined per member (no dedup — see Phase B).
 
 #### Phase B — true multi-element package (one dir, many tags; code-dedup)
 

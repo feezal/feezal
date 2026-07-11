@@ -548,11 +548,11 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
         }
     });
 
-    // Registry search, scoped to a type keyword. GET /api/elements/search?text=&type=element|theme|icons
+    // Registry search, scoped to a type keyword. GET /api/elements/search?text=&type=element|theme|icons|bundle
     router.get('/elements/search', async (req, res) => {
         const text = String(req.query.text || '').trim();
-        const type = ['theme', 'element', 'icons'].includes(req.query.type) ? req.query.type : null;
-        const kws  = type ? [pkgManager.typeKeyword(type)] : ['feezal-element', 'feezal-theme', 'feezal-icons'];
+        const type = ['theme', 'element', 'icons', 'bundle'].includes(req.query.type) ? req.query.type : null;
+        const kws  = type ? [pkgManager.typeKeyword(type)] : ['feezal-element', 'feezal-theme', 'feezal-icons', 'feezal-elements'];
         try {
             const merged = [];
             await Promise.all(kws.map(async kw => {
@@ -583,7 +583,7 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
         if (!storage.dataDir) return res.status(503).json({error: 'No dataDir configured'});
         const {package: pkg, version} = req.body || {};
         if (!pkgManager.isAllowedPackage(pkg)) {
-            return res.status(400).json({error: 'package must be a feezal-element-*, feezal-theme-* or feezal-icons-* name'});
+            return res.status(400).json({error: 'package must be a feezal-element-*, feezal-elements-* (set), feezal-theme-* or feezal-icons-* name'});
         }
         try {
             const result = await pkgManager.installPackage({wwwDir, dataDir: storage.dataDir, pkg, version, logger});

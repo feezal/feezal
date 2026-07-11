@@ -65,6 +65,78 @@ describe('installed packages', () => {
     });
 });
 
+describe('element sets (N29) — grouping & labels', () => {
+    const SET = '@feezal/feezal-elements-eink';
+    const WITH_SET = [
+        {name: '@feezal/feezal-element-solo', version: '1.0.0', type: 'element'},
+        {name: SET, version: '3.0.1', type: 'bundle'},
+        {name: '@feezal/feezal-element-eink-value', version: '3.0.1', type: 'element', set: SET},
+        {name: '@feezal/feezal-element-eink-clock', version: '3.0.1', type: 'element', set: SET},
+    ];
+
+    async function attachWithSet() {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ok: true, json: async () => ({packages: WITH_SET})}));
+        const el = document.createElement('feezal-sidebar-packages');
+        document.body.append(el);
+        await el.updateComplete;
+        await vi.waitFor(() => expect(el._installed).toHaveLength(WITH_SET.length));
+        await el.updateComplete;
+        return el;
+    }
+
+    const rowNames = el => [...el.shadowRoot.querySelectorAll('.row')].map(r =>
+        ({name: r.querySelector('.name').textContent.trim(), member: r.classList.contains('member')}));
+
+    it('groups members indented under their set in the All view', async () => {
+        const el = await attachWithSet();
+        expect(rowNames(el)).toEqual([
+            {name: '@feezal/feezal-element-solo', member: false},
+            {name: SET, member: false},
+            {name: '@feezal/feezal-element-eink-value', member: true},
+            {name: '@feezal/feezal-element-eink-clock', member: true},
+        ]);
+    });
+
+    it('the Sets filter shows only sets with their members', async () => {
+        const el = await attachWithSet();
+        el._filter = 'bundle';
+        await el.updateComplete;
+        expect(rowNames(el).map(r => r.name)).toEqual(
+            [SET, '@feezal/feezal-element-eink-value', '@feezal/feezal-element-eink-clock']);
+    });
+
+    it('the Elements filter stays flat and includes set members', async () => {
+        const el = await attachWithSet();
+        el._filter = 'element';
+        await el.updateComplete;
+        const rows = rowNames(el);
+        expect(rows.map(r => r.name)).toEqual([
+            '@feezal/feezal-element-solo', '@feezal/feezal-element-eink-value', '@feezal/feezal-element-eink-clock']);
+        expect(rows.every(r => !r.member)).toBe(true);
+    });
+
+    it('an orphaned member (set no longer installed) is listed top-level', async () => {
+        const el = await attachWithSet();
+        el._installed = WITH_SET.filter(p => p.type !== 'bundle');
+        await el.updateComplete;
+        expect(rowNames(el).every(r => !r.member)).toBe(true);
+        expect(rowNames(el)).toHaveLength(3);
+    });
+
+    it('renders bundle rows and search results with the "set" label', async () => {
+        const el = await attachWithSet();
+        const setRow = [...el.shadowRoot.querySelectorAll('.row')].find(r =>
+            r.querySelector('.name').textContent.trim() === SET);
+        expect(setRow.querySelector('.sub').textContent).toContain('set');
+        expect(setRow.querySelector('.btn.danger').title).toContain('member elements');
+
+        el._results = [{name: '@feezal/feezal-elements-hmi', version: '1.0.0', type: 'bundle', description: 'HMI set'}];
+        await el.updateComplete;
+        const chip = [...el.shadowRoot.querySelectorAll('.chip')].map(c => c.textContent.trim());
+        expect(chip).toContain('set');
+    });
+});
+
 describe('_search()', () => {
     it('queries the registry and shows the results', async () => {
         const el = await attachPanel();

@@ -15,6 +15,16 @@
  *
  * The browser can't resolve bare specifiers, so the on-install bundle is what
  * makes a raw npm element loadable at runtime.
+ *
+ * Element sets (N29 Phase A): a `feezal-elements-*` package carrying
+ * `feezal: {type: 'bundle', elements: [...]}` has no code of its own — its
+ * members are expanded from the same staging install: each listed element is
+ * bundled and written to its own <dataDir>/elements/<member>/ dir (with the
+ * set name recorded in `feezal.set`), plus a code-less marker dir for the set
+ * itself so it appears in the installed list and can be updated/removed as a
+ * unit. Removing the set removes exactly the members that record membership;
+ * discovery skips the marker (the feezal-elements- dir name matches no
+ * element/theme/icons prefix).
  */
 
 const fs   = require('fs');
@@ -25,7 +35,10 @@ const {execFile} = require('child_process');
 const {pathToFileURL} = require('url');
 
 const ELEMENTS_SUBDIR = 'elements';                 // <dataDir>/elements/
-const PREFIXES = {'feezal-element-': 'element', 'feezal-theme-': 'theme', 'feezal-icons-': 'icons'};
+// 'feezal-elements-' (plural) marks an N29 element set. The prefixes are
+// mutually exclusive — 'feezal-elements-x' has an 's' where 'feezal-element-'
+// requires the dash — so match order is irrelevant.
+const PREFIXES = {'feezal-elements-': 'bundle', 'feezal-element-': 'element', 'feezal-theme-': 'theme', 'feezal-icons-': 'icons'};
 const NPM = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 // ── Pure helpers ─────────────────────────────────────────────────────────────
@@ -52,10 +65,11 @@ function isAllowedPackage(pkg) {
     return derivePkgType(s) !== null;
 }
 
-/** Registry-search keyword for a type filter ('element' | 'theme' | 'icons'). */
+/** Registry-search keyword for a type filter ('element' | 'theme' | 'icons' | 'bundle'). */
 function typeKeyword(type) {
     if (type === 'theme') return 'feezal-theme';
     if (type === 'icons') return 'feezal-icons';
+    if (type === 'bundle') return 'feezal-elements';
     return 'feezal-element';
 }
 
@@ -81,7 +95,10 @@ async function _walk(dir, base, out) {
             const pkg = JSON.parse(await fsp.readFile(pj, 'utf8'));
             const name = pkg.name || path.relative(base, abs).split(path.sep).join('/');
             const type = (pkg.feezal && pkg.feezal.type) || derivePkgType(name) || 'element';
-            out.push({name, version: pkg.version || '0.0.0', type, pinned: !!(pkg.feezal && pkg.feezal.pinned)});
+            const entry = {name, version: pkg.version || '0.0.0', type, pinned: !!(pkg.feezal && pkg.feezal.pinned)};
+            // N29: members installed via a set record it; the UI groups by it.
+            if (pkg.feezal && pkg.feezal.set) entry.set = pkg.feezal.set;
+            out.push(entry);
         } catch { /* skip corrupt */ }
     }
 }
@@ -95,8 +112,7 @@ async function listInstalled(dataDir) {
     return out;
 }
 
-async function removePackage(dataDir, pkg) {
-    if (!isAllowedPackage(pkg)) throw new Error('invalid package name');
+async function _rmPkgDir(dataDir, pkg) {
     const base = path.join(dataDir, ELEMENTS_SUBDIR);
     const dir  = pkgDir(dataDir, pkg);
     if (dir !== base && !dir.startsWith(base + path.sep)) throw new Error('invalid path');
@@ -106,6 +122,26 @@ async function removePackage(dataDir, pkg) {
     if (parent !== base && path.basename(parent).startsWith('@')) {
         try { if ((await fsp.readdir(parent)).length === 0) await fsp.rmdir(parent); } catch { /* not empty */ }
     }
+}
+
+async function removePackage(dataDir, pkg) {
+    if (!isAllowedPackage(pkg)) throw new Error('invalid package name');
+    // N29: removing a set also removes the members that record membership of
+    // exactly this set (a member installed individually, or claimed by a
+    // different set, is left alone).
+    try {
+        const pj = JSON.parse(await fsp.readFile(path.join(pkgDir(dataDir, pkg), 'package.json'), 'utf8'));
+        if (pj.feezal && pj.feezal.type === 'bundle' && Array.isArray(pj.feezal.elements)) {
+            for (const member of pj.feezal.elements) {
+                if (!isAllowedPackage(member) || derivePkgType(member) === 'bundle') continue;
+                try {
+                    const mPj = JSON.parse(await fsp.readFile(path.join(pkgDir(dataDir, member), 'package.json'), 'utf8'));
+                    if (mPj.feezal && mPj.feezal.set === (pj.name || pkg)) await _rmPkgDir(dataDir, member);
+                } catch { /* member not installed — nothing to remove */ }
+            }
+        }
+    } catch { /* no manifest — plain package dir */ }
+    await _rmPkgDir(dataDir, pkg);
 }
 
 // ── npm + bundle ─────────────────────────────────────────────────────────────
@@ -177,6 +213,57 @@ async function _bundle(wwwDir, entryAbs, root, logger) {
 }
 
 /**
+ * N29 Phase A: expand an element set. Every member listed in
+ * `feezal.elements` is bundled from the staging install and written to its
+ * own <dataDir>/elements/<member>/ dir with `feezal.set` recording the
+ * membership; the set itself gets a code-less marker dir (its package.json
+ * carries the bundle manifest) so it shows up in the installed list and can
+ * be updated / removed as a unit.
+ */
+async function _installBundleMembers({staging, wwwDir, dataDir, pkg, pj, logger}) {
+    const members = (pj.feezal && Array.isArray(pj.feezal.elements)) ? pj.feezal.elements : [];
+    if (!members.length) {
+        throw new Error(`"${pkg}" is a bundle but its feezal.elements list is empty or missing`);
+    }
+    for (const member of members) {
+        if (!isAllowedPackage(member) || derivePkgType(member) !== 'element') {
+            throw new Error(`bundle member "${member}" is not a feezal-element-* package`);
+        }
+    }
+
+    const setName = pj.name || pkg;
+    const installed = [];
+    for (const member of members) {
+        const memberDir = path.join(staging, 'node_modules', ...member.split('/'));
+        const memberPj  = JSON.parse(await fsp.readFile(path.join(memberDir, 'package.json'), 'utf8'));
+        const code = await _bundle(wwwDir, path.join(memberDir, memberPj.main || 'index.js'), staging, logger);
+
+        const destDir = pkgDir(dataDir, member);
+        await fsp.rm(destDir, {recursive: true, force: true});
+        await fsp.mkdir(destDir, {recursive: true});
+        await fsp.writeFile(path.join(destDir, 'index.js'), code, 'utf8');
+        await fsp.writeFile(path.join(destDir, 'package.json'), JSON.stringify({
+            name: memberPj.name || member, version: memberPj.version || '0.0.0',
+            main: 'index.js', feezal: {type: 'element', set: setName},
+        }, null, 2));
+        installed.push({name: memberPj.name || member, version: memberPj.version || '0.0.0'});
+        logger.info?.(`install: bundled set member ${member}@${memberPj.version}`);
+    }
+
+    // Marker dir: no index.js — discoverElements' prefix filter never matches
+    // feezal-elements-* dirs, so nothing tries to serve it.
+    const destDir = pkgDir(dataDir, pkg);
+    await fsp.rm(destDir, {recursive: true, force: true});
+    await fsp.mkdir(destDir, {recursive: true});
+    await fsp.writeFile(path.join(destDir, 'package.json'), JSON.stringify({
+        name: setName, version: pj.version || '0.0.0',
+        feezal: {type: 'bundle', elements: members},
+    }, null, 2));
+
+    return {ok: true, name: setName, version: pj.version || '0.0.0', type: 'bundle', members: installed};
+}
+
+/**
  * Install one package end-to-end.
  * @returns {Promise<{ok, name, version, type, stdout, stderr}>}
  */
@@ -197,6 +284,15 @@ async function installPackage({wwwDir, dataDir, pkg, version, logger = console})
 
         const installedDir = path.join(staging, 'node_modules', ...String(pkg).split('/'));
         const pj = JSON.parse(await fsp.readFile(path.join(installedDir, 'package.json'), 'utf8'));
+
+        // N29 Phase A: a bundle package has no code — expand its members from
+        // the same staging install (they are dependencies, so npm already
+        // fetched them) and write a code-less marker dir for the set itself.
+        if (type === 'bundle' || (pj.feezal && pj.feezal.type === 'bundle')) {
+            const result = await _installBundleMembers({staging, wwwDir, dataDir, pkg, pj, logger});
+            return {...result, stdout, stderr};
+        }
+
         const entryAbs = path.join(installedDir, pj.main || 'index.js');
 
         const code = await _bundle(wwwDir, entryAbs, staging, logger);

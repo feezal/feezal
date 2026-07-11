@@ -114,6 +114,7 @@ The whole sidebar UI (search, install, update badge, remove, rejection errors,
 reload prompt) is automated against stubbed endpoints — what's left is the real thing:
 
 - [ ] Install a real published `feezal-element-*` from npm; after reload the element is in the palette; **Update** and **Remove** round-trip.
+- [ ] **Element sets (N29 Phase A)**: search for `eink` (or filter **Sets**) → `@feezal/feezal-elements-eink` appears with the `set` chip; **Install** expands it — after reload all member `feezal-element-eink-*` elements are in the palette; the Installed list shows the set row with its members indented beneath; **Remove** on the set removes the marker AND its members (a member also installed individually or owned by another set survives); **Remove** on a single member leaves the set and siblings; **Update** on the set reinstalls all members at latest. *(Type/keyword plumbing, bundle expansion write layout, set-aware remove and the grouping UI are unit-tested; this is the real-registry check.)*
 
 ---
 
