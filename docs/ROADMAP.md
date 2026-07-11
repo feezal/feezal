@@ -41,7 +41,6 @@ Work in progress — priorities and scope are not final.
 - [E68 — Astro / sunrise-sunset card (`feezal-element-basic-astro`)](#e68--astro--sunrise-sunset-card-feezal-element-basic-astro) 💡
 - [E69 — Carpet plot (`feezal-element-basic-carpet`)](#e69--carpet-plot-feezal-element-basic-carpet) 💡
 - [E70 — Sankey diagram (`feezal-element-basic-sankey`)](#e70--sankey-diagram-feezal-element-basic-sankey) 💡
-- [E75 — Data table (`feezal-element-basic-table`)](#e75--data-table-feezal-element-basic-table) 💡
 - [E80 — Navigation rail element (`feezal-element-material-navrail`)](#e80--navigation-rail-element-feezal-element-material-navrail)
 - [E83 — Spectrum element family (`feezal-element-spectrum-*`)](#e83--spectrum-element-family-feezal-element-spectrum-) 💡
 - [E84 — Wired / sketchy element family (`feezal-element-wired-*`)](#e84--wired--sketchy-element-family-feezal-element-wired-) 💡
@@ -697,36 +696,6 @@ Hour-of-day × day heatmap — the classic energy-consumption visualization (Flo
 Generalized N-node energy/material flow diagram (grid→house→consumers, water flows). `material-energy-flow` covers the common fixed home topology; Sankey is the configurable superset. Live mode maps current power values to band widths; historical totals need the **history-in-payload convention** (see Open Questions).
 
 **Relates:** material-energy-flow, E69, E28.
-
-### E75 — Data table (`feezal-element-basic-table`) 💡 idea
-
-*Peakboard research (July 2026): Table/ListView and Styled Tile Collection are Peakboard's workhorse controls, and **Hub Lists** — central read/write tables shared by every screen — power its team-board/shift-plan/pick-list use cases. feezal has no table element at all; a retained JSON topic can play the Hub-Lists role with zero new infrastructure.*
-
-**MVP (read-only):** `subscribe` receives a **JSON array of objects**; the element renders it as a table. `columns` (JSON attribute, custom inspector per N6: key, label, width, align, format) — when unset, columns auto-derive from the first row's keys. Per-column value formatting (decimals, unit suffix, ISO date → locale string). Click-to-sort headers, optional text-filter box, `max-rows`, sticky header. **Conditional formatting** via the established map convention: `row-class-map` and per-column `class-map` (payload value or numeric threshold → CSS class; colours come from U18 classes/theme vars) — the answer to Peakboard's most-used non-scripting feature.
-
-**Phase 2 (write-back — the MQTT-native Hub-Lists analog):** columns flagged `editable` render as inputs; commits publish the **whole updated array retained** to `publish` (default: the subscribe topic). Optional row add/delete. Every open viewer sees the same table live — team boards, shift plans, pick lists, simple checklists. Documented caveat: **last-writer-wins** on a whole-array retained payload, no merging — fine for the target use cases; anything transactional belongs in a real backend, not a dashboard.
-
-**Candidate backing lib (July 2026, awesome-lit):** rather than hand-roll sort/filter/paginate, evaluate **`@tanstack/lit-table`** (headless — sorting, filtering, pagination, column model; you own the markup/styling, so it fits feezal's token/theme story) or **`<lit-datatable>`** (Material, batteries-included). A third option surfaced from awesome-web-components: **`<active-table>`** (a batteries-included **editable** table — directly relevant to the phase-2 write-back mode). Headless (tanstack) remains the best fit for theme control; `<active-table>` is worth a look specifically for the editable case; verify Lit 3 compat + bundle cost for whichever wins. For very large arrays, pair with **`@lit-labs/virtualizer`** (row virtualization) — see A20 tooling.
-
-**Attributes:**
-
-| Attribute | Type | Default | Description |
-|---|---|---|---|
-| `subscribe` | mqttTopic | — | JSON-array-of-objects payload |
-| `publish` | mqttTopic | `""` | Write-back topic (phase 2; defaults to `subscribe`) |
-| `columns` | string | `[]` | JSON column config; empty = auto from first row |
-| `sortable` | boolean | `true` | Click-to-sort headers |
-| `filter` | boolean | `false` | Show text-filter box |
-| `max-rows` | number | `0` | Row cap, `0` = unlimited |
-| `row-class-map` | string | `{}` | Value/threshold → row CSS class |
-| `editable` | boolean | `false` | Enable phase-2 editing (per-column flag in `columns`) |
-| `empty-text` | string | `No data` | Placeholder when the array is empty |
-
-> **Conventions:** single state topic · auto-discovery: none · custom inspector for `columns` (N6). See [Element platform conventions](#element-platform-conventions).
-
-**Default size:** 400×300 px.
-
-**Relates:** N2 (repeater — free-form sibling; the table is the dense/tabular case), E32 (event rows from wildcards — different source model), E66 (fleet board is a specialized table), E61 (alarm table shares sorting + severity classes), U18 (classes for conditional formatting).
 
 ### E80 — Navigation rail element (`feezal-element-material-navrail`)
 

@@ -8,6 +8,7 @@ import '@feezal/feezal-element-basic-navigation';
 import '@feezal/feezal-element-basic-number';
 import '@feezal/feezal-element-basic-qrcode';
 import '@feezal/feezal-element-basic-svg';
+import '@feezal/feezal-element-basic-table';
 import '@feezal/feezal-element-basic-template';
 import '@feezal/feezal-element-basic-ticker';
 import '@feezal/feezal-element-glass-button';
@@ -120,6 +121,7 @@ window.feezal.elements = [
   "@feezal/feezal-element-basic-number",
   "@feezal/feezal-element-basic-qrcode",
   "@feezal/feezal-element-basic-svg",
+  "@feezal/feezal-element-basic-table",
   "@feezal/feezal-element-basic-template",
   "@feezal/feezal-element-basic-ticker",
   "@feezal/feezal-element-glass-button",
