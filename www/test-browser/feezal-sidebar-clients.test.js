@@ -65,6 +65,20 @@ describe('feezal-sidebar-clients late-site wiring (N24)', () => {
         expect(panel.shadowRoot.textContent).toContain('panel-7');
     });
 
+    it('accepts a status payload delivered as a raw JSON string (hub cache replay)', async () => {
+        // Bridge-mode viewers send their status as a JSON string; the broker
+        // relay parses it, but a hub cache replay (and older servers) can hand
+        // the string through — the panel must not drop the viewer over the
+        // payload type.
+        app.innerHTML = '<feezal-site subscribe="home/cmnd" publish="home/stat"></feezal-site>';
+        const panel = await mountPanel();
+        await tick();
+
+        feezal.connection.deliver('home/stat/clients/viewer-str1/status', JSON.stringify(STATUS));
+        await panel.updateComplete;
+        expect(panel.shadowRoot.textContent).toContain('viewer-str1');
+    });
+
     it('publishes per-client commands under the site SUBSCRIBE topic', async () => {
         app.innerHTML = '<feezal-site subscribe="home/cmnd" publish="home/stat"></feezal-site>';
         const panel = await mountPanel();

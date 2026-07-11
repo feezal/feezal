@@ -28,7 +28,8 @@
         "express-session": "^1.18.0",
         "mqtt": "^5.15.1",
         "socket.io": "^4.7.5",
-        "tar-stream": "^3.2.0"
+        "tar-stream": "^3.2.0",
+        "ws": "^8.21.0"
     },
     "devDependencies": {
         "@vitest/coverage-v8": "^4.1.9",
@@ -36,7 +37,6 @@
         "aedes": "^1.1.1",
         "socket.io-client": "^4.8.3",
         "supertest": "^7.2.2",
-        "vitest": "^4.1.9",
-        "ws": "^8.21.0"
+        "vitest": "^4.1.9"
     }
 }

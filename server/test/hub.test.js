@@ -135,6 +135,25 @@ describe('send / subscribe message bus', () => {
         });
     });
 
+    it('cache replay parses JSON string payloads like the bridge relay does', async () => {
+        // A bridge-mode viewer sends its presence status as a raw JSON string;
+        // the broker path delivers it parsed. The cache replay must serve the
+        // same TYPE — the Clients panel requires payload.connectedSince on an
+        // object and silently dropped string replays.
+        const sender = await connectClient();
+        sender.emit('send', {topic: 'cachejson/clients/v1/status',
+            payload: '{"view":"main","connectedSince":"2026-07-12T00:00:00Z"}', retain: true});
+
+        const late = await connectClient();
+        const input = nextEvent(late, 'input');
+        late.emit('subscribe', ['cachejson/clients/+/status']);
+        expect(await input).toMatchObject({
+            topic: 'cachejson/clients/v1/status',
+            payload: {view: 'main', connectedSince: '2026-07-12T00:00:00Z'},
+            cached: true
+        });
+    });
+
     // Known-retained model: the broker strips RETAIN on live deliveries
     // [MQTT-3.3.1-9], so retained state topics receive their updates with
     // retain=0. A topic seen retained once stays cached; later messages

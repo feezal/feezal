@@ -126,7 +126,14 @@ class FeezalSidebarClients extends LitElement {
             const id = String(msg.topic).slice(base.length + '/clients/'.length, -'/status'.length);
             if (!id || id.includes('/')) return;
             const next = {...this._clients};
-            const p = msg.payload;
+            let p = msg.payload;
+            // The broker relay parses JSON payloads into objects, but other
+            // delivery paths (hub cache replay of a viewer's `send`, older
+            // servers) can still hand the raw status JSON string through —
+            // don't silently drop an online viewer over the payload TYPE.
+            if (typeof p === 'string' && p.startsWith('{')) {
+                try { p = JSON.parse(p); } catch { /* not a status JSON */ }
+            }
             if (p && typeof p === 'object' && p.connectedSince) {
                 next[id] = p;
             } else {

@@ -40,14 +40,28 @@ function createHub(io, {storage, logger}) {
      * also arrives as retain=0 + empty. Topics never seen retained (commands,
      * reload, …) are never cached, so no stale command is ever replayed.
      */
+    /** Parse JSON-looking string payloads like the bridge relay does.
+     * Messages arriving via `send` (bridge-mode viewers, editor publishes)
+     * carry their payload as the raw string — but everything downstream is
+     * written against the bridge-relay format, where JSON payloads are
+     * parsed objects (the Clients panel e.g. requires `payload.connectedSince`
+     * on a parsed object). Without this, a cache replay served a different
+     * payload TYPE than the live broker path for the same topic. */
+    function parsePayload(payload) {
+        if (typeof payload === 'string' && (payload.startsWith('{') || payload.startsWith('['))) {
+            try { return JSON.parse(payload); } catch { /* not JSON after all */ }
+        }
+        return payload;
+    }
+
     function updateCache(message) {
         const empty = message.payload === '' || message.payload === null || message.payload === undefined;
         if (empty) {
             delete cache[message.topic];
         } else if (message.retain) {
-            cache[message.topic] = {cached: true, ...message};
+            cache[message.topic] = {cached: true, ...message, payload: parsePayload(message.payload)};
         } else if (cache[message.topic]) {
-            cache[message.topic] = {...cache[message.topic], payload: message.payload};
+            cache[message.topic] = {...cache[message.topic], payload: parsePayload(message.payload)};
         }
     }
 

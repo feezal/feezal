@@ -322,6 +322,7 @@ hub disconnect-clear and bridge retain-forwarding are automated.)*
 - [ ] Site-wide control topics (`<subscribe>/view`, …) still steer **all** viewers.
 - [ ] Duplicate id (copy `localStorage` value to a second browser) → "already online" warning toast, both keep working.
 - [ ] Viewer Settings → Site → **Viewer presence** off → redeploy: no status published, no toast, Clients panel empty.
+- [ ] **All four broker protocols** (`mqtt://`, `mqtts://`, `ws://`, `wss://`, mosquitto): the Clients panel lists viewers and survives a **viewer page reload** (row stays/reappears within seconds). Watch the server console: no `mqtt-bridge: connection closed` after a presence clear — with a ws(s) broker, an empty retained publish used to kill the bridge connection (mqtt.js sends the empty payload as an empty WebSocket frame; mosquitto drops the client with a protocol error). *(Empty-frame guard, hub cache JSON parsing and panel string tolerance are unit-tested; the mosquitto interaction was verified against a real broker.)*
 
 ## 13. Auth / deployment (if used)
 

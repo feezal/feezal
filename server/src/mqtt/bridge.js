@@ -13,7 +13,9 @@
 
 const fs = require('fs').promises;
 const path = require('path');
+const tls = require('tls');
 const mqtt = require('mqtt');
+const WebSocket = require('ws');
 const discovery = require('./discovery.js');
 
 // ── Trie ───────────────────────────────────────────────────────────────────
@@ -141,6 +143,38 @@ function connect(config, logger, certDir) {
 }
 
 /**
+ * Wrap a WebSocket so zero-length sends are dropped.
+ *
+ * mqtt.js writes every MQTT packet field as its own stream chunk; an empty
+ * payload — the retained-empty publish that IS the MQTT retained-clear
+ * convention (viewer presence clears, N24) — produces a zero-length chunk
+ * that the ws transport sends as an EMPTY WebSocket frame. mosquitto rejects
+ * that frame as a protocol error ("RESERVED packet") and closes the
+ * connection — so every presence clear killed the ws/wss bridge, which then
+ * missed all broker traffic (viewer statuses!) until the 5s reconnect.
+ * A zero-length frame carries no MQTT bytes, so dropping it changes nothing
+ * on the wire. (Reproduced with mqtt.js 5.15.2 / mosquitto 2.1.2.)
+ *
+ * Exported for tests.
+ */
+function guardEmptyWsFrames(socket) {
+    const send = socket.send.bind(socket);
+    socket.send = (data, options, callback) => {
+        if (typeof options === 'function') {
+            callback = options;
+            options = undefined;
+        }
+        const len = data == null ? 0 : (data.length ?? data.byteLength ?? 0);
+        if (len === 0) {
+            if (callback) callback();
+            return;
+        }
+        return send(data, options, callback);
+    };
+    return socket;
+}
+
+/**
  * mqtt.js connect options from the stored connection config: credentials,
  * protocol version (N9) and — when a cert dir is given — the site's TLS
  * material (N8: CA trust + mTLS client cert/key). Exported for tests.
@@ -151,7 +185,10 @@ async function buildConnectOptions(config, certDir) {
         reconnectPeriod: 5000,
         connectTimeout: 10000,
         // N9: MQTT protocol version — 4 (3.1.1, default) or 5 (MQTT 5.0)
-        protocolVersion: Number(config.protocolVersion) === 5 ? 5 : 4
+        protocolVersion: Number(config.protocolVersion) === 5 ? 5 : 4,
+        // Only consulted by the ws/wss transport — see guardEmptyWsFrames.
+        createWebsocket: (url, protocols, opts) =>
+            guardEmptyWsFrames(new WebSocket(url, protocols, opts.wsOptions))
     };
     if (config.username) options.username = config.username;
     if (config.password) options.password = config.password;
@@ -166,6 +203,13 @@ async function buildConnectOptions(config, certDir) {
             loadPem('client.crt', 'cert'),
             loadPem('client.key', 'key')
         ]);
+        // An uploaded CA must ADD trust for the private CA, not replace the
+        // system store — options.ca alone would make the bridge distrust
+        // brokers with publicly-signed (e.g. Let's Encrypt) certificates
+        // while browsers keep working, which is near-impossible to debug.
+        if (options.ca) {
+            options.ca = [...tls.rootCertificates, options.ca.toString()];
+        }
     }
 
     return options;
@@ -272,4 +316,4 @@ function publish(message) {
     _logger?.debug('mqtt-bridge: publish ' + message.topic + (message.retain === true ? ' (retained)' : ''));
 }
 
-module.exports = { connect, disconnect, publish, insertTopic, getTopicCompletions, getAllTopics, getLastPayload, recordPayload, setRelayCallback, buildConnectOptions, refreshRetained, getDiscoveredEntities: discovery.getDiscoveredEntities, getDiscoveredEntity: discovery.getDiscoveredEntity, getDeviceGroups: discovery.getDeviceGroups };
+module.exports = { connect, disconnect, publish, insertTopic, getTopicCompletions, getAllTopics, getLastPayload, recordPayload, setRelayCallback, buildConnectOptions, guardEmptyWsFrames, refreshRetained, getDiscoveredEntities: discovery.getDiscoveredEntities, getDiscoveredEntity: discovery.getDiscoveredEntity, getDeviceGroups: discovery.getDeviceGroups };

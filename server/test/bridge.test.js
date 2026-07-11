@@ -69,6 +69,41 @@ describe('topic trie (unit)', () => {
     });
 });
 
+describe('guardEmptyWsFrames (unit)', () => {
+    function fakeSocket() {
+        const sent = [];
+        return {sent, send(data, options, callback) { sent.push({data, options}); if (typeof options === 'function') options(); else if (callback) callback(); }};
+    }
+
+    it('drops zero-length sends but still invokes the callback', () => {
+        const s = bridge.guardEmptyWsFrames(fakeSocket());
+        let called = 0;
+        s.send(Buffer.alloc(0), () => called++);
+        s.send('', undefined, () => called++);
+        s.send(undefined, () => called++);
+        expect(s.sent).toEqual([]);
+        expect(called).toBe(3);
+    });
+
+    it('passes non-empty sends through unchanged', () => {
+        const s = bridge.guardEmptyWsFrames(fakeSocket());
+        let called = 0;
+        s.send(Buffer.from([0x31, 0x05]), {binary: true}, () => called++);
+        s.send('x', () => called++);
+        expect(s.sent).toHaveLength(2);
+        expect(s.sent[0].data).toEqual(Buffer.from([0x31, 0x05]));
+        expect(s.sent[0].options).toEqual({binary: true});
+        expect(called).toBe(2);
+    });
+});
+
+describe('buildConnectOptions (unit)', () => {
+    it('installs the empty-frame-guarded websocket factory', async () => {
+        const options = await bridge.buildConnectOptions({});
+        expect(typeof options.createWebsocket).toBe('function');
+    });
+});
+
 describe('against a real broker (aedes)', () => {
     let broker;
     let server;
@@ -260,14 +295,19 @@ describe('buildConnectOptions (N8 TLS material / N9 protocol version)', () => {
         expect((await bridge.buildConnectOptions({protocolVersion: 3}, null)).protocolVersion).toBe(4);
     });
 
-    it('loads CA, client cert and key from the cert dir (mTLS)', async () => {
+    it('loads CA, client cert and key from the cert dir (mTLS); CA is additive to the system store', async () => {
         const dir = await mkdtemp(join(tmpdir(), 'feezal-bridge-certs-'));
         try {
             await writeFile(join(dir, 'ca.pem'), 'CA-PEM');
             await writeFile(join(dir, 'client.crt'), 'CLIENT-CRT');
             await writeFile(join(dir, 'client.key'), 'CLIENT-KEY');
             const opts = await bridge.buildConnectOptions({}, dir);
-            expect(opts.ca.toString()).toBe('CA-PEM');
+            // The uploaded CA extends the system trust store instead of
+            // replacing it (a private CA must not untrust public brokers).
+            const {rootCertificates} = await import('tls');
+            expect(Array.isArray(opts.ca)).toBe(true);
+            expect(opts.ca.length).toBe(rootCertificates.length + 1);
+            expect(opts.ca.at(-1)).toBe('CA-PEM');
             expect(opts.cert.toString()).toBe('CLIENT-CRT');
             expect(opts.key.toString()).toBe('CLIENT-KEY');
         } finally {
@@ -280,7 +320,7 @@ describe('buildConnectOptions (N8 TLS material / N9 protocol version)', () => {
         try {
             await writeFile(join(dir, 'ca.pem'), 'CA-ONLY');
             const opts = await bridge.buildConnectOptions({}, dir);
-            expect(opts.ca.toString()).toBe('CA-ONLY');
+            expect(opts.ca.at(-1)).toBe('CA-ONLY');
             expect(opts.cert).toBeUndefined();
             expect(opts.key).toBeUndefined();
         } finally {

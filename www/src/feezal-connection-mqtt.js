@@ -49,7 +49,23 @@ class FeezalConnectionMqtt extends LitElement {
         const options = {
             clientId,
             // N9: MQTT protocol version — 4 (3.1.1, default) or 5 (MQTT 5.0)
-            protocolVersion: Number(cfg.protocolVersion) === 5 ? 5 : 4
+            protocolVersion: Number(cfg.protocolVersion) === 5 ? 5 : 4,
+            // mqtt.js writes each MQTT packet field as its own chunk; an empty
+            // payload (retained clear — presence rename, element clears) becomes
+            // an EMPTY WebSocket frame, which mosquitto rejects as a protocol
+            // error and closes the connection. A zero-length frame carries no
+            // MQTT bytes — dropping the send is a no-op on the wire.
+            // (Same guard server-side in server/src/mqtt/bridge.js.)
+            createWebsocket: (url, protocols) => {
+                const socket = new WebSocket(url, protocols);
+                const send = socket.send.bind(socket);
+                socket.send = data => {
+                    const len = data == null ? 0 : (data.length ?? data.byteLength ?? 0);
+                    if (len === 0) return;
+                    send(data);
+                };
+                return socket;
+            }
         };
 
         if (this._runtimeCreds?.username) {
