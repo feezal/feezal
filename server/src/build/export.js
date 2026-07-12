@@ -8,6 +8,7 @@ const zlib = require('node:zlib');
 
 const {ZipArchive} = require('archiver');
 const {extractUsedElements, tagsToPackages, buildTagToPackageMap, partitionPackages} = require('./extract-elements.js');
+const {usedUserPackages} = require('./elements.js');
 const {siteIconArtifacts} = require('./icons.js');
 const pwa = require('./pwa.js');
 
@@ -325,8 +326,18 @@ function applyRewrites(text, rewrites) {
 /**
  * Composes the static index.html with all viewer JS inlined as a plain
  * <script> block (no module imports, no external files — works on file://).
+ *
+ * N27: `userPkgModules` ([{name, code}]) are the used installed packages'
+ * self-contained ESM bundles, inlined as module scripts after the viewer
+ * bundle (inline modules run from file://; src= module references don't).
  */
-function composeIndexHtml(siteName, siteHtml, connectionConfig, inlineJs, themeOverrides, userThemeCss, classes) {
+function composeIndexHtml(siteName, siteHtml, connectionConfig, inlineJs, themeOverrides, userThemeCss, classes, userPkgModules = []) {
+    // A closing </script> inside the bundled code would terminate the inline
+    // script early — the standard escape keeps the JS semantics identical.
+    const escapeInline = code => code.replace(/<\/script/gi, '<\\/script');
+    const userPkgScripts = userPkgModules
+        .map(m => `\n<script type="module">/* ${m.name} (installed package) */\n${escapeInline(m.code)}<` + `/script>`)
+        .join('');
     const connectionAttr = connectionConfig && Object.keys(connectionConfig).length
         ? ` config='${JSON.stringify(connectionConfig).replace(/'/g, "&#39;")}'`
         : '';
@@ -405,7 +416,7 @@ window.feezal = {
 <body>
 <feezal-connection backend="mqtt"${connectionAttr}></feezal-connection>
 <feezal-app-viewer>${siteHtml}</feezal-app-viewer>
-<script>${inlineJs}<` + `/script>
+<script>${inlineJs}<` + `/script>${userPkgScripts}
 </body>
 </html>`;
 }
@@ -656,6 +667,27 @@ async function buildExportBundle(wwwDir, siteName, {html: siteHtml, config}, log
     }
 
     // ------------------------------------------------------------------
+    // N27: user-installed element/theme packages the site uses. Their
+    // install bundles are self-contained ESM — inline each as a module
+    // script in index.html. Inlining (not a src= reference) is required:
+    // exports must work from file://, where external module scripts are
+    // CORS-blocked but inline modules run fine.
+    // ------------------------------------------------------------------
+    const userPkgModules = [];   // [{name, code}]
+    try {
+        const userElementsDir = storage && storage.dataDir
+            ? path.join(storage.dataDir, 'elements')
+            : null;
+        for (const el of usedUserPackages({wwwDir, userElementsDir, siteHtml, theme})) {
+            const code = await fs.readFile(path.join(el.absolute, el.main), 'utf8');
+            userPkgModules.push({name: el.bare, code});
+            logger.debug(`export: inlining installed package ${el.bare} (${Math.round(code.length / 1024)} kB)`);
+        }
+    } catch (err) {
+        logger.warn('export: user package inlining failed: ' + err.message);
+    }
+
+    // ------------------------------------------------------------------
     // A16: referenced-only assets, flattened into a single assets/ tree.
     // Absolute /assets/… references are rewritten to relative assets/…
     // so the bundle works from file://; legacy global/ references are
@@ -687,7 +719,7 @@ async function buildExportBundle(wwwDir, siteName, {html: siteHtml, config}, log
     const finalClasses = rewriteJson(classes);
 
     logger.debug('export: composing HTML...');
-    let indexHtml = composeIndexHtml(siteName, siteHtml, connectionConfig, inlineJs, finalOverrides, userThemeCss, finalClasses);
+    let indexHtml = composeIndexHtml(siteName, siteHtml, connectionConfig, inlineJs, finalOverrides, userThemeCss, finalClasses, userPkgModules);
 
     // ------------------------------------------------------------------
     // A9: when the site opts in (viewer.pwa), the bundle becomes an
@@ -803,6 +835,24 @@ async function exportBundleReport(wwwDir, siteName, {html: siteHtml, config}, lo
         }
     } catch (err) {
         logger.warn('bundle report: icon sizing failed: ' + err.message);
+    }
+
+    // N27: used installed packages are inlined as module scripts — one
+    // bucket per package so the report totals match the actual index.html.
+    try {
+        const userElementsDir = storage && storage.dataDir
+            ? path.join(storage.dataDir, 'elements')
+            : null;
+        for (const el of usedUserPackages({wwwDir, userElementsDir, siteHtml, theme})) {
+            const code = await fs.readFile(path.join(el.absolute, el.main), 'utf8');
+            const gzip = zlib.gzipSync(code).length;
+            out.buckets.push({name: `${el.bare} (installed)`, minified: code.length, gzip});
+            out.totalMinified += code.length;
+            out.totalGzip += gzip;
+        }
+        out.buckets.sort((a, b) => b.minified - a.minified);
+    } catch (err) {
+        logger.warn('bundle report: installed package sizing failed: ' + err.message);
     }
 
     return out;

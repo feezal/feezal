@@ -152,6 +152,21 @@ When many elements are present on the canvas or the grid size is small, too many
 
 ## Near-term Improvements
 
+### N27 — Live viewer: load user-installed element/theme packages ✅ done
+
+**Problem** (residual from N4/N23): user-installed **element** and **theme** packages under `<dataDir>/elements/` loaded in the editor (`/editor/feezal-elements.js` re-discovers per request) but not in the **live viewer**, whose bundle contains only built-in packages. Icon sets were already handled (server-inlined tree-shaken registrations).
+
+**Implemented (July 2026):**
+
+- **Shared selection helper** — `usedUserPackages()` in [elements.js](../server/src/build/elements.js): the installed packages a given site actually *uses* — element packages whose tag(s) appear in the site HTML (N29 Phase B families match via their manifest tags; the repeater's `child-element` attribute counts) plus the active theme package. Icon sets stay with their own pipeline (icons.js).
+- **Live viewer** — the viewer route injects `<script type="module" src="/user-elements/<pkg>/<main>">` per used package (install bundles are self-contained ESM; the static route existed since N4), mirroring the icon-registration injection.
+- **Static export** (decided: include, not document-as-unsupported) — used bundles are **inlined** as `<script type="module">` blocks in `index.html` rather than referenced: exports must work from `file://`, where external module scripts are CORS-blocked but inline modules run fine. `</script` sequences in bundled code are escaped. The U34 bundle-size report gains one `(installed)` bucket per inlined package so the totals stay honest. Used installed packages are dropped from the Vite tree-shaken core bundle as before (not resolvable in node_modules) — they arrive via their own inline module instead.
+- Unit tests: helper selection matrix, viewer-route injection (single-element + Phase B family + theme, unused excluded, /user-elements serving), export inlining incl. the `</script` escape and no-`src=` guarantee.
+
+**Not covered:** user-installed **icon sets** in exports (pre-existing gap, still logged as a warning — per-icon data is not separable from an install bundle).
+
+**Relates:** N4/N23 (archive — the install pipeline and /user-elements route), N29 (Phase B families load through the same mechanism), A8 (export tree-shaking), element-families.md prerequisite 3 (this was the blocker for shipping external families).
+
 ### N29 — Element *sets*: one-click install of many elements (bundle / multi-element packages) ✅ done
 
 **Problem.** The N4 Package Manager already removes hand-`npm install` — users search npm and click Install in the Packages sidebar ([feezal-sidebar-packages.js](../www/src/feezal-sidebar-packages.js)), and [install.js](../server/src/build/install.js) does `npm install` → Vite-bundle → drop into `<dataDir>/elements/<pkg>/`. But **one npm package = one element**, so installing a whole design system or a family (the material set, or a styled/framework family like E55–E63 / E83–E85) means N separate installs. There is no "install this set" unit — which is exactly what a community gallery (A20) wants to offer.

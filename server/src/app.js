@@ -13,7 +13,7 @@ const createApiRouter = require('./routes/api.js');
 const mqttBridge = require('./mqtt/bridge.js');
 const createHub = require('./socket/hub.js');
 const pwa = require('./build/pwa.js');
-const {discoverElements, generateElementsModule} = require('./build/elements.js');
+const {discoverElements, generateElementsModule, usedUserPackages} = require('./build/elements.js');
 const {siteIconArtifacts} = require('./build/icons.js');
 
 /** Format a git commit message for display in the historical-preview banner. */
@@ -285,6 +285,21 @@ async function createApp(config) {
                 logger.warn('viewer icons: ' + err.message);
             }
 
+            // N27: user-installed element/theme packages. Install bundles are
+            // self-contained ESM served from /user-elements/ — inject a module
+            // script per package this site actually uses (used tags + the
+            // active theme), so installed packages work in the live viewer,
+            // not only on the editor canvas.
+            let userPkgScripts = '';
+            try {
+                for (const el of usedUserPackages({wwwDir, userElementsDir, siteHtml: themedHtml, theme})) {
+                    userPkgScripts += `\n<script type="module" src="/user-elements/${el.bare}/${el.main}"><\/script>`;
+                    logger.debug(`viewer: injecting installed package ${el.bare}`);
+                }
+            } catch (err) {
+                logger.warn('viewer user packages: ' + err.message);
+            }
+
             let page = `<!doctype html>
 <html lang="en">
 <head>
@@ -349,7 +364,7 @@ ${historicalHtml ? `<script>window.feezal.historyBanner = ${JSON.stringify({
 <feezal-app-viewer>${themedHtml}</feezal-app-viewer>
 ${historicalHtml ? '</div>' : ''}
 <script type="module" src="/viewer-bundle.js"><\/script>
-${iconScripts}
+${iconScripts}${userPkgScripts}
 </body>
 </html>`;
             // A9: make the served viewer installable when the site opts in.

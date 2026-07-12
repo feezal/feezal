@@ -14,7 +14,6 @@ Work in progress — priorities and scope are not final.
 - [N12 — Export bundle: strip mqtt.js for feezal-bridge users](#n12--export-bundle-strip-mqttjs-for-feezal-bridge-users-partial) *(partial)*
 - [N13 — Lighter MQTT client for export bundle](#n13--lighter-mqtt-client-for-export-bundle-️-tbd) ⚠️
 - [N25 — Bridge last-value replay ("synthetic retain")](#n25--bridge-last-value-replay-synthetic-retain-most-likely-not) ❌ *(most likely not)*
-- [N27 — Live viewer: load user-installed element/theme packages](#n27--live-viewer-load-user-installed-elementtheme-packages)
 - [N30 — layout-app breaks the site active-view MQTT contract](#n30--layout-app-breaks-the-site-active-view-mqtt-contract-️-refinement-needed) ⚠️ *(refinement needed)*
 
 **Element Ecosystem**
@@ -165,14 +164,6 @@ client.json_send('my/topic', payload);
 
 ### N2b — Repeater with live canvas sub-elements *(future)*
 Each repeater child becomes individually selectable and configurable on the editor canvas. Requires a virtual sub-editor context — significantly more complex, deferred until the MVP repeater is proven useful.
-
-### N27 — Live viewer: load user-installed element/theme packages
-
-Residual from N4/N23 (both archived; the icons type is handled — viewer pages get server-inlined tree-shaken icon registrations). User-installed **element** and **theme** packages under `<dataDir>/elements/` load in the editor (`/editor/feezal-elements.js` re-discovers per request) but not in the **live viewer**, whose bundle contains only built-in packages.
-
-**Likely mechanism (to verify/decide):** install bundles are self-contained ESM served from `/user-elements/<pkg>/…`, so injecting `<script type="module" src="…">` tags for installed packages into viewer pages should just work — mirror how icon registrations are inlined. Decide the static-export story: append the bundles to the export (they're single files) vs. document as unsupported like user icon sets.
-
-**Relates:** N4/N23 (archive), A8 (export tree-shaking — exported user elements would need their tags recognized by `extract-elements.js`).
 
 ### N25 — Bridge last-value replay ("synthetic retain") ❌ most likely not
 

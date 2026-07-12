@@ -286,3 +286,57 @@ describe('discovery — multi-element family packages (N29 Phase B)', () => {
         expect(module_.match(/import '\/user-elements/g)).toHaveLength(1);
     });
 });
+
+describe('usedUserPackages — installed packages a site uses (N27)', () => {
+    const {usedUserPackages} = require('../src/build/elements.js');
+    let wwwDir, userDir;
+
+    beforeEach(async () => {
+        wwwDir = await mkdtemp(join(tmpdir(), 'feezal-www-'));
+        userDir = join(wwwDir, 'user-elements');
+        const pkg = async (rel, json) => {
+            const dir = join(userDir, ...rel.split('/'));
+            await mkdir(dir, {recursive: true});
+            await writeFile(join(dir, 'package.json'), JSON.stringify(json));
+            await writeFile(join(dir, 'index.js'), `/* ${rel} */`);
+        };
+        await pkg('@feezal/feezal-element-acme-widget', {name: '@feezal/feezal-element-acme-widget', main: 'index.js', feezal: {type: 'element'}});
+        await pkg('@feezal/feezal-element-acme-unused', {name: '@feezal/feezal-element-acme-unused', main: 'index.js', feezal: {type: 'element'}});
+        await pkg('@feezal/feezal-elements-metro', {name: '@feezal/feezal-elements-metro', main: 'index.js',
+            feezal: {type: 'elements', elements: ['feezal-element-metro-tile', 'feezal-element-metro-appbar']}});
+        await pkg('@feezal/feezal-theme-lcars', {name: '@feezal/feezal-theme-lcars', main: 'index.js', feezal: {type: 'theme'}});
+        await pkg('@acme/feezal-icons-lucide', {name: '@acme/feezal-icons-lucide', main: 'index.js', feezal: {type: 'icons'}});
+    });
+    afterEach(async () => { await rm(wwwDir, {recursive: true, force: true}); });
+
+    const names = arr => arr.map(el => el.bare).sort();
+
+    it('selects element packages whose tag appears in the site html', () => {
+        const used = usedUserPackages({wwwDir, userElementsDir: userDir,
+            siteHtml: '<feezal-site><feezal-view><feezal-element-acme-widget></feezal-element-acme-widget></feezal-view></feezal-site>'});
+        expect(names(used)).toEqual(['@feezal/feezal-element-acme-widget']);
+    });
+
+    it('matches Phase B family packages via any manifest tag', () => {
+        const used = usedUserPackages({wwwDir, userElementsDir: userDir,
+            siteHtml: '<feezal-element-metro-appbar></feezal-element-metro-appbar>'});
+        expect(names(used)).toEqual(['@feezal/feezal-elements-metro']);
+    });
+
+    it('includes the active theme package; icons are never included', () => {
+        const used = usedUserPackages({wwwDir, userElementsDir: userDir,
+            siteHtml: '<feezal-element-acme-widget/>', theme: 'feezal-theme-lcars'});
+        expect(names(used)).toEqual(['@feezal/feezal-element-acme-widget', '@feezal/feezal-theme-lcars']);
+    });
+
+    it("picks up a repeater's child-element attribute", () => {
+        const used = usedUserPackages({wwwDir, userElementsDir: userDir,
+            siteHtml: '<feezal-element-layout-repeater child-element="feezal-element-acme-widget"></feezal-element-layout-repeater>'});
+        expect(names(used)).toEqual(['@feezal/feezal-element-acme-widget']);
+    });
+
+    it('returns [] without a user elements dir or when nothing is used', () => {
+        expect(usedUserPackages({wwwDir, userElementsDir: null, siteHtml: '<feezal-element-acme-widget/>'})).toEqual([]);
+        expect(usedUserPackages({wwwDir, userElementsDir: userDir, siteHtml: '<div></div>'})).toEqual([]);
+    });
+});

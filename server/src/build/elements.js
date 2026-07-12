@@ -86,6 +86,40 @@ function elementTags(elements) {
 }
 
 /**
+ * N27: the user-installed packages (from <dataDir>/elements/) a given site
+ * actually USES — element packages whose custom-element tag(s) appear in the
+ * site HTML (Phase B families match via their manifest tags) plus the active
+ * theme package. Consumers: the viewer route (injects module script tags)
+ * and the static export (inlines the bundles). Icon sets are excluded — they
+ * have their own per-site tree-shaking pipeline (icons.js).
+ *
+ * @param {object} opts
+ * @param {string}      opts.wwwDir
+ * @param {string|null} opts.userElementsDir  <dataDir>/elements/, or null.
+ * @param {string}      opts.siteHtml         Site markup (parsed for used tags).
+ * @param {string|null} [opts.theme]          Active theme name (e.g. 'feezal-theme-lcars').
+ * @returns {Array}  discoverElements() entries (kind 'user') that the site uses.
+ */
+function usedUserPackages({wwwDir, userElementsDir, siteHtml, theme = null}) {
+    if (!userElementsDir) return [];
+    const {extractUsedElements} = require('./extract-elements.js');
+    const used = new Set(extractUsedElements(siteHtml || ''));
+    const quiet = {info() {}, debug() {}};
+    return discoverElements(wwwDir, userElementsDir, quiet)
+        .filter(el => el.kind === 'user')
+        .filter(el => {
+            if (el.type === 'element') {
+                const tags = el.tags || [el.bare.replace(/^@[^/]+\//, '')];
+                return tags.some(tag => used.has(tag));
+            }
+            if (el.type === 'theme') {
+                return Boolean(theme) && el.bare.replace(/^@[^/]+\//, '') === theme;
+            }
+            return false;
+        });
+}
+
+/**
  * Generates the JavaScript module body for the dynamic GET /editor/feezal-elements.js route.
  *
  * Uses absolute URL paths (e.g. /node_modules/...) so the browser resolves them without
@@ -264,4 +298,4 @@ function fetchMaterialIcons(wwwDir) {
         });
 }
 
-module.exports = {discoverElements, generateElementsModule, writeElementsFile, elementTags};
+module.exports = {discoverElements, generateElementsModule, writeElementsFile, elementTags, usedUserPackages};

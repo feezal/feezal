@@ -1,6 +1,6 @@
 # Element families — external repos, packaging, and development workflow
 
-**Status: agreed plan (July 2026) — prerequisite 2 (N29 Phase B core support) implemented; the rest not started.** This document records the decisions and the intended workflow for developing the element families on the roadmap (E55 metro, E56 panel, E57 eink, E58 glass, E59 tui, E60 rail, E61 hmi, E62 mqtt, E63 schematic, E83 spectrum, E84 wired, E90 vaadin, E97 lcars, …) outside the feezal core repository. It complements — not replaces — [element-spec.md](element-spec.md): the element authoring contract is unchanged; this document covers repos, packaging, publishing, and the dev loop.
+**Status: agreed plan (July 2026) — prerequisites 2 (N29 Phase B core support) and 3 (N27 viewer/export loading) implemented; the rest not started.** This document records the decisions and the intended workflow for developing the element families on the roadmap (E55 metro, E56 panel, E57 eink, E58 glass, E59 tui, E60 rail, E61 hmi, E62 mqtt, E63 schematic, E83 spectrum, E84 wired, E90 vaadin, E97 lcars, …) outside the feezal core repository. It complements — not replaces — [element-spec.md](element-spec.md): the element authoring contract is unchanged; this document covers repos, packaging, publishing, and the dev loop.
 
 ---
 
@@ -89,7 +89,7 @@ Nothing family-related can ship before these. In dependency order:
 
 2. **N29 Phase B core support.** ✅ **implemented (July 2026)** — see ROADMAP-ARCHIVE N29 for the details. Discovery/`_scan` registers all manifest tags from the single package entry; `window.feezal.elements` carries tag names (palette/completion/AI catalogue unchanged — they already stripped scopes); export tree-shaking resolves family tags via `buildTagToPackageMap`; the install pipeline routes `feezal.type: "elements"` through the single-bundle path preserving the manifest; the Packages sidebar shows a family as one "set" row. The manifest contract is documented in [element-spec.md](element-spec.md) §1.1. Note the manifest **must** carry `"type": "elements"` (as in §2 above) — without it a `feezal-elements-*` package is treated as a Phase A aggregator.
 
-3. **N27 — live viewer loads installed packages.** Installed packages currently load only in the editor. Until N27 lands, an externally installed family works on the canvas but **not in the live viewer** — a non-starter for shipping families. The static-export story for installed packages (append the self-contained bundles vs. document as unsupported) should be decided in the same stroke (relates: A8).
+3. **N27 — live viewer loads installed packages.** ✅ **implemented (July 2026)** — see ROADMAP-ARCHIVE N27. Viewer pages inject module scripts for the installed packages the site uses (family manifest tags included); static exports **inline** the used bundles into `index.html` (decided: include, `file://`-safe).
 
 4. **Link mode** (dev loop, §5).
 
@@ -155,7 +155,7 @@ FEEZAL_LINK_DIRS=~/source/repos/feezal-elements-metro node server/bin/feezal.js
 
 ## 9. Open questions (deliberately deferred)
 
-- **Static export** of sites using installed families — bundle-append vs. documented-unsupported (decide with N27; relates A8).
+- ~~**Static export** of sites using installed families~~ — decided with N27 (July 2026): used install bundles are inlined into the export's `index.html` (`file://`-safe).
 - **`@feezal/element-test-utils`** — extract shared test helpers only once ≥2 family repos duplicate them.
 - **Published element-spec URL** — family repos currently link to the spec in the core repo; a rendered docs site would give a stable versioned URL (relates D-items).
 - **Update semantics** in the package manager for family packages (single package → trivial; nothing like Phase A's member reference-counting is needed — one of the reasons Phase B won).

@@ -605,3 +605,45 @@ describe('TLS setup instructions (N8/N10)', () => {
         expect(zip.names).not.toContain('plainsite/TLS-SETUP.md');
     });
 });
+
+describe('user-installed packages in the export (N27)', () => {
+    async function installFakePkg(rel, json, code = '/* bundle */') {
+        const dir = join(dataDir, 'elements', ...rel.split('/'));
+        await mkdir(dir, {recursive: true});
+        await writeFile(join(dir, 'package.json'), JSON.stringify(json));
+        await writeFile(join(dir, 'index.js'), code);
+    }
+
+    it('inlines used installed bundles as module scripts (file:// safe), skipping unused ones', async () => {
+        await installFakePkg('@feezal/feezal-element-acme-widget',
+            {name: '@feezal/feezal-element-acme-widget', main: 'index.js', feezal: {type: 'element'}},
+            'const ACME_WIDGET_CODE = 1; // contains </script> inside a string');
+        await installFakePkg('@feezal/feezal-element-acme-unused',
+            {name: '@feezal/feezal-element-acme-unused', main: 'index.js', feezal: {type: 'element'}},
+            'const NEVER = 1;');
+        await installFakePkg('@feezal/feezal-theme-lcars',
+            {name: '@feezal/feezal-theme-lcars', main: 'index.js', feezal: {type: 'theme'}},
+            'const LCARS_THEME_CODE = 1;');
+
+        const zip = await exportSite({
+            name: 'n27export',
+            html: '<feezal-site><feezal-view name="a">'
+                + '<feezal-element-acme-widget></feezal-element-acme-widget>'
+                + '</feezal-view></feezal-site>',
+            config: {viewer: {theme: 'feezal-theme-lcars'}},
+            storage: {dataDir, getAssetFilesForExport: async () => null},
+        });
+        const html = zip.text('n27export/index.html');
+        // used element + active theme inlined as module scripts…
+        expect(html).toContain('/* @feezal/feezal-element-acme-widget (installed package) */');
+        expect(html).toContain('ACME_WIDGET_CODE');
+        expect(html).toContain('/* @feezal/feezal-theme-lcars (installed package) */');
+        expect(html).toContain('LCARS_THEME_CODE');
+        // …with the closing tag escaped so the inline script survives
+        // ('<\/script>' — backslash built by concatenation to not confuse THIS file)…
+        expect(html).toContain('<' + '\\' + '/script> inside a string');
+        // …and no file references (exports must work from file://), no unused code.
+        expect(html).not.toContain('src="/user-elements');
+        expect(html).not.toContain('NEVER');
+    });
+});
