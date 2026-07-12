@@ -4,6 +4,9 @@ import '@shoelace-style/shoelace/dist/components/select/select.js';
 import '@shoelace-style/shoelace/dist/components/option/option.js';
 import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/switch/switch.js';
+import '@shoelace-style/shoelace/dist/components/tab-group/tab-group.js';
+import '@shoelace-style/shoelace/dist/components/tab/tab.js';
+import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
 
 class FeezalSidebarEditor extends LitElement {
     static properties = {
@@ -31,7 +34,16 @@ class FeezalSidebarEditor extends LitElement {
     };
 
     static styles = css`
-        :host { display: block; height: 100%; background-color: var(--feezal-bg, white); box-sizing: border-box; overflow-y: auto; }
+        :host { display: flex; flex-direction: column; height: 100%; background-color: var(--feezal-bg, white); box-sizing: border-box; overflow: hidden; }
+        sl-tab-group { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        sl-tab-group::part(base) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        sl-tab-group::part(body) { flex: 1; min-height: 0; overflow: hidden; }
+        sl-tab-group::part(nav) { background: var(--feezal-bg-sub, #f5f5f5); }
+        /* 39px tab + 2px nav track = 41px — matches the .ftab view tab bar
+           left of the sidebar (same rule in the other sidebar panels). */
+        sl-tab::part(base) { font-size: 14px; padding: 0 10px; height: 39px; }
+        sl-tab-panel { height: 100%; }
+        sl-tab-panel::part(base) { height: 100%; overflow-y: auto; padding: 0; box-sizing: border-box; }
         .form { margin: 12px; display: flex; flex-direction: column; gap: 12px; }
         .row { display: flex; gap: 12px; align-items: flex-end; }
         .row > * { flex: 1; }
@@ -168,6 +180,19 @@ class FeezalSidebarEditor extends LitElement {
 
     render() {
         return html`
+            <sl-tab-group>
+                <sl-tab slot="nav" panel="editor">Editor Settings</sl-tab>
+                <sl-tab slot="nav" panel="ai">AI Assistant</sl-tab>
+                <sl-tab-panel name="editor">${this._editorPanel()}</sl-tab-panel>
+                <sl-tab-panel name="ai">${this._aiPanel()}</sl-tab-panel>
+            </sl-tab-group>
+        `;
+    }
+
+    /** Editor-level settings (theme, colors, grid/snapping, MQTT guard) plus
+     * the capability-gated A13 server section. */
+    _editorPanel() {
+        return html`
             <div class="form">
                 <sl-select label="Color theme" size="small"
                     .value="${this.themeMode}"
@@ -212,8 +237,27 @@ class FeezalSidebarEditor extends LitElement {
                     Prevent MQTT element manipulation in editor
                 </sl-switch>
 
-                <hr class="section-sep">
-                <div class="section-title"><span class="material-icons">android</span> AI assistant</div>
+                ${this._caps && (this._caps.restart || this._caps.selfUpdate) ? html`
+                    <hr class="section-sep">
+                    <div class="section-title"><span class="material-icons">dns</span> Server</div>
+                    <div class="ai-actions">
+                        ${this._caps.restart ? html`
+                            <button class="btn" ?disabled="${this._serverBusy}"
+                                @click="${this._restartServer}">Restart</button>` : ''}
+                        ${this._caps.selfUpdate ? html`
+                            <button class="btn" ?disabled="${this._serverBusy}"
+                                @click="${this._updateServer}">Update…</button>` : ''}
+                    </div>
+                    <div class="ai-status ${this._serverStatus.startsWith('err') ? 'err' : 'ok'}">${this._serverStatus.replace(/^(ok|err):/, '')}</div>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    /** AI assistant configuration (U9) — its own tab. */
+    _aiPanel() {
+        return html`
+            <div class="form">
                 <sl-select label="Provider" size="small"
                     .value="${this._aiProvider}"
                     @sl-change="${e => { this._aiProvider = e.target.value; }}">
@@ -255,20 +299,6 @@ class FeezalSidebarEditor extends LitElement {
                     <button class="btn" ?disabled="${this._aiBusy}" @click="${this._testAi}">Test connection</button>
                 </div>
                 ${this._aiStatus ? html`<div class="ai-status ${this._aiStatus.startsWith('ok:') ? 'ok' : 'err'}">${this._aiStatus.slice(this._aiStatus.indexOf(':') + 1)}</div>` : ''}
-
-                ${this._caps && (this._caps.restart || this._caps.selfUpdate) ? html`
-                    <hr class="section-sep">
-                    <div class="section-title"><span class="material-icons">dns</span> Server</div>
-                    <div class="ai-actions">
-                        ${this._caps.restart ? html`
-                            <button class="btn" ?disabled="${this._serverBusy}"
-                                @click="${this._restartServer}">Restart</button>` : ''}
-                        ${this._caps.selfUpdate ? html`
-                            <button class="btn" ?disabled="${this._serverBusy}"
-                                @click="${this._updateServer}">Update…</button>` : ''}
-                    </div>
-                    <div class="ai-status ${this._serverStatus.startsWith('err') ? 'err' : 'ok'}">${this._serverStatus.replace(/^(ok|err):/, '')}</div>
-                ` : ''}
             </div>
         `;
     }

@@ -141,7 +141,8 @@ and palette drag-to-canvas are all automated.)
 - [ ] **Palette** (left): categories in order; search filter works.
 - [ ] **Sidebar tabs** (right): Inspector · Theme · Site Settings · Assets · Packages · Version history · Editor Settings — each opens its panel; no empty/dead tab.
 - [ ] **Site Settings tabs**: Connection · Site · Viewer · Clients. Connection = broker/auth/TLS/client; Site = name/title/topics/PWA/mobile app; Viewer = "Viewer connection mode" (via-server switch), "Viewer presence" and "View playlist"; Clients = the live viewer list (formerly its own sidebar tab — a persisted `sidebar=clients` selection falls back to Site Settings). Settings changed on the Viewer tab persist through deploy exactly as before the split.
-- [ ] **Tab bar alignment**: the inner tab bars of Inspector and Site Settings share their bottom edge with the view tab bar left of the sidebar (41px) — no vertical offset.
+- [ ] **Tab bar alignment**: the inner tab bars of Inspector, Site Settings and Editor Settings — and the **Version history header** — share their bottom edge with the view tab bar left of the sidebar (41px, 2px border) — no vertical offset.
+- [ ] **Editor Settings tabs**: Editor Settings · AI Assistant — editor-level settings (theme, colors, grid/snapping, MQTT guard, capability-gated Server section) in the first tab, the complete AI assistant configuration (provider/endpoint/key/model/limits, Save + Test connection) in the second; both scroll independently.
 - [ ] **Sidebar panels scroll** when taller than the viewport: shrink the browser window height, then check Inspector (Attributes/Styles with an element selected), Site Settings (both tabs), Theme and Editor Settings — each shows the same thin scrollbar as the palette and reaches its bottom content; nothing is clipped without a scrollbar.
 - [ ] Sidebar + palette **collapse** toggles; widths persist across reload.
 

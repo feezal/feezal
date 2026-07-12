@@ -52,12 +52,16 @@ class FeezalSidebarHistory extends LitElement {
         }
 
         /* ── Header ─────────────────────────────────────────────────── */
+        /* 39px content + 2px border = 41px — matches the unified sidebar
+           tab bars and the .ftab view tab bar left of the sidebar. */
         .hdr {
             display: flex; align-items: center; gap: 6px;
-            padding: 10px 12px 8px; border-bottom: 1px solid var(--feezal-border, #e4e4e4);
+            height: 41px; padding: 0 12px; box-sizing: border-box;
+            border-bottom: 2px solid var(--feezal-border, #e4e4e4);
+            background: var(--feezal-bg-sub, #f5f5f5);
             flex-shrink: 0;
         }
-        .hdr-title { flex: 1; font-weight: 600; font-size: 13px; }
+        .hdr-title { flex: 1; font-weight: 600; font-size: 14px; }
         .hdr-btn {
             background: none; border: none; cursor: pointer; padding: 4px;
             border-radius: 4px; color: var(--feezal-color, #555);
