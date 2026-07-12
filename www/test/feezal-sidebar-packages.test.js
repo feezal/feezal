@@ -56,11 +56,12 @@ describe('installed packages', () => {
         expect(names).toEqual(['@feezal/feezal-theme-bar']);
     });
 
-    it('offers an Icons segment that filters icon sets (N23)', async () => {
+    it('offers an Icons tab that filters icon sets (N23)', async () => {
         const el = await attachPanel();
         el._installed = [...INSTALLED, {name: '@feezal/feezal-icons-fa', version: '1.0.0', type: 'icons'}];
-        const seg = [...el.shadowRoot.querySelectorAll('.seg button')].map(b => b.textContent.trim());
-        expect(seg).toContain('Icons');
+        // The type filter is a tab bar since the unified-sidebar-tab-bars rework.
+        const tabs = [...el.shadowRoot.querySelectorAll('sl-tab')].map(t => t.textContent.trim());
+        expect(tabs).toContain('Icons');
         el._filter = 'icons';
         await el.updateComplete;
         const names = [...el.shadowRoot.querySelectorAll('.row .name')].map(n => n.textContent.trim());
