@@ -8,6 +8,7 @@ const {promisify} = require('util');
 const execFileAsync = promisify(execFile);
 const prettyHtml = require('@starptech/prettyhtml');
 const createExport = require('../build/export.js');
+const bridge = require('../mqtt/bridge.js');
 const pkgManager = require('../build/install.js');
 const pwa = require('../build/pwa.js');
 const capacitor = require('../build/capacitor.js');
@@ -65,6 +66,18 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
     // Version info
     router.get('/version', (_req, res) => {
         res.json({version: currentVersion});
+    });
+
+    // Bridge (server ↔ broker) connection status for the editor's indicator
+    // in the Connection settings tab. Credentials embedded in the URI are
+    // redacted before it leaves the server.
+    router.get('/bridge/status', (_req, res) => {
+        const {connected, uri, lastError} = bridge.getStatus();
+        res.json({
+            connected,
+            uri: uri ? uri.replace(/\/\/[^@/]+@/, '//') : null,
+            lastError,
+        });
     });
 
     // Format an HTML fragment with the same prettyhtml settings used on deploy,
@@ -883,6 +896,25 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
     // kept out of git via the site's .gitignore.
     const certDir = name => storage.dataDir ? path.join(storage.dataDir, 'sites', name, 'certs') : null;
 
+    // A cert change must reach the live bridge: the TLS material is only READ
+    // at connect time, and connect() skips when uri/certDir are unchanged —
+    // so an uploaded CA never took effect until a server restart. If the
+    // bridge is using this site's cert dir, force a reconnect that re-reads
+    // the files.
+    async function _bridgeCertRefresh(siteName, dir) {
+        try {
+            if (!dir || bridge.getStatus().certDir !== dir) return;
+            const {config} = await storage.getSite(siteName);
+            const connection = config && config.connection;
+            if (connection) {
+                logger.info(`certs for "${siteName}" changed — reconnecting the MQTT bridge`);
+                bridge.reconnect(connection, logger, dir);
+            }
+        } catch (err) {
+            logger.warn('bridge cert refresh failed: ' + err.message);
+        }
+    }
+
     // GET /api/sites/:name/certs — which cert files are present (never returns content)
     router.get('/sites/:name/certs', async (req, res) => {
         const dir = certDir(req.params.name);
@@ -917,6 +949,7 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
         // Normalise line endings; strip null bytes (defence-in-depth).
         const sanitized = pem.replace(/\r\n/g, '\n').replace(/\0/g, '').trim() + '\n';
         await fs.writeFile(path.join(dir, CERT_FILES[type]), sanitized, 'utf8');
+        await _bridgeCertRefresh(req.params.name, dir);
         res.status(201).json({type, stored: true});
     });
 
@@ -930,6 +963,7 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
         if (!dir) return res.status(503).json({error: 'No dataDir configured'});
         try {
             await fs.unlink(path.join(dir, CERT_FILES[type]));
+            await _bridgeCertRefresh(req.params.name, dir);
             res.status(204).send();
         } catch (err) {
             if (err.code === 'ENOENT') return res.status(404).json({error: 'not found'});

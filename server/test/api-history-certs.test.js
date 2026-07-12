@@ -3,7 +3,7 @@
  * certificate endpoints. History content assertions are git-gated; the
  * validation paths and the cert file storage run everywhere.
  */
-import {describe, it, expect, beforeEach, afterEach} from 'vitest';
+import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest';
 import {createRequire} from 'module';
 import {mkdtemp, rm} from 'fs/promises';
 import {tmpdir} from 'os';
@@ -97,5 +97,64 @@ describe('certs', () => {
 
     it('404s when deleting a cert that is not present', async () => {
         expect((await request(app).delete('/api/sites/s/certs/key')).status).toBe(404);
+    });
+});
+
+describe('bridge status route + cert-change reconnect', () => {
+    const bridge = require('../src/mqtt/bridge.js');
+    const PEM = '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----';
+
+    afterEach(() => vi.restoreAllMocks());
+
+    it('GET /api/bridge/status reflects the disconnected bridge', async () => {
+        const res = await request(app).get('/api/bridge/status');
+        expect(res.status).toBe(200);
+        expect(res.body).toMatchObject({connected: false, uri: null});
+    });
+
+    it('redacts credentials embedded in the broker uri', async () => {
+        vi.spyOn(bridge, 'getStatus').mockReturnValue({
+            connected: true, uri: 'wss://user:secret@broker:9443', lastError: null, certDir: null,
+        });
+        const res = await request(app).get('/api/bridge/status');
+        expect(res.body.uri).toBe('wss://broker:9443');
+        expect(JSON.stringify(res.body)).not.toContain('secret');
+    });
+
+    it('surfaces the last broker error (why the bridge is down)', async () => {
+        vi.spyOn(bridge, 'getStatus').mockReturnValue({
+            connected: false, uri: 'mqtts://broker',
+            lastError: {message: 'unable to get local issuer certificate', ts: 1}, certDir: null,
+        });
+        const res = await request(app).get('/api/bridge/status');
+        expect(res.body.lastError.message).toBe('unable to get local issuer certificate');
+    });
+
+    it('uploading a cert reconnects a bridge that uses this site\'s cert dir (stale-CA fix)', async () => {
+        const connection = {backend: 'mqtt', uri: 'mqtts://broker'};
+        await storage.saveSite('s', {html: '<feezal-site></feezal-site>', config: {connection}});
+        const dir = join(dataDir, 'sites', 's', 'certs');
+        vi.spyOn(bridge, 'getStatus').mockReturnValue({
+            connected: false, uri: connection.uri,
+            lastError: {message: 'unable to get local issuer certificate', ts: 1}, certDir: dir,
+        });
+        const reconnect = vi.spyOn(bridge, 'reconnect').mockImplementation(() => {});
+
+        expect((await request(app).post('/api/sites/s/certs').send({type: 'ca', pem: PEM})).status).toBe(201);
+        expect(reconnect).toHaveBeenCalledWith(connection, expect.anything(), dir);
+
+        // Removing a cert re-reads the files too.
+        reconnect.mockClear();
+        expect((await request(app).delete('/api/sites/s/certs/ca')).status).toBe(204);
+        expect(reconnect).toHaveBeenCalledWith(connection, expect.anything(), dir);
+    });
+
+    it('leaves a bridge alone that is connected for another site\'s certs', async () => {
+        vi.spyOn(bridge, 'getStatus').mockReturnValue({
+            connected: true, uri: 'mqtt://other', lastError: null, certDir: '/elsewhere/certs',
+        });
+        const reconnect = vi.spyOn(bridge, 'reconnect').mockImplementation(() => {});
+        await request(app).post('/api/sites/s/certs').send({type: 'ca', pem: PEM});
+        expect(reconnect).not.toHaveBeenCalled();
     });
 });

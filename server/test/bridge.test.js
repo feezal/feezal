@@ -184,6 +184,25 @@ describe('against a real broker (aedes)', () => {
         bridge.setRelayCallback(null);
     });
 
+    it('getStatus reports the live connection for the editor indicator', async () => {
+        await vi.waitFor(() => {
+            expect(bridge.getStatus()).toMatchObject({connected: true, uri, lastError: null});
+        });
+    });
+
+    it('reconnect() forces a fresh connection for an UNCHANGED uri/certDir (cert upload)', async () => {
+        // connect() with identical parameters is a no-op by design…
+        bridge.connect({backend: 'mqtt', uri}, logger, null);
+        expect(bridge.getStatus().connected).toBe(true);
+        // …reconnect() must tear down and re-establish (re-reading TLS files).
+        const reconnected = new Promise(resolve => broker.once('clientReady', resolve));
+        bridge.reconnect({backend: 'mqtt', uri}, logger, null);
+        await reconnected;
+        await vi.waitFor(() => {
+            expect(bridge.getStatus()).toMatchObject({connected: true, uri});
+        });
+    });
+
     it('publish() sends strings verbatim and JSON-encodes objects', async () => {
         const received = [];
         await new Promise(resolve => pubClient.subscribe('out/#', resolve));
@@ -327,4 +346,21 @@ describe('buildConnectOptions (N8 TLS material / N9 protocol version)', () => {
             await rm(dir, {recursive: true, force: true});
         }
     });
+});
+
+describe('status while the broker is unreachable', () => {
+    it('records the connection error for the editor indicator', async () => {
+        // Nothing listens on this port — ECONNREFUSED where the OS refuses
+        // fast, otherwise the 10s connack timeout produces the error.
+        bridge.connect({backend: 'mqtt', uri: 'mqtt://127.0.0.1:1'}, logger);
+        await vi.waitFor(() => {
+            expect(bridge.getStatus().lastError).toBeTruthy();
+        }, {timeout: 15000, interval: 200});
+        const status = bridge.getStatus();
+        expect(status.connected).toBe(false);
+        expect(status.uri).toBe('mqtt://127.0.0.1:1');
+        expect(status.lastError.message).toMatch(/ECONNREFUSED|timeout|connect/i);
+        bridge.disconnect();
+        expect(bridge.getStatus()).toMatchObject({connected: false, uri: null});
+    }, 20000);
 });

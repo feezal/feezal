@@ -31,6 +31,7 @@ class FeezalSidebarViewer extends LitElement {
         _certBusy:    {state: true},
         _pwaIcons:    {state: true},   // {custom, meta} | null
         _pwaIconTs:   {state: true},   // cache-buster for the preview img
+        _bridge:      {state: true},   // server↔broker status {connected, uri, lastError} | null
     };
 
     static styles = css`
@@ -54,6 +55,22 @@ class FeezalSidebarViewer extends LitElement {
             font-size: 11px; color: var(--feezal-color, #888); letter-spacing: 0.05em;
             text-transform: uppercase; margin-top: 16px; margin-bottom: 4px;
             padding-bottom: 4px; border-bottom: 1px solid var(--feezal-border, #eee);
+        }
+        /* Server↔broker status indicator */
+        .bridge-status {
+            display: flex; align-items: center; gap: 7px; margin-top: 8px;
+            font-size: 12px; color: var(--feezal-color, #333);
+        }
+        .bridge-status .uri { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.8; }
+        .bridge-dot {
+            width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto;
+            background: #9ca3af;
+        }
+        .bridge-dot.ok  { background: #2e7d32; }
+        .bridge-dot.err { background: #c62828; }
+        .bridge-error {
+            margin-top: 4px; font-size: 11px; line-height: 1.4;
+            color: var(--sl-color-danger-600, #c62828); word-break: break-word;
         }
         /* TLS cert section */
         .cert-info-row {
@@ -132,12 +149,31 @@ class FeezalSidebarViewer extends LitElement {
         this._certBusy   = false;
         this._pwaIcons   = null;
         this._pwaIconTs  = Date.now();
+        this._bridge     = null;
+        this._bridgeTimer = null;
     }
 
     connectedCallback() {
         super.connectedCallback();
         this._loadCertStatus();
         this._loadPwaIcons();
+        // Poll the server↔broker status while the panel exists — also while
+        // the tab is hidden, so the indicator is current the moment it opens.
+        this._pollBridgeStatus();
+        this._bridgeTimer = setInterval(() => this._pollBridgeStatus(), 3000);
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        clearInterval(this._bridgeTimer);
+        this._bridgeTimer = null;
+    }
+
+    async _pollBridgeStatus() {
+        try {
+            const r = await fetch('/api/bridge/status');
+            if (r.ok) this._bridge = await r.json();
+        } catch { /* server unreachable — keep the last known status */ }
     }
 
     async _loadPwaIcons() {
@@ -282,6 +318,30 @@ class FeezalSidebarViewer extends LitElement {
         }
     }
 
+    /** Server↔broker status: dot + label, plus the broker's last error so TLS
+     * trust / auth / unreachable-host problems are visible right where the
+     * connection is configured (the bridge otherwise fails silently and the
+     * Clients panel just stays empty). */
+    _bridgeStatusRow() {
+        const b = this._bridge;
+        if (!b) {
+            return html`<div class="bridge-status"><span class="bridge-dot"></span><span>status unknown</span></div>`;
+        }
+        if (!b.uri) {
+            return html`<div class="bridge-status"><span class="bridge-dot"></span><span>no broker connection configured — deploy to connect</span></div>`;
+        }
+        return html`
+            <div class="bridge-status">
+                <span class="bridge-dot ${b.connected ? 'ok' : 'err'}"></span>
+                <span>${b.connected ? 'connected' : 'not connected'}</span>
+                <span class="uri" title="${b.uri}">${b.uri}</span>
+            </div>
+            ${!b.connected && b.lastError ? html`
+                <div class="bridge-error">${b.lastError.message}</div>
+            ` : ''}
+        `;
+    }
+
     // One mTLS cert row (type 'cert' | 'key'): status badge + upload/paste/remove.
     _mtlsRow(type, label, accept) {
         const present = this._certStatus?.[type];
@@ -343,6 +403,9 @@ class FeezalSidebarViewer extends LitElement {
                 <sl-tab slot="nav" panel="site">Site</sl-tab>
 
                 <sl-tab-panel name="connection">
+                    <div class="section-label">Server connection</div>
+                    ${this._bridgeStatusRow()}
+
                     <div class="section-label">Broker</div>
                     <div class="row">
                         <sl-select label="Protocol" size="small"

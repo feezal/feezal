@@ -267,6 +267,8 @@ this section is about the remaining **UI**.
 ## 9. MQTT / connection / auto-discovery
 
 - [ ] Connection Settings: set broker URI, credentials, protocol version, TLS certs (N8) — connect succeeds; status shown.
+- [ ] **Server connection indicator** (Connection tab, top): green dot + "connected" + broker URI while the server↔broker bridge is up; red dot + "not connected" + the broker's error message (e.g. `unable to get local issuer certificate`, `ECONNREFUSED`) while it is down; updates within a few seconds without a reload; credentials never appear in the shown URI. *(Status tracking, the redaction and the route are unit-tested.)*
+- [ ] **CA upload takes effect immediately**: with an `mqtts://`/`wss://` broker signed by a private CA and no CA uploaded → indicator shows the TLS error; upload the CA (Connection → TLS) → the bridge reconnects and the indicator turns green **without a server restart** (same for removing a cert). *(The cert-change reconnect is unit-tested.)*
 - [ ] Topic autocomplete **dropdown** in the inspector populates from live traffic.
 - [ ] **Auto-discovery** (HA / zigbee2mqtt): discovered devices appear; dropping one wires a suitable element; device grouping / element hints.
 - [ ] `wss://` (TLS) viewer connection against a real broker. *(Plain `ws://` direct and the `mqtt://` bridge are automated.)*

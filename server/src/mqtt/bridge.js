@@ -102,6 +102,18 @@ let activeVersion   = null;
 let _logger         = null;
 let _relayCallback  = null;
 
+// Connection status for the editor's indicator (Connection settings tab).
+// lastError survives reconnect attempts so the user can see WHY the bridge
+// is not connected (TLS trust, auth, unreachable host, …).
+const _status = {connected: false, uri: null, lastError: null};
+
+/** Current bridge status: {connected, uri, lastError: {message, ts}|null,
+ * certDir}. `certDir` lets callers detect whether the bridge is using a
+ * given site's TLS material (see the cert routes). */
+function getStatus() {
+    return {..._status, certDir: activeCertDir};
+}
+
 /** Called by hub.js once broadcast() is defined, so incoming broker messages
  *  are forwarded to all subscribed Socket.IO clients (editor + viewer). */
 function setRelayCallback(fn) {
@@ -116,6 +128,8 @@ function connect(config, logger, certDir) {
     // Only connect for direct-MQTT viewer configs
     if (!uri || config?.backend !== 'mqtt') {
         _logger?.debug('mqtt-bridge: no MQTT URI or non-mqtt backend — not connecting');
+        _status.connected = false;
+        _status.uri = null;
         return;
     }
 
@@ -134,6 +148,9 @@ function connect(config, logger, certDir) {
     activeUri = uri;
     activeCertDir = certDir || null;
     activeVersion = protocolVersion;
+    _status.uri = uri;
+    _status.connected = false;
+    _status.lastError = null;   // fresh target — old errors no longer apply
 
     _logger?.info('mqtt-bridge: connecting to ' + uri);
 
@@ -220,6 +237,7 @@ function _doConnect(uri, options) {
         client = mqtt.connect(uri, options);
     } catch (err) {
         _logger?.error('mqtt-bridge: connect threw ' + err.message);
+        _status.lastError = {message: err.message, ts: Date.now()};
         client = null;
         activeUri = null;
         activeCertDir = null;
@@ -229,6 +247,8 @@ function _doConnect(uri, options) {
 
     client.on('connect', () => {
         _logger?.info('mqtt-bridge: connected, subscribing to #');
+        _status.connected = true;
+        _status.lastError = null;
         client.subscribe('#', {qos: 0});
     });
 
@@ -249,10 +269,12 @@ function _doConnect(uri, options) {
 
     client.on('error', err => {
         _logger?.warn('mqtt-bridge: ' + err.message);
+        _status.lastError = {message: err.message, ts: Date.now()};
     });
 
     client.on('close', () => {
         _logger?.debug('mqtt-bridge: connection closed');
+        _status.connected = false;
     });
 }
 
@@ -288,7 +310,21 @@ function disconnect() {
         activeUri    = null;
         activeCertDir = null;
         activeVersion = null;
+        _status.connected = false;
+        _status.uri = null;
     }
+}
+
+/**
+ * Force a fresh connection even when uri/certDir/protocolVersion are
+ * unchanged. connect() deliberately skips that case, but the TLS material is
+ * only READ at connect time — after a cert upload/removal the same certDir
+ * holds different files, and without this the new CA only took effect on a
+ * server restart.
+ */
+function reconnect(config, logger, certDir) {
+    disconnect();
+    connect(config, logger, certDir);
 }
 
 /** Publish a message to the broker (used by the feezal-backend viewer). */
@@ -316,4 +352,4 @@ function publish(message) {
     _logger?.debug('mqtt-bridge: publish ' + message.topic + (message.retain === true ? ' (retained)' : ''));
 }
 
-module.exports = { connect, disconnect, publish, insertTopic, getTopicCompletions, getAllTopics, getLastPayload, recordPayload, setRelayCallback, buildConnectOptions, guardEmptyWsFrames, refreshRetained, getDiscoveredEntities: discovery.getDiscoveredEntities, getDiscoveredEntity: discovery.getDiscoveredEntity, getDeviceGroups: discovery.getDeviceGroups };
+module.exports = { connect, disconnect, reconnect, getStatus, publish, insertTopic, getTopicCompletions, getAllTopics, getLastPayload, recordPayload, setRelayCallback, buildConnectOptions, guardEmptyWsFrames, refreshRetained, getDiscoveredEntities: discovery.getDiscoveredEntities, getDiscoveredEntity: discovery.getDiscoveredEntity, getDeviceGroups: discovery.getDeviceGroups };
