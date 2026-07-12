@@ -31,7 +31,8 @@ class FeezalElementCarbonSelect extends FeezalElement {
                 {property: '--feezal-select-color',            type: 'color', default: 'var(--primary-color)', help: 'Select field focus colour.'},
                 {property: '--feezal-select-text-color',       type: 'color', default: 'var(--primary-text-color)',    help: 'Text colour of the selected value and label.'},
                 {property: '--feezal-select-background-color', type: 'color', default: 'var(--card-background-color)', help: 'Background colour of the closed select field.'},
-                {property: '--feezal-select-border-color',     type: 'color', default: 'var(--divider-color)',         help: 'Bottom border colour.'},
+                {property: '--feezal-select-popup-background-color', type: 'color', default: 'var(--card-background-color)', help: 'Background colour of the dropdown option list. Native dropdown — some browsers (Safari, mobile pickers) ignore option styling.'},
+                {property: '--feezal-select-border-color',     type: 'color', default: 'var(--primary-color)',        help: 'Bottom border colour.'},
             ],
             defaultStyle: {width: '200px', height: '64px'},
         };
@@ -54,7 +55,8 @@ class FeezalElementCarbonSelect extends FeezalElement {
             --feezal-select-color:            var(--primary-color, var(--sl-color-primary-600, #0284c7));
             --feezal-select-text-color:       var(--primary-text-color, var(--feezal-color, #333));
             --feezal-select-background-color: var(--card-background-color, var(--feezal-bg, #fff));
-            --feezal-select-border-color:     var(--divider-color, #8d8d8d);
+            --feezal-select-popup-background-color: var(--card-background-color, var(--feezal-bg, #fff));
+            --feezal-select-border-color:     var(--primary-color, var(--sl-color-primary-600, #0284c7));
             /* Carbon token wiring — the field surface is a "layer". */
             --cds-layer:            var(--feezal-select-background-color);
             --cds-layer-01:         var(--feezal-select-background-color);
@@ -101,6 +103,29 @@ class FeezalElementCarbonSelect extends FeezalElement {
                 this._value = String(this.getProperty(msg, this.messageProperty) ?? '');
             });
         }
+    }
+
+    /**
+     * cds-select renders a native <select>; Carbon ships no option styling, so
+     * the dropdown popup would ignore the theme. Adopt a small sheet into the
+     * cds-select shadow root — custom properties inherit across the boundary,
+     * so --feezal-select-* set on this host (or by a theme) reach the options.
+     * (Popup styling is best-effort by nature: Safari and mobile native
+     * pickers ignore option CSS.)
+     */
+    firstUpdated(changed) {
+        super.firstUpdated?.(changed);
+        const select = this.shadowRoot.querySelector('cds-select');
+        select?.updateComplete.then(() => {
+            if (!select.shadowRoot || typeof CSSStyleSheet !== 'function') return;
+            const sheet = new CSSStyleSheet();
+            sheet.replaceSync(`
+                option {
+                    background-color: var(--feezal-select-popup-background-color, #fff);
+                    color: var(--feezal-select-text-color, inherit);
+                }`);
+            select.shadowRoot.adoptedStyleSheets = [...select.shadowRoot.adoptedStyleSheets, sheet];
+        });
     }
 
     _onChange(e) {

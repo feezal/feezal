@@ -25,6 +25,8 @@ class FeezalElementCarbonSwitch extends FeezalElement {
                 'top', 'left', 'width', 'height',
                 {property: '--feezal-switch-track-on',    type: 'color', default: 'var(--primary-color)', help: 'Track colour when ON.'},
                 {property: '--feezal-switch-track-off',   type: 'color', default: 'var(--primary-background-color)', help: 'Track colour when OFF.'},
+                {property: '--feezal-switch-border-on',   type: 'color', default: 'transparent', help: 'Track border colour when ON. Carbon has no track border — transparent keeps the stock look.'},
+                {property: '--feezal-switch-border-off',  type: 'color', default: 'transparent', help: 'Track border colour when OFF. Carbon has no track border — transparent keeps the stock look.'},
                 {property: '--feezal-switch-thumb-on',    type: 'color', default: '#ffffff', help: 'Thumb (handle) colour.'},
                 {property: '--feezal-switch-label-color', type: 'color', default: 'var(--primary-text-color)', help: 'Label text colour.'},
             ],
@@ -60,6 +62,8 @@ class FeezalElementCarbonSwitch extends FeezalElement {
             overflow: visible;
             --feezal-switch-track-on:    var(--primary-color, var(--sl-color-primary-600, #0284c7));
             --feezal-switch-track-off:   var(--primary-background-color, #8d8d8d);
+            --feezal-switch-border-on:   transparent;
+            --feezal-switch-border-off:  transparent;
             --feezal-switch-thumb-on:    #ffffff;
             --feezal-switch-label-color: var(--primary-text-color, var(--feezal-color, #333));
             /* Carbon token wiring — the toggle's ON track is support-success. */
@@ -90,6 +94,31 @@ class FeezalElementCarbonSwitch extends FeezalElement {
                 this._on = v === this.payloadOn || v === true || v === 1 || v === '1';
             });
         }
+    }
+
+    /**
+     * Carbon's toggle track has no border in any normal state (only
+     * read-only mode draws one), so a track border can't be wired through
+     * --cds-* tokens. Adopt a small sheet into the cds-toggle shadow root —
+     * an inset outline adds the border without shifting the layout, and the
+     * --feezal-switch-border-* properties inherit across the boundary.
+     */
+    firstUpdated(changed) {
+        super.firstUpdated?.(changed);
+        const toggle = this.shadowRoot.querySelector('cds-toggle');
+        toggle?.updateComplete.then(() => {
+            if (!toggle.shadowRoot || typeof CSSStyleSheet !== 'function') return;
+            const sheet = new CSSStyleSheet();
+            sheet.replaceSync(`
+                .cds--toggle__switch {
+                    outline: 1px solid var(--feezal-switch-border-off, transparent);
+                    outline-offset: -1px;
+                }
+                .cds--toggle__switch--checked {
+                    outline-color: var(--feezal-switch-border-on, transparent);
+                }`);
+            toggle.shadowRoot.adoptedStyleSheets = [...toggle.shadowRoot.adoptedStyleSheets, sheet];
+        });
     }
 
     _toggle(e) {

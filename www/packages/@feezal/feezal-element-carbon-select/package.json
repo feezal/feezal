@@ -1,6 +1,6 @@
 {
     "name": "@feezal/feezal-element-carbon-select",
-    "version": "3.0.0",
+    "version": "3.0.1",
     "license": "MIT",
     "main": "feezal-element-carbon-select.js"
 }

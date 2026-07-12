@@ -23,8 +23,9 @@ class FeezalElementCarbonSlider extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height',
-                {property: '--feezal-slider-color',       type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Filled track and handle colour.'},
-                {property: '--feezal-slider-track-color', type: 'color', default: 'var(--divider-color, #e0e0e0)', help: 'Unfilled track colour.'},
+                {property: '--feezal-slider-color',       type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Filled track colour (used as default for --feezal-slider-knob-color).'},
+                {property: '--feezal-slider-track-color', type: 'color', default: 'var(--primary-color)', help: 'Unfilled track colour.'},
+                {property: '--feezal-slider-knob-color',  type: 'color', default: 'var(--feezal-slider-color)', help: 'Handle / knob colour. Defaults to the filled track colour.'},
                 {property: '--feezal-slider-label-color', type: 'color', default: 'var(--primary-text-color, #333)', help: 'Min/max label colour.'},
             ],
             defaultStyle: {width: '200px', height: '48px'}
@@ -45,16 +46,18 @@ class FeezalElementCarbonSlider extends FeezalElement {
             align-items: center;
             overflow: visible;
             --feezal-slider-color:       var(--primary-color, var(--sl-color-primary-600, #0284c7));
-            --feezal-slider-track-color: var(--divider-color, #e0e0e0);
+            --feezal-slider-track-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --feezal-slider-knob-color:  var(--feezal-slider-color);
             --feezal-slider-label-color: var(--primary-text-color, var(--feezal-color, #333));
-            /* Carbon token wiring — filled track/handle follow border-interactive
-               (with interactive as the pressed accent); the rest of the track
-               follows border-subtle. */
-            --cds-border-interactive:  var(--feezal-slider-color);
-            --cds-interactive:         var(--feezal-slider-color);
-            --cds-icon-primary:        var(--feezal-slider-color);
-            --cds-border-subtle:       var(--feezal-slider-track-color);
-            --cds-border-subtle-01:    var(--feezal-slider-track-color);
+            /* Carbon token wiring — filled track follows border-interactive
+               (with interactive as the pressed accent), the knob follows
+               layer-selected-inverse, the rest of the track border-subtle. */
+            --cds-border-interactive:       var(--feezal-slider-color);
+            --cds-interactive:              var(--feezal-slider-color);
+            --cds-icon-primary:             var(--feezal-slider-color);
+            --cds-layer-selected-inverse:   var(--feezal-slider-knob-color);
+            --cds-border-subtle:            var(--feezal-slider-track-color);
+            --cds-border-subtle-01:         var(--feezal-slider-track-color);
             --cds-text-primary:        var(--feezal-slider-label-color);
             --cds-text-secondary:      var(--feezal-slider-label-color);
             --cds-focus:               var(--feezal-slider-color);
