@@ -57,9 +57,20 @@ class FeezalSidebarPackages extends LitElement {
            sl-tab-panel sizes to its content and part(base) can never scroll. */
         sl-tab-panel { height: 100%; }
         sl-tab-panel::part(base) { height: 100%; overflow-y: auto; padding: 8px; box-sizing: border-box; }
-        .searchbar { display: flex; gap: 6px; margin-bottom: 8px; }
-        .searchbar input { flex: 1; min-width: 0; padding: 5px 7px; font: inherit; box-sizing: border-box;
-            background: var(--feezal-bg, #fff); color: var(--feezal-color, #333); border: 1px solid var(--feezal-border, #ccc); border-radius: 5px; }
+        /* Same look as the Assets manager search row (magnifier + input). */
+        .material-icons {
+            font-family: 'Material Icons';
+            font-weight: normal; font-style: normal;
+            font-size: inherit; line-height: 1; letter-spacing: normal; text-transform: none;
+            display: inline-block; white-space: nowrap; word-wrap: normal; direction: ltr;
+            -webkit-font-feature-settings: 'liga'; font-feature-settings: 'liga';
+        }
+        .searchbar { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+        .searchbar .material-icons { font-size: 16px; color: #aaa; flex-shrink: 0; }
+        .searchbar input { flex: 1; min-width: 0; padding: 6px 8px; font: inherit; font-size: 12px; box-sizing: border-box;
+            background: var(--feezal-bg-sub, #f5f5f5); color: var(--feezal-color, #333);
+            border: 1px solid var(--feezal-border, #d0d0d0); border-radius: 4px; outline: none; }
+        .searchbar input:focus { border-color: var(--sl-color-primary-600, #0284c7); }
         .btn { border: 1px solid var(--feezal-border, #ccc); background: var(--feezal-bg, #fff); color: var(--feezal-color, #333);
             border-radius: 5px; padding: 4px 9px; font: inherit; font-size: 11px; cursor: pointer; white-space: nowrap; }
         .btn:hover { background: var(--feezal-btn-hover, rgba(0,0,0,0.06)); }
@@ -200,6 +211,7 @@ class FeezalSidebarPackages extends LitElement {
         const results = this._results.filter(r => !this._isInstalled(r.name));
         return html`
             <div class="searchbar">
+                <span class="material-icons">search</span>
                 <input placeholder="Search npm for feezal packages…" .value="${this._query}"
                     @input="${e => { this._query = e.target.value; }}"
                     @keydown="${e => { if (e.key === 'Enter') this._search(); }}">

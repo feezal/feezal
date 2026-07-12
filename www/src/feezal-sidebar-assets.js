@@ -235,12 +235,12 @@ class FeezalSidebarAssets extends LitElement {
 
         /* ── Search row ──────────────────────────────────────────────── */
         .search-row {
-            display: flex; align-items: center; gap: 4px;
-            padding: 4px 10px; border-bottom: 1px solid var(--feezal-border, #eee);
+            display: flex; align-items: center; gap: 6px;
+            padding: 8px 10px; border-bottom: 1px solid var(--feezal-border, #eee);
             flex-shrink: 0;
         }
         .search-input {
-            flex: 1; padding: 3px 6px; border-radius: 4px;
+            flex: 1; padding: 6px 8px; border-radius: 4px;
             border: 1px solid var(--feezal-border, #d0d0d0);
             background: var(--feezal-bg-sub, #f5f5f5);
             color: var(--feezal-color, #333); font-size: 12px; outline: none;
