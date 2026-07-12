@@ -1,7 +1,7 @@
 {
     "name": "@feezal/feezal-www",
     "private": true,
-    "version": "3.4.0",
+    "version": "3.4.1",
     "description": "",
     "main": "none",
     "scripts": {
@@ -145,6 +145,7 @@
         "@shoelace-style/shoelace": "^2.20.1",
         "dompurify": "^3.2.7",
         "dragselect": "^2.7.2",
+        "flatpickr": "^4.6.13",
         "html5sortable": "^0.13.3",
         "interactjs": "^1.10.27",
         "leaflet": "^1.9.4",
