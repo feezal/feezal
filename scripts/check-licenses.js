@@ -26,6 +26,7 @@ const ALLOWED = new Set([
     'Apache-2.0',
     'MPL-2.0',
     'CC0-1.0', 'CC-BY-3.0', 'CC-BY-4.0',
+    'OFL-1.1',        // SIL Open Font License — bundled webfonts (icon/theme packages)
     'Unlicense', 'BlueOak-1.0.0', 'WTFPL',
     'Python-2.0', 'Zlib', 'Artistic-2.0', 'W3C',
     'AGPL-3.0-only'   // feezal itself (workspace links in lockfiles)
