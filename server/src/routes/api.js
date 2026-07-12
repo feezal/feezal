@@ -607,13 +607,16 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
         }
     });
 
-    // Update (reinstall at latest). Body: { package }
+    // Update (reinstall at latest). Body: { package, version? }
+    // The client passes the registry-reported latest version explicitly —
+    // a bare "install latest" can silently reinstall the old version from
+    // npm's packument cache (5-minute registry TTL) right after a publish.
     router.post('/elements/update', async (req, res) => {
         if (!storage.dataDir) return res.status(503).json({error: 'No dataDir configured'});
-        const {package: pkg} = req.body || {};
+        const {package: pkg, version} = req.body || {};
         if (!pkgManager.isAllowedPackage(pkg)) return res.status(400).json({error: 'invalid package'});
         try {
-            const result = await pkgManager.installPackage({wwwDir, dataDir: storage.dataDir, pkg, logger});
+            const result = await pkgManager.installPackage({wwwDir, dataDir: storage.dataDir, pkg, version, logger});
             if (emitElementsChanged) emitElementsChanged();
             res.json(result);
         } catch (err) {

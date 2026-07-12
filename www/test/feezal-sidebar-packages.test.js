@@ -213,8 +213,11 @@ describe('_act() — install/update/remove', () => {
     it('routes update and remove to their endpoints', async () => {
         const el = await attachPanel();
         let fetch = stubFetch({ok: true, json: async () => ({ok: true})});
-        await el._update({name: 'pkg'});
+        await el._update({name: 'pkg', latest: '2.0.0'});
         expect(fetch.mock.calls[0][0]).toBe('/api/elements/update');
+        // the registry-reported latest is passed as an explicit version so a
+        // stale npm packument cache can't reinstall the old version
+        expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({package: 'pkg', version: '2.0.0'});
 
         fetch = stubFetch({ok: true, json: async () => ({ok: true})});
         await el._remove({name: 'pkg'});

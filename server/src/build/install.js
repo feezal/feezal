@@ -287,11 +287,16 @@ async function installPackage({wwwDir, dataDir, pkg, version, logger = console})
         await fsp.writeFile(path.join(staging, 'package.json'),
             JSON.stringify({name: 'feezal-pkg-staging', private: true}));
 
-        const res = await _runNpm(['install', spec, '--ignore-scripts', '--no-audit', '--no-fund', '--no-save'], staging);
+        // --prefer-online: revalidate npm's packument cache — right after a
+        // publish, the cached "latest" (5-minute registry TTL) can silently
+        // resolve to the previous version.
+        logger.info?.(`install: npm install ${spec} (staging: ${staging})`);
+        const res = await _runNpm(['install', spec, '--ignore-scripts', '--no-audit', '--no-fund', '--no-save', '--prefer-online'], staging);
         stdout += res.stdout; stderr += res.stderr;
 
         const installedDir = path.join(staging, 'node_modules', ...String(pkg).split('/'));
         const pj = JSON.parse(await fsp.readFile(path.join(installedDir, 'package.json'), 'utf8'));
+        logger.info?.(`install: resolved ${pj.name || pkg}@${pj.version || '0.0.0'}`);
 
         // N29: the plural feezal-elements- prefix covers both set shapes;
         // the manifest's feezal.type decides which pipeline applies.

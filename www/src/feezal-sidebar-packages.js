@@ -153,7 +153,9 @@ class FeezalSidebarPackages extends LitElement {
     }
 
     _install(pkg)  { return this._act('/api/elements', {package: pkg.name, version: pkg.version}, pkg.name); }
-    _update(pkg)   { return this._act('/api/elements/update', {package: pkg.name}, pkg.name); }
+    // Pass the registry-reported latest explicitly — a versionless "install
+    // latest" can reinstall the old version from npm's stale packument cache.
+    _update(pkg)   { return this._act('/api/elements/update', {package: pkg.name, version: pkg.latest}, pkg.name); }
     _remove(pkg)   { return this._act('/api/elements/remove', {package: pkg.name}, pkg.name); }
 
     _isInstalled(name) { return this._installed.some(p => p.name === name); }
