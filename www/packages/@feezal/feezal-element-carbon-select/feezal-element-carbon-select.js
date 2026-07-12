@@ -119,8 +119,12 @@ class FeezalElementCarbonSelect extends FeezalElement {
         select?.updateComplete.then(() => {
             if (!select.shadowRoot || typeof CSSStyleSheet !== 'function') return;
             const sheet = new CSSStyleSheet();
+            // Carbon's own option rule uses the .cds--select-option class
+            // (backed by the unset --cds-layer-hover token) — match its
+            // specificity; adopted sheets come after the static styles, so
+            // this rule wins by order.
             sheet.replaceSync(`
-                option {
+                option, .cds--select-option {
                     background-color: var(--feezal-select-popup-background-color, #fff);
                     color: var(--feezal-select-text-color, inherit);
                 }`);
