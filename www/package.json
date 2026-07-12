@@ -1,7 +1,7 @@
 {
     "name": "@feezal/feezal-www",
     "private": true,
-    "version": "3.3.4",
+    "version": "3.4.0",
     "description": "",
     "main": "none",
     "scripts": {
@@ -20,6 +20,7 @@
         "packages/@feezal/*"
     ],
     "dependencies": {
+        "@carbon/web-components": "^2.58.1",
         "@feezal/feezal-element-basic-chart": "*",
         "@feezal/feezal-element-basic-datetime": "*",
         "@feezal/feezal-element-basic-icon": "*",
@@ -33,6 +34,12 @@
         "@feezal/feezal-element-basic-table": "*",
         "@feezal/feezal-element-basic-template": "*",
         "@feezal/feezal-element-basic-ticker": "*",
+        "@feezal/feezal-element-carbon-button": "*",
+        "@feezal/feezal-element-carbon-checkbox": "*",
+        "@feezal/feezal-element-carbon-input": "*",
+        "@feezal/feezal-element-carbon-select": "*",
+        "@feezal/feezal-element-carbon-slider": "*",
+        "@feezal/feezal-element-carbon-switch": "*",
         "@feezal/feezal-element-glass-button": "*",
         "@feezal/feezal-element-glass-climate": "*",
         "@feezal/feezal-element-glass-contact": "*",

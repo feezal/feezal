@@ -408,6 +408,22 @@ Elements now subscribe and render live in the editor exactly as in the viewer. T
 
 ## Element Ecosystem
 
+### E98 — Carbon element family (`feezal-element-carbon-*`) ✅ implemented
+
+Promoted out of the E85 backlog (July 2026): the **IBM Carbon Design System** (`@carbon/web-components` 2.58.1, Lit 3, Apache-2.0) as the "industrial / enterprise" family — the E85 evaluation's best audience fit for SCADA/HMI-style MQTT dashboards.
+
+**Implemented (July 2026), `@feezal/feezal-element-carbon-{button,switch,checkbox,slider,select,input}`, all 3.0.0 — built-in packages (ship with feezal like basic/material; no external repo/npm publish):**
+
+- **Wrap pattern = the material family's:** each element wraps the real `cds-*` component the way material wraps `@material/web`, with feezal theme tokens mapped onto Carbon's `--cds-*` tokens per element (button kinds onto `--cds-button-*` with color-mix hover/active derivation, toggle ON-track onto `--cds-support-success`, checkbox box onto `--cds-icon-primary`, slider fill onto `--cds-border-interactive`, field surfaces onto `--cds-layer/field`, focus onto `--cds-focus`). Same-Lit integration — `@carbon/web-components` is Lit 3, so no second framework copy in the bundle.
+- **Attribute contracts mirror the material siblings one-to-one** (per-element: same `subscribe`/`publish`/`payload-on`/`payload-off`/`message-property` descriptors, same `help:` texts, same discovery blocks for switch/checkbox/select) — the inspector experience is identical, only the presentation differs. carbon-button keeps the E79 active-state feedback contract (`payload-active`/`-inactive` → `[active]` host attribute); carbon-slider keeps the B17 derived-step rule (util split into `derive-step.js` — vitest can't resolve Carbon's extensionless lodash-es imports outside Vite).
+- **Deliberate deviations:** slider has no `labeled` (Carbon always shows min/max labels; `cds-slider` exposes no CSS parts to hide them); input has no `suffix` (no Carbon equivalent); switch gained `state-labels` (Carbon's On/Off side text). No E38 container-query scaling in the first cut — Carbon's density is fixed (the E85 "enterprise density on small tiles" watch-out stands).
+- **Measured bundle cost:** ~0.5 MB uncompressed added to `dist/` (33.4 → 33.9 MB) for all six components. IBM Plex fonts are NOT bundled — Carbon falls back to the system stack.
+- Tests: carbon-button (kinds, publish, E79) + carbon-switch (state binding, payload config, publish) browser-tested; deriveStep unit-tested; all six covered by the element-smoke harness (mount/payload/cleanup). TESTING.md §6 category list + family note.
+
+**Deferred:** number-input/tag/tile/progress and the data-heavy Carbon components (data-table — E75 candidate), a `feezal-theme-carbon` (g10/g90/g100 Carbon theme tokens as a feezal theme), E38 scaling.
+
+**Relates:** E85 (the backlog it came from), E83/E84 (the other wrap-a-library families), E61 (HMI family — Carbon is the natural component base if E61 wants off-the-shelf widgets), E75 (Carbon data-table).
+
 ### E58 — Frosted-glass element family (`feezal-element-glass-*`) ✅ implemented
 
 Translucent blurred cards over a wallpaper — the "make it look like Apple Home" request: squircles, `backdrop-filter` frost, soft depth, springy micro-interactions.

@@ -1,0 +1,6 @@
+{
+    "name": "@feezal/feezal-element-carbon-checkbox",
+    "version": "3.0.0",
+    "license": "MIT",
+    "main": "feezal-element-carbon-checkbox.js"
+}

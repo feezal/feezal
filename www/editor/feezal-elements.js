@@ -11,6 +11,12 @@ import '@feezal/feezal-element-basic-svg';
 import '@feezal/feezal-element-basic-table';
 import '@feezal/feezal-element-basic-template';
 import '@feezal/feezal-element-basic-ticker';
+import '@feezal/feezal-element-carbon-button';
+import '@feezal/feezal-element-carbon-checkbox';
+import '@feezal/feezal-element-carbon-input';
+import '@feezal/feezal-element-carbon-select';
+import '@feezal/feezal-element-carbon-slider';
+import '@feezal/feezal-element-carbon-switch';
 import '@feezal/feezal-element-glass-button';
 import '@feezal/feezal-element-glass-climate';
 import '@feezal/feezal-element-glass-contact';
@@ -124,6 +130,12 @@ window.feezal.elements = [
   "feezal-element-basic-table",
   "feezal-element-basic-template",
   "feezal-element-basic-ticker",
+  "feezal-element-carbon-button",
+  "feezal-element-carbon-checkbox",
+  "feezal-element-carbon-input",
+  "feezal-element-carbon-select",
+  "feezal-element-carbon-slider",
+  "feezal-element-carbon-switch",
   "feezal-element-glass-button",
   "feezal-element-glass-climate",
   "feezal-element-glass-contact",

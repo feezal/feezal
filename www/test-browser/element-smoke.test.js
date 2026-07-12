@@ -44,6 +44,7 @@ const TAGS = window.feezal.elements.map(pkg => pkg.replace(/^@[^/]+\//, ''));
 const EXTRA_ATTRS = {
     'feezal-element-layout-repeater': {'child-element': 'feezal-element-basic-number'},
     'feezal-element-material-select': {options: '[{"value":"a","label":"A"}]'},
+    'feezal-element-carbon-select': {options: '[{"value":"a","label":"A"}]'},
     'feezal-element-basic-iframe': {src: 'about:blank'}
 };
 
