@@ -24,7 +24,7 @@ class FeezalPalette extends LitElement {
         #palette-menu {
             background: var(--feezal-bg-sub, #f5f5f5);
             border-bottom: 2px solid var(--feezal-border, #d4d4d8);
-            height: 40.5px;
+            height: 41px;
             padding: 0 6px;
             display: flex;
             align-items: center;
