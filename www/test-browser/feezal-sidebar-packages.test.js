@@ -128,7 +128,9 @@ describe('update + remove', () => {
         await vi.waitFor(() => expect(el.shadowRoot.querySelector('.reload')).not.toBeNull());
 
         const call = calls.find(c => c.url.endsWith('/api/elements/update'));
-        expect(call.body).toEqual({package: '@feezal/feezal-theme-dark-mint'});
+        // the registry-reported latest travels along so a stale npm packument
+        // cache can't reinstall the old version
+        expect(call.body).toEqual({package: '@feezal/feezal-theme-dark-mint', version: '1.2.0'});
     });
 
     it('remove posts the package name', async () => {
