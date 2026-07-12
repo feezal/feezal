@@ -881,6 +881,8 @@ Beside E95's keyboard shortcuts, allow **MIDI controllers** to drive element int
 
 ### E97 — LCARS / Star Trek element family (`feezal-element-lcars-*`) 💡 idea
 
+**Status (July 2026):** in development as the first external N29-Phase-B family package at [feezal/feezal-elements-lcars](https://github.com/feezal/feezal-elements-lcars) (one npm package `@feezal/feezal-elements-lcars` + `@feezal/feezal-theme-lcars`); build plan in that repo's `AGENT-TASK.md`.
+
 The **LCARS** aesthetic (Star Trek: TNG/Voyager/Picard computer interface) as a styled element family — the flat black canvas, sweeping rounded "elbow" corners, pill/capsule buttons, and colour-blocked panels that read as *starship console*. Direct inspiration: the popular [ha-lcars](https://github.com/th3jesta/ha-lcars) Home Assistant theme, which proves the demand and has already done the design archaeology (colour codes + fonts from thelcars.com). Same spirit as E55–E59 (Metro, cockpit, e-ink, glass, TUI): a restyle of feezal's existing control vocabulary, not new interaction types — but LCARS's signature is *shape*, so the family leans harder on custom SVG/CSS frames than the others.
 
 **The signature shapes** (the whole look lives here, so the base machinery must nail them):
