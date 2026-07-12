@@ -699,6 +699,8 @@ A third element **design system** alongside paper (Polymer Paper) and material (
 
 ### E84 — Wired / sketchy element family (`feezal-element-wired-*`) 💡 idea
 
+**Status (July 2026):** in development as an external N29-Phase-B family package at [feezal/feezal-elements-wired](https://github.com/feezal/feezal-elements-wired) (one npm package `@feezal/feezal-elements-wired`); build plan in that repo's `AGENT-TASK.md`. Note: `wired-elements` on npm is stale (3.0.0-rc.6 from 2021, Lit 2 dependency, no rough.js seed control), so the plan's Phase 1 evaluates building on rough.js directly instead of wrapping it.
+
 A deliberately **hand-drawn / sketchy** element family backed by **Wired Elements** (`wired-*`, rough.js under the hood) — the maximum "that's clearly something different" look in the palette for very low effort. Great for prototypes, playful dashboards, wireframe-style status boards, or a distinctive personal aesthetic.
 
 - **Maximally distinct** — rough, pencil-sketch borders and fills; nothing else in feezal (paper, material, or the planned styled families) looks remotely like it.
