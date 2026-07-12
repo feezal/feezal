@@ -30,8 +30,8 @@ class FeezalElementCarbonCheckbox extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height',
-                {property: '--feezal-checkbox-color',       type: 'color', default: 'var(--primary-text-color, #161616)', help: 'Checkbox box fill (checked) and border colour. Carbon default is the text colour.'},
-                {property: '--feezal-checkbox-check-color', type: 'color', default: 'var(--card-background-color, #fff)', help: 'Checkmark colour inside the checked box.'},
+                {property: '--feezal-checkbox-color',       type: 'color', default: 'var(--primary-color)', help: 'Checkbox box fill (checked) and border colour.'},
+                {property: '--feezal-checkbox-check-color', type: 'color', default: 'var(--primary-text-color)', help: 'Checkmark colour inside the checked box.'},
                 {property: '--feezal-checkbox-label-color', type: 'color', default: 'var(--primary-text-color, #333)', help: 'Label text colour.'},
             ],
             defaultStyle: {width: '140px', height: '40px'},
@@ -55,8 +55,8 @@ class FeezalElementCarbonCheckbox extends FeezalElement {
             box-sizing: border-box;
             /* Let the focus outline extend past the element edges. */
             overflow: visible;
-            --feezal-checkbox-color:       var(--primary-text-color, var(--feezal-color, #161616));
-            --feezal-checkbox-check-color: var(--card-background-color, var(--feezal-bg, #fff));
+            --feezal-checkbox-color:       var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --feezal-checkbox-check-color: var(--primary-text-color, var(--feezal-color, #161616));
             --feezal-checkbox-label-color: var(--primary-text-color, var(--feezal-color, #333));
             /* Carbon token wiring — the box border/fill follow icon-primary. */
             --cds-icon-primary:    var(--feezal-checkbox-color);

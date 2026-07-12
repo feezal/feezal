@@ -25,7 +25,7 @@ class FeezalElementCarbonSlider extends FeezalElement {
                 'top', 'left', 'width', 'height',
                 {property: '--feezal-slider-color',       type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Filled track colour (used as default for --feezal-slider-knob-color).'},
                 {property: '--feezal-slider-track-color', type: 'color', default: 'var(--primary-color)', help: 'Unfilled track colour.'},
-                {property: '--feezal-slider-knob-color',  type: 'color', default: 'var(--feezal-slider-color)', help: 'Handle / knob colour. Defaults to the filled track colour.'},
+                {property: '--feezal-slider-knob-color',  type: 'color', default: 'var(--primary-text-color)', help: 'Handle / knob colour.'},
                 {property: '--feezal-slider-label-color', type: 'color', default: 'var(--primary-text-color, #333)', help: 'Min/max label colour.'},
             ],
             defaultStyle: {width: '200px', height: '48px'}
@@ -47,7 +47,7 @@ class FeezalElementCarbonSlider extends FeezalElement {
             overflow: visible;
             --feezal-slider-color:       var(--primary-color, var(--sl-color-primary-600, #0284c7));
             --feezal-slider-track-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
-            --feezal-slider-knob-color:  var(--feezal-slider-color);
+            --feezal-slider-knob-color:  var(--primary-text-color, var(--feezal-color, #161616));
             --feezal-slider-label-color: var(--primary-text-color, var(--feezal-color, #333));
             /* Carbon token wiring — filled track follows border-interactive
                (with interactive as the pressed accent), the knob follows

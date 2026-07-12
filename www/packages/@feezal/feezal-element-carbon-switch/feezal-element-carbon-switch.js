@@ -26,7 +26,7 @@ class FeezalElementCarbonSwitch extends FeezalElement {
                 {property: '--feezal-switch-track-on',    type: 'color', default: 'var(--primary-color)', help: 'Track colour when ON.'},
                 {property: '--feezal-switch-track-off',   type: 'color', default: 'var(--primary-background-color)', help: 'Track colour when OFF.'},
                 {property: '--feezal-switch-border-on',   type: 'color', default: 'transparent', help: 'Track border colour when ON. Carbon has no track border — transparent keeps the stock look.'},
-                {property: '--feezal-switch-border-off',  type: 'color', default: 'transparent', help: 'Track border colour when OFF. Carbon has no track border — transparent keeps the stock look.'},
+                {property: '--feezal-switch-border-off',  type: 'color', default: 'var(--primary-color)', help: 'Track border colour when OFF.'},
                 {property: '--feezal-switch-thumb-on',    type: 'color', default: '#ffffff', help: 'Thumb (handle) colour.'},
                 {property: '--feezal-switch-label-color', type: 'color', default: 'var(--primary-text-color)', help: 'Label text colour.'},
             ],
@@ -63,7 +63,7 @@ class FeezalElementCarbonSwitch extends FeezalElement {
             --feezal-switch-track-on:    var(--primary-color, var(--sl-color-primary-600, #0284c7));
             --feezal-switch-track-off:   var(--primary-background-color, #8d8d8d);
             --feezal-switch-border-on:   transparent;
-            --feezal-switch-border-off:  transparent;
+            --feezal-switch-border-off:  var(--primary-color, var(--sl-color-primary-600, #0284c7));
             --feezal-switch-thumb-on:    #ffffff;
             --feezal-switch-label-color: var(--primary-text-color, var(--feezal-color, #333));
             /* Carbon token wiring — the toggle's ON track is support-success. */
