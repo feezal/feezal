@@ -424,6 +424,75 @@ Promoted out of the E85 backlog (July 2026): the **IBM Carbon Design System** (`
 
 **Relates:** E85 (the backlog it came from), E83/E84 (the other wrap-a-library families), E61 (HMI family — Carbon is the natural component base if E61 wants off-the-shelf widgets), E75 (Carbon data-table).
 
+### E97 — LCARS / Star Trek element family (`feezal-element-lcars-*`) ✅ implemented
+
+**Implemented (July 2026) as the first external N29-Phase-B family package** at [feezal/feezal-elements-lcars](https://github.com/feezal/feezal-elements-lcars): `@feezal/feezal-elements-lcars` (3.0.12 — one bundle defining `lcars-frame`, `lcars-button`, `lcars-readout`, `lcars-bar`, `lcars-slider`, `lcars-gauge`, `lcars-toggle`) + `@feezal/feezal-theme-lcars` (3.0.0 — the canonical colour variants with bundled Antonio, SIL OFL). Installable from the in-editor Package Manager (Sets filter, search "lcars"); dark-only by design, per the brief below.
+
+The **LCARS** aesthetic (Star Trek: TNG/Voyager/Picard computer interface) as a styled element family — the flat black canvas, sweeping rounded "elbow" corners, pill/capsule buttons, and colour-blocked panels that read as *starship console*. Direct inspiration: the popular [ha-lcars](https://github.com/th3jesta/ha-lcars) Home Assistant theme, which proves the demand and has already done the design archaeology (colour codes + fonts from thelcars.com). Same spirit as E55–E59 (Metro, cockpit, e-ink, glass, TUI): a restyle of feezal's existing control vocabulary, not new interaction types — but LCARS's signature is *shape*, so the family leans harder on custom SVG/CSS frames than the others.
+
+**The signature shapes** (the whole look lives here, so the base machinery must nail them):
+
+- **Elbow / sweep corners** — the L-shaped rounded corner joining a horizontal bar to a vertical column; the defining LCARS motif. A parametric SVG/CSS corner (inner + outer radius, which of the four corners, arm thicknesses) is the reusable primitive the frame elements are built from.
+- **Capsule / pill buttons** with LCARS's specific end-cap variants — from ha-lcars: **lozenge** (both ends rounded), **bullet** (one squared side), **capped** (rounded caps), **barrel** (fully rectilinear). One `end-cap` attribute (`lozenge | bullet-left | bullet-right | capped | barrel`) covers the set.
+- **Header / footer bars** with the title set *into* the bar's side border (not floating above) and a contrasting end-block — the framed-section convention.
+
+**Family (first cut):**
+
+- **`lcars-frame`** — the page-framing container: elbow corners + top/bottom bars enclosing a content area (embeds a named view by reference, like `layout-flex`). The element that makes a whole dashboard "look LCARS".
+- **`lcars-button`** — publish-on-tap button with the `end-cap` variants and colour blocks; reflects active state (pairs with E79's `subscribe`/`payload-active` contract — reuse it, don't reinvent).
+- **`lcars-readout`** — the `LABEL — value` shaped readout cell (ha-lcars's `entity-<shape>-<side>`), configurable readout width, blocky value type.
+- **`lcars-bar`** — a standalone header/section bar with the bordered title + end-block, for stacking mosaic panels.
+- **`lcars-slider` / `lcars-gauge`** — brightness/setpoint as a chunky LCARS meter (segmented block fill rather than a thin track); wraps the existing slider/gauge machinery in the family skin.
+- **`lcars-toggle`** — the pill button in a two-state latch.
+
+**Styling:** a matching **`feezal-theme-lcars`** package carrying the canonical palette as `--feezal-lcars-*` tokens, shipping the named colour sets ha-lcars popularised (Classic, "25th Century", Cardassia, Kronos, Romulan, **Red Alert**) as theme variants. The **compressed condensed typeface** is the other half of the look — **Antonio** (Google Fonts, SIL OFL) is the redistributable stand-in for the screen-used *Tungsten*; bundle it in the theme package (self-hosted, per the no-external-fetch export rule), never a CDN link. Elements must still be legible on the *non*-LCARS themes (tokens fall back to the active theme's palette), but the family is really meant to be used *with* its theme.
+
+**Notes:** LCARS is unapologetically **dark-only** and colour-block-driven — call that out (it won't reskin to a light theme meaningfully; that's fine, it's a costume). Accessibility caveats to document: the low-contrast colour-on-black and ALL-CAPS condensed type are aesthetic choices that fight readability — keep font-size/contrast overridable via the Style inspector, and respect `prefers-reduced-motion` for any "Red Alert" flash animation (opt-in, off by default — flicker hazard, same rule as E59's CRT overlay). Grid-snapping discipline matches E55's mosaic tiles so the elbow frames and bars assemble cleanly. Viewer-dependency rule applies: no Shoelace in the elements — hand-rolled Lit + SVG; reuse what `material-button`/`material-slider`/`material-gauge` already ship for the wrapped controls.
+
+**Relates:** E55–E59 (sibling styled families — same restyle-not-rebuild premise, shared grid-snap/theme-package pattern), E79 (button active-state contract the `lcars-button` reuses), E48/`layout-flex` (embedded-view framing for `lcars-frame`), E38 (scaling the shaped frames), N28 (a condensed display font ships alongside — same self-host-not-CDN discipline as icon sets), A20 (family ships as npm packages + theme). Reference: ha-lcars (github.com/th3jesta/ha-lcars), thelcars.com (canonical colours/fonts).
+
+### E84 — Wired / sketchy element family (`feezal-element-wired-*`) ✅ implemented
+
+**Implemented (July 2026) as an external N29-Phase-B family package** at [feezal/feezal-elements-wired](https://github.com/feezal/feezal-elements-wired): `@feezal/feezal-elements-wired` (3.0.11 — `wired-button`, `wired-toggle`, `wired-checkbox`, `wired-slider`, `wired-input`, `wired-select`, `wired-card`, `wired-gauge`) + `@feezal/feezal-theme-wired` (3.0.0). The Phase-1 spike (repo `DECISION.md`) decided to build directly on **rough.js** instead of wrapping `wired-elements` (stale 3.0.0-rc.6 from 2021, Lit 2 dependency, no seed control) — per-instance pinned seeds keep elements from re-scribbling on MQTT updates, exactly the watch-out below.
+
+A deliberately **hand-drawn / sketchy** element family backed by **Wired Elements** (`wired-*`, rough.js under the hood) — the maximum "that's clearly something different" look in the palette for very low effort. Great for prototypes, playful dashboards, wireframe-style status boards, or a distinctive personal aesthetic.
+
+- **Maximally distinct** — rough, pencil-sketch borders and fills; nothing else in feezal (paper, material, or the planned styled families) looks remotely like it.
+- **Lit-based + tiny** — `wired-elements` is small and built on Lit; cheap to wrap and cheap in the bundle.
+- **License** — MIT, compatible.
+
+**Scope (first cut):** `wired-button`, `wired-toggle`, `wired-slider`, `wired-checkbox`, `wired-combo` (select), `wired-input`, `wired-card` (container), `wired-gauge`/value — mapping onto feezal's existing subscribe/publish conventions.
+
+**Watch-outs:**
+- **Smaller component set** than Spectrum/Material — the family will be more curated; some feezal controls may have no Wired equivalent and would need a hand-rolled sketchy element (rough.js directly).
+- **Theming is unusual** — the sketch aesthetic isn't token-themeable the way Material is; expect a fixed look with limited color hooks. Random-seed redraw on every render can look "jittery" — pin the rough.js seed so elements don't re-scribble on each MQTT update (the redraw-discipline concern, cf. E57).
+
+**Relates:** E83 (Spectrum — the "serious" new framework; Wired is the playful counterpart), E85 (backlog), E59 (tui — the other low-effort, high-personality aesthetic family).
+
+### E60 — Model-railroad element family (`feezal-element-rail-*`) ✅ implemented
+
+**Implemented (July 2026) as an external N29-Phase-B family package** at [feezal/feezal-elements-rail](https://github.com/feezal/feezal-elements-rail): `@feezal/feezal-elements-rail` (3.0.8 — `rail-track`, `rail-turnout`, `rail-signal`, `rail-block`, `rail-route`, `rail-throttle`) + `@feezal/feezal-theme-rail` (3.0.0 — the SpDrS60 relay-panel look). The JMRI MQTT topic/payload contract (repo `DECISION.md`) pre-wires JMRI-verbatim defaults (`CLOSED`/`THROWN`, `ACTIVE`/`INACTIVE`, signal aspect names, cab throttle topics), every payload attribute-overridable for DIY hardware (mqTrains, MattzoBricks); Rocrail remains a documented Node-RED bridge story, not element code, as scoped.
+
+An element set for **model-train control panels** — the first family that opens feezal to a *second hobby community* rather than restyling the first one. The enabler is that MQTT is genuinely established in the hobby (researched July 2026):
+
+- **JMRI** (the open-source hub) has first-class MQTT connections since v4.22/4.26: turnouts, sensors, lights, signal masts, reporters, even throttles — with **plain text payloads** (`CLOSED`/`THROWN`, `ACTIVE`/`INACTIVE`) on a simple topic scheme. Zero-friction feezal fit; this is the primary integration target.
+- **Rocrail** runs a native MQTT service (full RCP client protocol over `rocrail/service/client|info`, QoS 1) — but payloads are **XML snippets**, so it needs a thin translation layer: a documented Node-RED bridge flow (Rocrail's wiki has a Node-RED page) or an E49 script; settle the story before shipping.
+- **DIY hardware speaks MQTT directly** — mqTrains (ESP8266 servo turnouts, ~$5/point), MattzoBricks (Lego trains), RocMQTTdisplay: layouts with topics on the wire and *no* PC software. feezal can be their entire control panel.
+- **iTrain / TrainController** are proprietary/closed (no MQTT, no open API) — out of reach, but they define the UI expectations: track-diagram switchboard, block occupancy, throttles.
+
+**Why feezal wins here:** the incumbent web UIs (JMRI's web-panel servlet mirroring desktop PanelPro, Rocweb) are functional but dated; nobody offers a WYSIWYG, themeable, mobile/PWA panel builder for MQTT layouts. Club/exhibition layouts are exactly the wall-tablet kiosk case feezal already targets (A18, PWA, static export).
+
+**Family — two halves:**
+
+1. **Track-diagram primitives (the Gleisbildstellpult):** straight/curve/crossing segments; a click-to-throw **turnout** with state coloring (+ confirm option for exhibition safety); multi-aspect **signal** (payload→aspect mapping); **block segment** colored by an occupancy sensor; route buttons (publish a route id, light up when set); uncoupler/turntable controls. Elements snap together into a track plan on the editor grid — friendlier than hand-drawing an E51 SVG plan (E51 stays the power-user path: import a CAD track plan, bind ids).
+2. **Cab controls:** a **throttle** — speed via rotary knob (shared machinery with E56's `panel-knob`), direction toggle, F0–F28 function grid, loco selector; JMRI's MQTT throttle topics are the reference wiring.
+
+**Styling — the hook:** the iconic **SpDrS60 relay panel / US CTC dispatcher** look (grey domino tiles, colored route lights) as the default `feezal-theme-rail` — itself a beloved aesthetic in the hobby, making this a styled family in the same spirit as E55–E59.
+
+**Notes:** grid-snapping of track segments must assemble cleanly (same mosaic discipline as E55); topic conventions per target (JMRI scheme first-class in auto-discovery-style pre-wiring; Rocrail via the bridge); safety UX matters at exhibitions — locking (U3) and PIN (E44) combine well with a public-facing panel.
+
+**Relates:** E56 (rotary knob), E51 (SVG track-plan alternative), E44/U3 (public-panel safety), A18 (kiosk), E49 (Rocrail XML bridge), A20 (packaging). Research sources: jmri.org MQTT hardware docs, wiki.rocrail.net MQTT service + Node-RED pages, mqtrains.com, mattzobricks.com.
+
 ### E58 — Frosted-glass element family (`feezal-element-glass-*`) ✅ implemented
 
 Translucent blurred cards over a wallpaper — the "make it look like Apple Home" request: squircles, `backdrop-filter` frost, soft depth, springy micro-interactions.
