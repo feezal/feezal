@@ -13,7 +13,6 @@ Work in progress — priorities and scope are not final.
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
 - [N12 — Export bundle: strip mqtt.js for feezal-bridge users](#n12--export-bundle-strip-mqttjs-for-feezal-bridge-users-partial) *(partial)*
 - [N13 — Lighter MQTT client for export bundle](#n13--lighter-mqtt-client-for-export-bundle-️-tbd) ⚠️
-- [N25 — Bridge last-value replay ("synthetic retain")](#n25--bridge-last-value-replay-synthetic-retain-most-likely-not) ❌ *(most likely not)*
 - [N30 — layout-app breaks the site active-view MQTT contract](#n30--layout-app-breaks-the-site-active-view-mqtt-contract-️-refinement-needed) ⚠️ *(refinement needed)*
 
 **Element Ecosystem**
@@ -161,20 +160,6 @@ client.json_send('my/topic', payload);
 
 ### N2b — Repeater with live canvas sub-elements *(future)*
 Each repeater child becomes individually selectable and configurable on the editor canvas. Requires a virtual sub-editor context — significantly more complex, deferred until the MVP repeater is proven useful.
-
-### N25 — Bridge last-value replay ("synthetic retain") ❌ most likely not
-
-**Disposition (July 2026): most likely not.** In practice all relevant topics are reliably retained on the broker — the problem this would solve doesn't exist in a well-configured MQTT setup, and the asymmetry footgun below argues against building it. Kept for the record; the answer to "empty widgets on load" is retained messages, documented as best practice (page-locally computed values deliberately have no replay either — see the E49 cache rejection).
-
-*Origin — Dashboard 2.0's server-side datastore and uibuilder's `uib-cache` both exist to solve the problem MQTT solves with retained messages — except many real-world publishers (zigbee2mqtt events, misconfigured devices) don't set the retain flag, so a freshly opened viewer shows empty widgets until the next message arrives.*
-
-**Concept:** the server bridge already maintains a live topic/payload cache (`server/src/mqtt/bridge.js`). Opt-in feature: when a **bridge-backend** viewer subscribes, replay the cached last value for topics that have no broker-retained value — synthetic retain.
-
-**Reservations (why this needs review before committing):**
-- **Asymmetry footgun:** direct-MQTT viewers and static exports have no server in the path and can't benefit — "works in the live viewer, empty widgets in the export" is a support-question generator. The alternative is to *not* build this and instead document retained-message best practice.
-- If built: global vs. per-topic opt-in; cache TTL/size limits; marking replayed messages (a `synthetic` flag?) so elements/scripts can distinguish them from live traffic.
-
-**Relates:** E49 (page-local publishes deliberately have no replay either — a client-side cache was rejected there too), N10 (bridge-for-everything mode would widen this feature's reach), site connection settings.
 
 ### N30 — layout-app breaks the site active-view MQTT contract ⚠️ refinement needed
 
