@@ -126,14 +126,13 @@ class FeezalSidebarInspector extends LitElement {
 
     static styles = css`
         :host { display: flex; flex-direction: column; height: 100%; background-color: var(--feezal-bg, white); box-sizing: border-box; }
-        sl-tab-group {
-            flex: 1; min-height: 0; display: flex; flex-direction: column;
-            --track-color: transparent;
-        }
+        sl-tab-group { flex: 1; min-height: 0; display: flex; flex-direction: column; }
         sl-tab-group::part(base) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
         sl-tab-group::part(body) { flex: 1; min-height: 0; overflow: hidden; }
         sl-tab-group::part(nav) { background: var(--feezal-bg-sub, #f5f5f5); }
-        sl-tab::part(base) { font-size: 14px; padding: 10px 8px; }
+        /* 39px tab + 2px nav track = 41px — matches the .ftab view tab bar
+           left of the sidebar (same rule in feezal-sidebar-viewer). */
+        sl-tab::part(base) { font-size: 14px; padding: 0 8px; height: 39px; }
         sl-tab-panel { height: 100%; }
         sl-tab-panel::part(base) { height: 100%; overflow-y: auto; padding: 0; box-sizing: border-box; }
         /* ── Selection badge ──────────────────────────────────────────────── */

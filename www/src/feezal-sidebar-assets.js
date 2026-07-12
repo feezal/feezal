@@ -5,6 +5,9 @@ import '@shoelace-style/shoelace/dist/components/dialog/dialog.js';
 import '@shoelace-style/shoelace/dist/components/button/button.js';
 import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/alert/alert.js';
+import '@shoelace-style/shoelace/dist/components/tab-group/tab-group.js';
+import '@shoelace-style/shoelace/dist/components/tab/tab.js';
+import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
 
 import './feezal-pwa-icon-dialog.js';
 
@@ -58,20 +61,26 @@ class FeezalSidebarAssets extends LitElement {
             font-size: 13px; color: var(--feezal-color, #333);
         }
 
-        /* ── Header ─────────────────────────────────────────────────── */
-        .header {
-            display: flex; align-items: center; gap: 6px;
-            padding: 8px 10px; border-bottom: 1px solid var(--feezal-border, #e0e0e0);
-            flex-shrink: 0;
+        /* ── Site/Global tab bar ─────────────────────────────────────── */
+        sl-tab-group { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        sl-tab-group::part(base) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        sl-tab-group::part(body) { flex: 1; min-height: 0; overflow: hidden; }
+        sl-tab-group::part(nav) { background: var(--feezal-bg-sub, #f5f5f5); }
+        /* 39px tab + 2px nav track = 41px — matches the .ftab view tab bar
+           left of the sidebar (same rule in the other sidebar panels). */
+        sl-tab::part(base) { font-size: 14px; padding: 0 10px; height: 39px; }
+        sl-tab-panel { height: 100%; }
+        /* The panel body is the flex column that used to be the host: header,
+           search row, breadcrumb and infobar fixed, the file zone scrolling. */
+        sl-tab-panel::part(base) {
+            height: 100%; display: flex; flex-direction: column;
+            overflow: hidden; padding: 0; box-sizing: border-box;
         }
-        .cat-btn {
-            flex: 1; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--feezal-border, #d0d0d0);
-            background: var(--feezal-bg-sub, #f5f5f5); cursor: pointer;
-            font-size: 12px; font-weight: 500; color: var(--feezal-color, #444);
-            transition: background 0.15s, border-color 0.15s;
-        }
-        .cat-btn.active {
-            background: var(--sl-color-primary-600, #0284c7); color: #fff; border-color: transparent;
+
+        /* ── Tab-bar action buttons (view mode / mkdir / upload) ─────── */
+        .nav-actions {
+            margin-left: auto; align-self: center; margin-right: 6px;
+            display: flex; align-items: center; gap: 4px; flex-shrink: 0;
         }
         .upload-btn {
             width: 28px; height: 28px; border-radius: 4px; border: 1px solid var(--feezal-border, #d0d0d0);
@@ -842,6 +851,7 @@ class FeezalSidebarAssets extends LitElement {
             if (!copy) {
                 // Switch view to destination so the user can see where it went
                 this._category = destCategory;
+                this.renderRoot.querySelector('sl-tab-group')?.show(destCategory);
             }
             await this._load();
         } catch (err) {
@@ -1066,26 +1076,42 @@ class FeezalSidebarAssets extends LitElement {
     }
 
     render() {
+        return html`
+            <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+            <sl-tab-group @sl-tab-show="${e => {
+                // Only a real category change resets the folder — a programmatic
+                // show() after a move-transfer must keep the current folder.
+                if (this._category !== e.detail.name) {
+                    this._category = e.detail.name;
+                    this._folder = '';
+                }
+            }}">
+                <sl-tab slot="nav" panel="site">Site</sl-tab>
+                <sl-tab slot="nav" panel="global">Global</sl-tab>
+                <div slot="nav" class="nav-actions">
+                    <button class="view-btn ${this._viewMode === 'thumbs'  ? 'active' : ''}" title="Thumbnail view"  @click="${() => this._setViewMode('thumbs')}"><span class="material-icons">grid_view</span></button>
+                    <button class="view-btn ${this._viewMode === 'list'    ? 'active' : ''}" title="List view"       @click="${() => this._setViewMode('list')}"><span class="material-icons">list</span></button>
+                    <button class="view-btn ${this._viewMode === 'details' ? 'active' : ''}" title="Details view"    @click="${() => this._setViewMode('details')}"><span class="material-icons">view_list</span></button>
+                    <button class="mkdir-btn" title="New folder" @click="${this._mkdir}"><span class="material-icons">create_new_folder</span></button>
+                    <button class="upload-btn" title="Upload files" @click="${() => this.shadowRoot.querySelector('#file-input').click()}">
+                        <span class="material-icons">upload</span>
+                    </button>
+                    <input id="file-input" type="file" multiple @change="${e => this._upload([...e.target.files])}">
+                </div>
+                <sl-tab-panel name="site">${this._category === 'site' ? this._body() : ''}</sl-tab-panel>
+                <sl-tab-panel name="global">${this._category === 'global' ? this._body() : ''}</sl-tab-panel>
+            </sl-tab-group>
+            ${this._renderOverlays()}
+        `;
+    }
+
+    /** Shared panel body — the same search/browser UI for both categories. */
+    _body() {
         const folders = this._filteredFolders;
         const files   = this._filteredList;
         const count   = folders.length + files.length;
 
         return html`
-            <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
-            <div class="header" style="--thumb-size:${this._thumbSize}px">
-                <button class="cat-btn ${this._category === 'site'   ? 'active' : ''}" @click="${() => { this._category = 'site';   this._folder = ''; }}">Site</button>
-                <button class="cat-btn ${this._category === 'global' ? 'active' : ''}" @click="${() => { this._category = 'global'; this._folder = ''; }}">Global</button>
-                <!-- View mode toggles -->
-                <button class="view-btn ${this._viewMode === 'thumbs'  ? 'active' : ''}" title="Thumbnail view"  @click="${() => this._setViewMode('thumbs')}"><span class="material-icons">grid_view</span></button>
-                <button class="view-btn ${this._viewMode === 'list'    ? 'active' : ''}" title="List view"       @click="${() => this._setViewMode('list')}"><span class="material-icons">list</span></button>
-                <button class="view-btn ${this._viewMode === 'details' ? 'active' : ''}" title="Details view"    @click="${() => this._setViewMode('details')}"><span class="material-icons">view_list</span></button>
-                <button class="mkdir-btn" title="New folder" @click="${this._mkdir}"><span class="material-icons">create_new_folder</span></button>
-                <button class="upload-btn" title="Upload files" @click="${() => this.shadowRoot.querySelector('#file-input').click()}">
-                    <span class="material-icons">upload</span>
-                </button>
-                <input id="file-input" type="file" multiple @change="${e => this._upload([...e.target.files])}">
-            </div>
-
             <!-- Search row -->
             <div class="search-row">
                 <span class="material-icons" style="font-size:16px;color:#aaa;flex-shrink:0">search</span>
@@ -1201,7 +1227,12 @@ class FeezalSidebarAssets extends LitElement {
             `}
 
             <div class="infobar">${count} item${count !== 1 ? 's' : ''}${this._category === 'global' ? ' · global' : ' · site'}${this._search ? ` · matching "${this._search}"` : ''}</div>
+        `;
+    }
 
+    /** Dialogs, context menu and preview — top-level so they survive tab switches. */
+    _renderOverlays() {
+        return html`
             <!-- Confirm dialog -->
             <sl-dialog
                 label="Confirm"

@@ -26,7 +26,6 @@ import {stripCanvasZIndex} from './feezal-sidebar-inspector.js';
 import './feezal-sidebar-assets.js';
 import './feezal-sidebar-themes.js';
 import './feezal-sidebar-viewer.js';
-import './feezal-sidebar-clients.js';
 import './feezal-sidebar-editor.js';
 import './feezal-site-manager.js';
 import './feezal-sidebar-history.js';
@@ -579,7 +578,6 @@ class FeezalAppEditor extends LitElement {
         :host(.dark) feezal-sidebar-inspector,
         :host(.dark) feezal-sidebar-themes,
         :host(.dark) feezal-sidebar-viewer,
-        :host(.dark) feezal-sidebar-clients,
         :host(.dark) feezal-sidebar-editor,
         :host(.dark) feezal-sidebar-assets,
         :host(.dark) feezal-sidebar-history,
@@ -696,6 +694,7 @@ class FeezalAppEditor extends LitElement {
         this.preventEditorMqtt = JSON.parse(localStorage.getItem('preventEditorMqtt') ?? 'true');
         this.sidebar         = localStorage.getItem('sidebar')                    ?? 'inspector';
         if (this.sidebar === 'palette') this.sidebar = 'inspector';   // removed tab → fall back
+        if (this.sidebar === 'clients') this.sidebar = 'viewer';      // clients moved into Site Settings
 
         this.views            = [];
         this.changes          = false;
@@ -933,10 +932,9 @@ class FeezalAppEditor extends LitElement {
                         <button class="icon-btn ${this.sidebar === 'inspector' ? 'active' : ''}" title="Inspector" @click="${() => this._setSidebar('inspector')}"><span class="material-icons">tune</span></button>
                         <button class="icon-btn ${this.sidebar === 'themes' ? 'active' : ''}" title="Theme" @click="${() => this._setSidebar('themes')}"><span class="material-icons">palette</span></button>
                         <button class="icon-btn ${this.sidebar === 'viewer' ? 'active' : ''}" title="Site Settings" @click="${() => this._setSidebar('viewer')}"><span class="material-icons">cast</span></button>
-                        <button class="icon-btn ${this.sidebar === 'clients' ? 'active' : ''}" title="Clients" @click="${() => this._setSidebar('clients')}"><span class="material-icons">devices</span></button>
                         <button class="icon-btn ${this.sidebar === 'assets' ? 'active' : ''}" title="Assets" @click="${() => this._setSidebar('assets')}"><span class="material-icons">perm_media</span></button>
-                        <button class="icon-btn ${this.sidebar === 'history' ? 'active' : ''}" title="Version history" @click="${() => this._setSidebar('history')}"><span class="material-icons">history</span></button>
                         <button class="icon-btn ${this.sidebar === 'packages' ? 'active' : ''}" title="Packages" @click="${() => this._setSidebar('packages')}"><span class="material-icons">widgets</span></button>
+                        <button class="icon-btn ${this.sidebar === 'history' ? 'active' : ''}" title="Version history" @click="${() => this._setSidebar('history')}"><span class="material-icons">history</span></button>
                         <button class="icon-btn ${this.sidebar === 'editor' ? 'active' : ''}" title="Editor Settings" @click="${() => this._setSidebar('editor')}"><span class="material-icons">build</span></button>
                         ${this._aiConfigured && !this._aiPanelOpen ? html`
                             <button class="icon-btn" style="margin-left:auto" title="AI assistant"
@@ -1093,7 +1091,6 @@ class FeezalAppEditor extends LitElement {
                     <feezal-sidebar-themes class="sidebar-panel" ?hidden="${this.sidebar !== 'themes'}" .viewSelected="${this.viewSelected}"></feezal-sidebar-themes>
                     <feezal-sidebar-packages class="sidebar-panel" ?hidden="${this.sidebar !== 'packages'}"></feezal-sidebar-packages>
                     <feezal-sidebar-viewer class="sidebar-panel" ?hidden="${this.sidebar !== 'viewer'}"></feezal-sidebar-viewer>
-                    <feezal-sidebar-clients class="sidebar-panel" ?hidden="${this.sidebar !== 'clients'}"></feezal-sidebar-clients>
                     <feezal-sidebar-editor class="sidebar-panel"
                         ?hidden="${this.sidebar !== 'editor'}"
                         .themeMode="${this._themeMode}"
@@ -1936,11 +1933,6 @@ class FeezalAppEditor extends LitElement {
     _setSidebar(name) {
         this.sidebar = name;
         localStorage.setItem('sidebar', name);
-        // N24: opening the Clients tab re-checks the site topic (it may have
-        // changed since the panel first attached its wildcard subscription).
-        if (name === 'clients') {
-            this.shadowRoot.querySelector('feezal-sidebar-clients')?.activate?.();
-        }
     }
 
     _onResizeStart(e) {

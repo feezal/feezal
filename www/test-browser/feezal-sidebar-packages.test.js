@@ -58,11 +58,10 @@ describe('installed list', () => {
             '@feezal/feezal-theme-dark-mint'
         ]);
 
-        const themesBtn = [...el.shadowRoot.querySelectorAll('.seg button')]
-            .find(b => b.textContent.trim() === 'Themes');
-        themesBtn.click();
-        await el.updateComplete;
-        expect(rows(el)).toEqual(['@feezal/feezal-theme-dark-mint']);
+        const themesTab = [...el.shadowRoot.querySelectorAll('sl-tab')]
+            .find(t => t.textContent.trim() === 'Themes');
+        themesTab.click();
+        await vi.waitFor(() => expect(rows(el)).toEqual(['@feezal/feezal-theme-dark-mint']));
     });
 
     it('shows the update badge + button only for outdated packages', async () => {

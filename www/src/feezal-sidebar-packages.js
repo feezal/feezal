@@ -1,6 +1,10 @@
 /* global feezal */
 import {LitElement, html, css} from 'lit';
 
+import '@shoelace-style/shoelace/dist/components/tab-group/tab-group.js';
+import '@shoelace-style/shoelace/dist/components/tab/tab.js';
+import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
+
 /**
  * feezal-sidebar-packages (N4) — Package Manager sidebar tab.
  *
@@ -40,11 +44,19 @@ class FeezalSidebarPackages extends LitElement {
     };
 
     static styles = css`
-        :host { display: block; height: 100%; overflow: auto; font-size: 12px;
-            background: var(--feezal-bg, #fff); color: var(--feezal-color, #333); padding: 8px; box-sizing: border-box; }
-        .seg { display: flex; gap: 2px; background: var(--feezal-bg-sub, #eee); border-radius: 6px; padding: 2px; margin-bottom: 8px; }
-        .seg button { flex: 1; border: none; background: none; color: inherit; font: inherit; font-size: 11px; padding: 4px; border-radius: 4px; cursor: pointer; }
-        .seg button.on { background: var(--feezal-bg, #fff); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.12); }
+        :host { display: flex; flex-direction: column; height: 100%; overflow: hidden; font-size: 12px;
+            background: var(--feezal-bg, #fff); color: var(--feezal-color, #333); box-sizing: border-box; }
+        sl-tab-group { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        sl-tab-group::part(base) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        sl-tab-group::part(body) { flex: 1; min-height: 0; overflow: hidden; }
+        sl-tab-group::part(nav) { background: var(--feezal-bg-sub, #f5f5f5); }
+        /* 39px tab + 2px nav track = 41px — matches the .ftab view tab bar
+           left of the sidebar (same rule in the other sidebar panels). */
+        sl-tab::part(base) { font-size: 14px; padding: 0 10px; height: 39px; }
+        /* height:100% on the panel itself is required — without it the slotted
+           sl-tab-panel sizes to its content and part(base) can never scroll. */
+        sl-tab-panel { height: 100%; }
+        sl-tab-panel::part(base) { height: 100%; overflow-y: auto; padding: 8px; box-sizing: border-box; }
         .searchbar { display: flex; gap: 6px; margin-bottom: 8px; }
         .searchbar input { flex: 1; min-width: 0; padding: 5px 7px; font: inherit; box-sizing: border-box;
             background: var(--feezal-bg, #fff); color: var(--feezal-color, #333); border: 1px solid var(--feezal-border, #ccc); border-radius: 5px; }
@@ -170,14 +182,21 @@ class FeezalSidebarPackages extends LitElement {
     }
 
     render() {
+        return html`
+            <sl-tab-group @sl-tab-show="${e => { this._filter = e.detail.name; this._results = []; }}">
+                ${TYPES.map(t => html`<sl-tab slot="nav" panel="${t.key}">${t.label}</sl-tab>`)}
+                ${TYPES.map(t => html`<sl-tab-panel name="${t.key}">
+                    ${this._filter === t.key ? this._body() : ''}
+                </sl-tab-panel>`)}
+            </sl-tab-group>
+        `;
+    }
+
+    /** Shared panel body — the same search + list UI for every type filter. */
+    _body() {
         const installed = this._installedView();
         const results = this._results.filter(r => !this._isInstalled(r.name));
         return html`
-            <div class="seg">
-                ${TYPES.map(t => html`<button class="${this._filter === t.key ? 'on' : ''}"
-                    @click="${() => { this._filter = t.key; this._results = []; }}">${t.label}</button>`)}
-            </div>
-
             <div class="searchbar">
                 <input placeholder="Search npm for feezal packages…" .value="${this._query}"
                     @input="${e => { this._query = e.target.value; }}"

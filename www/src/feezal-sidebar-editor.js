@@ -31,7 +31,7 @@ class FeezalSidebarEditor extends LitElement {
     };
 
     static styles = css`
-        :host { display: block; height: 100%; background-color: var(--feezal-bg, white); box-sizing: border-box; }
+        :host { display: block; height: 100%; background-color: var(--feezal-bg, white); box-sizing: border-box; overflow-y: auto; }
         .form { margin: 12px; display: flex; flex-direction: column; gap: 12px; }
         .row { display: flex; gap: 12px; align-items: flex-end; }
         .row > * { flex: 1; }

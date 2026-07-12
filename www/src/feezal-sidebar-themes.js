@@ -2,6 +2,9 @@ import {LitElement, html, css} from 'lit';
 
 import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/button/button.js';
+import '@shoelace-style/shoelace/dist/components/tab-group/tab-group.js';
+import '@shoelace-style/shoelace/dist/components/tab/tab.js';
+import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
 
 // '@feezal/feezal-theme-blue-night' → 'feezal-theme-blue-night'
 function pkgToClass(pkg) {
@@ -91,7 +94,6 @@ class FeezalSidebarThemes extends LitElement {
         _userThemes:    {state: true},   // [{ slug, label }] from /api/themes
         _saveThemeOpen: {state: true},
         _saveThemeName: {state: true},
-        _classesOpen:     {state: true},
         _classes:         {state: true},   // { name: { prop: val } }
         _editingClass:    {state: true},   // name of the class being renamed inline
         _collapsedClasses:{state: true},   // Set of class names that are collapsed
@@ -104,6 +106,17 @@ class FeezalSidebarThemes extends LitElement {
             display: flex; flex-direction: column;
             height: 100%; background: var(--feezal-bg, white); box-sizing: border-box; overflow: hidden;
         }
+        sl-tab-group { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        sl-tab-group::part(base) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        sl-tab-group::part(body) { flex: 1; min-height: 0; overflow: hidden; }
+        sl-tab-group::part(nav) { background: var(--feezal-bg-sub, #f5f5f5); }
+        /* 39px tab + 2px nav track = 41px — matches the .ftab view tab bar
+           left of the sidebar (same rule in feezal-sidebar-viewer/-inspector). */
+        sl-tab::part(base) { font-size: 14px; padding: 0 10px; height: 39px; }
+        /* height:100% on the panel itself is required — without it the slotted
+           sl-tab-panel sizes to its content and part(base) can never scroll. */
+        sl-tab-panel { height: 100%; }
+        sl-tab-panel::part(base) { height: 100%; overflow-y: auto; padding: 0; box-sizing: border-box; }
 
         .section { padding: 14px 12px; }
         .section-label {
@@ -220,8 +233,7 @@ class FeezalSidebarThemes extends LitElement {
         .new-class-btn:hover { border-color: rgba(250,120,0,0.6); color: rgba(250,120,0,0.9); }
 
         /* ── Classes editor panel ────────────────────────────── */
-        .classes-section { border-top: 1px solid var(--feezal-border,#e8e8e8); }
-        .classes-body { padding: 10px 12px 12px; }
+        .classes-body { padding: 12px; }
         .class-card { margin-bottom: 8px; border: 1px solid var(--feezal-border,#e0e0e0); border-radius: 5px; background: var(--feezal-bg,#fff); }
         .class-card-hdr { display: flex; align-items: center; gap: 4px; padding: 5px 8px; background: var(--feezal-bg-sub,#f7f7f7); border-bottom: 1px solid var(--feezal-border,#e8e8e8); }
         .class-card-name { flex: 1; font-size: 11px; font-weight: 600; color: var(--feezal-color,#333); font-family: monospace; cursor: pointer; }
@@ -304,7 +316,6 @@ class FeezalSidebarThemes extends LitElement {
         this._userThemes    = [];
         this._saveThemeOpen = false;
         this._saveThemeName = '';
-        this._classesOpen     = localStorage.getItem('feezal:themes:classesOpen') !== '0';
         this._classes         = {};
         this._editingClass    = null;
         this._collapsedClasses = new Set();
@@ -887,7 +898,13 @@ class FeezalSidebarThemes extends LitElement {
         const activeCount  = Object.values(this._overrides).filter(v => v).length;
         const themeVars    = this._themeVars[this.currentTheme] || {};
 
+        const classCount = Object.keys(this._classes).length;
         return html`
+            <sl-tab-group>
+                <sl-tab slot="nav" panel="theme">Theme</sl-tab>
+                <sl-tab slot="nav" panel="classes">Classes${classCount ? ` · ${classCount}` : ''}</sl-tab>
+
+                <sl-tab-panel name="theme">
             <div class="section">
                 <div class="section-label">Theme</div>
                 <div class="picker">
@@ -981,14 +998,9 @@ class FeezalSidebarThemes extends LitElement {
                     </div>
                 ` : ''}
             </div>
+                </sl-tab-panel>
 
-            <div class="classes-section">
-                <div class="collapsible-hdr" @click="${() => this._toggleSection('_classesOpen', 'feezal:themes:classesOpen')}">
-                    <span class="section-label">Classes</span>
-                    ${Object.keys(this._classes).length > 0 ? html`<span class="overrides-badge">${Object.keys(this._classes).length}</span>` : ''}
-                    <span class="collapsible-arrow">${this._classesOpen ? '▴' : '▾'}</span>
-                </div>
-                ${this._classesOpen ? html`
+                <sl-tab-panel name="classes">
                     <div class="classes-body">
                         ${Object.entries(this._classes).map(([name, props]) => html`
                             <div class="class-card${this._collapsedClasses.has(name) ? ' collapsed' : ''}">
@@ -1049,8 +1061,8 @@ class FeezalSidebarThemes extends LitElement {
                             <button class="new-class-btn" @click="${() => this._addClass()}">+ New class</button>
                         </div>
                     </div>
-                ` : ''}
-            </div>
+                </sl-tab-panel>
+            </sl-tab-group>
             ${this._valAutoState ? html`
                 <ul class="class-val-list"
                     style="top:${this._valAutoState.top}px;left:${this._valAutoState.left}px;width:${this._valAutoState.width}px"

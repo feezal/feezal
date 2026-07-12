@@ -113,6 +113,7 @@ against a stub provider — this block is about **agent/tool mode + real provide
 The whole sidebar UI (search, install, update badge, remove, rejection errors,
 reload prompt) is automated against stubbed endpoints — what's left is the real thing:
 
+- [ ] **Type filter tab bar**: All · Elements · Themes · Icons · Sets render as a tab bar (same styling/alignment as the Inspector and Site Settings tab bars); switching tabs filters the Installed list and clears stale search results.
 - [ ] Install a real published `feezal-element-*` from npm; after reload the element is in the palette; **Update** and **Remove** round-trip.
 - [ ] **Element sets (N29 Phase A)**: search for `eink` (or filter **Sets**) → `@feezal/feezal-elements-eink` appears with the `set` chip; **Install** expands it — after reload all member `feezal-element-eink-*` elements are in the palette; the Installed list shows the set row with its members indented beneath; **Remove** on the set removes the marker AND its members (a member also installed individually or owned by another set survives); **Remove** on a single member leaves the set and siblings; **Update** on the set reinstalls all members at latest. *(Type/keyword plumbing, bundle expansion write layout, set-aware remove and the grouping UI are unit-tested; this is the real-registry check.)*
 - [ ] **Multi-element families (N29 Phase B)**: install a published `feezal-elements-*` package carrying `feezal: {type: "elements", elements: [...]}` (one bundle, many tags — none published yet; when the first family ships, use it) → ONE row in the Installed list (Sets filter, `set` chip, no indented members); after reload **every** tag from its manifest appears in the palette and drops onto the canvas; source-mode tag completion offers the family's tags; **Remove** deletes the whole family in one step; a static export of a site using two of its elements includes the family bundle exactly once (both elements render). *(Discovery/registry/tag-map/install-path are unit-tested; this is the real-registry + export check.)*
@@ -137,7 +138,10 @@ and palette drag-to-canvas are all automated.)
 - [ ] **Keyboard shortcuts** modal (`?`) lists correct bindings; each works.
 - [ ] **Source mode:** format document; editing comfort (highlighting, completion).
 - [ ] **Palette** (left): categories in order; search filter works.
-- [ ] **Sidebar tabs** (right): Inspector · Theme · Site Settings · Assets · Version history · Editor Settings · Packages — each opens its panel; no empty/dead tab.
+- [ ] **Sidebar tabs** (right): Inspector · Theme · Site Settings · Assets · Packages · Version history · Editor Settings — each opens its panel; no empty/dead tab.
+- [ ] **Site Settings tabs**: Connection · Site · Viewer · Clients. Connection = broker/auth/TLS/client; Site = name/title/topics/PWA/mobile app; Viewer = "Viewer connection mode" (via-server switch), "Viewer presence" and "View playlist"; Clients = the live viewer list (formerly its own sidebar tab — a persisted `sidebar=clients` selection falls back to Site Settings). Settings changed on the Viewer tab persist through deploy exactly as before the split.
+- [ ] **Tab bar alignment**: the inner tab bars of Inspector and Site Settings share their bottom edge with the view tab bar left of the sidebar (41px) — no vertical offset.
+- [ ] **Sidebar panels scroll** when taller than the viewport: shrink the browser window height, then check Inspector (Attributes/Styles with an element selected), Site Settings (both tabs), Theme and Editor Settings — each shows the same thin scrollbar as the palette and reaches its bottom content; nothing is clipped without a scrollbar.
 - [ ] Sidebar + palette **collapse** toggles; widths persist across reload.
 
 ## 4. Editor — inspector
@@ -250,9 +254,10 @@ scaling is asserted for the container-query and ResizeObserver mechanisms
 (Theme variables, distinctness and per-theme swatch screenshots are automated;
 refresh baselines with `npm run test:browser -- --update` after palette changes.)
 
+- [ ] **Theme panel tabs**: Theme · Classes — the Theme tab holds the theme selector and colour overrides, the Classes tab the class editor; the Classes tab label shows the class count (e.g. "Classes · 2"); the tab bar aligns with the view tab bar like Inspector/Site Settings.
 - [ ] Switch between all built-in themes (9) → **whole editor + viewer look right** (beyond the swatch palette); picker swatches sample real colours.
-- [ ] **Colour overrides** section (theme tab): add/edit/remove override; live preview; persists; **collapsible state persists** (default open).
-- [ ] **Classes** section: create/rename/delete a class; edit its CSS props; applies live to elements carrying it; **collapsible state persists**.
+- [ ] **Colour overrides** section (Theme tab): add/edit/remove override; live preview; persists; **collapsible state persists** (default open).
+- [ ] **Classes** tab: create/rename/delete a class; edit its CSS props; applies live to elements carrying it.
 - [ ] User `.css` themes (create/save/delete) coexist with theme packages.
 - [ ] Historical-preview (`?sha=`) uses the theme/overrides/classes from that commit.
 
@@ -261,6 +266,7 @@ refresh baselines with `npm run test:browser -- --update` after palette changes.
 REST endpoints and the copy-on-use drag (incl. inspector refresh) are automated —
 this section is about the remaining **UI**.
 
+- [ ] **Site/Global tab bar** (same styling/alignment as the other sidebar tab bars): switching tabs resets to the category root folder; "Move to site/global" from the context menu switches to the destination tab automatically. The thumbnail/list/details view toggles and the New-folder/Upload buttons sit right-aligned INSIDE the tab bar and work from there.
 - [ ] Upload via button **and** drag-drop, to Site and Global; folder UI (mkdir, move into); rename; delete; preview overlay.
 - [ ] Move/copy an asset between site↔global via the UI; references in the site HTML follow.
 
@@ -313,18 +319,18 @@ hub disconnect-clear and bridge retain-forwarding are automated.)*
 - [ ] Open a viewer with a site **Publish Topic** set → corner toast "Connected as \"viewer-xxxx\"", dismissible. Without a Publish Topic no presence (even with a Subscribe Topic).
 - [ ] Broker shows retained `<publish>/clients/<id>/status` JSON (view, connectedSince, lastChange, connection, userAgent); switching views updates `view` in the payload.
 - [ ] With a Publish Topic but **no Subscribe Topic**: viewer announces itself (row appears) but the per-client actions in the Clients panel are disabled and the viewer takes no commands (announce-only). *(Announce-only subscription behaviour is unit-tested.)*
-- [ ] Editor → **Clients** sidebar tab (devices icon) lists the viewer live; a second viewer (other browser/device) appears as a second row.
+- [ ] Editor → **Site Settings → Clients** tab lists the viewer live; a second viewer (other browser/device) appears as a second row.
 - [ ] Editor **dark mode**: the Clients tab paints a dark panel background (no white area behind the client cards); text, card heads and inputs stay readable.
 - [ ] **Switch view** select shows the client's current view and follows it live (viewer-side navigation updates the dropdown); picking another entry changes the view on exactly that viewer (other viewers unaffected); **Reload** reloads it; **Set theme** restyles the viewer (until its next reload — the deployed theme is baked into the site HTML).
 - [ ] Viewer reconnect (toggle the network briefly / restart the broker) → the client row survives or reappears; a stale broker LWT clearing the status is self-healed by the viewer republishing it. *(Self-heal republish is unit-tested.)*
 - [ ] Reload the **editor** while a viewer is online → its row reappears immediately (the hub asks the broker to replay retained state on subscribe, even for statuses first retained after the server started). *(Automated in the hub full-chain tests.)*
-- [ ] Reload the editor **with the Clients tab already selected** (the sidebar selection persists) → the row still appears without switching tabs; changing the site Publish Topic rewires the panel live. The console traces this as `[feezal-clients] subscribing <topic>`. *(Late-site wiring is automated.)*
+- [ ] Reload the editor, then open **Site Settings → Clients** → the row appears without further steps (the panel wires itself on load, before the site DOM exists); changing the site Publish Topic rewires the panel live. The console traces this as `[feezal-clients] subscribing <topic>`. *(Late-site wiring is automated.)*
 - [ ] A **static export** behaves like the served viewer: first load shows the "Connected as …" toast, the site appears in the Clients panel, and per-client commands (view/theme/reload/rename) reach it. *(The presence import in the export entry is automated.)*
 - [ ] **Rename** to `hallway-panel` → viewer toast, row re-appears under the new id, old status topic cleared on the broker; rename survives a viewer reload (`localStorage`).
 - [ ] Close the viewer tab → row disappears (direct: broker LWT; bridge: server clear). Kill the browser process (ungraceful) with a direct-MQTT connection → LWT still clears the status.
 - [ ] Site-wide control topics (`<subscribe>/view`, …) still steer **all** viewers.
 - [ ] Duplicate id (copy `localStorage` value to a second browser) → "already online" warning toast, both keep working.
-- [ ] Viewer Settings → Site → **Viewer presence** off → redeploy: no status published, no toast, Clients panel empty.
+- [ ] Site Settings → Viewer → **Viewer presence** off → redeploy: no status published, no toast, Clients panel empty.
 - [ ] **All four broker protocols** (`mqtt://`, `mqtts://`, `ws://`, `wss://`, mosquitto): the Clients panel lists viewers and survives a **viewer page reload** (row stays/reappears within seconds). Watch the server console: no `mqtt-bridge: connection closed` after a presence clear — with a ws(s) broker, an empty retained publish used to kill the bridge connection (mqtt.js sends the empty payload as an empty WebSocket frame; mosquitto drops the client with a protocol error). *(Empty-frame guard, hub cache JSON parsing and panel string tolerance are unit-tested; the mosquitto interaction was verified against a real broker.)*
 
 ## 13. Auth / deployment (if used)

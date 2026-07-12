@@ -12,6 +12,7 @@ import '@shoelace-style/shoelace/dist/components/dialog/dialog.js';
 import '@shoelace-style/shoelace/dist/components/switch/switch.js';
 
 import './feezal-pwa-icon-dialog.js';
+import './feezal-sidebar-clients.js';
 
 /**
  * feezal-sidebar-viewer
@@ -40,8 +41,17 @@ class FeezalSidebarViewer extends LitElement {
         sl-tab-group::part(base) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
         sl-tab-group::part(body) { flex: 1; min-height: 0; overflow: hidden; }
         sl-tab-group::part(nav) { background: var(--feezal-bg-sub, #f5f5f5); }
-        sl-tab::part(base) { font-size: 13px; padding: 10px 8px; }
+        /* 39px tab + 2px nav track = 41px — the same height as the .ftab view
+           tab bar left of the sidebar, so both header bars share one bottom edge. */
+        sl-tab::part(base) { font-size: 14px; padding: 0 10px; height: 39px; }
+        /* height:100% on the panel itself is required — without it the slotted
+           sl-tab-panel sizes to its content, part(base)'s 100% resolves against
+           that auto height and the panel can never scroll. */
+        sl-tab-panel { height: 100%; }
         sl-tab-panel::part(base) { height: 100%; overflow-y: auto; padding: 12px; box-sizing: border-box; }
+        /* The clients list brings its own padding and scroll container. */
+        sl-tab-panel[name="clients"]::part(base) { padding: 0; overflow: hidden; }
+        feezal-sidebar-clients { display: block; height: 100%; }
         sl-input, sl-select { width: 100%; margin-top: 8px; }
         sl-input:first-child, sl-select:first-child { margin-top: 0; }
         sl-input::part(form-control-label), sl-select::part(form-control-label) { color: var(--sl-input-label-color, inherit); }
@@ -398,9 +408,17 @@ class FeezalSidebarViewer extends LitElement {
         const isTcp = c._protocol === 'mqtt' || c._protocol === 'mqtts';
         const hasCa = this._certStatus?.ca;
         return html`
-            <sl-tab-group>
+            <sl-tab-group @sl-tab-show="${e => {
+                // N24: opening the Clients tab re-checks the site topic (it may
+                // have changed since the panel attached its wildcard subscription).
+                if (e.detail.name === 'clients') {
+                    this.renderRoot.querySelector('feezal-sidebar-clients')?.activate?.();
+                }
+            }}">
                 <sl-tab slot="nav" panel="connection">Connection</sl-tab>
                 <sl-tab slot="nav" panel="site">Site</sl-tab>
+                <sl-tab slot="nav" panel="viewer">Viewer</sl-tab>
+                <sl-tab slot="nav" panel="clients">Clients</sl-tab>
 
                 <sl-tab-panel name="connection">
                     <div class="section-label">Server connection</div>
@@ -433,28 +451,6 @@ class FeezalSidebarViewer extends LitElement {
                         <sl-option value="4">3.1.1</sl-option>
                         <sl-option value="5">5.0</sl-option>
                     </sl-select>
-
-                    <div class="section-label">Connection mode</div>
-                    <sl-switch id="via-server-switch" size="small"
-                        ?checked="${isTcp || c.viaServer === true}"
-                        ?disabled="${isTcp}"
-                        @sl-change="${e => this._setConn('viaServer', e.target.checked)}">
-                        Connect via server (recommended)
-                    </sl-switch>
-                    <div class="pwa-hint">
-                        ${isTcp || c.viaServer === true ? html`
-                            The viewer talks only to the feezal server — broker credentials
-                            never appear in the viewer page source.
-                            ${isTcp ? html`<br><em>mqtt:// and mqtts:// cannot be opened from
-                            a browser, so the server connection is required.</em>` : ''}
-                        ` : html`
-                            <strong>Direct mode:</strong> the viewer connects to the broker
-                            itself — the broker URL <em>and credentials</em> are embedded in
-                            the viewer page source, readable by anyone who can open the
-                            viewer. Static exports are always direct, but never contain
-                            credentials — they prompt for them at runtime.
-                        `}
-                    </div>
 
                     <div class="section-label">Authentication</div>
                     <sl-input label="Username" size="small" placeholder="(none)"
@@ -560,6 +556,78 @@ class FeezalSidebarViewer extends LitElement {
                         @sl-change="${e => this._setSite('publish', e.target.value)}">
                     </sl-input>
 
+                    <div class="section-label">Progressive Web App</div>
+                    <sl-switch id="pwa-switch" size="small" ?checked="${this.pwa}"
+                        @sl-change="${e => this._setPwa(e.target.checked)}">
+                        Enable PWA (installable app)
+                    </sl-switch>
+                    <div class="pwa-hint">
+                        Adds a web-app manifest and service worker to the viewer and the
+                        export, so the dashboard can be installed to the home screen.
+                    </div>
+                    ${this.pwa ? html`
+                        <div class="pwa-icon-row">
+                            <img class="pwa-icon-preview" alt="app icon"
+                                src="/viewer/${encodeURIComponent(feezal.siteName)}/icons/icon-192.png?v=${this._pwaIconTs}">
+                            <div class="pwa-icon-meta">
+                                <div>${this._pwaIcons?.custom ? 'Custom icon' : 'Default feezal icon'}</div>
+                                <div class="pwa-icon-actions">
+                                    <sl-button size="small" @click="${this._pickIconFile}">Upload…</sl-button>
+                                    ${this._pwaIcons?.custom ? html`
+                                        <sl-button size="small" @click="${this._regenerateIcon}">Adjust</sl-button>
+                                        <sl-button size="small" variant="text" @click="${this._resetIcon}">Reset</sl-button>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        <input id="pwa-icon-file" type="file"
+                            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                            @change="${this._onIconFile}">
+                    ` : ''}
+
+                    <div class="section-label">Mobile app</div>
+                    <sl-input label="App name" size="small" placeholder="${feezal.siteName}"
+                        .value="${this.app?.name || ''}"
+                        @sl-change="${e => this._setApp('name', e.target.value)}">
+                    </sl-input>
+                    <sl-input label="App ID" size="small" placeholder="io.feezal.${feezal.siteName}"
+                        help-text="Reverse-DNS identifier used by Android/iOS"
+                        .value="${this.app?.id || ''}"
+                        @sl-change="${e => this._setApp('id', e.target.value)}">
+                    </sl-input>
+                    <div class="pwa-hint">
+                        Export an Android/iOS Capacitor project — built on your own
+                        machine, installed without an app store.
+                    </div>
+                    <sl-button size="small" style="margin-top:8px"
+                        @click="${() => feezal.app._openCapacitorDialog()}">
+                        Export project…
+                    </sl-button>
+                </sl-tab-panel>
+
+                <sl-tab-panel name="viewer">
+                    <div class="section-label">Viewer connection mode</div>
+                    <sl-switch id="via-server-switch" size="small"
+                        ?checked="${isTcp || c.viaServer === true}"
+                        ?disabled="${isTcp}"
+                        @sl-change="${e => this._setConn('viaServer', e.target.checked)}">
+                        Connect via server
+                    </sl-switch>
+                    <div class="pwa-hint">
+                        ${isTcp || c.viaServer === true ? html`
+                            <strong>Bridge Mode:</strong> The viewer connects only to the
+                            feezal server
+                            ${isTcp ? html`<br><em>mqtt:// and mqtts:// cannot be opened from
+                            a browser, so the server connection is required.</em>` : ''}
+                        ` : html`
+                            <strong>Direct mode:</strong> the viewer connects to the broker
+                            itself — the broker URL <em>and credentials</em> are embedded in
+                            the viewer page source, readable by anyone who can open the
+                            viewer. Static exports are always direct, but never contain
+                            credentials — they prompt for them at runtime.
+                        `}
+                    </div>
+
                     <div class="section-label">Viewer presence</div>
                     <sl-switch id="presence-switch" size="small" ?checked="${s.presence !== 'off'}"
                         @sl-change="${e => this._setSite('presence', e.target.checked ? '' : 'off')}">
@@ -612,54 +680,10 @@ class FeezalSidebarViewer extends LitElement {
                         <sl-option value="none">none</sl-option>
                         <sl-option value="fade">fade</sl-option>
                     </sl-select>
+                </sl-tab-panel>
 
-                    <div class="section-label">Progressive Web App</div>
-                    <sl-switch id="pwa-switch" size="small" ?checked="${this.pwa}"
-                        @sl-change="${e => this._setPwa(e.target.checked)}">
-                        Enable PWA (installable app)
-                    </sl-switch>
-                    <div class="pwa-hint">
-                        Adds a web-app manifest and service worker to the viewer and the
-                        export, so the dashboard can be installed to the home screen.
-                    </div>
-                    ${this.pwa ? html`
-                        <div class="pwa-icon-row">
-                            <img class="pwa-icon-preview" alt="app icon"
-                                src="/viewer/${encodeURIComponent(feezal.siteName)}/icons/icon-192.png?v=${this._pwaIconTs}">
-                            <div class="pwa-icon-meta">
-                                <div>${this._pwaIcons?.custom ? 'Custom icon' : 'Default feezal icon'}</div>
-                                <div class="pwa-icon-actions">
-                                    <sl-button size="small" @click="${this._pickIconFile}">Upload…</sl-button>
-                                    ${this._pwaIcons?.custom ? html`
-                                        <sl-button size="small" @click="${this._regenerateIcon}">Adjust</sl-button>
-                                        <sl-button size="small" variant="text" @click="${this._resetIcon}">Reset</sl-button>
-                                    ` : ''}
-                                </div>
-                            </div>
-                        </div>
-                        <input id="pwa-icon-file" type="file"
-                            accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                            @change="${this._onIconFile}">
-                    ` : ''}
-
-                    <div class="section-label">Mobile app</div>
-                    <sl-input label="App name" size="small" placeholder="${feezal.siteName}"
-                        .value="${this.app?.name || ''}"
-                        @sl-change="${e => this._setApp('name', e.target.value)}">
-                    </sl-input>
-                    <sl-input label="App ID" size="small" placeholder="io.feezal.${feezal.siteName}"
-                        help-text="Reverse-DNS identifier used by Android/iOS"
-                        .value="${this.app?.id || ''}"
-                        @sl-change="${e => this._setApp('id', e.target.value)}">
-                    </sl-input>
-                    <div class="pwa-hint">
-                        Export an Android/iOS Capacitor project — built on your own
-                        machine, installed without an app store.
-                    </div>
-                    <sl-button size="small" style="margin-top:8px"
-                        @click="${() => feezal.app._openCapacitorDialog()}">
-                        Export project…
-                    </sl-button>
+                <sl-tab-panel name="clients">
+                    <feezal-sidebar-clients></feezal-sidebar-clients>
                 </sl-tab-panel>
             </sl-tab-group>
 
