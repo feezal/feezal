@@ -557,6 +557,8 @@ Less a styling exercise than a **deployment niche**: pure black-and-white, huge 
 
 ### E60 — Model-railroad element family (`feezal-element-rail-*`) 💡 idea
 
+**Status (July 2026):** in development as an external N29-Phase-B family package at [feezal/feezal-elements-rail](https://github.com/feezal/feezal-elements-rail) (npm packages `@feezal/feezal-elements-rail` + `@feezal/feezal-theme-rail`); build plan in that repo's `AGENT-TASK.md`. First cut: track/turnout/signal/block/route tiles + a single-cab throttle, JMRI MQTT payloads as the pre-wired defaults; Rocrail stays a documented bridge story, not element code.
+
 An element set for **model-train control panels** — the first family that opens feezal to a *second hobby community* rather than restyling the first one. The enabler is that MQTT is genuinely established in the hobby (researched July 2026):
 
 - **JMRI** (the open-source hub) has first-class MQTT connections since v4.22/4.26: turnouts, sensors, lights, signal masts, reporters, even throttles — with **plain text payloads** (`CLOSED`/`THROWN`, `ACTIVE`/`INACTIVE`) on a simple topic scheme. Zero-friction feezal fit; this is the primary integration target.
