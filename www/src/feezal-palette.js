@@ -234,7 +234,7 @@ class FeezalPalette extends LitElement {
         this.categories = Object.entries(categories)
             .map(([name, elements]) => ({name, elements}))
             .sort((a, b) => {
-                const ORDER = ['Components', 'Basic', 'Layout', 'System', 'Device', 'Material', 'Paper'];
+                const ORDER = ['Components', 'Basic', 'Layout', 'System', 'Device', 'Glass', 'Metro', 'Material', 'Carbon', 'Paper', 'Panel', 'TUI'];
                 const ai = ORDER.indexOf(a.name);
                 const bi = ORDER.indexOf(b.name);
                 if (ai === -1 && bi === -1) return a.name.localeCompare(b.name);
