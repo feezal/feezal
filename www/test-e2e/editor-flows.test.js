@@ -210,9 +210,9 @@ describe('copy-on-use of a global asset (B15)', () => {
         await page.reload();
         await page.waitForSelector('feezal-palette .element', {timeout: 60_000});
 
-        // Assets sidebar → Global pool.
+        // Assets sidebar → Global pool (a tab since the unified-sidebar-tab-bars rework).
         await page.locator('feezal-app-editor button[title="Assets"]').click();
-        await page.locator('feezal-sidebar-assets .cat-btn:has-text("Global")').click();
+        await page.locator('feezal-sidebar-assets sl-tab:has-text("Global")').click();
         const tile = page.locator('feezal-sidebar-assets .tile[data-file="logo.png"]');
         await tile.waitFor({timeout: 10_000});
 
