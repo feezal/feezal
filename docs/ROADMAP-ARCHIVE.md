@@ -546,6 +546,24 @@ Elements now subscribe and render live in the editor exactly as in the viewer. T
 
 ## Element Ecosystem
 
+### E101 — Dialog element family (feezal-element-glass-dialog*) ✅ implemented
+
+The Glass family's missing dialog/popup elements — Material already has all three dialog variants; Glass has none. Adds, mirroring the Material family 1:1 in MQTT contract and behaviour, restyled in the frosted-glass visual language:
+
+- **`feezal-element-glass-dialog`** — mirrors `feezal-element-material-dialog`: free-form templated body (`template`, `title`, `icon`), opens on `subscribe`/`payload-open`, closes on `payload-close`, optional OK/Cancel buttons each with their own publish topic/payload, `close-on-backdrop`, `show-close`, `hide-header`, sizing (`width`/`height`/`min-height`/`max-height`).
+- **`feezal-element-glass-dialog-view`** — mirrors `feezal-element-material-dialog-view`: same open/close/OK/Cancel contract, but the body is an embedded feezal **view** (`view` attribute) instead of a template — a whole dashboard view rendered inside the glass dialog chrome.
+- **`feezal-element-glass-countdown-dialog`** — mirrors `feezal-element-material-countdown-dialog` (palette name "Confirm"): a confirm-with-countdown dialog — `template` body with `${seconds}`/`${msg.*}` variables, `duration`, auto-confirms via `publish-confirm`/`payload-confirm` when the countdown reaches zero, `publish-cancel`/`payload-cancel` + `cancel-label` for the Cancel button, `warn-seconds` for the amber/red ring threshold. The countdown ring rendering should reuse/match glass-climate's or glass-light's ring styling for family consistency.
+
+**Why one roadmap item covering three elements:** all three are thin visual reskins of existing, proven Material elements — no new MQTT semantics or interaction model to design, only the frosted-glass chrome (backdrop blur, translucent surface, rounded corners consistent with glass-light's card) and the standard Glass palette entry (`category: 'Glass'`, `color: '#7aa5c9'`).
+
+**Ships with:** three packages (`feezal-element-glass-dialog`, `-glass-dialog-view`, `-glass-countdown-dialog`), each registered in `www/package.json`, patch-versioned independently, added to `docs/TESTING.md` §6 with notes on the dialog-specific behaviours (backdrop click, embedded view, countdown ring).
+
+**Relates:** material-dialog / material-dialog-view / material-countdown-dialog (attribute-contract source), E58 (glass-light — the established Glass visual pattern), E48 (dialog-view, archive — original design rationale for the view-embedding variant).
+
+
+> **Implemented 07/2026:** all three packages, attribute-identical to their material sources (glass-dialog 20 attrs, glass-dialog-view 18 incl. live view embedding, glass-countdown-dialog 11 incl. auto-confirm ring with warn thresholds), custom inspectors mirrored with feezal-topic-input fields, glass chrome incl. degrade + body-portal var sync, editor placeholders/guards; 16 browser tests.
+
+
 ### E104 — Metro cover/shutter element (feezal-element-metro-cover) ✅ implemented
 
 The Metro family's missing cover/shutter control — light, climate, contact, occupancy, sensor, switch, media and tile all have Metro counterparts; cover is the gap (Material has `material-cover`, Glass has `glass-shutter`).

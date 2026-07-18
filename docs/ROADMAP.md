@@ -53,7 +53,6 @@ Work in progress — priorities and scope are not final.
 - [E94 — 3D model viewer (`feezal-element-basic-model`)](#e94--3d-model-viewer-feezal-element-basic-model) 💡
 - [E95 — Configurable keyboard shortcuts for interactive elements](#e95--configurable-keyboard-shortcuts-for-interactive-elements)
 - [E96 — MIDI input as an element trigger (Web MIDI)](#e96--midi-input-as-an-element-trigger-web-midi-️-questionable-future) ❓
-- [E101 — Dialog element family (`feezal-element-glass-dialog*`)](#e101--dialog-element-family-feezal-element-glass-dialog)
 - [E102 — Climate elements: boost mode, thermostat mode datapoint conventions, valve position](#e102--climate-elements-boost-mode-thermostat-mode-datapoint-conventions-valve-position-️-refined-072026--decisions-pending-do-not-implement-yet) ⚠️ *(refined 07/2026 — model agreed, not implemented)*
 - [E103 — WLED elements (Device / Glass / Metro)](#e103--wled-elements-device--glass--metro)
 - [E105 — Glass cards: horizontal layout on wide-flat resize (icon left, content right)](#e105--glass-cards-horizontal-layout-on-wide-flat-resize-icon-left-content-right)
@@ -828,20 +827,6 @@ Beside E95's keyboard shortcuts, allow **MIDI controllers** to drive element int
 **Open questions:** device identity/persistence across reconnects (match by port name/id); channel/note filtering; MIDI *feedback/out* (lighting a controller's LED from state) as a later phase; whether this is per-element bindings or a central MIDI-map surface. Given the Safari/Firefox gap, likely ships (if ever) as an optional power-user feature, not a core interaction path.
 
 **Relates:** E95 (shares the element-actions model + inversion of the "learn" UI; keyboard is the portable sibling), E50/E49 (a MIDI event is just another action trigger), N24 (per-client input state), A21 (accessibility — physical input is complementary, not a replacement for keyboard operability).
-
-### E101 — Dialog element family (`feezal-element-glass-dialog*`)
-
-The Glass family's missing dialog/popup elements — Material already has all three dialog variants; Glass has none. Adds, mirroring the Material family 1:1 in MQTT contract and behaviour, restyled in the frosted-glass visual language:
-
-- **`feezal-element-glass-dialog`** — mirrors `feezal-element-material-dialog`: free-form templated body (`template`, `title`, `icon`), opens on `subscribe`/`payload-open`, closes on `payload-close`, optional OK/Cancel buttons each with their own publish topic/payload, `close-on-backdrop`, `show-close`, `hide-header`, sizing (`width`/`height`/`min-height`/`max-height`).
-- **`feezal-element-glass-dialog-view`** — mirrors `feezal-element-material-dialog-view`: same open/close/OK/Cancel contract, but the body is an embedded feezal **view** (`view` attribute) instead of a template — a whole dashboard view rendered inside the glass dialog chrome.
-- **`feezal-element-glass-countdown-dialog`** — mirrors `feezal-element-material-countdown-dialog` (palette name "Confirm"): a confirm-with-countdown dialog — `template` body with `${seconds}`/`${msg.*}` variables, `duration`, auto-confirms via `publish-confirm`/`payload-confirm` when the countdown reaches zero, `publish-cancel`/`payload-cancel` + `cancel-label` for the Cancel button, `warn-seconds` for the amber/red ring threshold. The countdown ring rendering should reuse/match glass-climate's or glass-light's ring styling for family consistency.
-
-**Why one roadmap item covering three elements:** all three are thin visual reskins of existing, proven Material elements — no new MQTT semantics or interaction model to design, only the frosted-glass chrome (backdrop blur, translucent surface, rounded corners consistent with glass-light's card) and the standard Glass palette entry (`category: 'Glass'`, `color: '#7aa5c9'`).
-
-**Ships with:** three packages (`feezal-element-glass-dialog`, `-glass-dialog-view`, `-glass-countdown-dialog`), each registered in `www/package.json`, patch-versioned independently, added to `docs/TESTING.md` §6 with notes on the dialog-specific behaviours (backdrop click, embedded view, countdown ring).
-
-**Relates:** material-dialog / material-dialog-view / material-countdown-dialog (attribute-contract source), E58 (glass-light — the established Glass visual pattern), E48 (dialog-view, archive — original design rationale for the view-embedding variant).
 
 ### E102 — Climate elements: boost mode, thermostat mode datapoint conventions, valve position ⚠️ refined 07/2026 — decisions pending, do not implement yet
 
