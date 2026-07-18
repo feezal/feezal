@@ -12,6 +12,7 @@ Work in progress — priorities and scope are not final.
 - [B34 — Stray orange dot left over from rubber-band selection during element drag](#b34--stray-orange-dot-left-over-from-rubber-band-selection-during-element-drag) (not yet reproducable )❓
 - [B35 — Rubber-band select sometimes selects nothing](#b35--rubber-band-select-sometimes-selects-nothing-needs-investigation) ❓
 - [B36 — Snapping sometimes stops working until page reload](#b36--snapping-sometimes-stops-working-until-page-reload-needs-investigation) ❓
+- [B38 — glass-wled: details dropdowns ignore theme colours (unreadable on some themes)](#b38--glass-wled-details-dropdowns-ignore-theme-colours-unreadable-on-some-themes)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -119,7 +120,15 @@ Snapping occasionally just stops working during drag/resize — no snap lines, n
 
 **Relates:** B32 (snapping helper lines sometimes don't disappear — could be the same stuck-modifier root cause manifesting as lines stuck *visible* instead of snapping stuck *off*; worth investigating together).
 
-## Near-term Improvements
+### B38 — glass-wled: details dropdowns ignore theme colours (unreadable on some themes)
+
+The glass-wled details popup renders its **effect / palette / preset** selectors as native `<select>`/`<option>` elements ([feezal-element-glass-wled.js](www/packages/@feezal/feezal-element-glass-wled/feezal-element-glass-wled.js) — the `.fx` / `.pal` / `.preset` selects). Native selects inherit the browser's default (light) control chrome rather than the glass card's `--feezal-glass-*` colours, so on a dark theme (or the frosted-glass card generally) the closed select and its open option list render dark-on-dark / light-on-light and become **unreadable**. (Chromium honours `background`/`color` set on `<option>` for the popup list; Firefox/Safari and mobile native pickers ignore it — so pure CSS on the native control is only a partial fix.)
+
+**Fix direction:** style the selects to the glass card palette — set `background`/`color`/`border` from the `--feezal-glass-*` tokens on the `<select>` (and `<option>` for Chromium), matching how glass-light/glass-climate style their controls; or, for reliable cross-browser theming, replace the native selects with the same custom picker/`sl-select` styling the other glass details popups use. Audit the sibling **material-wled** and **metro-wled** for the same native-select pattern and fix consistently.
+
+**Ships with:** patch bump(s), TESTING.md note (glass-wled effect/palette/preset dropdowns readable in light AND dark themes, closed control and open list).
+
+**Relates:** E103 (WLED elements — where the native selects were introduced), E58/glass-light (the sibling that styles its controls to the glass palette), the pending E106 glass refactor (a shared glass-styled select would fix this once for the family).
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
