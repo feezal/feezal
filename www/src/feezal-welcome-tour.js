@@ -65,12 +65,6 @@ const STEPS = [
         prepare: ed => { ed.sidebarVisible = true; ed._setSidebar('inspector'); },
     },
     {
-        id: 'deploy',
-        title: 'Deploy & view',
-        body: 'The editor is your workshop — Deploy saves the dashboard to the server, and the ▾ menu opens the live viewer, exports a static bundle or builds a mobile app. Edit mode and the viewer are separate: nothing is live until you deploy.',
-        target: ed => ed.shadowRoot.querySelector('#btn-deploy-wrap'),
-    },
-    {
         id: 'theme',
         title: 'Pick a look',
         body: 'Themes restyle the whole dashboard at once — every element follows the theme\'s colours and surfaces. Try one from the list now if you like; you can change it anytime later.',
@@ -81,19 +75,31 @@ const STEPS = [
     {
         id: 'broker',
         title: 'Connect your MQTT broker',
-        body: 'Enter your broker\'s hostname or IP here (e.g. 192.168.1.10) — protocol and port have their own fields, and credentials go below. You can do it now — the tour waits.',
-        target: ed => inShadow(ed.shadowRoot, 'feezal-sidebar-viewer', '#conn-host')
+        body: 'Pick the protocol, enter your broker\'s hostname or IP and port (e.g. 192.168.1.10 : 1883), and add credentials below if your broker needs them. You can do it now — the tour waits.',
+        // Whole Connection form: protocol select, host/port, credentials, TLS.
+        target: ed => inShadow(ed.shadowRoot, 'feezal-sidebar-viewer', 'sl-tab-panel[name="connection"]')
             ?? ed.shadowRoot.querySelector('#sidebar-panels'),
-        prepare: ed => { ed.sidebarVisible = true; ed._setSidebar('viewer'); },
+        prepare: ed => {
+            ed.sidebarVisible = true;
+            ed._setSidebar('viewer');
+            inShadow(ed.shadowRoot, 'feezal-sidebar-viewer', 'sl-tab-group')?.show?.('connection');
+        },
         interactive: true,
     },
     {
         id: 'broker-status',
         title: 'Watch the connection status',
-        body: 'This indicator shows whether the feezal server reaches your broker — it turns green once the connection works (the settings apply on deploy). If it stays red, re-check host, port and credentials.',
+        body: 'This indicator shows whether the feezal server reaches your broker. It updates after you deploy — the next step. If it stays red afterwards, re-check protocol, host, port and credentials.',
         target: ed => inShadow(ed.shadowRoot, 'feezal-sidebar-viewer', '.bridge-status')
             ?? ed.shadowRoot.querySelector('#sidebar-panels'),
         prepare: ed => { ed.sidebarVisible = true; ed._setSidebar('viewer'); },
+        interactive: true,
+    },
+    {
+        id: 'deploy',
+        title: 'Deploy to apply the connection',
+        body: 'The editor is your workshop — nothing reaches the server until you Deploy. Hit Deploy now: it saves the dashboard AND applies the broker connection you just entered (the status indicator should turn green). The ▾ menu next to it opens the live viewer.',
+        target: ed => ed.shadowRoot.querySelector('#btn-deploy-wrap'),
         interactive: true,
     },
     {
@@ -119,11 +125,21 @@ const STEPS = [
     {
         id: 'wire-topic',
         title: 'Point it at a topic',
-        body: 'With the new element selected, set its subscribe attribute in the inspector to a topic that exists on your broker — the autocompletion suggests topics as you type. Then set the template content, e.g. ${msg.payload} °C.',
+        body: 'With the new element selected, set its subscribe attribute in the inspector. Best pick: a topic on your broker that carries a temperature reading in its payload (something like home/livingroom/temperature) — the autocompletion suggests your broker\'s topics while you type. The tour continues once the topic is set.',
         target: ed => ed.shadowRoot.querySelector('#sidebar-panels'),
         prepare: ed => { ed.sidebarVisible = true; ed._setSidebar('inspector'); },
         interactive: true,
         advance: 'subscribe',
+    },
+    {
+        id: 'template-content',
+        title: 'Show the value',
+        body: 'Now give it content: open the template attribute in the inspector and paste the snippet below — ${msg.payload} is replaced by whatever arrives on your topic, so a temperature reading renders as e.g. "21.5°C". The tour continues once the template has content.',
+        snippet: '${msg.payload}°C',
+        target: ed => ed.shadowRoot.querySelector('#sidebar-panels'),
+        prepare: ed => { ed.sidebarVisible = true; ed._setSidebar('inspector'); },
+        interactive: true,
+        advance: 'template',
     },
     {
         id: 'finish',
@@ -246,6 +262,36 @@ class FeezalWelcomeTour extends LitElement {
             font-style: italic;
             margin: 0 0 12px;
         }
+        /* Copyable snippet chip (e.g. the template example) */
+        .snippet {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            width: 100%;
+            box-sizing: border-box;
+            margin: 0 0 12px;
+            padding: 8px 10px;
+            border: 1px dashed var(--sl-color-primary-400, #38bdf8);
+            border-radius: 6px;
+            background: color-mix(in srgb, var(--sl-color-primary-500, #0ea5e9) 10%, transparent);
+            cursor: copy;
+            text-align: left;
+        }
+        .snippet:hover { background: color-mix(in srgb, var(--sl-color-primary-500, #0ea5e9) 18%, transparent); }
+        .snippet code {
+            font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--feezal-color, #333);
+            user-select: all;
+        }
+        .snippet .copy-hint {
+            flex-shrink: 0;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--sl-color-primary-600, #0284c7);
+        }
         .controls { display: flex; align-items: center; gap: 8px; }
         .dots { display: flex; gap: 4px; flex: 1; }
         .dot {
@@ -327,6 +373,8 @@ class FeezalWelcomeTour extends LitElement {
         this._measure();
         if (step.advance === 'drop') this._watchDrop();
         if (step.advance === 'subscribe') this._watchSubscribe();
+        if (step.advance === 'template') this._watchTemplate();
+        this._copied = false;
     }
 
     _next() { STEPS[this._step + 1] ? this._goto(this._step + 1) : this.stop(); }
@@ -361,18 +409,48 @@ class FeezalWelcomeTour extends LitElement {
         this._watcher.observe(view, {childList: true});
     }
 
-    /** Advance when the dropped element got a subscribe topic AND template content. */
+    /** Advance when the dropped element got its subscribe topic. */
     _watchSubscribe() {
         const el = this._exerciseEl;
         if (!el) return;
-        const ready = () =>
-            (el.getAttribute('subscribe') || '') !== '' &&
-            (el.querySelector('template')?.innerHTML || '').trim() !== '';
+        const ready = () => (el.getAttribute('subscribe') || '') !== '';
         if (ready()) { this._next(); return; }
         this._watcher = new MutationObserver(() => {
             if (ready()) this._next();
         });
-        this._watcher.observe(el, {attributes: true, attributeFilter: ['subscribe'], childList: true, subtree: true, characterData: true});
+        this._watcher.observe(el, {attributes: true, attributeFilter: ['subscribe']});
+    }
+
+    /** Advance when the element's template got content. */
+    _watchTemplate() {
+        const el = this._exerciseEl;
+        if (!el) return;
+        const ready = () => (el.querySelector('template')?.innerHTML || '').trim() !== '';
+        if (ready()) { this._next(); return; }
+        this._watcher = new MutationObserver(() => {
+            if (ready()) this._next();
+        });
+        this._watcher.observe(el, {childList: true, subtree: true, characterData: true});
+    }
+
+    /** Copy the step snippet to the clipboard with a brief "Copied!" confirmation. */
+    async _copySnippet(snippet) {
+        try {
+            await navigator.clipboard.writeText(snippet);
+        } catch {
+            // Clipboard API unavailable (permissions / insecure origin) —
+            // fall back to a transient textarea + execCommand.
+            const ta = document.createElement('textarea');
+            ta.value = snippet;
+            document.body.append(ta);
+            ta.select();
+            try { document.execCommand('copy'); } catch { /* give up silently */ }
+            ta.remove();
+        }
+        this._copied = true;
+        this.requestUpdate();
+        clearTimeout(this._copiedTimer);
+        this._copiedTimer = setTimeout(() => { this._copied = false; this.requestUpdate(); }, 1600);
     }
 
     // ── Card placement ────────────────────────────────────────────────────────
@@ -416,6 +494,12 @@ class FeezalWelcomeTour extends LitElement {
             <div class="card" style="${this._cardStyle()}">
                 <h3>${step.title}</h3>
                 <p>${step.body}</p>
+                ${step.snippet ? html`
+                    <button class="snippet" title="Click to copy"
+                        @click="${() => this._copySnippet(step.snippet)}">
+                        <code>${step.snippet}</code>
+                        <span class="copy-hint">${this._copied ? 'Copied!' : 'Copy'}</span>
+                    </button>` : ''}
                 ${waiting ? html`<p class="waiting">Waiting — the tour continues automatically…</p>` : ''}
                 <div class="controls">
                     <div class="dots">

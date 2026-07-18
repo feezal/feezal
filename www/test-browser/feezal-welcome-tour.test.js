@@ -149,7 +149,7 @@ describe('welcome tour (U37)', () => {
         expect(tour._exerciseEl.localName).toBe('feezal-element-basic-template');
     });
 
-    it('hands-on: advances once subscribe AND template content are set', async () => {
+    it('hands-on: the topic step advances as soon as subscribe is set', async () => {
         const el = document.createElement('feezal-element-basic-template');
         document.body.append(el);
         tour.start();
@@ -158,14 +158,54 @@ describe('welcome tour (U37)', () => {
         tour._goto(wireIdx);
         await tour.updateComplete;
 
+        el.setAttribute('subscribe', 'home/livingroom/temperature');
+        await until(() => tour._step === wireIdx + 1);
+        expect(STEPS[tour._step].advance).toBe('template');
+    });
+
+    it('hands-on: the template step advances once the template has content', async () => {
+        const el = document.createElement('feezal-element-basic-template');
         el.setAttribute('subscribe', 'stat/temp');
-        await new Promise(resolve => setTimeout(resolve, 20));
-        expect(tour._step).toBe(wireIdx);   // template content still missing
+        document.body.append(el);
+        tour.start();
+        const tplIdx = STEPS.findIndex(s => s.advance === 'template');
+        tour._exerciseEl = el;
+        tour._goto(tplIdx);
+        await tour.updateComplete;
+        expect(tour._step).toBe(tplIdx);   // subscribe alone does not advance it
 
         const tpl = document.createElement('template');
-        tpl.innerHTML = '${msg.payload} °C';
+        tpl.innerHTML = '${msg.payload}°C';
         el.append(tpl);
-        await until(() => tour._step === wireIdx + 1);
+        await until(() => tour._step === tplIdx + 1);
+    });
+
+    it('the template step shows the copyable snippet; clicking copies it', async () => {
+        const written = [];
+        Object.defineProperty(navigator, 'clipboard', {
+            value: {writeText: text => { written.push(text); return Promise.resolve(); }},
+            configurable: true,
+        });
+        tour.start();
+        tour._goto(STEPS.findIndex(s => s.id === 'template-content'));
+        await tour.updateComplete;
+
+        const snippet = tour.shadowRoot.querySelector('.snippet');
+        expect(snippet).not.toBeNull();
+        expect(snippet.querySelector('code').textContent).toBe('${msg.payload}°C');
+        snippet.click();
+        await until(() => written.length === 1);
+        expect(written[0]).toBe('${msg.payload}°C');
+        await tour.updateComplete;
+        expect(snippet.querySelector('.copy-hint').textContent).toBe('Copied!');
+    });
+
+    it('step order: broker → status → deploy → hands-on (deploy follows the connection entry)', () => {
+        const idx = id => STEPS.findIndex(s => s.id === id);
+        expect(idx('broker')).toBeLessThan(idx('broker-status'));
+        expect(idx('broker-status')).toBeLessThan(idx('deploy'));
+        expect(idx('deploy')).toBeLessThan(idx('drop-template'));
+        expect(idx('wire-topic')).toBeLessThan(idx('template-content'));
     });
 
     it('finishing the last step ends the tour and sets the seen-flag', async () => {
