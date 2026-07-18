@@ -1420,30 +1420,56 @@ class FeezalSidebarInspector extends LitElement {
     }
 
     /**
+     * B8 — current canvas extent in view-content coordinates: the visible
+     * view box extended to the farthest element edges. Snapshotted once per
+     * drag (cached in _dragExtent, cleared in onstart/onend) so the dragged
+     * element can never push the boundary along and grow the canvas.
+     */
+    _viewContentExtent() {
+        const view = feezal.view;
+        const vr = view.getBoundingClientRect();
+        let right = vr.width;
+        let bottom = vr.height;
+        for (const el of view.children) {
+            if (!isCanvasElement(el)) continue;
+            const r = el.getBoundingClientRect();
+            right = Math.max(right, r.right - vr.left);
+            bottom = Math.max(bottom, r.bottom - vr.top);
+        }
+        return {right, bottom};
+    }
+
+    /**
      * B8 — drag boundary for the active view, in viewport coordinates.
      *
      * Per-axis branch on the view's sizing mode:
      * - Fixed px axis: clamp to the view's full LAYOUT size (offsetWidth/
      *   offsetHeight from the rect's left/top edge) so the far edge stays
-     *   reachable independent of any canvas scroll state. Bottom keeps the
-     *   -1 so an element never lands exactly on the edge (spurious scrollbar).
-     * - Auto/percentage axis: the canvas is unbounded there (absolutely
-     *   positioned children don't grow the 100% box, elements may live far
-     *   beyond it) — apply no upper clamp at all; the site scroll follows
-     *   the drag via autoScroll.
-     * left/top always clamp to the view origin so elements can't get
-     * negative offsets.
+     *   reachable independent of any canvas scroll state.
+     * - Auto/percentage axis: the view box is only as large as the visible
+     *   canvas while elements may live beyond it — clamp to the EXISTING
+     *   canvas extent (box ∪ farthest element edges, snapshotted at drag
+     *   start). Everything already reachable by scrolling stays reachable,
+     *   but a drag never grows the canvas.
+     * Bottom keeps a -1 guard while the content doesn't overflow the box
+     * yet, so an element never lands exactly on the edge and triggers a
+     * spurious scrollbar. left/top always clamp to the view origin.
      */
     _dragRestriction() {
         const view = feezal.view;
         const r = view.getBoundingClientRect();
         const fixedW = /^\d+(\.\d+)?px$/.test(view.style.width);
         const fixedH = /^\d+(\.\d+)?px$/.test(view.style.height);
+        if (!this._dragExtent) {
+            this._dragExtent = this._viewContentExtent();
+        }
+        const ext = this._dragExtent;
+        const extBottom = ext.bottom - (ext.bottom <= view.offsetHeight ? 1 : 0);
         return {
             left: r.left,
             top: r.top,
-            right: fixedW ? r.left + view.offsetWidth : r.left + 1e6,
-            bottom: fixedH ? r.top + view.offsetHeight - 1 : r.top + 1e6
+            right: fixedW ? r.left + view.offsetWidth : r.left + ext.right,
+            bottom: fixedH ? r.top + view.offsetHeight - 1 : r.top + extBottom
         };
     }
 
@@ -1475,6 +1501,9 @@ class FeezalSidebarInspector extends LitElement {
                 },
                 onstart: event => {
                     this.dragElement = element;
+                    // B8: fresh canvas-extent snapshot for this drag (the
+                    // restriction closure caches it lazily on first use).
+                    this._dragExtent = null;
                     // Use selectedElems (authoritative state) rather than the CSS class —
                     // DragSelect adds selectedClass on pointerdown before onstart fires,
                     // so the CSS check would incorrectly skip selectElement().
@@ -1508,6 +1537,7 @@ class FeezalSidebarInspector extends LitElement {
                 },
                 onend: () => {
                     this.dragElement = null;
+                    this._dragExtent = null;
                     // Suppress the click that browsers fire on mouseup after a drag
                     // — it would otherwise reset a multi-selection to a single element.
                     this._ignoreNextClick = true;

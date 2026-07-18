@@ -80,6 +80,7 @@ describe('B8 — _dragRestriction()', () => {
 
         site.scrollLeft = 200;
         site.scrollTop = 150;
+        ctx._dragExtent = null;
         const after = ctx._dragRestriction();
         // Origin shifts with the scroll, the span must not shrink.
         expect(after.left).toBeCloseTo(before.left - 200, 0);
@@ -88,24 +89,63 @@ describe('B8 — _dragRestriction()', () => {
         expect(after.bottom - after.top).toBe(799);
     });
 
-    it('auto/percentage view: no upper clamp at all', () => {
+    it('empty auto view: clamps to the visible box (with the -1 bottom guard)', () => {
         buildCanvas({viewWidth: '100%', viewHeight: '100%'});
         const ctx = inspectorCtx();
         const r = ctx._dragRestriction();
-        expect(r.right - r.left).toBe(1e6);
-        expect(r.bottom - r.top).toBe(1e6);
-        // Origin still clamps to the view's top-left.
         const rect = view.getBoundingClientRect();
+        expect(r.right - r.left).toBeCloseTo(rect.width, 0);
+        expect(r.bottom - r.top).toBeCloseTo(rect.height - 1, 0);
         expect(r.left).toBeCloseTo(rect.left, 0);
         expect(r.top).toBeCloseTo(rect.top, 0);
     });
 
-    it('mixed: fixed width clamps, auto height stays open', () => {
+    it('auto view with far elements: clamps to the existing extent, stable under scroll', () => {
+        buildCanvas({viewWidth: '100%', viewHeight: '100%'});
+        addElement(700, 100, 100, 50);    // extends right to 800
+        addElement(100, 900, 120, 40);    // extends down to 940
+        const ctx = inspectorCtx();
+
+        const before = ctx._dragRestriction();
+        expect(before.right - before.left).toBe(800);
+        expect(before.bottom - before.top).toBe(940);   // overflowing → no -1 guard
+
+        site.scrollLeft = 150;
+        site.scrollTop = 200;
+        ctx._dragExtent = null;
+        const after = ctx._dragRestriction();
+        expect(after.right - after.left).toBe(800);
+        expect(after.bottom - after.top).toBe(940);
+        expect(after.left).toBeCloseTo(before.left - 150, 0);
+        expect(after.top).toBeCloseTo(before.top - 200, 0);
+    });
+
+    it('mixed: fixed width clamps to the view, auto height to the extent', () => {
         buildCanvas({viewWidth: '640px', viewHeight: '100%'});
+        addElement(100, 900, 120, 40);
         const ctx = inspectorCtx();
         const r = ctx._dragRestriction();
         expect(r.right - r.left).toBe(640);
-        expect(r.bottom - r.top).toBe(1e6);
+        expect(r.bottom - r.top).toBe(940);
+    });
+
+    it('extent is snapshotted per drag: moving content does not move the boundary', () => {
+        buildCanvas({viewWidth: '100%', viewHeight: '100%'});
+        const far = addElement(100, 900, 120, 40);
+        const ctx = inspectorCtx();
+
+        const during = ctx._dragRestriction();
+        expect(during.bottom - during.top).toBe(940);
+
+        // Mid-drag the far element moves down — the cached extent must hold,
+        // otherwise the dragged element would push the boundary along.
+        far.style.top = '1200px';
+        const still = ctx._dragRestriction();
+        expect(still.bottom - still.top).toBe(940);
+
+        // Next drag (cache cleared in onstart/onend) sees the new extent.
+        ctx._dragExtent = null;
+        expect(ctx._dragRestriction().bottom - still.top).toBe(1240);
     });
 });
 

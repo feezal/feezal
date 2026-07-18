@@ -4,7 +4,10 @@
  * Auto-sized views (width/height 100%): the view box is only as big as the
  * visible canvas, elements live beyond it and the site scrolls. The old
  * restrict clamped drags to the box — scrolled down 200px, elements stopped
- * 200px short of the visible bottom. Now there is no upper clamp at all.
+ * 200px short of the visible bottom. Now drags clamp to the EXISTING canvas
+ * extent (box ∪ farthest element edges, snapshotted at drag start): every
+ * position reachable by scrolling is reachable by dragging, but a drag can
+ * never grow the canvas.
  *
  * Fixed-px views: the drag limit is the view's full layout size — elements
  * must still clamp at the fixed edge (regression guard against loosening).
@@ -87,6 +90,46 @@ describe('B8 — auto-sized view, scrolled canvas', () => {
         // And it landed roughly where dropped (start→drop delta applied).
         const expected = 300 + (drop.y - start.y);
         expect(Math.abs(top - expected)).toBeLessThan(25);
+    });
+
+    it('a drag never grows the canvas: the farthest element stops at the existing extent', async () => {
+        // FAR (bottom edge 1640) defines the canvas extent — scroll it into view.
+        const before = await page.evaluate(() => {
+            const site = window.feezal.site;
+            site.scrollTop = site.scrollHeight;
+            return {scrollWidth: site.scrollWidth, scrollHeight: site.scrollHeight};
+        });
+
+        const far = await btn('FAR').boundingBox();
+        // Try hard to push it further down and right.
+        await mouseDrag(page, centerOf(far),
+            {x: centerOf(far).x + 400, y: centerOf(far).y + 400}, 20);
+
+        const pos = await btn('FAR').evaluate(el => ({
+            left: Number.parseFloat(el.style.left),
+            top: Number.parseFloat(el.style.top)
+        }));
+        const after = await page.evaluate(() => {
+            const site = window.feezal.site;
+            return {
+                scrollWidth: site.scrollWidth,
+                scrollHeight: site.scrollHeight,
+                extentRight: Math.max(window.feezal.view.getBoundingClientRect().width,
+                    ...[...window.feezal.view.children].map(el => {
+                        const r = el.getBoundingClientRect();
+                        const v = window.feezal.view.getBoundingClientRect();
+                        return r.right - v.left;
+                    }))
+            };
+        });
+
+        // Its own bottom edge WAS the extent — it cannot move down at all.
+        expect(Math.abs(pos.top - 1600)).toBeLessThanOrEqual(2);
+        // Right edge clamps to the pre-drag extent.
+        expect(pos.left + 120).toBeLessThanOrEqual(after.extentRight + 2);
+        // The canvas itself did not grow.
+        expect(after.scrollHeight).toBeLessThanOrEqual(before.scrollHeight + 2);
+        expect(after.scrollWidth).toBeLessThanOrEqual(before.scrollWidth + 2);
     });
 });
 
