@@ -143,6 +143,41 @@ describe('contact', () => {
         expect(el._contactState).toBe('tilted');
     });
 
+    it('B27: Homematic numeric payloads (0/1/2) drive the tristate incl. tilt handle', async () => {
+        const el = await mount('feezal-element-material-contact', {
+            'subscribe': 'hm/window/STATE',
+            'payload-closed': '0', 'payload-open': '1', 'payload-tilted': '2'
+        });
+
+        feezal.connection.deliver('hm/window/STATE', 2);
+        await el.updateComplete;
+        expect(el._contactState).toBe('tilted');
+        // Handle lever drawn pointing up (pivot y=30 → endpoint y=16)
+        const lever = [...el.shadowRoot.querySelectorAll('svg.contact line')].pop();
+        expect(lever.getAttribute('y2')).toBe('16');
+
+        feezal.connection.deliver('hm/window/STATE', 1);
+        expect(el._contactState).toBe('open');
+        feezal.connection.deliver('hm/window/STATE', 0);
+        expect(el._contactState).toBe('closed');
+    });
+
+    it('B27: rewires subscriptions when the topic changes on the live canvas', async () => {
+        const el = await mount('feezal-element-material-contact', {
+            'subscribe': 'stat/old', 'payload-tilted': '2'
+        });
+
+        el.setAttribute('subscribe', 'stat/new');
+        await el.updateComplete;
+
+        feezal.connection.deliver('stat/new', '2');
+        expect(el._contactState).toBe('tilted');
+
+        // The stale topic no longer reaches the element
+        feezal.connection.deliver('stat/old', 'ON');
+        expect(el._contactState).toBe('tilted');
+    });
+
     it('E78: a legacy contacts attribute falls back to single-contact mode (multi-contact removed)', async () => {
         const el = await mount('feezal-element-material-contact', {
             contacts: JSON.stringify([

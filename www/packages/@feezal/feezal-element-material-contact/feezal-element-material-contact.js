@@ -249,6 +249,25 @@ class FeezalElementMaterialContact extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
+        this._wireSubscriptions();
+    }
+
+    /** Topic attributes changed at runtime (inspector edits on the live
+     * canvas) → updated() rewires instead of keeping the stale topics. */
+    _wireSignature() {
+        return [this.subscribe, this.subscribeAvailability].join('|');
+    }
+
+    updated(changed) {
+        super.updated(changed);
+        if (this.isConnected && this.__wireSig !== undefined && this._wireSignature() !== this.__wireSig) {
+            this._unsubscribe();
+            this._wireSubscriptions();
+        }
+    }
+
+    _wireSubscriptions() {
+        this.__wireSig = this._wireSignature();
 
         if (this.subscribeAvailability) {
             this.addSubscription(this.subscribeAvailability, msg => {
