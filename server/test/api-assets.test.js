@@ -43,6 +43,16 @@ describe('upload + list', () => {
         expect(list.body.site.map(f => f.path)).toEqual(['a.png']);
     });
 
+    it('accepts a multi-MB upload (server limit is well above the nginx 1 MB default)', async () => {
+        // 8 MB — over nginx's 1 MB default (the usual 413 culprit) and the
+        // ~20 MB the docs promise, but under the server's own 50 MB cap.
+        const big = Buffer.alloc(8 * 1024 * 1024, 7);
+        const res = await upload('s', 'big.bin', 'site', big);
+        expect(res.status).toBe(201);
+        const list = await request(app).get('/api/assets/s');
+        expect(list.body.site.map(f => f.path)).toContain('big.bin');
+    });
+
     it('rejects an upload without a path query param', async () => {
         const res = await request(app).post('/api/assets/s')
             .set('Content-Type', 'application/octet-stream').send(Buffer.from('x'));

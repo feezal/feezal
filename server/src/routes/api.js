@@ -19,6 +19,13 @@ const aiProviders = require('../ai/providers.js');
 const aiConversations = require('../ai/conversations.js');
 const {buildSystemPrompt} = require('../ai/prompt.js');
 
+// Max size for a single raw asset upload. Comfortably above the ~20 MB the
+// docs promise so a photo never trips the app itself. NOTE: when feezal runs
+// behind a reverse proxy, the proxy's own body-size cap applies FIRST — nginx
+// defaults to 1 MB and returns 413 "Request Entity Too Large" long before the
+// request reaches here. See docs/user-guide.md §13 (client_max_body_size).
+const ASSET_UPLOAD_LIMIT = '50mb';
+
 /**
  * Extract the CN (Common Name) from a PEM certificate file using openssl.
  * Returns null if openssl is unavailable or the cert has no CN.
@@ -216,7 +223,7 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
 
     // Upload an asset (raw binary body; filename via ?path=, category via ?category=)
     router.post('/assets/:site',
-        express.raw({type: '*/*', limit: '50mb'}),
+        express.raw({type: '*/*', limit: ASSET_UPLOAD_LIMIT}),
         async (req, res) => {
             const category = req.query.category === 'global' ? 'global' : 'site';
             const filePath = req.query.path;

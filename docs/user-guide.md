@@ -474,6 +474,8 @@ Assets are split into two categories:
 
 Drag files onto the Assets panel or click the upload button. Folders are supported.
 
+The feezal server accepts uploads up to **50 MB** per file. If you run feezal **behind a reverse proxy** and an upload fails with `Request Entity Too Large` (HTTP 413), the proxy — not feezal — is rejecting it: nginx caps request bodies at **1 MB by default**. Raise it with `client_max_body_size` (see [§13 Reverse proxy setup](#13-reverse-proxy-setup-nginx)).
+
 **Using an asset**
 
 Copy the path shown in the asset tile and paste it into an element attribute (e.g. the `src` attribute of a `feezal-element-basic-image` element).
@@ -513,6 +515,7 @@ The key requirements are:
 - **WebSocket upgrade** — feezal uses Socket.IO over WebSockets; `Upgrade` and `Connection` headers must be forwarded.
 - **`proxy_http_version 1.1`** — required for WebSocket support.
 - **`Host` header forwarding** — feezal uses the host for generating correct URLs.
+- **`client_max_body_size`** — raise it for asset uploads. nginx defaults to **1 MB**, so anything larger fails with `413 Request Entity Too Large` *before it reaches feezal*. Set it to at least the largest asset you upload (feezal's server accepts up to 50 MB).
 
 ### Minimal HTTPS example
 
@@ -523,6 +526,10 @@ server {
 
     ssl_certificate     /etc/letsencrypt/live/feezal.example.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/feezal.example.com/privkey.pem;
+
+    # Asset uploads: nginx defaults to 1 MB, which causes 413 errors.
+    # Raise it to at least your largest asset (feezal accepts up to 50 MB).
+    client_max_body_size 20m;
 
     # Redirect requests that arrive with a different Host header
     if ($host != $server_name) {
