@@ -438,10 +438,12 @@ class FeezalSidebarViewer extends LitElement {
                     <div class="row">
                         <sl-input id="conn-host" label="Host" size="small" placeholder="localhost"
                             .value="${c._host || ''}"
+                            @sl-input="${e => { this.connection = {...this.connection, _host: e.target.value}; }}"
                             @sl-change="${e => { this.connection = {...this.connection, _host: e.target.value}; this._buildUri(); this._applyConnection(); feezal.app.change(true); }}">
                         </sl-input>
                         <sl-input class="port" label="Port" size="small" type="number" placeholder="1883"
                             .value="${c._port || ''}"
+                            @sl-input="${e => { this.connection = {...this.connection, _port: e.target.value}; }}"
                             @sl-change="${e => { this.connection = {...this.connection, _port: e.target.value}; this._buildUri(); this._applyConnection(); feezal.app.change(true); }}">
                         </sl-input>
                     </div>
@@ -455,10 +457,12 @@ class FeezalSidebarViewer extends LitElement {
                     <div class="section-label">Authentication</div>
                     <sl-input label="Username" size="small" placeholder="(none)"
                         .value="${c._username || ''}"
+                        @sl-input="${e => { this.connection = {...this.connection, _username: e.target.value}; }}"
                         @sl-change="${e => { this.connection = {...this.connection, _username: e.target.value}; this._buildUri(); this._applyConnection(); feezal.app.change(true); }}">
                     </sl-input>
                     <sl-input label="Password" size="small" type="password" placeholder="(none)"
                         .value="${c._password || ''}"
+                        @sl-input="${e => { this.connection = {...this.connection, _password: e.target.value}; }}"
                         @sl-change="${e => { this.connection = {...this.connection, _password: e.target.value}; this._buildUri(); this._applyConnection(); feezal.app.change(true); }}">
                     </sl-input>
 

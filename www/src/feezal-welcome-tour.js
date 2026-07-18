@@ -73,6 +73,7 @@ const STEPS = [
         title: 'Inspector',
         body: 'Select an element on the canvas and configure it here: its attributes (MQTT topics, payloads, labels) on the Attributes tab and its appearance on the Styles tab.',
         target: ed => ed.shadowRoot.querySelector('#sidebar-panels'),
+        extend: ed => ed.shadowRoot.querySelector('#menu-right'),
         prepare: ed => { ed.sidebarVisible = true; ed._setSidebar('inspector'); },
     },
     {
@@ -80,6 +81,7 @@ const STEPS = [
         title: 'Pick a look',
         body: 'Themes restyle the whole dashboard at once — every element follows the theme\'s colours and surfaces. Try one from the list now if you like; you can change it anytime later.',
         target: ed => ed.shadowRoot.querySelector('#sidebar-panels'),
+        extend: ed => ed.shadowRoot.querySelector('#menu-right'),
         prepare: ed => { ed.sidebarVisible = true; ed._setSidebar('themes'); },
         interactive: true,
     },
@@ -90,6 +92,7 @@ const STEPS = [
         // Whole Connection form: protocol select, host/port, credentials, TLS.
         target: ed => inShadow(ed.shadowRoot, 'feezal-sidebar-viewer', 'sl-tab-panel[name="connection"]')
             ?? ed.shadowRoot.querySelector('#sidebar-panels'),
+        extend: ed => ed.shadowRoot.querySelector('#menu-right'),
         prepare: ed => {
             ed.sidebarVisible = true;
             ed._setSidebar('viewer');
@@ -103,6 +106,7 @@ const STEPS = [
         body: 'This indicator shows whether the feezal server reaches your broker. It updates after you deploy — the next step. If it stays red afterwards, re-check protocol, host, port and credentials.',
         target: ed => inShadow(ed.shadowRoot, 'feezal-sidebar-viewer', '.bridge-status')
             ?? ed.shadowRoot.querySelector('#sidebar-panels'),
+        extend: ed => ed.shadowRoot.querySelector('#menu-right'),
         prepare: ed => { ed.sidebarVisible = true; ed._setSidebar('viewer'); },
         interactive: true,
     },
@@ -138,6 +142,7 @@ const STEPS = [
         title: 'Point it at a topic',
         body: 'With the new element selected, set its subscribe attribute in the inspector. Best pick: a topic on your broker that carries a temperature reading in its payload (something like home/livingroom/temperature) — the autocompletion suggests your broker\'s topics while you type. The tour continues once the topic is set.',
         target: ed => ed.shadowRoot.querySelector('#sidebar-panels'),
+        extend: ed => ed.shadowRoot.querySelector('#menu-right'),
         prepare: ed => { ed.sidebarVisible = true; ed._setSidebar('inspector'); },
         interactive: true,
         advance: 'subscribe',
@@ -148,6 +153,7 @@ const STEPS = [
         body: 'Now give it content: open the template attribute in the inspector and paste the snippet below — ${msg.payload} is replaced by whatever arrives on your topic, so a temperature reading renders as e.g. "21.5°C". The tour continues once the template has content.',
         snippet: '${msg.payload}°C',
         target: ed => ed.shadowRoot.querySelector('#sidebar-panels'),
+        extend: ed => ed.shadowRoot.querySelector('#menu-right'),
         prepare: ed => { ed.sidebarVisible = true; ed._setSidebar('inspector'); },
         interactive: true,
         advance: 'template',
@@ -405,11 +411,27 @@ class FeezalWelcomeTour extends LitElement {
 
     _measure() {
         if (!this._active || !this.editor) return;
-        const target = STEPS[this._step].target?.(this.editor);
+        const step = STEPS[this._step];
+        const target = step.target?.(this.editor);
         const r = target?.getBoundingClientRect();
         this._rect = (r && r.width > 0 && r.height > 0)
             ? {left: r.left - PAD, top: r.top - PAD, width: r.width + 2 * PAD, height: r.height + 2 * PAD}
             : null;
+
+        // `extend`: union a second element's rect into ONE bounding cutout
+        // (single rect — no holes). Sidebar steps use it to also spotlight the
+        // right-sidebar tab switcher (#menu-right), which lives in the top menu
+        // bar outside #sidebar-panels, so the user sees which tab is active and
+        // can switch. The inspector's own Attributes/Styles tab bar is already
+        // inside #sidebar-panels and thus already covered.
+        const ext = this._rect ? step.extend?.(this.editor)?.getBoundingClientRect() : null;
+        if (ext && ext.width > 0 && ext.height > 0) {
+            const left = Math.min(this._rect.left, ext.left - PAD);
+            const top = Math.min(this._rect.top, ext.top - PAD);
+            const right = Math.max(this._rect.left + this._rect.width, ext.right + PAD);
+            const bottom = Math.max(this._rect.top + this._rect.height, ext.bottom + PAD);
+            this._rect = {left, top, width: right - left, height: bottom - top};
+        }
     }
 
     // ── Hands-on progression ──────────────────────────────────────────────────

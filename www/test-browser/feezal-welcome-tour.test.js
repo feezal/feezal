@@ -28,6 +28,7 @@ beforeEach(() => {
         '#container-view': makeTarget(200, 40, 500, 400),
         '#sidebar-panels': makeTarget(700, 40, 260, 400),
         '#btn-deploy-wrap': makeTarget(600, 4, 90, 30),
+        '#menu-right': makeTarget(700, 4, 260, 30),   // sidebar tab switcher (top bar)
     };
     fakeEditor = {
         paletteVisible: false,
@@ -68,6 +69,24 @@ describe('welcome tour (U37)', () => {
         const terms = [...tour.shadowRoot.querySelectorAll('.terms dt')].map(dt => dt.textContent);
         expect(terms).toEqual(['Element', 'View', 'Site']);
         expect(tour.shadowRoot.querySelectorAll('.terms dd')).toHaveLength(3);
+    });
+
+    it('sidebar steps extend the spotlight up to the sidebar tab switcher', async () => {
+        tour.start();
+        tour._goto(STEPS.findIndex(s => s.id === 'inspector'));
+        await tour.updateComplete;
+        const spot = tour.shadowRoot.querySelector('.spotlight');
+        expect(spot).not.toBeNull();
+        // #sidebar-panels top is 40; #menu-right top is 4 → cutout reaches up
+        // to include the switcher (minus PAD), not just the panels.
+        expect(parseFloat(spot.style.top)).toBeLessThan(40);
+        // bottom still covers the panels (40 + 400 = 440)
+        const bottom = parseFloat(spot.style.top) + parseFloat(spot.style.height);
+        expect(bottom).toBeGreaterThan(430);
+        // all sidebar steps carry the extend
+        for (const id of ['inspector', 'theme', 'broker', 'broker-status', 'wire-topic', 'template-content']) {
+            expect(STEPS.find(s => s.id === id).extend).toBeDefined();
+        }
     });
 
     it('the palette step shows the spotlight cutout', async () => {
