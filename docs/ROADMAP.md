@@ -8,12 +8,24 @@ Work in progress — priorities and scope are not final.
 
 **Bugs**
 - [B8 — Elements cannot be dragged to the far edge of an oversized view](#b8--elements-cannot-be-dragged-to-the-far-edge-of-an-oversized-view-questionable) ❓
+- [B26 — Shutter elements: position min/max and separate up/down/stop command topics](#b26--shutter-elements-position-minmax-and-separate-updownstop-command-topics)
+- [B27 — device-contact: tristate window (tilt) state missing](#b27--device-contact-tristate-window-tilt-state-missing-regression) *(regression)*
+- [B28 — MQTT topic autocompletion missing in custom inspectors](#b28--mqtt-topic-autocompletion-missing-in-custom-inspectors)
+- [B29 — device-climate: circle-slider geometry differs from device-light](#b29--device-climate-circle-slider-geometry-differs-from-device-light)
+- [B30 — View names with umlauts (e.g. "Küche") cannot be opened](#b30--view-names-with-umlauts-eg-küche-cannot-be-opened)
+- [B31 — basic-template: template content lost on copy/cut/paste and duplicate](#b31--basic-template-template-content-lost-on-copycutpaste-and-duplicate)
+- [B32 — Snapping helper lines sometimes don't disappear](#b32--snapping-helper-lines-sometimes-dont-disappear-needs-investigation) ❓
+- [B33 — Elements sometimes not selectable/draggable](#b33--elements-sometimes-not-selectabledraggable-needs-investigation) ❓
+- [B34 — Stray orange dot left over from rubber-band selection during element drag](#b34--stray-orange-dot-left-over-from-rubber-band-selection-during-element-drag)
+- [B35 — Rubber-band select sometimes selects nothing](#b35--rubber-band-select-sometimes-selects-nothing-needs-investigation) ❓
+- [B36 — Snapping sometimes stops working until page reload](#b36--snapping-sometimes-stops-working-until-page-reload-needs-investigation) ❓
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
 - [N12 — Export bundle: strip mqtt.js for feezal-bridge users](#n12--export-bundle-strip-mqttjs-for-feezal-bridge-users-partial) *(partial)*
 - [N13 — Lighter MQTT client for export bundle](#n13--lighter-mqtt-client-for-export-bundle-️-tbd) ⚠️
 - [N30 — layout-app breaks the site active-view MQTT contract](#n30--layout-app-breaks-the-site-active-view-mqtt-contract-️-refinement-needed) ⚠️ *(refinement needed)*
+- [N31 — Discovery: consume availability — multi-topic support in the FeezalElement base class](#n31--discovery-consume-availability--multi-topic-support-in-the-feezalelement-base-class)
 
 **Element Ecosystem**
 - [E7 — Swipe gesture element](#e7--swipe-gesture-element)
@@ -49,6 +61,11 @@ Work in progress — priorities and scope are not final.
 - [E94 — 3D model viewer (`feezal-element-basic-model`)](#e94--3d-model-viewer-feezal-element-basic-model) 💡
 - [E95 — Configurable keyboard shortcuts for interactive elements](#e95--configurable-keyboard-shortcuts-for-interactive-elements)
 - [E96 — MIDI input as an element trigger (Web MIDI)](#e96--midi-input-as-an-element-trigger-web-midi-️-questionable-future) ❓
+- [E99 — glass-light: configurable on/off state labels](#e99--glass-light-configurable-onoff-state-labels)
+- [E100 — Fan element (`feezal-element-glass-fan`)](#e100--fan-element-feezal-element-glass-fan)
+- [E101 — Dialog element family (`feezal-element-glass-dialog*`)](#e101--dialog-element-family-feezal-element-glass-dialog)
+- [E102 — Climate elements: boost mode, thermostat mode datapoint conventions, valve position](#e102--climate-elements-boost-mode-thermostat-mode-datapoint-conventions-valve-position-️-refinement-needed) ⚠️
+- [E103 — WLED elements (Device / Glass / Metro)](#e103--wled-elements-device--glass--metro)
 
 **Editor UX**
 
@@ -56,6 +73,10 @@ Work in progress — priorities and scope are not final.
 - [U23 — Custom collapsed placeholder text in the source editor](#u23--custom-collapsed-placeholder-text-in-the-source-editor-blocked-by-upstream) 🚧
 - [U30 — Auto-generated starter dashboard from MQTT discovery](#u30--auto-generated-starter-dashboard-from-mqtt-discovery-questionable-low-priority) ❓ 🔽
 - [U31 — Device-first element insertion](#u31--device-first-element-insertion-questionable-low-priority) ❓ 🔽
+- [U37 — Welcome wizard / first-run onboarding tour](#u37--welcome-wizard--first-run-onboarding-tour)
+- [U38 — Topic browser sidebar panel](#u38--topic-browser-sidebar-panel)
+- [U39 — Attribute inspector UX for attribute-heavy elements](#u39--attribute-inspector-ux-for-attribute-heavy-elements-️-needs-discussion) ⚠️
+- [U40 — Drag-and-drop reordering for `position:static` views](#u40--drag-and-drop-reordering-for-positionstatic-views) 🔽 partial
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -102,6 +123,87 @@ const restrict = {
 ```
 
 This handles all combinations: fixed×fixed, fixed×auto, auto×auto.
+
+**Related issue — snapping helper lines misplaced when an oversized view is scrolled:** if the view canvas is wider/taller than the viewport and `#container-view` is scrolled (e.g. scrolled right), the element-snap helper lines (`#vsnap1`/`#vsnap2`/`#hsnap1`/`#hsnap2`) render at the wrong position — offset by roughly the scroll amount. Likely the same class of bug as the drag-restrict issue above: `_snap()` in [feezal-sidebar-inspector.js](www/src/feezal-sidebar-inspector.js) computes target positions (`tx`, `tr`, `ty`, `tb`) relative to `view.getBoundingClientRect()` / `cvRect` (viewport-clipped, scroll-dependent coordinates), then writes them directly as the `left`/`top` CSS of snap-line elements positioned inside `#container-view`. If those snap lines don't scroll together with the canvas content (i.e. they're pinned to the visible viewport rather than the scrolled canvas), the coordinate systems mismatch by the scroll offset. Needs the same fix approach as B8: either make the snap lines scroll with the canvas content, or convert the computed positions into `#container-view`-relative (viewport) coordinates that account for its current `scrollLeft`/`scrollTop` before assigning them as CSS `left`/`top`.
+
+### B26 — Shutter elements: position min/max and separate up/down/stop command topics
+
+Affects **`device-shutter`, `glass-shutter`, `metro-shutter`**. *(Note: only `glass-shutter` lives in this repo; the device/metro variants are in their own element-family repos — the fix must be applied across repos and kept behaviour-identical.)*
+
+Two gaps:
+
+1. **`min` / `max` attributes** — the position range is currently assumed to be 0–100, but **Homematic reports position as 0…1**. Add numeric `min`/`max` attributes (defaults `0`/`100`) used to scale *incoming* position payloads to the displayed percentage and to scale *published* target positions back into the device's range.
+2. **Separate UP/DOWN/STOP topics** — `glass-shutter` currently offers a single `publish-command` topic with `payload-up`/`payload-stop`/`payload-down`. Some devices expect **three distinct command topics** instead of one topic with distinct payloads. Add optional `publish-up`/`publish-down`/`publish-stop` topic attributes; when set, the corresponding button publishes there (with its configured payload), taking precedence over the single `publish-command` topic.
+
+### B27 — device-contact: tristate window (tilt) state missing *(regression)*
+
+`device-contact` no longer supports the tristate window state (closed / tilted / open) — **it was there previously**. The window handle should render in the **tilt position** when the tilt payload is received.
+
+`material-contact` and `glass-contact` both still support this (`payload-tilted` attribute, `'tilted'` state with the handle/lever pointing up, `--feezal-contact-tilt-color`) — see [feezal-element-material-contact.js](www/packages/@feezal/feezal-element-material-contact/feezal-element-material-contact.js). Restore parity in `device-contact` (own repo): `payload-tilted` attribute (Homematic: `2`), handle drawn in tilt position, tilt colour custom property.
+
+### B28 — MQTT topic autocompletion missing in custom inspectors
+
+The generic attribute inspector provides autocompletion for every `mqttTopic` field ([feezal-sidebar-inspector-attributes.js](www/src/feezal-sidebar-inspector-attributes.js), "MQTT topic autocomplete" section), but **custom inspectors (N6/§3.8) render their own plain inputs without it**. Every topic field, everywhere, should offer autocompletion.
+
+**Audit all elements with custom inspectors** and wire up autocomplete on each of their topic fields. Elements with custom inspectors in this repo (grep for the inspector hook): `basic-qrcode`, `basic-svg`, `glass-light`, `glass-shutter`, `layout-app`, `layout-flex`, `layout-responsive`, `material-climate`, `material-cover`, `material-dialog`, `material-dialog-view`, `material-light`, `material-navbar`, `metro-light`, `system-notification`, `system-script` — plus custom inspectors in the external element-family repos.
+
+**Preferred fix:** extract the inspector's topic-autocomplete input into a shared, reusable component that custom inspectors can drop in (and document it in `docs/element-spec.md` §3.8), rather than duplicating the autocomplete wiring per element.
+
+### B29 — device-climate: circle-slider geometry differs from device-light
+
+`device-climate` and `device-light` placed side by side with identical width/height should have **perfectly aligned circle-sliders** — same centre, radius, track and knob geometry. Currently the `device-climate` slider track is narrower than `device-light`'s.
+
+Fix in the device element family (own repo): unify the circle-slider geometry (ideally share the drawing code/constants between the two elements), and make **track width and knob diameter configurable** on *both* elements via CSS custom properties exposed in the Style inspector.
+
+### B30 — View names with umlauts (e.g. "Küche") cannot be opened
+
+A view whose name contains a German umlaut (e.g. `Küche`) cannot be opened — navigating to it immediately falls back to the default view.
+
+**Likely root cause:** browsers percent-encode non-ASCII characters in `location.hash` (`#/Küche` → `#/K%C3%BCche`). [feezal-site.js:101](www/src/feezal-site.js#L101) reads the hash without `decodeURIComponent`, so the view lookup runs against `K%C3%BCche`, finds no match, and falls back. The hash-sync comparison in `_viewChanged` ([feezal-site.js:314](www/src/feezal-site.js#L314), `location.hash !== expectedHash`) also never matches for encoded names, so it may re-write the hash on every switch.
+
+**Fix:** `decodeURIComponent` when reading the hash, and encode (or decode-then-compare) consistently when syncing it. Audit *all* hash consumers — `feezal-app-editor` derives its `nav.view` from the hash the same way — plus anywhere view names travel through URLs (viewer deep links, history preview, playlist, N24 view commands).
+
+### B31 — basic-template: template content lost on copy/cut/paste and duplicate
+
+Copying, cutting+pasting, or duplicating a `basic-template` element loses the template content — the pasted element arrives empty.
+
+**Likely mechanism:** the template is stored as a **light-DOM `<template>` child**, not an attribute ([feezal-element-basic-template.js](www/packages/@feezal/feezal-element-basic-template/feezal-element-basic-template.js)) — the clipboard/duplicate path in `feezal-app-editor.js` apparently doesn't preserve the element's light-DOM children (or serialises the element after its rendered output has replaced/obscured the `<template>` child). Fix so that clipboard and duplicate serialisation carries light-DOM children through intact; check the same path for other elements storing content in children. Add a regression test.
+
+### B32 — Snapping helper lines sometimes don't disappear ❓ needs investigation
+
+The snapping helper/alignment lines shown while dragging sometimes remain visible after they should have disappeared (drag ended / snap no longer active). No reliable repro yet — **further investigation/refinement needed**. Likely a missed cleanup path in the drag lifecycle in [feezal-sidebar-inspector.js](www/src/feezal-sidebar-inspector.js) (e.g. drag cancelled via Escape, pointer released outside the canvas, or interact.js end event not firing).
+
+### B33 — Elements sometimes not selectable and/or draggable ❓ needs investigation
+
+Sporadically, elements on the canvas cannot be selected and/or dragged. No reliable repro yet — **further investigation/refinement needed**. Candidate directions: interact.js handlers not (re)attached after view switch / paste / undo / element creation; a stale overlay (group box, helper line, DragSelect surface) with a higher z-index swallowing pointer events; the `locked` code path suppressing interaction more broadly than intended. First step: when it occurs, inspect which element receives the pointer events (`document.elementFromPoint`) and whether the interact.js instance is still bound.
+
+### B34 — Stray orange dot left over from rubber-band selection during element drag
+
+A tiny orange dot occasionally appears at the point of the initial click when dragging an element around the canvas (not a rubber-band drag) — looks like a leftover from the rubber-band selection rectangle.
+
+**Likely root cause:** the DragSelect selector element ([feezal-sidebar-inspector.js:787-790](../www/src/feezal-sidebar-inspector.js#L787-L790)) is styled `border:1px dotted rgba(250,120,0,0.8); display:none` and only toggled visible by the DragSelect library itself during a rubber-band gesture. When a real element drag starts (not an empty-canvas rubber-band), the `dragstart` handler calls `ds.break()` ([feezal-sidebar-inspector.js:798-804](../www/src/feezal-sidebar-inspector.js#L798-L804)) to abort DragSelect's gesture — but by that point DragSelect may already have flipped the selector to visible at the click origin with near-zero width/height. If `ds.break()` doesn't reliably reset `display` back to `none` in that race, the near-zero-size dotted orange-bordered box stays on screen, rendering as a tiny dot exactly at the first-click position — matching the reported symptom.
+
+**Fix direction:** explicitly hide the selector (`display:none` or equivalent) whenever `ds.break()` is called in the `dragstart` handler, rather than relying on DragSelect's own cleanup; verify against the installed `dragselect` version's `break()` behaviour (whether it already resets the selector and this is instead a timing/z-index issue). Needs a repro to confirm before fixing — grep-located candidate, not yet reproduced/verified.
+
+**Relates:** B32 (snapping helper lines not disappearing — same family of "leftover canvas overlay" bug, possibly worth investigating together), B33 (selectability/drag flakiness — same interact.js/DragSelect interaction surface).
+
+### B35 — Rubber-band select sometimes selects nothing ❓ needs investigation
+
+Dragging a rubber-band selection over elements sometimes selects nothing, even though it visibly overlaps elements. No reliable repro yet — **further investigation needed**.
+
+Candidate area: the DragSelect `callback` handler ([feezal-sidebar-inspector.js:806-833](../www/src/feezal-sidebar-inspector.js#L806-L833)) only applies `items` when `this._dsDidDrag` was set true by the `dragstart` handler ([feezal-sidebar-inspector.js:798-804](../www/src/feezal-sidebar-inspector.js#L798-L804)), which itself gates on `event.target.tagName === 'FEEZAL-VIEW'` — if the gesture starts on some other element/overlay first (or `dragstart` doesn't fire before `callback` in some ordering), `_dsDidDrag` stays false and the whole selection result is discarded (`wasDrag` false → early `return`, line 810-816) regardless of what DragSelect actually found under the rectangle. Also worth checking whether newly-registered elements (`ds.addSelectables`, [feezal-sidebar-inspector.js:1417-1421](../www/src/feezal-sidebar-inspector.js#L1417-L1421)) can miss registration in some ordering, making them invisible to DragSelect's hit-testing even though they're visually on canvas.
+
+**Relates:** B34 (stray orange dot — same `dragstart`/`ds.break()` gating logic, possibly a shared root cause worth investigating together), B32/B33 (same canvas-overlay/DragSelect/interact.js interaction surface).
+
+### B36 — Snapping sometimes stops working until page reload ❓ needs investigation
+
+Snapping occasionally just stops working during drag/resize — no snap lines, no snap-to behaviour — and a full page reload fixes it. Since reload resets in-memory JS state, this points at **stuck client-side state**, not a server/data issue. No reliable repro yet — **further investigation needed**.
+
+**Candidate root cause:** `_effectiveSnapping()` ([feezal-sidebar-inspector.js:1152-1163](../www/src/feezal-sidebar-inspector.js#L1152-L1163)) derives the active snap mode from `this._ctrlDown`/`this._shiftDown`, which are tracked purely from `keydown`/`keyup` listeners ([feezal-sidebar-inspector.js:524-544](../www/src/feezal-sidebar-inspector.js#L524-L544)) — `_ctrlDown` is set true on a `keydown` with `ctrlKey` and only cleared on a matching `keyup`. If a `keyup` for Ctrl is ever missed — e.g. an OS/browser-level shortcut consumes it, focus leaves the document (alt-tab, DevTools, a native file/color-picker dialog) while Ctrl is held, or the key is released while an iframe/other element has focus — `_ctrlDown` stays stuck `true`. Per `_effectiveSnapping()`, a stuck `_ctrlDown` with the default `snapping = 'elements'` evaluates to `'off'` permanently, matching the reported symptom exactly (snapping silently stops, survives until something resets the JS state — i.e. reload). Same failure mode could apply to `_shiftDown` getting stuck, flipping snapping to the wrong mode instead of off.
+
+**Fix direction (pending confirmation):** don't trust keyup alone — also resync modifier state from `window blur`/`visibilitychange` (clear both flags when focus leaves the window) and from every subsequent `pointerdown`/`mousedown` (read `event.ctrlKey`/`event.shiftKey` opportunistically). Needs a repro to confirm the stuck-modifier theory before implementing.
+
+**Relates:** B32 (snapping helper lines sometimes don't disappear — could be the same stuck-modifier root cause manifesting as lines stuck *visible* instead of snapping stuck *off*; worth investigating together).
 
 ## Near-term Improvements
 
@@ -179,6 +281,45 @@ Each repeater child becomes individually selectable and configurable on the edit
 4. **Precedence rules** — multiple layout-apps (on different top-level views): proposal — only the *visible* one may claim a command, first match wins, nesting unsupported. A command naming a view that is *not* a drawer entry switches the site top-level and the shell disappears — acceptable?
 
 **Relates:** N24 (per-client view commands — must route through the same delegation), N26 (playlist — should rotate inside the shell), E47 (layout-app, archive), E80 (navigation rail — any future shell-style element needs the same router hook), material-navbar (already switches the *site* view directly — the consistent counter-example).
+
+### N31 — Discovery: consume availability — multi-topic support in the FeezalElement base class
+
+**Problem.** Auto-discovery works well, but **availability is effectively ignored**. Elements that support it map only the legacy scalar `availability_topic` in their discovery descriptors — the modern HA discovery form is an **`availability` array** with `availability_mode`, and that array is what zigbee2mqtt publishes: **two topics per device**, the bridge state *and* the device availability:
+
+```json
+"availability": [
+  {"topic": "zigbee2mqtt/bridge/state",                    "value_template": "{{ value_json.state }}"},
+  {"topic": "zigbee2mqtt/licht_garten_group/availability", "value_template": "{{ value_json.state }}"}
+],
+"availability_mode": "all"
+```
+
+Semantics per HA: `all` = available only if **every** topic reports available, `any` = at least one, `latest` = the most recent message wins. The single-string `subscribe-availability` attribute can't express this.
+
+**Second problem — duplication.** Availability is currently hand-rolled per element: ~15 elements (glass-climate/-contact/-light/-occupancy/-shutter/-switch, material-climate/-contact/-cover/-door-lock/-fan/-light/-motion, metro-contact/-occupancy) each declare `subscribe-availability` + `message-property-availability`, render their own unavailable badge, and map `availability_topic` in their own discovery descriptor. The [FeezalElement base class](../www/packages/@feezal/feezal-element/feezal-element.js) has **no availability support at all**. Per-element handling should not be the model.
+
+**Proposal (preferred): lift availability into `FeezalElement`.**
+
+- **Base-class attributes**, contributed automatically to every element's descriptor (the way `subscribe` already is; possibly opt-out via the `feezal` descriptor for pseudo/system elements):
+  - `subscribe-availability` — one topic (string, back-compat) **or** a JSON array of topics / `{topic, property}` objects for the multi-topic case.
+  - `availability-mode` — `all` | `any` | `latest`, default `all` (matches HA default for the array form).
+  - `payload-available` / `payload-not-available` — defaults `online` / `offline` (HA defaults).
+  - `message-property-availability` — dot-path for JSON payloads; the array's per-entry `value_template: {{ value_json.state }}` maps to per-entry `property` (e.g. `payload.state`) — feezal's existing `message-property` mechanism covers this, no template engine needed.
+- **Base-class scope: subscription + state only — UI stays in the elements** *(decided July 2026)*. The base subscribes to all availability topics, tracks per-topic status, applies payload matching / property paths, and combines everything per `availability-mode` into one reactive **`_available`** flag (plus a per-topic status map for diagnostics/tooltips). It renders **nothing**: which badge is shown, where it sits, whether the element dims — that is presentation, and presentation is element-family business (a glass card, a material tile, and a metro block indicate "unavailable" differently and place badges differently). This split also avoids the base class injecting DOM into shadow roots it doesn't own — technically fragile and against the Lit grain (base = behaviour, subclass = render), and it mirrors how `subscribe` already works: inherited machinery, element-specific rendering.
+  - **Consistency guard (the one real risk of this split is 15 drifting badge looks):** ship optional shared helpers alongside the base — an exported badge template partial + shared CSS block (themable via `--feezal-unavailable-*` custom properties) that elements *may* compose into their render; and the base reflects a host attribute (e.g. `unavailable`) so themes and zero-effort elements get a styling hook via pure CSS. Convention over enforcement.
+- **Discovery, server side** ([discovery.js](../server/src/mqtt/discovery.js)): normalise the three wire forms — scalar `availability_topic` (+ `payload_available`/`payload_not_available`), the `availability` array, and `availability_mode` — into one canonical list on the discovery record.
+- **Discovery, element side:** the base class maps the canonical availability list into the new attributes for *every* element automatically — individual discovery descriptors drop their `availability_topic` lines.
+- **Migration:** single-topic string values of `subscribe-availability` keep working unchanged; the ~15 elements shed their duplicated attribute declarations and subscription/matching logic incrementally (patch bumps per package) while **keeping their own badge rendering** (optionally switching to the shared badge partial); the external device family follows the same contract.
+
+**Alternative considered — central availability registry on the connection/site layer:** `feezal-connection` tracks availability topics once and elements just reference a device id. Cheaper per element and naturally dedupes the shared bridge topic (hundreds of elements → one `zigbee2mqtt/bridge/state` subscription), but it introduces a second stateful layer and an indirection that breaks the "element = self-contained subscriptions" model; MQTT subscription dedup already happens in the client. **Verdict: base-class approach preferred**, with the registry idea only revisited if the per-element fan-out to the bridge topic measurably hurts.
+
+**Open questions:**
+1. Attribute shape for multi-topic — JSON array in one attribute (matches repeater/logbook precedent) vs. `subscribe-availability` + `subscribe-availability-2…n` (friendlier inspector, clumsy contract). Leaning JSON array with an N6 custom-inspector row builder later.
+2. Should *unavailable* block interaction (HA greys out controls) or only badge it? Current per-element behaviour keeps controls usable ("badge when unavailable, controls stay enabled") — keep that as the default, add an opt-in `disable-when-unavailable`?
+3. `latest` mode needs message-order tracking — worth implementing, or ship `all`/`any` first and add `latest` when a real device needs it?
+4. Editor UX: should the inspector's availability section visualise live per-topic status (online/offline per entry) as a wiring aid?
+
+**Relates:** element-spec §3.7/§4 (conventions doc must specify the new contract), E66 (fleet board — availability is its core data), N24 (presence — similar online/offline semantics), B28/U38 (topic fields/browser for wiring availability topics manually).
 
 ### Element platform conventions
 
@@ -814,6 +955,84 @@ Beside E95's keyboard shortcuts, allow **MIDI controllers** to drive element int
 
 **Relates:** E95 (shares the element-actions model + inversion of the "learn" UI; keyboard is the portable sibling), E50/E49 (a MIDI event is just another action trigger), N24 (per-client input state), A21 (accessibility — physical input is complementary, not a replacement for keyboard operability).
 
+### E99 — glass-light: configurable on/off state labels
+
+The state line of `glass-light` is hard-coded English: `Off`, `On`, `On • <brightness> %` ([feezal-element-glass-light.js:767](../www/packages/@feezal/feezal-element-glass-light/feezal-element-glass-light.js)). Make the displayed labels configurable — e.g. `label-on` / `label-off` string attributes (defaults `On` / `Off`) — so dashboards can localise ("Ein"/"Aus") or reword them ("Läuft"/"Standby"). The brightness suffix (`• <brt> %`) keeps appending to the on-label. Not to be confused with `payload-on`/`payload-off` (MQTT payload values) or `label` (the card title) — the `help` texts should make the distinction explicit.
+
+**Check siblings for the same hard-coding** (`metro-light`, `material-light`, and the external device-family light) and apply the same attributes where applicable, keeping naming identical across families.
+
+**Ships with:** patch bump, TESTING.md element-notes update.
+
+### E100 — Fan element (`feezal-element-glass-fan`)
+
+The Glass family's missing fan control — every other common device type (light, climate, contact, shutter, switch, occupancy, sensor, button) already has a glass counterpart; fan is the gap. Frosted-glass card in the established Glass visual language (Apple-Home-style tile, tap/long-press-to-detail pattern where applicable).
+
+**MQTT contract mirrors `feezal-element-material-fan`** (same attribute names, same capability model — the established Glass convention, see E58/glass-light's header comment: "MQTT capability contract mirrors feezal-element-material-* — SAME attribute names"):
+
+| Attribute | Description |
+|---|---|
+| `subscribe` / `message-property` / `publish` | Primary on/off state and command |
+| `payload-on` / `payload-off` | On/off payloads |
+| `subscribe-speed` / `message-property-speed` / `publish-speed` | Fan speed (numeric, scaled by `speed-range-min`/`speed-range-max`) |
+| `subscribe-preset` / `message-property-preset` / `publish-preset` | Preset mode (e.g. auto, sleep) |
+| `preset-modes` | Comma/JSON list of available preset names |
+| `speed-range-min` / `speed-range-max` | Device-reported speed scale (HA discovery maps this from `speed_range_min/max`) |
+| `label` | Card label |
+| `subscribe-availability` / `message-property-availability` / `payload-available` / `payload-unavailable` | Availability (see N31 — should adopt the base-class mechanism once it lands rather than the current hand-rolled pattern) |
+
+**Visual concept:** icon (fan blades) that **animates/rotates when on**, speed as a slider or stepped dots (matching glass-light's brightness slider style), preset chips if `preset-modes` is set.
+
+**Relates:** material-fan (attribute-contract source), E58 (glass-light, the established pattern this follows), N31 (availability — adopt the base-class approach rather than hand-rolling a 15th copy).
+
+### E101 — Dialog element family (`feezal-element-glass-dialog*`)
+
+The Glass family's missing dialog/popup elements — Material already has all three dialog variants; Glass has none. Adds, mirroring the Material family 1:1 in MQTT contract and behaviour, restyled in the frosted-glass visual language:
+
+- **`feezal-element-glass-dialog`** — mirrors `feezal-element-material-dialog`: free-form templated body (`template`, `title`, `icon`), opens on `subscribe`/`payload-open`, closes on `payload-close`, optional OK/Cancel buttons each with their own publish topic/payload, `close-on-backdrop`, `show-close`, `hide-header`, sizing (`width`/`height`/`min-height`/`max-height`).
+- **`feezal-element-glass-dialog-view`** — mirrors `feezal-element-material-dialog-view`: same open/close/OK/Cancel contract, but the body is an embedded feezal **view** (`view` attribute) instead of a template — a whole dashboard view rendered inside the glass dialog chrome.
+- **`feezal-element-glass-countdown-dialog`** — mirrors `feezal-element-material-countdown-dialog` (palette name "Confirm"): a confirm-with-countdown dialog — `template` body with `${seconds}`/`${msg.*}` variables, `duration`, auto-confirms via `publish-confirm`/`payload-confirm` when the countdown reaches zero, `publish-cancel`/`payload-cancel` + `cancel-label` for the Cancel button, `warn-seconds` for the amber/red ring threshold. The countdown ring rendering should reuse/match glass-climate's or glass-light's ring styling for family consistency.
+
+**Why one roadmap item covering three elements:** all three are thin visual reskins of existing, proven Material elements — no new MQTT semantics or interaction model to design, only the frosted-glass chrome (backdrop blur, translucent surface, rounded corners consistent with glass-light's card) and the standard Glass palette entry (`category: 'Glass'`, `color: '#7aa5c9'`).
+
+**Ships with:** three packages (`feezal-element-glass-dialog`, `-glass-dialog-view`, `-glass-countdown-dialog`), each registered in `www/package.json`, patch-versioned independently, added to `docs/TESTING.md` §6 with notes on the dialog-specific behaviours (backdrop click, embedded view, countdown ring).
+
+**Relates:** material-dialog / material-dialog-view / material-countdown-dialog (attribute-contract source), E58 (glass-light — the established Glass visual pattern), E48 (dialog-view, archive — original design rationale for the view-embedding variant).
+
+### E102 — Climate elements: boost mode, thermostat mode datapoint conventions, valve position ⚠️ refinement needed
+
+Three related Homematic/HmIP gaps in the `*-climate` family (`glass-climate`, `material-climate`, `metro-climate`, and the external device-climate element — see B29).
+
+**1. Boost mode.** HmIP thermostats support a **boost mode**: activating it fully opens the valve and starts a countdown (Homematic default 5 min) before the thermostat returns to normal control. None of the climate elements currently expose this. Proposed: a `publish-boost`/`payload-boost` pair (publish a trigger, e.g. `BOOST_MODE` datapoint = `true`) plus a `subscribe-boost` read-back so the UI can show boost is active — ideally with the **remaining countdown** if the device publishes one (HmIP's `BOOST_MODE` datapoint doesn't carry a countdown value itself; check whether `PARTY_MODE_*`-style duration/end-time datapoints exist alongside it, or whether the UI should just show a static "boost active" state with a client-side timer bootstrapped from a configurable `boost-duration` default). Visual: an icon/toggle near the setpoint arc, active state clearly distinguished from normal heating.
+
+**2. Thermostat mode datapoint conventions — needs discussion before implementation.** Existing `subscribe-mode`/`publish-mode` already covers *a* mode topic, but **the actual mechanism differs by device generation**:
+- **BidCoS** (older Homematic): mode is typically set via a dedicated `CONTROL_MODE` / `AUTO_MODE` / `MANU_MODE` / `BOOST_MODE` **datapoint set**, or historically by writing specific values.
+- **HmIP**: some devices expose a dedicated **`SET_POINT_MODE`** datapoint (an enum: AUTO/MANUAL/PARTY), while others infer mode from **writing to the temperature setpoint datapoint itself** (e.g. a specific sentinel value or valve-fully-closed temperature means "off", writing any real setpoint implicitly switches to manual).
+- Today's single `publish-mode` + `modes` (JSON label/value list) assumes one clean enum datapoint — it doesn't accommodate "mode is implied by what you write to setpoint" or "boost is a mode value vs. a separate trigger topic" device variants.
+
+**Open questions to refine before implementing:** should `modes` gain a per-entry publish-target override (e.g. a mode entry that writes to `publish-setpoint` with a magic value instead of `publish-mode`)? Is boost better modeled as one of the `modes` chips (reusing the existing mode-chip UI) or as its own dedicated control (per point 1 above)? Do we need a small per-family "device profile" concept (BidCoS vs. HmIP vs. Zigbee2MQTT thermostat schema) that pre-fills the mode/boost wiring, similar to how material-climate's discovery descriptor already maps `schema`/`action_topic` for zigbee2mqtt? This is the hard part of the item — **do not implement until the datapoint/mode model is agreed**.
+
+**3. Valve opening percentage — optional display.** HmIP thermostat valves publish a **valve position percentage** topic (how far open the valve actuator currently is — distinct from the setpoint/actual temperature). `material-climate` **already has this** (`subscribe-valve` / `message-property-valve`, feeding the valve arc indicator — see [feezal-element-material-climate.js:129](../www/packages/@feezal/feezal-element-material-climate/feezal-element-material-climate.js#L129)). Bring the same optional attribute to `glass-climate`, `metro-climate`, and the external device-climate element, each rendered in that family's own visual language (glass: a subtle ring segment matching its existing arc styling per B29's shared-geometry goal; metro: a compact numeric/bar readout matching the flat Metro style). Purely optional/additive — no behaviour change when unset.
+
+**Relates:** B29 (glass-climate/device-climate slider geometry — the valve indicator should follow whatever shared geometry comes out of that fix), N31 (availability — same "shared base contract, per-family rendering" shape applies here too), material-climate (valve attribute + zigbee2mqtt discovery mapping as the reference implementation for points 2 and 3).
+
+### E103 — WLED elements (Device / Glass / Metro)
+
+New elements for **[WLED](https://github.com/wled/WLED)** — the very popular ESP32/ESP8266 addressable-LED firmware — across the three device-style families, matching the pattern already used for light/climate/contact/shutter: **`feezal-element-material-wled`** (palette category **Device** — note: the existing "device-*" family in this repo is the `material-*` packages under `category: 'Device'`, e.g. `material-light`/`material-cover`/`material-climate`; there is no separate `device-*` package prefix), **`feezal-element-glass-wled`**, and **`feezal-element-metro-wled`**.
+
+**WLED's MQTT contract** (device-configured base topic, default `wled/<name>`):
+- **Command:** `<base>/api` accepts the same JSON payload shape as WLED's HTTP `/json/state` API — `on`, `bri` (0–255), `transition`, `ps`/`pl` (preset/playlist recall), and a `seg` array for per-segment control. A legacy plain-string command form also exists on `<base>` itself (`ON`/`OFF`/`T`/`A128`/…) for simple on/off/brightness without JSON.
+- **State:** `<base>/g` (on/brightness, legacy compact string) and `<base>/c` (current colour hex) are published on change; **availability via LWT** — `<base>/status` retained `online`/`offline`.
+- **Segments** are WLED's standout feature and the main design challenge: each device can run **multiple independent LED segments**, each with its own effect (`fx`), speed (`sx`), intensity (`ix`), palette (`pal`), and up to 3 colours (`col`). This doesn't map onto the flat attribute model the other light elements use — it's a genuinely structural, per-entry-list config (see U39's guidance: exactly the case where a **custom inspector** — a segment list builder, N6-style — is warranted rather than forcing it into flat attributes).
+- **Effect/palette names are not discoverable over MQTT** — WLED exposes the effect/palette name lists only via its HTTP JSON API (`/json/effects`, `/json/palettes`), not MQTT. Options: ship a static bundled list (the built-in effect/palette names are large but fairly stable across WLED releases, with room for custom/compiled-in extras to fall back to numeric IDs), or have the server fetch them from the device's HTTP API at pairing time (extra dependency: requires network access to the device, not just the broker — bigger architectural step, mirrors the "MQTT-only vs. hybrid" tension seen in E62's broker-introspection notes).
+
+**Proposed scope — MVP vs. later tier:**
+- **MVP (single-segment / whole-strip control):** reuses material-light's proven shape — on/off, brightness, RGB colour, one active effect + one active palette selector (from the static bundled list) — published as a single JSON payload to `<base>/api`. Covers the common "one WLED strip = one light" case with the least new machinery.
+- **Later tier:** full segment list (custom inspector), preset/playlist recall buttons, per-segment live preview.
+
+**Family split:** Device/Glass/Metro share the identical MQTT contract (mirrors how glass-light/material-light already share theirs) — only the chrome differs: Device (material) gets the full brightness-ring/colour-wheel/effect-selector treatment consistent with material-light; Glass gets the frosted Apple-Home-style card; Metro gets the flat tile styling consistent with metro-light. Segment editing (later tier) is most naturally a Device/Glass feature — Metro's flat/simple aesthetic likely stays MVP-only (single segment), matching how Metro already omits some of Material's richer controls elsewhere in the light family.
+
+**Relates:** material-light (attribute/contract template for MVP scope), glass-light / metro-light (sibling chrome), N31 (availability via LWT retained topic — a clean fit for the base-class approach), U39 (segment list = the textbook case for a custom inspector over flat attributes), E62 (same MQTT-only-vs-device-HTTP tension around discovering effect/palette names).
+
 ## Editor UX
 
 ### U3 — Element grouping and locking 🔽 partial
@@ -883,6 +1102,83 @@ A "generate views from discovered devices" wizard: walk the discovery registry (
 A second palette tab listing discovered devices; dragging a device onto the canvas creates the matching pre-wired element (inverse of today's flow) — inspired by HA 2026.6's entity-first card picker.
 
 **Why questionable:** the existing workflow — drag an element, then pick the auto-discovered device in the inspector — is considered good enough. Low value for the palette/DnD complexity it adds. Revisit only with concrete user demand.
+
+### U37 — Welcome wizard / first-run onboarding tour
+
+A guided tour that appears on **first use** (fresh install, no dashboard content yet) and walks the user through the most important concepts in a few steps — fixing the blank-canvas problem without generating anything (deliberately lighter than U30's auto-generated dashboard).
+
+**Interaction model: spotlight overlay.** The whole editor is dimmed by a translucent overlay with a **cutout highlighting the current step's UI region** (magnifier/spotlight effect); next to the cutout, a small card shows the step's explanation with **Next / Back / Skip tour** controls. The highlighted region stays interactive when the step asks the user to actually do something.
+
+**Tour steps (first cut):**
+
+1. **Palette** — spotlight the element palette: "these are the building blocks, drag them onto the canvas".
+2. **Canvas** — spotlight the view canvas: free-form positioning, drag & resize.
+3. **Inspector** — spotlight the attribute/style inspector sidebar: "select an element to configure it here".
+4. **Deploy / View button** — spotlight the deploy + view controls: edit mode vs. the live viewer.
+5. **MQTT broker setup** — open/spotlight the connection settings panel (`feezal-sidebar-viewer.js`) and guide the user through entering their broker URI (and credentials, if any); the panel's existing server↔broker status indicator gives immediate feedback that the connection works.
+6. **Hands-on: first live element** — guided mini-exercise tying it all together:
+   - drag a **`basic-template`** element onto the canvas,
+   - configure its `subscribe` topic in the inspector (pointing at a topic that exists on the user's broker — the topic autocomplete helps here),
+   - set example template content like `${msg.payload}°C`,
+   - deploy/view → the user sees their first live MQTT value on a dashboard.
+
+**Trigger & persistence:** shown automatically only when the editor starts with no meaningful prior state (no elements placed / first launch flag); the "seen" flag is persisted (server-side preferred over localStorage so it survives browser switches). Always skippable at every step, and **re-launchable manually** from the menu/help so it doubles as a feature refresher.
+
+**Implementation notes:** candidate libraries for the spotlight mechanic: **driver.js** (MIT, lightweight, vanilla, cutout + popover out of the box) or Shepherd.js; alternatively a hand-rolled overlay (a fixed full-screen backdrop with a `clip-path`/box-shadow cutout tracking the target's bounding rect) — editor-only, so the dependency never reaches the viewer/export bundle. Steps that target sidebar panels must be able to **switch the active sidebar tab** before spotlighting. The hands-on step needs light event-driven progression (advance when the element lands on the canvas / the topic is set) rather than a plain "Next" click.
+
+**Relates:** U30 (auto-generated starter dashboard — the heavyweight questionable sibling; the wizard is the low-risk answer to the same onboarding gap), U31 (device-first insertion), AI assistant (can answer follow-up "how do I…" questions after the tour).
+
+### U38 — Topic browser sidebar panel
+
+A new tab in the right sidebar (the icon-tab row in [feezal-app-editor.js](www/src/feezal-app-editor.js): inspector / themes / site settings / assets / packages / history / editor settings — plus **topics**): a **topic browser** so the user can comfortably find topics on the broker and **copy them to the clipboard** while wiring up elements — instead of switching to an external MQTT client.
+
+**Inspiration: the she topic browser** ([hobbyquaker/she](https://github.com/hobbyquaker/she), `web/src/pages/MQTT.svelte`) — the proven feature set there:
+
+- **Live collapsible topic tree** built from broker traffic; collapsed branches cost zero DOM nodes; each node shows the **last payload and timestamp** inline.
+- **Filter box** — tokenized substring matching *and* MQTT wildcard patterns (`+`/`#`); while a filter is active the tree is replaced by a **flat sorted result list**, with retained-only topic snapshots injected alongside live matches.
+- **Live message stream** — rolling feed of incoming messages matching the current filter (bounded ring buffers).
+- **Context menu per topic** — **Copy topic** to clipboard; she also offers inspect and **clear retained** (publish empty retained, with a recursive option behind a confirm modal).
+- **Publish form** — topic / payload / retain / QoS for quick manual testing.
+
+**feezal first cut:** tree + filter + last payload/timestamp + copy-to-clipboard (the core "find a topic and use it" loop). Later tiers — live stream, publish form, clear-retained — overlap with E62's retained-browser guard rails (per-delete confirm naming the full topic) and should follow its dispositions.
+
+**Data source:** the server already maintains a **topic trie from live MQTT traffic** feeding `/api/topics/completions` ([api.js](server/src/routes/api.js)). Options: extend the server API to expose a subtree with last payloads (retained across editor reloads, sees traffic from before the panel opened), or subscribe editor-side while the panel is open (live but empty on open). Likely a hybrid: trie snapshot for the initial tree, live subscription for updates while the panel is visible.
+
+**Nice-to-haves:** drag a topic from the tree onto an inspector `mqttTopic` field (or onto a canvas element's primary `subscribe`); double-click to copy; per-node message-rate indicator.
+
+**Relates:** **E62** (topic-tree browser — already decided there as "element + editor panel" with a shared tree component: *this is that editor panel*; the canvas element reuses the component), the `mqttTopic` autocomplete (E62 names the panel as the candidate upgrade path to a browsable picker), B28 (custom-inspector topic fields — the shared picker/autocomplete component serves both), U37 (welcome wizard step 6 — "find a topic" is exactly where a browser beats blind typing).
+
+### U39 — Attribute inspector UX for attribute-heavy elements ⚠️ needs discussion
+
+The attribute inspector of some elements is **chaotic** — a long flat list with no structure. Worst-case example: **`glass-climate`** with **~25 attributes** rendered flat: `payload-mode`, the json-mode fields (`subscribe`, `publish`, `json-map`, `message-property`), then per-function separate-mode pairs (`subscribe-setpoint`/`publish-setpoint`/`subscribe-actual`/`subscribe-mode`/`publish-mode`, each with its `message-property-*` twin), then range/display fields (`min`/`max`/`step`/`unit`/`modes`/`label`/`icon`), then the availability block. Depending on `payload-mode`, **roughly half of these fields are irrelevant at any given time** — but all are shown, distinguished only by "json mode: …" / "separate mode: …" prose in the help tooltips.
+
+**Two possible directions — likely both, decided per element:**
+
+**A — Improve the standard attribute editor (descriptor-driven, benefits every element):**
+1. **Sections** — an optional `section:` field on attribute descriptors ([element-spec §3.2](element-spec.md)); the inspector renders collapsible groups (e.g. *Connection*, *Setpoint*, *Display*, *Availability*) instead of one flat list. Zero per-element UI code; N31's base-class availability attributes would land in their own section automatically.
+2. **Conditional visibility** — a `visibleWhen: {attr, value}` (or predicate) descriptor field, so e.g. the `subscribe-setpoint`… group only shows when `payload-mode=separate` and `json-map`/`message-property` only in json mode. Encodes what today lives as tooltip prose; the single biggest de-clutter for glass-climate/glass-shutter/material-cover-style dual-mode elements.
+3. **Advanced tier** — `advanced: true` on rarely-touched descriptors (the `message-property-*` twins, payload overrides) collapses them behind an "Advanced" disclosure per section.
+4. Keep the existing type-specific inputs (mqttTopic autocomplete, color, select, icon picker) — they are fine; the problem is structure, not the individual controls.
+
+**B — More custom inspectors (N6 pattern):** full-freedom panels like material-climate/material-light already have. Best-in-class UX for genuinely bespoke needs (item-list builders, embedded editors, live previews) — but per-element code, and B28 shows custom inspectors drift from the standard editor's affordances (missing topic autocomplete). Every new custom inspector is UI that must be maintained and audited separately.
+
+**Recommendation to discuss:** do **A first** — sections + conditional visibility + advanced tier are one inspector change plus descriptor annotations, and probably fix 80 % of the chaos including glass-climate, with consistency for free. Reserve **B** for elements whose configuration is genuinely structural (lists of items, per-entry sub-forms — navbar, layouts, dialogs), not merely numerous. After A ships, audit the attribute-heavy elements (glass-climate, glass-shutter, glass-light, material-cover, material-climate, E20 weather when it lands, …) and decide per element whether annotated descriptors suffice or a custom inspector is warranted.
+
+**Relates:** B28 (custom-inspector autocomplete gap — argues for fewer, better custom inspectors and shared building blocks), N31 (base-class availability attributes should render as a standard section), N6/§3.8 (custom inspector machinery), U17 (multi-select attribute intersection — sections must behave there too), element-spec §3.2 (new descriptor fields need spec'ing).
+
+### U40 — Drag-and-drop reordering for `position:static` views 🔽 partial
+
+Views with `child-position="static"` lay out their elements in normal document flow (no `top`/`left`), so the only thing that determines on-screen order is DOM order. There should be a way to reorder them by drag & drop, the same way absolute-position views let you drag elements freely.
+
+**This is already partially wired up:** `_viewChanged()` in [feezal-sidebar-inspector.js](www/src/feezal-sidebar-inspector.js) branches on `view.childPosition === 'static'` and calls `_initSortable(view)`, which wraps the view with [html5sortable](https://github.com/lukasoppermann/html5sortable) (`items: '.feezal-element'`, placeholder class `feezal-placeholder`) — so elements in a static view can already be dragged to a new position visually.
+
+**What's missing:** html5sortable emits `sortstart`/`sortstop`/`sortupdate` events, but `_initSortable` doesn't listen for any of them. As far as could be found there's no `feezal.app.change()` call (or equivalent dirty/undo-history hook) wired to the reorder, so:
+- it's unclear whether a completed drag is picked up by the undo history the same way other edits are (compare `_reorderSelection()`'s Cmd+`[`/`]` front/back/forward/backward stacking-order commands for absolute views, which do call `feezal.app.change()`).
+- selection state / the attribute inspector may not refresh to reflect the element's new position in the list after a drag.
+
+Needs verification against current behaviour, then wiring `sortupdate` (or `sortstop`) to the same change/undo pipeline other mutations use.
+
+**Relates:** U33 (Cmd+`[`/`]` stacking-order reorder for absolute-position views — the equivalent affordance to keep consistent with).
 
 ## Architecture & Infrastructure
 
