@@ -8,8 +8,11 @@ import '@shoelace-style/shoelace/dist/components/option/option.js';
  * feezal-style-editor-background (N34)
  *
  * The first custom style-group editor: a unified Background editor with the
- * modes None / Solid colour / Image / Gradient. Declared on an element's
- * `feezal().styles` as
+ * modes Solid colour (default) / Image / Gradient. Solid mirrors the element
+ * colour-var rows: a free-text value input (accepts hex, named colours,
+ * var(--…)) with a resolving colour swatch to its right; an EMPTY input means
+ * "theme default" (the swatch then resolves var(--primary-background-color)).
+ * Declared on an element's `feezal().styles` as
  *     {group: 'background', editor: 'feezal-style-editor-background', label: 'Background'}
  * and mounted by the style inspector, which passes the selection in via
  * `.elements` (primary in `.element`) and applies the multi-property
@@ -45,12 +48,15 @@ class FeezalStyleEditorBackground extends LitElement {
         'background-position',
     ];
 
+    /** Theme default shown/resolved when no colour is authored (solid mode). */
+    static DEFAULT_COLOR = 'var(--primary-background-color)';
+
     static properties = {
         elements: {type: Array},
         element:  {type: Object},
-        _mode:    {state: true},   // 'none' | 'solid' | 'image' | 'gradient'
+        _mode:    {state: true},   // 'solid' | 'image' | 'gradient'
         _mixed:   {state: true},
-        _color:   {state: true},
+        _colorText: {state: true}, // raw authored background-color ('' = theme default)
         _url:     {state: true},
         _size:    {state: true},   // cover | contain | auto | custom
         _sizeCustom: {state: true},
@@ -67,9 +73,9 @@ class FeezalStyleEditorBackground extends LitElement {
         super();
         this.elements = [];
         this.element = null;
-        this._mode = 'none';
+        this._mode = 'solid';
         this._mixed = false;
-        this._color = '#808080';
+        this._colorText = '';
         this._url = '';
         this._size = 'cover';
         this._sizeCustom = '';
@@ -107,6 +113,11 @@ class FeezalStyleEditorBackground extends LitElement {
         }
         input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
         input[type=color]::-webkit-color-swatch { border: none; border-radius: 2px; }
+        /* N20 pattern: unresolvable var() shows a checkerboard */
+        input[type=color].unresolved::-webkit-color-swatch {
+            background-image: repeating-conic-gradient(#bbb 0% 25%, #fff 0% 50%);
+            background-size: 8px 8px;
+        }
         sl-input::part(base), sl-select::part(combobox) {
             background: var(--feezal-bg, #fff);
             border-color: var(--feezal-border, #ccc);
@@ -192,11 +203,38 @@ class FeezalStyleEditorBackground extends LitElement {
         } else if (image.includes('gradient')) {
             this._mode = 'gradient';
             this._parseGradient(image);
-        } else if (color) {
-            this._mode = 'solid';
-            this._color = this._hexish(color) || this._color;
         } else {
-            this._mode = 'none';
+            // Solid is the default mode — an empty value means "theme default"
+            // (var(--primary-background-color) via the site/theme cascade).
+            this._mode = 'solid';
+            this._colorText = color;
+        }
+    }
+
+    /**
+     * Resolve the authored colour text (or the theme default when empty) to
+     * a #rrggbb for the swatch — same idea as the inspector's N20 resolution:
+     * var()/named/rgb values are resolved against the selected element so its
+     * inherited theme variables apply. '' = unresolved (checkerboard).
+     */
+    _resolveHex(text) {
+        const v = (text || '').trim() || FeezalStyleEditorBackground.DEFAULT_COLOR;
+        const fast = this._hexish(v);
+        if (fast) return fast;
+        const el = (this.elements && this.elements[0]) || this.element;
+        if (!el) return '';
+        let probe;
+        try {
+            probe = document.createElement('span');
+            probe.style.cssText = 'display:none!important;position:absolute';
+            probe.style.color = v;
+            if (!probe.style.color) return '';
+            (el.shadowRoot || el).appendChild(probe);
+            return this._hexish(getComputedStyle(probe).color);
+        } catch {
+            return '';
+        } finally {
+            if (probe && probe.parentNode) probe.parentNode.removeChild(probe);
         }
     }
 
@@ -316,28 +354,22 @@ class FeezalStyleEditorBackground extends LitElement {
     }
 
     _emitCurrent() {
-        if (this._mode === 'none') {
+        if (this._mode === 'solid') {
+            // Empty text = theme default: the whole family is removed.
             this._emit({
-                'background-color': null,
-                'background-image': null,
-                'background-size': null,
-                'background-repeat': null,
-                'background-position': null,
-            });
-        } else if (this._mode === 'solid') {
-            this._emit({
-                'background-color': this._color,
+                'background-color': this._colorText.trim() || null,
                 'background-image': null,
                 'background-size': null,
                 'background-repeat': null,
                 'background-position': null,
             });
         } else if (this._mode === 'image') {
+            const hasUrl = Boolean(this._url.trim());
             this._emit({
-                'background-image': this._url.trim() ? `url('${this._url.trim()}')` : null,
-                'background-size': this._sizeValue(),
-                'background-repeat': this._repeat,
-                'background-position': this._positionValue(),
+                'background-image': hasUrl ? `url('${this._url.trim()}')` : null,
+                'background-size': hasUrl ? this._sizeValue() : null,
+                'background-repeat': hasUrl ? this._repeat : null,
+                'background-position': hasUrl ? this._positionValue() : null,
             });
         } else if (this._mode === 'gradient') {
             this._emit({
@@ -398,7 +430,7 @@ class FeezalStyleEditorBackground extends LitElement {
         return html`
             ${this._mixed ? html`<div class="mixed-note">— values vary across the selection; edits apply to all —</div>` : ''}
             <div class="modes">
-                ${['none', 'solid', 'image', 'gradient'].map(m => html`
+                ${['solid', 'image', 'gradient'].map(m => html`
                     <button class="${this._mode === m ? 'active' : ''}"
                         @click="${() => this._setMode(m)}">${m[0].toUpperCase() + m.slice(1)}</button>
                 `)}
@@ -410,11 +442,18 @@ class FeezalStyleEditorBackground extends LitElement {
     }
 
     _renderSolid() {
+        // Element colour-var row pattern: free value input + resolving swatch.
+        const hex = this._resolveHex(this._colorText);
         return html`
             <div class="row">
-                <label>colour</label>
-                <input type="color" .value="${this._color}"
-                    @input="${e => { this._color = e.target.value; this._emitCurrent(); }}">
+                <sl-input size="small"
+                    placeholder="${FeezalStyleEditorBackground.DEFAULT_COLOR}"
+                    .value="${this._colorText}"
+                    @sl-change="${e => { this._colorText = e.target.value; this._emitCurrent(); }}">
+                </sl-input>
+                <input type="color" class="${hex ? '' : 'unresolved'}"
+                    .value="${hex || '#000000'}"
+                    @input="${e => { this._colorText = e.target.value; this._emitCurrent(); }}">
             </div>
         `;
     }

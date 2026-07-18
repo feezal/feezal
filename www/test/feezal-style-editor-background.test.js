@@ -139,18 +139,30 @@ describe('feezal-style-editor-background — reading', () => {
         expect(ed._gradientValue()).toBe('linear-gradient(45deg, #ff0000 0%, #0000ff 100%)');
     });
 
-    it('detects solid and none modes', () => {
+    it('detects solid mode; no authored colour = solid with empty text (theme default)', () => {
         target.style.setProperty('background-color', '#123456');
-        expect(makeEditor(target)._mode).toBe('solid');
+        let ed = makeEditor(target);
+        expect(ed._mode).toBe('solid');
+        expect(ed._colorText).toBe('#123456');
         target.style.removeProperty('background-color');
-        expect(makeEditor(target)._mode).toBe('none');
+        ed = makeEditor(target);
+        expect(ed._mode).toBe('solid');
+        expect(ed._colorText).toBe('');
+    });
+
+    it('keeps a var() colour as raw text and resolves hex/named values for the swatch', () => {
+        target.style.setProperty('background-color', 'var(--primary-background-color)');
+        const ed = makeEditor(target);
+        expect(ed._colorText).toBe('var(--primary-background-color)');
+        expect(ed._resolveHex('#abc')).toBe('#aabbcc');
+        expect(ed._resolveHex('red')).toBe('#ff0000');
     });
 
     it('reads an inline background SHORTHAND through the expanded longhands', () => {
         target.style.background = 'red';
         const ed = makeEditor(target);
         expect(ed._mode).toBe('solid');
-        expect(ed._color).toBe('#ff0000');
+        expect(ed._colorText).toBe('red');
     });
 
     it('flags mixed selections', () => {
@@ -169,7 +181,7 @@ describe('feezal-style-editor-background — emitting', () => {
         const ed = makeEditor(target);
         const get = lastEmit(ed);
         ed._mode = 'solid';
-        ed._color = '#336699';
+        ed._colorText = '#336699';
         ed._emitCurrent();
         expect(get().props).toEqual({
             'background': null,
@@ -179,6 +191,23 @@ describe('feezal-style-editor-background — emitting', () => {
             'background-repeat': null,
             'background-position': null,
         });
+    });
+
+    it('solid mode with empty text clears the whole family (back to theme default)', () => {
+        target.style.setProperty('background-color', '#ff0000');
+        const ed = makeEditor(target);
+        const get = lastEmit(ed);
+        ed._colorText = '';
+        ed._emitCurrent();
+        expect(Object.values(get().props).every(v => v === null)).toBe(true);
+    });
+
+    it('solid mode passes a var() value through verbatim', () => {
+        const ed = makeEditor(target);
+        const get = lastEmit(ed);
+        ed._colorText = 'var(--primary-background-color)';
+        ed._emitCurrent();
+        expect(get().props['background-color']).toBe('var(--primary-background-color)');
     });
 
     it('image mode emits url + size/repeat/position', () => {
@@ -215,12 +244,16 @@ describe('feezal-style-editor-background — emitting', () => {
             .toBe('radial-gradient(circle, #000000 0%, #ffffff 50%, #ff0000 100%)');
     });
 
-    it('none mode clears the whole family', () => {
+    it('image mode with no url clears the whole image family too', () => {
         const ed = makeEditor(target);
         const get = lastEmit(ed);
-        ed._mode = 'none';
+        ed._mode = 'image';
+        ed._url = '';
         ed._emitCurrent();
-        expect(Object.values(get().props).every(v => v === null)).toBe(true);
+        expect(get().props['background-image']).toBe(null);
+        expect(get().props['background-size']).toBe(null);
+        expect(get().props['background-repeat']).toBe(null);
+        expect(get().props['background-position']).toBe(null);
     });
 
     it('stop editing: add / move / remove keep at least two stops', () => {

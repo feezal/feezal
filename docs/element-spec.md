@@ -226,7 +226,7 @@ this.dispatchEvent(new CustomEvent('feezal-style-changed', {
 
 Only longhands should be written (never a shorthand) so the values round-trip cleanly back into the widget's fields on re-select. When the inspector detects an out-of-band change to a covered longhand it calls the widget's optional `refresh()` method.
 
-**First consumer:** `feezal-view` declares the `background` group; `feezal-style-editor-background` (editor bundle, `www/src/`) renders a unified Background editor with the modes None / Solid colour / Image (size/repeat/3×3 position anchors) / Gradient (linear/radial builder with ordered colour stops and live preview). Built-in group editors are authoring UI and live in `www/src/` — an element package may also ship its own editor tag (it resolves through `customElements` just like §3.8 inspectors).
+**First consumer:** `feezal-view` declares the `background` group; `feezal-style-editor-background` (editor bundle, `www/src/`) renders a unified Background editor with the modes Solid colour (default — a free value input accepting hex/named/`var(--…)` plus a resolving swatch, like the element colour-var rows; empty = theme default `var(--primary-background-color)`) / Image (size/repeat/3×3 position anchors) / Gradient (linear/radial builder with ordered colour stops and live preview). Built-in group editors are authoring UI and live in `www/src/` — an element package may also ship its own editor tag (it resolves through `customElements` just like §3.8 inspectors).
 
 ### 3.4 `description` and `links`
 
