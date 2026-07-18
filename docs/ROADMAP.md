@@ -81,6 +81,7 @@ Work in progress — priorities and scope are not final.
 - [A19 — Security model: multi-user / ACL story](#a19--security-model-multi-user--acl-story-needs-discussion) ⚠️
 - [A20 — Element/theme scaffolding and community ecosystem tooling](#a20--elementtheme-scaffolding-and-community-ecosystem-tooling)
 - [A21 — Accessibility: adopt the web-components Gold Standard for feezal elements](#a21--accessibility-adopt-the-web-components-gold-standard-for-feezal-elements)
+- [A22 — Release workflow: changelog grouped by category](#a22--release-workflow-changelog-grouped-by-category)
 
 
 ---
@@ -1688,6 +1689,19 @@ Feezal's "widgets are plain npm packages" model is better infrastructure than vi
 - Consider **form-associated custom elements (`ElementInternals`)** for input-type elements so they participate properly where it matters.
 
 **Relates:** A20 (`eslint-plugin-lit-a11y` tooling — this is the "why"), B25 (accessible dialog header/focus), E79 (button state/disabled semantics), E80/E93 (keyboard nav & sliders), element-spec.md (where the checklist lives).
+
+### A22 — Release workflow: changelog grouped by category
+
+The release GitHub Action ([release-docker.yml](../.github/workflows/release-docker.yml), "Build release body" step) currently emits a **flat commit list** (`git log --pretty="- %s"`, chore commits filtered out entirely). Restructure the generated changelog into **sections ordered by category**:
+
+1. **Features** — `feat:` / `feat(scope):`
+2. **Fixes** — `fix:` / `fix(scope):`
+3. **Docs** — `docs:` / `docs(scope):`
+4. **Chore** — `chore:` (and remaining conventional types: `test:`, `ci:`, `refactor:`, `build:` — decide whether they get their own buckets or fold into Chore) — **at the end, no longer dropped**
+
+**Implementation notes:** the repo already uses conventional-commit prefixes consistently, so grouping is a matter of bucketing `git log` subjects by prefix regex in the same shell step (empty sections omitted, unprefixed commits into a trailing "Other" bucket so nothing silently disappears). Alternatively switch to a changelog action (e.g. release-drafter or `softprops/action-gh-release`'s `generate_release_notes` with `.github/release.yml` categories — the native GitHub route needs PR-based workflows though; **this repo releases from direct commits, so the shell-side bucketing is the pragmatic fit**). Keep the existing pieces intact: Full-Changelog compare link on top, the Update/Docker instructions section at the bottom, SBOM file attachment.
+
+**Relates:** the `chore(release)` tagging flow (release commits themselves shouldn't clutter the Chore bucket — filter `chore(release)` specifically), CONTRIBUTING/commit conventions (grouping quality depends on prefix discipline).
 
 ---
 
