@@ -62,13 +62,13 @@ class FeezalPalette extends LitElement {
         .element {
             box-sizing: border-box;
             padding: 4px;
-            height: 30px;
+            height: 32px;
             width: calc(100% - 8px);
             margin: 4px;
             border: 1px solid var(--sl-color-primary-300);
             background-color: var(--feezal-bg-sub, #f5f5f5);
             border-radius: 4px;
-            font-size: 13px;
+            font-size: 15px;
             cursor: grab;
             user-select: none;
         }
@@ -92,6 +92,10 @@ class FeezalPalette extends LitElement {
         this.categories = [];
         this.filter = '';
         this._collapsed = new Set();
+        // First run (no saved state) → default all categories collapsed except
+        // "Basic" once the categories are known (_rebuildCategories). A stored
+        // value (even empty "[]") means the user has a saved preference.
+        this._needsDefaultCollapse = localStorage.getItem('feezal-palette-collapsed') === null;
         try {
             this._collapsed = new Set(JSON.parse(localStorage.getItem('feezal-palette-collapsed') || '[]'));
         } catch { /* corrupt value — start expanded */ }
@@ -242,6 +246,16 @@ class FeezalPalette extends LitElement {
                 if (bi === -1) return -1;
                 return ai - bi;
             });
+
+        // First-run default: everything collapsed except "Basic". Persist so
+        // it happens once, and subsequent user toggles behave normally.
+        if (this._needsDefaultCollapse && this.categories.length) {
+            this._needsDefaultCollapse = false;
+            this._collapsed = new Set(this.categories.map(c => c.name).filter(n => n !== 'Basic'));
+            try {
+                localStorage.setItem('feezal-palette-collapsed', JSON.stringify([...this._collapsed]));
+            } catch { /* quota — non-fatal */ }
+        }
     }
 
     /**

@@ -32,6 +32,7 @@ function makeSiteWithComponents(...names) {
 }
 
 beforeEach(() => {
+    localStorage.clear();   // isolate palette-collapse state per test
     feezal.elements = [
         '@feezal/feezal-element-pal-button',
         '@feezal/feezal-element-pal-legacy',
@@ -187,6 +188,26 @@ describe('collapsed-category persistence', () => {
     it('starts expanded when the stored value is corrupt', () => {
         localStorage.setItem('feezal-palette-collapsed', '{not json');
         expect(makePalette()._collapsed.size).toBe(0);
+    });
+
+    it('first run (no stored value): collapses everything except Basic on first rebuild', () => {
+        const el = makePalette();               // localStorage cleared in beforeEach
+        el._rebuildCategories();
+        const names = el.categories.map(c => c.name);
+        expect(names).toContain('Basic');
+        expect(el._collapsed.has('Basic')).toBe(false);
+        for (const n of names.filter(n => n !== 'Basic')) {
+            expect(el._collapsed.has(n)).toBe(true);
+        }
+        // Persisted, so it only happens once.
+        expect(JSON.parse(localStorage.getItem('feezal-palette-collapsed'))).not.toContain('Basic');
+    });
+
+    it('an existing empty stored value is respected (not treated as first run)', () => {
+        localStorage.setItem('feezal-palette-collapsed', '[]');
+        const el = makePalette();
+        el._rebuildCategories();
+        expect(el._collapsed.size).toBe(0);     // stays fully expanded
     });
 });
 
