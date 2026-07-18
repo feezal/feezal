@@ -1,6 +1,6 @@
 {
   "name": "@feezal/feezal-element-layout-app",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "license": "MIT",
   "main": "feezal-element-layout-app.js"
 }

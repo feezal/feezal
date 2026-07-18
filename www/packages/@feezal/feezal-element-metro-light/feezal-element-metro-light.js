@@ -1,5 +1,6 @@
 /* global feezal */
 import {html, css} from '@feezal/feezal-element';
+import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
 import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
 
@@ -659,8 +660,8 @@ class FeezalElementMetroLightInspector extends LitElement {
         return html`
             <div class="field">
                 <label>${t.label}</label>
-                <sl-input size="small" autocomplete="off" placeholder="mqtt/topic" value="${this._val(t.attr)}"
-                    @sl-change="${e => this._emit(t.attr, e.target.value)}"></sl-input>
+                <feezal-topic-input size="small" placeholder="mqtt/topic" value="${this._val(t.attr)}"
+                    @sl-change="${e => this._emit(t.attr, e.target.value)}"></feezal-topic-input>
             </div>`;
     }
 

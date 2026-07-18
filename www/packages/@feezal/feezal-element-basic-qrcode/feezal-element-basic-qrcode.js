@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, html, css} from '@feezal/feezal-element';
+import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
 import qrcode from 'qrcode-generator';
 
@@ -497,9 +498,9 @@ class FeezalElementBasicQrcodeInspector extends LitElement {
                 <div class="sec-body">
                     <div class="field">
                         <label>subscribe</label>
-                        <sl-input size="small" autocomplete="off" placeholder="mqtt/topic — payload overrides the value"
-                            .value="${this._attr('subscribe')}"
-                            @sl-change="${e => this._emit('subscribe', e.target.value)}"></sl-input>
+                        <feezal-topic-input size="small" placeholder="mqtt/topic — payload overrides the value"
+                            value="${this._attr('subscribe')}"
+                            @sl-change="${e => this._emit('subscribe', e.target.value)}"></feezal-topic-input>
                     </div>
                     <div class="field">
                         <label>message-property</label>

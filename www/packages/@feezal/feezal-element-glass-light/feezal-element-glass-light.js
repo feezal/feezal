@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
 
 /**
@@ -920,9 +921,9 @@ class FeezalElementGlassLightInspector extends LitElement {
         return html`
             <div class="field">
                 <label>${label}</label>
-                <sl-input size="small" autocomplete="off" placeholder="${placeholder}"
+                <feezal-topic-input size="small" placeholder="${placeholder}"
                     value="${this._val(attr)}"
-                    @sl-change="${e => this._emit(attr, e.target.value)}"></sl-input>
+                    @sl-change="${e => this._emit(attr, e.target.value)}"></feezal-topic-input>
             </div>`;
     }
 

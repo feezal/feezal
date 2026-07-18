@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
 
 /**
@@ -416,10 +417,10 @@ class FeezalElementSystemNotificationInspector extends FeezalElement {
             <div class="section">
                 <div class="section-title">Trigger</div>
                 <div class="row">
-                    <sl-input label="subscribe" size="small" autocomplete="off"
+                    <feezal-topic-input label="subscribe" size="small"
                         .value=${el.subscribe || ''}
                         @sl-change=${e => this._set('subscribe', e.target.value)}>
-                    </sl-input>
+                    </feezal-topic-input>
                 </div>
                 <div class="row">
                     <sl-input label="message-property" size="small" autocomplete="off"

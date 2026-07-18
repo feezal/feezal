@@ -1,6 +1,6 @@
 {
     "name": "@feezal/feezal-element-basic-svg",
-    "version": "3.0.0",
+    "version": "3.0.1",
     "main": "feezal-element-basic-svg.js",
     "license": "MIT"
 }

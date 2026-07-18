@@ -440,7 +440,7 @@ describe('metro-light inspector (N6)', () => {
     it('topic edits write through the attribute protocol', async () => {
         const light = document.createElement('feezal-element-metro-light');
         const inspector = await mountInspector(light);
-        const stateInput = inspector.shadowRoot.querySelector('sl-tab-panel[name=topics] sl-input');
+        const stateInput = inspector.shadowRoot.querySelector('sl-tab-panel[name=topics] feezal-topic-input');
         stateInput.value = 'stat/lamp';
         stateInput.dispatchEvent(new CustomEvent('sl-change'));
         expect(light.getAttribute('subscribe-state')).toBe('stat/lamp');

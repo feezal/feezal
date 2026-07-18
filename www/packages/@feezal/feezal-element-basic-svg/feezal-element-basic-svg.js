@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
 import {unsafeHTML} from 'lit/directives/unsafe-html.js';
 import DOMPurify from 'dompurify';
@@ -550,10 +551,10 @@ class FeezalElementBasicSvgInspector extends LitElement {
                     </sl-input>
                     <button class="del" title="Remove binding" @click=${() => { this._rows.splice(i, 1); this._commitRows(); }}>✕</button>
                 </div>
-                <sl-input size="small" autocomplete="off" placeholder="subscribe topic"
-                    .value=${row.subscribe || ''}
+                <feezal-topic-input size="small" placeholder="subscribe topic"
+                    value=${row.subscribe || ''}
                     @sl-change=${e => this._patch(i, {subscribe: e.target.value})}>
-                </sl-input>
+                </feezal-topic-input>
                 <div class="pair">
                     <sl-select size="small" .value=${TARGETS.includes(row.target) ? row.target : 'fill'}
                         @sl-change=${e => this._patch(i, {target: e.target.value})}>
@@ -605,10 +606,10 @@ class FeezalElementBasicSvgInspector extends LitElement {
                     </sl-input>` : ''}
 
                 <div class="pair">
-                    <sl-input size="small" autocomplete="off" placeholder="publish on click (optional)"
-                        .value=${row.publish || ''}
+                    <feezal-topic-input size="small" placeholder="publish on click (optional)"
+                        value=${row.publish || ''}
                         @sl-change=${e => this._patch(i, {publish: e.target.value})}>
-                    </sl-input>
+                    </feezal-topic-input>
                     <sl-input size="small" autocomplete="off" placeholder="click payload"
                         .value=${row.payload ?? ''}
                         @sl-change=${e => this._patch(i, {payload: e.target.value})}>

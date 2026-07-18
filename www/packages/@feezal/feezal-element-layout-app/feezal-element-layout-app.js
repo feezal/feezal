@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
 import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/select/select.js';
@@ -353,7 +354,7 @@ class FeezalElementLayoutAppInspector extends LitElement {
                     <div class="field"><label>Title</label>
                         <input .value="${this._attr('title')}" @change="${e => this._emit('title', e.target.value)}"></div>
                     <div class="field"><label>Subscribe title (MQTT)</label>
-                        <input .value="${this._attr('subscribe-title')}" placeholder="mqtt/topic" @change="${e => this._emit('subscribe-title', e.target.value)}"></div>
+                        <feezal-topic-input size="small" value="${this._attr('subscribe-title')}" placeholder="mqtt/topic" @sl-change="${e => this._emit('subscribe-title', e.target.value)}"></feezal-topic-input></div>
                     <label style="display:flex;align-items:center;gap:8px;font-size:11px">
                         <sl-switch size="small" ?checked="${this.element.hasAttribute('hide-header')}"
                             @sl-change="${e => this._emit('hide-header', e.target.checked)}"></sl-switch>
@@ -400,7 +401,7 @@ class FeezalElementLayoutAppInspector extends LitElement {
                                 <div class="field"><label>icon</label>
                                     <feezal-icon-input .value="${a.icon ?? ''}" placeholder="e.g. refresh"
                                         @feezal-change="${e => { e.stopPropagation(); this._setAct(i, 'icon', e.detail.value); }}"></feezal-icon-input></div>
-                                <div class="field"><label>publish topic</label><input .value="${a.publish ?? ''}" placeholder="mqtt/topic" @change="${e => this._setAct(i, 'publish', e.target.value)}"></div>
+                                <div class="field"><label>publish topic</label><feezal-topic-input size="small" value="${a.publish ?? ''}" placeholder="mqtt/topic" @sl-change="${e => this._setAct(i, 'publish', e.target.value)}"></feezal-topic-input></div>
                                 <div class="field"><label>payload</label><input .value="${a.payload ?? ''}" @change="${e => this._setAct(i, 'payload', e.target.value)}"></div>
                                 <button class="ib danger" title="Remove" @click="${() => this._removeAct(i)}">&times;</button>
                             </div>

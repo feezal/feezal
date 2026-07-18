@@ -8,7 +8,6 @@ Work in progress — priorities and scope are not final.
 
 **Bugs**
 - [B8 — Elements cannot be dragged to the far edge of an oversized view](#b8--elements-cannot-be-dragged-to-the-far-edge-of-an-oversized-view-questionable) ❓
-- [B28 — MQTT topic autocompletion missing in custom inspectors](#b28--mqtt-topic-autocompletion-missing-in-custom-inspectors)
 - [B29 — device-climate: circle-slider geometry differs from device-light](#b29--device-climate-circle-slider-geometry-differs-from-device-light)
 - [B30 — View names with umlauts (e.g. "Küche") cannot be opened](#b30--view-names-with-umlauts-eg-küche-cannot-be-opened)
 - [B31 — basic-template: template content lost on copy/cut/paste and duplicate](#b31--basic-template-template-content-lost-on-copycutpaste-and-duplicate)
@@ -124,14 +123,6 @@ const restrict = {
 This handles all combinations: fixed×fixed, fixed×auto, auto×auto.
 
 **Related issue — snapping helper lines misplaced when an oversized view is scrolled:** if the view canvas is wider/taller than the viewport and `#container-view` is scrolled (e.g. scrolled right), the element-snap helper lines (`#vsnap1`/`#vsnap2`/`#hsnap1`/`#hsnap2`) render at the wrong position — offset by roughly the scroll amount. Likely the same class of bug as the drag-restrict issue above: `_snap()` in [feezal-sidebar-inspector.js](www/src/feezal-sidebar-inspector.js) computes target positions (`tx`, `tr`, `ty`, `tb`) relative to `view.getBoundingClientRect()` / `cvRect` (viewport-clipped, scroll-dependent coordinates), then writes them directly as the `left`/`top` CSS of snap-line elements positioned inside `#container-view`. If those snap lines don't scroll together with the canvas content (i.e. they're pinned to the visible viewport rather than the scrolled canvas), the coordinate systems mismatch by the scroll offset. Needs the same fix approach as B8: either make the snap lines scroll with the canvas content, or convert the computed positions into `#container-view`-relative (viewport) coordinates that account for its current `scrollLeft`/`scrollTop` before assigning them as CSS `left`/`top`.
-
-### B28 — MQTT topic autocompletion missing in custom inspectors
-
-The generic attribute inspector provides autocompletion for every `mqttTopic` field ([feezal-sidebar-inspector-attributes.js](www/src/feezal-sidebar-inspector-attributes.js), "MQTT topic autocomplete" section), but **custom inspectors (N6/§3.8) render their own plain inputs without it**. Every topic field, everywhere, should offer autocompletion.
-
-**Audit all elements with custom inspectors** and wire up autocomplete on each of their topic fields. Elements with custom inspectors in this repo (grep for the inspector hook): `basic-qrcode`, `basic-svg`, `glass-light`, `glass-shutter`, `layout-app`, `layout-flex`, `layout-responsive`, `material-climate`, `material-cover`, `material-dialog`, `material-dialog-view`, `material-light`, `material-navbar`, `metro-light`, `system-notification`, `system-script` — plus custom inspectors in the external element-family repos.
-
-**Preferred fix:** extract the inspector's topic-autocomplete input into a shared, reusable component that custom inspectors can drop in (and document it in `docs/element-spec.md` §3.8), rather than duplicating the autocomplete wiring per element.
 
 ### B29 — device-climate: circle-slider geometry differs from device-light
 

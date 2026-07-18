@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
 import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/select/select.js';
@@ -375,7 +376,7 @@ class FeezalElementMaterialNavbarInspector extends LitElement {
                     </div>
                     <div class="field">
                         <label>badge topic</label>
-                        <input .value="${it['subscribe-badge'] ?? ''}" placeholder="mqtt/topic" @change="${e => this._set(i, 'subscribe-badge', e.target.value)}">
+                        <feezal-topic-input size="small" .value="${it['subscribe-badge'] ?? ''}" placeholder="mqtt/topic" @sl-change="${e => this._set(i, 'subscribe-badge', e.target.value)}"></feezal-topic-input>
                     </div>
                 </div>
             </div>`;

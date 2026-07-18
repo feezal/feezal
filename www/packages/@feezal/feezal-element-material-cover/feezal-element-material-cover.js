@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import '@feezal/feezal-element/feezal-topic-input.js';
 import {svg, LitElement} from 'lit';
 import '@material/web/iconbutton/icon-button.js';
 import '@material/web/slider/slider.js';
@@ -717,10 +718,10 @@ class FeezalElementMaterialCoverInspector extends LitElement {
         return html`
             <div class="field">
                 <label>${t.label}</label>
-                <sl-input size="small" autocomplete="off"
+                <feezal-topic-input size="small"
                     placeholder="${t.placeholder ?? 'mqtt/topic'}"
                     value="${this._val(t.attr)}"
-                    @sl-change="${e => this._onInput(t.attr, e)}"></sl-input>
+                    @sl-change="${e => this._onInput(t.attr, e)}"></feezal-topic-input>
             </div>`;
     }
 

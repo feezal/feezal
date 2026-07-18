@@ -278,6 +278,23 @@ this.dispatchEvent(new CustomEvent('feezal-attribute-changed', {
 
 See §8.3 for custom inspector design guidelines.
 
+#### Topic fields: use `feezal-topic-input` (B28)
+
+Every MQTT-topic field in a custom inspector must offer the same server-backed autocompletion as the generic attribute inspector. Don't wire that up per element — use the shared component from the base package:
+
+```js
+import '@feezal/feezal-element/feezal-topic-input.js';
+```
+
+```js
+html`<feezal-topic-input size="small" label="Subscribe"
+    placeholder="mqtt/topic"
+    value="${this._val('subscribe')}"
+    @sl-change="${e => this._emit('subscribe', e.target.value)}"></feezal-topic-input>`
+```
+
+It wraps an `sl-input` and adds the completion dropdown (debounced fetch of `/api/topics/completions`, arrow-key navigation, Enter to pick, descend on intermediate `topic/` completions, Escape/Tab to dismiss). `value` is kept in sync and composed `sl-input`/`sl-change` events are re-emitted, so handlers reading `e.target.value` work exactly as with a plain `sl-input`. Pass `label` for an sl-input label, or keep rendering your own `<label>` above it and omit the attribute.
+
 ---
 
 ## 4. MQTT topic binding

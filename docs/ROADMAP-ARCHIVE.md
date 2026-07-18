@@ -2,6 +2,12 @@
 
 ## Bugs
 
+### B28 — MQTT topic autocompletion missing in custom inspectors ✅ fixed
+
+Custom (N6) inspectors rendered plain inputs without the topic autocompletion the generic attribute inspector has. Fixed via the preferred approach: a shared, reusable **`feezal-topic-input`** component in `@feezal/feezal-element` (documented in `docs/element-spec.md` §3.8) — wraps an `sl-input`, adds the completion dropdown (debounced `/api/topics/completions` fetch, arrow-key navigation, Enter to pick, descend on intermediate `topic/` completions, Escape/Tab dismiss), keeps `value` in sync and re-emits composed `sl-input`/`sl-change` so existing `e.target.value` handlers work unchanged.
+
+Wired into every custom inspector with topic fields: `glass-light`, `glass-shutter`, `metro-light`, `material-climate`, `material-cover`, `material-light`, `material-dialog`, `material-dialog-view`, `material-navbar` (per-item badge topic), `system-notification`, `basic-qrcode`, `basic-svg` (binding rows), `layout-app` (subscribe-title + per-action publish). Audited and confirmed no topic fields: `layout-flex`, `layout-responsive`, `system-script`. External element-family repos need the same treatment separately.
+
 ### B27 — device-contact: tristate window (tilt) state missing *(regression)* ✅ fixed
 
 `device-contact` is `material-contact` (Device palette category). The tristate state machine itself was present and correct (`payload-tilted`, `'tilted'` state, handle lever up, `--feezal-contact-tilt-color`) — the actual regression was the missing **live-canvas subscription rewire**: unlike `glass-contact`, `material-contact` wired its subscriptions only once in `connectedCallback`, so topics/payloads configured via the inspector after placement never took effect until a full reload — presenting as "tilt doesn't work" while the glass sibling (with identical config) did. Fixed by porting the glass family's `_wireSignature()`/`_wireSubscriptions()` rewire pattern. Regression tests added: Homematic numeric 0/1/2 tristate incl. the lever drawn in tilt position, and the rewire path.

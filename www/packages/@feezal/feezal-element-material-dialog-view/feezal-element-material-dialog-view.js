@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import '@feezal/feezal-element/feezal-topic-input.js';
 import {render} from 'lit';
 
 /**
@@ -612,10 +613,10 @@ class FeezalElementMaterialDialogViewInspector extends FeezalElement {
             <div class="section">
                 <div class="section-title">Trigger</div>
                 <div class="row">
-                    <sl-input label="subscribe" size="small" autocomplete="off"
+                    <feezal-topic-input label="subscribe" size="small"
                         .value=${el.subscribe || ''}
                         @sl-change=${e => this._set('subscribe', e.target.value)}>
-                    </sl-input>
+                    </feezal-topic-input>
                 </div>
                 <div class="row half-row">
                     <sl-input label="payload-open" size="small" autocomplete="off"
@@ -638,10 +639,10 @@ class FeezalElementMaterialDialogViewInspector extends FeezalElement {
                     </sl-input>
                 </div>
                 <div class="row half-row">
-                    <sl-input label="ok-publish" size="small" autocomplete="off"
+                    <feezal-topic-input label="ok-publish" size="small"
                         .value=${el.okPublish || ''}
                         @sl-change=${e => this._set('ok-publish', e.target.value)}>
-                    </sl-input>
+                    </feezal-topic-input>
                     <sl-input label="ok-payload" size="small" autocomplete="off"
                         .value=${el.okPayload || ''}
                         @sl-change=${e => this._set('ok-payload', e.target.value)}>
@@ -658,10 +659,10 @@ class FeezalElementMaterialDialogViewInspector extends FeezalElement {
                     </sl-input>
                 </div>
                 <div class="row half-row">
-                    <sl-input label="cancel-publish" size="small" autocomplete="off"
+                    <feezal-topic-input label="cancel-publish" size="small"
                         .value=${el.cancelPublish || ''}
                         @sl-change=${e => this._set('cancel-publish', e.target.value)}>
-                    </sl-input>
+                    </feezal-topic-input>
                     <sl-input label="cancel-payload" size="small" autocomplete="off"
                         .value=${el.cancelPayload || ''}
                         @sl-change=${e => this._set('cancel-payload', e.target.value)}>

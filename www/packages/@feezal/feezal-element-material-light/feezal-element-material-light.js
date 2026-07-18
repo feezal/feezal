@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import '@feezal/feezal-element/feezal-topic-input.js';
 import {svg, LitElement} from 'lit';
 import '@material/web/slider/slider.js';
 
@@ -1187,8 +1188,8 @@ class FeezalElementMaterialLightInspector extends LitElement {
         return html`
             <div class="field">
                 <label>${t.label}</label>
-                <sl-input size="small" autocomplete="off" placeholder="${t.placeholder ?? 'mqtt/topic'}" value="${this._val(t.attr)}"
-                    @sl-change="${e => this._onInput(t.attr, e)}"></sl-input>
+                <feezal-topic-input size="small" placeholder="${t.placeholder ?? 'mqtt/topic'}" value="${this._val(t.attr)}"
+                    @sl-change="${e => this._onInput(t.attr, e)}"></feezal-topic-input>
             </div>`;
     }
 
@@ -1375,8 +1376,8 @@ class FeezalElementMaterialLightInspector extends LitElement {
                 <div class="sec-body">
                     <div class="field">
                         <label>Subscribe</label>
-                        <sl-input size="small" autocomplete="off" placeholder="…/availability" value="${this._val('subscribe-availability')}"
-                            @sl-change="${e => this._onInput('subscribe-availability', e)}"></sl-input>
+                        <feezal-topic-input size="small" placeholder="…/availability" value="${this._val('subscribe-availability')}"
+                            @sl-change="${e => this._onInput('subscribe-availability', e)}"></feezal-topic-input>
                     </div>
                     <div class="row">
                         <div class="field">
