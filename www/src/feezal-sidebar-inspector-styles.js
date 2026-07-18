@@ -4,9 +4,29 @@ import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/select/select.js';
 import '@shoelace-style/shoelace/dist/components/option/option.js';
 import {LIVE_APPLY_DEBOUNCE_MS} from './feezal-sidebar-inspector-attributes.js';
+// N34: built-in per-property style editors (editor bundle only — the viewer
+// never loads the inspector, so declaring an editor tag in a viewer-bundled
+// descriptor is just a string there).
+import './feezal-style-editor-background.js';
 
 /** Properties managed by the editor internals — must not be exposed for user editing. */
 const EDITOR_RESERVED_PROPS = new Set(['cursor', 'z-index', 'transform']);
+
+/**
+ * N34: identity of a `styles` descriptor entry — plain property name, or the
+ * virtual group id of a custom style-editor entry ({group, editor, …}).
+ */
+const styleKey = p => typeof p === 'string' ? p : (p.property ?? (p.group && `group:${p.group}`));
+
+/**
+ * N34: the CSS longhands a group entry covers. An explicit `covers: [...]`
+ * on the descriptor wins; otherwise the editor component declares them via
+ * `static covers = [...]` on its class.
+ */
+function groupCovers(entry) {
+    if (Array.isArray(entry.covers)) return entry.covers;
+    return window.customElements.get(entry.editor)?.covers ?? [];
+}
 
 /** Curated list of common CSS property names for the 'Add property' autocomplete. */
 const CSS_PROP_NAMES = [
@@ -162,6 +182,14 @@ class FeezalSidebarInspectorStyles extends LitElement {
         .field.mixed sl-input::part(base),
         .field.mixed sl-select::part(combobox) { opacity: 0.75; }
 
+        /* ── N34: custom style-group editor host ───────────────────── */
+        .group-field { margin-top: 4px; }
+        .group-label {
+            font-size: var(--sl-input-label-font-size-small, 13px);
+            color: var(--sl-input-label-color, inherit);
+            margin-bottom: 4px;
+        }
+
         /* ── Classes selector ───────────────────────────────────────── */
         .classes-wrap { margin-top: 10px; border-top: 1px solid var(--feezal-border, #ddd); padding-top: 10px; }
         .classes-header { font-size: 11px; color: var(--feezal-color, #666); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
@@ -214,6 +242,53 @@ class FeezalSidebarInspectorStyles extends LitElement {
             // Re-collect vars when a new element is selected (theme may have changed)
             this._collectCssVars();
         }
+        this._syncGroupEditors();
+    }
+
+    // ── N34: custom style-group editors ───────────────────────────────────
+
+    /**
+     * Mount the declared group-editor widgets into their hosts (mirror of the
+     * N6 custom-inspector sync): the widget receives the selection via
+     * `.elements` (and `.element` = primary) and emits `feezal-style-changed`
+     * events the inspector applies.
+     */
+    _syncGroupEditors() {
+        for (const host of this.shadowRoot?.querySelectorAll('.group-editor-host') ?? []) {
+            const item = this.items.find(it => it.group === host.dataset.group);
+            if (!item?.editor) { host.innerHTML = ''; continue; }
+            let editor = host.firstElementChild;
+            if (!editor || editor.localName !== item.editor) {
+                host.innerHTML = '';
+                editor = document.createElement(item.editor);
+                host.appendChild(editor);
+            }
+            if (editor.elements !== this.selectedElems) {
+                editor.elements = this.selectedElems;
+                editor.element = this.selectedElems[0] ?? null;
+            }
+        }
+    }
+
+    /**
+     * A group editor changed a longhand family: detail.props maps CSS property
+     * → value (null/'' removes). Applied to every selected element atomically,
+     * one history checkpoint.
+     */
+    _onGroupStyleChanged(e) {
+        const props = e.detail?.props;
+        if (!props) return;
+        e.stopPropagation();
+        this.selectedElems.forEach(el => {
+            for (const [prop, value] of Object.entries(props)) {
+                if (value === null || value === undefined || value === '') {
+                    el.style.removeProperty(prop);
+                } else {
+                    el.style.setProperty(prop, value);
+                }
+            }
+        });
+        feezal.app.change();
     }
 
     render() {
@@ -221,7 +296,13 @@ class FeezalSidebarInspectorStyles extends LitElement {
         const {top, left, width} = this._varPos;
         return html`
             <div class="fields-wrap">
-            ${this.items.map((item, idx) => { const colorHex = item.color ? this._toColorHex(item) : ''; return html`
+            ${this.items.map((item, idx) => { if (item.group) return html`
+                <div class="field group-field">
+                    <div class="group-label">${item.label || item.group}</div>
+                    <div class="group-editor-host" data-group="${item.group}"
+                        @feezal-style-changed="${e => this._onGroupStyleChanged(e)}"></div>
+                </div>
+            `; const colorHex = item.color ? this._toColorHex(item) : ''; return html`
                 ${item.custom && (idx === 0 || !this.items[idx - 1].custom) ? html`
                     <div class="custom-sep"></div>
                 ` : ''}
@@ -524,8 +605,17 @@ class FeezalSidebarInspectorStyles extends LitElement {
             return;
         }
 
+        // N34: out-of-band change to a covered longhand → tell the mounted
+        // group editor to re-read its element.
+        for (const host of this.shadowRoot?.querySelectorAll('.group-editor-host') ?? []) {
+            const item = this.items.find(it => it.group === host.dataset.group);
+            if (item?.covers?.some(p => changes.includes(p))) {
+                host.firstElementChild?.refresh?.();
+            }
+        }
+
         this.items = this.items.map(item => {
-            if (!changes.includes(item.property)) {
+            if (item.group || !changes.includes(item.property)) {
                 return item;
             }
 
@@ -554,16 +644,21 @@ class FeezalSidebarInspectorStyles extends LitElement {
         // For multi-select: intersect declared styles across all selected element classes.
         const allDeclared = this.options.styles || [];
         const filteredDeclared = this.selectedElems.length === 1 ? allDeclared : allDeclared.filter(prop => {
-            const propName = typeof prop === 'string' ? prop : prop.property;
+            const key = styleKey(prop);
             return this.selectedElems.every(e => {
                 const eName = e.name ? 'feezal-view' : e.localName;
                 const eCls = window.customElements.get(eName);
-                return (eCls?.feezal?.styles || []).some(s => (typeof s === 'string' ? s : s.property) === propName);
+                return (eCls?.feezal?.styles || []).some(s => styleKey(s) === key);
             });
         });
 
         const declaredItems = filteredDeclared.map(prop => {
             const property = typeof prop === 'string' ? {property: prop} : prop;
+            // N34: a {group, editor} entry renders a custom style editor
+            // widget instead of a value row — it owns a whole longhand family.
+            if (property.group) {
+                return {...property, covers: groupCovers(property), invalid: false};
+            }
             const propName = property.property;
             const vals = this.selectedElems.map(e => e.style.getPropertyValue(propName));
             const mixed = this.selectedElems.length > 1 && vals.some(v => v !== vals[0]);
@@ -581,7 +676,9 @@ class FeezalSidebarInspectorStyles extends LitElement {
 
         // Custom properties: union across all selected elements.
         // Mixed = not present on all elements, or present on all but with differing values.
-        const declaredSet = new Set(declaredItems.map(it => it.property));
+        // N34: longhands covered by a group editor are suppressed too — they are
+        // edited through the group widget, not as stray custom rows.
+        const declaredSet = new Set(declaredItems.flatMap(it => it.group ? it.covers : [it.property]));
         const customMap = new Map(); // propName → {values: string[], presentCount: number}
 
         for (const e of this.selectedElems) {
@@ -621,6 +718,11 @@ class FeezalSidebarInspectorStyles extends LitElement {
     }
     // ── Add custom CSS property ───────────────────────────────────────────────
 
+    /** N34: longhands owned by a mounted group editor (+ their shorthand). */
+    _coveredProps() {
+        return new Set(this.items.flatMap(it => it.group ? (it.covers || []) : []));
+    }
+
     _onAddPropInput(val) {
         this._addProp = val;
         const q = val.trim().toLowerCase();
@@ -629,7 +731,8 @@ class FeezalSidebarInspectorStyles extends LitElement {
             this._addPropCursor = -1;
             return;
         }
-        this._addPropList = CSS_PROP_NAMES.filter(p => p.includes(q) && !EDITOR_RESERVED_PROPS.has(p)).slice(0, 12);
+        const covered = this._coveredProps();
+        this._addPropList = CSS_PROP_NAMES.filter(p => p.includes(q) && !EDITOR_RESERVED_PROPS.has(p) && !covered.has(p)).slice(0, 12);
         this._addPropCursor = -1;
     }
 
@@ -660,7 +763,7 @@ class FeezalSidebarInspectorStyles extends LitElement {
 
     _commitAddProp(propName) {
         const prop = propName.trim().toLowerCase();
-        if (!prop || EDITOR_RESERVED_PROPS.has(prop)) return;
+        if (!prop || EDITOR_RESERVED_PROPS.has(prop) || this._coveredProps().has(prop)) return;
         // Don't duplicate an existing item
         if (this.items.some(it => it.property === prop)) {
             this._addProp = '';

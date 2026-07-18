@@ -201,6 +201,33 @@ Properties in `CSS_ENUMS` (display, flex-direction, align-items, etc.) are autom
 
 **Every element that has meaningful colours should expose those colours as `--feezal-*` descriptors here** (see §5.2 for the full pattern and naming conventions).
 
+#### Style groups — custom style editors (N34)
+
+A `styles` entry may declare a **virtual group** instead of a single property. The Style inspector then renders a custom editor widget in place of a value row — the CSS counterpart of the §3.8 custom attribute inspector:
+
+```js
+styles: ['top', 'left', 'width', 'height',
+    {group: 'background', editor: 'feezal-style-editor-background', label: 'Background'}]
+```
+
+- `group` — a virtual id, **not** a real CSS property. The entry owns a whole CSS longhand *family*.
+- `editor` — the custom-element tag the inspector mounts (`document.createElement(tag)`, exactly like §3.8). The widget receives the selection via `.elements` (primary element in `.element`) and should surface a "mixed" state on multi-select rather than silently showing the first element's values.
+- `label` — heading shown above the widget (defaults to the group id).
+- `covers` *(optional)* — the longhand properties the group owns. Usually omitted: the editor class declares them via `static covers = [...]`; an explicit descriptor list wins.
+
+The inspector **suppresses** the covered longhands everywhere else — they don't appear as stray custom-property rows and the "Add CSS property" field refuses them. The widget emits a **multi-property** change event applied atomically to every selected element (one history checkpoint):
+
+```js
+this.dispatchEvent(new CustomEvent('feezal-style-changed', {
+    detail: {props: {'background-image': "url('/a.jpg')", 'background-size': 'cover', 'background-color': null}},
+    bubbles: true, composed: true,
+}));   // null/'' removes the property
+```
+
+Only longhands should be written (never a shorthand) so the values round-trip cleanly back into the widget's fields on re-select. When the inspector detects an out-of-band change to a covered longhand it calls the widget's optional `refresh()` method.
+
+**First consumer:** `feezal-view` declares the `background` group; `feezal-style-editor-background` (editor bundle, `www/src/`) renders a unified Background editor with the modes None / Solid colour / Image (size/repeat/3×3 position anchors) / Gradient (linear/radial builder with ordered colour stops and live preview). Built-in group editors are authoring UI and live in `www/src/` — an element package may also ship its own editor tag (it resolves through `customElements` just like §3.8 inspectors).
+
 ### 3.4 `description` and `links`
 
 Optional element-level documentation shown in a collapsible **Help** panel at the bottom of the Attributes inspector:

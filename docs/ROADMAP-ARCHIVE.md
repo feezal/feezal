@@ -241,6 +241,34 @@ The glass-wled details popup renders its **effect / palette / preset** selectors
 
 ## Near-term Improvements
 
+### N34 — Custom CSS/style editors (N6-analog) + rich view Background editor ✅ implemented
+
+Two linked ideas: a **general mechanism** for custom style-property editors (the CSS counterpart of N6 custom attribute inspectors), and its **first consumer** — a comfortable Background editor for views (image handling + gradients) instead of typing raw CSS into the style inspector.
+
+**Design decided (07/2026):**
+
+**1. Per-property custom editors** *(not whole-panel — that's a later use case).* A `feezal().styles` descriptor entry may carry an `editor` tag; the style inspector ([feezal-sidebar-inspector-styles.js](www/src/feezal-sidebar-inspector-styles.js)) renders that custom widget **in place of the default row** for that entry, composing with the normal style list (`top`/`left`/`width`/`height` stay ordinary rows, `background` becomes the rich editor). Mount/contract mirror N6 exactly: the widget receives the selected element as a `.element` (or `.elements` for multi-select — see below) property and emits change events the inspector applies; the whole-panel `styleInspector` takeover (full N6 mirror, for future **per-element custom style inspectors**) is deliberately deferred until a concrete element needs it.
+
+**2. The editor owns a CSS longhand *family*, not one property** *(the key difference from N6's single-attribute contract).* The descriptor entry is a **virtual group id**, not a real CSS property:
+```js
+styles: ['top', 'left', 'width', 'height',
+    {group: 'background', editor: 'feezal-style-editor-background', label: 'Background'}]
+```
+The editor reads and writes the whole `background-image` / `background-size` / `background-repeat` / `background-position` / `background-color` family together and emits a **multi-property** change event (e.g. `feezal-style-changed` with `{props: {'background-image': "…", 'background-size': 'cover', …}}`, empty/null value = remove) applied atomically; the inspector **suppresses the individual longhand rows** the group covers so they don't show up twice (or as stray "custom properties"). No `background` shorthand is written — longhands round-trip cleanly back into the editor's fields on re-select. *(Gradients live inside `background-image`, so they're part of this same family.)*
+
+**3. One unified Background editor** with modes: **None / Solid colour / Image / Gradient**.
+- **Solid** → `background-color`.
+- **Image** → `background-image: url(...)` plus comfortable controls for `background-size` (cover / contain / auto / custom), `background-repeat` (no-repeat / repeat / repeat-x / repeat-y) and `background-position` (a 3×3 anchor grid + custom). Image picked from the Asset Manager (ties into N33 — "Set as background" opens/populates this editor).
+- **Gradient** → a builder (linear / radial, angle/shape, an ordered list of colour stops with add/remove/drag) serialising to a `linear-gradient()` / `radial-gradient()` string written into `background-image`, with a live preview swatch.
+
+**4. Bundling — editor-only.** These editor components are authoring UI: they run only in the editor, and only the *authored inline style* travels with the saved/exported view (never the widget). So the built-in view editors live in `www/src/` (editor bundle) and are registered there — NOT in an `@feezal/*` element package (which bundle into the viewer/export). The generic hook is still `document.createElement(tag)` like N6, so the *future* per-element case can ship its editor inside its element package if it ever wants one.
+
+**5. Multi-select.** The style inspector already intersects declared styles across a multi-selection and shows "mixed". A custom style editor should receive the selection (primary element for reads; emitted writes applied to all selected, matching how `_onCustomAttrChanged` fans out to every `selectedElems`) and surface a "mixed" state rather than silently showing the first element's value. For the view-background case a single view is the norm, but the mechanism shouldn't break on multi-select.
+
+**Open/at-implementation:** exact event name + payload shape (`feezal-style-changed {props}` vs reusing the attribute event family); how the inspector learns which longhands a group "covers" (explicit `covers: [...]` list in the descriptor vs. the editor declaring them); `element-spec.md` §3.8/§5 documentation of the new descriptor field; whether the "Add CSS property" free-form field should refuse to re-add a grouped longhand.
+
+**Relates:** N6 (custom attribute inspectors — the exact pattern this mirrors for CSS; element-spec §3.8), N33 (asset-manager "Set as background" — should route *into* this editor), U39 (attribute-inspector restructuring — same "richer, structured inspector" push; keep the two coherent), feezal-view (first consumer — its `styles` descriptor gains the `background` group entry), element-spec §5 (CSS custom-property conventions — where the new `styles` descriptor field is spec'd).
+
 ### N33 — Asset manager: "Set as background" context action for images ✅ implemented
 
 The Asset Manager's right-click menu ([feezal-sidebar-assets.js](www/src/feezal-sidebar-assets.js), the `.ctx-menu` block — Rename / Copy path / Set as PWA icon / Move-Copy to site-global / Delete) should let an image be applied as a view background directly, without hand-typing the URL into the style inspector.

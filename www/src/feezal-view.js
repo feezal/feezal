@@ -44,7 +44,13 @@ class FeezalView extends LitElement {
                     dropdown: ['absolute', 'static']
                 }
             ],
-            styles: ['width', 'height', 'background']
+            // N34: `background` is a style GROUP — the editor renders the rich
+            // Background editor (None/Solid/Image/Gradient) in place of a raw
+            // value row; the widget owns the whole background-* longhand family
+            // (covers declared on the editor class). Editor-only: the viewer
+            // never resolves the editor tag.
+            styles: ['width', 'height',
+                {group: 'background', editor: 'feezal-style-editor-background', label: 'Background'}]
         };
     }
 
