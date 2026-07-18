@@ -546,6 +546,30 @@ Elements now subscribe and render live in the editor exactly as in the viewer. T
 
 ## Element Ecosystem
 
+### E103 — WLED elements (Device / Glass / Metro) ✅ MVP implemented
+
+New elements for **[WLED](https://github.com/wled/WLED)** — the very popular ESP32/ESP8266 addressable-LED firmware — across the three device-style families, matching the pattern already used for light/climate/contact/shutter: **`feezal-element-material-wled`** (palette category **Device** — note: the existing "device-*" family in this repo is the `material-*` packages under `category: 'Device'`, e.g. `material-light`/`material-cover`/`material-climate`; there is no separate `device-*` package prefix), **`feezal-element-glass-wled`**, and **`feezal-element-metro-wled`**.
+
+**WLED's MQTT contract** (device-configured base topic, default `wled/<name>`):
+- **Command:** `<base>/api` accepts the same JSON payload shape as WLED's HTTP `/json/state` API — `on`, `bri` (0–255), `transition`, `ps`/`pl` (preset/playlist recall), and a `seg` array for per-segment control. A legacy plain-string command form also exists on `<base>` itself (`ON`/`OFF`/`T`/`A128`/…) for simple on/off/brightness without JSON.
+- **State:** `<base>/g` (on/brightness, legacy compact string) and `<base>/c` (current colour hex) are published on change; **availability via LWT** — `<base>/status` retained `online`/`offline`.
+- **Segments** are WLED's standout feature and the main design challenge: each device can run **multiple independent LED segments**, each with its own effect (`fx`), speed (`sx`), intensity (`ix`), palette (`pal`), and up to 3 colours (`col`). This doesn't map onto the flat attribute model the other light elements use — it's a genuinely structural, per-entry-list config (see U39's guidance: exactly the case where a **custom inspector** — a segment list builder, N6-style — is warranted rather than forcing it into flat attributes).
+- **Effect/palette names are not discoverable over MQTT** — WLED exposes the effect/palette name lists only via its HTTP JSON API (`/json/effects`, `/json/palettes`), not MQTT. Options: ship a static bundled list (the built-in effect/palette names are large but fairly stable across WLED releases, with room for custom/compiled-in extras to fall back to numeric IDs), or have the server fetch them from the device's HTTP API at pairing time (extra dependency: requires network access to the device, not just the broker — bigger architectural step, mirrors the "MQTT-only vs. hybrid" tension seen in E62's broker-introspection notes).
+
+**Proposed scope — MVP vs. later tier:**
+- **MVP (single-segment / whole-strip control):** reuses material-light's proven shape — on/off, brightness, RGB colour, one active effect + one active palette selector (from the static bundled list) — published as a single JSON payload to `<base>/api`. Covers the common "one WLED strip = one light" case with the least new machinery.
+- **Later tier:** full segment list (custom inspector), preset/playlist recall buttons, per-segment live preview.
+
+**Family split:** Device/Glass/Metro share the identical MQTT contract (mirrors how glass-light/material-light already share theirs) — only the chrome differs: Device (material) gets the full brightness-ring/colour-wheel/effect-selector treatment consistent with material-light; Glass gets the frosted Apple-Home-style card; Metro gets the flat tile styling consistent with metro-light. Segment editing (later tier) is most naturally a Device/Glass feature — Metro's flat/simple aesthetic likely stays MVP-only (single segment), matching how Metro already omits some of Material's richer controls elsewhere in the light family.
+
+**Relates:** material-light (attribute/contract template for MVP scope), glass-light / metro-light (sibling chrome), N31 (availability via LWT retained topic — a clean fit for the base-class approach), U39 (segment list = the textbook case for a custom inspector over flat attributes), E62 (same MQTT-only-vs-device-HTTP tension around discovering effect/palette names).
+
+## Editor UX
+
+
+> **MVP implemented 07/2026:** all three packages with an identical single-segment contract - <topic>/g + /c state, /json/state-shaped commands to <topic>/api (on/bri/seg.col/seg.fx/seg.pal, optional transition), bundled WLED 0.14 effect (118) + palette (71) name lists with numeric fallback beyond, availability auto-derived from <topic>/status via the N31 base (user override wins), live topic rewire, editor guards. Family chrome: material control card, glass tap-toggle + details popup, metro flip tile. 14 browser tests. Later tier (segment list custom inspector, preset/playlist recall) stays open - tracked implicitly via U39/the item history in this archive entry.
+
+
 ### E105 — Glass cards: horizontal layout on wide-flat resize (icon left, content right) ✅ implemented
 
 The Glass family cards (`glass-light`, `glass-switch`, `glass-contact`, `glass-sensor`, `glass-shutter`, `glass-climate`, `glass-button`, `glass-occupancy`, `glass-media`, `glass-room`) stack their content vertically — icon on top, state/label below — regardless of the element's shape. When a card is resized to be **much wider than tall** (e.g. a full-width room strip), that layout wastes the width and squeezes the type: the card should switch to a **horizontal layout — icon on the left, state/label right of it** — exactly what Apple Home does for its wide tiles (the family's design reference).

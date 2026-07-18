@@ -54,7 +54,6 @@ Work in progress — priorities and scope are not final.
 - [E95 — Configurable keyboard shortcuts for interactive elements](#e95--configurable-keyboard-shortcuts-for-interactive-elements)
 - [E96 — MIDI input as an element trigger (Web MIDI)](#e96--midi-input-as-an-element-trigger-web-midi-️-questionable-future) ❓
 - [E102 — Climate elements: boost mode, thermostat mode datapoint conventions, valve position](#e102--climate-elements-boost-mode-thermostat-mode-datapoint-conventions-valve-position-️-refined-072026--decisions-pending-do-not-implement-yet) ⚠️ *(refined 07/2026 — model agreed, not implemented)*
-- [E103 — WLED elements (Device / Glass / Metro)](#e103--wled-elements-device--glass--metro)
 
 **Editor UX**
 
@@ -878,26 +877,6 @@ Three related Homematic/HmIP gaps in the `*-climate` family (`glass-climate`, `m
 3. Inter-publish delay for multi-step writes (RedMatic staggers linked-device writes by 3 s — check whether sequential datapoint writes to the *same* device need any delay over MQTT or can fire back-to-back).
 
 **Relates:** B26 (min/max scaling pattern reused for `valve-min`/`valve-max`), B29 (shared slider geometry — the valve indicator follows it), U39 (inspector restructuring — mode-entry editing and profile stamping belong in that redesign, not in the flat attribute list), N31 (availability — same "shared contract, per-family rendering" shape), material-climate (reference implementation).
-
-### E103 — WLED elements (Device / Glass / Metro)
-
-New elements for **[WLED](https://github.com/wled/WLED)** — the very popular ESP32/ESP8266 addressable-LED firmware — across the three device-style families, matching the pattern already used for light/climate/contact/shutter: **`feezal-element-material-wled`** (palette category **Device** — note: the existing "device-*" family in this repo is the `material-*` packages under `category: 'Device'`, e.g. `material-light`/`material-cover`/`material-climate`; there is no separate `device-*` package prefix), **`feezal-element-glass-wled`**, and **`feezal-element-metro-wled`**.
-
-**WLED's MQTT contract** (device-configured base topic, default `wled/<name>`):
-- **Command:** `<base>/api` accepts the same JSON payload shape as WLED's HTTP `/json/state` API — `on`, `bri` (0–255), `transition`, `ps`/`pl` (preset/playlist recall), and a `seg` array for per-segment control. A legacy plain-string command form also exists on `<base>` itself (`ON`/`OFF`/`T`/`A128`/…) for simple on/off/brightness without JSON.
-- **State:** `<base>/g` (on/brightness, legacy compact string) and `<base>/c` (current colour hex) are published on change; **availability via LWT** — `<base>/status` retained `online`/`offline`.
-- **Segments** are WLED's standout feature and the main design challenge: each device can run **multiple independent LED segments**, each with its own effect (`fx`), speed (`sx`), intensity (`ix`), palette (`pal`), and up to 3 colours (`col`). This doesn't map onto the flat attribute model the other light elements use — it's a genuinely structural, per-entry-list config (see U39's guidance: exactly the case where a **custom inspector** — a segment list builder, N6-style — is warranted rather than forcing it into flat attributes).
-- **Effect/palette names are not discoverable over MQTT** — WLED exposes the effect/palette name lists only via its HTTP JSON API (`/json/effects`, `/json/palettes`), not MQTT. Options: ship a static bundled list (the built-in effect/palette names are large but fairly stable across WLED releases, with room for custom/compiled-in extras to fall back to numeric IDs), or have the server fetch them from the device's HTTP API at pairing time (extra dependency: requires network access to the device, not just the broker — bigger architectural step, mirrors the "MQTT-only vs. hybrid" tension seen in E62's broker-introspection notes).
-
-**Proposed scope — MVP vs. later tier:**
-- **MVP (single-segment / whole-strip control):** reuses material-light's proven shape — on/off, brightness, RGB colour, one active effect + one active palette selector (from the static bundled list) — published as a single JSON payload to `<base>/api`. Covers the common "one WLED strip = one light" case with the least new machinery.
-- **Later tier:** full segment list (custom inspector), preset/playlist recall buttons, per-segment live preview.
-
-**Family split:** Device/Glass/Metro share the identical MQTT contract (mirrors how glass-light/material-light already share theirs) — only the chrome differs: Device (material) gets the full brightness-ring/colour-wheel/effect-selector treatment consistent with material-light; Glass gets the frosted Apple-Home-style card; Metro gets the flat tile styling consistent with metro-light. Segment editing (later tier) is most naturally a Device/Glass feature — Metro's flat/simple aesthetic likely stays MVP-only (single segment), matching how Metro already omits some of Material's richer controls elsewhere in the light family.
-
-**Relates:** material-light (attribute/contract template for MVP scope), glass-light / metro-light (sibling chrome), N31 (availability via LWT retained topic — a clean fit for the base-class approach), U39 (segment list = the textbook case for a custom inspector over flat attributes), E62 (same MQTT-only-vs-device-HTTP tension around discovering effect/palette names).
-
-## Editor UX
 
 ### U3 — Element grouping and locking 🔽 partial
 - **Lock**: prevent an element from being accidentally moved/resized ✅. Locked elements show an amber dashed outline; interact drag/resize is disabled; lock/unlock is in the right-click context menu and the `locked` attribute is persisted with the dashboard HTML.
