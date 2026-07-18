@@ -40,6 +40,17 @@ describe('FilesystemStorage', () => {
             expect(html).toContain('<feezal-site subscribe="feezal/nonexistent/set" publish="feezal/nonexistent">');
         });
 
+        it('seeds the midnight-blue default theme for a never-saved site', async () => {
+            const {config} = await storage.getSite('brandnew');
+            expect(config.theme).toBe('feezal-theme-midnight-blue');
+        });
+
+        it('respects a stored config with no theme (not treated as new)', async () => {
+            await storage.saveSite('nothemesite', {html: '<feezal-site></feezal-site>', config: {connection: {}}});
+            const {config} = await storage.getSite('nothemesite');
+            expect(config.theme).toBeUndefined();
+        });
+
         it('omits default topics for names unsafe in topics/attributes', async () => {
             // Site names may contain quotes, spaces and MQTT wildcards — such
             // names get no default topics instead of broken ones.

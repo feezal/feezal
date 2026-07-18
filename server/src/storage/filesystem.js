@@ -110,7 +110,11 @@ class FilesystemStorage extends StorageAdapter {
             const raw = await fs.readFile(path.join(this._sitePath(name), CONFIG_FILE), 'utf8');
             config = JSON.parse(raw);
         } catch {
-            // No config yet
+            // No config file yet = a never-saved site: seed the default theme
+            // so a fresh install / new site opens themed instead of unstyled.
+            // Once saved, the stored config wins (an intentionally cleared
+            // theme is respected because the file then exists).
+            config = {theme: 'feezal-theme-midnight-blue'};
         }
 
         return {html, config};

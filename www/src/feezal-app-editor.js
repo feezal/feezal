@@ -713,8 +713,8 @@ class FeezalAppEditor extends LitElement {
         this._viewCtx         = null;
         this._actionMenuPos   = null;
         this._sidebarWidth    = parseInt(localStorage.getItem('sidebarWidth') ?? '350', 10);
-        // Dark mode: localStorage override or OS preference
-        this._themeMode = localStorage.getItem('themeMode') ?? 'os';
+        // Editor colour scheme: saved override, else dark by default (new users).
+        this._themeMode = localStorage.getItem('themeMode') ?? 'dark';
         this._darkMode = this._computeDark(this._themeMode);
         // Source view (N15)
         this._sourceMode  = false;
