@@ -61,7 +61,7 @@ describe('welcome tour (U37)', () => {
         expect(tour.shadowRoot.querySelector('.card h3').textContent).toBe(STEPS[0].title);
     });
 
-    it('Next/Back walk the steps; sidebar steps switch the tab', async () => {
+    it('Next/Back walk the steps; sidebar steps switch the tab (U41: theme before broker)', async () => {
         tour.start();
         await tour.updateComplete;
         tour._next();
@@ -71,21 +71,37 @@ describe('welcome tour (U37)', () => {
         expect(fakeEditor.sidebarVisible).toBe(true);
         expect(fakeEditor.sidebar).toBe('inspector');
         tour._next();
-        tour._next();  // step 4 → broker settings
+        tour._next();  // step 4 → theme (U41)
+        await tour.updateComplete;
+        expect(fakeEditor.sidebar).toBe('themes');
+        tour._next();  // step 5 → broker settings
         await tour.updateComplete;
         expect(fakeEditor.sidebar).toBe('viewer');
         tour._back();
         await tour.updateComplete;
-        expect(tour._step).toBe(3);
+        expect(tour._step).toBe(4);
     });
 
     it('non-interactive steps block clicks, interactive steps do not', async () => {
         tour.start();
         await tour.updateComplete;
         expect(tour.shadowRoot.querySelector('.click-catcher')).not.toBeNull();
-        tour._goto(4);  // broker step — interactive
+        tour._goto(STEPS.findIndex(s => s.id === 'broker'));
         await tour.updateComplete;
         expect(tour.shadowRoot.querySelector('.click-catcher')).toBeNull();
+    });
+
+    it('U41: the drop step targets the palette Template entry, falling back to the palette', async () => {
+        // Fake palette has no shadowRoot → the target falls back to #palette.
+        const dropStep = STEPS.find(s => s.id === 'drop-template');
+        expect(dropStep.target(fakeEditor)).toBe(targets['#palette']);
+    });
+
+    it('U41: broker step body does not tell the user to type a protocol prefix', () => {
+        const broker = STEPS.find(s => s.id === 'broker');
+        expect(broker.body).not.toContain('mqtt://');
+        expect(STEPS.findIndex(s => s.id === 'theme'))
+            .toBeLessThan(STEPS.findIndex(s => s.id === 'broker'));
     });
 
     it('Skip persists the seen-flag and hides the tour', async () => {

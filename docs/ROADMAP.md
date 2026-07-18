@@ -70,7 +70,6 @@ Work in progress — priorities and scope are not final.
 - [U38 — Topic browser sidebar panel](#u38--topic-browser-sidebar-panel)
 - [U39 — Attribute inspector UX for attribute-heavy elements](#u39--attribute-inspector-ux-for-attribute-heavy-elements-️-needs-discussion) ⚠️
 - [U40 — Drag-and-drop reordering for `position:static` views](#u40--drag-and-drop-reordering-for-positionstatic-views) 🔽 partial
-- [U41 — Welcome wizard improvements (theme step, finer spotlights, broker-text fix)](#u41--welcome-wizard-improvements-theme-step-finer-spotlights-broker-text-fix)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -1124,19 +1123,6 @@ Views with `child-position="static"` lay out their elements in normal document f
 Needs verification against current behaviour, then wiring `sortupdate` (or `sortstop`) to the same change/undo pipeline other mutations use.
 
 **Relates:** U33 (Cmd+`[`/`]` stacking-order reorder for absolute-position views — the equivalent affordance to keep consistent with).
-
-### U41 — Welcome wizard improvements (theme step, finer spotlights, broker-text fix)
-
-Refinements to the U37 first-run tour ([feezal-welcome-tour.js](www/src/feezal-welcome-tour.js)) from first real-use feedback:
-
-1. **Theme step before the MQTT step** — after the general orientation steps, show the user how to switch the theme: switch the sidebar to the **Theme** tab (`_setSidebar('themes')`), spotlight the theme list, and let them pick one (interactive step). Ordering: … → Deploy/View → **Theme** → MQTT broker → hands-on.
-2. **Spotlight the Template element in the palette** — the hands-on "drag a Template element" step currently spotlights the whole palette. Target the actual entry instead: palette entries carry `data-el="<tag>"`, so the step's `target()` can pierce into `feezal-palette`'s shadow root (`.element[data-el="feezal-element-basic-template"]`). Needs: the Basic category expanded/scrolled into view first (tour `prepare()` hook), and a fallback to the whole palette when the entry isn't visible (e.g. user typed a search filter).
-3. **Broker-step text fix** — the step says "enter your broker URI (e.g. mqtt://192.168.1.10)", but the connection panel has a **protocol dropdown** plus separate host/port fields — the `mqtt://` prefix is wrong/confusing. Reword to hostname-only (e.g. "enter your broker's hostname or IP, e.g. 192.168.1.10 — protocol and port have their own fields").
-4. **Finer spotlights in the broker step** (and generally in sidebar steps) — instead of dimming around the entire `#sidebar-panels`, guide with per-control spotlights: first the host field (pierce into `feezal-sidebar-viewer`'s shadow root), then the server↔broker **status indicator** so the user knows where to look for the connection feedback. Possibly as sub-steps that advance on input, mirroring the hands-on steps' event-driven progression.
-
-**Implementation notes:** the tour's `target()` functions already run arbitrary code, so shadow-piercing targets are straightforward; add a small `resolveInShadow(host, selector)` helper rather than chaining `shadowRoot` lookups per step. Update the U37 browser tests (step order, new theme step, palette-entry target incl. fallback) and the TESTING.md §3 "Welcome tour" checklist accordingly.
-
-**Relates:** U37 (the implemented tour — archived; this is its first refinement round), feezal-sidebar-themes (theme tab spotlighted in the new step), feezal-sidebar-viewer (broker fields/status indicator targets), feezal-palette (`data-el` entry targets).
 
 ## Architecture & Infrastructure
 

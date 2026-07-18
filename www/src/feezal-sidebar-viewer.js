@@ -436,7 +436,7 @@ class FeezalSidebarViewer extends LitElement {
                         </sl-select>
                     </div>
                     <div class="row">
-                        <sl-input label="Host" size="small" placeholder="localhost"
+                        <sl-input id="conn-host" label="Host" size="small" placeholder="localhost"
                             .value="${c._host || ''}"
                             @sl-change="${e => { this.connection = {...this.connection, _host: e.target.value}; this._buildUri(); this._applyConnection(); feezal.app.change(true); }}">
                         </sl-input>

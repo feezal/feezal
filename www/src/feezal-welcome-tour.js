@@ -29,6 +29,13 @@ import {LitElement, html, css} from 'lit';
  * Settings).
  */
 
+/** U41 — resolve a target inside another component's shadow root, falling
+ * back to the host (or an alternative) when the inner node isn't there. */
+function inShadow(root, hostSelector, innerSelector) {
+    const host = root.querySelector(hostSelector);
+    return host?.shadowRoot?.querySelector(innerSelector) ?? host;
+}
+
 const STEPS = [
     {
         id: 'palette',
@@ -57,19 +64,48 @@ const STEPS = [
         target: ed => ed.shadowRoot.querySelector('#btn-deploy-wrap'),
     },
     {
+        id: 'theme',
+        title: 'Pick a look',
+        body: 'Themes restyle the whole dashboard at once — every element follows the theme\'s colours and surfaces. Try one from the list now if you like; you can change it anytime later.',
+        target: ed => ed.shadowRoot.querySelector('#sidebar-panels'),
+        prepare: ed => { ed.sidebarVisible = true; ed._setSidebar('themes'); },
+        interactive: true,
+    },
+    {
         id: 'broker',
         title: 'Connect your MQTT broker',
-        body: 'Enter your broker URI (e.g. mqtt://192.168.1.10) and credentials here in the Site Settings → Connection tab. The status indicator shows immediately whether the server can reach the broker. You can do it now — the tour waits.',
-        target: ed => ed.shadowRoot.querySelector('#sidebar-panels'),
+        body: 'Enter your broker\'s hostname or IP here (e.g. 192.168.1.10) — protocol and port have their own fields, and credentials go below. You can do it now — the tour waits.',
+        target: ed => inShadow(ed.shadowRoot, 'feezal-sidebar-viewer', '#conn-host')
+            ?? ed.shadowRoot.querySelector('#sidebar-panels'),
+        prepare: ed => { ed.sidebarVisible = true; ed._setSidebar('viewer'); },
+        interactive: true,
+    },
+    {
+        id: 'broker-status',
+        title: 'Watch the connection status',
+        body: 'This indicator shows whether the feezal server reaches your broker — it turns green once the connection works (the settings apply on deploy). If it stays red, re-check host, port and credentials.',
+        target: ed => inShadow(ed.shadowRoot, 'feezal-sidebar-viewer', '.bridge-status')
+            ?? ed.shadowRoot.querySelector('#sidebar-panels'),
         prepare: ed => { ed.sidebarVisible = true; ed._setSidebar('viewer'); },
         interactive: true,
     },
     {
         id: 'drop-template',
         title: 'Try it: your first live element',
-        body: 'Find the Template element in the palette (Basic category — the search box helps) and drag it onto the canvas. The tour continues as soon as it lands.',
-        target: ed => ed.shadowRoot.querySelector('#palette'),
-        prepare: ed => { ed.paletteVisible = true; },
+        body: 'This is the Template element. Drag it onto the canvas — the tour continues as soon as it lands.',
+        target: ed => ed.shadowRoot.querySelector('#palette')?.shadowRoot
+            ?.querySelector('.element[data-el="feezal-element-basic-template"]')
+            ?? ed.shadowRoot.querySelector('#palette'),
+        prepare: ed => {
+            ed.paletteVisible = true;
+            const palette = ed.shadowRoot.querySelector('#palette');
+            // Expand the Basic category and bring the entry into view so the
+            // spotlight can sit on the actual Template tile.
+            if (palette?._collapsed?.has('Basic')) palette._toggleCategory('Basic');
+            requestAnimationFrame(() => palette?.shadowRoot
+                ?.querySelector('.element[data-el="feezal-element-basic-template"]')
+                ?.scrollIntoView({block: 'center'}));
+        },
         interactive: true,
         advance: 'drop',
     },
