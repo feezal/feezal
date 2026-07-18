@@ -58,6 +58,10 @@ file:// export all run automated on every change.)
 
 These shipped this cycle and were validated by build/unit tests **only** — give them a real click-through first.
 
+### Release notes grouping (A22) — verify on the next tag
+
+- [ ] Push the next release tag → the generated GitHub release body groups commits into **Features → Fixes → Docs → Chore** sections (Chore includes test/ci/refactor/build/style/perf; the `chore(release)` commit itself is absent); commits without a conventional prefix appear in a trailing **Other** section; empty sections are omitted; the Full-Changelog compare link and the Docker update instructions are unchanged.
+
 ### Mobile app project (A9 Tier 2a) — real build on a dev machine
 The export dialog, scaffold/README content and ZIP download are automated —
 the actual toolchain run is not:

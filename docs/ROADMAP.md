@@ -72,6 +72,7 @@ Work in progress — priorities and scope are not final.
 - [U38 — Topic browser sidebar panel](#u38--topic-browser-sidebar-panel)
 - [U39 — Attribute inspector UX for attribute-heavy elements](#u39--attribute-inspector-ux-for-attribute-heavy-elements-️-needs-discussion) ⚠️
 - [U40 — Drag-and-drop reordering for `position:static` views](#u40--drag-and-drop-reordering-for-positionstatic-views) 🔽 partial
+- [U41 — Welcome wizard improvements (theme step, finer spotlights, broker-text fix)](#u41--welcome-wizard-improvements-theme-step-finer-spotlights-broker-text-fix)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -81,7 +82,6 @@ Work in progress — priorities and scope are not final.
 - [A19 — Security model: multi-user / ACL story](#a19--security-model-multi-user--acl-story-needs-discussion) ⚠️
 - [A20 — Element/theme scaffolding and community ecosystem tooling](#a20--elementtheme-scaffolding-and-community-ecosystem-tooling)
 - [A21 — Accessibility: adopt the web-components Gold Standard for feezal elements](#a21--accessibility-adopt-the-web-components-gold-standard-for-feezal-elements)
-- [A22 — Release workflow: changelog grouped by category](#a22--release-workflow-changelog-grouped-by-category)
 
 
 ---
@@ -1147,6 +1147,19 @@ Needs verification against current behaviour, then wiring `sortupdate` (or `sort
 
 **Relates:** U33 (Cmd+`[`/`]` stacking-order reorder for absolute-position views — the equivalent affordance to keep consistent with).
 
+### U41 — Welcome wizard improvements (theme step, finer spotlights, broker-text fix)
+
+Refinements to the U37 first-run tour ([feezal-welcome-tour.js](www/src/feezal-welcome-tour.js)) from first real-use feedback:
+
+1. **Theme step before the MQTT step** — after the general orientation steps, show the user how to switch the theme: switch the sidebar to the **Theme** tab (`_setSidebar('themes')`), spotlight the theme list, and let them pick one (interactive step). Ordering: … → Deploy/View → **Theme** → MQTT broker → hands-on.
+2. **Spotlight the Template element in the palette** — the hands-on "drag a Template element" step currently spotlights the whole palette. Target the actual entry instead: palette entries carry `data-el="<tag>"`, so the step's `target()` can pierce into `feezal-palette`'s shadow root (`.element[data-el="feezal-element-basic-template"]`). Needs: the Basic category expanded/scrolled into view first (tour `prepare()` hook), and a fallback to the whole palette when the entry isn't visible (e.g. user typed a search filter).
+3. **Broker-step text fix** — the step says "enter your broker URI (e.g. mqtt://192.168.1.10)", but the connection panel has a **protocol dropdown** plus separate host/port fields — the `mqtt://` prefix is wrong/confusing. Reword to hostname-only (e.g. "enter your broker's hostname or IP, e.g. 192.168.1.10 — protocol and port have their own fields").
+4. **Finer spotlights in the broker step** (and generally in sidebar steps) — instead of dimming around the entire `#sidebar-panels`, guide with per-control spotlights: first the host field (pierce into `feezal-sidebar-viewer`'s shadow root), then the server↔broker **status indicator** so the user knows where to look for the connection feedback. Possibly as sub-steps that advance on input, mirroring the hands-on steps' event-driven progression.
+
+**Implementation notes:** the tour's `target()` functions already run arbitrary code, so shadow-piercing targets are straightforward; add a small `resolveInShadow(host, selector)` helper rather than chaining `shadowRoot` lookups per step. Update the U37 browser tests (step order, new theme step, palette-entry target incl. fallback) and the TESTING.md §3 "Welcome tour" checklist accordingly.
+
+**Relates:** U37 (the implemented tour — archived; this is its first refinement round), feezal-sidebar-themes (theme tab spotlighted in the new step), feezal-sidebar-viewer (broker fields/status indicator targets), feezal-palette (`data-el` entry targets).
+
 ## Architecture & Infrastructure
 
 ### A7 — Git versioning for data directory 🔨 in progress
@@ -1689,19 +1702,6 @@ Feezal's "widgets are plain npm packages" model is better infrastructure than vi
 - Consider **form-associated custom elements (`ElementInternals`)** for input-type elements so they participate properly where it matters.
 
 **Relates:** A20 (`eslint-plugin-lit-a11y` tooling — this is the "why"), B25 (accessible dialog header/focus), E79 (button state/disabled semantics), E80/E93 (keyboard nav & sliders), element-spec.md (where the checklist lives).
-
-### A22 — Release workflow: changelog grouped by category
-
-The release GitHub Action ([release-docker.yml](../.github/workflows/release-docker.yml), "Build release body" step) currently emits a **flat commit list** (`git log --pretty="- %s"`, chore commits filtered out entirely). Restructure the generated changelog into **sections ordered by category**:
-
-1. **Features** — `feat:` / `feat(scope):`
-2. **Fixes** — `fix:` / `fix(scope):`
-3. **Docs** — `docs:` / `docs(scope):`
-4. **Chore** — `chore:` (and remaining conventional types: `test:`, `ci:`, `refactor:`, `build:` — decide whether they get their own buckets or fold into Chore) — **at the end, no longer dropped**
-
-**Implementation notes:** the repo already uses conventional-commit prefixes consistently, so grouping is a matter of bucketing `git log` subjects by prefix regex in the same shell step (empty sections omitted, unprefixed commits into a trailing "Other" bucket so nothing silently disappears). Alternatively switch to a changelog action (e.g. release-drafter or `softprops/action-gh-release`'s `generate_release_notes` with `.github/release.yml` categories — the native GitHub route needs PR-based workflows though; **this repo releases from direct commits, so the shell-side bucketing is the pragmatic fit**). Keep the existing pieces intact: Full-Changelog compare link on top, the Update/Docker instructions section at the bottom, SBOM file attachment.
-
-**Relates:** the `chore(release)` tagging flow (release commits themselves shouldn't clutter the Chore bucket — filter `chore(release)` specifically), CONTRIBUTING/commit conventions (grouping quality depends on prefix discipline).
 
 ---
 
