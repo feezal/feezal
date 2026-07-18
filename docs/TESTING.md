@@ -134,6 +134,7 @@ and palette drag-to-canvas are all automated.)
 - [ ] **Undo / redo** breadth: multi-step sequences, redo (Ctrl+Y), across add/delete/source-apply.
 - [ ] **Undo keeps the selection:** select an element, change an attribute/style/position, Ctrl+Z → the same element stays selected and the inspector shows the restored values; repeated Ctrl+Z keeps tracking it. Undoing the element's own creation (or a structural change that removed it) falls back to the view selection — never silently selects a different element type. *(Capture/re-match semantics are unit-tested.)*
 - [ ] **Cut** (Ctrl+X) and paste; group IDs remapped (if grouping used).
+- [ ] **Clipboard keeps light-DOM children (B31)**: copy/paste, cut+paste and duplicate (Ctrl+D) a `basic-template` with template content → the pasted element renders the same template (not empty); same for a dialog with a template body and a layout element with children. *(Deep-clone behaviour is unit-tested.)*
 - [ ] **Context menu:** copy-to-view and move-to-view submenus. *(Lock/unlock is automated.)*
 - [ ] Locked state **persists after deploy** (amber outline back after reload).
 - [ ] **Drag element to far edge** of an oversized/scrolled view reaches the real edge (B8).

@@ -8,7 +8,6 @@ Work in progress — priorities and scope are not final.
 
 **Bugs**
 - [B8 — Elements cannot be dragged to the far edge of an oversized view](#b8--elements-cannot-be-dragged-to-the-far-edge-of-an-oversized-view-questionable) ❓
-- [B31 — basic-template: template content lost on copy/cut/paste and duplicate](#b31--basic-template-template-content-lost-on-copycutpaste-and-duplicate)
 - [B32 — Snapping helper lines sometimes don't disappear](#b32--snapping-helper-lines-sometimes-dont-disappear-needs-investigation) ❓
 - [B33 — Elements sometimes not selectable/draggable](#b33--elements-sometimes-not-selectabledraggable-needs-investigation) ❓
 - [B34 — Stray orange dot left over from rubber-band selection during element drag](#b34--stray-orange-dot-left-over-from-rubber-band-selection-during-element-drag)
@@ -121,12 +120,6 @@ const restrict = {
 This handles all combinations: fixed×fixed, fixed×auto, auto×auto.
 
 **Related issue — snapping helper lines misplaced when an oversized view is scrolled:** if the view canvas is wider/taller than the viewport and `#container-view` is scrolled (e.g. scrolled right), the element-snap helper lines (`#vsnap1`/`#vsnap2`/`#hsnap1`/`#hsnap2`) render at the wrong position — offset by roughly the scroll amount. Likely the same class of bug as the drag-restrict issue above: `_snap()` in [feezal-sidebar-inspector.js](www/src/feezal-sidebar-inspector.js) computes target positions (`tx`, `tr`, `ty`, `tb`) relative to `view.getBoundingClientRect()` / `cvRect` (viewport-clipped, scroll-dependent coordinates), then writes them directly as the `left`/`top` CSS of snap-line elements positioned inside `#container-view`. If those snap lines don't scroll together with the canvas content (i.e. they're pinned to the visible viewport rather than the scrolled canvas), the coordinate systems mismatch by the scroll offset. Needs the same fix approach as B8: either make the snap lines scroll with the canvas content, or convert the computed positions into `#container-view`-relative (viewport) coordinates that account for its current `scrollLeft`/`scrollTop` before assigning them as CSS `left`/`top`.
-
-### B31 — basic-template: template content lost on copy/cut/paste and duplicate
-
-Copying, cutting+pasting, or duplicating a `basic-template` element loses the template content — the pasted element arrives empty.
-
-**Likely mechanism:** the template is stored as a **light-DOM `<template>` child**, not an attribute ([feezal-element-basic-template.js](www/packages/@feezal/feezal-element-basic-template/feezal-element-basic-template.js)) — the clipboard/duplicate path in `feezal-app-editor.js` apparently doesn't preserve the element's light-DOM children (or serialises the element after its rendered output has replaced/obscured the `<template>` child). Fix so that clipboard and duplicate serialisation carries light-DOM children through intact; check the same path for other elements storing content in children. Add a regression test.
 
 ### B32 — Snapping helper lines sometimes don't disappear ❓ needs investigation
 

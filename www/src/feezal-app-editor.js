@@ -2147,7 +2147,13 @@ class FeezalAppEditor extends LitElement {
     }
 
     _clone(element) {
-        const clone = element.cloneNode(false);
+        // Deep clone (B31): light-DOM children must survive copy/paste and
+        // duplicate — basic-template stores its content as a <template>
+        // child, dialogs carry template bodies, layout elements carry their
+        // children. Rendered element output lives in the shadow root and is
+        // never part of the clone; feezal-component instances re-stamp
+        // idempotently (and _clean empties them on the clipboard path).
+        const clone = element.cloneNode(true);
         clone.style.cursor = '';
         return clone;
     }

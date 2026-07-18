@@ -2,6 +2,10 @@
 
 ## Bugs
 
+### B31 — basic-template: template content lost on copy/cut/paste and duplicate ✅ fixed
+
+As suspected: the template is a light-DOM `<template>` child, and the editor's shared clone helper (`_clone()` in [feezal-app-editor.js](../www/src/feezal-app-editor.js) — used by copy, paste and Ctrl+D duplicate) used `cloneNode(false)`, silently dropping ALL light-DOM children. Changed to a deep clone: rendered element output lives in the shadow root so it is never part of the clone; the fix also restores dialog template bodies and layout-element children through the clipboard, and `feezal-component` instances are safe because `_stamp()` is idempotent (and `_clean()` empties them on the clipboard path anyway). Regression unit tests added for the deep clone.
+
 ### B30 — View names with umlauts (e.g. "Küche") cannot be opened ✅ fixed
 
 Root cause as suspected: browsers percent-encode non-ASCII characters in `location.hash` (`#/Küche` reads back as `#/K%C3%BCche`), the hash was read without `decodeURIComponent`, so the view lookup failed and fell back to the default view; the raw hash-sync comparison in `_viewChanged` also never matched for encoded names. Fixed with a shared `viewFromHash()` helper ([hash-view.js](../www/src/hash-view.js)) used by every hash reader — `feezal-site` (initial view + decoded sync comparison), `feezal-app-editor` (nav routing), `feezal-app-viewer` (hashchange + first-view fallback). Hash *writers* are unchanged (the browser does the encoding); pass-throughs (history preview href, editor "View" button) carry the encoded hash and decode on read. Playlist and N24 view commands set `site.view` directly and were never affected. Browser-tested: opening a percent-encoded umlaut hash and switch-sync without a rewrite loop.

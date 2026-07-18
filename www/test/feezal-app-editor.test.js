@@ -208,3 +208,30 @@ describe('_detachInstances() — U32', () => {
         expect(detached.style.top).toBe('220px');                   // 20 + 200
     });
 });
+
+describe('_clone() — B31 light-DOM children survive copy/paste/duplicate', () => {
+    it('deep-clones the light DOM (basic-template <template> child)', () => {
+        const el = document.createElement('feezal-element-basic-template');
+        el.setAttribute('subscribe', 'stat/temp');
+        el.style.left = '10px';
+        const tpl = document.createElement('template');
+        tpl.innerHTML = '<b>${msg.payload}</b>';
+        el.append(tpl);
+
+        const clone = FeezalAppEditor.prototype._clone.call(app(), el);
+        expect(clone.getAttribute('subscribe')).toBe('stat/temp');
+        const clonedTpl = clone.querySelector('template');
+        expect(clonedTpl).not.toBeNull();
+        expect(clonedTpl.innerHTML).toBe('<b>${msg.payload}</b>');
+        // Cloned, not moved — the original keeps its template.
+        expect(el.querySelector('template')).not.toBe(clonedTpl);
+        expect(el.querySelector('template')).not.toBeNull();
+    });
+
+    it('resets the drag cursor on the clone', () => {
+        const el = document.createElement('div');
+        el.style.cursor = 'move';
+        const clone = FeezalAppEditor.prototype._clone.call(app(), el);
+        expect(clone.style.cursor).toBe('');
+    });
+});
