@@ -69,11 +69,18 @@ export class FeezalElement extends LitElement {
         // (badges, dimming) stays element business. Elements that want the
         // fields in their inspector declare the attributes in their own
         // descriptor — the machinery works regardless.
-        subscribeAvailability: {type: String, reflect: true, attribute: 'subscribe-availability'},
-        availabilityMode:      {type: String, reflect: true, attribute: 'availability-mode'},
-        payloadAvailable:      {type: String, reflect: true, attribute: 'payload-available'},
-        payloadUnavailable:    {type: String, reflect: true, attribute: 'payload-unavailable'},
-        msgPropAvailability:   {type: String, reflect: true, attribute: 'message-property-availability'},
+        // Deliberately NOT reflected: Lit reflects constructor defaults on
+        // first update, which would stamp subscribe-availability="" /
+        // payload-available="online" / … onto EVERY element and serialize
+        // that junk into every saved dashboard (and it broke the U32
+        // create-component attribute table). The inspector and discovery
+        // write the attributes directly; attribute → property sync is all
+        // the machinery needs.
+        subscribeAvailability: {type: String, attribute: 'subscribe-availability'},
+        availabilityMode:      {type: String, attribute: 'availability-mode'},
+        payloadAvailable:      {type: String, attribute: 'payload-available'},
+        payloadUnavailable:    {type: String, attribute: 'payload-unavailable'},
+        msgPropAvailability:   {type: String, attribute: 'message-property-availability'},
         _available:            {state: true},
     };
 
