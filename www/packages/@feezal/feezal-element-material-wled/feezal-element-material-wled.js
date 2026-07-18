@@ -65,7 +65,7 @@ class FeezalElementMaterialWled extends FeezalElement {
                     help: 'Text colour.'},
             ],
             restrict: {minWidth: 110, minHeight: 130},
-            defaultStyle: {width: '170px', height: '210px'},
+            defaultStyle: {width: '180px', height: '320px'},
         };
     }
 

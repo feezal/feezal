@@ -179,7 +179,7 @@ class FeezalElementMaterialClimate extends FeezalElement {
                     help: 'Drag-knob diameter — unitless, in % of the circle viewBox (default 10). Same scale as --feezal-light-knob-size.'},
             ],
             restrict:     {minWidth: 160, minHeight: 200},
-            defaultStyle: {width: '240px', height: '280px'},
+            defaultStyle: {width: '180px', height: '220px'},
         };
     }
 
