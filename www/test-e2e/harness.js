@@ -88,8 +88,26 @@ export async function startStack() {
     stack.serverProc.stderr.on('data', d => process.stderr.write('[server] ' + d));
     await waitForHttp(stack.baseUrl + '/editor/');
 
+    // E2E baseline = a returning user, never first-run: seed the server-side
+    // "tour seen" flag so the welcome tour never auto-starts. Its full-screen
+    // overlay intercepts pointer events and blocks every editor interaction
+    // (the auto-start fires whenever all views are empty at load — true for
+    // most suites' scaffolds). The server pref is authoritative over
+    // localStorage, so an addInitScript can't suppress it — it must be set
+    // server-side, on this instance's fresh data dir.
+    await fetch(stack.baseUrl + '/api/editor/prefs', {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({tourSeen: true})
+    }).catch(() => {});
+
     stack.browser = await chromium.launch({headless: true});
     stack.context = await stack.browser.newContext({viewport: {width: 1600, height: 900}});
+    // Keep every palette category expanded (the new-user default collapses all
+    // but "Basic", which hides elements some suites drag from the palette).
+    await stack.context.addInitScript(() => {
+        try { localStorage.setItem('feezal-palette-collapsed', '[]'); } catch { /* ignore */ }
+    });
 
     if (collectCoverage) {
         stack._coveragePages = new Set();
