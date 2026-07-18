@@ -2,6 +2,15 @@
 
 ## Bugs
 
+### B26 — Shutter elements: position min/max and separate up/down/stop command topics ✅ fixed
+
+Affects **`material-cover` (Device › Cover) and `glass-shutter`** — there is no metro shutter element. Two gaps, fixed behaviour-identically in both elements:
+
+1. **`min` / `max` attributes** (defaults `0`/`100`) — incoming position payloads are scaled from the device range to the displayed 0–100 %, published target positions are scaled back (Homematic reports position as 0…1: set `max` to 1). Refinement: the same for the tilt/slat angle via **`slat-min` / `slat-max`**.
+2. **Separate UP/DOWN/STOP topics** — optional `publish-up`/`publish-down`/`publish-stop` topic attributes; when set, the corresponding button publishes its configured payload there, taking precedence over the single `publish-command` topic (and over the json-mode publish topic).
+
+Both custom inspectors expose the dedicated command-topic fields (Command section, separate mode) and a Value ranges section (Config tab).
+
 ### B16 — Retained-topic replay cache evicted by live updates ✅ fixed
 
 Elements sometimes got no payload on frontend connect even though their topics are *always published retained*. Root cause chain in `server/src/socket/hub.js`: the replay cache evicted a topic whenever a message arrived with `retain=false` — but per **[MQTT-3.3.1-9] the broker strips the RETAIN flag on every delivery to an established subscription**, regardless of how the publisher set it. `retain=1` only ever marks the stored-retained replay right after subscribing. So the first state update after server start (published retained!) arrived as `retain=0` and evicted the topic; the busier the topic, the more reliably its replay was missing. **Fix — known-retained last-value cache:** a topic ever delivered with `retain=1` (i.e. provably in the broker's retained store) stays cached; every later message refreshes the cached payload (replay is always the last value); only an **empty payload** evicts (the MQTT retained-clear convention — its live delivery also arrives as `retain=0` + empty, previously mis-cached as an empty replay). Topics never seen retained (commands, `reload`) are never cached — the anti-command-replay guarantee is unchanged. Covered by 4 hub unit tests + a full-chain aedes integration test reproducing the exact scenario (retained store predates server start → live retained update → late frontend still gets the fresh replay).

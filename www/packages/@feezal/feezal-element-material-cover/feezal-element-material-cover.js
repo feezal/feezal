@@ -60,15 +60,23 @@ class FeezalElementMaterialCover extends FeezalElement {
                     help: 'Dot-notation path within the position message. Blank = fall back to element-level message-property.'},
                 {name: 'publish-position',   type: 'mqttTopic', help: 'separate mode: target position topic.'},
                 {name: 'publish-command',    type: 'mqttTopic', help: 'separate mode: up/stop/down command topic.'},
+                {name: 'publish-up',   type: 'mqttTopic', help: 'Optional dedicated topic for the Up button. Takes precedence over publish-command.'},
+                {name: 'publish-stop', type: 'mqttTopic', help: 'Optional dedicated topic for the Stop button. Takes precedence over publish-command.'},
+                {name: 'publish-down', type: 'mqttTopic', help: 'Optional dedicated topic for the Down button. Takes precedence over publish-command.'},
                 // ── Command payloads ──────────────────────────────────────────
                 {name: 'payload-up',   type: 'string', default: 'OPEN',  help: 'Payload sent by the Up button.'},
                 {name: 'payload-stop', type: 'string', default: 'STOP',  help: 'Payload sent by the Stop button.'},
                 {name: 'payload-down', type: 'string', default: 'CLOSE', help: 'Payload sent by the Down button.'},
+                // ── Position range ────────────────────────────────────────────
+                {name: 'min', type: 'number', default: 0,   help: 'Device position range minimum. Incoming positions are scaled from min…max to 0–100 %, published targets scaled back (Homematic reports 0…1: set max to 1).'},
+                {name: 'max', type: 'number', default: 100, help: 'Device position range maximum. Incoming positions are scaled from min…max to 0–100 %, published targets scaled back (Homematic reports 0…1: set max to 1).'},
                 // ── Tilt / slat angle ─────────────────────────────────────────
                 {name: 'slat-angle',         type: 'mqttTopic', help: 'Subscribe: venetian-blind tilt/slat angle (0–100). Slat lines rotate in the SVG.'},
                 {name: 'message-property-tilt', type: 'string', default: 'payload',
                     help: 'Dot-notation path within the slat-angle message. Blank = fall back to element-level message-property.'},
                 {name: 'publish-slat-angle', type: 'mqttTopic', help: 'Publish: topic to publish new slat angle to (0–100).'},
+                {name: 'slat-min', type: 'number', default: 0,   help: 'Device slat-angle range minimum. Incoming angles are scaled from slat-min…slat-max to 0–100 %, published angles scaled back.'},
+                {name: 'slat-max', type: 'number', default: 100, help: 'Device slat-angle range maximum. Incoming angles are scaled from slat-min…slat-max to 0–100 %, published angles scaled back.'},
                 // ── Display ───────────────────────────────────────────────────
                 {name: 'invert',        type: 'boolean', default: false, help: 'Invert position scale: 0=open, 100=closed.'},
                 {name: 'show-position', type: 'boolean', default: true,  help: 'Show the numeric position label below the window.'},
@@ -106,6 +114,13 @@ class FeezalElementMaterialCover extends FeezalElement {
         subscribePosition:     {type: String,  reflect: true, attribute: 'subscribe-position'},
         publishPosition:       {type: String,  reflect: true, attribute: 'publish-position'},
         publishCommand:        {type: String,  reflect: true, attribute: 'publish-command'},
+        publishUp:             {type: String,  reflect: true, attribute: 'publish-up'},
+        publishStop:           {type: String,  reflect: true, attribute: 'publish-stop'},
+        publishDown:           {type: String,  reflect: true, attribute: 'publish-down'},
+        min:                   {type: Number,  reflect: true},
+        max:                   {type: Number,  reflect: true},
+        slatMin:               {type: Number,  reflect: true, attribute: 'slat-min'},
+        slatMax:               {type: Number,  reflect: true, attribute: 'slat-max'},
         payloadUp:             {type: String,  reflect: true, attribute: 'payload-up'},
         payloadStop:           {type: String,  reflect: true, attribute: 'payload-stop'},
         payloadDown:           {type: String,  reflect: true, attribute: 'payload-down'},
@@ -236,6 +251,13 @@ class FeezalElementMaterialCover extends FeezalElement {
         this.subscribePosition     = '';
         this.publishPosition       = '';
         this.publishCommand        = '';
+        this.publishUp             = '';
+        this.publishStop           = '';
+        this.publishDown           = '';
+        this.min                   = 0;
+        this.max                   = 100;
+        this.slatMin               = 0;
+        this.slatMax               = 100;
         this.payloadUp             = 'OPEN';
         this.payloadStop           = 'STOP';
         this.payloadDown           = 'CLOSE';
@@ -303,16 +325,42 @@ class FeezalElementMaterialCover extends FeezalElement {
         if (this.subscribePosition) {
             this.addSubscription(this.subscribePosition, msg => {
                 const v = Number(this.getProperty(msg, this.msgPropPosition || this.messageProperty));
-                if (!isNaN(v)) this._position = Math.max(0, Math.min(100, v));
+                if (!isNaN(v)) this._position = Math.max(0, Math.min(100, this._posIn(v)));
             });
         }
         if (this.slatAngle) {
             this.addSubscription(this.slatAngle, msg => {
                 const v = Number(this.getProperty(msg, this.msgPropTilt || this.messageProperty));
-                if (!isNaN(v)) this._tilt = Math.max(0, Math.min(100, v));
+                if (!isNaN(v)) this._tilt = Math.max(0, Math.min(100, this._tiltIn(v)));
             });
         }
     }
+
+    // ─── Value ranges — device scale (min/max, slat-min/slat-max) <-> 0–100 % ─
+    static _rangeOf(minValue, maxValue) {
+        let min = Number(minValue);
+        let max = Number(maxValue);
+        if (isNaN(min)) min = 0;
+        if (isNaN(max)) max = 100;
+        if (max === min) { min = 0; max = 100; }
+        return {min, max};
+    }
+
+    static _scaleIn(v, {min, max}) {
+        return ((v - min) / (max - min)) * 100;
+    }
+
+    static _scaleOut(pct, {min, max}) {
+        return Math.round((min + (pct / 100) * (max - min)) * 10000) / 10000;
+    }
+
+    get _range()     { return this.constructor._rangeOf(this.min, this.max); }
+    get _slatRange() { return this.constructor._rangeOf(this.slatMin, this.slatMax); }
+
+    _posIn(v)     { return this.constructor._scaleIn(v, this._range); }
+    _posOut(pct)  { return this.constructor._scaleOut(pct, this._range); }
+    _tiltIn(v)    { return this.constructor._scaleIn(v, this._slatRange); }
+    _tiltOut(pct) { return this.constructor._scaleOut(pct, this._slatRange); }
 
     // ─── JSON payload mode ────────────────────────────────────────────────────
     get _jsonMap() {
@@ -331,7 +379,7 @@ class FeezalElementMaterialCover extends FeezalElement {
         const pos = get(map.position);
         if (pos !== null && pos !== undefined) {
             const n = Number(pos);
-            if (!isNaN(n)) this._position = Math.max(0, Math.min(100, n));
+            if (!isNaN(n)) this._position = Math.max(0, Math.min(100, this._posIn(n)));
         }
 
         // State field: infer position when numeric position is absent
@@ -351,7 +399,7 @@ class FeezalElementMaterialCover extends FeezalElement {
         const tilt = get(map.tilt);
         if (tilt !== null && tilt !== undefined) {
             const n = Number(tilt);
-            if (!isNaN(n)) this._tilt = Math.max(0, Math.min(100, n));
+            if (!isNaN(n)) this._tilt = Math.max(0, Math.min(100, this._tiltIn(n)));
         }
     }
 
@@ -366,21 +414,33 @@ class FeezalElementMaterialCover extends FeezalElement {
     }
 
     // ─── Controls ─────────────────────────────────────────────────────────────
-    _cmdUp()   { this._pub(this.publishCommand, this.payloadUp,   {[this._jsonMap.state]: this.payloadUp}); }
-    _cmdStop() { this._pub(this.publishCommand, this.payloadStop, {[this._jsonMap.state]: this.payloadStop}); }
-    _cmdDown() { this._pub(this.publishCommand, this.payloadDown, {[this._jsonMap.state]: this.payloadDown}); }
+    // Dedicated per-direction topic (publish-up/-stop/-down) wins over the
+    // single publish-command topic / json publish topic.
+    _cmd(dedicatedTopic, payload) {
+        if (dedicatedTopic) {
+            feezal.connection.pub(dedicatedTopic, String(payload));
+            return;
+        }
+        this._pub(this.publishCommand, payload, {[this._jsonMap.state]: payload});
+    }
+
+    _cmdUp()   { this._cmd(this.publishUp,   this.payloadUp); }
+    _cmdStop() { this._cmd(this.publishStop, this.payloadStop); }
+    _cmdDown() { this._cmd(this.publishDown, this.payloadDown); }
 
     _setPosition(pos) {
         const clamped = Math.max(0, Math.min(100, Math.round(Number(pos))));
         this._position   = clamped;
         this._showSlider = false;
-        this._pub(this.publishPosition, clamped, {[this._jsonMap.position]: clamped});
+        const raw = this._posOut(clamped);
+        this._pub(this.publishPosition, raw, {[this._jsonMap.position]: raw});
     }
 
     _setTilt(tilt) {
         const clamped = Math.max(0, Math.min(100, Math.round(Number(tilt))));
         this._tilt = clamped;
-        this._pub(this.publishSlatAngle, clamped, {[this._jsonMap.tilt]: clamped});
+        const raw = this._tiltOut(clamped);
+        this._pub(this.publishSlatAngle, raw, {[this._jsonMap.tilt]: raw});
     }
 
     // ─── SVG drag — dragging the cover panel sets a new position ─────────────
@@ -703,6 +763,9 @@ class FeezalElementMaterialCoverInspector extends LitElement {
                 <div class="sec-head">Command</div>
                 <div class="sec-body">
                     ${this._topicInput({attr: 'publish-command', label: 'Up / Stop / Down'})}
+                    ${this._topicInput({attr: 'publish-up',   label: 'Up (dedicated topic, optional)'})}
+                    ${this._topicInput({attr: 'publish-stop', label: 'Stop (dedicated topic, optional)'})}
+                    ${this._topicInput({attr: 'publish-down', label: 'Down (dedicated topic, optional)'})}
                 </div>
             </div>
             ${COVER_SECTIONS.map(sec => {
@@ -755,6 +818,41 @@ class FeezalElementMaterialCoverInspector extends LitElement {
                         <sl-input size="small" autocomplete="off"
                             value="${this._val('payload-down') || 'CLOSE'}"
                             @sl-change="${e => this._onInput('payload-down', e)}"></sl-input>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="sec-head">Value ranges</div>
+                <div class="sec-body">
+                    <div class="hint">Device value scale — incoming values are scaled to 0–100&nbsp;%, published targets scaled back (Homematic: min 0, max 1).</div>
+                    <div class="row">
+                        <div class="field">
+                            <label>Position min</label>
+                            <sl-input size="small" type="number" autocomplete="off" placeholder="0"
+                                value="${this._val('min')}"
+                                @sl-change="${e => this._onInput('min', e)}"></sl-input>
+                        </div>
+                        <div class="field">
+                            <label>Position max</label>
+                            <sl-input size="small" type="number" autocomplete="off" placeholder="100"
+                                value="${this._val('max')}"
+                                @sl-change="${e => this._onInput('max', e)}"></sl-input>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="field">
+                            <label>Slat angle min</label>
+                            <sl-input size="small" type="number" autocomplete="off" placeholder="0"
+                                value="${this._val('slat-min')}"
+                                @sl-change="${e => this._onInput('slat-min', e)}"></sl-input>
+                        </div>
+                        <div class="field">
+                            <label>Slat angle max</label>
+                            <sl-input size="small" type="number" autocomplete="off" placeholder="100"
+                                value="${this._val('slat-max')}"
+                                @sl-change="${e => this._onInput('slat-max', e)}"></sl-input>
+                        </div>
                     </div>
                 </div>
             </div>

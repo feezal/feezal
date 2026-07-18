@@ -8,7 +8,6 @@ Work in progress — priorities and scope are not final.
 
 **Bugs**
 - [B8 — Elements cannot be dragged to the far edge of an oversized view](#b8--elements-cannot-be-dragged-to-the-far-edge-of-an-oversized-view-questionable) ❓
-- [B26 — Shutter elements: position min/max and separate up/down/stop command topics](#b26--shutter-elements-position-minmax-and-separate-updownstop-command-topics)
 - [B27 — device-contact: tristate window (tilt) state missing](#b27--device-contact-tristate-window-tilt-state-missing-regression) *(regression)*
 - [B28 — MQTT topic autocompletion missing in custom inspectors](#b28--mqtt-topic-autocompletion-missing-in-custom-inspectors)
 - [B29 — device-climate: circle-slider geometry differs from device-light](#b29--device-climate-circle-slider-geometry-differs-from-device-light)
@@ -125,15 +124,6 @@ const restrict = {
 This handles all combinations: fixed×fixed, fixed×auto, auto×auto.
 
 **Related issue — snapping helper lines misplaced when an oversized view is scrolled:** if the view canvas is wider/taller than the viewport and `#container-view` is scrolled (e.g. scrolled right), the element-snap helper lines (`#vsnap1`/`#vsnap2`/`#hsnap1`/`#hsnap2`) render at the wrong position — offset by roughly the scroll amount. Likely the same class of bug as the drag-restrict issue above: `_snap()` in [feezal-sidebar-inspector.js](www/src/feezal-sidebar-inspector.js) computes target positions (`tx`, `tr`, `ty`, `tb`) relative to `view.getBoundingClientRect()` / `cvRect` (viewport-clipped, scroll-dependent coordinates), then writes them directly as the `left`/`top` CSS of snap-line elements positioned inside `#container-view`. If those snap lines don't scroll together with the canvas content (i.e. they're pinned to the visible viewport rather than the scrolled canvas), the coordinate systems mismatch by the scroll offset. Needs the same fix approach as B8: either make the snap lines scroll with the canvas content, or convert the computed positions into `#container-view`-relative (viewport) coordinates that account for its current `scrollLeft`/`scrollTop` before assigning them as CSS `left`/`top`.
-
-### B26 — Shutter elements: position min/max and separate up/down/stop command topics
-
-Affects **`device-shutter`, `glass-shutter`, `metro-shutter`**. *(Note: only `glass-shutter` lives in this repo; the device/metro variants are in their own element-family repos — the fix must be applied across repos and kept behaviour-identical.)*
-
-Two gaps:
-
-1. **`min` / `max` attributes** — the position range is currently assumed to be 0–100, but **Homematic reports position as 0…1**. Add numeric `min`/`max` attributes (defaults `0`/`100`) used to scale *incoming* position payloads to the displayed percentage and to scale *published* target positions back into the device's range.
-2. **Separate UP/DOWN/STOP topics** — `glass-shutter` currently offers a single `publish-command` topic with `payload-up`/`payload-stop`/`payload-down`. Some devices expect **three distinct command topics** instead of one topic with distinct payloads. Add optional `publish-up`/`publish-down`/`publish-stop` topic attributes; when set, the corresponding button publishes there (with its configured payload), taking precedence over the single `publish-command` topic.
 
 ### B27 — device-contact: tristate window (tilt) state missing *(regression)*
 
