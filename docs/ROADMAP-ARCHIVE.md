@@ -2,6 +2,12 @@
 
 ## Bugs
 
+### B37 — material-climate arc vertically centred — misaligned with material-light's top-anchored ring ✅ fixed
+
+Follow-up to B29 (which unified the circle-slider *geometry* — radius, track width, knob). Side by side with identical width/height the sliders still misaligned **vertically**: `material-light` anchors its ring at the top of the card, `material-climate` centred its arc in the leftover card height (`.arc-wrap { flex: 1; align-items: center }`), so the circles landed at different heights depending on the rows below.
+
+Fixed by adopting the light ring's container pattern verbatim: `.arc-wrap { width: 100%; flex-shrink: 0 }` + `svg.arc { width: 100%; aspect-ratio: 1 }` — the arc is width-sized and top-anchored, giving identical circle position **and size** for equal-width cards; rows below (mode chips, valve, humidity, label) stack underneath and clip on too-short cards, exactly like the light card's controls. Setpoint dragging unaffected (pointer math goes through `getScreenCTM()`). TESTING.md §6 "Circle-slider parity" extended with the vertical-alignment check.
+
 ### B8 — Elements cannot be dragged to the far edge of an oversized view ✅ fixed
 
 > **Status 07/2026:** fix implemented and shipped after multiple earlier attempts had to be reverted. Verified by the user on a real dashboard and closed 2026-07-18. Manual checklist remains in TESTING.md §3 ("Oversized/scrolled canvas drags"); rollback path if it ever regresses: `git revert` of the B8 commits (isolated to `feezal-sidebar-inspector.js` + tests/docs).

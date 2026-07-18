@@ -259,17 +259,18 @@ class FeezalElementMaterialClimate extends FeezalElement {
             opacity: 0.8; pointer-events: none; z-index: 2;
         }
         .unavail svg { width: 100%; height: 100%; display: block; }
+        /* B37: width-driven, top-anchored — the exact material-light ring
+           pattern (.ring-wrap / aspect-ratio:1). Same-size cards side by side
+           get identical circle position AND size; rows below (chips, valve,
+           humidity, label) stack under the arc and clip on too-short cards,
+           exactly like the light card's controls do. */
         .arc-wrap {
             width: 100%;
-            flex: 1;
-            min-height: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            flex-shrink: 0;
         }
         svg.arc {
             width: 100%;
-            height: 100%;
+            aspect-ratio: 1;
             overflow: visible;
             touch-action: none;
             user-select: none;

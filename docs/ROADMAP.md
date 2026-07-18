@@ -12,7 +12,6 @@ Work in progress — priorities and scope are not final.
 - [B34 — Stray orange dot left over from rubber-band selection during element drag](#b34--stray-orange-dot-left-over-from-rubber-band-selection-during-element-drag)
 - [B35 — Rubber-band select sometimes selects nothing](#b35--rubber-band-select-sometimes-selects-nothing-needs-investigation) ❓
 - [B36 — Snapping sometimes stops working until page reload](#b36--snapping-sometimes-stops-working-until-page-reload-needs-investigation) ❓
-- [B37 — material-climate arc vertically centred — misaligned with material-light's top-anchored ring](#b37--material-climate-arc-vertically-centred--misaligned-with-material-lights-top-anchored-ring)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -122,16 +121,6 @@ Snapping occasionally just stops working during drag/resize — no snap lines, n
 **Fix direction (pending confirmation):** don't trust keyup alone — also resync modifier state from `window blur`/`visibilitychange` (clear both flags when focus leaves the window) and from every subsequent `pointerdown`/`mousedown` (read `event.ctrlKey`/`event.shiftKey` opportunistically). Needs a repro to confirm the stuck-modifier theory before implementing.
 
 **Relates:** B32 (snapping helper lines sometimes don't disappear — could be the same stuck-modifier root cause manifesting as lines stuck *visible* instead of snapping stuck *off*; worth investigating together).
-
-### B37 — material-climate arc vertically centred — misaligned with material-light's top-anchored ring
-
-Follow-up to B29 (which unified the circle-slider *geometry* — radius, track width, knob). Placed side by side with identical width/height, the two sliders still don't align **vertically**: `material-light` anchors its ring at the **top** of the card, while `material-climate` centres its arc in the remaining card height — with different amounts of content below (mode chips, valve row, humidity, label) the circles land at different heights (see the side-by-side screenshot from 2026-07-18: climate arc floats mid-card, light ring hugs the top).
-
-**Root cause:** container CSS, not SVG geometry. `material-light`: `.ring-wrap { width: 100%; flex-shrink: 0; }` — content-sized, stays at the top of the flex column. `material-climate`: `.arc-wrap { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }` ([feezal-element-material-climate.js](www/packages/@feezal/feezal-element-material-climate/feezal-element-material-climate.js)) — grows into all leftover height and centres the SVG in it.
-
-**Fix:** anchor the climate arc to the top like the light ring (e.g. `align-items: flex-start`, or drop the `flex: 1` growth in favour of the light's content-sized pattern — check which keeps the arc's aspect scaling intact for small cards), so both cards at equal size have identical circle positions. Verify against the B29 TESTING.md checklist entry ("Circle-slider parity") and extend it with the vertical-alignment check.
-
-**Relates:** B29 (geometry parity — this is the remaining positional half), TESTING.md §6 "Circle-slider parity (B29)".
 
 ## Near-term Improvements
 
