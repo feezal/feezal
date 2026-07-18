@@ -84,7 +84,8 @@ describe('getSite / deploy', () => {
         // publish feezal/<site>).
         expect(res.views).toContain('<feezal-site subscribe="feezal/does-not-exist/set" publish="feezal/does-not-exist">');
         expect(res.views).toContain('<feezal-view name="view1"');
-        expect(res.viewer).toEqual({});
+        // Never-saved site seeds the default theme (see storage.getSite).
+        expect(res.viewer).toEqual({theme: 'feezal-theme-midnight-blue'});
     });
 
     it('deploy saves the site and getSite returns the formatted html + config', async () => {
