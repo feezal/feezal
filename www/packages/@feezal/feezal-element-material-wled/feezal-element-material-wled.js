@@ -205,8 +205,22 @@ class FeezalElementMaterialWled extends FeezalElement {
             background: var(--feezal-wled-surface-color); color: var(--feezal-wled-text-color);
             border: 1px solid var(--feezal-wled-off-color); border-radius: 6px;
             padding: 3px 6px; font-size: 11px; line-height: 1.4; cursor: pointer; outline: none;
+            /* B38: without this, Chromium's UA dark form-control theme can
+               paint the closed control independently of our colours; light
+               dark tells it both schemes are supported so it defers to the
+               explicit background/color above and to the <option> rule
+               below for the open list. */
+            color-scheme: light dark;
         }
         select:hover { border-color: var(--feezal-wled-text-color); }
+        /* B38: the surface/text tokens are solid (not translucent), so they
+           double as the open option-list colours — Chromium honours
+           background/color on <option>; Firefox/Safari fall back to their
+           own UA styling (no regression vs. before). */
+        select option {
+            background: var(--feezal-wled-surface-color);
+            color: var(--feezal-wled-text-color);
+        }
         .slider-row { flex-direction: column; align-items: stretch; gap: 1px; }
         .mini-label {
             font-size: 10px; opacity: 0.6; color: var(--feezal-wled-text-color);

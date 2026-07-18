@@ -345,6 +345,36 @@ describe('glass-wled smoke', () => {
     });
 });
 
+describe('B38 — WLED select dropdowns pick up theme colours', () => {
+    it('material-wled: select declares a colour-scheme and <option> uses the surface/text tokens', async () => {
+        const el = await mount('feezal-element-material-wled', {topic: 'wled/device'});
+        const select = el.shadowRoot.querySelector('select.fx');
+        expect(getComputedStyle(select).colorScheme).not.toBe('normal');
+        const option = select.querySelector('option');
+        const bg = getComputedStyle(option).backgroundColor;
+        expect(bg).not.toBe('');
+        expect(bg).not.toBe('rgba(0, 0, 0, 0)');
+    });
+
+    it('glass-wled: select declares a dark colour-scheme with a solid dark <option> background', async () => {
+        const el = await mount('feezal-element-glass-wled', {topic: 'wled/glass'});
+        el.openDetails();
+        await el.updateComplete;
+        const select = el.shadowRoot.querySelector('select.fx');
+        expect(getComputedStyle(select).colorScheme).toBe('dark');
+        const option = select.querySelector('option');
+        expect(getComputedStyle(option).backgroundColor).toBe('rgb(29, 29, 31)'); // #1d1d1f
+    });
+
+    it('metro-wled: select declares a colour-scheme with a solid dark <option> background', async () => {
+        const el = await mount('feezal-element-metro-wled', {topic: 'wled/metro'});
+        const select = el.shadowRoot.querySelector('select.fx');
+        expect(getComputedStyle(select).colorScheme).not.toBe('normal');
+        const option = select.querySelector('option');
+        expect(getComputedStyle(option).backgroundColor).toBe('rgb(51, 51, 51)'); // #333333
+    });
+});
+
 describe('metro-wled smoke', () => {
     it('mounts, binds state, toggles and derives availability', async () => {
         const el = await mount('feezal-element-metro-wled', {topic: 'wled/metro', icon: 'wb_iridescent'});

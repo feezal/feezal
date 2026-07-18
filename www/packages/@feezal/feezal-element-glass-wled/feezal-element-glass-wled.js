@@ -231,6 +231,17 @@ class FeezalElementGlassWled extends FeezalElement {
             border: 1px solid var(--feezal-glass-border, rgba(0,0,0,0.15));
             border-radius: 10px; padding: 5px 8px; font: inherit; font-size: 12px;
             cursor: pointer; outline: none;
+            /* B38: the closed control follows the glass palette above, but
+               Chromium's open option list does NOT composite over the
+               blurred card — it needs a SOLID background. A fixed dark
+               solid + light text is deliberately independent of the
+               card's own (possibly light) theme colours, so the popup
+               list stays readable regardless of which theme is active. */
+            color-scheme: dark;
+        }
+        select option {
+            background: #1d1d1f;
+            color: #fff;
         }
         .slider-row { align-self: stretch; display: flex; flex-direction: column; gap: 2px; }
         .mini-label { font-size: 11px; font-weight: 600; opacity: 0.7; }

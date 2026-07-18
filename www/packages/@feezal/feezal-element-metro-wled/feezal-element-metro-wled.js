@@ -107,8 +107,20 @@ class FeezalElementMetroWled extends MetroTileBase {
             background: transparent; color: var(--feezal-metro-text);
             border: 2px solid var(--feezal-metro-text);
             font: inherit; font-size: 12px; padding: 2px 4px; cursor: pointer; outline: none;
+            /* B38: was "select option { color: #000 }" with no background —
+               black text on whatever the UA's (possibly dark) default
+               option background is turns unreadable. color-scheme plus a
+               solid option background/colour below fixes both cases. */
+            color-scheme: light dark;
         }
-        select option { color: #000; }
+        /* B38: --feezal-metro-off-color is an explicit solid dark tone
+           authored to pair with --feezal-metro-text (default white) —
+           reuse it for the open option list so it stays readable
+           regardless of the tile's current on/off accent colour. */
+        select option {
+            background: var(--feezal-metro-off-color, #333333);
+            color: var(--feezal-metro-text);
+        }
         input[type='color'].col {
             width: 26px; height: 26px; padding: 0; border: 2px solid var(--feezal-metro-text);
             border-radius: 0; background: none; cursor: pointer; flex: 0 0 auto;
