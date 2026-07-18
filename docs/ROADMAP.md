@@ -9,7 +9,7 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B32 — Snapping helper lines sometimes don't disappear](#b32--snapping-helper-lines-sometimes-dont-disappear-needs-investigation) ❓
 - [B33 — Elements sometimes not selectable/draggable](#b33--elements-sometimes-not-selectabledraggable-needs-investigation) ❓
-- [B34 — Stray orange dot left over from rubber-band selection during element drag](#b34--stray-orange-dot-left-over-from-rubber-band-selection-during-element-drag)
+- [B34 — Stray orange dot left over from rubber-band selection during element drag](#b34--stray-orange-dot-left-over-from-rubber-band-selection-during-element-drag) (not yet reproducable )❓
 - [B35 — Rubber-band select sometimes selects nothing](#b35--rubber-band-select-sometimes-selects-nothing-needs-investigation) ❓
 - [B36 — Snapping sometimes stops working until page reload](#b36--snapping-sometimes-stops-working-until-page-reload-needs-investigation) ❓
 
@@ -17,9 +17,10 @@ Work in progress — priorities and scope are not final.
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
 - [N12 — Export bundle: strip mqtt.js for feezal-bridge users](#n12--export-bundle-strip-mqttjs-for-feezal-bridge-users-partial) *(partial)*
 - [N13 — Lighter MQTT client for export bundle](#n13--lighter-mqtt-client-for-export-bundle-️-tbd) ⚠️
-- [N30 — layout-app breaks the site active-view MQTT contract](#n30--layout-app-breaks-the-site-active-view-mqtt-contract-️-refinement-needed) ⚠️ *(refinement needed)*
+- [N30 — layout-app breaks the site active-view MQTT contract](#n30--layout-app-breaks-the-site-active-view-mqtt-contract)
 - [N33 — Asset manager: "Set as background" context action for images](#n33--asset-manager-set-as-background-context-action-for-images)
 - [N34 — Custom CSS/style editors (N6-analog) + rich view Background editor](#n34--custom-cssstyle-editors-n6-analog--rich-view-background-editor)
+- [N35 — basic-template: `${msg.payload}` renders `[object Object]` for JSON payloads](#n35--basic-template-msgpayload-renders-object-object-for-json-payloads)
 
 **Element Ecosystem**
 - [E7 — Swipe gesture element](#e7--swipe-gesture-element)
@@ -56,6 +57,7 @@ Work in progress — priorities and scope are not final.
 - [E95 — Configurable keyboard shortcuts for interactive elements](#e95--configurable-keyboard-shortcuts-for-interactive-elements)
 - [E96 — MIDI input as an element trigger (Web MIDI)](#e96--midi-input-as-an-element-trigger-web-midi-️-questionable-future) ❓
 - [E102 — Climate elements: boost mode, thermostat mode datapoint conventions, valve position](#e102--climate-elements-boost-mode-thermostat-mode-datapoint-conventions-valve-position-️-refined-072026--decisions-pending-do-not-implement-yet) ⚠️ *(refined 07/2026 — model agreed, not implemented)*
+- [E106 — Glass family refactor: shared base class + shared-code package](#e106--glass-family-refactor-shared-base-class--shared-code-package)
 
 **Editor UX**
 
@@ -175,22 +177,18 @@ client.json_send('my/topic', payload);
 ### N2b — Repeater with live canvas sub-elements *(future)*
 Each repeater child becomes individually selectable and configurable on the editor canvas. Requires a virtual sub-editor context — significantly more complex, deferred until the MVP repeater is proven useful.
 
-### N30 — layout-app breaks the site active-view MQTT contract ⚠️ refinement needed
+### N30 — layout-app breaks the site active-view MQTT contract
 
 **Problem.** `feezal-site` owns the "active view" contract: switching views publishes the view name to `<site-publish>/view` ([feezal-site.js](../www/src/feezal-site.js) `_viewChanged`), incoming `<site-subscribe>/view` (and the N24 per-client variant `…/clients/<id>/view`) switches via `applyControlCommand()`, the URL hash tracks it, and the N26 playlist drives it. **layout-app bypasses all of it**: it sits on one site view (e.g. `main`) and *clones* drawer-entry views into its content pane — the site's active view never changes. Consequences: (1) the viewer publishes `main` forever, automations never learn the user is on `page2`; (2) an incoming `view: page2` command switches the *site* view — dumping the user out of the app shell onto the raw page instead of swapping the shell's content; (3) hash/deep-links and playlist rotation have the same blind spot. layout-app's own element-level `subscribe`/`publish` is a parallel, duplicate contract — it doesn't heal the site one.
 
-**Options considered** (discussed July 2026):
+**Approach: view-router delegation** (option B of the July 2026 discussion — keep the architecture, integrate the protocol). *Outbound:* when layout-app swaps its embedded view it notifies the site, which publishes on the standard `<publish>/view` and syncs the URL hash. *Inbound:* `applyControlCommand('view', name)` first offers the command to a registered, currently-visible "view router" (the layout-app) — if `name` is one of its drawer entries it swaps internally, else the site switches top-level as today. Playlist advances route through the same path (rotation inside the shell for shell views). One MQTT contract; layout-app's own element-level `publish`/`subscribe` become deprecable. (Alternatives considered and rejected: **A** — shell as site-level chrome, architecturally cleanest but requires a new element category, canvas/serialization changes and dashboard migration; **C** — document layout-app's element topics as the official mechanism, leaves two competing contracts.)
 
-- **A — shell as site chrome** (architecturally correct, biggest change): move layout-app out of the view layer to a site-level wrapper that is always visible, with normal site view switching happening inside its content pane. `site.view` stays the single source of truth; publish/command/hash/playlist all just work, no cloning. But: new "site shell" element category, editor canvas + placement rules + serialization changes, dashboard migration.
-- **B — view-router delegation** (recommended): keep the architecture, integrate the protocol. *Outbound:* when layout-app swaps its embedded view it notifies the site, which publishes the embedded name on the standard `<publish>/view` and syncs the hash. *Inbound:* `applyControlCommand('view', name)` first offers the command to a registered, currently-visible "view router" (the layout-app) — if `name` is one of its drawer entries it swaps internally, else the site switches top-level as today. Playlist advances route through the same path (rotation inside the shell for shell views). One MQTT contract; layout-app's own `publish`/`subscribe` become deprecable.
-- **C — document-only** (rejected): declare layout-app's element-level topics *the* mechanism when a shell is used. Leaves two competing contracts; every consumer must know which dashboard style is deployed.
+**Design decided (07/2026):**
 
-**Open questions (refinement needed before implementation):**
-
-1. **Hash / deep-link format** — flat `#/page2` (matches the one-active-view model, but on load the viewer must infer that `page2` opens *inside* the shell; ambiguous if a view is both a drawer entry and standalone) vs. nested `#/main/page2` (unambiguous, but changes the hash format existing bookmarks/consumers may rely on).
-2. **Published payload** — just the embedded name (`page2`, keeps existing automations working) or structured (`main/page2`, more honest)?
-3. **Default behaviour** — always-on for layout-app, or opt-in via an attribute (e.g. `sync-site-view`)? Always-on is better UX but changes behaviour of existing dashboards already using the element-level topics.
-4. **Precedence rules** — multiple layout-apps (on different top-level views): proposal — only the *visible* one may claim a command, first match wins, nesting unsupported. A command naming a view that is *not* a drawer entry switches the site top-level and the shell disappears — acceptable?
+1. **URL / deep-link format — additive, existing hashes untouched.** `#/<viewName>` **always works exactly as today** for every view — this must not change. *Additionally*, for a view containing a layout-app, `#/<viewName>/<embeddedViewName>` deep-links into the shell: the site opens `<viewName>` and the layout-app activates the drawer entry whose **view name** (the `view` field of its `{label, icon, view}` entries — not the display label, which is optional, non-unique and encoding-hostile) matches the second segment. The hash is **always kept in sync** while navigating inside the shell — switching drawer entries rewrites the URL to `#/<viewName>/<embeddedViewName>` — so a page reload restores the exact shell state instead of falling back to the default entry.
+2. **Published MQTT payload — nested path.** While the user is inside the shell, the viewer publishes `<viewName>/<embeddedViewName>` (e.g. `main/page2`) to `<site-publish>/view`; plain top-level views keep publishing the bare view name. Unambiguous and mirrors the URL format; automations matching on plain names must adapt for shell views. Inbound commands accept both forms: a bare name is offered to the visible router first (per the delegation above), a nested `a/b` explicitly targets view `a` with entry `b`.
+3. **Always-on.** The integration (hash sync + inbound delegation + nested publish) is standard layout-app behaviour, no opt-in attribute. The element-level `subscribe`/`publish` topics keep working but are deprecated in favour of the site contract.
+4. **Precedence rules** — multiple layout-apps (on different top-level views): only the *visible* one may claim a command, first match wins, nesting unsupported. A command naming a view that is *not* a drawer entry switches the site top-level as today (the shell disappears).
 
 **Relates:** N24 (per-client view commands — must route through the same delegation), N26 (playlist — should rotate inside the shell), E47 (layout-app, archive), E80 (navigation rail — any future shell-style element needs the same router hook), material-navbar (already switches the *site* view directly — the consistent counter-example).
 
@@ -236,6 +234,18 @@ The editor reads and writes the whole `background-image` / `background-size` / `
 **Open/at-implementation:** exact event name + payload shape (`feezal-style-changed {props}` vs reusing the attribute event family); how the inspector learns which longhands a group "covers" (explicit `covers: [...]` list in the descriptor vs. the editor declaring them); `element-spec.md` §3.8/§5 documentation of the new descriptor field; whether the "Add CSS property" free-form field should refuse to re-add a grouped longhand.
 
 **Relates:** N6 (custom attribute inspectors — the exact pattern this mirrors for CSS; element-spec §3.8), N33 (asset-manager "Set as background" — should route *into* this editor), U39 (attribute-inspector restructuring — same "richer, structured inspector" push; keep the two coherent), feezal-view (first consumer — its `styles` descriptor gains the `background` group entry), element-spec §5 (CSS custom-property conventions — where the new `styles` descriptor field is spec'd).
+
+### N35 — basic-template: `${msg.payload}` renders `[object Object]` for JSON payloads
+
+**Problem.** basic-template auto-parses JSON payloads (so `${msg.payload.temperature}` works), but the template is evaluated as a plain JS template literal ([feezal-element-basic-template.js:95](../www/packages/@feezal/feezal-element-basic-template/feezal-element-basic-template.js#L95) — `new Function('msg', 'return \`…\`')`). When the payload parsed to an object/array, a bare `${msg.payload}` therefore coerces via the default `Object.prototype.toString` and renders **`[object Object]`** — useless. The current workaround (`${JSON.stringify(msg.payload)}`, even recommended in the element's own `description`) shouldn't be necessary for the obvious "just show me the message" case.
+
+**Desired behaviour.** When the payload (or any interpolated value) is an object or array, string coercion inside the template yields **compact JSON — `JSON.stringify(value)` with 0 spaces** (e.g. `{"temperature":21.5,"hum":40}`). Strings, numbers, booleans render exactly as today; property access (`${msg.payload.prop}`, `${msg.payload.sensors[0].value}`) is unaffected.
+
+**Implementation sketch.** Before calling the compiled template function, give the parsed payload a JSON-producing string coercion instead of the default one — e.g. `Object.defineProperty(obj, 'toString', {value() { return JSON.stringify(this); }, enumerable: false})` (or a `Symbol.toPrimitive` handler) on the object handed into the template. Apply it **recursively** to nested objects/arrays so `${msg.payload.sensors[0]}` also renders as JSON rather than `[object Object]` (arrays additionally need the override — their default `join(',')` coercion of object members produces `[object Object],[object Object]`). Operate on the template's local copy of `msg`, never mutate a message object shared with other subscribers. Update the element's `description` text (which currently teaches the `JSON.stringify` workaround) to document the new default; `${JSON.stringify(msg.payload, null, 2)}` stays the documented route for *pretty-printed* output.
+
+**Ships with:** patch bump, TESTING.md §6 basic-template note (bare `${msg.payload}` with a JSON payload → compact JSON string, nested object interpolation, primitives unchanged).
+
+**Relates:** B31 (basic-template template loss on copy/paste — same element, unrelated mechanism), basic-table / basic-ticker (template-literal consumers — check whether they share the same coercion wart and should adopt the same helper).
 
 ### Element platform conventions
 
@@ -922,6 +932,26 @@ Three related Homematic/HmIP gaps in the `*-climate` family (`glass-climate`, `m
 3. Inter-publish delay for multi-step writes (RedMatic staggers linked-device writes by 3 s — check whether sequential datapoint writes to the *same* device need any delay over MQTT or can fire back-to-back).
 
 **Relates:** B26 (min/max scaling pattern reused for `valve-min`/`valve-max`), B29 (shared slider geometry — the valve indicator follows it), U39 (inspector restructuring — mode-entry editing and profile stamping belong in that redesign, not in the flat attribute list), N31 (availability — same "shared contract, per-family rendering" shape), material-climate (reference implementation).
+
+### E106 — Glass family refactor: shared base class + shared-code package
+
+**Problem.** The Glass family has grown to 15 packages / ~6,700 lines with **zero cross-package imports** — every shared behaviour is an independent copy-paste. Measured duplication (07/2026): the ~40-line frosted-card CSS block (tint, backdrop blur, squircle, `degrade` solid fallback, `:active` scale, on-tint, ⚠ unavailability badge, E105 wide-layout container query) in ~9 device cards; `GLASS_SIZES` presets + the `updated()` size-stamping in **10** elements; the manual `_wireSignature`/`__wireSig` subscription-rewiring pattern in **8**; the `_positionDetails()` popup anchoring in **5**; `payloadMatch()` in **3**; near-identical attribute descriptor blocks (availability quad, `degrade`, `label`, `icon`, `size`) in most; the three dialog elements duplicate the glass dialog chrome among themselves. Drift has already started: glass-fan imports `feezalAvailabilityStyles`/`availabilityBadge` from `@feezal/feezal-element` while its siblings hand-roll the same badge — same intent, diverging implementations. Every cross-family fix (E99 labels, popup positioning, degrade tweaks) currently needs 5–10 identical edits, and each one is a chance for the family to drift further apart.
+
+**Proposal — two tiers, matching where each piece actually belongs:**
+
+1. **Family-agnostic mechanics → `@feezal/feezal-element`** (the existing shared base package; precedent: `feezalAvailabilityStyles`/`availabilityBadge` already live there). Candidates: `payloadMatch()` (it's generic on/off payload semantics, nothing glassy about it), the topic-rewire-on-inspector-edit pattern (`_wireSignature` — arguably useful to *every* device-card family incl. material/metro), and a small size-preset helper (`applySizePreset(el, map)`).
+2. **Glass chrome → one shared glass package**, e.g. **`@feezal/feezal-glass`**. ⚠ **Naming constraint:** it must **not** be called `feezal-element-glass-…` — the server's package scan ([elements.js](../server/src/build/elements.js) `_scan()`) treats every `feezal-element-*` directory as an element and would try to palette/bundle it; `@feezal/feezal-element` itself only escapes because the filter requires the trailing dash. A non-matching name (like the existing `feezal-element` precedent) is cleaner than a BLACKLIST entry. Contents:
+   - **`FeezalGlassCard` base class** (extends `FeezalElement`): manual-subscription lifecycle (suppressed `_subscribe()`, wire/rewire via signature), size-preset handling, long-press-vs-tap gesture handling, details-popup open/close + `_positionDetails()` anchoring.
+   - **Exported style fragments**: `glassCardStyles` (frost chrome incl. `degrade` + squircle), `glassWideLayoutStyles` (E105 container query), `glassPopupStyles`, `glassDialogStyles` (shared by the three dialog elements).
+   - **Shared descriptor fragments**: reusable attribute-descriptor arrays (size preset, availability quad, degrade, label/icon) spread into each element's `feezal.attributes` — so inspector help texts stay identical across the family by construction.
+
+**Explicitly a pure refactor:** no attribute renames, no MQTT contract changes, no serialized-HTML changes — a dashboard saved before the refactor renders identically after. Elements keep their own render templates and element-specific logic; the base class only absorbs what is provably identical today. **Do not over-abstract**: chrome that intentionally differs (dialog surfaces vs. cards, climate's arc geometry) stays local; anything needing a third configuration knob to be shared probably shouldn't be.
+
+**Why now:** the family is still growing (E100/E101/E103 all shipped as fresh copies; glass-room and future glass elements repeat it again) — every new element increases the refactor's size, and every duplicated fix widens drift. Payoff: fix-once semantics, ~1,500–2,000 fewer lines, cheaper future glass elements, and guaranteed family-wide visual consistency.
+
+**Migration order:** land the shared package, then port elements one per commit (patch bump each, per policy) — small elements first (switch/contact/occupancy/sensor/button) to harden the base, then the popup cards (light/fan/wled/cover/climate), dialogs last. Full TESTING.md §6 glass regression pass at the end; no TESTING.md content changes expected (behaviour is unchanged — that's the acceptance criterion).
+
+**Relates:** E58 (glass-light — origin of most copied patterns), E105 (wide-layout CSS — one of the 9 copies), N31 (availability — the half-migrated example proving drift), N29 (`feezal-elements-*` family bundles — the *packaging*-level alternative: one bundle for the whole family; orthogonal to this code-level refactor and combinable later), material/metro families (same disease, milder — the tier-1 helpers land where they can reuse them).
 
 ### U3 — Element grouping and locking 🔽 partial
 - **Lock**: prevent an element from being accidentally moved/resized ✅. Locked elements show an amber dashed outline; interact drag/resize is disabled; lock/unlock is in the right-click context menu and the `locked` attribute is persisted with the dashboard HTML.
