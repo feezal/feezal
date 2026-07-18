@@ -55,7 +55,6 @@ Work in progress — priorities and scope are not final.
 - [E96 — MIDI input as an element trigger (Web MIDI)](#e96--midi-input-as-an-element-trigger-web-midi-️-questionable-future) ❓
 - [E102 — Climate elements: boost mode, thermostat mode datapoint conventions, valve position](#e102--climate-elements-boost-mode-thermostat-mode-datapoint-conventions-valve-position-️-refined-072026--decisions-pending-do-not-implement-yet) ⚠️ *(refined 07/2026 — model agreed, not implemented)*
 - [E103 — WLED elements (Device / Glass / Metro)](#e103--wled-elements-device--glass--metro)
-- [E105 — Glass cards: horizontal layout on wide-flat resize (icon left, content right)](#e105--glass-cards-horizontal-layout-on-wide-flat-resize-icon-left-content-right)
 
 **Editor UX**
 
@@ -897,20 +896,6 @@ New elements for **[WLED](https://github.com/wled/WLED)** — the very popular E
 **Family split:** Device/Glass/Metro share the identical MQTT contract (mirrors how glass-light/material-light already share theirs) — only the chrome differs: Device (material) gets the full brightness-ring/colour-wheel/effect-selector treatment consistent with material-light; Glass gets the frosted Apple-Home-style card; Metro gets the flat tile styling consistent with metro-light. Segment editing (later tier) is most naturally a Device/Glass feature — Metro's flat/simple aesthetic likely stays MVP-only (single segment), matching how Metro already omits some of Material's richer controls elsewhere in the light family.
 
 **Relates:** material-light (attribute/contract template for MVP scope), glass-light / metro-light (sibling chrome), N31 (availability via LWT retained topic — a clean fit for the base-class approach), U39 (segment list = the textbook case for a custom inspector over flat attributes), E62 (same MQTT-only-vs-device-HTTP tension around discovering effect/palette names).
-
-### E105 — Glass cards: horizontal layout on wide-flat resize (icon left, content right)
-
-The Glass family cards (`glass-light`, `glass-switch`, `glass-contact`, `glass-sensor`, `glass-shutter`, `glass-climate`, `glass-button`, `glass-occupancy`, `glass-media`, `glass-room`) stack their content vertically — icon on top, state/label below — regardless of the element's shape. When a card is resized to be **much wider than tall** (e.g. a full-width room strip), that layout wastes the width and squeezes the type: the card should switch to a **horizontal layout — icon on the left, state/label right of it** — exactly what Apple Home does for its wide tiles (the family's design reference).
-
-**Implementation sketch:** the cards already use `container-type: size` with `cqmin`-based typography — the switch is a pure CSS **container query on the aspect ratio**, e.g. `@container (min-aspect-ratio: 2/1) { .card { flex-direction: row; align-items: center; … } }` — no JS, no new attributes, works live while resizing on the canvas. Details to settle per card:
-- **Threshold:** one shared breakpoint for the whole family (candidate: aspect ratio ≥ 2:1) so mixed dashboards flip consistently; make sure a card exactly at 2:1 doesn't flicker while being resized across the boundary.
-- **Type scale:** in row mode `cqmin` (= height-driven on wide cards) may need re-tuning — icon sized to the card height, state/label left-aligned next to it, label possibly beside the state instead of beneath.
-- **Per-card specials:** the ⋯/flip affordances, availability badge, and popup anchors keep their corners; cards with extra content (climate's setpoint display, media's transport row) need a sensible row arrangement or may deliberately keep the vertical layout (decide per card, document exceptions).
-- **Not just Glass?** The Metro tiles have their own fixed mosaic-size concept (`size` attribute) — out of scope. The Device (material) cards are structurally different (full-height ring/arc visuals) — out of scope; this item is the Glass family only.
-
-**Ships with:** patch bumps for every touched glass package, TESTING.md §6 Glass-family note extended (resize a card wide-flat → row layout with icon left, back to tall → column layout; check each card type incl. popups still anchoring correctly), and screenshot-test coverage if the theme-visual harness supports element shots.
-
-**Relates:** E58 (Glass family — Apple-Home design reference), E38 (container-query scaling — same mechanism, this adds a layout branch), U39 (no new attributes — deliberately pure-CSS responsive).
 
 ## Editor UX
 

@@ -162,6 +162,22 @@ class FeezalElementGlassShutter extends FeezalElement {
             position: absolute; bottom: 8cqmin; right: 10cqmin;
             font-size: 12px; color: var(--error-color, #d32f2f); opacity: 0.85; z-index: 1;
         }
+        /* E105: much wider than tall → horizontal layout (Apple-Home wide
+           tile): icon left, state/label stacked right of it. flip-btn and
+           unavail stay absolutely positioned in their corners. */
+        @container (min-aspect-ratio: 2/1) {
+            .card {
+                display: grid;
+                grid-template: 'icon state' auto 'icon label' auto / auto 1fr;
+                align-content: center;
+                align-items: center;
+                column-gap: 10cqmin;
+                text-align: left;
+            }
+            .card > feezal-icon { grid-area: icon; font-size: 46cqmin; }
+            .card .state { grid-area: state; align-self: end; }
+            .card .label { grid-area: label; align-self: start; }
+        }
 
         /* ── details popup (glass-light pattern) — browser top layer ── */
         .details {

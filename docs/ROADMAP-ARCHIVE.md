@@ -546,6 +546,24 @@ Elements now subscribe and render live in the editor exactly as in the viewer. T
 
 ## Element Ecosystem
 
+### E105 — Glass cards: horizontal layout on wide-flat resize (icon left, content right) ✅ implemented
+
+The Glass family cards (`glass-light`, `glass-switch`, `glass-contact`, `glass-sensor`, `glass-shutter`, `glass-climate`, `glass-button`, `glass-occupancy`, `glass-media`, `glass-room`) stack their content vertically — icon on top, state/label below — regardless of the element's shape. When a card is resized to be **much wider than tall** (e.g. a full-width room strip), that layout wastes the width and squeezes the type: the card should switch to a **horizontal layout — icon on the left, state/label right of it** — exactly what Apple Home does for its wide tiles (the family's design reference).
+
+**Implementation sketch:** the cards already use `container-type: size` with `cqmin`-based typography — the switch is a pure CSS **container query on the aspect ratio**, e.g. `@container (min-aspect-ratio: 2/1) { .card { flex-direction: row; align-items: center; … } }` — no JS, no new attributes, works live while resizing on the canvas. Details to settle per card:
+- **Threshold:** one shared breakpoint for the whole family (candidate: aspect ratio ≥ 2:1) so mixed dashboards flip consistently; make sure a card exactly at 2:1 doesn't flicker while being resized across the boundary.
+- **Type scale:** in row mode `cqmin` (= height-driven on wide cards) may need re-tuning — icon sized to the card height, state/label left-aligned next to it, label possibly beside the state instead of beneath.
+- **Per-card specials:** the ⋯/flip affordances, availability badge, and popup anchors keep their corners; cards with extra content (climate's setpoint display, media's transport row) need a sensible row arrangement or may deliberately keep the vertical layout (decide per card, document exceptions).
+- **Not just Glass?** The Metro tiles have their own fixed mosaic-size concept (`size` attribute) — out of scope. The Device (material) cards are structurally different (full-height ring/arc visuals) — out of scope; this item is the Glass family only.
+
+**Ships with:** patch bumps for every touched glass package, TESTING.md §6 Glass-family note extended (resize a card wide-flat → row layout with icon left, back to tall → column layout; check each card type incl. popups still anchoring correctly), and screenshot-test coverage if the theme-visual harness supports element shots.
+
+**Relates:** E58 (Glass family — Apple-Home design reference), E38 (container-query scaling — same mechanism, this adds a layout branch), U39 (no new attributes — deliberately pure-CSS responsive).
+
+
+> **Implemented 07/2026:** pure-CSS aspect-ratio container query (shared 2:1 breakpoint) with grid named areas — regroups icon left / state+label right without DOM changes. Applied to button, switch, contact, sensor, light, shutter, occupancy, climate (display:contents promotes its head row) and fan. glass-media/glass-room turned out to be EMPTY placeholder directories (no element exists) — nothing to apply; flagged for cleanup or future elements. Browser tests assert the grid/flex switch on three cards; existing glass suite green.
+
+
 ### E101 — Dialog element family (feezal-element-glass-dialog*) ✅ implemented
 
 The Glass family's missing dialog/popup elements — Material already has all three dialog variants; Glass has none. Adds, mirroring the Material family 1:1 in MQTT contract and behaviour, restyled in the frosted-glass visual language:

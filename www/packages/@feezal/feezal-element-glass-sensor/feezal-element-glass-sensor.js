@@ -87,6 +87,21 @@ class FeezalElementGlassSensor extends FeezalElement {
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
+        /* E105: much wider than tall → horizontal layout (Apple-Home wide
+           tile): icon left, value/label stacked right of it. */
+        @container (min-aspect-ratio: 2/1) {
+            .card {
+                display: grid;
+                grid-template: 'icon value' auto 'icon label' auto / auto 1fr;
+                align-content: center;
+                align-items: center;
+                column-gap: 10cqmin;
+                text-align: left;
+            }
+            .card > feezal-icon { grid-area: icon; font-size: 46cqmin; }
+            .card .value { grid-area: value; align-self: end; }
+            .card .label { grid-area: label; align-self: start; }
+        }
     `];
 
     constructor() {

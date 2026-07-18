@@ -86,6 +86,20 @@ class FeezalElementGlassButton extends FeezalElement {
             font-size: 13cqmin; font-weight: 600; line-height: 1.2;
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
+        /* E105: much wider than tall → horizontal layout (Apple-Home wide
+           tile): icon left, label right of it. */
+        @container (min-aspect-ratio: 2/1) {
+            .card {
+                display: grid;
+                grid-template: 'icon label' auto / auto 1fr;
+                align-content: center;
+                align-items: center;
+                column-gap: 10cqmin;
+                text-align: left;
+            }
+            .card > feezal-icon { grid-area: icon; font-size: 50cqmin; }
+            .card .label { grid-area: label; font-size: 16cqmin; }
+        }
     `];
 
     constructor() {

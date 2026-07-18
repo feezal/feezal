@@ -228,6 +228,22 @@ class FeezalElementGlassFan extends FeezalElement {
             background: var(--feezal-glass-accent, #64d2ff);
             color: #fff;
         }
+
+        /* E105: wide-flat cards switch to a horizontal layout — icon left,
+           state/label stacked right of it (family-wide 2:1 breakpoint). */
+        @container (min-aspect-ratio: 2/1) {
+            .card {
+                display: grid;
+                grid-template: 'icon state' auto 'icon label' auto / auto 1fr;
+                align-content: center;
+                align-items: center;
+                column-gap: 10cqmin;
+                text-align: left;
+            }
+            .card > feezal-icon { grid-area: icon; font-size: 46cqmin; }
+            .card .state { grid-area: state; align-self: end; }
+            .card .label { grid-area: label; align-self: start; }
+        }
     `];
 
     constructor() {

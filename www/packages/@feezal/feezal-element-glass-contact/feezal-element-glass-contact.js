@@ -131,6 +131,21 @@ class FeezalElementGlassContact extends FeezalElement {
             position: absolute; top: 8px; right: 10px;
             font-size: 12px; color: var(--error-color, #d32f2f); opacity: 0.85;
         }
+        /* E105: much wider than tall → horizontal layout (Apple-Home wide
+           tile): icon left, state/label stacked right of it. */
+        @container (min-aspect-ratio: 2/1) {
+            .card {
+                display: grid;
+                grid-template: 'icon state' auto 'icon label' auto / auto 1fr;
+                align-content: center;
+                align-items: center;
+                column-gap: 10cqmin;
+                text-align: left;
+            }
+            .card > feezal-icon { grid-area: icon; font-size: 46cqmin; }
+            .card .state { grid-area: state; align-self: end; }
+            .card .label { grid-area: label; align-self: start; }
+        }
     `];
 
     constructor() {
