@@ -237,6 +237,15 @@ class FeezalSidebarEditor extends LitElement {
                     Prevent MQTT element manipulation in editor
                 </sl-switch>
 
+                <hr class="section-sep">
+                <div class="section-title"><span class="material-icons">tour</span> Help</div>
+                <div class="ai-actions">
+                    <button class="btn"
+                        @click="${() => this.dispatchEvent(new CustomEvent('feezal-start-tour', {bubbles: true, composed: true}))}">
+                        Show welcome tour
+                    </button>
+                </div>
+
                 ${this._caps && (this._caps.restart || this._caps.selfUpdate) ? html`
                     <hr class="section-sep">
                     <div class="section-title"><span class="material-icons">dns</span> Server</div>

@@ -235,3 +235,37 @@ describe('_clone() — B31 light-DOM children survive copy/paste/duplicate', () 
         expect(clone.style.cursor).toBe('');
     });
 });
+
+describe('_maybeAutoStartTour() — U37 trigger gating', () => {
+    function run({seen = false, sourceMode = false} = {}) {
+        if (seen) localStorage.setItem('feezalTourSeen', '1');
+        else localStorage.removeItem('feezalTourSeen');
+        let started = false;
+        // Plain data properties — _sourceMode/shadowRoot are reactive/accessor
+        // properties on the prototype and must not run Lit internals here.
+        const ctx = app();
+        Object.defineProperty(ctx, '_sourceMode', {value: sourceMode});
+        Object.defineProperty(ctx, 'shadowRoot', {value: {querySelector: () => ({start() { started = true; }})}});
+        ctx._maybeAutoStartTour();
+        return started;
+    }
+
+    it('starts on a fresh site (views without elements, flag unset)', () => {
+        expect(run()).toBe(true);
+    });
+
+    it('does not start once the seen-flag is set', () => {
+        expect(run({seen: true})).toBe(false);
+    });
+
+    it('does not start when any view already carries elements', () => {
+        feezal.views[1].append(document.createElement('feezal-element-basic-number'));
+        expect(run()).toBe(false);
+    });
+
+    it('does not start in source mode or without views', () => {
+        expect(run({sourceMode: true})).toBe(false);
+        feezal.views = [];
+        expect(run()).toBe(false);
+    });
+});

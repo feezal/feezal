@@ -68,7 +68,6 @@ Work in progress — priorities and scope are not final.
 - [U23 — Custom collapsed placeholder text in the source editor](#u23--custom-collapsed-placeholder-text-in-the-source-editor-blocked-by-upstream) 🚧
 - [U30 — Auto-generated starter dashboard from MQTT discovery](#u30--auto-generated-starter-dashboard-from-mqtt-discovery-questionable-low-priority) ❓ 🔽
 - [U31 — Device-first element insertion](#u31--device-first-element-insertion-questionable-low-priority) ❓ 🔽
-- [U37 — Welcome wizard / first-run onboarding tour](#u37--welcome-wizard--first-run-onboarding-tour)
 - [U38 — Topic browser sidebar panel](#u38--topic-browser-sidebar-panel)
 - [U39 — Attribute inspector UX for attribute-heavy elements](#u39--attribute-inspector-ux-for-attribute-heavy-elements-️-needs-discussion) ⚠️
 - [U40 — Drag-and-drop reordering for `position:static` views](#u40--drag-and-drop-reordering-for-positionstatic-views) 🔽 partial
@@ -1066,31 +1065,6 @@ A "generate views from discovered devices" wizard: walk the discovery registry (
 A second palette tab listing discovered devices; dragging a device onto the canvas creates the matching pre-wired element (inverse of today's flow) — inspired by HA 2026.6's entity-first card picker.
 
 **Why questionable:** the existing workflow — drag an element, then pick the auto-discovered device in the inspector — is considered good enough. Low value for the palette/DnD complexity it adds. Revisit only with concrete user demand.
-
-### U37 — Welcome wizard / first-run onboarding tour
-
-A guided tour that appears on **first use** (fresh install, no dashboard content yet) and walks the user through the most important concepts in a few steps — fixing the blank-canvas problem without generating anything (deliberately lighter than U30's auto-generated dashboard).
-
-**Interaction model: spotlight overlay.** The whole editor is dimmed by a translucent overlay with a **cutout highlighting the current step's UI region** (magnifier/spotlight effect); next to the cutout, a small card shows the step's explanation with **Next / Back / Skip tour** controls. The highlighted region stays interactive when the step asks the user to actually do something.
-
-**Tour steps (first cut):**
-
-1. **Palette** — spotlight the element palette: "these are the building blocks, drag them onto the canvas".
-2. **Canvas** — spotlight the view canvas: free-form positioning, drag & resize.
-3. **Inspector** — spotlight the attribute/style inspector sidebar: "select an element to configure it here".
-4. **Deploy / View button** — spotlight the deploy + view controls: edit mode vs. the live viewer.
-5. **MQTT broker setup** — open/spotlight the connection settings panel (`feezal-sidebar-viewer.js`) and guide the user through entering their broker URI (and credentials, if any); the panel's existing server↔broker status indicator gives immediate feedback that the connection works.
-6. **Hands-on: first live element** — guided mini-exercise tying it all together:
-   - drag a **`basic-template`** element onto the canvas,
-   - configure its `subscribe` topic in the inspector (pointing at a topic that exists on the user's broker — the topic autocomplete helps here),
-   - set example template content like `${msg.payload}°C`,
-   - deploy/view → the user sees their first live MQTT value on a dashboard.
-
-**Trigger & persistence:** shown automatically only when the editor starts with no meaningful prior state (no elements placed / first launch flag); the "seen" flag is persisted (server-side preferred over localStorage so it survives browser switches). Always skippable at every step, and **re-launchable manually** from the menu/help so it doubles as a feature refresher.
-
-**Implementation notes:** candidate libraries for the spotlight mechanic: **driver.js** (MIT, lightweight, vanilla, cutout + popover out of the box) or Shepherd.js; alternatively a hand-rolled overlay (a fixed full-screen backdrop with a `clip-path`/box-shadow cutout tracking the target's bounding rect) — editor-only, so the dependency never reaches the viewer/export bundle. Steps that target sidebar panels must be able to **switch the active sidebar tab** before spotlighting. The hands-on step needs light event-driven progression (advance when the element lands on the canvas / the topic is set) rather than a plain "Next" click.
-
-**Relates:** U30 (auto-generated starter dashboard — the heavyweight questionable sibling; the wizard is the low-risk answer to the same onboarding gap), U31 (device-first insertion), AI assistant (can answer follow-up "how do I…" questions after the tour).
 
 ### U38 — Topic browser sidebar panel
 

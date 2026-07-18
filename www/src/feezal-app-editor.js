@@ -14,6 +14,7 @@ import '@shoelace-style/shoelace/dist/components/button/button.js';
 
 import {loadMonaco, syncMonacoStyles} from './feezal-monaco-loader.js';
 import {viewFromHash} from './hash-view.js';
+import './feezal-welcome-tour.js';
 
 import './feezal-menu.js';
 import './feezal-palette.js';
@@ -1302,6 +1303,8 @@ class FeezalAppEditor extends LitElement {
                     </div>
                 </div>
             ` : ''}
+
+            <feezal-welcome-tour .editor="${this}"></feezal-welcome-tour>
         `;
     }
 
@@ -1388,6 +1391,28 @@ class FeezalAppEditor extends LitElement {
         // AI assistant (U9) — gate the toolbar button on a configured backend.
         this._loadAiConfig();
         window.addEventListener('feezal:ai-config-changed', this._onAiConfigChanged);
+
+        // U37 — welcome tour: re-launch request from Editor Settings.
+        this._onStartTour = () => this.startTour();
+        this.addEventListener('feezal-start-tour', this._onStartTour);
+        // Auto-start on first use only: seen-flag unset AND the site carries
+        // no elements yet (fresh install / blank canvas). Deferred so the
+        // server-injected site markup and the first render are settled.
+        setTimeout(() => this._maybeAutoStartTour(), 800);
+    }
+
+    // ── U37 — welcome tour ────────────────────────────────────────────────────
+
+    startTour() {
+        this.shadowRoot.querySelector('feezal-welcome-tour')?.start();
+    }
+
+    _maybeAutoStartTour() {
+        if (localStorage.getItem('feezalTourSeen')) return;
+        if (this._sourceMode) return;
+        const views = [...(feezal.views ?? [])];
+        if (!views.length || views.some(v => v.children.length > 0)) return;
+        this.startTour();
     }
 
     /** Open/close the AI panel and persist the preference (U29). */
@@ -1527,6 +1552,7 @@ class FeezalAppEditor extends LitElement {
         document.removeEventListener('pointerdown', this._onDocPointerActionMenu, true);
         document.removeEventListener('keydown', this._onDocKeySourceMode);
         window.removeEventListener('feezal:ai-config-changed', this._onAiConfigChanged);
+        this.removeEventListener('feezal-start-tour', this._onStartTour);
         this._sourceEditor?.dispose();
     }
 

@@ -148,6 +148,15 @@ and palette drag-to-canvas are all automated.)
 - [ ] **Sidebar panels scroll** when taller than the viewport: shrink the browser window height, then check Inspector (Attributes/Styles with an element selected), Site Settings (both tabs), Theme and Editor Settings — each shows the same thin scrollbar as the palette and reaches its bottom content; nothing is clipped without a scrollbar.
 - [ ] Sidebar + palette **collapse** toggles; widths persist across reload.
 
+### Welcome tour (U37)
+
+- [ ] **Auto-start on first use**: clear the `feezalTourSeen` localStorage key and load the editor with an **empty** site → the spotlight tour starts by itself (dimmed editor, cutout on the palette, explanation card). A site that already has elements never auto-starts the tour.
+- [ ] **Steps**: Next walks palette → canvas → inspector (sidebar switches to the Inspector tab by itself) → Deploy button → broker setup (Site Settings tab opens; the connection panel is usable while spotlighted — its status indicator reacts to a broker URI) → hands-on exercise. Back returns; the dots show progress; the cutout animates between targets and follows window resizes.
+- [ ] **Interaction blocking**: during the four explanation steps, clicks on the editor do nothing (stray clicks can't derail the tour); from the broker step on, the editor is fully usable under the dimming.
+- [ ] **Hands-on progression (event-driven)**: drag a *Template* element (Basic category) onto the canvas → the tour advances by itself; set its `subscribe` topic *and* template content (e.g. `${msg.payload} °C`) in the inspector → advances again; final card points at Deploy; **Done** ends the tour. Next also works as manual override on every hands-on step.
+- [ ] **Skip & persistence**: *Skip tour* at any step closes it and sets the seen-flag — reloading never auto-starts it again.
+- [ ] **Re-launch**: Editor Settings → Help → *Show welcome tour* restarts it anytime (also after it was skipped). *(Step machinery, sidebar switching, click-blocking, hands-on advance and the trigger gating are unit/browser-tested.)*
+
 ## 4. Editor — inspector
 
 - [ ] **Attributes:** every attribute type renders the right control (text, number, select, boolean, color, mqttTopic w/ autocomplete, icon w/ autocomplete); help tooltips show.
