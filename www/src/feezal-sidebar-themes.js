@@ -194,8 +194,11 @@ class FeezalSidebarThemes extends LitElement {
         .or-color {
             width: 26px; height: 26px; flex-shrink: 0; padding: 1px;
             border: 1px solid var(--feezal-border,#ccc); border-radius: 3px;
+            background: var(--feezal-bg, #fff);
             cursor: pointer; align-self: flex-end;
         }
+        .or-color::-webkit-color-swatch-wrapper { padding: 0; }
+        .or-color::-webkit-color-swatch { border: none; border-radius: 2px; }
         .or-color:disabled { opacity: 0.4; cursor: not-allowed; }
         .or-clear {
             flex-shrink: 0; border: none; background: none; cursor: pointer;

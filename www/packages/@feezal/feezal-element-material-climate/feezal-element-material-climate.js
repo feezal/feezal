@@ -737,7 +737,9 @@ class FeezalElementMaterialClimateInspector extends LitElement {
         sl-input::part(input) { background: var(--feezal-bg, #fff); color: var(--sl-input-color, #333); }
         sl-switch { color: var(--feezal-color, inherit); }
         .row { display: flex; gap: 6px; }
-        .row > .field { flex: 1; }
+        /* min-width:0 lets the number inputs shrink to an equal 1/3 share on a
+           narrow sidebar instead of keeping their intrinsic (wider) width. */
+        .row > .field { flex: 1 1 0; min-width: 0; }
         .hint { font-size: 10px; opacity: 0.55; padding: 0 2px 4px; }
     `;
 

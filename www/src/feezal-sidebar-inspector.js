@@ -140,18 +140,16 @@ class FeezalSidebarInspector extends LitElement {
             margin-left: auto; align-self: center; margin-right: 8px;
             font-size: 11px; line-height: 1.4; padding: 2px 8px;
             border-radius: 10px;
-            background: var(--sl-color-primary-100, #e0f2fe);
-            color: var(--sl-color-primary-700, #0369a1);
-            border: 1px solid var(--sl-color-primary-300, #7dd3fc);
+            /* The app sets --feezal-sel-badge-* (dark values) on this element
+               in dark mode; light-mode fallbacks below. The old
+               :host(.dark)/:host-context selectors never matched (dark is a
+               class on the app host, not on this nested component). */
+            background: var(--feezal-sel-badge-bg, var(--sl-color-primary-100, #e0f2fe));
+            color: var(--feezal-sel-badge-color, var(--sl-color-primary-700, #0369a1));
+            border: 1px solid var(--feezal-sel-badge-border, var(--sl-color-primary-300, #7dd3fc));
             white-space: nowrap; max-width: 150px;
             overflow: hidden; text-overflow: ellipsis;
             cursor: default; user-select: none; flex-shrink: 0;
-        }
-        :host-context([data-theme="dark"]) .sel-badge,
-        :host(.dark) .sel-badge {
-            background: rgba(var(--feezal-selection-rgb, 2,132,199), 0.15);
-            color: var(--sl-color-primary-300, #7dd3fc);
-            border-color: var(--sl-color-primary-500, #0ea5e9);
         }
 
         /* ── Context menu ─────────────────────────────────────────────────── */

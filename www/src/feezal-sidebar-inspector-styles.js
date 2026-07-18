@@ -89,7 +89,11 @@ class FeezalSidebarInspectorStyles extends LitElement {
         .field.half { width: calc(50% - 2px); }
         .row { display: flex; align-items: flex-end; gap: 4px; margin-bottom: 4px; }
         .row sl-input, .row sl-select { flex: 1; }
-        .row input[type=color] { width: 36px; height: 32px; padding: 2px; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; flex-shrink: 0; }
+        /* Background/border follow the inherited feezal dark-mode vars so the
+           surround around the native swatch isn't a bright box in dark mode. */
+        .row input[type=color] { width: 36px; height: 32px; padding: 2px; border: 1px solid var(--feezal-border, #ccc); background: var(--feezal-bg, #fff); border-radius: 3px; cursor: pointer; flex-shrink: 0; }
+        .row input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+        .row input[type=color]::-webkit-color-swatch { border: none; border-radius: 2px; }
         /* N20: a var() colour that can't be resolved shows a checkerboard so the author knows */
         .row input[type=color].unresolved::-webkit-color-swatch {
             background-image: repeating-conic-gradient(#bbb 0% 25%, #fff 0% 50%);
