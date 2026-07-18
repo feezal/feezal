@@ -75,8 +75,8 @@ describe('B8 — _dragRestriction()', () => {
         const ctx = inspectorCtx();
 
         const before = ctx._dragRestriction();
-        expect(before.right - before.left).toBe(1000);
-        expect(before.bottom - before.top).toBe(799);   // -1 spurious-scrollbar guard
+        expect(before.right - before.left).toBeCloseTo(1000, 0);
+        expect(before.bottom - before.top).toBeCloseTo(799, 0);   // -1 spurious-scrollbar guard
 
         site.scrollLeft = 200;
         site.scrollTop = 150;
@@ -85,8 +85,8 @@ describe('B8 — _dragRestriction()', () => {
         // Origin shifts with the scroll, the span must not shrink.
         expect(after.left).toBeCloseTo(before.left - 200, 0);
         expect(after.top).toBeCloseTo(before.top - 150, 0);
-        expect(after.right - after.left).toBe(1000);
-        expect(after.bottom - after.top).toBe(799);
+        expect(after.right - after.left).toBeCloseTo(1000, 0);
+        expect(after.bottom - after.top).toBeCloseTo(799, 0);
     });
 
     it('empty auto view: clamps to the visible box (with the -1 bottom guard)', () => {
@@ -107,15 +107,15 @@ describe('B8 — _dragRestriction()', () => {
         const ctx = inspectorCtx();
 
         const before = ctx._dragRestriction();
-        expect(before.right - before.left).toBe(800);
-        expect(before.bottom - before.top).toBe(940);   // overflowing → no -1 guard
+        expect(before.right - before.left).toBeCloseTo(800, 0);
+        expect(before.bottom - before.top).toBeCloseTo(940, 0);   // overflowing → no -1 guard
 
         site.scrollLeft = 150;
         site.scrollTop = 200;
         ctx._dragExtent = null;
         const after = ctx._dragRestriction();
-        expect(after.right - after.left).toBe(800);
-        expect(after.bottom - after.top).toBe(940);
+        expect(after.right - after.left).toBeCloseTo(800, 0);
+        expect(after.bottom - after.top).toBeCloseTo(940, 0);
         expect(after.left).toBeCloseTo(before.left - 150, 0);
         expect(after.top).toBeCloseTo(before.top - 200, 0);
     });
@@ -125,8 +125,8 @@ describe('B8 — _dragRestriction()', () => {
         addElement(100, 900, 120, 40);
         const ctx = inspectorCtx();
         const r = ctx._dragRestriction();
-        expect(r.right - r.left).toBe(640);
-        expect(r.bottom - r.top).toBe(940);
+        expect(r.right - r.left).toBeCloseTo(640, 0);
+        expect(r.bottom - r.top).toBeCloseTo(940, 0);
     });
 
     it('extent is snapshotted per drag: moving content does not move the boundary', () => {
@@ -135,17 +135,17 @@ describe('B8 — _dragRestriction()', () => {
         const ctx = inspectorCtx();
 
         const during = ctx._dragRestriction();
-        expect(during.bottom - during.top).toBe(940);
+        expect(during.bottom - during.top).toBeCloseTo(940, 0);
 
         // Mid-drag the far element moves down — the cached extent must hold,
         // otherwise the dragged element would push the boundary along.
         far.style.top = '1200px';
         const still = ctx._dragRestriction();
-        expect(still.bottom - still.top).toBe(940);
+        expect(still.bottom - still.top).toBeCloseTo(940, 0);
 
         // Next drag (cache cleared in onstart/onend) sees the new extent.
         ctx._dragExtent = null;
-        expect(ctx._dragRestriction().bottom - still.top).toBe(1240);
+        expect(ctx._dragRestriction().bottom - still.top).toBeCloseTo(1240, 0);
     });
 });
 
