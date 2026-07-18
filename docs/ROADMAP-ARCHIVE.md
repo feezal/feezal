@@ -2,6 +2,10 @@
 
 ## Bugs
 
+### B30 — View names with umlauts (e.g. "Küche") cannot be opened ✅ fixed
+
+Root cause as suspected: browsers percent-encode non-ASCII characters in `location.hash` (`#/Küche` reads back as `#/K%C3%BCche`), the hash was read without `decodeURIComponent`, so the view lookup failed and fell back to the default view; the raw hash-sync comparison in `_viewChanged` also never matched for encoded names. Fixed with a shared `viewFromHash()` helper ([hash-view.js](../www/src/hash-view.js)) used by every hash reader — `feezal-site` (initial view + decoded sync comparison), `feezal-app-editor` (nav routing), `feezal-app-viewer` (hashchange + first-view fallback). Hash *writers* are unchanged (the browser does the encoding); pass-throughs (history preview href, editor "View" button) carry the encoded hash and decode on read. Playlist and N24 view commands set `site.view` directly and were never affected. Browser-tested: opening a percent-encoded umlaut hash and switch-sync without a rewrite loop.
+
 ### B29 — device-climate: circle-slider geometry differs from device-light ✅ fixed
 
 `device-climate`/`device-light` are `material-climate`/`material-light` (Device palette category). The climate arc sat at 82 % radius with a 5 %-of-viewBox track; the light ring at 80 % with a 7 % track — side by side the climate track was visibly narrower and the circles misaligned. Unified the climate constants to the light's proportions (radius 80 % of the viewBox half-size, track 7 %, knob diameter 10 % of the viewBox width; climate's 200-unit viewBox carries the light values × 2). Track width and knob diameter are now configurable on **both** elements via unitless CSS custom properties exposed in the Style inspector (`--feezal-light-track-width`/`--feezal-light-knob-size`, `--feezal-climate-track-width`/`--feezal-climate-knob-size`) — the same numbers on both elements produce identical-looking sliders.

@@ -4,6 +4,7 @@ import {LitElement, html, css} from 'lit';
 
 import './feezal-site.js';
 import './feezal-view.js';
+import {viewFromHash} from './hash-view.js';
 
 class FeezalAppViewer extends LitElement {
     static styles = css`
@@ -16,7 +17,7 @@ class FeezalAppViewer extends LitElement {
         super.connectedCallback();
 
         this._onHashChange = () => {
-            const view = location.hash.replace(/^#\/?/, '');
+            const view = viewFromHash();
             if (feezal.site) {
                 feezal.site.view = view;
             }
@@ -27,7 +28,7 @@ class FeezalAppViewer extends LitElement {
         // Navigate to first view if no hash
         this.updateComplete.then(() => {
             const firstView = feezal.views[0];
-            if (firstView && !location.hash.replace('#', '').replace('/', '')) {
+            if (firstView && !viewFromHash()) {
                 location.hash = '/' + firstView.getAttribute('name');
             } else {
                 this._onHashChange();

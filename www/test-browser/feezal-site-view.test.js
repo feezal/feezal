@@ -68,6 +68,28 @@ describe('view switching', () => {
         expect(site.view).toBe('kitchen');
     });
 
+    it('B30: opens views with umlauts in the name (percent-encoded hash)', async () => {
+        // Browsers store non-ASCII hashes percent-encoded — location.hash
+        // reads back "#/K%C3%BCche" after assigning "#/Küche".
+        location.hash = '#/Küche';
+        const site = await mountSite('home', 'Küche');
+        expect(site.view).toBe('Küche');
+        expect(getComputedStyle(feezal.views[1]).display).not.toBe('none');
+    });
+
+    it('B30: switching to an umlaut view syncs the hash without looping', async () => {
+        const site = await mountSite('home', 'Küche');
+        site.view = 'Küche';
+        await site.updateComplete;
+        expect(decodeURIComponent(location.hash)).toBe('#/Küche');
+
+        // A second update pass must not consider the hash out of sync
+        // (raw comparison of encoded vs raw would re-write it every time).
+        const before = location.hash;
+        site._viewChanged(site.view);
+        expect(location.hash).toBe(before);
+    });
+
     it('switching the view flips visibility, hash and element visible flags', async () => {
         const site = await mountSite('home', 'kitchen');
         const element = document.createElement('feezal-element-test-visibility');

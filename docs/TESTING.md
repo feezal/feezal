@@ -176,6 +176,7 @@ and palette drag-to-canvas are all automated.)
 - [ ] Tab bar reflects views; hidden/foldered views excluded as configured.
 - [ ] Viewer: navigate via **Navigation** element, **Navbar**, swipe (if used).
 - [ ] Region/embedded views (layout-flex / layout-responsive / layout-app / layout-view) render the referenced view in editor (placeholder) and viewer (live).
+- [ ] **Umlaut view names (B30)**: create a view named `Küche` → switching to it works from the view tabs, navigation elements, and a direct URL `…#/Küche` (browser shows `#/K%C3%BCche`) in both editor and viewer; reloading on that hash stays on `Küche` instead of falling back to the first view; the address-bar hash doesn't flicker/rewrite on every switch. *(Hash decode + sync loop are browser-tested.)*
 
 ---
 

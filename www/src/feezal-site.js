@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2019-2026 Sebastian Raff — feezal viewer runtime
 import {LitElement, html, css} from 'lit';
+import {viewFromHash} from './hash-view.js';
 
 /**
  * feezal-site
@@ -98,7 +99,7 @@ class FeezalSite extends LitElement {
         // Read initial view from URL hash. feezal-app-editor also derives
         // its nav.view from the hash, so this is equivalent for both contexts
         // and works correctly in the viewer where feezal.app.nav doesn't exist.
-        const hashView = location.hash.replace(/^#\/?/, '');
+        const hashView = viewFromHash();
         if (hashView) {
             this.view = hashView;
         } else {
@@ -310,9 +311,10 @@ class FeezalSite extends LitElement {
         if (!feezal.isEditor) {
             // Keep the address-bar hash in sync regardless of what triggered the
             // view change (MQTT message, navigation element, or initial load).
-            const expectedHash = '#/' + view;
-            if (location.hash !== expectedHash) {
-                location.hash = expectedHash;
+            // Compare decoded (B30): the browser percent-encodes umlauts, so a
+            // raw string comparison would re-write the hash on every switch.
+            if (viewFromHash() !== view) {
+                location.hash = '/' + view;
             }
         }
 

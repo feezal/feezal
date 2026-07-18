@@ -8,7 +8,6 @@ Work in progress — priorities and scope are not final.
 
 **Bugs**
 - [B8 — Elements cannot be dragged to the far edge of an oversized view](#b8--elements-cannot-be-dragged-to-the-far-edge-of-an-oversized-view-questionable) ❓
-- [B30 — View names with umlauts (e.g. "Küche") cannot be opened](#b30--view-names-with-umlauts-eg-küche-cannot-be-opened)
 - [B31 — basic-template: template content lost on copy/cut/paste and duplicate](#b31--basic-template-template-content-lost-on-copycutpaste-and-duplicate)
 - [B32 — Snapping helper lines sometimes don't disappear](#b32--snapping-helper-lines-sometimes-dont-disappear-needs-investigation) ❓
 - [B33 — Elements sometimes not selectable/draggable](#b33--elements-sometimes-not-selectabledraggable-needs-investigation) ❓
@@ -122,14 +121,6 @@ const restrict = {
 This handles all combinations: fixed×fixed, fixed×auto, auto×auto.
 
 **Related issue — snapping helper lines misplaced when an oversized view is scrolled:** if the view canvas is wider/taller than the viewport and `#container-view` is scrolled (e.g. scrolled right), the element-snap helper lines (`#vsnap1`/`#vsnap2`/`#hsnap1`/`#hsnap2`) render at the wrong position — offset by roughly the scroll amount. Likely the same class of bug as the drag-restrict issue above: `_snap()` in [feezal-sidebar-inspector.js](www/src/feezal-sidebar-inspector.js) computes target positions (`tx`, `tr`, `ty`, `tb`) relative to `view.getBoundingClientRect()` / `cvRect` (viewport-clipped, scroll-dependent coordinates), then writes them directly as the `left`/`top` CSS of snap-line elements positioned inside `#container-view`. If those snap lines don't scroll together with the canvas content (i.e. they're pinned to the visible viewport rather than the scrolled canvas), the coordinate systems mismatch by the scroll offset. Needs the same fix approach as B8: either make the snap lines scroll with the canvas content, or convert the computed positions into `#container-view`-relative (viewport) coordinates that account for its current `scrollLeft`/`scrollTop` before assigning them as CSS `left`/`top`.
-
-### B30 — View names with umlauts (e.g. "Küche") cannot be opened
-
-A view whose name contains a German umlaut (e.g. `Küche`) cannot be opened — navigating to it immediately falls back to the default view.
-
-**Likely root cause:** browsers percent-encode non-ASCII characters in `location.hash` (`#/Küche` → `#/K%C3%BCche`). [feezal-site.js:101](www/src/feezal-site.js#L101) reads the hash without `decodeURIComponent`, so the view lookup runs against `K%C3%BCche`, finds no match, and falls back. The hash-sync comparison in `_viewChanged` ([feezal-site.js:314](www/src/feezal-site.js#L314), `location.hash !== expectedHash`) also never matches for encoded names, so it may re-write the hash on every switch.
-
-**Fix:** `decodeURIComponent` when reading the hash, and encode (or decode-then-compare) consistently when syncing it. Audit *all* hash consumers — `feezal-app-editor` derives its `nav.view` from the hash the same way — plus anywhere view names travel through URLs (viewer deep links, history preview, playlist, N24 view commands).
 
 ### B31 — basic-template: template content lost on copy/cut/paste and duplicate
 

@@ -13,6 +13,7 @@ import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/button/button.js';
 
 import {loadMonaco, syncMonacoStyles} from './feezal-monaco-loader.js';
+import {viewFromHash} from './hash-view.js';
 
 import './feezal-menu.js';
 import './feezal-palette.js';
@@ -1310,10 +1311,10 @@ class FeezalAppEditor extends LitElement {
         // Apply dark mode root vars immediately so Shoelace dropdowns look correct from the start.
         this._syncDarkModeRoot();
 
-        // Hash-based routing
-        this._navView = location.hash.replace(/^#\/?/, '') || '';
+        // Hash-based routing (viewFromHash decodes percent-encoded umlauts, B30)
+        this._navView = viewFromHash() || '';
         this._onHashChange = () => {
-            this._navView = location.hash.replace(/^#\/?/, '');
+            this._navView = viewFromHash();
             if (feezal.site) {
                 feezal.site.view = this._navView;
             }
