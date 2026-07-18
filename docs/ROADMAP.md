@@ -53,7 +53,6 @@ Work in progress — priorities and scope are not final.
 - [E94 — 3D model viewer (`feezal-element-basic-model`)](#e94--3d-model-viewer-feezal-element-basic-model) 💡
 - [E95 — Configurable keyboard shortcuts for interactive elements](#e95--configurable-keyboard-shortcuts-for-interactive-elements)
 - [E96 — MIDI input as an element trigger (Web MIDI)](#e96--midi-input-as-an-element-trigger-web-midi-️-questionable-future) ❓
-- [E100 — Fan element (`feezal-element-glass-fan`)](#e100--fan-element-feezal-element-glass-fan)
 - [E101 — Dialog element family (`feezal-element-glass-dialog*`)](#e101--dialog-element-family-feezal-element-glass-dialog)
 - [E102 — Climate elements: boost mode, thermostat mode datapoint conventions, valve position](#e102--climate-elements-boost-mode-thermostat-mode-datapoint-conventions-valve-position-️-refined-072026--decisions-pending-do-not-implement-yet) ⚠️ *(refined 07/2026 — model agreed, not implemented)*
 - [E103 — WLED elements (Device / Glass / Metro)](#e103--wled-elements-device--glass--metro)
@@ -830,27 +829,6 @@ Beside E95's keyboard shortcuts, allow **MIDI controllers** to drive element int
 **Open questions:** device identity/persistence across reconnects (match by port name/id); channel/note filtering; MIDI *feedback/out* (lighting a controller's LED from state) as a later phase; whether this is per-element bindings or a central MIDI-map surface. Given the Safari/Firefox gap, likely ships (if ever) as an optional power-user feature, not a core interaction path.
 
 **Relates:** E95 (shares the element-actions model + inversion of the "learn" UI; keyboard is the portable sibling), E50/E49 (a MIDI event is just another action trigger), N24 (per-client input state), A21 (accessibility — physical input is complementary, not a replacement for keyboard operability).
-
-### E100 — Fan element (`feezal-element-glass-fan`)
-
-The Glass family's missing fan control — every other common device type (light, climate, contact, shutter, switch, occupancy, sensor, button) already has a glass counterpart; fan is the gap. Frosted-glass card in the established Glass visual language (Apple-Home-style tile, tap/long-press-to-detail pattern where applicable).
-
-**MQTT contract mirrors `feezal-element-material-fan`** (same attribute names, same capability model — the established Glass convention, see E58/glass-light's header comment: "MQTT capability contract mirrors feezal-element-material-* — SAME attribute names"):
-
-| Attribute | Description |
-|---|---|
-| `subscribe` / `message-property` / `publish` | Primary on/off state and command |
-| `payload-on` / `payload-off` | On/off payloads |
-| `subscribe-speed` / `message-property-speed` / `publish-speed` | Fan speed (numeric, scaled by `speed-range-min`/`speed-range-max`) |
-| `subscribe-preset` / `message-property-preset` / `publish-preset` | Preset mode (e.g. auto, sleep) |
-| `preset-modes` | Comma/JSON list of available preset names |
-| `speed-range-min` / `speed-range-max` | Device-reported speed scale (HA discovery maps this from `speed_range_min/max`) |
-| `label` | Card label |
-| `subscribe-availability` / `message-property-availability` / `payload-available` / `payload-unavailable` | Availability (see N31 — should adopt the base-class mechanism once it lands rather than the current hand-rolled pattern) |
-
-**Visual concept:** icon (fan blades) that **animates/rotates when on**, speed as a slider or stepped dots (matching glass-light's brightness slider style), preset chips if `preset-modes` is set.
-
-**Relates:** material-fan (attribute-contract source), E58 (glass-light, the established pattern this follows), N31 (availability — adopt the base-class approach rather than hand-rolling a 15th copy).
 
 ### E101 — Dialog element family (`feezal-element-glass-dialog*`)
 

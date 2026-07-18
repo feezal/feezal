@@ -546,6 +546,31 @@ Elements now subscribe and render live in the editor exactly as in the viewer. T
 
 ## Element Ecosystem
 
+### E100 — Fan element (feezal-element-glass-fan) ✅ implemented
+
+The Glass family's missing fan control — every other common device type (light, climate, contact, shutter, switch, occupancy, sensor, button) already has a glass counterpart; fan is the gap. Frosted-glass card in the established Glass visual language (Apple-Home-style tile, tap/long-press-to-detail pattern where applicable).
+
+**MQTT contract mirrors `feezal-element-material-fan`** (same attribute names, same capability model — the established Glass convention, see E58/glass-light's header comment: "MQTT capability contract mirrors feezal-element-material-* — SAME attribute names"):
+
+| Attribute | Description |
+|---|---|
+| `subscribe` / `message-property` / `publish` | Primary on/off state and command |
+| `payload-on` / `payload-off` | On/off payloads |
+| `subscribe-speed` / `message-property-speed` / `publish-speed` | Fan speed (numeric, scaled by `speed-range-min`/`speed-range-max`) |
+| `subscribe-preset` / `message-property-preset` / `publish-preset` | Preset mode (e.g. auto, sleep) |
+| `preset-modes` | Comma/JSON list of available preset names |
+| `speed-range-min` / `speed-range-max` | Device-reported speed scale (HA discovery maps this from `speed_range_min/max`) |
+| `label` | Card label |
+| `subscribe-availability` / `message-property-availability` / `payload-available` / `payload-unavailable` | Availability (see N31 — should adopt the base-class mechanism once it lands rather than the current hand-rolled pattern) |
+
+**Visual concept:** icon (fan blades) that **animates/rotates when on**, speed as a slider or stepped dots (matching glass-light's brightness slider style), preset chips if `preset-modes` is set.
+
+**Relates:** material-fan (attribute-contract source), E58 (glass-light, the established pattern this follows), N31 (availability — adopt the base-class approach rather than hand-rolling a 15th copy).
+
+
+> **Implemented 07/2026:** mirrors material-fan's contract 1:1 (separate topics, speed-range scaling, presets); glass chrome with spinning fan icon (speed-proportional, reduced-motion-aware), tap toggle, popup with vertical speed pill + preset chips; availability via the N31 base incl. shared badge; 11 browser tests.
+
+
 ### E99 — glass-light: configurable on/off state labels ✅ implemented
 
 The state line of `glass-light` is hard-coded English: `Off`, `On`, `On • <brightness> %` ([feezal-element-glass-light.js:767](../www/packages/@feezal/feezal-element-glass-light/feezal-element-glass-light.js)). Make the displayed labels configurable — e.g. `label-on` / `label-off` string attributes (defaults `On` / `Off`) — so dashboards can localise ("Ein"/"Aus") or reword them ("Läuft"/"Standby"). The brightness suffix (`• <brt> %`) keeps appending to the on-label. Not to be confused with `payload-on`/`payload-off` (MQTT payload values) or `label` (the card title) — the `help` texts should make the distinction explicit.

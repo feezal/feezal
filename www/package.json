@@ -43,6 +43,7 @@
         "@feezal/feezal-element-glass-button": "*",
         "@feezal/feezal-element-glass-climate": "*",
         "@feezal/feezal-element-glass-contact": "*",
+        "@feezal/feezal-element-glass-fan": "*",
         "@feezal/feezal-element-glass-light": "*",
         "@feezal/feezal-element-glass-occupancy": "*",
         "@feezal/feezal-element-glass-sensor": "*",
