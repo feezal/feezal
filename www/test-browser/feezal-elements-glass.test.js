@@ -136,6 +136,31 @@ describe('glass-switch', () => {
     });
 });
 
+describe('glass-light state labels (E99)', () => {
+    it('label-on/label-off are configurable, brightness suffix keeps appending', async () => {
+        const el = await mount('feezal-element-glass-light', {
+            'subscribe-state': 'stat/l', 'payload-mode': 'separate',
+            'label-on': 'Ein', 'label-off': 'Aus',
+        });
+        feezal.connection.deliver('stat/l', 'OFF');
+        await el.updateComplete;
+        expect(el.shadowRoot.querySelector('.state').textContent.trim()).toBe('Aus');
+
+        feezal.connection.deliver('stat/l', 'ON');
+        await el.updateComplete;
+        expect(el.shadowRoot.querySelector('.state').textContent.trim()).toBe('Ein');
+    });
+
+    it('defaults stay On/Off', async () => {
+        const el = await mount('feezal-element-glass-light', {
+            'subscribe-state': 'stat/l2', 'payload-mode': 'separate',
+        });
+        feezal.connection.deliver('stat/l2', 'OFF');
+        await el.updateComplete;
+        expect(el.shadowRoot.querySelector('.state').textContent.trim()).toBe('Off');
+    });
+});
+
 describe('glass-contact texts', () => {
     it('text-open/text-closed/text-tilted are configurable', async () => {
         const el = await mount('feezal-element-glass-contact', {

@@ -156,6 +156,8 @@ class FeezalElementGlassLight extends FeezalElement {
                 {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
                 {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
                 {name: 'label', type: 'string', help: 'Card label.'},
+                {name: 'label-on',  type: 'string', default: 'On',  help: 'Displayed state text while the light is on (localise, e.g. "Ein"); the brightness suffix "• x %" keeps appending. Display only — NOT the MQTT payload (payload-on) and NOT the card title (label).'},
+                {name: 'label-off', type: 'string', default: 'Off', help: 'Displayed state text while the light is off (localise, e.g. "Aus"). Display only — NOT the MQTT payload (payload-off) and NOT the card title (label).'},
                 {name: 'icon',  type: 'string', default: 'lightbulb', help: 'Icon name.'},
                 {name: 'degrade', type: 'boolean', default: false,
                     help: 'Replace the live backdrop blur with a semi-opaque solid card — no per-frame GPU cost (weak wall-tablet hardware).'},
@@ -203,6 +205,8 @@ class FeezalElementGlassLight extends FeezalElement {
         payloadAvailable:    {type: String, reflect: true, attribute: 'payload-available'},
         payloadUnavailable:  {type: String, reflect: true, attribute: 'payload-unavailable'},
         label:               {type: String, reflect: true},
+        labelOn:             {type: String, reflect: true, attribute: 'label-on'},
+        labelOff:            {type: String, reflect: true, attribute: 'label-off'},
         icon:                {type: String, reflect: true},
         degrade:             {type: Boolean, reflect: true},
         discoveryId:         {type: String, reflect: true, attribute: 'discovery-id'},
@@ -375,6 +379,8 @@ class FeezalElementGlassLight extends FeezalElement {
         this.payloadAvailable = 'online';
         this.payloadUnavailable = 'offline';
         this.label = '';
+        this.labelOn = 'On';
+        this.labelOff = 'Off';
         this.icon = 'lightbulb';
         this.degrade = false;
         this.discoveryId = '';
@@ -765,8 +771,9 @@ class FeezalElementGlassLight extends FeezalElement {
     }
 
     _stateText() {
-        if (!this._on) return 'Off';
-        return this._brt !== null ? `On • ${this._brt} %` : 'On';
+        if (!this._on) return this.labelOff || 'Off';
+        const on = this.labelOn || 'On';
+        return this._brt !== null ? `${on} • ${this._brt} %` : on;
     }
 
     /** Capabilities decide which popup sections exist — NOT the mode alone:
@@ -1095,6 +1102,8 @@ class FeezalElementGlassLightInspector extends LitElement {
                 <div class="sec-head">Display</div>
                 <div class="sec-body">
                     ${this._textInput('label', 'Label', 'Ceiling light')}
+                    ${this._textInput('label-on', 'State text on', 'On')}
+                    ${this._textInput('label-off', 'State text off', 'Off')}
                     ${this._textInput('icon', 'Icon', 'lightbulb')}
                     <div class="field">
                         <sl-switch size="small" ?checked="${this.element.hasAttribute('degrade')}"

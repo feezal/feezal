@@ -54,7 +54,6 @@ Work in progress — priorities and scope are not final.
 - [E94 — 3D model viewer (`feezal-element-basic-model`)](#e94--3d-model-viewer-feezal-element-basic-model) 💡
 - [E95 — Configurable keyboard shortcuts for interactive elements](#e95--configurable-keyboard-shortcuts-for-interactive-elements)
 - [E96 — MIDI input as an element trigger (Web MIDI)](#e96--midi-input-as-an-element-trigger-web-midi-️-questionable-future) ❓
-- [E99 — glass-light: configurable on/off state labels](#e99--glass-light-configurable-onoff-state-labels)
 - [E100 — Fan element (`feezal-element-glass-fan`)](#e100--fan-element-feezal-element-glass-fan)
 - [E101 — Dialog element family (`feezal-element-glass-dialog*`)](#e101--dialog-element-family-feezal-element-glass-dialog)
 - [E102 — Climate elements: boost mode, thermostat mode datapoint conventions, valve position](#e102--climate-elements-boost-mode-thermostat-mode-datapoint-conventions-valve-position-️-refined-072026--decisions-pending-do-not-implement-yet) ⚠️ *(refined 07/2026 — model agreed, not implemented)*
@@ -872,14 +871,6 @@ Beside E95's keyboard shortcuts, allow **MIDI controllers** to drive element int
 **Open questions:** device identity/persistence across reconnects (match by port name/id); channel/note filtering; MIDI *feedback/out* (lighting a controller's LED from state) as a later phase; whether this is per-element bindings or a central MIDI-map surface. Given the Safari/Firefox gap, likely ships (if ever) as an optional power-user feature, not a core interaction path.
 
 **Relates:** E95 (shares the element-actions model + inversion of the "learn" UI; keyboard is the portable sibling), E50/E49 (a MIDI event is just another action trigger), N24 (per-client input state), A21 (accessibility — physical input is complementary, not a replacement for keyboard operability).
-
-### E99 — glass-light: configurable on/off state labels
-
-The state line of `glass-light` is hard-coded English: `Off`, `On`, `On • <brightness> %` ([feezal-element-glass-light.js:767](../www/packages/@feezal/feezal-element-glass-light/feezal-element-glass-light.js)). Make the displayed labels configurable — e.g. `label-on` / `label-off` string attributes (defaults `On` / `Off`) — so dashboards can localise ("Ein"/"Aus") or reword them ("Läuft"/"Standby"). The brightness suffix (`• <brt> %`) keeps appending to the on-label. Not to be confused with `payload-on`/`payload-off` (MQTT payload values) or `label` (the card title) — the `help` texts should make the distinction explicit.
-
-**Check siblings for the same hard-coding** (`metro-light`, `material-light`, and the external device-family light) and apply the same attributes where applicable, keeping naming identical across families.
-
-**Ships with:** patch bump, TESTING.md element-notes update.
 
 ### E100 — Fan element (`feezal-element-glass-fan`)
 

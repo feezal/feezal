@@ -204,7 +204,8 @@ class FeezalElementMaterialLight extends FeezalElement {
                 {name: 'message-property-cold-white',  type: 'string', default: 'payload', help: 'Property path for cold-white topic. Defaults to message-property.'},
                 {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path for availability topic. Defaults to message-property.'},
                 // Label
-                {name: 'label', type: 'string', default: '', help: 'Optional label shown below the circle.'}
+                {name: 'label', type: 'string', default: '', help: 'Optional label shown below the circle.'},
+                {name: 'label-off', type: 'string', default: 'off', help: 'Displayed centre text while the light is off (localise, e.g. "aus"). Display only — NOT the MQTT payload (payload-off) and NOT the card label.'}
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
@@ -277,6 +278,7 @@ class FeezalElementMaterialLight extends FeezalElement {
         msgPropColdWhite:   {type: String, reflect: true, attribute: 'message-property-cold-white'},
         msgPropAvailability:{type: String, reflect: true, attribute: 'message-property-availability'},
         label:              {type: String, reflect: true},
+        labelOff:           {type: String, reflect: true, attribute: 'label-off'},
         // Internal state
         _on:        {state: true},
         _brt:       {state: true},   // brightness 0–100
@@ -437,6 +439,7 @@ class FeezalElementMaterialLight extends FeezalElement {
         this.msgPropColdWhite    = '';
         this.msgPropAvailability = '';
         this.label               = '';
+        this.labelOff            = 'off';
         this._on        = false;
         this._brt       = null;
         this._colorTemp = null;
@@ -877,7 +880,7 @@ class FeezalElementMaterialLight extends FeezalElement {
                 : svg`<text x="${CX}" y="${CY}" text-anchor="middle"
                         dominant-baseline="middle" font-size="9"
                         opacity="0.55" fill="var(--feezal-light-off-color)"
-                        pointer-events="none">off</text>`}
+                        pointer-events="none">${this.labelOff || 'off'}</text>`}
 
             <!-- Drag handle on ring (shown when on; B29: diameter configurable) -->
             ${isOn ? svg`
@@ -1486,6 +1489,12 @@ class FeezalElementMaterialLightInspector extends LitElement {
                         <label>Label</label>
                         <sl-input size="small" autocomplete="off" value="${this._val('label')}"
                             @sl-change="${e => this._onInput('label', e)}"></sl-input>
+                    </div>
+                    <div class="field">
+                        <label>State text off</label>
+                        <sl-input size="small" autocomplete="off" placeholder="off"
+                            value="${this._val('label-off')}"
+                            @sl-change="${e => this._onInput('label-off', e)}"></sl-input>
                     </div>
                 </div>
             </div>`;
