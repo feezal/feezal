@@ -14,6 +14,9 @@ import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element
  * wallpaper, `degrade` boolean for weak GPUs (semi-opaque solid card, zero
  * per-frame blur cost), squircle corners via corner-shape where supported.
  */
+
+const GLASS_SIZES = {'2x2': [150, 150], '2x1': [150, 75]};
+
 class FeezalElementGlassButton extends FeezalElement {
     static get feezal() {
         return {
@@ -21,6 +24,8 @@ class FeezalElementGlassButton extends FeezalElement {
             description: 'Frosted-glass button — publishes a payload on tap. Pair with the ' +
                 'glass theme (wallpaper shines through the blur); set "degrade" on weak GPUs.',
             attributes: [
+                {name: 'size', type: 'select', options: ['', '2x2', '2x1'], default: '',
+                    help: 'Preset size: 2x2 = square (150×150), 2x1 = wide (150×75). Empty keeps the current/manual size.'},
                 {name: 'label',   type: 'string', help: 'Label under the icon.'},
                 {name: 'icon',    type: 'string', default: 'auto_awesome', help: 'Icon name (icon picker sets, e.g. "movie" or "mdi:sofa").'},
                 {name: 'publish', type: 'mqttTopic', help: 'Topic the tap publishes to.'},
@@ -43,6 +48,7 @@ class FeezalElementGlassButton extends FeezalElement {
     }
 
     static properties = {
+        size:          {type: String,  reflect: true},
         label:         {type: String,  reflect: true},
         icon:          {type: String,  reflect: true},
         publish:       {type: String,  reflect: true},
@@ -55,11 +61,11 @@ class FeezalElementGlassButton extends FeezalElement {
     static styles = [feezalBaseStyles, css`
         :host { display: block; box-sizing: border-box; container-type: size; overflow: visible; }
         .card {
-            position: absolute; inset: 0; box-sizing: border-box; cursor: pointer;
+            position: absolute; inset: var(--feezal-glass-margin, 6px); box-sizing: border-box; cursor: pointer;
             display: flex; flex-direction: column; justify-content: space-between;
             padding: 12cqmin; gap: 4px;
             border-radius: var(--feezal-glass-radius, 24px);
-            background: var(--feezal-glass-tint, rgba(255,255,255,0.55));
+            background: var(--feezal-glass-tint, rgba(255,255,255,0.35));
             -webkit-backdrop-filter: blur(var(--feezal-glass-blur, 20px));
             backdrop-filter: blur(var(--feezal-glass-blur, 20px));
             border: 1px solid var(--feezal-glass-border, rgba(255,255,255,0.55));
@@ -71,7 +77,7 @@ class FeezalElementGlassButton extends FeezalElement {
         }
         @supports (corner-shape: squircle) { .card { corner-shape: squircle; } }
         .card:active { transform: scale(0.96); }
-        .card.active { background: var(--feezal-glass-on-tint, rgba(255,255,255,0.82)); }
+        .card.active { background: var(--feezal-glass-on-tint, rgba(255,255,255,0.62)); }
         :host([degrade]) .card {
             -webkit-backdrop-filter: none; backdrop-filter: none;
             background: var(--feezal-glass-solid, rgba(245,245,247,0.94));
@@ -98,12 +104,13 @@ class FeezalElementGlassButton extends FeezalElement {
                 text-align: left;
             }
             .card > feezal-icon { grid-area: icon; font-size: 50cqmin; }
-            .card .label { grid-area: label; font-size: 16cqmin; }
+            .card .label { grid-area: label; font-size: 13cqmax; }
         }
     `];
 
     constructor() {
         super();
+        this.size = '';
         this.label = '';
         this.icon = 'auto_awesome';
         this.publish = '';
@@ -134,6 +141,13 @@ class FeezalElementGlassButton extends FeezalElement {
         if (this.isConnected && this.__wireSig !== undefined && (this.subscribe ?? '') !== this.__wireSig) {
             this._unsubscribe();
             this._wireSubscriptions();
+        }
+        // The size grid writes the element's inline geometry (editor keeps
+        // full manual control afterwards).
+        if (changed.has('size') && GLASS_SIZES[this.size]) {
+            const [w, h] = GLASS_SIZES[this.size];
+            this.style.width = `${w}px`;
+            this.style.height = `${h}px`;
         }
     }
 

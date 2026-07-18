@@ -30,6 +30,8 @@ const TYPE_ICONS = {
     garagedoor: 'garage',
 };
 
+const GLASS_SIZES = {'2x2': [150, 150], '2x1': [150, 75]};
+
 class FeezalElementGlassContact extends FeezalElement {
     static get feezal() {
         return {
@@ -49,6 +51,8 @@ class FeezalElementGlassContact extends FeezalElement {
                 },
             },
             attributes: [
+                {name: 'size', type: 'select', options: ['', '2x2', '2x1'], default: '',
+                    help: 'Preset size: 2x2 = square (150×150), 2x1 = wide (150×75). Empty keeps the current/manual size.'},
                 {name: 'subscribe',        type: 'mqttTopic', help: 'Contact state topic.'},
                 {name: 'message-property', type: 'string', default: 'payload', help: 'Property path within the message payload (dot-notation). Default: payload'},
                 {name: 'payload-open',     type: 'string', default: 'ON',  help: 'Payload value meaning the contact is open.'},
@@ -80,6 +84,7 @@ class FeezalElementGlassContact extends FeezalElement {
     }
 
     static properties = {
+        size:                  {type: String,  reflect: true},
         payloadOpen:           {type: String,  reflect: true, attribute: 'payload-open'},
         payloadClosed:         {type: String,  reflect: true, attribute: 'payload-closed'},
         payloadTilted:         {type: String,  reflect: true, attribute: 'payload-tilted'},
@@ -98,11 +103,11 @@ class FeezalElementGlassContact extends FeezalElement {
     static styles = [feezalBaseStyles, css`
         :host { display: block; box-sizing: border-box; container-type: size; overflow: visible; }
         .card {
-            position: absolute; inset: 0; box-sizing: border-box;
+            position: absolute; inset: var(--feezal-glass-margin, 6px); box-sizing: border-box;
             display: flex; flex-direction: column; justify-content: space-between;
             padding: 11cqmin; gap: 2px;
             border-radius: var(--feezal-glass-radius, 24px);
-            background: var(--feezal-glass-tint, rgba(255,255,255,0.55));
+            background: var(--feezal-glass-tint, rgba(255,255,255,0.35));
             -webkit-backdrop-filter: blur(var(--feezal-glass-blur, 20px));
             backdrop-filter: blur(var(--feezal-glass-blur, 20px));
             border: 1px solid var(--feezal-glass-border, rgba(255,255,255,0.55));
@@ -114,8 +119,8 @@ class FeezalElementGlassContact extends FeezalElement {
             --_state-color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
         }
         @supports (corner-shape: squircle) { .card { corner-shape: squircle; } }
-        .card.open   { background: var(--feezal-glass-on-tint, rgba(255,255,255,0.82)); --_state-color: var(--feezal-glass-open-color, #ff9f0a); }
-        .card.tilted { background: var(--feezal-glass-on-tint, rgba(255,255,255,0.82)); --_state-color: var(--feezal-glass-tilt-color, #0a84ff); }
+        .card.open   { background: var(--feezal-glass-on-tint, rgba(255,255,255,0.62)); --_state-color: var(--feezal-glass-open-color, #ff9f0a); }
+        .card.tilted { background: var(--feezal-glass-on-tint, rgba(255,255,255,0.62)); --_state-color: var(--feezal-glass-tilt-color, #0a84ff); }
         :host([degrade]) .card {
             -webkit-backdrop-filter: none; backdrop-filter: none;
             background: var(--feezal-glass-solid, rgba(245,245,247,0.94));
@@ -143,13 +148,14 @@ class FeezalElementGlassContact extends FeezalElement {
                 text-align: left;
             }
             .card > feezal-icon { grid-area: icon; font-size: 46cqmin; }
-            .card .state { grid-area: state; align-self: end; }
-            .card .label { grid-area: label; align-self: start; }
+            .card .state { grid-area: state; align-self: end; font-size: 13cqmax; }
+            .card .label { grid-area: label; align-self: start; font-size: 11cqmax; }
         }
     `];
 
     constructor() {
         super();
+        this.size = '';
         this.payloadOpen = 'ON';
         this.payloadClosed = 'OFF';
         this.payloadTilted = '';
@@ -183,6 +189,13 @@ class FeezalElementGlassContact extends FeezalElement {
         if (this.isConnected && this.__wireSig !== undefined && this._wireSignature() !== this.__wireSig) {
             this._unsubscribe();
             this._wireSubscriptions();
+        }
+        // The size grid writes the element's inline geometry (editor keeps
+        // full manual control afterwards).
+        if (changed.has('size') && GLASS_SIZES[this.size]) {
+            const [w, h] = GLASS_SIZES[this.size];
+            this.style.width = `${w}px`;
+            this.style.height = `${h}px`;
         }
     }
 

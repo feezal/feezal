@@ -21,6 +21,8 @@ const TYPE_ICONS = {
     zone: 'meeting_room',
 };
 
+const GLASS_SIZES = {'2x2': [150, 150], '2x1': [150, 75]};
+
 class FeezalElementGlassOccupancy extends FeezalElement {
     static get feezal() {
         return {
@@ -40,6 +42,8 @@ class FeezalElementGlassOccupancy extends FeezalElement {
                 },
             },
             attributes: [
+                {name: 'size', type: 'select', options: ['', '2x2', '2x1'], default: '',
+                    help: 'Preset size: 2x2 = square (150×150), 2x1 = wide (150×75). Empty keeps the current/manual size.'},
                 {name: 'subscribe',        type: 'mqttTopic', help: 'Topic reporting motion or presence state.'},
                 {name: 'message-property', type: 'string', default: 'payload', help: 'Property path within the message payload (dot-notation). Default: payload'},
                 {name: 'payload-active',   type: 'string', default: 'ON',  help: 'Payload meaning motion detected / zone occupied.'},
@@ -68,6 +72,7 @@ class FeezalElementGlassOccupancy extends FeezalElement {
     }
 
     static properties = {
+        size:          {type: String,  reflect: true},
         payloadActive: {type: String,  reflect: true, attribute: 'payload-active'},
         payloadClear:  {type: String,  reflect: true, attribute: 'payload-clear'},
         type:          {type: String,  reflect: true},
@@ -84,11 +89,11 @@ class FeezalElementGlassOccupancy extends FeezalElement {
     static styles = [feezalBaseStyles, css`
         :host { display: block; box-sizing: border-box; container-type: size; overflow: visible; }
         .card {
-            position: absolute; inset: 0; box-sizing: border-box;
+            position: absolute; inset: var(--feezal-glass-margin, 6px); box-sizing: border-box;
             display: flex; flex-direction: column; justify-content: space-between;
             padding: 11cqmin; gap: 2px;
             border-radius: var(--feezal-glass-radius, 24px);
-            background: var(--feezal-glass-tint, rgba(255,255,255,0.55));
+            background: var(--feezal-glass-tint, rgba(255,255,255,0.35));
             -webkit-backdrop-filter: blur(var(--feezal-glass-blur, 20px));
             backdrop-filter: blur(var(--feezal-glass-blur, 20px));
             border: 1px solid var(--feezal-glass-border, rgba(255,255,255,0.55));
@@ -101,7 +106,7 @@ class FeezalElementGlassOccupancy extends FeezalElement {
         }
         @supports (corner-shape: squircle) { .card { corner-shape: squircle; } }
         .card.active {
-            background: var(--feezal-glass-on-tint, rgba(255,255,255,0.82));
+            background: var(--feezal-glass-on-tint, rgba(255,255,255,0.62));
             --_state-color: var(--feezal-glass-active-color, #ff9f0a);
         }
         :host([degrade]) .card {
@@ -131,13 +136,14 @@ class FeezalElementGlassOccupancy extends FeezalElement {
                 text-align: left;
             }
             .card > feezal-icon { grid-area: icon; font-size: 46cqmin; }
-            .card .state { grid-area: state; align-self: end; }
-            .card .label { grid-area: label; align-self: start; }
+            .card .state { grid-area: state; align-self: end; font-size: 13cqmax; }
+            .card .label { grid-area: label; align-self: start; font-size: 11cqmax; }
         }
     `];
 
     constructor() {
         super();
+        this.size = '';
         this.payloadActive = 'ON';
         this.payloadClear = 'OFF';
         this.type = 'motion';
@@ -169,6 +175,13 @@ class FeezalElementGlassOccupancy extends FeezalElement {
         if (this.isConnected && this.__wireSig !== undefined && this._wireSignature() !== this.__wireSig) {
             this._unsubscribe();
             this._wireSubscriptions();
+        }
+        // The size grid writes the element's inline geometry (editor keeps
+        // full manual control afterwards).
+        if (changed.has('size') && GLASS_SIZES[this.size]) {
+            const [w, h] = GLASS_SIZES[this.size];
+            this.style.width = `${w}px`;
+            this.style.height = `${h}px`;
         }
     }
 

@@ -27,6 +27,8 @@ const MODE_ICONS = {
     fan_only: 'mode_fan',
 };
 
+const GLASS_SIZES = {'2x2': [150, 150], '2x1': [150, 75]};
+
 class FeezalElementGlassClimate extends FeezalElement {
     static get feezal() {
         return {
@@ -53,6 +55,8 @@ class FeezalElementGlassClimate extends FeezalElement {
                 },
             },
             attributes: [
+                {name: 'size', type: 'select', options: ['', '2x2', '2x1'], default: '',
+                    help: 'Preset size: 2x2 = square (150×150), 2x1 = wide (150×75). Empty keeps the current/manual size.'},
                 {name: 'payload-mode', type: 'select', options: ['separate', 'json'], default: 'separate',
                     help: 'separate = one topic per property; json = single topic carrying the full climate JSON object (zigbee2mqtt TRVs).'},
                 {name: 'subscribe', type: 'mqttTopic', help: 'json mode: base topic carrying the climate state JSON object.'},
@@ -95,6 +99,7 @@ class FeezalElementGlassClimate extends FeezalElement {
     }
 
     static properties = {
+        size:             {type: String, reflect: true},
         payloadMode:      {type: String, reflect: true, attribute: 'payload-mode'},
         publish:          {type: String, reflect: true},
         jsonMap:          {type: String, reflect: true, attribute: 'json-map'},
@@ -126,11 +131,11 @@ class FeezalElementGlassClimate extends FeezalElement {
     static styles = [feezalBaseStyles, css`
         :host { display: block; box-sizing: border-box; container-type: size; overflow: visible; }
         .card {
-            position: absolute; inset: 0; box-sizing: border-box; cursor: pointer;
+            position: absolute; inset: var(--feezal-glass-margin, 6px); box-sizing: border-box; cursor: pointer;
             display: flex; flex-direction: column; justify-content: space-between;
             padding: 11cqmin; gap: 2px;
             border-radius: var(--feezal-glass-radius, 24px);
-            background: var(--feezal-glass-tint, rgba(255,255,255,0.55));
+            background: var(--feezal-glass-tint, rgba(255,255,255,0.35));
             -webkit-backdrop-filter: blur(var(--feezal-glass-blur, 20px));
             backdrop-filter: blur(var(--feezal-glass-blur, 20px));
             border: 1px solid var(--feezal-glass-border, rgba(255,255,255,0.55));
@@ -185,9 +190,9 @@ class FeezalElementGlassClimate extends FeezalElement {
             }
             .head { display: contents; }
             .head feezal-icon { grid-area: icon; font-size: 42cqmin; }
-            .card .actual { grid-area: actual; }
-            .card .state { grid-area: state; }
-            .card .label { grid-area: label; }
+            .card .actual { grid-area: actual; font-size: 18cqmax; }
+            .card .state { grid-area: state; font-size: 11cqmax; }
+            .card .label { grid-area: label; font-size: 11cqmax; }
         }
 
         /* ── details popup (glass-light pattern) ── */
@@ -248,6 +253,7 @@ class FeezalElementGlassClimate extends FeezalElement {
 
     constructor() {
         super();
+        this.size = '';
         this.payloadMode = 'separate';
         this.publish = '';
         this.jsonMap = '';
@@ -314,6 +320,13 @@ class FeezalElementGlassClimate extends FeezalElement {
         if (this.isConnected && this.__wireSig !== undefined && this._wireSignature() !== this.__wireSig) {
             this._unsubscribe();
             this._wireSubscriptions();
+        }
+        // The size grid writes the element's inline geometry (editor keeps
+        // full manual control afterwards).
+        if (changed.has('size') && GLASS_SIZES[this.size]) {
+            const [w, h] = GLASS_SIZES[this.size];
+            this.style.width = `${w}px`;
+            this.style.height = `${h}px`;
         }
         // Promote the details popup into the top layer.
         if (changed.has('_details') && this._details) {

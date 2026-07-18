@@ -25,6 +25,7 @@ export function speedDuration(pct) {
 }
 
 const LONG_PRESS_MS = 450;
+const GLASS_SIZES = {'2x2': [150, 150], '2x1': [150, 75]};
 
 class FeezalElementGlassFan extends FeezalElement {
     static get feezal() {
@@ -57,6 +58,8 @@ class FeezalElementGlassFan extends FeezalElement {
                 },
             },
             attributes: [
+                {name: 'size', type: 'select', options: ['', '2x2', '2x1'], default: '',
+                    help: 'Preset size: 2x2 = square (150×150), 2x1 = wide (150×75). Empty keeps the current/manual size.'},
                 {name: 'subscribe',              type: 'mqttTopic', help: 'Topic receiving the fan on/off state.'},
                 {name: 'message-property',       type: 'string',    default: 'payload', help: 'Property path within state messages (dot-notation). Blank = top-level payload.'},
                 {name: 'publish',                type: 'mqttTopic', help: 'Topic to publish on/off commands.'},
@@ -92,6 +95,7 @@ class FeezalElementGlassFan extends FeezalElement {
     }
 
     static properties = {
+        size:            {type: String,  reflect: true},
         publish:         {type: String,  reflect: true},
         payloadOn:       {type: String,  reflect: true, attribute: 'payload-on'},
         payloadOff:      {type: String,  reflect: true, attribute: 'payload-off'},
@@ -118,11 +122,11 @@ class FeezalElementGlassFan extends FeezalElement {
     static styles = [feezalBaseStyles, feezalAvailabilityStyles, css`
         :host { display: block; box-sizing: border-box; container-type: size; overflow: visible; }
         .card {
-            position: absolute; inset: 0; box-sizing: border-box; cursor: pointer;
+            position: absolute; inset: var(--feezal-glass-margin, 6px); box-sizing: border-box; cursor: pointer;
             display: flex; flex-direction: column; justify-content: space-between;
             padding: 11cqmin; gap: 2px;
             border-radius: var(--feezal-glass-radius, 24px);
-            background: var(--feezal-glass-tint, rgba(255,255,255,0.55));
+            background: var(--feezal-glass-tint, rgba(255,255,255,0.35));
             -webkit-backdrop-filter: blur(var(--feezal-glass-blur, 20px));
             backdrop-filter: blur(var(--feezal-glass-blur, 20px));
             border: 1px solid var(--feezal-glass-border, rgba(255,255,255,0.55));
@@ -134,7 +138,7 @@ class FeezalElementGlassFan extends FeezalElement {
         }
         @supports (corner-shape: squircle) { .card { corner-shape: squircle; } }
         .card:active { transform: scale(0.97); }
-        .card.on { background: var(--feezal-glass-on-tint, rgba(255,255,255,0.82)); }
+        .card.on { background: var(--feezal-glass-on-tint, rgba(255,255,255,0.62)); }
         :host([degrade]) .card {
             -webkit-backdrop-filter: none; backdrop-filter: none;
             background: var(--feezal-glass-solid, rgba(245,245,247,0.94));
@@ -241,13 +245,14 @@ class FeezalElementGlassFan extends FeezalElement {
                 text-align: left;
             }
             .card > feezal-icon { grid-area: icon; font-size: 46cqmin; }
-            .card .state { grid-area: state; align-self: end; }
-            .card .label { grid-area: label; align-self: start; }
+            .card .state { grid-area: state; align-self: end; font-size: 13cqmax; }
+            .card .label { grid-area: label; align-self: start; font-size: 11cqmax; }
         }
     `];
 
     constructor() {
         super();
+        this.size = '';
         this.publish = '';
         this.payloadOn = 'ON';
         this.payloadOff = 'OFF';
@@ -306,6 +311,13 @@ class FeezalElementGlassFan extends FeezalElement {
         if (this.isConnected && this.__wireSig !== undefined && this._wireSignature() !== this.__wireSig) {
             this._unsubscribe();
             this._wireSubscriptions();
+        }
+        // The size grid writes the element's inline geometry (editor keeps
+        // full manual control afterwards).
+        if (changed.has('size') && GLASS_SIZES[this.size]) {
+            const [w, h] = GLASS_SIZES[this.size];
+            this.style.width = `${w}px`;
+            this.style.height = `${h}px`;
         }
         // Promote the details popup into the top layer (glass-light pattern).
         if (changed.has('_details') && this._details) {

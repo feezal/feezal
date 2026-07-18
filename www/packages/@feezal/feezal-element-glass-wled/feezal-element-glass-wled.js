@@ -23,6 +23,7 @@ import {WLED_EFFECTS, WLED_PALETTES, hexToRgb} from './wled-lists.js';
  */
 
 const LONG_PRESS_MS = 450;
+const GLASS_SIZES = {'2x2': [150, 150], '2x1': [150, 75]};
 
 class FeezalElementGlassWled extends FeezalElement {
     static get feezal() {
@@ -34,6 +35,8 @@ class FeezalElementGlassWled extends FeezalElement {
                 {label: 'WLED MQTT docs', url: 'https://kno.wled.ge/interfaces/mqtt/'},
             ],
             attributes: [
+                {name: 'size', type: 'select', options: ['', '2x2', '2x1'], default: '',
+                    help: 'Preset size: 2x2 = square (150×150), 2x1 = wide (150×75). Empty keeps the current/manual size.'},
                 {name: 'topic', type: 'mqttTopic', default: 'wled/device',
                     help: 'WLED device base topic (Sync settings → MQTT). Subscribes <topic>/g (brightness) and <topic>/c (colour); commands are published to <topic>/api as JSON.'},
                 {name: 'transition', type: 'number', min: 0, step: 0.1,
@@ -79,6 +82,7 @@ class FeezalElementGlassWled extends FeezalElement {
     }
 
     static properties = {
+        size:       {type: String, reflect: true},
         topic:      {type: String, reflect: true},
         transition: {type: String, reflect: true},
         label:      {type: String, reflect: true},
@@ -107,11 +111,11 @@ class FeezalElementGlassWled extends FeezalElement {
     static styles = [feezalBaseStyles, css`
         :host { display: block; box-sizing: border-box; container-type: size; overflow: visible; }
         .card {
-            position: absolute; inset: 0; box-sizing: border-box; cursor: pointer;
+            position: absolute; inset: var(--feezal-glass-margin, 6px); box-sizing: border-box; cursor: pointer;
             display: flex; flex-direction: column; justify-content: space-between;
             padding: 11cqmin; gap: 2px;
             border-radius: var(--feezal-glass-radius, 24px);
-            background: var(--feezal-glass-tint, rgba(255,255,255,0.55));
+            background: var(--feezal-glass-tint, rgba(255,255,255,0.35));
             -webkit-backdrop-filter: blur(var(--feezal-glass-blur, 20px));
             backdrop-filter: blur(var(--feezal-glass-blur, 20px));
             border: 1px solid var(--feezal-glass-border, rgba(255,255,255,0.55));
@@ -123,7 +127,7 @@ class FeezalElementGlassWled extends FeezalElement {
         }
         @supports (corner-shape: squircle) { .card { corner-shape: squircle; } }
         .card:active { transform: scale(0.97); }
-        .card.on { background: var(--feezal-glass-on-tint, rgba(255,255,255,0.82)); }
+        .card.on { background: var(--feezal-glass-on-tint, rgba(255,255,255,0.62)); }
         :host([degrade]) .card {
             -webkit-backdrop-filter: none; backdrop-filter: none;
             background: var(--feezal-glass-solid, rgba(245,245,247,0.94));
@@ -149,6 +153,22 @@ class FeezalElementGlassWled extends FeezalElement {
         .unavail {
             position: absolute; bottom: 8cqmin; right: 10cqmin;
             font-size: 12px; color: var(--error-color, #d32f2f); opacity: 0.85;
+        }
+        /* E105: much wider than tall → horizontal layout (Apple-Home wide
+           tile): icon left, state/label stacked right of it. flip-btn and
+           unavail stay absolutely positioned in their corners. */
+        @container (min-aspect-ratio: 2/1) {
+            .card {
+                display: grid;
+                grid-template: 'icon state' auto 'icon label' auto / auto 1fr;
+                align-content: center;
+                align-items: center;
+                column-gap: 10cqmin;
+                text-align: left;
+            }
+            .card > feezal-icon { grid-area: icon; font-size: 46cqmin; }
+            .card .state { grid-area: state; align-self: end; font-size: 13cqmax; }
+            .card .label { grid-area: label; align-self: start; font-size: 11cqmax; }
         }
         /* ── details popup — browser TOP LAYER via the popover API
            (glass-light pattern); fixed+z-index is the fallback. */
@@ -228,6 +248,7 @@ class FeezalElementGlassWled extends FeezalElement {
 
     constructor() {
         super();
+        this.size       = '';
         this.topic      = '';
         this.transition = '';
         this.label      = '';
@@ -338,6 +359,13 @@ class FeezalElementGlassWled extends FeezalElement {
         if (this.isConnected && this.__wireSig !== undefined && this._wireSignature() !== this.__wireSig) {
             this._unsubscribe();
             this._wire();
+        }
+        // The size grid writes the element's inline geometry (editor keeps
+        // full manual control afterwards).
+        if (changed.has('size') && GLASS_SIZES[this.size]) {
+            const [w, h] = GLASS_SIZES[this.size];
+            this.style.width = `${w}px`;
+            this.style.height = `${h}px`;
         }
         // Promote the details popup into the top layer (popover pattern).
         if (changed.has('_details') && this._details) {

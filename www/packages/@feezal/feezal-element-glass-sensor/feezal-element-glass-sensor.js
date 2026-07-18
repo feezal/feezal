@@ -8,6 +8,9 @@ import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element
  * Display-only. See feezal-element-glass-button for the family conventions
  * (frost vars, degrade, squircle).
  */
+
+const GLASS_SIZES = {'2x2': [150, 150], '2x1': [150, 75]};
+
 class FeezalElementGlassSensor extends FeezalElement {
     static get feezal() {
         return {
@@ -24,6 +27,8 @@ class FeezalElementGlassSensor extends FeezalElement {
                 },
             },
             attributes: [
+                {name: 'size', type: 'select', options: ['', '2x2', '2x1'], default: '',
+                    help: 'Preset size: 2x2 = square (150×150), 2x1 = wide (150×75). Empty keeps the current/manual size.'},
                 {name: 'label',     type: 'string', help: 'Label shown under the value.'},
                 {name: 'icon',      type: 'string', default: 'thermostat', help: 'Icon name.'},
                 {name: 'subscribe', type: 'mqttTopic', help: 'Value topic.'},
@@ -45,6 +50,7 @@ class FeezalElementGlassSensor extends FeezalElement {
     }
 
     static properties = {
+        size:     {type: String, reflect: true},
         label:    {type: String, reflect: true},
         icon:     {type: String, reflect: true},
         unit:     {type: String, reflect: true},
@@ -57,11 +63,11 @@ class FeezalElementGlassSensor extends FeezalElement {
     static styles = [feezalBaseStyles, css`
         :host { display: block; box-sizing: border-box; container-type: size; overflow: visible; }
         .card {
-            position: absolute; inset: 0; box-sizing: border-box;
+            position: absolute; inset: var(--feezal-glass-margin, 6px); box-sizing: border-box;
             display: flex; flex-direction: column; justify-content: space-between;
             padding: 11cqmin; gap: 2px;
             border-radius: var(--feezal-glass-radius, 24px);
-            background: var(--feezal-glass-tint, rgba(255,255,255,0.55));
+            background: var(--feezal-glass-tint, rgba(255,255,255,0.35));
             -webkit-backdrop-filter: blur(var(--feezal-glass-blur, 20px));
             backdrop-filter: blur(var(--feezal-glass-blur, 20px));
             border: 1px solid var(--feezal-glass-border, rgba(255,255,255,0.55));
@@ -99,13 +105,14 @@ class FeezalElementGlassSensor extends FeezalElement {
                 text-align: left;
             }
             .card > feezal-icon { grid-area: icon; font-size: 46cqmin; }
-            .card .value { grid-area: value; align-self: end; }
-            .card .label { grid-area: label; align-self: start; }
+            .card .value { grid-area: value; align-self: end; font-size: 24cqmax; }
+            .card .label { grid-area: label; align-self: start; font-size: 11cqmax; }
         }
     `];
 
     constructor() {
         super();
+        this.size = '';
         this.label = '';
         this.icon = 'thermostat';
         this.unit = '';
@@ -135,6 +142,13 @@ class FeezalElementGlassSensor extends FeezalElement {
         if (this.isConnected && this.__wireSig !== undefined && (this.subscribe ?? '') !== this.__wireSig) {
             this._unsubscribe();
             this._wireSubscriptions();
+        }
+        // The size grid writes the element's inline geometry (editor keeps
+        // full manual control afterwards).
+        if (changed.has('size') && GLASS_SIZES[this.size]) {
+            const [w, h] = GLASS_SIZES[this.size];
+            this.style.width = `${w}px`;
+            this.style.height = `${h}px`;
         }
     }
 

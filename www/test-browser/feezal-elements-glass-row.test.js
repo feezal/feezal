@@ -41,3 +41,23 @@ describe('glass wide-tile row layout (E105)', () => {
         expect(await displayAt('feezal-element-glass-sensor', 150, 150, 'flex')).toBe('flex');
     });
 });
+
+describe('glass size preset attribute', () => {
+    it('size=2x1 sets 150x75 inline geometry', async () => {
+        const el = await mount('feezal-element-glass-switch', {size: '2x1'});
+        expect(el.style.width).toBe('150px');
+        expect(el.style.height).toBe('75px');
+    });
+
+    it('size=2x2 sets 150x150 inline geometry', async () => {
+        const el = await mount('feezal-element-glass-switch', {size: '2x2'});
+        expect(el.style.width).toBe('150px');
+        expect(el.style.height).toBe('150px');
+    });
+
+    it('size="" (default) leaves inline geometry unset', async () => {
+        const el = await mount('feezal-element-glass-switch', {});
+        expect(el.style.width).toBe('');
+        expect(el.style.height).toBe('');
+    });
+});
