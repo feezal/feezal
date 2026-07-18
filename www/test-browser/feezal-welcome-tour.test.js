@@ -71,6 +71,21 @@ describe('welcome tour (U37)', () => {
         expect(parseFloat(spot.style.width)).toBeCloseTo(212, 0);
     });
 
+    it('spotlight carries the glow ring with arrive + breathe animations, re-created per step', async () => {
+        tour.start();
+        await tour.updateComplete;
+        expect(tour.shadowRoot.querySelector('.glow')).toBeNull();   // welcome page: no cutout
+        tour._next();
+        await tour.updateComplete;
+        const glow = tour.shadowRoot.querySelector('.spotlight .glow');
+        expect(glow).not.toBeNull();
+        expect(getComputedStyle(glow).animationName).toContain('feezal-tour-arrive');
+        tour._next();
+        await tour.updateComplete;
+        // keyed by step — a NEW node each step, so the arrival animation replays
+        expect(tour.shadowRoot.querySelector('.spotlight .glow')).not.toBe(glow);
+    });
+
     it('Next/Back walk the steps; sidebar steps switch the tab (U41: theme before broker)', async () => {
         tour.start();
         await tour.updateComplete;

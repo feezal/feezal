@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2019-2026 Sebastian Raff — feezal editor
 import {LitElement, html, css} from 'lit';
+import {keyed} from 'lit/directives/keyed.js';
 
 /**
  * feezal-welcome-tour (U37) — first-run onboarding tour.
@@ -161,6 +162,53 @@ class FeezalWelcomeTour extends LitElement {
             box-shadow: 0 0 0 200vmax rgba(0, 0, 0, 0.78);
             transition: left 0.25s ease, top 0.25s ease, width 0.25s ease, height 0.25s ease;
             pointer-events: none;
+        }
+        /* Glow ring inside the cutout — a keyed child, re-created on every
+           step so the arrival animation replays while the cutout itself
+           still slides between targets. Arrive: bright flare that settles;
+           then a gentle infinite breathing to keep the eye anchored. */
+        .glow {
+            position: absolute;
+            inset: -2px;
+            border-radius: 10px;
+            border: 2px solid var(--feezal-tour-glow, rgba(56, 189, 248, 0.95));
+            box-shadow:
+                0 0 18px 4px rgba(56, 189, 248, 0.55),
+                inset 0 0 20px rgba(56, 189, 248, 0.30);
+            animation:
+                feezal-tour-arrive 0.9s cubic-bezier(0.22, 1, 0.36, 1),
+                feezal-tour-breathe 2.6s ease-in-out 0.9s infinite alternate;
+        }
+        @keyframes feezal-tour-arrive {
+            0% {
+                opacity: 0;
+                transform: scale(1.08);
+                box-shadow:
+                    0 0 64px 26px rgba(56, 189, 248, 0.95),
+                    inset 0 0 46px rgba(56, 189, 248, 0.7);
+            }
+            40% { opacity: 1; }
+            100% {
+                transform: scale(1);
+                box-shadow:
+                    0 0 18px 4px rgba(56, 189, 248, 0.55),
+                    inset 0 0 20px rgba(56, 189, 248, 0.30);
+            }
+        }
+        @keyframes feezal-tour-breathe {
+            from {
+                box-shadow:
+                    0 0 14px 3px rgba(56, 189, 248, 0.45),
+                    inset 0 0 16px rgba(56, 189, 248, 0.22);
+            }
+            to {
+                box-shadow:
+                    0 0 28px 8px rgba(56, 189, 248, 0.75),
+                    inset 0 0 28px rgba(56, 189, 248, 0.42);
+            }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .glow { animation: none; }
         }
         /* No target (welcome page / hidden region) → dim everything, card centred. */
         .backdrop-full {
@@ -362,7 +410,7 @@ class FeezalWelcomeTour extends LitElement {
         const waiting = step.advance && this._watcher;
         return html`
             ${r
-                ? html`<div class="spotlight" style="left:${r.left}px; top:${r.top}px; width:${r.width}px; height:${r.height}px;"></div>`
+                ? html`<div class="spotlight" style="left:${r.left}px; top:${r.top}px; width:${r.width}px; height:${r.height}px;">${keyed(this._step, html`<div class="glow"></div>`)}</div>`
                 : html`<div class="backdrop-full"></div>`}
             ${step.interactive ? '' : html`<div class="click-catcher"></div>`}
             <div class="card" style="${this._cardStyle()}">
