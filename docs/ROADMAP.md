@@ -58,7 +58,7 @@ Work in progress — priorities and scope are not final.
 - [E99 — glass-light: configurable on/off state labels](#e99--glass-light-configurable-onoff-state-labels)
 - [E100 — Fan element (`feezal-element-glass-fan`)](#e100--fan-element-feezal-element-glass-fan)
 - [E101 — Dialog element family (`feezal-element-glass-dialog*`)](#e101--dialog-element-family-feezal-element-glass-dialog)
-- [E102 — Climate elements: boost mode, thermostat mode datapoint conventions, valve position](#e102--climate-elements-boost-mode-thermostat-mode-datapoint-conventions-valve-position-️-refinement-needed) ⚠️
+- [E102 — Climate elements: boost mode, thermostat mode datapoint conventions, valve position](#e102--climate-elements-boost-mode-thermostat-mode-datapoint-conventions-valve-position-️-refined-072026--decisions-pending-do-not-implement-yet) ⚠️ *(refined 07/2026 — model agreed, not implemented)*
 - [E103 — WLED elements (Device / Glass / Metro)](#e103--wled-elements-device--glass--metro)
 - [E104 — Metro cover/shutter element (`feezal-element-metro-cover`)](#e104--metro-covershutter-element-feezal-element-metro-cover)
 
@@ -949,22 +949,57 @@ The Glass family's missing dialog/popup elements — Material already has all th
 
 **Relates:** material-dialog / material-dialog-view / material-countdown-dialog (attribute-contract source), E58 (glass-light — the established Glass visual pattern), E48 (dialog-view, archive — original design rationale for the view-embedding variant).
 
-### E102 — Climate elements: boost mode, thermostat mode datapoint conventions, valve position ⚠️ refinement needed
+### E102 — Climate elements: boost mode, thermostat mode datapoint conventions, valve position ⚠️ refined 07/2026 — decisions pending, do not implement yet
 
-Three related Homematic/HmIP gaps in the `*-climate` family (`glass-climate`, `material-climate`, `metro-climate`, and the external device-climate element — see B29).
+Three related Homematic/HmIP gaps in the `*-climate` family (`glass-climate`, `material-climate`, `metro-climate` — "device-climate" = `material-climate`, Device palette category).
 
-**1. Boost mode.** HmIP thermostats support a **boost mode**: activating it fully opens the valve and starts a countdown (Homematic default 5 min) before the thermostat returns to normal control. None of the climate elements currently expose this. Proposed: a `publish-boost`/`payload-boost` pair (publish a trigger, e.g. `BOOST_MODE` datapoint = `true`) plus a `subscribe-boost` read-back so the UI can show boost is active — ideally with the **remaining countdown** if the device publishes one (HmIP's `BOOST_MODE` datapoint doesn't carry a countdown value itself; check whether `PARTY_MODE_*`-style duration/end-time datapoints exist alongside it, or whether the UI should just show a static "boost active" state with a client-side timer bootstrapped from a configurable `boost-duration` default). Visual: an icon/toggle near the setpoint arc, active state clearly distinguished from normal heating.
+**Reference analysed:** [RedMatic-HomeKit `homematic-devices/`](https://github.com/rdmtc/RedMatic-HomeKit/tree/master/homematic-devices) (`hm-cc-rt-dn.js`, `hm-tc-it-wm-w-eu.js`, `hmip-etrv.js`, `hmip-wth.js`, `hmip-bwth.js`, `hmip-heating.js`) — a proven, deployed mapping of both Homematic thermostat generations onto a foreign mode model (HomeKit off/heat/auto), i.e. exactly the problem the climate elements face.
 
-**2. Thermostat mode datapoint conventions — needs discussion before implementation.** Existing `subscribe-mode`/`publish-mode` already covers *a* mode topic, but **the actual mechanism differs by device generation**:
-- **BidCoS** (older Homematic): mode is typically set via a dedicated `CONTROL_MODE` / `AUTO_MODE` / `MANU_MODE` / `BOOST_MODE` **datapoint set**, or historically by writing specific values.
-- **HmIP**: some devices expose a dedicated **`SET_POINT_MODE`** datapoint (an enum: AUTO/MANUAL/PARTY), while others infer mode from **writing to the temperature setpoint datapoint itself** (e.g. a specific sentinel value or valve-fully-closed temperature means "off", writing any real setpoint implicitly switches to manual).
-- Today's single `publish-mode` + `modes` (JSON label/value list) assumes one clean enum datapoint — it doesn't accommodate "mode is implied by what you write to setpoint" or "boost is a mode value vs. a separate trigger topic" device variants.
+#### Device matrix (from the RedMatic-HomeKit code)
 
-**Open questions to refine before implementing:** should `modes` gain a per-entry publish-target override (e.g. a mode entry that writes to `publish-setpoint` with a magic value instead of `publish-mode`)? Is boost better modeled as one of the `modes` chips (reusing the existing mode-chip UI) or as its own dedicated control (per point 1 above)? Do we need a small per-family "device profile" concept (BidCoS vs. HmIP vs. Zigbee2MQTT thermostat schema) that pre-fills the mode/boost wiring, similar to how material-climate's discovery descriptor already maps `schema`/`action_topic` for zigbee2mqtt? This is the hard part of the item — **do not implement until the datapoint/mode model is agreed**.
+| | BidCoS TRV (HM-CC-RT-DN `:4`) | BidCoS wall (HM-TC-IT-WM-W-EU `:2`) | HmIP TRV (eTRV `:1`) | HmIP wall/floor (WTH/BWTH `:1`, HEATING group) |
+|---|---|---|---|---|
+| Setpoint | `SET_TEMPERATURE` r/w | `SET_TEMPERATURE` r/w | `SET_POINT_TEMPERATURE` r/w | `SET_POINT_TEMPERATURE` r/w |
+| Mode **read** | `CONTROL_MODE` 0=auto 1=manu 2=party 3=boost | same | `SET_POINT_MODE` 0=auto 1=manual (2=party) | same |
+| Mode **write** | separate action datapoints: `AUTO_MODE=true`, `MANU_MODE=<temperature>`, `BOOST_MODE=true` | same | `CONTROL_MODE` 0=auto 1=manual | same; "off"/"manu-with-setpoint" written as **combined** `putParamset {CONTROL_MODE:1, SET_POINT_TEMPERATURE:x}` |
+| "Off" | sentinel: `MANU_MODE = 4.5` (°C) | same | manual + setpoint 4.5 (combined write) | same |
+| Boost activate | `BOOST_MODE = true` | same (+ propagate to linked TRVs) | `BOOST_MODE = true` (plain r/w boolean) | same (+ propagate to linked TRVs) |
+| Boost deactivate | **restore previous mode**: `AUTO_MODE=true` or `MANU_MODE=<remembered setpoint>` | same | `BOOST_MODE = false` | same |
+| Boost read-back | `CONTROL_MODE === 3` | same | `BOOST_MODE` | same |
+| Heating activity | `VALVE_STATE` **0–100** | no valve — max over **linked TRVs'** `VALVE_STATE` | `LEVEL` **0.0–1.0** | no valve — max over linked TRVs' `LEVEL` |
 
-**3. Valve opening percentage — optional display.** HmIP thermostat valves publish a **valve position percentage** topic (how far open the valve actuator currently is — distinct from the setpoint/actual temperature). `material-climate` **already has this** (`subscribe-valve` / `message-property-valve`, feeding the valve arc indicator — see [feezal-element-material-climate.js:129](../www/packages/@feezal/feezal-element-material-climate/feezal-element-material-climate.js#L129)). Bring the same optional attribute to `glass-climate`, `metro-climate`, and the external device-climate element, each rendered in that family's own visual language (glass: a subtle ring segment matching its existing arc styling per B29's shared-geometry goal; metro: a compact numeric/bar readout matching the flat Metro style). Purely optional/additive — no behaviour change when unset.
+#### Key structural findings
 
-**Relates:** B29 (glass-climate/device-climate slider geometry — the valve indicator should follow whatever shared geometry comes out of that fix), N31 (availability — same "shared base contract, per-family rendering" shape applies here too), material-climate (valve attribute + zigbee2mqtt discovery mapping as the reference implementation for points 2 and 3).
+1. **Read topic ≠ write topic, and the generations swap names.** BidCoS reads `CONTROL_MODE` but writes per-mode action datapoints (with *different payload types* — boolean for auto/boost, a temperature for manu). HmIP reads `SET_POINT_MODE` but writes `CONTROL_MODE` — the same datapoint name is state on one generation and command on the other, with different value sets. A symmetric `subscribe-mode`/`publish-mode` + single `modes` enum cannot express either generation.
+2. **"Off" is a sentinel setpoint, not a mode.** Both generations: manual + 4.5 °C. The UI must additionally **remember the last real setpoint** (>4.5) to restore it when switching back to heat (RedMatic's `valueSetpoint` shadow). Mode *display* should also infer "off" from setpoint ≤ 4.5 while the mode datapoint still says "manual".
+3. **Boost is asymmetric per generation.** HmIP: trivial boolean toggle, device reverts itself. BidCoS: activation is a trigger, but **deactivation must restore the pre-boost mode** — the client remembers what was active before boost (RedMatic freezes its `target` state during boost for exactly this). This asymmetry is why boost should be a **dedicated control** with its own wiring, not just another `modes` chip.
+4. **Boost countdown:** BidCoS RT-DN exposes a remaining-time datapoint (`BOOST_STATE`, minutes — *verify against a real device*); HmIP devices may expose `BOOST_TIME` (*verify*). Fallback: client-side countdown from a configurable `boost-duration` attribute, bootstrapped when boost-active flips on.
+5. **HmIP's combined write** (`putParamset` with mode + setpoint in one call) may not be expressible as a single MQTT publish depending on the CCU↔MQTT bridge in use — topic-per-datapoint bridges would need two sequential publishes (order matters: mode first, then setpoint). The bridge's write topology is a real design input here (see open questions).
+6. **Valve scale differs:** BidCoS 0–100 vs HmIP 0.0–1.0 → the existing `subscribe-valve` needs **B26-style `valve-min`/`valve-max` scaling** (defaults 0/100). Wall thermostats have no valve; users point the valve topic at the linked TRV (max-aggregation over several TRVs is out of scope — one topic, or a pre-aggregated topic from the automation layer).
+
+#### Agreed model (decided 07/2026)
+
+- **Per-entry mode descriptors** replacing the flat `modes` value/label list. Each entry: `{value, label, publish?, payload?}` — `value` matches the *read* topic's payload (existing `subscribe-mode`), `publish`/`payload` override the default `publish-mode` write. **`publish`/`payload` may also be an ordered array of `{topic, payload}` steps** published in sequence — the general mechanism that covers topic-per-datapoint bridges where HmIP's "off" is two writes (mode first, then setpoint). `payload` supports a **`$setpoint` placeholder** resolving to the remembered last-real setpoint (covers `MANU_MODE = <temp>`) and constants like `4.5` (covers "off"). Example (BidCoS + HmIP-off, hm2mqtt-style topics):
+  ```json
+  [{"value": 0, "label": "Auto", "publish": "hm/set/TRV/4/AUTO_MODE", "payload": "true"},
+   {"value": 1, "label": "Manu", "publish": "hm/set/TRV/4/MANU_MODE", "payload": "$setpoint"},
+   {"value": 1, "label": "Off",  "match-setpoint-max": 4.5, "steps": [
+       {"topic": "hm/set/WTH/1/CONTROL_MODE", "payload": "1"},
+       {"topic": "hm/set/WTH/1/SET_POINT_TEMPERATURE", "payload": "4.5"}]}]
+  ```
+  (exact shape of the off-entry's display-match rule — `match-setpoint-max` or similar — and `steps` vs array-valued `publish` syntax TBD at implementation time; entries without `publish`/`steps` keep today's behaviour, so the change is **backwards compatible**.)
+- **Boost = a momentary mode entry, rendered in the existing chip row** (decided: one modes list, no separate control). An entry can be marked `momentary: true` with its own **off-strategy**: `off: {publish, payload}` (HmIP — `BOOST_MODE=false`) or `off: "restore"` (BidCoS — re-publish the pre-boost entry via the same per-entry machinery; pre-boost mode is client-side, re-derived from the last seen non-boost mode read-back, so a reload during boost degrades to "restore = auto"). Momentary chips render push-button-style (active while the read-back matches, tap again to deactivate) and can carry a **countdown badge**: optional `subscribe-boost-remaining` topic, else a client-side timer from a `boost-duration` attribute.
+- **Device profiles via inspector stamping** (decided): a profile picker in the (U39-restructured) climate inspector stamps the mode entries/boost/valve attributes from a template with the user's base topic — **one preset per bridge × generation** (decided: target both bridge topologies): `hm2mqtt BidCoS`, `hm2mqtt HmIP`, `Node-RED/RedMatic flows` (single logical command topics, the flow does the combined write), `zigbee2mqtt TRV`, `generic`. Profiles are templates, not runtime switches — after stamping everything is plain, hand-editable attributes.
+- **Party/holiday: display-only** (decided): mode read-back `2` renders a passive "Party" chip (never publishable — activation would need `PARTY_MODE_SUBMIT` string encoding, out of scope).
+- **Valve** (unchanged in substance): bring `subscribe-valve` to glass/metro in each family's visual language, plus `valve-min`/`valve-max` scaling on all of them (incl. material-climate, for HmIP 0…1).
+
+#### Remaining open points (verify during implementation)
+
+1. Verify the countdown datapoints (`BOOST_STATE` minutes on BidCoS RT-DN, `BOOST_TIME` on HmIP) against real devices before promising the remaining-time display; also confirm hm2mqtt's exact set-topic shape for the presets.
+2. Exact JSON shape of mode entries (`steps` array vs array-valued `publish`, `match-setpoint-max` naming, `momentary`/`off` fields) — settle when the U39 inspector work defines how these entries are edited.
+3. Inter-publish delay for multi-step writes (RedMatic staggers linked-device writes by 3 s — check whether sequential datapoint writes to the *same* device need any delay over MQTT or can fire back-to-back).
+
+**Relates:** B26 (min/max scaling pattern reused for `valve-min`/`valve-max`), B29 (shared slider geometry — the valve indicator follows it), U39 (inspector restructuring — mode-entry editing and profile stamping belong in that redesign, not in the flat attribute list), N31 (availability — same "shared contract, per-family rendering" shape), material-climate (reference implementation).
 
 ### E103 — WLED elements (Device / Glass / Metro)
 
