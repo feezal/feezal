@@ -217,7 +217,13 @@ class FeezalElementMaterialLight extends FeezalElement {
                 {property: '--feezal-light-off-color',     type: 'color', default: 'var(--secondary-text-color)'},
                 {property: '--feezal-light-surface-color', type: 'color', default: 'var(--primary-background-color)'},
                 {property: '--feezal-light-text-color',    type: 'color', default: 'var(--primary-text-color)'},
-                {property: '--feezal-light-error-color',   type: 'color', default: 'var(--error-color)'}
+                {property: '--feezal-light-error-color',   type: 'color', default: 'var(--error-color)'},
+                // B29 — ring geometry, unitless % of the slider viewBox; the same
+                // numbers on material-climate give an identical-looking slider.
+                {property: '--feezal-light-track-width', default: '7',
+                    help: 'Brightness-ring track width — unitless, in % of the circle viewBox (default 7). Same scale as --feezal-climate-track-width.'},
+                {property: '--feezal-light-knob-size', default: '10',
+                    help: 'Drag-knob diameter — unitless, in % of the circle viewBox (default 10). Same scale as --feezal-climate-knob-size.'}
             ],
             restrict: {minWidth: 120, minHeight: 140},
             defaultStyle: {width: '180px', height: '220px'}
@@ -841,14 +847,16 @@ class FeezalElementMaterialLight extends FeezalElement {
         const [hx, hy]    = polarXY(brt > 0.5 ? fillAngle : ARC_START, TRACK_R);
 
         return svg`
-            <!-- Background track arc -->
+            <!-- Background track arc (B29: width configurable, unitless % of viewBox) -->
             <path d="${trackD}" fill="none" stroke="${trackC}"
-                stroke-width="${RING_W}" stroke-linecap="round" pointer-events="none"/>
+                stroke-width="${RING_W}" stroke-linecap="round" pointer-events="none"
+                style="stroke-width: calc(var(--feezal-light-track-width, ${RING_W}) * 1px)"/>
 
             <!-- Brightness fill arc -->
             ${isOn && fillD ? svg`
                 <path d="${fillD}" fill="none" stroke="${accent}"
-                    stroke-width="${RING_W}" stroke-linecap="round" pointer-events="none"/>
+                    stroke-width="${RING_W}" stroke-linecap="round" pointer-events="none"
+                    style="stroke-width: calc(var(--feezal-light-track-width, ${RING_W}) * 1px)"/>
             ` : ''}
 
             <!-- Centre disc -->
@@ -871,11 +879,12 @@ class FeezalElementMaterialLight extends FeezalElement {
                         opacity="0.55" fill="var(--feezal-light-off-color)"
                         pointer-events="none">off</text>`}
 
-            <!-- Drag handle on ring (shown when on) -->
+            <!-- Drag handle on ring (shown when on; B29: diameter configurable) -->
             ${isOn ? svg`
                 <circle cx="${hx}" cy="${hy}" r="5"
                     fill="${accent}" stroke="var(--feezal-light-surface-color)" stroke-width="2"
-                    pointer-events="none"/>
+                    pointer-events="none"
+                    style="r: calc(var(--feezal-light-knob-size, 10) * 0.5px)"/>
             ` : ''}`;
     }
 

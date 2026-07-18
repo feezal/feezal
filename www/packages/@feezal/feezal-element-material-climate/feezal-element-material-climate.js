@@ -7,10 +7,14 @@ import '@material/web/chips/filter-chip.js';
 
 // ─── Arc geometry ─────────────────────────────────────────────────────────────
 // Convention: 0° = 12 o'clock, clockwise (same as feezal-element-material-light).
+// B29: radius/track/knob are proportionally IDENTICAL to material-light's ring
+// (radius 80 % of the viewBox half-size, track 7 % / knob 10 % of the viewBox
+// width) so both cards side by side show perfectly aligned circle-sliders.
+// This viewBox is 200 (light: 100) — constants here are the light values × 2.
 const ARC_CX    = 100;
 const ARC_CY    = 100;
-const ARC_R     = 82;    // outer arc centre-line radius
-const ARC_W     = 10;    // track stroke width
+const ARC_R     = 80;    // outer arc centre-line radius (= light TRACK_R 40 × 2)
+const ARC_W     = 14;    // track stroke width (= light RING_W 7 × 2)
 const VALVE_R   = 62;    // inner valve-arc centre-line radius
 const VALVE_W   = 4;
 const ARC_START = 225;   // degrees — 7:30 position
@@ -170,6 +174,12 @@ class FeezalElementMaterialClimate extends FeezalElement {
                 {property: '--feezal-climate-error-color', type: 'color',
                     default: 'var(--error-color, #b00020)',
                     help: 'Unavailability badge colour.'},
+                // B29 — arc geometry, unitless % of the slider viewBox; the same
+                // numbers on material-light give an identical-looking slider.
+                {property: '--feezal-climate-track-width', default: '7',
+                    help: 'Setpoint-arc track width — unitless, in % of the circle viewBox (default 7). Same scale as --feezal-light-track-width.'},
+                {property: '--feezal-climate-knob-size', default: '10',
+                    help: 'Drag-knob diameter — unitless, in % of the circle viewBox (default 10). Same scale as --feezal-light-knob-size.'},
             ],
             restrict:     {minWidth: 160, minHeight: 200},
             defaultStyle: {width: '240px', height: '280px'},
@@ -564,10 +574,11 @@ class FeezalElementMaterialClimate extends FeezalElement {
         const dispActual   = actual !== null ? fmtTemp(actual, this.unit) : '\u2014';
 
         return svg`
-            <!-- Background track -->
+            <!-- Background track (B29: width configurable, unitless % of viewBox; ×2 = this viewBox scale) -->
             <path d="${bgPath}" fill="none"
                 stroke="var(--feezal-climate-idle-color)" stroke-opacity="0.25"
-                stroke-width="${ARC_W}" stroke-linecap="round"/>
+                stroke-width="${ARC_W}" stroke-linecap="round"
+                style="stroke-width: calc(var(--feezal-climate-track-width, 7) * 2px)"/>
 
             <!-- Valve inner arc -->
             ${valveArc ?? svg``}
@@ -576,17 +587,18 @@ class FeezalElementMaterialClimate extends FeezalElement {
             ${fillPath ? svg`
                 <path d="${fillPath}" fill="none"
                     stroke="${fillColor}"
-                    stroke-width="${ARC_W}" stroke-linecap="round"/>
+                    stroke-width="${ARC_W}" stroke-linecap="round"
+                    style="stroke-width: calc(var(--feezal-climate-track-width, 7) * 2px)"/>
             ` : svg``}
 
             <!-- Actual temperature tick on track -->
             ${actualTick ?? svg``}
 
-            <!-- Drag handle -->
-            <circle cx="${hx}" cy="${hy}" r="8"
+            <!-- Drag handle (B29: diameter configurable, matches light's knob) -->
+            <circle cx="${hx}" cy="${hy}" r="10"
                 fill="${fillColor}" stroke="var(--feezal-climate-text-color)"
                 stroke-opacity="0.3" stroke-width="1.5"
-                style="cursor:grab"/>
+                style="cursor:grab; r: calc(var(--feezal-climate-knob-size, 10) * 1px)"/>
 
             <!-- Actual temperature — large, centred -->
             <text x="${ARC_CX}" y="${ARC_CY + 8}"
