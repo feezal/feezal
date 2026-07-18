@@ -103,12 +103,18 @@ New elements **must** be created as packages under `www/node_modules/@feezal/`, 
 
 6. **The server picks it up automatically** at startup by scanning `www/node_modules/@feezal/` — no registration required.
 
-7. After creating or modifying element files, **rebuild**:
+7. **Regenerate the editor/viewer element manifest** — `www/editor/feezal-elements.js` is a *generated, checked-in* file listing every element import; the palette and the viewer bundle only contain what it imports. After adding (or removing) element packages, run `npm install` in `www/` (creates the workspace symlink) and then:
+   ```
+   node scripts/generate-elements.js
+   ```
+   Commit the regenerated manifest together with the new package. Skipping this step means the element builds fine but **never appears in the palette**.
+
+8. After creating or modifying element files, **rebuild**:
    ```
    cd www && npm run build
    ```
 
-8. **Add it to the test checklist** — append the element to the appropriate category list in `docs/TESTING.md §6`, plus an "Element-specific notes" bullet for anything the generic recipe doesn't cover (custom inspector, embedded views, dialogs, per-item MQTT, pseudo-element behaviour, …). See *Test checklist maintenance* below.
+9. **Add it to the test checklist** — append the element to the appropriate category list in `docs/TESTING.md §6`, plus an "Element-specific notes" bullet for anything the generic recipe doesn't cover (custom inspector, embedded views, dialogs, per-item MQTT, pseudo-element behaviour, …). See *Test checklist maintenance* below.
 
 ### Element spec reference
 

@@ -20,11 +20,16 @@ import '@feezal/feezal-element-carbon-switch';
 import '@feezal/feezal-element-glass-button';
 import '@feezal/feezal-element-glass-climate';
 import '@feezal/feezal-element-glass-contact';
+import '@feezal/feezal-element-glass-countdown-dialog';
+import '@feezal/feezal-element-glass-dialog';
+import '@feezal/feezal-element-glass-dialog-view';
+import '@feezal/feezal-element-glass-fan';
 import '@feezal/feezal-element-glass-light';
 import '@feezal/feezal-element-glass-occupancy';
 import '@feezal/feezal-element-glass-sensor';
 import '@feezal/feezal-element-glass-shutter';
 import '@feezal/feezal-element-glass-switch';
+import '@feezal/feezal-element-glass-wled';
 import '@feezal/feezal-element-layout-app';
 import '@feezal/feezal-element-layout-flex';
 import '@feezal/feezal-element-layout-repeater';
@@ -67,14 +72,17 @@ import '@feezal/feezal-element-material-switch';
 import '@feezal/feezal-element-material-tank';
 import '@feezal/feezal-element-material-time-picker';
 import '@feezal/feezal-element-material-vacuum';
+import '@feezal/feezal-element-material-wled';
 import '@feezal/feezal-element-metro-climate';
 import '@feezal/feezal-element-metro-contact';
+import '@feezal/feezal-element-metro-cover';
 import '@feezal/feezal-element-metro-light';
 import '@feezal/feezal-element-metro-media';
 import '@feezal/feezal-element-metro-occupancy';
 import '@feezal/feezal-element-metro-sensor';
 import '@feezal/feezal-element-metro-switch';
 import '@feezal/feezal-element-metro-tile';
+import '@feezal/feezal-element-metro-wled';
 import '@feezal/feezal-element-panel-7seg';
 import '@feezal/feezal-element-panel-gauge';
 import '@feezal/feezal-element-panel-knob';
@@ -139,11 +147,16 @@ window.feezal.elements = [
   "feezal-element-glass-button",
   "feezal-element-glass-climate",
   "feezal-element-glass-contact",
+  "feezal-element-glass-countdown-dialog",
+  "feezal-element-glass-dialog",
+  "feezal-element-glass-dialog-view",
+  "feezal-element-glass-fan",
   "feezal-element-glass-light",
   "feezal-element-glass-occupancy",
   "feezal-element-glass-sensor",
   "feezal-element-glass-shutter",
   "feezal-element-glass-switch",
+  "feezal-element-glass-wled",
   "feezal-element-layout-app",
   "feezal-element-layout-flex",
   "feezal-element-layout-repeater",
@@ -186,14 +199,17 @@ window.feezal.elements = [
   "feezal-element-material-tank",
   "feezal-element-material-time-picker",
   "feezal-element-material-vacuum",
+  "feezal-element-material-wled",
   "feezal-element-metro-climate",
   "feezal-element-metro-contact",
+  "feezal-element-metro-cover",
   "feezal-element-metro-light",
   "feezal-element-metro-media",
   "feezal-element-metro-occupancy",
   "feezal-element-metro-sensor",
   "feezal-element-metro-switch",
   "feezal-element-metro-tile",
+  "feezal-element-metro-wled",
   "feezal-element-panel-7seg",
   "feezal-element-panel-gauge",
   "feezal-element-panel-knob",
