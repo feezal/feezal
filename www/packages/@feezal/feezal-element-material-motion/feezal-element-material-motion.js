@@ -95,9 +95,7 @@ class FeezalElementMaterialMotion extends FeezalElement {
                     payload_on:            {attr: 'payload-active'},
                     payload_off:           {attr: 'payload-clear'},
                     device_class:          {attr: 'type', valueMap: {motion: 'motion', occupancy: 'presence', presence: 'presence', _default: 'motion'}},
-                    availability_topic:    {attr: 'subscribe-availability'},
-                    payload_available:     {attr: 'payload-available'},
-                    payload_not_available: {attr: 'payload-unavailable'},
+                    // N31: availability is mapped automatically from the canonical discovery record.
                     value_template:        {attr: 'message-property', transform: 'valueTemplateToPath'},
                     name:                  'label',
                 },
@@ -134,13 +132,9 @@ class FeezalElementMaterialMotion extends FeezalElement {
         payloadClear:          {type: String, reflect: true, attribute: 'payload-clear'},
         type:                  {type: String, reflect: true},
         label:                 {type: String, reflect: true},
-        subscribeAvailability: {type: String, reflect: true, attribute: 'subscribe-availability'},
-        payloadAvailable:      {type: String, reflect: true, attribute: 'payload-available'},
-        payloadUnavailable:    {type: String, reflect: true, attribute: 'payload-unavailable'},
-        msgPropAvailability:   {type: String, reflect: true, attribute: 'message-property-availability'},
+        // N31: availability inherited from FeezalElement.
         discoveryId:           {type: String, reflect: true, attribute: 'discovery-id'},
         _active:    {state: true},
-        _available: {state: true},
     };
 
     static styles = [feezalBaseStyles, css`
@@ -181,13 +175,8 @@ class FeezalElementMaterialMotion extends FeezalElement {
         this.payloadClear          = 'OFF';
         this.type                  = 'motion';
         this.label                 = '';
-        this.subscribeAvailability = '';
-        this.payloadAvailable      = 'online';
-        this.payloadUnavailable    = 'offline';
-        this.msgPropAvailability   = '';
         this.discoveryId           = '';
         this._active    = false;
-        this._available = true;
     }
 
     // Device cards manage subscriptions manually; suppress the base-class path.
@@ -196,18 +185,7 @@ class FeezalElementMaterialMotion extends FeezalElement {
     connectedCallback() {
         super.connectedCallback();
 
-        if (this.subscribeAvailability) {
-            this.addSubscription(this.subscribeAvailability, msg => {
-                let v = this.getProperty(msg, this.msgPropAvailability || this.messageProperty);
-                if (typeof v === 'string') {
-                    try { const p = JSON.parse(v); if (p && 'state' in p) v = p.state; } catch { /* not JSON */ }
-                } else if (v && typeof v === 'object' && 'state' in v) { v = v.state; }
-                const s = String(v).toLowerCase();
-                this._available = String(v) === this.payloadAvailable ||
-                    (s !== String(this.payloadUnavailable).toLowerCase() &&
-                     s !== 'offline' && s !== 'false' && s !== '0' && s !== 'unavailable');
-            });
-        }
+        // N31: availability subscription handled by the FeezalElement base.
 
         if (this.subscribe) {
             this.addSubscription(this.subscribe, msg => {

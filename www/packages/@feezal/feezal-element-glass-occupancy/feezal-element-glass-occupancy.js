@@ -34,9 +34,7 @@ class FeezalElementGlassOccupancy extends FeezalElement {
                     payload_on:   {attr: 'payload-active'},
                     payload_off:  {attr: 'payload-clear'},
                     device_class: {attr: 'type', valueMap: {motion: 'motion', occupancy: 'presence', presence: 'presence', _default: 'motion'}},
-                    availability_topic:    {attr: 'subscribe-availability'},
-                    payload_available:     {attr: 'payload-available'},
-                    payload_not_available: {attr: 'payload-unavailable'},
+                    // N31: availability is mapped automatically from the canonical discovery record.
                     value_template:        {attr: 'message-property', transform: 'valueTemplateToPath'},
                     name:                  'label',
                 },
@@ -77,14 +75,10 @@ class FeezalElementGlassOccupancy extends FeezalElement {
         textActive:    {type: String,  reflect: true, attribute: 'text-active'},
         textClear:     {type: String,  reflect: true, attribute: 'text-clear'},
         label:         {type: String,  reflect: true},
-        subscribeAvailability: {type: String, reflect: true, attribute: 'subscribe-availability'},
-        msgPropAvailability:   {type: String, reflect: true, attribute: 'message-property-availability'},
-        payloadAvailable:      {type: String, reflect: true, attribute: 'payload-available'},
-        payloadUnavailable:    {type: String, reflect: true, attribute: 'payload-unavailable'},
+        // N31: availability inherited from FeezalElement.
         degrade:       {type: Boolean, reflect: true},
         discoveryId:   {type: String,  reflect: true, attribute: 'discovery-id'},
         _active:    {state: true},
-        _available: {state: true},
     };
 
     static styles = [feezalBaseStyles, css`
@@ -136,14 +130,9 @@ class FeezalElementGlassOccupancy extends FeezalElement {
         this.textActive = 'Detected';
         this.textClear = 'Clear';
         this.label = '';
-        this.subscribeAvailability = '';
-        this.msgPropAvailability = '';
-        this.payloadAvailable = 'online';
-        this.payloadUnavailable = 'offline';
         this.degrade = false;
         this.discoveryId = '';
         this._active = false;
-        this._available = true;
     }
 
     // Device cards manage subscriptions manually; suppress the base class path.
@@ -157,7 +146,7 @@ class FeezalElementGlassOccupancy extends FeezalElement {
     /** Topic attributes changed at runtime (inspector edits on the live
      * canvas) → updated() rewires instead of keeping the stale topics. */
     _wireSignature() {
-        return [this.subscribe, this.subscribeAvailability].join('|');
+        return String(this.subscribe);
     }
 
     updated(changed) {
@@ -180,18 +169,6 @@ class FeezalElementGlassOccupancy extends FeezalElement {
                 } else if (v && typeof v === 'object' && 'state' in v) { v = v.state; }
                 this._active = String(v) === String(this.payloadActive) ||
                     v === true || v === 1 || v === '1';
-            });
-        }
-        if (this.subscribeAvailability) {
-            this.addSubscription(this.subscribeAvailability, msg => {
-                let v = this.getProperty(msg, this.msgPropAvailability || this.messageProperty);
-                if (typeof v === 'string') {
-                    try { const p = JSON.parse(v); if (p && 'state' in p) v = p.state; } catch { /* not JSON */ }
-                } else if (v && typeof v === 'object' && 'state' in v) { v = v.state; }
-                const s = String(v).toLowerCase();
-                this._available = String(v) === this.payloadAvailable ||
-                    (s !== String(this.payloadUnavailable).toLowerCase() &&
-                     s !== 'offline' && s !== 'false' && s !== '0' && s !== 'unavailable');
             });
         }
     }

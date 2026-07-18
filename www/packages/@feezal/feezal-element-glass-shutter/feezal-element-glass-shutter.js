@@ -37,7 +37,7 @@ class FeezalElementGlassShutter extends FeezalElement {
                     payload_stop:  {attr: 'payload-stop'},
                     tilt_status_topic:  {attr: 'slat-angle'},
                     tilt_command_topic: {attr: 'publish-slat-angle'},
-                    availability_topic: {attr: 'subscribe-availability'},
+                    // N31: availability is mapped automatically from the canonical discovery record.
                     name: 'label',
                 },
             },
@@ -113,15 +113,11 @@ class FeezalElementGlassShutter extends FeezalElement {
         showPosition:      {type: Boolean, reflect: true, attribute: 'show-position'},
         label:             {type: String,  reflect: true},
         icon:              {type: String,  reflect: true},
-        subscribeAvailability: {type: String, reflect: true, attribute: 'subscribe-availability'},
-        msgPropAvailability:   {type: String, reflect: true, attribute: 'message-property-availability'},
-        payloadAvailable:      {type: String, reflect: true, attribute: 'payload-available'},
-        payloadUnavailable:    {type: String, reflect: true, attribute: 'payload-unavailable'},
+        // N31: availability inherited from FeezalElement.
         degrade:           {type: Boolean, reflect: true},
         discoveryId:       {type: String,  reflect: true, attribute: 'discovery-id'},
         _position:  {state: true},   // 0–100, null = unknown
         _tilt:      {state: true},
-        _available: {state: true},
         _dragPos:   {state: true},
         _details:   {state: true},
     };
@@ -252,15 +248,10 @@ class FeezalElementGlassShutter extends FeezalElement {
         this.showPosition = true;
         this.label = '';
         this.icon = 'blinds';
-        this.subscribeAvailability = '';
-        this.msgPropAvailability = '';
-        this.payloadAvailable = 'online';
-        this.payloadUnavailable = 'offline';
         this.degrade = false;
         this.discoveryId = '';
         this._position = null;
         this._tilt = null;
-        this._available = true;
         this._dragPos = null;
         this._details = false;
         // Outside tap closes the details popup; a tap landing back on the
@@ -324,8 +315,7 @@ class FeezalElementGlassShutter extends FeezalElement {
     /** Topic attributes changed at runtime (inspector edits on the live
      * canvas) → updated() rewires instead of keeping the stale topics. */
     _wireSignature() {
-        return [this.payloadMode, this.subscribe, this.subscribePosition, this.slatAngle,
-            this.subscribeAvailability].join('|');
+        return [this.payloadMode, this.subscribe, this.subscribePosition, this.slatAngle].join('|');
     }
 
     updated(changed) {
@@ -346,19 +336,6 @@ class FeezalElementGlassShutter extends FeezalElement {
 
     _wireSubscriptions() {
         this.__wireSig = this._wireSignature();
-
-        if (this.subscribeAvailability) {
-            this.addSubscription(this.subscribeAvailability, msg => {
-                let v = this.getProperty(msg, this.msgPropAvailability || this.messageProperty);
-                if (typeof v === 'string') {
-                    try { const p = JSON.parse(v); if (p && 'state' in p) v = p.state; } catch { /* not JSON */ }
-                } else if (v && typeof v === 'object' && 'state' in v) { v = v.state; }
-                const s = String(v).toLowerCase();
-                this._available = String(v) === this.payloadAvailable ||
-                    (s !== String(this.payloadUnavailable).toLowerCase() &&
-                     s !== 'offline' && s !== 'false' && s !== '0' && s !== 'unavailable');
-            });
-        }
 
         if (this.payloadMode === 'json') {
             if (this.subscribe) {

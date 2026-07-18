@@ -113,7 +113,7 @@ class FeezalElementGlassLight extends FeezalElement {
                     supported_color_modes:    {attr: 'mode', transform: 'colorMode'},
                     min_mireds: {attr: 'color-temp-max', unit: 'mired→kelvin', alsoSet: {'color-temp-unit': 'mired'}},
                     max_mireds: {attr: 'color-temp-min', unit: 'mired→kelvin'},
-                    availability_topic: {attr: 'subscribe-availability'},
+                    // N31: availability is mapped automatically from the canonical discovery record.
                     name: 'label',
                 },
             },
@@ -200,10 +200,7 @@ class FeezalElementGlassLight extends FeezalElement {
         subscribeHs:         {type: String, reflect: true, attribute: 'subscribe-hs'},
         msgPropHs:           {type: String, reflect: true, attribute: 'message-property-hs'},
         publishHs:           {type: String, reflect: true, attribute: 'publish-hs'},
-        subscribeAvailability: {type: String, reflect: true, attribute: 'subscribe-availability'},
-        msgPropAvailability: {type: String, reflect: true, attribute: 'message-property-availability'},
-        payloadAvailable:    {type: String, reflect: true, attribute: 'payload-available'},
-        payloadUnavailable:  {type: String, reflect: true, attribute: 'payload-unavailable'},
+        // N31: availability inherited from FeezalElement.
         label:               {type: String, reflect: true},
         labelOn:             {type: String, reflect: true, attribute: 'label-on'},
         labelOff:            {type: String, reflect: true, attribute: 'label-off'},
@@ -216,7 +213,6 @@ class FeezalElementGlassLight extends FeezalElement {
         _rgb:       {state: true},   // [r, g, b]
         _hs:        {state: true},   // [h 0–360, s 0–100]
         _details:   {state: true},   // details popup open
-        _available: {state: true},
     };
 
     static styles = [feezalBaseStyles, css`
@@ -374,10 +370,6 @@ class FeezalElementGlassLight extends FeezalElement {
         this.subscribeHs = '';
         this.msgPropHs = '';
         this.publishHs = '';
-        this.subscribeAvailability = '';
-        this.msgPropAvailability = '';
-        this.payloadAvailable = 'online';
-        this.payloadUnavailable = 'offline';
         this.label = '';
         this.labelOn = 'On';
         this.labelOff = 'Off';
@@ -390,7 +382,6 @@ class FeezalElementGlassLight extends FeezalElement {
         this._rgb = null;
         this._hs = null;
         this._details = false;
-        this._available = true;
         this._pressTimer = null;
         this._longPressed = false;
         this._suppressTap = false;
@@ -431,25 +422,11 @@ class FeezalElementGlassLight extends FeezalElement {
      * updated() rewires instead of silently keeping the stale topics. */
     _wireSignature() {
         return [this.payloadMode, this.onOffSource, this.subscribe, this.subscribeState,
-            this.subscribeBrightness, this.subscribeColorTemp, this.subscribeRgb, this.subscribeHs,
-            this.subscribeAvailability].join('|');
+            this.subscribeBrightness, this.subscribeColorTemp, this.subscribeRgb, this.subscribeHs].join('|');
     }
 
     _wireSubscriptions() {
         this.__wireSig = this._wireSignature();
-
-        if (this.subscribeAvailability) {
-            this.addSubscription(this.subscribeAvailability, msg => {
-                let v = this.getProperty(msg, this.msgPropAvailability || this.messageProperty);
-                if (typeof v === 'string') {
-                    try { const p = JSON.parse(v); if (p && 'state' in p) v = p.state; } catch { /* not JSON */ }
-                } else if (v && typeof v === 'object' && 'state' in v) { v = v.state; }
-                const s = String(v).toLowerCase();
-                this._available = String(v) === this.payloadAvailable ||
-                    (s !== String(this.payloadUnavailable).toLowerCase() &&
-                     s !== 'offline' && s !== 'false' && s !== '0' && s !== 'unavailable');
-            });
-        }
 
         if (this.payloadMode === 'json') {
             if (this.subscribe) {

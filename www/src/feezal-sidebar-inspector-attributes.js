@@ -1556,6 +1556,22 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             }
         }
 
+        // N31: canonical availability applies to EVERY element automatically —
+        // individual discovery maps no longer need availability_topic lines.
+        // A single plain-topic entry stays a plain string (back-compat, and it
+        // keeps the inspector field readable); anything richer becomes the
+        // JSON-array form the FeezalElement base class parses.
+        const avail = cfg.availability_normalized;
+        if (avail?.entries?.length) {
+            el.setAttribute('subscribe-availability',
+                avail.entries.length === 1 && !avail.entries[0].property
+                    ? avail.entries[0].topic
+                    : JSON.stringify(avail.entries));
+            if (avail.mode && avail.mode !== 'all') el.setAttribute('availability-mode', avail.mode);
+            if (avail.payloadAvailable !== undefined) el.setAttribute('payload-available', String(avail.payloadAvailable));
+            if (avail.payloadUnavailable !== undefined) el.setAttribute('payload-unavailable', String(avail.payloadUnavailable));
+        }
+
         // Store the discovery-id for future re-sync (N12 MVP)
         if (entity.discovery_id) el.setAttribute('discovery-id', entity.discovery_id);
 

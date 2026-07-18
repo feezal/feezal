@@ -139,8 +139,7 @@ class FeezalElementMaterialLight extends FeezalElement {
                     max_mireds: {attr: 'color-temp-min', unit: 'mired\u2192kelvin'}, // 500 → 2000 K
                     // effects
                     effect_list: {attr: 'effects', transform: 'join'},
-                    // availability (a single small "unavailable" badge on the card)
-                    availability_topic: {attr: 'subscribe-availability'},
+                    // N31: availability is mapped automatically from the canonical discovery record.
                     // device name → label
                     name: 'label',
                 },
@@ -264,9 +263,7 @@ class FeezalElementMaterialLight extends FeezalElement {
         publishWarmWhite:   {type: String, reflect: true, attribute: 'publish-warm-white'},
         subscribeColdWhite: {type: String, reflect: true, attribute: 'subscribe-cold-white'},
         publishColdWhite:   {type: String, reflect: true, attribute: 'publish-cold-white'},
-        subscribeAvailability: {type: String, reflect: true, attribute: 'subscribe-availability'},
-        payloadAvailable:   {type: String, reflect: true, attribute: 'payload-available'},
-        payloadUnavailable: {type: String, reflect: true, attribute: 'payload-unavailable'},
+        // N31: availability inherited from FeezalElement.
         discoveryId:        {type: String, reflect: true, attribute: 'discovery-id'},
         msgPropBrightness:  {type: String, reflect: true, attribute: 'message-property-brightness'},
         msgPropColorTemp:   {type: String, reflect: true, attribute: 'message-property-color-temp'},
@@ -276,7 +273,6 @@ class FeezalElementMaterialLight extends FeezalElement {
         msgPropWhite:       {type: String, reflect: true, attribute: 'message-property-white'},
         msgPropWarmWhite:   {type: String, reflect: true, attribute: 'message-property-warm-white'},
         msgPropColdWhite:   {type: String, reflect: true, attribute: 'message-property-cold-white'},
-        msgPropAvailability:{type: String, reflect: true, attribute: 'message-property-availability'},
         label:              {type: String, reflect: true},
         labelOff:           {type: String, reflect: true, attribute: 'label-off'},
         // Internal state
@@ -290,7 +286,6 @@ class FeezalElementMaterialLight extends FeezalElement {
         _warmWhite: {state: true},
         _coldWhite: {state: true},
         _dragBrt:   {state: true},   // live brightness during ring drag (null = not dragging)
-        _available: {state: true},   // device availability (true unless told otherwise)
     };
 
     static styles = [feezalBaseStyles, css`
@@ -425,9 +420,6 @@ class FeezalElementMaterialLight extends FeezalElement {
         this.publishWarmWhite    = '';
         this.subscribeColdWhite  = '';
         this.publishColdWhite    = '';
-        this.subscribeAvailability = '';
-        this.payloadAvailable    = 'online';
-        this.payloadUnavailable  = 'offline';
         this.discoveryId         = '';
         this.msgPropBrightness   = '';
         this.msgPropColorTemp    = '';
@@ -437,7 +429,6 @@ class FeezalElementMaterialLight extends FeezalElement {
         this.msgPropWhite        = '';
         this.msgPropWarmWhite    = '';
         this.msgPropColdWhite    = '';
-        this.msgPropAvailability = '';
         this.label               = '';
         this.labelOff            = 'off';
         this._on        = false;
@@ -450,7 +441,6 @@ class FeezalElementMaterialLight extends FeezalElement {
         this._warmWhite = null;
         this._coldWhite = null;
         this._dragBrt   = null;
-        this._available = true;
         // E77: widget-remembered last non-off brightness % for toggle-on
         // restore in on-off-source=brightness mode.
         this._lastBrt   = null;
@@ -466,16 +456,7 @@ class FeezalElementMaterialLight extends FeezalElement {
     connectedCallback() {
         super.connectedCallback();
 
-        // Availability — always honoured, in both payload modes.
-        if (this.subscribeAvailability) {
-            this.addSubscription(this.subscribeAvailability, msg => {
-                const v = this.getProperty(msg, this.msgPropAvailability || this.messageProperty);
-                const s = String(v).toLowerCase();
-                this._available = v === this.payloadAvailable ||
-                    (s !== String(this.payloadUnavailable).toLowerCase() &&
-                     s !== 'offline' && s !== 'false' && s !== '0' && s !== 'unavailable');
-            });
-        }
+        // N31: availability subscription handled by the FeezalElement base.
 
         if (this.payloadMode === 'json') {
             if (this.subscribe) {

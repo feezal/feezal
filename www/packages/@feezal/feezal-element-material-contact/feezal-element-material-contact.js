@@ -141,9 +141,8 @@ class FeezalElementMaterialContact extends FeezalElement {
                     payload_on:            {attr: 'payload-open'},
                     payload_off:           {attr: 'payload-closed'},
                     device_class:          {attr: 'type', valueMap: {window: 'window', door: 'door', moisture: 'waterleak', smoke: 'firealarm', garage_door: 'garagedoor', _default: 'window'}},
-                    availability_topic:    {attr: 'subscribe-availability'},
-                    payload_available:     {attr: 'payload-available'},
-                    payload_not_available: {attr: 'payload-unavailable'},
+                    // N31: availability is mapped automatically from the
+                    // canonical discovery record — no per-element lines needed.
                     value_template:        {attr: 'message-property', transform: 'valueTemplateToPath'},
                     name:                  'label',
                 },
@@ -182,15 +181,13 @@ class FeezalElementMaterialContact extends FeezalElement {
         payloadClosed:         {type: String,  reflect: true, attribute: 'payload-closed'},
         type:                  {type: String,  reflect: true},
         label:                 {type: String,  reflect: true},
-        subscribeAvailability: {type: String,  reflect: true, attribute: 'subscribe-availability'},
-        payloadAvailable:      {type: String,  reflect: true, attribute: 'payload-available'},
-        payloadUnavailable:    {type: String,  reflect: true, attribute: 'payload-unavailable'},
-        msgPropAvailability:   {type: String,  reflect: true, attribute: 'message-property-availability'},
+        // N31: availability (subscribe-availability, availability-mode,
+        // payload-available/-unavailable, message-property-availability and
+        // the _available flag) is inherited from FeezalElement.
         payloadTilted:         {type: String,  reflect: true, attribute: 'payload-tilted'},
         mirror:                {type: Boolean, reflect: true},
         discoveryId:           {type: String,  reflect: true, attribute: 'discovery-id'},
         _contactState: {state: true},  // 'closed' | 'open' | 'tilted'
-        _available:  {state: true},
     };
 
     static styles = [feezalBaseStyles, css`
@@ -233,15 +230,10 @@ class FeezalElementMaterialContact extends FeezalElement {
         this.payloadClosed         = 'OFF';
         this.type                  = 'window';
         this.label                 = '';
-        this.subscribeAvailability = '';
-        this.payloadAvailable      = 'online';
-        this.payloadUnavailable    = 'offline';
-        this.msgPropAvailability   = '';
         this.payloadTilted         = '';
         this.mirror                = false;
         this.discoveryId           = '';
         this._contactState = 'closed';
-        this._available    = true;
     }
 
     // Device cards manage subscriptions manually; suppress the base class path.
@@ -253,9 +245,10 @@ class FeezalElementMaterialContact extends FeezalElement {
     }
 
     /** Topic attributes changed at runtime (inspector edits on the live
-     * canvas) → updated() rewires instead of keeping the stale topics. */
+     * canvas) → updated() rewires instead of keeping the stale topics.
+     * (Availability rewires itself in the FeezalElement base — N31.) */
     _wireSignature() {
-        return [this.subscribe, this.subscribeAvailability].join('|');
+        return String(this.subscribe);
     }
 
     updated(changed) {
@@ -268,19 +261,6 @@ class FeezalElementMaterialContact extends FeezalElement {
 
     _wireSubscriptions() {
         this.__wireSig = this._wireSignature();
-
-        if (this.subscribeAvailability) {
-            this.addSubscription(this.subscribeAvailability, msg => {
-                let v = this.getProperty(msg, this.msgPropAvailability || this.messageProperty);
-                if (typeof v === 'string') {
-                    try { const p = JSON.parse(v); if (p && 'state' in p) v = p.state; } catch { /* not JSON */ }
-                } else if (v && typeof v === 'object' && 'state' in v) { v = v.state; }
-                const s = String(v).toLowerCase();
-                this._available = String(v) === this.payloadAvailable ||
-                    (s !== String(this.payloadUnavailable).toLowerCase() &&
-                     s !== 'offline' && s !== 'false' && s !== '0' && s !== 'unavailable');
-            });
-        }
 
         // E78: multi-contact mode removed — the element is single-contact
         // only; compose multiple contact elements (U32 component / repeater)

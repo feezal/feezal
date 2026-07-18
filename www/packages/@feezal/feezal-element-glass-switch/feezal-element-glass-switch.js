@@ -32,7 +32,7 @@ class FeezalElementGlassSwitch extends FeezalElement {
                     command_topic:  'publish',
                     payload_on:     'payload-on',
                     payload_off:    'payload-off',
-                    availability_topic: {attr: 'subscribe-availability'},
+                    // N31: availability is mapped automatically from the canonical discovery record.
                     value_template: {attr: 'message-property', transform: 'valueTemplateToPath'},
                     name:           'label',
                 },
@@ -75,16 +75,12 @@ class FeezalElementGlassSwitch extends FeezalElement {
         textOff:    {type: String, reflect: true, attribute: 'text-off'},
         iconOn:     {type: String, reflect: true, attribute: 'icon-on'},
         iconOff:    {type: String, reflect: true, attribute: 'icon-off'},
-        subscribeAvailability: {type: String, reflect: true, attribute: 'subscribe-availability'},
-        msgPropAvailability:   {type: String, reflect: true, attribute: 'message-property-availability'},
-        payloadAvailable:      {type: String, reflect: true, attribute: 'payload-available'},
-        payloadUnavailable:    {type: String, reflect: true, attribute: 'payload-unavailable'},
+        // N31: availability inherited from FeezalElement.
         label:      {type: String, reflect: true},
         icon:       {type: String, reflect: true},
         degrade:    {type: Boolean, reflect: true},
         discoveryId: {type: String, reflect: true, attribute: 'discovery-id'},
         _on:        {state: true},
-        _available: {state: true},
     };
 
     static styles = [feezalBaseStyles, css`
@@ -138,16 +134,11 @@ class FeezalElementGlassSwitch extends FeezalElement {
         this.textOff = 'Off';
         this.iconOn = '';
         this.iconOff = '';
-        this.subscribeAvailability = '';
-        this.msgPropAvailability = '';
-        this.payloadAvailable = 'online';
-        this.payloadUnavailable = 'offline';
         this.label = '';
         this.icon = 'power_settings_new';
         this.degrade = false;
         this.discoveryId = '';
         this._on = false;
-        this._available = true;
     }
 
     // Device cards manage subscriptions manually; suppress the base class path.
@@ -161,7 +152,7 @@ class FeezalElementGlassSwitch extends FeezalElement {
     /** Topic attributes changed at runtime (inspector edits on the live
      * canvas) → updated() rewires instead of keeping the stale topics. */
     _wireSignature() {
-        return [this.subscribe, this.subscribeAvailability].join('|');
+        return String(this.subscribe);
     }
 
     updated(changed) {
@@ -174,19 +165,6 @@ class FeezalElementGlassSwitch extends FeezalElement {
 
     _wireSubscriptions() {
         this.__wireSig = this._wireSignature();
-
-        if (this.subscribeAvailability) {
-            this.addSubscription(this.subscribeAvailability, msg => {
-                let v = this.getProperty(msg, this.msgPropAvailability || this.messageProperty);
-                if (typeof v === 'string') {
-                    try { const p = JSON.parse(v); if (p && 'state' in p) v = p.state; } catch { /* not JSON */ }
-                } else if (v && typeof v === 'object' && 'state' in v) { v = v.state; }
-                const s = String(v).toLowerCase();
-                this._available = String(v) === this.payloadAvailable ||
-                    (s !== String(this.payloadUnavailable).toLowerCase() &&
-                     s !== 'offline' && s !== 'false' && s !== '0' && s !== 'unavailable');
-            });
-        }
 
         if (this.subscribe) {
             this.addSubscription(this.subscribe, msg => {

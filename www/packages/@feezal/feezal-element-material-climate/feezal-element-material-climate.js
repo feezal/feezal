@@ -99,10 +99,7 @@ class FeezalElementMaterialClimate extends FeezalElement {
                     temperature_unit: {attr: 'unit', valueMap: {C: '°C', F: '°F', _default: '°C'}},
                     // Modes: HA gives ["heat","cool","off"]; _parsedModes() coerces to [{value,label}].
                     modes: {attr: 'modes', transform: 'jsonStringify'},
-                    // Availability
-                    availability_topic:    {attr: 'subscribe-availability'},
-                    payload_available:     {attr: 'payload-available'},
-                    payload_not_available: {attr: 'payload-unavailable'},
+                    // N31: availability is mapped automatically from the canonical discovery record.
                     // Label
                     name: 'label',
                 },
@@ -198,9 +195,7 @@ class FeezalElementMaterialClimate extends FeezalElement {
         publishMode:           {type: String,  reflect: true, attribute: 'publish-mode'},
         subscribeValve:        {type: String,  reflect: true, attribute: 'subscribe-valve'},
         subscribeHumidity:     {type: String,  reflect: true, attribute: 'subscribe-humidity'},
-        subscribeAvailability: {type: String,  reflect: true, attribute: 'subscribe-availability'},
-        payloadAvailable:      {type: String,  reflect: true, attribute: 'payload-available'},
-        payloadUnavailable:    {type: String,  reflect: true, attribute: 'payload-unavailable'},
+        // N31: availability inherited from FeezalElement.
         min:                   {type: Number,  reflect: true},
         max:                   {type: Number,  reflect: true},
         step:                  {type: Number,  reflect: true},
@@ -213,14 +208,12 @@ class FeezalElementMaterialClimate extends FeezalElement {
         msgPropMode:           {type: String,  reflect: true, attribute: 'message-property-mode'},
         msgPropValve:          {type: String,  reflect: true, attribute: 'message-property-valve'},
         msgPropHumidity:       {type: String,  reflect: true, attribute: 'message-property-humidity'},
-        msgPropAvailability:   {type: String,  reflect: true, attribute: 'message-property-availability'},
         // Internal state — never as class fields (Lit 3 rule)
         _setpoint:   {state: true},   // null | number
         _actual:     {state: true},   // null | number
         _mode:       {state: true},   // null | string
         _valve:      {state: true},   // null | number (0–100)
         _humidity:   {state: true},   // null | number
-        _available:  {state: true},   // boolean
         _dragSpan:   {state: true},   // null | number — live arc span during drag
     };
 
@@ -343,9 +336,6 @@ class FeezalElementMaterialClimate extends FeezalElement {
         this.publishMode           = '';
         this.subscribeValve        = '';
         this.subscribeHumidity     = '';
-        this.subscribeAvailability = '';
-        this.payloadAvailable      = 'online';
-        this.payloadUnavailable    = 'offline';
         this.min                   = 5;
         this.max                   = 30;
         this.step                  = 0.5;
@@ -358,13 +348,11 @@ class FeezalElementMaterialClimate extends FeezalElement {
         this.msgPropMode           = '';
         this.msgPropValve          = '';
         this.msgPropHumidity       = '';
-        this.msgPropAvailability   = '';
         this._setpoint             = null;
         this._actual               = null;
         this._mode                 = null;
         this._valve                = null;
         this._humidity             = null;
-        this._available            = true;
         this._dragSpan             = null;
     }
 
@@ -374,15 +362,7 @@ class FeezalElementMaterialClimate extends FeezalElement {
     connectedCallback() {
         super.connectedCallback();
 
-        // Availability — always independent of payload mode.
-        if (this.subscribeAvailability) {
-            this.addSubscription(this.subscribeAvailability, msg => {
-                const v = String(this.getProperty(msg, this.msgPropAvailability || this.messageProperty));
-                this._available = v === this.payloadAvailable ||
-                    (v.toLowerCase() !== String(this.payloadUnavailable).toLowerCase() &&
-                     v !== 'offline' && v !== 'false' && v !== '0' && v !== 'unavailable');
-            });
-        }
+        // N31: availability subscription handled by the FeezalElement base.
 
         if (this.payloadMode === 'json') {
             if (this.subscribe) {

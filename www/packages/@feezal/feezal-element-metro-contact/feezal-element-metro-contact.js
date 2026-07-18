@@ -165,9 +165,7 @@ class FeezalElementMetroContact extends MetroTileBase {
                     payload_on:   'payload-open',
                     payload_off:  'payload-closed',
                     device_class: {attr: 'type', valueMap: {window: 'window', door: 'door', moisture: 'waterleak', smoke: 'firealarm', garage_door: 'garagedoor', _default: 'window'}},
-                    availability_topic:    'subscribe-availability',
-                    payload_available:     'payload-available',
-                    payload_not_available: 'payload-unavailable',
+                    // N31: availability is mapped automatically from the canonical discovery record.
                     name:           'label',
                     value_template: {attr: 'message-property', transform: 'valueTemplateToPath'},
                 },
@@ -186,13 +184,9 @@ class FeezalElementMetroContact extends MetroTileBase {
         textOpen:      {type: String,  reflect: true, attribute: 'text-open'},
         textTilted:    {type: String,  reflect: true, attribute: 'text-tilted'},
         textClosed:    {type: String,  reflect: true, attribute: 'text-closed'},
-        subscribeAvailability: {type: String, reflect: true, attribute: 'subscribe-availability'},
-        msgPropAvailability:   {type: String, reflect: true, attribute: 'message-property-availability'},
-        payloadAvailable:      {type: String, reflect: true, attribute: 'payload-available'},
-        payloadUnavailable:    {type: String, reflect: true, attribute: 'payload-unavailable'},
+        // N31: availability inherited from FeezalElement.
         discoveryId:   {type: String,  reflect: true, attribute: 'discovery-id'},
         _state:     {state: true},   // 'closed' | 'open' | 'tilted'
-        _available: {state: true},
     };
 
     static styles = [MetroTileBase.styles, css`
@@ -220,13 +214,8 @@ class FeezalElementMetroContact extends MetroTileBase {
         this.textOpen = 'open';
         this.textTilted = 'tilted';
         this.textClosed = 'closed';
-        this.subscribeAvailability = '';
-        this.msgPropAvailability = '';
-        this.payloadAvailable = 'online';
-        this.payloadUnavailable = 'offline';
         this.discoveryId = '';
         this._state = 'closed';
-        this._available = true;
     }
 
     connectedCallback() {
@@ -241,15 +230,6 @@ class FeezalElementMetroContact extends MetroTileBase {
                 } else {
                     this._state = 'closed';
                 }
-            });
-        }
-        if (this.subscribeAvailability) {
-            this.addSubscription(this.subscribeAvailability, msg => {
-                const v = this.getProperty(msg, this.msgPropAvailability || this.messageProperty);
-                const s = String(v).toLowerCase();
-                this._available = String(v) === this.payloadAvailable ||
-                    (s !== String(this.payloadUnavailable).toLowerCase() &&
-                     s !== 'offline' && s !== 'false' && s !== '0' && s !== 'unavailable');
             });
         }
     }

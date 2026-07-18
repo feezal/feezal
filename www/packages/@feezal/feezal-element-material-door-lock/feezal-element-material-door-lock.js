@@ -55,9 +55,7 @@ class FeezalElementMaterialDoorLock extends FeezalElement {
                     state_locked:          {attr: 'payload-locked'},
                     state_unlocked:        {attr: 'payload-unlocked'},
                     state_jammed:          {attr: 'payload-jammed'},
-                    availability_topic:    {attr: 'subscribe-availability'},
-                    payload_available:     {attr: 'payload-available'},
-                    payload_not_available: {attr: 'payload-unavailable'},
+                    // N31: availability is mapped automatically from the canonical discovery record.
                     value_template:        {attr: 'message-property', transform: 'valueTemplateToPath'},
                     name:                  'label',
                 },
@@ -99,13 +97,9 @@ class FeezalElementMaterialDoorLock extends FeezalElement {
         payloadUnlocked:       {type: String, reflect: true, attribute: 'payload-unlocked'},
         payloadJammed:         {type: String, reflect: true, attribute: 'payload-jammed'},
         label:                 {type: String, reflect: true},
-        subscribeAvailability: {type: String, reflect: true, attribute: 'subscribe-availability'},
-        payloadAvailable:      {type: String, reflect: true, attribute: 'payload-available'},
-        payloadUnavailable:    {type: String, reflect: true, attribute: 'payload-unavailable'},
-        msgPropAvailability:   {type: String, reflect: true, attribute: 'message-property-availability'},
+        // N31: availability inherited from FeezalElement.
         discoveryId:           {type: String, reflect: true, attribute: 'discovery-id'},
         _lockState: {state: true},   // 'locked' | 'unlocked' | 'jammed' | null
-        _available: {state: true},
     };
 
     static styles = [feezalBaseStyles, css`
@@ -161,13 +155,8 @@ class FeezalElementMaterialDoorLock extends FeezalElement {
         this.payloadUnlocked       = 'UNLOCKED';
         this.payloadJammed         = 'JAMMED';
         this.label                 = '';
-        this.subscribeAvailability = '';
-        this.payloadAvailable      = 'online';
-        this.payloadUnavailable    = 'offline';
-        this.msgPropAvailability   = '';
         this.discoveryId           = '';
         this._lockState = null;
-        this._available = true;
     }
 
     _subscribe() { /* intentionally empty */ }
@@ -175,18 +164,7 @@ class FeezalElementMaterialDoorLock extends FeezalElement {
     connectedCallback() {
         super.connectedCallback();
 
-        if (this.subscribeAvailability) {
-            this.addSubscription(this.subscribeAvailability, msg => {
-                let v = this.getProperty(msg, this.msgPropAvailability || this.messageProperty);
-                if (typeof v === 'string') {
-                    try { const p = JSON.parse(v); if (p && 'state' in p) v = p.state; } catch { /* not JSON */ }
-                } else if (v && typeof v === 'object' && 'state' in v) { v = v.state; }
-                const s = String(v).toLowerCase();
-                this._available = String(v) === this.payloadAvailable ||
-                    (s !== String(this.payloadUnavailable).toLowerCase() &&
-                     s !== 'offline' && s !== 'false' && s !== '0' && s !== 'unavailable');
-            });
-        }
+        // N31: availability subscription handled by the FeezalElement base.
 
         if (this.subscribe) {
             this.addSubscription(this.subscribe, msg => {

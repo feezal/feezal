@@ -48,9 +48,7 @@ class FeezalElementGlassClimate extends FeezalElement {
                     temp_step:        {attr: 'step'},
                     temperature_unit: {attr: 'unit', valueMap: {C: '°C', F: '°F', _default: '°C'}},
                     modes: {attr: 'modes', transform: 'jsonStringify'},
-                    availability_topic:    {attr: 'subscribe-availability'},
-                    payload_available:     {attr: 'payload-available'},
-                    payload_not_available: {attr: 'payload-unavailable'},
+                    // N31: availability is mapped automatically from the canonical discovery record.
                     name: 'label',
                 },
             },
@@ -115,10 +113,7 @@ class FeezalElementGlassClimate extends FeezalElement {
         modes: {type: String, reflect: true},
         label: {type: String, reflect: true},
         icon:  {type: String, reflect: true},
-        subscribeAvailability: {type: String, reflect: true, attribute: 'subscribe-availability'},
-        msgPropAvailability:   {type: String, reflect: true, attribute: 'message-property-availability'},
-        payloadAvailable:      {type: String, reflect: true, attribute: 'payload-available'},
-        payloadUnavailable:    {type: String, reflect: true, attribute: 'payload-unavailable'},
+        // N31: availability inherited from FeezalElement.
         degrade:     {type: Boolean, reflect: true},
         discoveryId: {type: String,  reflect: true, attribute: 'discovery-id'},
         _setpoint:  {state: true},
@@ -126,7 +121,6 @@ class FeezalElementGlassClimate extends FeezalElement {
         _mode:      {state: true},
         _dragSp:    {state: true},   // live setpoint while dragging the pill
         _details:   {state: true},
-        _available: {state: true},
     };
 
     static styles = [feezalBaseStyles, css`
@@ -252,10 +246,6 @@ class FeezalElementGlassClimate extends FeezalElement {
         this.modes = '';
         this.label = '';
         this.icon = 'thermostat';
-        this.subscribeAvailability = '';
-        this.msgPropAvailability = '';
-        this.payloadAvailable = 'online';
-        this.payloadUnavailable = 'offline';
         this.degrade = false;
         this.discoveryId = '';
         this._setpoint = null;
@@ -263,7 +253,6 @@ class FeezalElementGlassClimate extends FeezalElement {
         this._mode = '';
         this._dragSp = null;
         this._details = false;
-        this._available = true;
         this._suppressTap = false;
         this.__outsideDown = e => {
             const path = e.composedPath();
@@ -296,7 +285,7 @@ class FeezalElementGlassClimate extends FeezalElement {
 
     _wireSignature() {
         return [this.payloadMode, this.subscribe, this.subscribeSetpoint, this.subscribeActual,
-            this.subscribeMode, this.subscribeAvailability].join('|');
+            this.subscribeMode].join('|');
     }
 
     updated(changed) {
@@ -323,19 +312,6 @@ class FeezalElementGlassClimate extends FeezalElement {
 
     _wireSubscriptions() {
         this.__wireSig = this._wireSignature();
-
-        if (this.subscribeAvailability) {
-            this.addSubscription(this.subscribeAvailability, msg => {
-                let v = this.getProperty(msg, this.msgPropAvailability || this.messageProperty);
-                if (typeof v === 'string') {
-                    try { const p = JSON.parse(v); if (p && 'state' in p) v = p.state; } catch { /* not JSON */ }
-                } else if (v && typeof v === 'object' && 'state' in v) { v = v.state; }
-                const s = String(v).toLowerCase();
-                this._available = String(v) === this.payloadAvailable ||
-                    (s !== String(this.payloadUnavailable).toLowerCase() &&
-                     s !== 'offline' && s !== 'false' && s !== '0' && s !== 'unavailable');
-            });
-        }
 
         if (this.payloadMode === 'json') {
             if (this.subscribe) {

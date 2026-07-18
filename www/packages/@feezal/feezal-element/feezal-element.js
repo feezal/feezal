@@ -60,6 +60,21 @@ export class FeezalElement extends LitElement {
         // bound to MQTT topics). Never reflected — the attribute is the
         // source of truth; effects only apply in the viewer.
         conditions:           {type: String,  attribute: 'conditions'},
+        // ── N31: availability — universal base-class machinery ───────────
+        // subscribe-availability accepts a single topic string (back-compat)
+        // OR a JSON array of topics / {topic, property} entries (the modern
+        // HA discovery form: bridge state + device availability). The base
+        // subscribes, tracks per-topic status and combines it per
+        // availability-mode into the reactive `_available` flag; rendering
+        // (badges, dimming) stays element business. Elements that want the
+        // fields in their inspector declare the attributes in their own
+        // descriptor — the machinery works regardless.
+        subscribeAvailability: {type: String, reflect: true, attribute: 'subscribe-availability'},
+        availabilityMode:      {type: String, reflect: true, attribute: 'availability-mode'},
+        payloadAvailable:      {type: String, reflect: true, attribute: 'payload-available'},
+        payloadUnavailable:    {type: String, reflect: true, attribute: 'payload-unavailable'},
+        msgPropAvailability:   {type: String, reflect: true, attribute: 'message-property-availability'},
+        _available:            {state: true},
     };
 
     constructor() {
@@ -70,6 +85,15 @@ export class FeezalElement extends LitElement {
         this.dynamicSubscriptions = false;
         this.visible = false;
         this._conditions = new FeezalConditions(this);
+        // N31 availability defaults (payload values = HA defaults)
+        this.subscribeAvailability = '';
+        this.availabilityMode = 'all';
+        this.payloadAvailable = 'online';
+        this.payloadUnavailable = 'offline';
+        this.msgPropAvailability = '';
+        this._available = true;
+        this._availabilitySubs = [];
+        this._availabilityStatus = {};
     }
 
     connectedCallback() {
@@ -79,11 +103,17 @@ export class FeezalElement extends LitElement {
             this._subscribe();
             this._conditions.connect();
         }
+        // N31: availability is independent of the primary-subscription
+        // machinery (elements overriding _subscribe with an empty body still
+        // get it) and not editor-gated — it only feeds internal state, never
+        // writes serializable attributes in the editor.
+        this._subscribeAvailability();
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         this._unsubscribe();
+        this._unsubscribeAvailability();
         this._conditions.disconnect();
     }
 
@@ -103,6 +133,98 @@ export class FeezalElement extends LitElement {
         // first update after mount is a no-op.
         if (changed.has('conditions') && (this.visible || !this.dynamicSubscriptions)) {
             this._conditions.connect();
+        }
+
+        // N31: availability wiring changed at runtime (inspector edits on the
+        // live canvas) → rewire. Signature-guarded so the first update after
+        // connect is a no-op.
+        if (this.isConnected && this.__availSig !== undefined &&
+            this._availabilitySignature() !== this.__availSig) {
+            this._unsubscribeAvailability();
+            this._subscribeAvailability();
+        }
+    }
+
+    // ── N31: availability ────────────────────────────────────────────────────
+
+    _availabilitySignature() {
+        return [this.subscribeAvailability, this.availabilityMode,
+            this.payloadAvailable, this.payloadUnavailable, this.msgPropAvailability].join('|');
+    }
+
+    /** Parse subscribe-availability: '' → [], plain topic string → one entry,
+     * JSON array of strings / {topic, property} objects → many entries. */
+    _availabilityEntries() {
+        const raw = (this.subscribeAvailability || '').trim();
+        if (!raw) return [];
+        if (raw.startsWith('[')) {
+            try {
+                const arr = JSON.parse(raw);
+                return (Array.isArray(arr) ? arr : [])
+                    .map(entry => (typeof entry === 'string' ? {topic: entry} : entry))
+                    .filter(entry => entry && typeof entry.topic === 'string' && entry.topic);
+            } catch {
+                return [];
+            }
+        }
+        return [{topic: raw}];
+    }
+
+    _subscribeAvailability() {
+        this.__availSig = this._availabilitySignature();
+        this._availabilityStatus = {};
+        const entries = this._availabilityEntries();
+        if (entries.length === 0) {
+            this._setAvailable(true);
+            return;
+        }
+        entries.forEach((entry, index) => {
+            const key = index + ':' + entry.topic;
+            this._availabilityStatus[key] = null; // unknown until the first message
+            this._availabilitySubs.push(feezal.connection.sub(entry.topic, msg => {
+                let v = this.getProperty(msg, entry.property || this.msgPropAvailability || this.messageProperty);
+                // Unwrap JSON {"state": "online"} payloads (zigbee2mqtt availability)
+                if (typeof v === 'string') {
+                    try {
+                        const parsed = JSON.parse(v);
+                        if (parsed && typeof parsed === 'object' && 'state' in parsed) v = parsed.state;
+                    } catch { /* not JSON — use the raw string */ }
+                } else if (v && typeof v === 'object' && 'state' in v) {
+                    v = v.state;
+                }
+                const s = String(v).toLowerCase();
+                this._availabilityStatus[key] = String(v) === this.payloadAvailable ||
+                    (s !== String(this.payloadUnavailable).toLowerCase() &&
+                     s !== 'offline' && s !== 'false' && s !== '0' && s !== 'unavailable');
+                this._recomputeAvailability();
+            }));
+        });
+        this._recomputeAvailability();
+    }
+
+    _unsubscribeAvailability() {
+        this._availabilitySubs.forEach(sub => feezal.connection.unsubscribe(sub));
+        this._availabilitySubs = [];
+    }
+
+    /** Combine per-topic status per availability-mode into `_available`.
+     * Topics without a message yet count as available (matches the previous
+     * per-element behaviour — an element never starts out badged). */
+    _recomputeAvailability() {
+        const statuses = Object.values(this._availabilityStatus);
+        const known = statuses.filter(v => v !== null);
+        this._setAvailable(this.availabilityMode === 'any'
+            ? (known.length === 0 || known.some(Boolean))
+            : statuses.every(v => v !== false));
+    }
+
+    _setAvailable(available) {
+        this._available = available;
+        // Styling hook for themes/zero-effort elements — viewer only: a
+        // reflected attribute in the editor would be serialized into the
+        // saved views.html.
+        if (!feezal.isEditor) {
+            this.toggleAttribute('unavailable', !available);
         }
     }
 
@@ -260,6 +382,29 @@ export class FeezalElement extends LitElement {
         }
         return res;
     }
+}
+
+// ── N31: shared availability badge (optional consistency helper) ─────────────
+// Elements MAY compose these into their render/styles instead of hand-rolling
+// a badge — the base class itself renders nothing. Themable via the
+// --feezal-unavailable-* custom properties.
+export const feezalAvailabilityStyles = css`
+    .feezal-unavail-badge {
+        position: absolute;
+        top: var(--feezal-unavailable-top, 4px);
+        right: var(--feezal-unavailable-right, 4px);
+        font-size: var(--feezal-unavailable-size, 14px);
+        line-height: 1;
+        color: var(--feezal-unavailable-color, var(--error-color, #b00020));
+        opacity: 0.85;
+        pointer-events: none;
+        z-index: 2;
+    }
+`;
+
+/** Badge template partial: renders nothing while available. */
+export function availabilityBadge(available) {
+    return available ? '' : html`<span class="feezal-unavail-badge" title="Device unavailable">⚠</span>`;
 }
 
 // Re-export so element files can do a single import.

@@ -40,9 +40,7 @@ class FeezalElementMaterialFan extends FeezalElement {
                     preset_mode_state_topic:    {attr: 'subscribe-preset'},
                     preset_mode_command_topic:  {attr: 'publish-preset'},
                     preset_mode_value_template: {attr: 'message-property-preset', transform: 'valueTemplateToPath'},
-                    availability_topic:         {attr: 'subscribe-availability'},
-                    payload_available:          {attr: 'payload-available'},
-                    payload_not_available:      {attr: 'payload-unavailable'},
+                    // N31: availability is mapped automatically from the canonical discovery record.
                     name:                       'label',
                 },
             },
@@ -91,19 +89,15 @@ class FeezalElementMaterialFan extends FeezalElement {
         publishPreset:         {type: String,  reflect: true, attribute: 'publish-preset'},
         presetModes:           {type: String,  reflect: true, attribute: 'preset-modes'},
         label:                 {type: String,  reflect: true},
-        subscribeAvailability: {type: String,  reflect: true, attribute: 'subscribe-availability'},
-        payloadAvailable:      {type: String,  reflect: true, attribute: 'payload-available'},
-        payloadUnavailable:    {type: String,  reflect: true, attribute: 'payload-unavailable'},
+        // N31: availability inherited from FeezalElement.
         speedRangeMin:         {type: Number,  reflect: true, attribute: 'speed-range-min'},
         speedRangeMax:         {type: Number,  reflect: true, attribute: 'speed-range-max'},
         msgPropSpeed:          {type: String,  reflect: true, attribute: 'message-property-speed'},
         msgPropPreset:         {type: String,  reflect: true, attribute: 'message-property-preset'},
-        msgPropAvailability:   {type: String,  reflect: true, attribute: 'message-property-availability'},
         discoveryId:           {type: String,  reflect: true, attribute: 'discovery-id'},
         _on:        {state: true},
         _speed:     {state: true},  // 0–100 or null
         _preset:    {state: true},
-        _available: {state: true},
     };
 
     static styles = [feezalBaseStyles, css`
@@ -182,17 +176,12 @@ class FeezalElementMaterialFan extends FeezalElement {
         this.publishPreset         = '';
         this.presetModes           = '[]';
         this.label                 = '';
-        this.subscribeAvailability = '';
-        this.payloadAvailable      = 'online';
-        this.payloadUnavailable    = 'offline';
         this.msgPropSpeed          = '';
         this.msgPropPreset         = '';
-        this.msgPropAvailability   = '';
         this.discoveryId           = '';
         this._on        = false;
         this._speed     = null;
         this._preset    = null;
-        this._available = true;
     }
 
     _subscribe() { /* intentionally empty */ }
@@ -200,18 +189,7 @@ class FeezalElementMaterialFan extends FeezalElement {
     connectedCallback() {
         super.connectedCallback();
 
-        if (this.subscribeAvailability) {
-            this.addSubscription(this.subscribeAvailability, msg => {
-                let v = this.getProperty(msg, this.msgPropAvailability || this.messageProperty);
-                if (typeof v === 'string') {
-                    try { const p = JSON.parse(v); if (p && 'state' in p) v = p.state; } catch { /* not JSON */ }
-                } else if (v && typeof v === 'object' && 'state' in v) { v = v.state; }
-                const s = String(v).toLowerCase();
-                this._available = String(v) === this.payloadAvailable ||
-                    (s !== String(this.payloadUnavailable).toLowerCase() &&
-                     s !== 'offline' && s !== 'false' && s !== '0' && s !== 'unavailable');
-            });
-        }
+        // N31: availability subscription handled by the FeezalElement base.
 
         if (this.subscribe) {
             this.addSubscription(this.subscribe, msg => {

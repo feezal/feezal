@@ -121,3 +121,56 @@ describe('getDeviceGroups', () => {
         expect(disc.getDeviceGroups()).toHaveLength(0);
     });
 });
+
+describe('N31 — canonical availability normalization', () => {
+    it('scalar availability_topic + payloads normalize to one entry', () => {
+        disc.handleMessage('homeassistant/switch/av1/config', buf({
+            name: 'A', stat_t: 'x/a',
+            avty_t: 'tele/a/LWT', pl_avail: 'Online', pl_not_avail: 'Offline'
+        }));
+        const n = disc.getDiscoveredEntity('switch/av1').config.availability_normalized;
+        expect(n).toEqual({
+            entries: [{topic: 'tele/a/LWT'}],
+            mode: 'all',
+            payloadAvailable: 'Online',
+            payloadUnavailable: 'Offline'
+        });
+    });
+
+    it('availability array (zigbee2mqtt form) with value_templates and mode', () => {
+        disc.handleMessage('homeassistant/light/av2/config', buf({
+            name: 'B', stat_t: 'z2m/b',
+            availability: [
+                {topic: 'z2m/bridge/state', value_template: '{{ value_json.state }}'},
+                {topic: 'z2m/b/availability', value_template: '{{ value_json.state }}'}
+            ],
+            availability_mode: 'all'
+        }));
+        const n = disc.getDiscoveredEntity('light/av2').config.availability_normalized;
+        expect(n.entries).toEqual([
+            {topic: 'z2m/bridge/state', property: 'payload.state'},
+            {topic: 'z2m/b/availability', property: 'payload.state'}
+        ]);
+        expect(n.mode).toBe('all');
+    });
+
+    it('abbreviated avty array + ~ base resolution + per-entry abbreviations', () => {
+        disc.handleMessage('homeassistant/switch/av3/config', buf({
+            '~': 'base/c', name: 'C', stat_t: '~/state',
+            avty: [{t: '~/LWT', pl_avail: 'up', pl_not_avail: 'down'}],
+            avty_mode: 'any'
+        }));
+        const n = disc.getDiscoveredEntity('switch/av3').config.availability_normalized;
+        expect(n).toEqual({
+            entries: [{topic: 'base/c/LWT'}],
+            mode: 'any',
+            payloadAvailable: 'up',
+            payloadUnavailable: 'down'
+        });
+    });
+
+    it('no availability info → no availability_normalized key', () => {
+        disc.handleMessage('homeassistant/switch/av4/config', buf({name: 'D', stat_t: 'x/d'}));
+        expect(disc.getDiscoveredEntity('switch/av4').config.availability_normalized).toBeUndefined();
+    });
+});

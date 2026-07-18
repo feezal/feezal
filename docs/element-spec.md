@@ -432,7 +432,25 @@ connectedCallback() {
 - Place each `message-property-<suffix>` descriptor immediately after its `subscribe-<suffix>` in the attributes array for clarity.
 - Add `message-property` to every element that subscribes, even simple single-topic ones.
 
-### 4.5 Per-element conditions (E50) — free for every element
+### 4.5 Availability (N31) — free for every element
+
+Device availability is **base-class machinery** — every element inherits it from `FeezalElement`, no element-level subscription code needed. The base subscribes, tracks per-topic status and combines it into the reactive **`this._available`** flag; in the viewer it additionally reflects an **`unavailable`** host attribute as a pure-CSS styling hook (never in the editor, where it would be serialized into the saved HTML). Rendering stays element business: which badge is shown and where is decided per family.
+
+| Attribute | Default | Meaning |
+|---|---|---|
+| `subscribe-availability` | — | One topic (plain string), **or** a JSON array of topics / `{topic, property}` objects (the modern HA discovery form: bridge state + device availability) |
+| `availability-mode` | `all` | `all` = every topic must report available; `any` = at least one |
+| `payload-available` / `payload-unavailable` | `online` / `offline` | Payload matching; JSON `{"state": "..."}` payloads are unwrapped automatically (zigbee2mqtt) |
+| `message-property-availability` | — | Dot-path fallback for all entries; a per-entry `property` wins |
+
+Rules for element authors:
+
+- **Never hand-roll an availability subscription** — read `this._available` in `render()` and show your family's badge. The optional shared helpers keep looks consistent: `import {feezalAvailabilityStyles, availabilityBadge} from '@feezal/feezal-element'` — compose `feezalAvailabilityStyles` into `static styles` and call `${availabilityBadge(this._available)}` in the template (themable via `--feezal-unavailable-*`).
+- Declare the availability attributes in your `feezal.attributes` descriptor **only if** the element should show the fields in the inspector — the machinery works either way (discovery and source mode can always set them).
+- **Discovery maps availability automatically**: the server normalises all HA wire forms (scalar `availability_topic`, the `availability` array, `availability_mode`) into a canonical record, and dropping a discovered device onto *any* element wires `subscribe-availability`/`availability-mode`/payloads without a single line in the element's `discovery.map`. Do not add `availability_topic` lines to new descriptors.
+- Availability topics rewire live when the attributes change (base `updated()` handles it) and are independent of `_subscribe()` — elements that suppress the base subscription path still get availability.
+
+### 4.6 Per-element conditions (E50) — free for every element
 
 Every element (Lit **and** Polymer base) automatically supports a `conditions` attribute — a JSON list of rows that declaratively bind the element's **visibility, CSS classes, inline styles or attributes** to MQTT topics. There is **nothing an element author needs to do**: the shared engine (`feezal-conditions.js` in `@feezal/feezal-element`) subscribes, evaluates and applies effects on the host element. Authors should merely be aware that:
 

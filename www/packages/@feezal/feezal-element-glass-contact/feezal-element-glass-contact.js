@@ -43,9 +43,7 @@ class FeezalElementGlassContact extends FeezalElement {
                     payload_on:            {attr: 'payload-open'},
                     payload_off:           {attr: 'payload-closed'},
                     device_class:          {attr: 'type', valueMap: {window: 'window', door: 'door', moisture: 'waterleak', smoke: 'firealarm', garage_door: 'garagedoor', _default: 'window'}},
-                    availability_topic:    {attr: 'subscribe-availability'},
-                    payload_available:     {attr: 'payload-available'},
-                    payload_not_available: {attr: 'payload-unavailable'},
+                    // N31: availability is mapped automatically from the canonical discovery record.
                     value_template:        {attr: 'message-property', transform: 'valueTemplateToPath'},
                     name:                  'label',
                 },
@@ -91,14 +89,10 @@ class FeezalElementGlassContact extends FeezalElement {
         textClosed:            {type: String,  reflect: true, attribute: 'text-closed'},
         textTilted:            {type: String,  reflect: true, attribute: 'text-tilted'},
         label:                 {type: String,  reflect: true},
-        subscribeAvailability: {type: String,  reflect: true, attribute: 'subscribe-availability'},
-        msgPropAvailability:   {type: String,  reflect: true, attribute: 'message-property-availability'},
-        payloadAvailable:      {type: String,  reflect: true, attribute: 'payload-available'},
-        payloadUnavailable:    {type: String,  reflect: true, attribute: 'payload-unavailable'},
+        // N31: availability inherited from FeezalElement.
         discoveryId:           {type: String,  reflect: true, attribute: 'discovery-id'},
         degrade:               {type: Boolean, reflect: true},
         _state:     {state: true},   // 'closed' | 'open' | 'tilted'
-        _available: {state: true},
     };
 
     static styles = [feezalBaseStyles, css`
@@ -150,14 +144,9 @@ class FeezalElementGlassContact extends FeezalElement {
         this.textClosed = 'Closed';
         this.textTilted = 'Tilted';
         this.label = '';
-        this.subscribeAvailability = '';
-        this.msgPropAvailability = '';
-        this.payloadAvailable = 'online';
-        this.payloadUnavailable = 'offline';
         this.discoveryId = '';
         this.degrade = false;
         this._state = 'closed';
-        this._available = true;
     }
 
     // Device cards manage subscriptions manually; suppress the base class path.
@@ -171,7 +160,7 @@ class FeezalElementGlassContact extends FeezalElement {
     /** Topic attributes changed at runtime (inspector edits on the live
      * canvas) → updated() rewires instead of keeping the stale topics. */
     _wireSignature() {
-        return [this.subscribe, this.subscribeAvailability].join('|');
+        return String(this.subscribe);
     }
 
     updated(changed) {
@@ -184,19 +173,6 @@ class FeezalElementGlassContact extends FeezalElement {
 
     _wireSubscriptions() {
         this.__wireSig = this._wireSignature();
-
-        if (this.subscribeAvailability) {
-            this.addSubscription(this.subscribeAvailability, msg => {
-                let v = this.getProperty(msg, this.msgPropAvailability || this.messageProperty);
-                if (typeof v === 'string') {
-                    try { const p = JSON.parse(v); if (p && 'state' in p) v = p.state; } catch { /* not JSON */ }
-                } else if (v && typeof v === 'object' && 'state' in v) { v = v.state; }
-                const s = String(v).toLowerCase();
-                this._available = String(v) === this.payloadAvailable ||
-                    (s !== String(this.payloadUnavailable).toLowerCase() &&
-                     s !== 'offline' && s !== 'false' && s !== '0' && s !== 'unavailable');
-            });
-        }
 
         if (this.subscribe) {
             this.addSubscription(this.subscribe, msg => {

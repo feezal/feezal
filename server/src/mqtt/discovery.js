@@ -25,6 +25,7 @@ const ABBREVS = {
     cmd_t:           'command_topic',
     stat_val_tpl:    'state_value_template',
     cmd_tpl:         'command_template',
+    avty:            'availability',
     avty_t:          'availability_topic',
     avty_mode:       'availability_mode',
     pl_avail:        'payload_available',
@@ -175,7 +176,65 @@ function resolveBase(obj, base) {
 function normalizePayload(raw) {
     const expanded = expandAbbrevs(raw);
     const base = expanded['~'] || '';
-    return resolveBase(expanded, base);
+    const config = resolveBase(expanded, base);
+    normalizeAvailability(config, base);
+    return config;
+}
+
+// ── N31: canonical availability ────────────────────────────────────────────
+// HA discovery carries availability in three wire forms: the legacy scalar
+// `availability_topic` (+ payload_available/payload_not_available), the
+// modern `availability` ARRAY of {topic, payload_*, value_template} entries
+// (what zigbee2mqtt publishes: bridge state + device availability), and
+// `availability_mode` (all | any | latest). Normalise them into one
+// canonical descriptor on the config so consumers never re-parse the wire
+// forms: config.availability_normalized =
+//   {entries: [{topic, property?}], mode, payloadAvailable?, payloadUnavailable?}
+// value_templates of the simple "{{ value_json.X }}" form map to a feezal
+// message-property path ("payload.X"); payload overrides are taken from the
+// scalar form or the first array entry (feezal applies them globally).
+function normalizeAvailability(config, base) {
+    const entryAbbrevs = {t: 'topic', pl_avail: 'payload_available', pl_not_avail: 'payload_not_available', val_tpl: 'value_template'};
+    const templateToProperty = tpl => {
+        const m = /\{\{\s*value_json\.(\w+)\s*\}\}/.exec(String(tpl || ''));
+        return m ? 'payload.' + m[1] : undefined;
+    };
+
+    const entries = [];
+    let payloadAvailable;
+    let payloadUnavailable;
+
+    const rawList = config.availability;
+    if (Array.isArray(rawList)) {
+        for (const rawEntry of rawList) {
+            if (!rawEntry || typeof rawEntry !== 'object') continue;
+            const e = {};
+            for (const [k, v] of Object.entries(rawEntry)) e[entryAbbrevs[k] ?? k] = v;
+            let topic = e.topic;
+            if (typeof topic !== 'string' || !topic) continue;
+            if (base) topic = topic.replaceAll('~', base);
+            const entry = {topic};
+            const property = templateToProperty(e.value_template);
+            if (property) entry.property = property;
+            entries.push(entry);
+            if (payloadAvailable === undefined && e.payload_available !== undefined) payloadAvailable = e.payload_available;
+            if (payloadUnavailable === undefined && e.payload_not_available !== undefined) payloadUnavailable = e.payload_not_available;
+        }
+    } else if (typeof config.availability_topic === 'string' && config.availability_topic) {
+        entries.push({topic: config.availability_topic});
+    }
+
+    if (entries.length === 0) return;
+
+    if (payloadAvailable === undefined) payloadAvailable = config.payload_available;
+    if (payloadUnavailable === undefined) payloadUnavailable = config.payload_not_available;
+
+    config.availability_normalized = {
+        entries,
+        mode: ['all', 'any', 'latest'].includes(config.availability_mode) ? config.availability_mode : 'all',
+        ...(payloadAvailable !== undefined ? {payloadAvailable} : {}),
+        ...(payloadUnavailable !== undefined ? {payloadUnavailable} : {}),
+    };
 }
 
 /** Build a stable discovery ID from component + optional node_id + object_id. */

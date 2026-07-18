@@ -40,8 +40,7 @@ class FeezalElementMaterialCover extends FeezalElement {
                     // tilt / slat angle support
                     tilt_status_topic:  {attr: 'slat-angle'},
                     tilt_command_topic: {attr: 'publish-slat-angle'},
-                    // availability
-                    availability_topic: {attr: 'subscribe-availability'},
+                    // N31: availability is mapped automatically from the canonical discovery record.
                     // device name → label
                     name: 'label',
                 },
@@ -131,17 +130,13 @@ class FeezalElementMaterialCover extends FeezalElement {
         showPosition:          {type: Boolean, reflect: true, attribute: 'show-position'},
         slatCount:             {type: Number,  reflect: true, attribute: 'slat-count'},
         label:                 {type: String,  reflect: true},
-        subscribeAvailability: {type: String,  reflect: true, attribute: 'subscribe-availability'},
-        payloadAvailable:      {type: String,  reflect: true, attribute: 'payload-available'},
-        payloadUnavailable:    {type: String,  reflect: true, attribute: 'payload-unavailable'},
+        // N31: availability inherited from FeezalElement.
         discoveryId:           {type: String,  reflect: true, attribute: 'discovery-id'},
         msgPropPosition:       {type: String,  reflect: true, attribute: 'message-property-position'},
         msgPropTilt:           {type: String,  reflect: true, attribute: 'message-property-tilt'},
-        msgPropAvailability:   {type: String,  reflect: true, attribute: 'message-property-availability'},
         // Internal state — never as class fields (Lit 3 rule)
         _position:    {state: true},   // 0–100, null = unknown
         _tilt:        {state: true},   // 0–100 slat tilt, null = not configured
-        _available:   {state: true},   // device availability
         _dragPos:     {state: true},   // live position during SVG drag
         _showSlider:  {state: true},   // toggle inline position slider
     };
@@ -268,16 +263,11 @@ class FeezalElementMaterialCover extends FeezalElement {
         this.showPosition          = true;
         this.slatCount             = 6;
         this.label                 = '';
-        this.subscribeAvailability = '';
-        this.payloadAvailable      = 'online';
-        this.payloadUnavailable    = 'offline';
         this.discoveryId           = '';
         this.msgPropPosition       = '';
         this.msgPropTilt           = '';
-        this.msgPropAvailability   = '';
         this._position             = null;
         this._tilt                 = null;
-        this._available            = true;
         this._dragPos              = null;
         this._showSlider           = false;
     }
@@ -288,26 +278,7 @@ class FeezalElementMaterialCover extends FeezalElement {
     connectedCallback() {
         super.connectedCallback();
 
-        // Availability — always, independent of payload mode.
-        // Handles both plain string payloads and JSON objects: {"state":"online"}
-        if (this.subscribeAvailability) {
-            this.addSubscription(this.subscribeAvailability, msg => {
-                let v = this.getProperty(msg, this.msgPropAvailability || this.messageProperty);
-                // Handle JSON availability payloads: {"state":"online"}
-                if (typeof v === 'string') {
-                    try {
-                        const parsed = JSON.parse(v);
-                        if (parsed && typeof parsed === 'object' && 'state' in parsed) v = parsed.state;
-                    } catch { /* not JSON, use raw string */ }
-                } else if (v && typeof v === 'object' && 'state' in v) {
-                    v = v.state;
-                }
-                const s = String(v).toLowerCase();
-                this._available = String(v) === this.payloadAvailable ||
-                    (s !== String(this.payloadUnavailable).toLowerCase() &&
-                     s !== 'offline' && s !== 'false' && s !== '0' && s !== 'unavailable');
-            });
-        }
+        // N31: availability subscription handled by the FeezalElement base.
 
         if (this.payloadMode === 'json') {
             if (this.subscribe) {

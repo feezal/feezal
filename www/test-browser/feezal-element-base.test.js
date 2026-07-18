@@ -168,3 +168,75 @@ describe('a real element on top of the base (basic-image)', () => {
         expect(getComputedStyle(el.shadowRoot.querySelector('img')).objectFit).toBe('cover');
     });
 });
+
+describe('N31 — base-class availability', () => {
+    it('single topic string: offline payload flips _available and reflects [unavailable] in the viewer', async () => {
+        const el = await mount('feezal-element-test-plain', {'subscribe-availability': 'tele/dev/LWT'});
+        expect(el._available).toBe(true);
+
+        feezal.connection.deliver('tele/dev/LWT', 'offline');
+        expect(el._available).toBe(false);
+        expect(el.hasAttribute('unavailable')).toBe(true);
+
+        feezal.connection.deliver('tele/dev/LWT', 'online');
+        expect(el._available).toBe(true);
+        expect(el.hasAttribute('unavailable')).toBe(false);
+    });
+
+    it('unwraps JSON {"state":"..."} payloads (zigbee2mqtt availability)', async () => {
+        const el = await mount('feezal-element-test-plain', {'subscribe-availability': 'z2m/dev/availability'});
+        feezal.connection.deliver('z2m/dev/availability', '{"state":"offline"}');
+        expect(el._available).toBe(false);
+    });
+
+    it('JSON array + mode all: every topic must be available', async () => {
+        const el = await mount('feezal-element-test-plain', {
+            'subscribe-availability': JSON.stringify(['z2m/bridge/state', 'z2m/dev/availability'])
+        });
+        feezal.connection.deliver('z2m/bridge/state', 'online');
+        expect(el._available).toBe(true);
+        feezal.connection.deliver('z2m/dev/availability', 'offline');
+        expect(el._available).toBe(false);
+        feezal.connection.deliver('z2m/dev/availability', 'online');
+        expect(el._available).toBe(true);
+    });
+
+    it('mode any: one available topic suffices', async () => {
+        const el = await mount('feezal-element-test-plain', {
+            'subscribe-availability': JSON.stringify(['a/1', 'a/2']),
+            'availability-mode': 'any'
+        });
+        feezal.connection.deliver('a/1', 'offline');
+        feezal.connection.deliver('a/2', 'offline');
+        expect(el._available).toBe(false);
+        feezal.connection.deliver('a/2', 'online');
+        expect(el._available).toBe(true);
+    });
+
+    it('per-entry property overrides the payload path', async () => {
+        const el = await mount('feezal-element-test-plain', {
+            'subscribe-availability': JSON.stringify([{topic: 'b/state', property: 'payload.state'}])
+        });
+        feezal.connection.deliver('b/state', {state: 'offline'});
+        expect(el._available).toBe(false);
+    });
+
+    it('rewires when the attribute changes on the live canvas', async () => {
+        const el = await mount('feezal-element-test-plain', {'subscribe-availability': 'old/LWT'});
+        el.setAttribute('subscribe-availability', 'new/LWT');
+        await el.updateComplete;
+        feezal.connection.deliver('new/LWT', 'offline');
+        expect(el._available).toBe(false);
+        // stale topic no longer counts
+        feezal.connection.deliver('old/LWT', 'online');
+        expect(el._available).toBe(false);
+    });
+
+    it('never reflects [unavailable] in the editor (attribute would be serialized)', async () => {
+        feezal.isEditor = true;
+        const el = await mount('feezal-element-test-plain', {'subscribe-availability': 'tele/dev/LWT'});
+        feezal.connection.deliver('tele/dev/LWT', 'offline');
+        expect(el._available).toBe(false);
+        expect(el.hasAttribute('unavailable')).toBe(false);
+    });
+});

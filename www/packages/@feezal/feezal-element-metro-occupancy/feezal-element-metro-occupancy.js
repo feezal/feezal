@@ -61,9 +61,7 @@ class FeezalElementMetroOccupancy extends MetroTileBase {
                     payload_on:   'payload-active',
                     payload_off:  'payload-clear',
                     device_class: {attr: 'type', valueMap: {motion: 'motion', occupancy: 'presence', presence: 'presence', _default: 'motion'}},
-                    availability_topic:    'subscribe-availability',
-                    payload_available:     'payload-available',
-                    payload_not_available: 'payload-unavailable',
+                    // N31: availability is mapped automatically from the canonical discovery record.
                     name:           'label',
                     value_template: {attr: 'message-property', transform: 'valueTemplateToPath'},
                 },
@@ -79,13 +77,9 @@ class FeezalElementMetroOccupancy extends MetroTileBase {
         iconClear:     {type: String, reflect: true, attribute: 'icon-clear'},
         textActive:    {type: String, reflect: true, attribute: 'text-active'},
         textClear:     {type: String, reflect: true, attribute: 'text-clear'},
-        subscribeAvailability: {type: String, reflect: true, attribute: 'subscribe-availability'},
-        msgPropAvailability:   {type: String, reflect: true, attribute: 'message-property-availability'},
-        payloadAvailable:      {type: String, reflect: true, attribute: 'payload-available'},
-        payloadUnavailable:    {type: String, reflect: true, attribute: 'payload-unavailable'},
+        // N31: availability inherited from FeezalElement.
         discoveryId:   {type: String, reflect: true, attribute: 'discovery-id'},
         _active:    {state: true},
-        _available: {state: true},
     };
 
     static styles = [MetroTileBase.styles, css`
@@ -105,10 +99,6 @@ class FeezalElementMetroOccupancy extends MetroTileBase {
         this.iconClear = '';
         this.textActive = 'detected';
         this.textClear = 'clear';
-        this.subscribeAvailability = '';
-        this.msgPropAvailability = '';
-        this.payloadAvailable = 'online';
-        this.payloadUnavailable = 'offline';
         this.discoveryId = '';
         this._active = false;
         this._available = true;
@@ -125,15 +115,6 @@ class FeezalElementMetroOccupancy extends MetroTileBase {
                 } else if (v && typeof v === 'object' && 'state' in v) { v = v.state; }
                 this._active = String(v) === String(this.payloadActive) ||
                     v === true || v === 1 || v === '1';
-            });
-        }
-        if (this.subscribeAvailability) {
-            this.addSubscription(this.subscribeAvailability, msg => {
-                const v = this.getProperty(msg, this.msgPropAvailability || this.messageProperty);
-                const s = String(v).toLowerCase();
-                this._available = String(v) === this.payloadAvailable ||
-                    (s !== String(this.payloadUnavailable).toLowerCase() &&
-                     s !== 'offline' && s !== 'false' && s !== '0' && s !== 'unavailable');
             });
         }
     }
