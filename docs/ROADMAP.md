@@ -18,6 +18,7 @@ Work in progress — priorities and scope are not final.
 - [N12 — Export bundle: strip mqtt.js for feezal-bridge users](#n12--export-bundle-strip-mqttjs-for-feezal-bridge-users-partial) *(partial)*
 - [N13 — Lighter MQTT client for export bundle](#n13--lighter-mqtt-client-for-export-bundle-️-tbd) ⚠️
 - [N30 — layout-app breaks the site active-view MQTT contract](#n30--layout-app-breaks-the-site-active-view-mqtt-contract-️-refinement-needed) ⚠️ *(refinement needed)*
+- [N33 — Asset manager: "Set as background" context action for images](#n33--asset-manager-set-as-background-context-action-for-images)
 
 **Element Ecosystem**
 - [E7 — Swipe gesture element](#e7--swipe-gesture-element)
@@ -191,6 +192,21 @@ Each repeater child becomes individually selectable and configurable on the edit
 4. **Precedence rules** — multiple layout-apps (on different top-level views): proposal — only the *visible* one may claim a command, first match wins, nesting unsupported. A command naming a view that is *not* a drawer entry switches the site top-level and the shell disappears — acceptable?
 
 **Relates:** N24 (per-client view commands — must route through the same delegation), N26 (playlist — should rotate inside the shell), E47 (layout-app, archive), E80 (navigation rail — any future shell-style element needs the same router hook), material-navbar (already switches the *site* view directly — the consistent counter-example).
+
+### N33 — Asset manager: "Set as background" context action for images
+
+The Asset Manager's right-click menu ([feezal-sidebar-assets.js](www/src/feezal-sidebar-assets.js), the `.ctx-menu` block — Rename / Copy path / Set as PWA icon / Move-Copy to site-global / Delete) should let an image be applied as a view background directly, without hand-typing the URL into the style inspector.
+
+**New menu entry (image files only):** a **"Set as background"** item with a submenu:
+
+- **Current view** — sets the background on the active view (`feezal.view`).
+- **All views** — sets it on every view of the site (`feezal.views`).
+
+(Submenu wording chosen for brevity per the request; the parent verb "Set as background" reads cleanly with the two scope children. The context menu doesn't have submenus today — a small fly-out addition, or two flat items "Set as background (current view)" / "…(all views)" if a submenu is judged over-engineered for two entries. Decide during implementation.)
+
+**Action:** writes the view element's inline `background-image: url('<asset-path>')` (via the same path resolution `_copyPath` already produces, so site vs. global assets resolve correctly, and the copy-on-use behaviour of B15/global assets is respected). Marks the site dirty (`feezal.app.change()`), refreshes the style inspector if the affected view is selected. Should set a sensible default `background-size`/`background-repeat` (e.g. `cover` / `no-repeat`) so a photo fills the view rather than tiling — or defer that to the richer background editor once it exists (see the planned custom-CSS-editor mechanism).
+
+**Relates:** the planned view-background / custom-CSS-editor mechanism (this action is the quickest way *into* that editor — ideally it opens/populates the background editor rather than blindly stamping longhands), B15 (copy-on-use of global assets — the same resolution must apply), A-series Asset Manager work, feezal-view (`styles: ['width','height','background']` — the target).
 
 ### Element platform conventions
 
