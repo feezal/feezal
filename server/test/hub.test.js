@@ -115,6 +115,47 @@ describe('getSite / deploy', () => {
         const res = await emitAck(deployer, 'getSite', 'default');
         expect(res.views).toContain('<feezal-site>');
     });
+
+    it('N32: the reload broadcast carries the deployed site name', async () => {
+        const deployer = await connectClient();
+        const bystander = await connectClient();
+        const reloaded = nextEvent(bystander, 'reload');
+        await emitAck(deployer, 'deploy', {site: {name: 'n32site'}, html: '<feezal-site></feezal-site>'});
+        expect(await reloaded).toMatchObject({site: 'n32site'});
+    });
+
+    it('N32: auto-reload="off" on the site suppresses the reload broadcast', async () => {
+        const deployer = await connectClient();
+        const bystander = await connectClient();
+        const seen = collect(bystander, 'reload', 300);
+        await emitAck(deployer, 'deploy', {
+            site: {name: 'n32off'},
+            html: '<feezal-site auto-reload="off"></feezal-site>'
+        });
+        expect(await seen).toEqual([]);
+    });
+
+    it('N32: deploy publishes the site control reload topic, non-retained', async () => {
+        const spy = vi.spyOn(bridge, 'publish').mockImplementation(() => {});
+        try {
+            const deployer = await connectClient();
+            await emitAck(deployer, 'deploy', {
+                site: {name: 'n32mqtt'},
+                html: '<feezal-site subscribe="home/site"></feezal-site>'
+            });
+            expect(spy).toHaveBeenCalledWith({topic: 'home/site/reload', payload: '1'});
+
+            // auto-reload="off" also suppresses the MQTT publish
+            spy.mockClear();
+            await emitAck(deployer, 'deploy', {
+                site: {name: 'n32mqtt'},
+                html: '<feezal-site subscribe="home/site" auto-reload="off"></feezal-site>'
+            });
+            expect(spy).not.toHaveBeenCalled();
+        } finally {
+            spy.mockRestore();
+        }
+    });
 });
 
 describe('send / subscribe message bus', () => {

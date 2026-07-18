@@ -19,7 +19,6 @@ Work in progress — priorities and scope are not final.
 - [N13 — Lighter MQTT client for export bundle](#n13--lighter-mqtt-client-for-export-bundle-️-tbd) ⚠️
 - [N30 — layout-app breaks the site active-view MQTT contract](#n30--layout-app-breaks-the-site-active-view-mqtt-contract-️-refinement-needed) ⚠️ *(refinement needed)*
 - [N31 — Discovery: consume availability — multi-topic support in the FeezalElement base class](#n31--discovery-consume-availability--multi-topic-support-in-the-feezalelement-base-class)
-- [N32 — Deploy auto-reloads connected viewers](#n32--deploy-auto-reloads-connected-viewers)
 
 **Element Ecosystem**
 - [E7 — Swipe gesture element](#e7--swipe-gesture-element)
@@ -239,18 +238,6 @@ Semantics per HA: `all` = available only if **every** topic reports available, `
 4. Editor UX: should the inspector's availability section visualise live per-topic status (online/offline per entry) as a wiring aid?
 
 **Relates:** element-spec §3.7/§4 (conventions doc must specify the new contract), E66 (fleet board — availability is its core data), N24 (presence — similar online/offline semantics), B28/U38 (topic fields/browser for wiring availability topics manually).
-
-### N32 — Deploy auto-reloads connected viewers
-
-After a **Deploy** from the editor, all currently connected viewers should reload automatically and show the new dashboard — today they keep running the old bundle until someone reloads them manually (wall tablets especially just stay stale).
-
-**Existing building blocks:**
-- The viewer already has a **reload command**: the site control topic `<subscribe>/reload` triggers `window.location.reload()` ([feezal-site.js](www/src/feezal-site.js), `applyControlCommand`), and N24 mirrors the same command set per client (`<subscribe>/clients/<id>/…`). But it only works when the site's control topic is wired *and* the viewer has a broker connection — and nothing publishes it on deploy.
-- **Via-server viewers** (feezal-connection in server mode, socket.io) have a server channel independent of the MQTT broker — the natural push path: the server knows a deploy happened (it handles the deploy request) and knows its connected viewer sockets (N24 presence/Clients panel).
-
-**Proposed:** on successful deploy, the server pushes a reload signal to all connected viewers of that site over the socket channel (works with zero MQTT configuration); additionally publish the site's `<subscribe>/reload` control topic when configured, covering live viewers connected directly to the broker. **Static exports are deliberately not a target:** although they connect to the broker and technically obey the reload command, a deploy doesn't change their hosted bundle — reloading them would be a pointless same-version reload (their content only changes on re-export + re-upload, at which point the generic reload command can be published manually if wanted). Editor viewers/preview must NOT reload (only the viewer runtime). Make it a per-site setting (Site Settings → Viewer, default **on**), since mid-interaction reloads on a wall panel may be unwanted in some setups — and consider small niceties: debounce for rapid successive deploys, and reconnect-then-reload ordering so a viewer that was briefly offline still picks up the new version on reconnect (it does anyway by reloading fresh).
-
-**Relates:** N24 (presence/Clients panel — knows the connected viewers; its per-client reload command is the manual sibling of this), A13 (server restart/self-update — similar "push a lifecycle signal to viewers" shape).
 
 ### Element platform conventions
 

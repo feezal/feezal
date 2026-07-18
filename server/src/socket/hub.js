@@ -93,13 +93,35 @@ function createHub(io, {storage, logger}) {
 
                 logger.info('saved site ' + siteName);
 
+                // N32 — auto-reload connected viewers (default on; the site
+                // attribute auto-reload="off" opts out, same pattern as
+                // presence). Two paths:
+                //  - socket push: reaches via-server viewers with zero MQTT
+                //    config; the payload carries the site name so viewers of
+                //    other sites (and the editor) ignore it client-side.
+                //  - MQTT publish on the site's control topic, for viewers
+                //    connected directly to the broker. Published BEFORE the
+                //    bridge reconnect below so it goes out on the live
+                //    connection. Never retained (a retained reload would
+                //    boot-loop every future viewer).
+                const siteTag = /<feezal-site\b[^>]*>/.exec(formattedHtml)?.[0] || '';
+                const autoReload = !/\bauto-reload="off"/.test(siteTag);
+                if (autoReload) {
+                    const controlTopic = /\bsubscribe="([^"]+)"/.exec(siteTag)?.[1];
+                    if (controlTopic) {
+                        bridge.publish({topic: controlTopic + '/reload', payload: '1'});
+                    }
+                }
+
                 // Reconnect bridge if connection settings changed
                 const certDir = storage.dataDir
                     ? path.join(storage.dataDir, 'sites', siteName, 'certs')
                     : null;
                 bridge.connect(data.connection, logger, certDir);
 
-                io.emit('reload');
+                if (autoReload) {
+                    io.emit('reload', {site: siteName});
+                }
             } catch (err) {
                 logger.error('deploy error: ' + err.message);
             } finally {

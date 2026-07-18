@@ -51,6 +51,15 @@ class FeezalConnectionFeezal extends LitElement {
             this.dispatchEvent(new Event('disconnected'));
         });
 
+        // N32 — the server pushes 'reload' after a deploy. Only the viewer
+        // runtime obeys (never the editor, which would lose its session),
+        // and only for the site that was actually deployed.
+        this.socket.on('reload', data => {
+            if (window.feezal?.isEditor) return;
+            if (data?.site && window.feezal?.siteName && data.site !== window.feezal.siteName) return;
+            window.location.reload();
+        });
+
         this.socket.on('input', message => {
             this.dispatchEvent(new CustomEvent('message', {detail: message}));
             // Feed topic into the server's autocomplete trie

@@ -628,6 +628,18 @@ class FeezalSidebarViewer extends LitElement {
                         `}
                     </div>
 
+                    <div class="section-label">Deploy</div>
+                    <sl-switch id="auto-reload-switch" size="small" ?checked="${s.autoReload !== 'off'}"
+                        @sl-change="${e => this._setSite('autoReload', e.target.checked ? '' : 'off')}">
+                        Reload viewers on deploy
+                    </sl-switch>
+                    <div class="pwa-hint">
+                        After a deploy, all connected viewers of this site reload
+                        automatically and show the new dashboard — via the server
+                        connection, plus the site's <code>&lt;subscribe&gt;/reload</code>
+                        control topic when wired. The editor never reloads.
+                    </div>
+
                     <div class="section-label">Viewer presence</div>
                     <sl-switch id="presence-switch" size="small" ?checked="${s.presence !== 'off'}"
                         @sl-change="${e => this._setSite('presence', e.target.checked ? '' : 'off')}">

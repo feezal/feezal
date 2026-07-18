@@ -510,7 +510,8 @@ class FeezalSidebarInspector extends LitElement {
                                 playlistDwell: attr('playlist-dwell'),
                                 playlistResume: attr('playlist-resume'),
                                 playlistTransition: attr('playlist-transition'),
-                                presence: attr('presence')                       // N24: '' = on (default), 'off' = disabled
+                                presence: attr('presence'),                      // N24: '' = on (default), 'off' = disabled
+                                autoReload: attr('auto-reload')                  // N32: '' = on (default), 'off' = disabled
                             };
                         }
                     }
