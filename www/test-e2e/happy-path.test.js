@@ -164,6 +164,56 @@ describe('editor', () => {
         expect(left).toBeGreaterThan(0);
     });
 
+    it('drops a second element snap-aligned to the first without stuck guide lines (B32)', async () => {
+        // Drag a second button to land vertically aligned + close to the first,
+        // so the drop actually snaps — the final snapped placement used to
+        // redraw the guide lines AFTER the palette hid them, leaving one
+        // vertical and one horizontal line stuck on screen.
+        const first = await page
+            .locator('feezal-site > feezal-view feezal-element-material-button')
+            .first()
+            .boundingBox();
+
+        const item = page.locator('feezal-palette .element[data-el="feezal-element-material-button"]');
+        await item.scrollIntoViewIfNeeded();
+        const src = await item.boundingBox();
+
+        const from = {x: src.x + src.width / 2, y: src.y + src.height / 2};
+        // A few px off the first element's top-left, inside the snap range.
+        const to = {x: first.x + 3, y: first.y + first.height + 43};
+
+        await page.mouse.move(from.x, from.y);
+        await page.mouse.down();
+        for (let i = 1; i <= 12; i++) {
+            await page.mouse.move(
+                from.x + ((to.x - from.x) * i) / 12,
+                from.y + ((to.y - from.y) * i) / 12
+            );
+        }
+        await page.mouse.up();
+
+        await expect.poll(async () =>
+            page.locator('feezal-site > feezal-view feezal-element-material-button').count()
+        ).toBe(2);
+
+        // All four snap guide lines must be hidden after the drop.
+        const visibleLines = await page.evaluate(() => {
+            const cv = window.feezal.container;
+            return ['#vsnap1', '#vsnap2', '#hsnap1', '#hsnap2']
+                .map(id => cv.querySelector(id))
+                .filter(el => el && el.style.display !== 'none')
+                .map(el => el.id);
+        });
+        expect(visibleLines).toEqual([]);
+
+        // Cleanup: remove the extra button so the deploy/reload tests below
+        // keep their single-element expectations.
+        await page.evaluate(() => {
+            const els = document.querySelectorAll('feezal-site > feezal-view feezal-element-material-button');
+            els[els.length - 1].remove();
+        });
+    });
+
     it('deploys via the UI and persists the site on disk', async () => {
         await page.locator('#btn-deploy-main').click();
 

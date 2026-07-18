@@ -339,12 +339,18 @@ class FeezalPalette extends LitElement {
                 },
                 onend: () => {
                     feezal.editor.dragElement = null;
-                    for (const id of ['#vsnap1', '#vsnap2', '#hsnap1', '#hsnap2']) {
-                        const line = feezal.container.querySelector(id);
-                        if (line) line.style.display = 'none';
-                    }
+                    // B32(palette): the final _applySnappedPos() below calls the
+                    // inspector's _snap(), which REDRAWS the guide lines — so
+                    // hiding must happen AFTER it, on every exit path.
+                    const hideSnapLines = () => {
+                        for (const id of ['#vsnap1', '#vsnap2', '#hsnap1', '#hsnap2']) {
+                            const line = feezal.container.querySelector(id);
+                            if (line) line.style.display = 'none';
+                        }
+                    };
 
                     if (!this.newElem) {
+                        hideSnapLines();
                         return;
                     }
 
@@ -355,10 +361,12 @@ class FeezalPalette extends LitElement {
                     if (this._dragPos.x + this.newElem.getBoundingClientRect().width < 0) {
                         this.newElem.remove();
                         delete this.newElem;
+                        hideSnapLines();
                         return;
                     }
 
                     this._applySnappedPos();
+                    hideSnapLines();
                     feezal.editor.selectElement(this.newElem);
                     this.newElem.style.outlineWidth = null;
                     feezal.app.change();
