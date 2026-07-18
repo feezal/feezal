@@ -1188,6 +1188,12 @@ class FeezalSidebarInspector extends LitElement {
         // positioned inside it, so their CSS `top` must be relative to this value.
         const cvRect = feezal.app.shadowRoot.querySelector('#container-view').getBoundingClientRect();
         const cvTop = cvRect.top;
+        // B8 (related): vertical snap-line x positions are computed view-relative
+        // below; the lines live in #container-view, whose origin differs from the
+        // view origin by the canvas scroll offset (and view margin). Translate by
+        // this delta when writing CSS `left`, or the lines drift by the scroll
+        // amount on an oversized, scrolled canvas.
+        const viewLeftInCv = viewRect.left - cvRect.left;
         // snapLineTop: how far down (in px, relative to #container-view) the vertical
         // snap lines should start — measured from the bottom of the tab menu bar so
         // the lines never bleed into the tab switcher.
@@ -1228,7 +1234,7 @@ class FeezalSidebarInspector extends LitElement {
 
             // Show/hide each guide line independently.
             const vLine = (el, t) => { el.style.cssText = t.dist < range
-                ? `left:${t.pos - 1}px;display:block;top:${snapLineTop}px;height:calc(100% - ${snapLineTop}px)`
+                ? `left:${t.pos + viewLeftInCv - 1}px;display:block;top:${snapLineTop}px;height:calc(100% - ${snapLineTop}px)`
                 : 'display:none'; };
             const hLine = (el, t) => { el.style.cssText = t.dist < range
                 ? `top:${t.pos - 1.5}px;display:block`
@@ -1328,7 +1334,7 @@ class FeezalSidebarInspector extends LitElement {
 
         // Show the winning snap line, hide the other in each axis.
         if (vsnapEl) {
-            vsnapEl.style.cssText = `left:${vsnapPos - 1}px;display:block;top:${snapLineTop}px;height:calc(100% - ${snapLineTop}px)`;
+            vsnapEl.style.cssText = `left:${vsnapPos + viewLeftInCv - 1}px;display:block;top:${snapLineTop}px;height:calc(100% - ${snapLineTop}px)`;
             vsnapOtherEl.style.display = 'none';
         } else {
             vsnap1.style.display = 'none';
@@ -1413,6 +1419,34 @@ class FeezalSidebarInspector extends LitElement {
         });
     }
 
+    /**
+     * B8 — drag boundary for the active view, in viewport coordinates.
+     *
+     * Per-axis branch on the view's sizing mode:
+     * - Fixed px axis: clamp to the view's full LAYOUT size (offsetWidth/
+     *   offsetHeight from the rect's left/top edge) so the far edge stays
+     *   reachable independent of any canvas scroll state. Bottom keeps the
+     *   -1 so an element never lands exactly on the edge (spurious scrollbar).
+     * - Auto/percentage axis: the canvas is unbounded there (absolutely
+     *   positioned children don't grow the 100% box, elements may live far
+     *   beyond it) — apply no upper clamp at all; the site scroll follows
+     *   the drag via autoScroll.
+     * left/top always clamp to the view origin so elements can't get
+     * negative offsets.
+     */
+    _dragRestriction() {
+        const view = feezal.view;
+        const r = view.getBoundingClientRect();
+        const fixedW = /^\d+(\.\d+)?px$/.test(view.style.width);
+        const fixedH = /^\d+(\.\d+)?px$/.test(view.style.height);
+        return {
+            left: r.left,
+            top: r.top,
+            right: fixedW ? r.left + view.offsetWidth : r.left + 1e6,
+            bottom: fixedH ? r.top + view.offsetHeight - 1 : r.top + 1e6
+        };
+    }
+
     initAbsolute(element) {
         // Register with DragSelect (guard against double-registration on re-init after unlock)
         const ds = this.dragselect && this.dragselect[this.view];
@@ -1426,12 +1460,7 @@ class FeezalSidebarInspector extends LitElement {
                 restrict: {
                     // Always recompute — feezal.view moves in the viewport as the
                     // canvas container scrolls, so a cached rect would become stale.
-                    // Subtract 1px from bottom so the element never lands on the
-                    // exact bottom edge, which would trigger a spurious scrollbar.
-                    restriction: () => {
-                        const r = feezal.view.getBoundingClientRect();
-                        return {left: r.left, top: r.top, right: r.right, bottom: r.bottom - 1};
-                    },
+                    restriction: () => this._dragRestriction(),
                     elementRect: {top: 0, left: 0, bottom: 1, right: 1}
                 },
                 autoScroll: {
