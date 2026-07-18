@@ -88,8 +88,22 @@ beforeAll(async () => {
     baseUrl = `http://127.0.0.1:${serverPort}`;
     await waitForHttp(baseUrl + '/editor/');
 
+    // e2e baseline = a returning user, not a first-run: mark the welcome tour
+    // seen server-side (else it auto-starts on the empty site and its overlay
+    // blocks the editor), and start with all palette categories expanded
+    // (new-user default collapses everything but "Basic", which would hide the
+    // Simple-category material-button this suite drags).
+    await fetch(baseUrl + '/api/editor/prefs', {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({tourSeen: true})
+    });
+
     browser = await chromium.launch({headless: true});
     page = await browser.newPage({viewport: {width: 1600, height: 900}});
+    await page.addInitScript(() => {
+        try { localStorage.setItem('feezal-palette-collapsed', '[]'); } catch { /* ignore */ }
+    });
     pageErrors = [];
     page.on('pageerror', err => pageErrors.push(err.message));
 });
