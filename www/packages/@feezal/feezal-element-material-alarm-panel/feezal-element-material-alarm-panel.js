@@ -22,7 +22,7 @@ const KEYPAD = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'conf
 class FeezalElementMaterialAlarmPanel extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Alarm', category: 'Device', color: '#1565c0', icon: 'security'},
+            palette: {name: 'Alarm', category: 'Material', color: '#1565c0', icon: 'security'},
             description: 'Security alarm control panel — colour-coded state banner, masked PIN entry, a numeric keypad and a row of arm-mode buttons. Arming/disarming publishes {"action","code"} to the action topic; the entered PIN is cleared immediately after publishing and never stored.',
             // NOTE (follow-up): a two-tab custom N6 inspector (Topics + Config) would
             // pair the subscribe/publish-action wiring with the modes / state-labels

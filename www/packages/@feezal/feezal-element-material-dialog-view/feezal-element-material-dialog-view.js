@@ -33,7 +33,7 @@ const SIZE_TOKENS = ['width', 'height', 'min-height', 'max-width', 'max-height',
 class FeezalElementMaterialDialogView extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Dialog View', category: 'Material', color: '#4a6080'},
+            palette: {name: 'Dialog View', category: 'Simple', color: '#4a6080'},
             description: 'Opens a modal dialog showing a feezal view (with its live elements) when an ' +
                 'MQTT message is received. A view-based alternative to the template-body Dialog element.',
             attributes: [

@@ -27,7 +27,7 @@ function fluidColor(pct, warnPct, critPct) {
 class FeezalElementMaterialTank extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Tank', category: 'Material', color: '#4a6080', icon: 'water'},
+            palette: {name: 'Tank', category: 'Simple', color: '#4a6080', icon: 'water'},
             description: 'Fluid level / tank visualisation — an SVG fill-level indicator with animated transitions. Configurable shape, colour thresholds and optional wave animation.',
             attributes: [
                 {name: 'subscribe',       type: 'mqttTopic', help: 'Topic carrying the current fill level.'},

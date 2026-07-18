@@ -42,7 +42,7 @@ function fmtDate(date, timezone) {
 class FeezalElementMaterialClock extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Clock', category: 'Material', color: '#4a6080', icon: 'schedule'},
+            palette: {name: 'Clock', category: 'Simple', color: '#4a6080', icon: 'schedule'},
             description: 'Clock element — analog SVG clock or digital display. Shows the browser\'s local time by default; optionally subscribes to an MQTT topic for a remote device time.',
             attributes: [
                 {name: 'mode',           type: 'select', options: ['analog', 'analog-minimal', 'digital', 'digital-clean'], default: 'analog',

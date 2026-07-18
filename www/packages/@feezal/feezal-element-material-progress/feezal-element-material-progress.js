@@ -5,7 +5,7 @@ import '@material/web/progress/linear-progress.js';
 class FeezalElementMaterialProgress extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Progress', category: 'Material', color: '#4a6080', icon: 'data_usage'},
+            palette: {name: 'Progress', category: 'Simple', color: '#4a6080', icon: 'data_usage'},
             description: 'MD3 progress indicator — linear bar or circular ring. Subscribes to a numeric value topic.',
             attributes: [
                 {name: 'subscribe',        type: 'mqttTopic',

@@ -4,7 +4,7 @@ import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element
 class FeezalElementMaterialBadge extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Badge', category: 'Material', color: '#4a6080', icon: 'notifications'},
+            palette: {name: 'Badge', category: 'Simple', color: '#4a6080', icon: 'notifications'},
             description: 'MD3 notification badge — subscribes to a count/text topic and overlays a badge on a Material icon.',
             discovery: {
                 component: 'sensor',

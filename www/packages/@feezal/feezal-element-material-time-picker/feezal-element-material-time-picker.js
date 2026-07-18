@@ -59,7 +59,7 @@ const WHEEL_VISIBLE = 5;    // entries visible per column
 class FeezalElementMaterialTimePicker extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Time Picker', category: 'Material', color: '#4a6080', icon: 'schedule'},
+            palette: {name: 'Time Picker', category: 'Simple', color: '#4a6080', icon: 'schedule'},
             description: 'Time input publishing "HH:MM", "HH:MM:SS" or seconds since midnight. ' +
                 'The clock icon opens a touch-friendly wheel picker.',
             attributes: [

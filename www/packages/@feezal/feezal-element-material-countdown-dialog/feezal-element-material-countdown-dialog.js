@@ -21,7 +21,7 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * RING_R; // ≈ 238.76
 class FeezalElementMaterialCountdownDialog extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Confirm', category: 'Material', color: '#4a6080'},
+            palette: {name: 'Confirm', category: 'Simple', color: '#4a6080'},
             description: 'Opens a countdown modal on an MQTT message. ' +
                 'Auto-executes the confirm action when the timer reaches zero, or can be cancelled.',
             attributes: [

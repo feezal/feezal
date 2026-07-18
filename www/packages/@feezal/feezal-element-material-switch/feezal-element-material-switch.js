@@ -7,7 +7,7 @@ class FeezalElementMaterialSwitch extends FeezalElement {
         return {
             palette: {
                 name: 'Switch',
-                category: 'Material',
+                category: 'Simple',
                 color: '#4a6080'
             },
             description: 'Material Design 3 toggle switch. Subscribes to an MQTT topic for state and publishes ON/OFF on toggle.',

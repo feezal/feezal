@@ -12,7 +12,7 @@ const FX = 4, FY = 4, FW = 52, FH = 62; // window frame origin / size in SVG spa
 class FeezalElementMaterialCover extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Cover', category: 'Device', color: '#1565c0', icon: 'blinds'},
+            palette: {name: 'Cover', category: 'Material', color: '#1565c0', icon: 'blinds'},
             description: 'Window cover / blind control card. Visualises position as a sliding panel, provides up/stop/down commands, direct position setting, and optional venetian-blind tilt control.',
             // ── N6 custom inspector ───────────────────────────────────────────
             inspector: 'feezal-element-material-cover-inspector',

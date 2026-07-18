@@ -5,7 +5,7 @@ import '@material/web/iconbutton/icon-button.js';
 class FeezalElementMaterialIconButton extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Icon', category: 'Material', color: '#4a6080', icon: 'smart_button'},
+            palette: {name: 'Icon', category: 'Simple', color: '#4a6080', icon: 'smart_button'},
             description: 'MD3 icon button — publishes on tap. Enable toggle to subscribe/publish boolean state.',
             attributes: [
                 {name: 'icon',        type: 'string',    help: 'Material icon name (e.g. "home", "power_settings_new").'},

@@ -35,7 +35,7 @@ function ringColor(value, defaultColor, warn, crit) {
 class FeezalElementMaterialComputerStats extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Stats', category: 'Material', color: '#4a6080', icon: 'memory'},
+            palette: {name: 'Stats', category: 'Simple', color: '#4a6080', icon: 'memory'},
             description: 'Concentric ring gauges for CPU, RAM, GPU and other system metrics.',
             attributes: [
                 {name: 'subscribe-cpu',             type: 'mqttTopic', help: 'Topic for CPU usage (0–100%).'},

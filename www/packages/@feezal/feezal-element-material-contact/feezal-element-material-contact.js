@@ -132,7 +132,7 @@ function garageDoorSvg(isOpen) {
 class FeezalElementMaterialContact extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Contact', category: 'Device', color: '#1565c0', icon: 'sensor_window'},
+            palette: {name: 'Contact', category: 'Material', color: '#1565c0', icon: 'sensor_window'},
             description: 'Window / door contact sensor. Shows open or closed state as a stylised SVG. For room overviews compose multiple contact elements (U32 component or repeater).',
             discovery: {
                 component: 'binary_sensor',

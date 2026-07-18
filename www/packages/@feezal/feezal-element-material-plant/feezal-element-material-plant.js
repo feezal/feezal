@@ -25,7 +25,7 @@ function leafSvg() {
 class FeezalElementMaterialPlant extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Plant', category: 'Device', color: '#1565c0', icon: 'local_florist'},
+            palette: {name: 'Plant', category: 'Material', color: '#1565c0', icon: 'local_florist'},
             description: 'Plant health monitor — shows moisture, illuminance, temperature, conductivity and humidity sensor readings against configured healthy ranges.',
             attributes: [
                 {name: 'name',      type: 'string', default: '', help: 'Plant name displayed in the card header.'},

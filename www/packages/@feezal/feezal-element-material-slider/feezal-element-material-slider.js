@@ -23,7 +23,7 @@ class FeezalElementMaterialSlider extends FeezalElement {
         return {
             palette: {
                 name: 'Slider',
-                category: 'Material',
+                category: 'Simple',
                 color: '#4a6080'
             },
             description: 'Material Design 3 slider. Subscribes to an MQTT topic for the current value and publishes the numeric value on change.',

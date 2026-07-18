@@ -43,7 +43,7 @@ function lockSvg(state) {
 class FeezalElementMaterialDoorLock extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Lock', category: 'Device', color: '#1565c0', icon: 'lock'},
+            palette: {name: 'Lock', category: 'Material', color: '#1565c0', icon: 'lock'},
             description: 'Smart door lock card — shows locked / unlocked / jammed state with a padlock SVG. Lock and unlock command buttons included.',
             discovery: {
                 component: 'lock',

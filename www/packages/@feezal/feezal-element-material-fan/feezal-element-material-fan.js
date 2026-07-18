@@ -19,7 +19,7 @@ function speedDuration(pct) {
 class FeezalElementMaterialFan extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Fan', category: 'Device', color: '#1565c0', icon: 'mode_fan'},
+            palette: {name: 'Fan', category: 'Material', color: '#1565c0', icon: 'mode_fan'},
             description: 'Smart fan card — on/off toggle with animated blade SVG, optional speed percentage slider and preset mode buttons.',
             discovery: {
                 component: 'fan',

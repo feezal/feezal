@@ -115,7 +115,7 @@ function xyToRgb(x, y, bri = 1) {
 class FeezalElementMaterialLight extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Light', category: 'Device', color: '#1565c0', icon: 'lightbulb'},
+            palette: {name: 'Light', category: 'Material', color: '#1565c0', icon: 'lightbulb'},
             description: 'Smart light card — brightness ring, colour temperature, RGB/HS colour wheel, white channel, and effect selector.',
             // ── N6 custom inspector (E35) ──────────────────────────────────
             inspector: 'feezal-element-material-light-inspector',

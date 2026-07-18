@@ -5,7 +5,7 @@ import '@material/web/checkbox/checkbox.js';
 class FeezalElementMaterialCheckbox extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Checkbox', category: 'Material', color: '#4a6080', icon: 'check_box'},
+            palette: {name: 'Checkbox', category: 'Simple', color: '#4a6080', icon: 'check_box'},
             description: 'MD3 checkbox — subscribes to a boolean topic and publishes checked state.',
             discovery: {
                 component: 'switch',

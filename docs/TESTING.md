@@ -219,7 +219,8 @@ scaling is asserted for the container-query and ResizeObserver mechanisms
 ### System (pseudo-elements — placeholder in editor, behaviour in viewer)
 - [ ] system-pin · [ ] system-script · [ ] system-connection-status
 
-### Material
+### Material packages (palette categories: **Simple** widgets + **Material** device cards)
+*(2026-07: palette category rename — the old "Material" category → **Simple** (basic widgets: button, checkbox, gauge, slider…); the old "Device" category → **Material** (device cards: light, climate, cover, contact, wled…). Same `feezal-element-material-*` packages; only the palette grouping/order changed. New palette order: Basic, Layout, System, Material, Glass, Metro, Simple, …)*
 - [ ] alarm-panel · [ ] badge · [ ] button · [ ] camera · [ ] checkbox · [ ] chip · [ ] climate · [ ] clock · [ ] computer-stats · [ ] contact · [ ] countdown-dialog · [ ] cover · [ ] dialog · [ ] door-lock · [ ] energy-flow · [ ] fab · [ ] fan · [ ] gauge · [ ] humidifier · [ ] icon-button · [ ] input · [ ] light · [ ] map · [ ] media-player · [ ] motion · [ ] navbar · [ ] plant · [ ] progress · [ ] radio · [ ] schedule · [ ] select · [ ] slider · [ ] switch · [ ] tank · [ ] time-picker · [ ] vacuum · [ ] wled
 
 ### Carbon (E85 — IBM Carbon Design System)

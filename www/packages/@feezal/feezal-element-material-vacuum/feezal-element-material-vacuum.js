@@ -37,7 +37,7 @@ function stateColorVar(state) {
 class FeezalElementMaterialVacuum extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Vacuum', category: 'Device', color: '#1565c0', icon: 'cleaning_services'},
+            palette: {name: 'Vacuum', category: 'Material', color: '#1565c0', icon: 'cleaning_services'},
             description: 'Robot-vacuum control card — top-down robot illustration reflecting the current state, a status label, battery indicator, control buttons (start/pause/stop/return/locate), and an optional fan-speed chip row.',
             // ── N12 Auto-Discovery descriptor ─────────────────────────────────
             // HA MQTT `vacuum` component. state_topic carries the state string

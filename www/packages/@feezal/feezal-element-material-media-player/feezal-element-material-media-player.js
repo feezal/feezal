@@ -22,7 +22,7 @@ const REPEAT_CYCLE = ['off', 'all', 'one'];
 class FeezalElementMaterialMediaPlayer extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Media', category: 'Device', color: '#1565c0', icon: 'music_note'},
+            palette: {name: 'Media', category: 'Material', color: '#1565c0', icon: 'music_note'},
             description: 'Compact media / music control card — album art, track metadata, a seek bar, transport controls (previous, rewind, play/pause, forward, next, stop, shuffle, repeat) and an optional volume slider. Playback state (play/pause/stop/idle) drives the play/pause toggle.',
             // NOTE (future follow-up): this element uses the STANDARD flat-attribute
             // inspector. A dedicated N6 custom inspector (Topics + Config tabs,

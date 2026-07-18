@@ -6,7 +6,7 @@ import '@material/web/select/select-option.js';
 class FeezalElementMaterialSelect extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Select', category: 'Material', color: '#4a6080', icon: 'arrow_drop_down_circle'},
+            palette: {name: 'Select', category: 'Simple', color: '#4a6080', icon: 'arrow_drop_down_circle'},
             description: 'MD3 select dropdown — subscribes to current value and publishes on user selection.',
             discovery: {
                 component: 'select',

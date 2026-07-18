@@ -50,7 +50,7 @@ function circleIcon(L, color, label) {
 class FeezalElementMaterialMap extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Map', category: 'Material', color: '#4a6080', icon: 'map'},
+            palette: {name: 'Map', category: 'Simple', color: '#4a6080', icon: 'map'},
             description: 'Interactive Leaflet map — OwnTracks live-location mode or generic single-marker mode.',
             attributes: [
                 {name: 'owntracks-mode',   type: 'boolean',   help: 'Subscribe to OwnTracks wildcard and show all persons as labelled pins.'},

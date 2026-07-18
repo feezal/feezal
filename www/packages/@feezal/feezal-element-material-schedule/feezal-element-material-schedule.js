@@ -164,7 +164,7 @@ export function clampBlock(blocks, index, from, to) {
 class FeezalElementMaterialSchedule extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Schedule', category: 'Material', color: '#4a6080', icon: 'calendar_month'},
+            palette: {name: 'Schedule', category: 'Simple', color: '#4a6080', icon: 'calendar_month'},
             description: 'Weekly schedule EDITOR (drag to paint blocks): renders the retained schedule ' +
                 'JSON from the subscribe topic, publishes edits on Save. Executing the schedule is the ' +
                 'consumer\'s job (she, Node-RED, …) — see docs/schedule-format.md for the JSON contract. ' +
