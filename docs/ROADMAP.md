@@ -20,7 +20,6 @@ Work in progress — priorities and scope are not final.
 - [N30 — layout-app breaks the site active-view MQTT contract](#n30--layout-app-breaks-the-site-active-view-mqtt-contract)
 - [N33 — Asset manager: "Set as background" context action for images](#n33--asset-manager-set-as-background-context-action-for-images)
 - [N34 — Custom CSS/style editors (N6-analog) + rich view Background editor](#n34--custom-cssstyle-editors-n6-analog--rich-view-background-editor)
-- [N35 — basic-template: `${msg.payload}` renders `[object Object]` for JSON payloads](#n35--basic-template-msgpayload-renders-object-object-for-json-payloads)
 
 **Element Ecosystem**
 - [E7 — Swipe gesture element](#e7--swipe-gesture-element)
@@ -232,18 +231,6 @@ The editor reads and writes the whole `background-image` / `background-size` / `
 **Open/at-implementation:** exact event name + payload shape (`feezal-style-changed {props}` vs reusing the attribute event family); how the inspector learns which longhands a group "covers" (explicit `covers: [...]` list in the descriptor vs. the editor declaring them); `element-spec.md` §3.8/§5 documentation of the new descriptor field; whether the "Add CSS property" free-form field should refuse to re-add a grouped longhand.
 
 **Relates:** N6 (custom attribute inspectors — the exact pattern this mirrors for CSS; element-spec §3.8), N33 (asset-manager "Set as background" — should route *into* this editor), U39 (attribute-inspector restructuring — same "richer, structured inspector" push; keep the two coherent), feezal-view (first consumer — its `styles` descriptor gains the `background` group entry), element-spec §5 (CSS custom-property conventions — where the new `styles` descriptor field is spec'd).
-
-### N35 — basic-template: `${msg.payload}` renders `[object Object]` for JSON payloads
-
-**Problem.** basic-template auto-parses JSON payloads (so `${msg.payload.temperature}` works), but the template is evaluated as a plain JS template literal ([feezal-element-basic-template.js:95](../www/packages/@feezal/feezal-element-basic-template/feezal-element-basic-template.js#L95) — `new Function('msg', 'return \`…\`')`). When the payload parsed to an object/array, a bare `${msg.payload}` therefore coerces via the default `Object.prototype.toString` and renders **`[object Object]`** — useless. The current workaround (`${JSON.stringify(msg.payload)}`, even recommended in the element's own `description`) shouldn't be necessary for the obvious "just show me the message" case.
-
-**Desired behaviour.** When the payload (or any interpolated value) is an object or array, string coercion inside the template yields **compact JSON — `JSON.stringify(value)` with 0 spaces** (e.g. `{"temperature":21.5,"hum":40}`). Strings, numbers, booleans render exactly as today; property access (`${msg.payload.prop}`, `${msg.payload.sensors[0].value}`) is unaffected.
-
-**Implementation sketch.** Before calling the compiled template function, give the parsed payload a JSON-producing string coercion instead of the default one — e.g. `Object.defineProperty(obj, 'toString', {value() { return JSON.stringify(this); }, enumerable: false})` (or a `Symbol.toPrimitive` handler) on the object handed into the template. Apply it **recursively** to nested objects/arrays so `${msg.payload.sensors[0]}` also renders as JSON rather than `[object Object]` (arrays additionally need the override — their default `join(',')` coercion of object members produces `[object Object],[object Object]`). Operate on the template's local copy of `msg`, never mutate a message object shared with other subscribers. Update the element's `description` text (which currently teaches the `JSON.stringify` workaround) to document the new default; `${JSON.stringify(msg.payload, null, 2)}` stays the documented route for *pretty-printed* output.
-
-**Ships with:** patch bump, TESTING.md §6 basic-template note (bare `${msg.payload}` with a JSON payload → compact JSON string, nested object interpolation, primitives unchanged).
-
-**Relates:** B31 (basic-template template loss on copy/paste — same element, unrelated mechanism), basic-table / basic-ticker (template-literal consumers — check whether they share the same coercion wart and should adopt the same helper).
 
 ### Element platform conventions
 
