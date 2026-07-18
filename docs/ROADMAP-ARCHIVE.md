@@ -546,6 +546,22 @@ Elements now subscribe and render live in the editor exactly as in the viewer. T
 
 ## Element Ecosystem
 
+### E104 — Metro cover/shutter element (feezal-element-metro-cover) ✅ implemented
+
+The Metro family's missing cover/shutter control — light, climate, contact, occupancy, sensor, switch, media and tile all have Metro counterparts; cover is the gap (Material has `material-cover`, Glass has `glass-shutter`).
+
+**MQTT contract mirrors `feezal-element-material-cover` 1:1** — the established cross-family convention, exactly as `glass-shutter` already does: `subscribe`/`message-property`/`publish` (position state/command), `publish-up`/`publish-stop`/`publish-down` + `payload-up`/`payload-stop`/`payload-down` (or single-topic `publish-command`/`payload-mode`), `subscribe-position`/`publish-position`/`message-property-position`, `min`/`max`/`invert`/`show-position`, tilt (`message-property-tilt`, `publish-slat-angle`, `slat-angle`/`slat-min`/`slat-max`), `json-map`, `label`, and availability (`subscribe-availability`/`message-property-availability`/`payload-available`/`payload-unavailable` — should adopt the N31 base-class mechanism once it lands).
+
+**Visual concept:** flat Metro tile consistent with `metro-light` (palette `category: 'Metro'`, `icon: 'blinds'`) — front face shows the current position (e.g. a flat fill level or percentage in the Metro typographic style, no skeuomorphic slats); tap flips to the back with a position slider, up/stop/down buttons, and a tilt slider when configured, matching metro-light's front/back detail pattern.
+
+**Ships with:** patch-versioned package registered in `www/package.json`, TESTING.md §6 entry with element-specific notes (back-face controls, tilt-only-when-configured, availability degrade).
+
+**Relates:** material-cover (attribute-contract source), glass-shutter (the sibling that already proved the 1:1 mirror), metro-light (Metro tile chrome + flip-to-back pattern), N31 (availability base-class mechanism).
+
+
+> **Implemented 07/2026:** material-cover contract mirrored 1:1 (json/separate, B26 min/max + slat ranges + dedicated command topics, cover discovery map); Metro chrome via MetroTileBase (flat fill front face - slat-count intentionally dropped, no skeuomorphic slats -, flip-to-back with position/tilt sliders + Up/Stop/Down); availability via the N31 base; two-tab inspector with feezal-topic-input fields; 11 browser tests.
+
+
 ### E100 — Fan element (feezal-element-glass-fan) ✅ implemented
 
 The Glass family's missing fan control — every other common device type (light, climate, contact, shutter, switch, occupancy, sensor, button) already has a glass counterpart; fan is the gap. Frosted-glass card in the established Glass visual language (Apple-Home-style tile, tap/long-press-to-detail pattern where applicable).

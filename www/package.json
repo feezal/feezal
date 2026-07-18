@@ -93,6 +93,7 @@
         "@feezal/feezal-element-material-vacuum": "*",
         "@feezal/feezal-element-metro-climate": "*",
         "@feezal/feezal-element-metro-contact": "*",
+        "@feezal/feezal-element-metro-cover": "*",
         "@feezal/feezal-element-metro-light": "*",
         "@feezal/feezal-element-metro-media": "*",
         "@feezal/feezal-element-metro-occupancy": "*",

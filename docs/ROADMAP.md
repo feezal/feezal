@@ -56,7 +56,6 @@ Work in progress — priorities and scope are not final.
 - [E101 — Dialog element family (`feezal-element-glass-dialog*`)](#e101--dialog-element-family-feezal-element-glass-dialog)
 - [E102 — Climate elements: boost mode, thermostat mode datapoint conventions, valve position](#e102--climate-elements-boost-mode-thermostat-mode-datapoint-conventions-valve-position-️-refined-072026--decisions-pending-do-not-implement-yet) ⚠️ *(refined 07/2026 — model agreed, not implemented)*
 - [E103 — WLED elements (Device / Glass / Metro)](#e103--wled-elements-device--glass--metro)
-- [E104 — Metro cover/shutter element (`feezal-element-metro-cover`)](#e104--metro-covershutter-element-feezal-element-metro-cover)
 - [E105 — Glass cards: horizontal layout on wide-flat resize (icon left, content right)](#e105--glass-cards-horizontal-layout-on-wide-flat-resize-icon-left-content-right)
 
 **Editor UX**
@@ -913,18 +912,6 @@ New elements for **[WLED](https://github.com/wled/WLED)** — the very popular E
 **Family split:** Device/Glass/Metro share the identical MQTT contract (mirrors how glass-light/material-light already share theirs) — only the chrome differs: Device (material) gets the full brightness-ring/colour-wheel/effect-selector treatment consistent with material-light; Glass gets the frosted Apple-Home-style card; Metro gets the flat tile styling consistent with metro-light. Segment editing (later tier) is most naturally a Device/Glass feature — Metro's flat/simple aesthetic likely stays MVP-only (single segment), matching how Metro already omits some of Material's richer controls elsewhere in the light family.
 
 **Relates:** material-light (attribute/contract template for MVP scope), glass-light / metro-light (sibling chrome), N31 (availability via LWT retained topic — a clean fit for the base-class approach), U39 (segment list = the textbook case for a custom inspector over flat attributes), E62 (same MQTT-only-vs-device-HTTP tension around discovering effect/palette names).
-
-### E104 — Metro cover/shutter element (`feezal-element-metro-cover`)
-
-The Metro family's missing cover/shutter control — light, climate, contact, occupancy, sensor, switch, media and tile all have Metro counterparts; cover is the gap (Material has `material-cover`, Glass has `glass-shutter`).
-
-**MQTT contract mirrors `feezal-element-material-cover` 1:1** — the established cross-family convention, exactly as `glass-shutter` already does: `subscribe`/`message-property`/`publish` (position state/command), `publish-up`/`publish-stop`/`publish-down` + `payload-up`/`payload-stop`/`payload-down` (or single-topic `publish-command`/`payload-mode`), `subscribe-position`/`publish-position`/`message-property-position`, `min`/`max`/`invert`/`show-position`, tilt (`message-property-tilt`, `publish-slat-angle`, `slat-angle`/`slat-min`/`slat-max`), `json-map`, `label`, and availability (`subscribe-availability`/`message-property-availability`/`payload-available`/`payload-unavailable` — should adopt the N31 base-class mechanism once it lands).
-
-**Visual concept:** flat Metro tile consistent with `metro-light` (palette `category: 'Metro'`, `icon: 'blinds'`) — front face shows the current position (e.g. a flat fill level or percentage in the Metro typographic style, no skeuomorphic slats); tap flips to the back with a position slider, up/stop/down buttons, and a tilt slider when configured, matching metro-light's front/back detail pattern.
-
-**Ships with:** patch-versioned package registered in `www/package.json`, TESTING.md §6 entry with element-specific notes (back-face controls, tilt-only-when-configured, availability degrade).
-
-**Relates:** material-cover (attribute-contract source), glass-shutter (the sibling that already proved the 1:1 mirror), metro-light (Metro tile chrome + flip-to-back pattern), N31 (availability base-class mechanism).
 
 ### E105 — Glass cards: horizontal layout on wide-flat resize (icon left, content right)
 
