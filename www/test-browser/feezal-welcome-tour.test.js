@@ -47,39 +47,46 @@ afterEach(() => {
 });
 
 describe('welcome tour (U37)', () => {
-    it('starts hidden and shows the first step (palette) on start()', async () => {
+    it('starts with the centred welcome page: full dim, no spotlight cutout', async () => {
         expect(tour.hasAttribute('data-active')).toBe(false);
         tour.start();
         await tour.updateComplete;
         expect(tour.hasAttribute('data-active')).toBe(true);
+        expect(STEPS[0].id).toBe('welcome');
+        expect(tour.shadowRoot.querySelector('.spotlight')).toBeNull();
+        expect(tour.shadowRoot.querySelector('.backdrop-full')).not.toBeNull();
+        expect(tour.shadowRoot.querySelector('.card h3').textContent).toContain('Welcome');
+    });
+
+    it('Next moves to the palette step with the spotlight cutout', async () => {
+        tour.start();
+        await tour.updateComplete;
+        tour._next();
+        await tour.updateComplete;
         expect(fakeEditor.paletteVisible).toBe(true);   // step prepare ran
         const spot = tour.shadowRoot.querySelector('.spotlight');
         expect(spot).not.toBeNull();
         // Cutout tracks the #palette rect (6px padding)
         expect(parseFloat(spot.style.left)).toBeCloseTo(-6, 0);
         expect(parseFloat(spot.style.width)).toBeCloseTo(212, 0);
-        expect(tour.shadowRoot.querySelector('.card h3').textContent).toBe(STEPS[0].title);
     });
 
     it('Next/Back walk the steps; sidebar steps switch the tab (U41: theme before broker)', async () => {
         tour.start();
         await tour.updateComplete;
-        tour._next();
-        tour._next();  // step 2 → inspector
+        tour._goto(STEPS.findIndex(s => s.id === 'inspector'));
         await tour.updateComplete;
-        expect(tour._step).toBe(2);
         expect(fakeEditor.sidebarVisible).toBe(true);
         expect(fakeEditor.sidebar).toBe('inspector');
-        tour._next();
-        tour._next();  // step 4 → theme (U41)
+        tour._goto(STEPS.findIndex(s => s.id === 'theme'));
         await tour.updateComplete;
         expect(fakeEditor.sidebar).toBe('themes');
-        tour._next();  // step 5 → broker settings
+        tour._next();  // theme → broker settings
         await tour.updateComplete;
         expect(fakeEditor.sidebar).toBe('viewer');
         tour._back();
         await tour.updateComplete;
-        expect(tour._step).toBe(4);
+        expect(tour._step).toBe(STEPS.findIndex(s => s.id === 'theme'));
     });
 
     it('non-interactive steps block clicks, interactive steps do not', async () => {

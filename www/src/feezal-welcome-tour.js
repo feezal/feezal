@@ -38,6 +38,12 @@ function inShadow(root, hostSelector, innerSelector) {
 
 const STEPS = [
     {
+        id: 'welcome',
+        title: 'Welcome to feezal!',
+        body: 'feezal is a dashboard builder for your smart home: you design views by dragging elements onto a canvas, wire them to your MQTT broker, and open the result on any browser — wall tablets, phones, desktops.\n\nThis short tour shows you around. It takes about a minute, and you can leave it anytime with "Skip tour" and replay it later from Editor Settings.',
+        // No target — the whole editor dims and the card sits centred.
+    },
+    {
         id: 'palette',
         title: 'Element palette',
         body: 'These are the building blocks of your dashboard — buttons, gauges, lights, charts and more, grouped by family. Drag any of them onto the canvas. The search box filters the list.',
@@ -147,19 +153,20 @@ class FeezalWelcomeTour extends LitElement {
         }
         :host(:not([data-active])) { display: none; }
 
-        /* Cutout: the box-shadow paints the dim backdrop everywhere else. */
+        /* Cutout: the box-shadow paints the dim backdrop everywhere else.
+           Strong dim (0.78) — the spotlighted region must clearly pop. */
         .spotlight {
             position: fixed;
             border-radius: 8px;
-            box-shadow: 0 0 0 200vmax rgba(0, 0, 0, 0.55);
+            box-shadow: 0 0 0 200vmax rgba(0, 0, 0, 0.78);
             transition: left 0.25s ease, top 0.25s ease, width 0.25s ease, height 0.25s ease;
             pointer-events: none;
         }
-        /* No target (hidden region) → dim everything, card centred. */
+        /* No target (welcome page / hidden region) → dim everything, card centred. */
         .backdrop-full {
             position: fixed;
             inset: 0;
-            background: rgba(0, 0, 0, 0.55);
+            background: rgba(0, 0, 0, 0.78);
             pointer-events: none;
         }
         /* Non-interactive steps: swallow stray clicks so they can't derail the tour. */
