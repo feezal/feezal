@@ -68,6 +68,36 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
         res.json({version: currentVersion});
     });
 
+    // ── Editor preferences (U41 follow-up) ────────────────────────────────
+    // Tiny editor-level key/value store persisted in the data directory
+    // (<dataDir>/editor.json) so flags like the welcome-tour seen-marker
+    // survive browser switches AND reset with a fresh data dir. Without a
+    // data dir the store is empty and writes are dropped (the client falls
+    // back to localStorage).
+    const editorPrefsPath = () => storage.dataDir ? path.join(storage.dataDir, 'editor.json') : null;
+
+    router.get('/editor/prefs', (_req, res) => {
+        const file = editorPrefsPath();
+        if (!file) return res.json({});
+        fs.readFile(file, 'utf8')
+            .then(text => res.json(JSON.parse(text)))
+            .catch(() => res.json({}));
+    });
+
+    router.put('/editor/prefs', express.json(), (req, res) => {
+        const file = editorPrefsPath();
+        if (!file) return res.status(204).end();
+        if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+            return res.status(400).json({error: 'object body required'});
+        }
+        fs.readFile(file, 'utf8')
+            .then(text => JSON.parse(text))
+            .catch(() => ({}))
+            .then(prefs => fs.writeFile(file, JSON.stringify({...prefs, ...req.body}, null, 2)))
+            .then(() => res.status(204).end())
+            .catch(err => res.status(500).json({error: err.message}));
+    });
+
     // Bridge (server ↔ broker) connection status for the editor's indicator
     // in the Connection settings tab. Credentials embedded in the URI are
     // redacted before it leaves the server.

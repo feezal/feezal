@@ -112,3 +112,24 @@ describe('GET /api/topics/completions', () => {
         expect(res.body.completions).toEqual([]);
     });
 });
+
+describe('editor prefs (U41 follow-up)', () => {
+    it('GET returns {} before anything was stored', async () => {
+        const res = await request(app).get('/api/editor/prefs');
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({});
+    });
+
+    it('PUT merges and GET round-trips (persisted in the data dir)', async () => {
+        await request(app).put('/api/editor/prefs').send({tourSeen: true});
+        await request(app).put('/api/editor/prefs').send({other: 1});
+        const res = await request(app).get('/api/editor/prefs');
+        expect(res.body).toEqual({tourSeen: true, other: 1});
+    });
+
+    it('PUT rejects non-object bodies', async () => {
+        const res = await request(app).put('/api/editor/prefs')
+            .set('Content-Type', 'application/json').send('[1,2]');
+        expect(res.status).toBe(400);
+    });
+});

@@ -1392,9 +1392,19 @@ class FeezalAppEditor extends LitElement {
         this._loadAiConfig();
         window.addEventListener('feezal:ai-config-changed', this._onAiConfigChanged);
 
-        // U37 — welcome tour: re-launch request from Editor Settings.
+        // U37 — welcome tour: re-launch request from Editor Settings, and
+        // persist the seen-flag server-side once the tour ends (Skip or Done)
+        // so it survives browser switches AND resets with a fresh data dir.
         this._onStartTour = () => this.startTour();
         this.addEventListener('feezal-start-tour', this._onStartTour);
+        this._onTourFinished = () => {
+            fetch('/api/editor/prefs', {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({tourSeen: true})
+            }).catch(() => { /* serverless — localStorage fallback covers it */ });
+        };
+        this.addEventListener('tour-finished', this._onTourFinished);
         // Auto-start on first use only: seen-flag unset AND the site carries
         // no elements yet (fresh install / blank canvas). Deferred so the
         // server-injected site markup and the first render are settled.
@@ -1407,12 +1417,20 @@ class FeezalAppEditor extends LitElement {
         this.shadowRoot.querySelector('feezal-welcome-tour')?.start();
     }
 
-    _maybeAutoStartTour() {
-        if (localStorage.getItem('feezalTourSeen')) return;
+    async _maybeAutoStartTour() {
         if (this._sourceMode) return;
         const views = [...(feezal.views ?? [])];
         if (!views.length || views.some(v => v.children.length > 0)) return;
-        this.startTour();
+        // The server-side flag is authoritative when reachable (deleting the
+        // data dir re-triggers the tour); localStorage only covers contexts
+        // without the prefs API.
+        let seen;
+        try {
+            const r = await fetch('/api/editor/prefs');
+            if (r.ok) seen = Boolean((await r.json()).tourSeen);
+        } catch { /* server unreachable */ }
+        if (seen === undefined) seen = Boolean(localStorage.getItem('feezalTourSeen'));
+        if (!seen) this.startTour();
     }
 
     /** Open/close the AI panel and persist the preference (U29). */
@@ -1553,6 +1571,7 @@ class FeezalAppEditor extends LitElement {
         document.removeEventListener('keydown', this._onDocKeySourceMode);
         window.removeEventListener('feezal:ai-config-changed', this._onAiConfigChanged);
         this.removeEventListener('feezal-start-tour', this._onStartTour);
+        this.removeEventListener('tour-finished', this._onTourFinished);
         this._sourceEditor?.dispose();
     }
 

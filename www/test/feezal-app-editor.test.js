@@ -236,36 +236,49 @@ describe('_clone() — B31 light-DOM children survive copy/paste/duplicate', () 
     });
 });
 
-describe('_maybeAutoStartTour() — U37 trigger gating', () => {
-    function run({seen = false, sourceMode = false} = {}) {
+describe('_maybeAutoStartTour() — U37/U41 trigger gating', () => {
+    async function run({seen = false, sourceMode = false, serverPrefs = 'unreachable'} = {}) {
         if (seen) localStorage.setItem('feezalTourSeen', '1');
         else localStorage.removeItem('feezalTourSeen');
+        // Server prefs API stub: 'unreachable' rejects (serverless fallback
+        // to localStorage), an object resolves as the prefs JSON.
+        globalThis.fetch = serverPrefs === 'unreachable'
+            ? () => Promise.reject(new Error('no server'))
+            : () => Promise.resolve({ok: true, json: () => Promise.resolve(serverPrefs)});
         let started = false;
         // Plain data properties — _sourceMode/shadowRoot are reactive/accessor
         // properties on the prototype and must not run Lit internals here.
         const ctx = app();
         Object.defineProperty(ctx, '_sourceMode', {value: sourceMode});
         Object.defineProperty(ctx, 'shadowRoot', {value: {querySelector: () => ({start() { started = true; }})}});
-        ctx._maybeAutoStartTour();
+        await ctx._maybeAutoStartTour();
         return started;
     }
 
-    it('starts on a fresh site (views without elements, flag unset)', () => {
-        expect(run()).toBe(true);
+    it('starts on a fresh site (views without elements, flag unset)', async () => {
+        expect(await run()).toBe(true);
     });
 
-    it('does not start once the seen-flag is set', () => {
-        expect(run({seen: true})).toBe(false);
+    it('does not start once the localStorage seen-flag is set (serverless)', async () => {
+        expect(await run({seen: true})).toBe(false);
     });
 
-    it('does not start when any view already carries elements', () => {
+    it('U41: the server-side flag is authoritative — fresh data dir re-triggers despite localStorage', async () => {
+        expect(await run({seen: true, serverPrefs: {}})).toBe(true);
+    });
+
+    it('U41: server-side tourSeen suppresses the tour', async () => {
+        expect(await run({serverPrefs: {tourSeen: true}})).toBe(false);
+    });
+
+    it('does not start when any view already carries elements', async () => {
         feezal.views[1].append(document.createElement('feezal-element-basic-number'));
-        expect(run()).toBe(false);
+        expect(await run()).toBe(false);
     });
 
-    it('does not start in source mode or without views', () => {
-        expect(run({sourceMode: true})).toBe(false);
+    it('does not start in source mode or without views', async () => {
+        expect(await run({sourceMode: true})).toBe(false);
         feezal.views = [];
-        expect(run()).toBe(false);
+        expect(await run()).toBe(false);
     });
 });
