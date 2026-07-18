@@ -4,7 +4,7 @@ import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
 
 /**
- * feezal-element-glass-shutter (E58)
+ * feezal-element-glass-cover (E58)
  *
  * Frosted-glass shutter/cover card. Same MQTT capability contract as
  * feezal-element-material-cover — attribute names, json/separate payload
@@ -15,14 +15,14 @@ import {LitElement} from 'lit';
  * portion), up/stop/down buttons beneath, tilt slider when configured.
  */
 
-class FeezalElementGlassShutter extends FeezalElement {
+class FeezalElementGlassCover extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Shutter', category: 'Glass', color: '#7aa5c9', icon: 'blinds'},
+            palette: {name: 'Cover', category: 'Glass', color: '#7aa5c9', icon: 'blinds'},
             description: 'Frosted-glass shutter/cover tile — tap opens the details popup: vertical position ' +
                 'slider, up/stop/down buttons and (when configured) a tilt slider. Same wiring contract as the ' +
                 'material cover card.',
-            inspector: 'feezal-element-glass-shutter-inspector',
+            inspector: 'feezal-element-glass-cover-inspector',
             discovery: {
                 component: 'cover',
                 map: {
@@ -510,7 +510,7 @@ class FeezalElementGlassShutter extends FeezalElement {
 
     _stateText() {
         const eff = this._effPos();
-        if (eff === null) return feezal.isEditor ? 'Shutter' : '—';
+        if (eff === null) return feezal.isEditor ? 'Cover' : '—';
         const word = eff <= 0 ? 'Closed' : 'Open';
         return this.showPosition && eff > 0 && eff < 100 ? `${word} • ${eff} %` : word;
     }
@@ -540,7 +540,7 @@ class FeezalElementGlassShutter extends FeezalElement {
         const hasTilt = Boolean(this.slatAngle || this.publishSlatAngle);
         return html`
             <div class="details" popover="manual">
-                <div class="title">${this.label || 'Shutter'}</div>
+                <div class="title">${this.label || 'Cover'}</div>
                 <div class="vslider"
                     @pointerdown="${this._vsliderDown}"
                     @pointermove="${this._vsliderMove}"
@@ -573,14 +573,14 @@ class FeezalElementGlassShutter extends FeezalElement {
                     @click="${e => { e.stopPropagation(); this.openDetails(); }}">tune</button>
                 <feezal-icon name="${this.icon || 'blinds'}"></feezal-icon>
                 <span class="state">${this._stateText()}</span>
-                <span class="label">${this.label || (feezal.isEditor ? 'Shutter' : '')}</span>
+                <span class="label">${this.label || (feezal.isEditor ? 'Cover' : '')}</span>
             </div>
             ${this._details ? this._renderDetails() : ''}
         `;
     }
 }
 
-customElements.define('feezal-element-glass-shutter', FeezalElementGlassShutter);
+customElements.define('feezal-element-glass-cover', FeezalElementGlassCover);
 
 // ── N6 custom inspector ──────────────────────────────────────────────────────
 // Two-tab Topics/Config inspector — same structure as the material-cover
@@ -606,7 +606,7 @@ const SHUTTER_JSON_CAPABILITIES = [
     ]},
 ];
 
-class FeezalElementGlassShutterInspector extends LitElement {
+class FeezalElementGlassCoverInspector extends LitElement {
     static properties = {
         element: {attribute: false},
         _tab:    {state: true},
@@ -856,6 +856,21 @@ class FeezalElementGlassShutterInspector extends LitElement {
     }
 }
 
-customElements.define('feezal-element-glass-shutter-inspector', FeezalElementGlassShutterInspector);
+customElements.define('feezal-element-glass-cover-inspector', FeezalElementGlassCoverInspector);
 
-export {FeezalElementGlassShutter};
+/**
+ * Deprecated alias — the pre-rename tag (was feezal-element-glass-shutter).
+ * Saved dashboards keep rendering; never appears in the palette (the palette
+ * only lists package-name tags). Remove after a deprecation window.
+ */
+class FeezalElementGlassShutter extends FeezalElementGlassCover {
+    connectedCallback() {
+        super.connectedCallback();
+        console.warn('[feezal] <feezal-element-glass-shutter> is deprecated — use <feezal-element-glass-cover> (the legacy tag keeps working).');
+    }
+}
+if (!customElements.get('feezal-element-glass-shutter')) {
+    customElements.define('feezal-element-glass-shutter', FeezalElementGlassShutter);
+}
+
+export {FeezalElementGlassCover};

@@ -9,7 +9,7 @@ import '@feezal/feezal-element-glass-switch';
 import '@feezal/feezal-element-glass-contact';
 import '@feezal/feezal-element-glass-sensor';
 import '@feezal/feezal-element-glass-button';
-import '@feezal/feezal-element-glass-shutter';
+import '@feezal/feezal-element-glass-cover';
 import '@feezal/feezal-element-glass-climate';
 import '@feezal/feezal-element-glass-occupancy';
 import {setupFeezal, mount} from './helpers.js';
@@ -261,9 +261,9 @@ describe('glass-button (renamed from glass-scene)', () => {
     });
 });
 
-describe('glass-shutter details popup', () => {
+describe('glass-cover details popup', () => {
     it('plain card (no shade/buttons); tap opens the popup with pill + up/stop/down', async () => {
-        const el = await mount('feezal-element-glass-shutter', {
+        const el = await mount('feezal-element-glass-cover', {
             subscribe: 'z2m/cover', publish: 'z2m/cover/set',
         });
         feezal.connection.deliver('z2m/cover', {position: 40});

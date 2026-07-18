@@ -196,7 +196,7 @@ class FeezalElementGlassFan extends FeezalElement {
             font-size: 13px; font-weight: 700; align-self: stretch; text-align: center;
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
-        /* Vertical speed pill (glass-shutter pattern) — fill = speed %. */
+        /* Vertical speed pill (glass-cover pattern) — fill = speed %. */
         .vslider {
             position: relative; width: 72px; height: 170px; flex: 0 0 auto;
             border-radius: 20px; overflow: hidden; cursor: grab;

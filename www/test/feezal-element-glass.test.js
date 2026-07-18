@@ -4,7 +4,7 @@ import '../packages/@feezal/feezal-element-glass-button/feezal-element-glass-but
 import '../packages/@feezal/feezal-element-glass-sensor/feezal-element-glass-sensor.js';
 import {payloadMatch as contactMatch} from '../packages/@feezal/feezal-element-glass-contact/feezal-element-glass-contact.js';
 import {pctToRaw, rawToPct} from '../packages/@feezal/feezal-element-glass-light/feezal-element-glass-light.js';
-import '../packages/@feezal/feezal-element-glass-shutter/feezal-element-glass-shutter.js';
+import '../packages/@feezal/feezal-element-glass-cover/feezal-element-glass-cover.js';
 
 let subs;
 let published;
@@ -208,11 +208,11 @@ describe('glass-light', () => {
     });
 });
 
-// ── glass-shutter ─────────────────────────────────────────────────────────────
+// ── glass-cover ─────────────────────────────────────────────────────────────
 
-describe('glass-shutter', () => {
+describe('glass-cover', () => {
     it('json mode: position primary, state string inferred when position missing (material-cover parity)', async () => {
-        const el = await mount('feezal-element-glass-shutter', {subscribe: 'cover/state', publish: 'cover/set'});
+        const el = await mount('feezal-element-glass-cover', {subscribe: 'cover/state', publish: 'cover/set'});
         deliver('cover/state', {state: 'CLOSE'});
         await el.updateComplete;
         expect(el._position).toBe(0);
@@ -227,7 +227,7 @@ describe('glass-shutter', () => {
     });
 
     it('up/stop/down publish JSON state commands in json mode', async () => {
-        const el = await mount('feezal-element-glass-shutter', {subscribe: 'cover/state', publish: 'cover/set'});
+        const el = await mount('feezal-element-glass-cover', {subscribe: 'cover/state', publish: 'cover/set'});
         el.cmdUp();
         el.cmdStop();
         el.cmdDown();
@@ -239,7 +239,7 @@ describe('glass-shutter', () => {
     });
 
     it('separate mode: per-topic wiring with raw payloads', async () => {
-        const el = await mount('feezal-element-glass-shutter', {
+        const el = await mount('feezal-element-glass-cover', {
             'payload-mode': 'separate',
             'subscribe-position': 'cover/pos', 'publish-position': 'cover/pos/set',
             'publish-command': 'cover/cmd', 'payload-up': 'UP', 'payload-down': 'DOWN',
@@ -255,7 +255,7 @@ describe('glass-shutter', () => {
     });
 
     it('invert flips the displayed scale; the popup tilt slider appears only when wired', async () => {
-        const el = await mount('feezal-element-glass-shutter', {
+        const el = await mount('feezal-element-glass-cover', {
             'payload-mode': 'separate', 'subscribe-position': 'cover/pos', invert: '',
         });
         el.openDetails();
@@ -272,7 +272,7 @@ describe('glass-shutter', () => {
 
     it('commands never publish in the editor', async () => {
         feezal.isEditor = true;
-        const el = await mount('feezal-element-glass-shutter', {subscribe: 'cover/state', publish: 'cover/set'});
+        const el = await mount('feezal-element-glass-cover', {subscribe: 'cover/state', publish: 'cover/set'});
         el.cmdUp();
         el.setPosition(10);
         expect(published).toEqual([]);
@@ -283,7 +283,7 @@ describe('glass-shutter', () => {
 
 describe('glass device-card inspectors', () => {
     it('light + shutter declare and register their custom inspectors (device-card pattern)', () => {
-        for (const tag of ['feezal-element-glass-light', 'feezal-element-glass-shutter']) {
+        for (const tag of ['feezal-element-glass-light', 'feezal-element-glass-cover']) {
             const cls = customElements.get(tag);
             expect(cls.feezal.inspector).toBe(`${tag}-inspector`);
             expect(customElements.get(`${tag}-inspector`)).toBeDefined();
@@ -299,6 +299,6 @@ describe('glass device-card inspectors', () => {
     it('device cards carry HA discovery descriptors matching their material siblings', () => {
         expect(customElements.get('feezal-element-glass-light').feezal.discovery.component).toBe('light');
         expect(customElements.get('feezal-element-glass-contact').feezal.discovery.component).toBe('binary_sensor');
-        expect(customElements.get('feezal-element-glass-shutter').feezal.discovery.component).toBe('cover');
+        expect(customElements.get('feezal-element-glass-cover').feezal.discovery.component).toBe('cover');
     });
 });

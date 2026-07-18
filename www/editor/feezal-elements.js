@@ -21,13 +21,13 @@ import '@feezal/feezal-element-glass-button';
 import '@feezal/feezal-element-glass-climate';
 import '@feezal/feezal-element-glass-contact';
 import '@feezal/feezal-element-glass-countdown-dialog';
+import '@feezal/feezal-element-glass-cover';
 import '@feezal/feezal-element-glass-dialog';
 import '@feezal/feezal-element-glass-dialog-view';
 import '@feezal/feezal-element-glass-fan';
 import '@feezal/feezal-element-glass-light';
 import '@feezal/feezal-element-glass-occupancy';
 import '@feezal/feezal-element-glass-sensor';
-import '@feezal/feezal-element-glass-shutter';
 import '@feezal/feezal-element-glass-switch';
 import '@feezal/feezal-element-glass-wled';
 import '@feezal/feezal-element-layout-app';
@@ -148,13 +148,13 @@ window.feezal.elements = [
   "feezal-element-glass-climate",
   "feezal-element-glass-contact",
   "feezal-element-glass-countdown-dialog",
+  "feezal-element-glass-cover",
   "feezal-element-glass-dialog",
   "feezal-element-glass-dialog-view",
   "feezal-element-glass-fan",
   "feezal-element-glass-light",
   "feezal-element-glass-occupancy",
   "feezal-element-glass-sensor",
-  "feezal-element-glass-shutter",
   "feezal-element-glass-switch",
   "feezal-element-glass-wled",
   "feezal-element-layout-app",
