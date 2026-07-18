@@ -58,10 +58,21 @@ describe('welcome tour (U37)', () => {
         expect(tour.shadowRoot.querySelector('.card h3').textContent).toContain('Welcome');
     });
 
-    it('Next moves to the palette step with the spotlight cutout', async () => {
+    it('the terminology page follows the welcome page: element/view/site, centred, no cutout', async () => {
         tour.start();
         await tour.updateComplete;
         tour._next();
+        await tour.updateComplete;
+        expect(STEPS[tour._step].id).toBe('terminology');
+        expect(tour.shadowRoot.querySelector('.spotlight')).toBeNull();
+        const terms = [...tour.shadowRoot.querySelectorAll('.terms dt')].map(dt => dt.textContent);
+        expect(terms).toEqual(['Element', 'View', 'Site']);
+        expect(tour.shadowRoot.querySelectorAll('.terms dd')).toHaveLength(3);
+    });
+
+    it('the palette step shows the spotlight cutout', async () => {
+        tour.start();
+        tour._goto(STEPS.findIndex(s => s.id === 'palette'));
         await tour.updateComplete;
         expect(fakeEditor.paletteVisible).toBe(true);   // step prepare ran
         const spot = tour.shadowRoot.querySelector('.spotlight');
@@ -75,7 +86,7 @@ describe('welcome tour (U37)', () => {
         tour.start();
         await tour.updateComplete;
         expect(tour.shadowRoot.querySelector('.glow')).toBeNull();   // welcome page: no cutout
-        tour._next();
+        tour._goto(STEPS.findIndex(s => s.id === 'palette'));
         await tour.updateComplete;
         const glow = tour.shadowRoot.querySelector('.spotlight .glow');
         expect(glow).not.toBeNull();

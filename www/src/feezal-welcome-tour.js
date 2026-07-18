@@ -40,9 +40,20 @@ function inShadow(root, hostSelector, innerSelector) {
 const STEPS = [
     {
         id: 'welcome',
-        title: 'Welcome to feezal!',
-        body: 'feezal is a dashboard builder for your smart home: you design views by dragging elements onto a canvas, wire them to your MQTT broker, and open the result on any browser — wall tablets, phones, desktops.\n\nThis short tour shows you around. It takes about a minute, and you can leave it anytime with "Skip tour" and replay it later from Editor Settings.',
+        title: 'Welcome to Feezal!',
+        body: 'Feezal is a dashboard builder for your smart home: you design views by dragging elements onto a canvas, wire them to your MQTT broker, and open the result on any browser — wall tablets, phones, desktops.\n\nThis short tour shows you around. It takes about a minute, and you can leave it anytime with "Skip tour" and replay it later from Editor Settings.',
         // No target — the whole editor dims and the card sits centred.
+    },
+    {
+        id: 'terminology',
+        title: 'Three words you\'ll meet everywhere',
+        body: 'Everything in Feezal is built from just three things:',
+        terms: [
+            {term: 'Element', def: 'A single widget — a button, a gauge, a light card, a chart. Elements are wired to MQTT topics and are what you drag onto the canvas.'},
+            {term: 'View', def: 'One dashboard page full of elements. A site can have many views — switch between them via the tabs above the canvas, navigation elements, or MQTT.'},
+            {term: 'Site', def: 'The whole project: all views plus the broker connection, theme and settings. The site is what you deploy and open in the viewer.'},
+        ],
+        // No target — centred card like the welcome page.
     },
     {
         id: 'palette',
@@ -261,6 +272,18 @@ class FeezalWelcomeTour extends LitElement {
             opacity: 0.65;
             font-style: italic;
             margin: 0 0 12px;
+        }
+        /* Terminology definition list (welcome flow) */
+        .terms { margin: 0 0 12px; }
+        .terms dt {
+            font-weight: 700;
+            color: var(--sl-color-primary-600, #0284c7);
+            margin-top: 8px;
+        }
+        .terms dt:first-child { margin-top: 0; }
+        .terms dd {
+            margin: 2px 0 0;
+            line-height: 1.45;
         }
         /* Copyable snippet chip (e.g. the template example) */
         .snippet {
@@ -494,6 +517,10 @@ class FeezalWelcomeTour extends LitElement {
             <div class="card" style="${this._cardStyle()}">
                 <h3>${step.title}</h3>
                 <p>${step.body}</p>
+                ${step.terms ? html`
+                    <dl class="terms">
+                        ${step.terms.map(t => html`<dt>${t.term}</dt><dd>${t.def}</dd>`)}
+                    </dl>` : ''}
                 ${step.snippet ? html`
                     <button class="snippet" title="Click to copy"
                         @click="${() => this._copySnippet(step.snippet)}">
