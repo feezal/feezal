@@ -1,6 +1,6 @@
 {
   "name": "@feezal/feezal-element-metro-wled",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "main": "feezal-element-metro-wled.js",
   "license": "MIT",
   "keywords": ["feezal", "feezal-element", "mqtt", "dashboard", "wled"]

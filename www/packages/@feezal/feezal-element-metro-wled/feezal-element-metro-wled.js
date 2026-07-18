@@ -36,6 +36,22 @@ class FeezalElementMetroWled extends MetroTileBase {
                     help: 'WLED device base topic (Sync settings → MQTT). Subscribes <topic>/g (brightness) and <topic>/c (colour); commands are published to <topic>/api as JSON.'},
                 {name: 'transition', type: 'number', min: 0, step: 0.1,
                     help: 'Optional crossfade duration in seconds, sent with every command (WLED counts in 0.1 s units). Empty = device default.'},
+                {name: 'show-effect', type: 'boolean', default: true,
+                    help: 'Show the effect picker and its speed/intensity sliders on the back face.'},
+                {name: 'show-palette', type: 'boolean', default: true,
+                    help: 'Show the palette picker on the back face.'},
+                {name: 'subscribe-speed', type: 'mqttTopic',
+                    help: 'Optional read-back of the current effect speed (sx, 0–255). WLED does not push sx/ix on <topic>/g — leave empty to default the slider to 128.'},
+                {name: 'message-property-speed', type: 'string', default: 'payload',
+                    help: 'Property path for the speed topic. Defaults to message-property.'},
+                {name: 'subscribe-intensity', type: 'mqttTopic',
+                    help: 'Optional read-back of the current effect intensity (ix, 0–255). Same caveat as subscribe-speed.'},
+                {name: 'message-property-intensity', type: 'string', default: 'payload',
+                    help: 'Property path for the intensity topic. Defaults to message-property.'},
+                {name: 'show-presets', type: 'boolean', default: false,
+                    help: 'Show a preset selector on the back face that recalls a WLED preset via {"ps":<id>} on <topic>/api. WLED does not expose preset names over MQTT — supply them via the presets list, or use the numeric fallback.'},
+                {name: 'presets', type: 'objectList', itemFields: [{key: 'id', type: 'number'}, {key: 'name'}],
+                    help: 'Optional list of {id, name} presets shown as a picker when show-presets is on. Empty = a numeric "preset #" input is shown instead.'},
                 {name: 'subscribe-availability', type: 'mqttTopic',
                     help: 'Availability topic (retained online/offline). Empty = auto-derived <topic>/status; set to override.'},
                 {name: 'availability-mode', type: 'select', options: ['all', 'any'], default: 'all',
@@ -55,11 +71,21 @@ class FeezalElementMetroWled extends MetroTileBase {
     static properties = {
         topic:      {type: String, reflect: true},
         transition: {type: String, reflect: true},
+        showEffect:         {type: Boolean, reflect: true, attribute: 'show-effect'},
+        showPalette:        {type: Boolean, reflect: true, attribute: 'show-palette'},
+        subscribeSpeed:     {type: String, reflect: true, attribute: 'subscribe-speed'},
+        msgPropSpeed:       {type: String, reflect: true, attribute: 'message-property-speed'},
+        subscribeIntensity: {type: String, reflect: true, attribute: 'subscribe-intensity'},
+        msgPropIntensity:   {type: String, reflect: true, attribute: 'message-property-intensity'},
+        showPresets:        {type: Boolean, reflect: true, attribute: 'show-presets'},
+        presets:            {type: String, reflect: true},
         _on:    {state: true},
         _bri:   {state: true},   // raw 0–255 (null = unknown)
         _color: {state: true},   // '#rrggbb' (null = unknown)
         _fx:    {state: true},   // locally selected effect id
         _pal:   {state: true},   // locally selected palette id
+        _speed:     {state: true},   // raw 0–255 (null = unknown → default 128)
+        _intensity: {state: true},   // raw 0–255 (null = unknown → default 128)
     };
 
     static styles = [MetroTileBase.styles, css`
@@ -87,23 +113,47 @@ class FeezalElementMetroWled extends MetroTileBase {
             width: 26px; height: 26px; padding: 0; border: 2px solid var(--feezal-metro-text);
             border-radius: 0; background: none; cursor: pointer; flex: 0 0 auto;
         }
+        .slider-row { display: flex; flex-direction: column; gap: 1px; align-self: stretch; }
+        .mini-label { font-size: 10px; opacity: 0.75; color: var(--feezal-metro-text); }
+        input[type='range'] { width: 100%; accent-color: var(--feezal-metro-text); }
+        input[type='number'].preset-num {
+            width: 100%; box-sizing: border-box;
+            background: transparent; color: var(--feezal-metro-text);
+            border: 2px solid var(--feezal-metro-text);
+            font: inherit; font-size: 12px; padding: 2px 4px; outline: none;
+        }
     `];
 
     constructor() {
         super();
         this.topic      = '';
         this.transition = '';
+        this.showEffect         = true;
+        this.showPalette        = true;
+        this.subscribeSpeed     = '';
+        this.msgPropSpeed       = '';
+        this.subscribeIntensity = '';
+        this.msgPropIntensity   = '';
+        this.showPresets        = false;
+        this.presets            = '';
         this._on    = false;
         this._bri   = null;
         this._color = null;
         this._fx    = null;
         this._pal   = null;
+        this._speed     = null;
+        this._intensity = null;
     }
 
     connectedCallback() {
         this._deriveAvailability();
         super.connectedCallback();
         this._wire();
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        clearTimeout(this.__colorDebounce);
     }
 
     /** Auto-derive `<topic>/status` while subscribe-availability is empty or
@@ -118,25 +168,40 @@ class FeezalElementMetroWled extends MetroTileBase {
     }
 
     _wireSignature() {
-        return this.topic || '';
+        return `${this.topic || ''}|${this.subscribeSpeed || ''}|${this.subscribeIntensity || ''}`;
     }
 
     _wire() {
         this.__wireSig = this._wireSignature();
-        if (!this.topic) return;
-        this.addSubscription(`${this.topic}/g`, msg => {
-            const v = Number(this.getProperty(msg, this.messageProperty));
-            if (Number.isFinite(v)) {
-                this._bri = Math.max(0, Math.min(255, Math.round(v)));
-                this._on = this._bri > 0;
-            }
-        });
-        this.addSubscription(`${this.topic}/c`, msg => {
-            const raw = String(this.getProperty(msg, this.messageProperty) ?? '').trim();
-            const m = raw.match(/^#?([0-9a-f]{6})$/i);
-            if (m) this._color = '#' + m[1].toLowerCase();
-        });
-        // <topic>/v (XML state) is deliberately NOT subscribed.
+        if (this.topic) {
+            this.addSubscription(`${this.topic}/g`, msg => {
+                const v = Number(this.getProperty(msg, this.messageProperty));
+                if (Number.isFinite(v)) {
+                    this._bri = Math.max(0, Math.min(255, Math.round(v)));
+                    this._on = this._bri > 0;
+                }
+            });
+            this.addSubscription(`${this.topic}/c`, msg => {
+                const raw = String(this.getProperty(msg, this.messageProperty) ?? '').trim();
+                const m = raw.match(/^#?([0-9a-f]{6})$/i);
+                if (m) this._color = '#' + m[1].toLowerCase();
+            });
+            // <topic>/v (XML state) is deliberately NOT subscribed.
+        }
+        // Optional speed/intensity read-back — write-mostly (WLED does not
+        // push sx/ix on the compact /g topic).
+        if (this.subscribeSpeed) {
+            this.addSubscription(this.subscribeSpeed, msg => {
+                const v = Number(this.getProperty(msg, this.msgPropSpeed || this.messageProperty));
+                if (Number.isFinite(v)) this._speed = Math.max(0, Math.min(255, Math.round(v)));
+            });
+        }
+        if (this.subscribeIntensity) {
+            this.addSubscription(this.subscribeIntensity, msg => {
+                const v = Number(this.getProperty(msg, this.msgPropIntensity || this.messageProperty));
+                if (Number.isFinite(v)) this._intensity = Math.max(0, Math.min(255, Math.round(v)));
+            });
+        }
     }
 
     willUpdate(changed) {
@@ -189,6 +254,14 @@ class FeezalElementMetroWled extends MetroTileBase {
         this._api({seg: [{col: [rgb]}]});
     }
 
+    /** Fires continuously while the native colour picker is dragged (`input`
+     * event) — debounced ~100 ms so it doesn't flood the broker. */
+    _onColorInput(hex) {
+        if (feezal.isEditor) return;
+        clearTimeout(this.__colorDebounce);
+        this.__colorDebounce = setTimeout(() => this.setColor(hex), 100);
+    }
+
     setEffect(id) {
         if (feezal.isEditor) return;
         const fx = Math.round(Number(id));
@@ -205,8 +278,47 @@ class FeezalElementMetroWled extends MetroTileBase {
         this._api({seg: [{pal}]});
     }
 
+    setSpeedPct(pct) {
+        if (feezal.isEditor) return;
+        const clamped = Math.max(0, Math.min(100, Math.round(Number(pct))));
+        this._speed = Math.round((clamped / 100) * 255);
+        this._api({seg: [{sx: this._speed}]});
+    }
+
+    setIntensityPct(pct) {
+        if (feezal.isEditor) return;
+        const clamped = Math.max(0, Math.min(100, Math.round(Number(pct))));
+        this._intensity = Math.round((clamped / 100) * 255);
+        this._api({seg: [{ix: this._intensity}]});
+    }
+
+    /** Recall a WLED preset — {"ps":<id>} on <topic>/api. */
+    setPreset(id) {
+        if (feezal.isEditor) return;
+        const ps = Math.round(Number(id));
+        if (!Number.isFinite(ps) || ps < 0) return;
+        this._api({ps});
+    }
+
     get _pct() {
         return this._bri === null ? null : Math.round((this._bri / 255) * 100);
+    }
+
+    get _speedPct() {
+        return Math.round(((this._speed ?? 128) / 255) * 100);
+    }
+
+    get _intensityPct() {
+        return Math.round(((this._intensity ?? 128) / 255) * 100);
+    }
+
+    get _presetsList() {
+        try {
+            const arr = this.presets ? JSON.parse(this.presets) : [];
+            return Array.isArray(arr) ? arr : [];
+        } catch {
+            return [];
+        }
     }
 
     // ── Faces ─────────────────────────────────────────────────────────────────
@@ -224,6 +336,22 @@ class FeezalElementMetroWled extends MetroTileBase {
             ${this._on && this._fx !== null ? html`<div class="fxname">${effectName(this._fx)}</div>` : ''}`;
     }
 
+    _renderPresets() {
+        if (!this.showPresets) return '';
+        const list = this._presetsList;
+        if (list.length > 0) {
+            return html`
+                <select class="preset" title="Preset"
+                    @change="${e => { if (e.target.value !== '') this.setPreset(e.target.value); }}">
+                    <option value="" selected>— Preset —</option>
+                    ${list.map(p => html`<option value="${p.id}">${p.name ?? p.id}</option>`)}
+                </select>`;
+        }
+        return html`
+            <input type="number" class="preset-num" min="0" step="1" placeholder="Preset #" title="Preset #"
+                @change="${e => { if (e.target.value !== '') this.setPreset(e.target.value); }}">`;
+    }
+
     renderBack() {
         const fxBeyond = this._fx !== null && this._fx >= WLED_EFFECTS.length;
         const palBeyond = this._pal !== null && this._pal >= WLED_PALETTES.length;
@@ -235,25 +363,43 @@ class FeezalElementMetroWled extends MetroTileBase {
             <div class="rowline">
                 <input type="color" class="col" title="Colour"
                     .value="${this._color ?? '#ffffff'}"
+                    @input="${e => this._onColorInput(e.target.value)}"
                     @change="${e => this.setColor(e.target.value)}">
                 <input type="range" min="0" max="100" step="1" title="Brightness"
                     .value="${String(this._pct ?? 0)}"
                     @change="${e => this.setBrightnessPct(e.target.value)}">
             </div>
-            <select class="fx" title="Effect"
-                @change="${e => { if (e.target.value !== '') this.setEffect(e.target.value); }}">
-                <option value="" ?selected="${this._fx === null}">— Effect —</option>
-                ${WLED_EFFECTS.map((name, i) => html`
-                    <option value="${i}" ?selected="${this._fx === i}">${name}</option>`)}
-                ${fxBeyond ? html`<option value="${this._fx}" selected>${this._fx}</option>` : ''}
-            </select>
-            <select class="pal" title="Palette"
-                @change="${e => { if (e.target.value !== '') this.setPalette(e.target.value); }}">
-                <option value="" ?selected="${this._pal === null}">— Palette —</option>
-                ${WLED_PALETTES.map((name, i) => html`
-                    <option value="${i}" ?selected="${this._pal === i}">${name}</option>`)}
-                ${palBeyond ? html`<option value="${this._pal}" selected>${this._pal}</option>` : ''}
-            </select>`;
+            ${this.showEffect ? html`
+                <select class="fx" title="Effect"
+                    @change="${e => { if (e.target.value !== '') this.setEffect(e.target.value); }}">
+                    <option value="" ?selected="${this._fx === null}">— Effect —</option>
+                    ${WLED_EFFECTS.map((name, i) => html`
+                        <option value="${i}" ?selected="${this._fx === i}">${name}</option>`)}
+                    ${fxBeyond ? html`<option value="${this._fx}" selected>${this._fx}</option>` : ''}
+                </select>
+                <div class="slider-row">
+                    <span class="mini-label">Speed</span>
+                    <input type="range" class="speed" min="0" max="100" step="1" title="Effect speed"
+                        .value="${String(this._speedPct)}"
+                        @change="${e => this.setSpeedPct(e.target.value)}">
+                </div>
+                <div class="slider-row">
+                    <span class="mini-label">Intensity</span>
+                    <input type="range" class="intensity" min="0" max="100" step="1" title="Effect intensity"
+                        .value="${String(this._intensityPct)}"
+                        @change="${e => this.setIntensityPct(e.target.value)}">
+                </div>
+            ` : ''}
+            ${this.showPalette ? html`
+                <select class="pal" title="Palette"
+                    @change="${e => { if (e.target.value !== '') this.setPalette(e.target.value); }}">
+                    <option value="" ?selected="${this._pal === null}">— Palette —</option>
+                    ${WLED_PALETTES.map((name, i) => html`
+                        <option value="${i}" ?selected="${this._pal === i}">${name}</option>`)}
+                    ${palBeyond ? html`<option value="${this._pal}" selected>${this._pal}</option>` : ''}
+                </select>
+            ` : ''}
+            ${this._renderPresets()}`;
     }
 }
 
