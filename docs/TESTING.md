@@ -306,6 +306,7 @@ this section is about the remaining **UI**.
 - [ ] **Site/Global tab bar** (same styling/alignment as the other sidebar tab bars): switching tabs resets to the category root folder; "Move to site/global" from the context menu switches to the destination tab automatically. The thumbnail/list/details view toggles and the New-folder/Upload buttons sit right-aligned INSIDE the tab bar and work from there.
 - [ ] Upload via button **and** drag-drop, to Site and Global; folder UI (mkdir, move into); rename; delete; preview overlay.
 - [ ] Move/copy an asset between site↔global via the UI; references in the site HTML follow.
+- [ ] **Set as background (N33)**: right-click an image asset → **Set as background** shows a fly-out submenu (opens leftward when the menu sits near the right window edge) with **Current view** / **All views**; picking one stamps `background-image` (plus `cover` / `center` / `no-repeat` defaults) as inline style on the target view(s) — visible immediately on the canvas, site marked dirty, and the style inspector shows the new values if the view is selected. From the **Global** tab the asset is first copied into the site (copy-on-use, filename suffixed on collision, appears in the Site tab) and the site copy's URL is used; if the copy fails the global URL still works. Non-image assets and folders don't offer the entry. *(Longhand stamping, both scopes, copy-on-use incl. fallback and the inspector nudge are unit-tested.)*
 
 ## 9. MQTT / connection / auto-discovery
 

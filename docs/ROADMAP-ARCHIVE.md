@@ -241,6 +241,21 @@ The glass-wled details popup renders its **effect / palette / preset** selectors
 
 ## Near-term Improvements
 
+### N33 — Asset manager: "Set as background" context action for images ✅ implemented
+
+The Asset Manager's right-click menu ([feezal-sidebar-assets.js](www/src/feezal-sidebar-assets.js), the `.ctx-menu` block — Rename / Copy path / Set as PWA icon / Move-Copy to site-global / Delete) should let an image be applied as a view background directly, without hand-typing the URL into the style inspector.
+
+**New menu entry (image files only):** a **"Set as background"** item with a submenu:
+
+- **Current view** — sets the background on the active view (`feezal.view`).
+- **All views** — sets it on every view of the site (`feezal.views`).
+
+(Submenu wording chosen for brevity per the request; the parent verb "Set as background" reads cleanly with the two scope children. The context menu doesn't have submenus today — a small fly-out addition, or two flat items "Set as background (current view)" / "…(all views)" if a submenu is judged over-engineered for two entries. Decide during implementation.)
+
+**Action:** writes the view element's inline `background-image: url('<asset-path>')` (via the same path resolution `_copyPath` already produces, so site vs. global assets resolve correctly, and the copy-on-use behaviour of B15/global assets is respected). Marks the site dirty (`feezal.app.change()`), refreshes the style inspector if the affected view is selected. Should set a sensible default `background-size`/`background-repeat` (e.g. `cover` / `no-repeat`) so a photo fills the view rather than tiling — or defer that to the richer background editor once it exists (see the planned custom-CSS-editor mechanism).
+
+**Relates:** N34 (the custom view-background editor — this action is the quickest way *into* it; ideally it opens/populates that editor rather than blindly stamping longhands), B15 (copy-on-use of global assets — the same resolution must apply), A-series Asset Manager work, feezal-view (`styles: ['width','height','background']` — the target).
+
 ### N35 — basic-template: `${msg.payload}` renders `[object Object]` for JSON payloads ✅ fixed
 
 **Problem.** basic-template auto-parses JSON payloads (so `${msg.payload.temperature}` works), but the template is evaluated as a plain JS template literal ([feezal-element-basic-template.js:95](../www/packages/@feezal/feezal-element-basic-template/feezal-element-basic-template.js#L95) — `new Function('msg', 'return \`…\`')`). When the payload parsed to an object/array, a bare `${msg.payload}` therefore coerces via the default `Object.prototype.toString` and renders **`[object Object]`** — useless. The current workaround (`${JSON.stringify(msg.payload)}`, even recommended in the element's own `description`) shouldn't be necessary for the obvious "just show me the message" case.

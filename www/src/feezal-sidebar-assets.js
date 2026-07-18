@@ -196,6 +196,21 @@ class FeezalSidebarAssets extends LitElement {
         .ctx-item.del { color: #c00; }
         .ctx-item .material-icons { font-size: 16px; color: inherit; }
 
+        /* N33: hover fly-out submenu (Set as background → Current/All views) */
+        .ctx-item.has-sub { position: relative; }
+        .ctx-item.has-sub .sub-arrow { margin-left: auto; font-size: 16px; color: #999; }
+        .ctx-submenu {
+            display: none;
+            position: absolute; top: -5px; left: 100%;
+            background: var(--feezal-bg, #fff);
+            border: 1px solid var(--feezal-border, #ddd);
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+            padding: 4px 0; min-width: 130px;
+        }
+        .ctx-item.has-sub:hover > .ctx-submenu { display: block; }
+        .ctx-submenu.left { left: auto; right: 100%; }
+
         /* draggable image tiles (thumbs, list, and details modes) */
         .tile.image-tile { cursor: grab; touch-action: none; }
         .tile.image-tile:active { cursor: grabbing; }
@@ -564,6 +579,55 @@ class FeezalSidebarAssets extends LitElement {
         }
     }
 
+    /**
+     * N33: apply an image asset as a view background. Global assets are
+     * copied into the site first (copy-on-use, same contract as drag-drop —
+     * the server suffixes on collision) so the site stays self-contained;
+     * on copy failure the global URL is kept as a working fallback.
+     * scope: 'current' | 'all'.
+     */
+    async _setAsBackground(filePath, scope) {
+        let url = this._assetSrc(filePath);
+        if (this._category === 'global') {
+            const site = feezal.siteName || 'default';
+            try {
+                const res = await fetch(`/api/assets/${site}/transfer`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        srcCategory: 'global',
+                        srcPath: filePath,
+                        destCategory: 'site',
+                        destPath: filePath,
+                        copy: true,
+                        unique: true
+                    })
+                });
+                if (res.ok) {
+                    const {path} = await res.json();
+                    if (path) url = `/assets/${site}/${path}`;
+                    await this._load();   // reflect the new file in the Site tab
+                }
+            } catch { /* keep the global URL as a working fallback */ }
+        }
+        const views = scope === 'all'
+            ? [...(feezal.views ?? [])]
+            : [feezal.view].filter(Boolean);
+        for (const view of views) {
+            view.style.backgroundImage    = `url('${url}')`;
+            view.style.backgroundSize     = 'cover';
+            view.style.backgroundPosition = 'center';
+            view.style.backgroundRepeat   = 'no-repeat';
+        }
+        feezal.app.change();
+        // Refresh the style inspector in case an affected view is selected —
+        // it only re-reads on selection change (same nudge as B15).
+        const insp = feezal.editor;
+        if (insp && Array.isArray(insp.selectedElems) && insp.selectedElems.some(el => views.includes(el))) {
+            insp.selectedElems = [...insp.selectedElems];
+        }
+    }
+
     _onPwaIconSaved() {
         // Setting an icon implies wanting the PWA — switch the toggle on.
         const viewerSidebar = feezal.app?.shadowRoot?.querySelector('feezal-sidebar-viewer');
@@ -768,7 +832,10 @@ class FeezalSidebarAssets extends LitElement {
             isFolder: opts.isFolder || false,
             folderName: opts.folderName || null,
             x: Math.min(x, window.innerWidth  - 165),
-            y: Math.min(y, window.innerHeight - 130)
+            y: Math.min(y, window.innerHeight - 130),
+            // N33: open the background-scope submenu to the left when the
+            // menu sits too close to the right window edge for a fly-out.
+            subLeft: Math.min(x, window.innerWidth - 165) > window.innerWidth - 320
         };
     }
 
@@ -1276,6 +1343,18 @@ class FeezalSidebarAssets extends LitElement {
                         </div>
                     ` : ''}
                     ${!this._ctxMenu.isFolder && isImage(this._ctxMenu.file) ? html`
+                        <div class="ctx-item has-sub">
+                            <span class="material-icons">wallpaper</span>Set as background
+                            <span class="material-icons sub-arrow">chevron_right</span>
+                            <div class="ctx-submenu ${this._ctxMenu.subLeft ? 'left' : ''}">
+                                <div class="ctx-item" @click="${() => { const f = this._ctxMenu.file; this._ctxMenu = null; this._setAsBackground(f, 'current'); }}">
+                                    Current view
+                                </div>
+                                <div class="ctx-item" @click="${() => { const f = this._ctxMenu.file; this._ctxMenu = null; this._setAsBackground(f, 'all'); }}">
+                                    All views
+                                </div>
+                            </div>
+                        </div>
                         <div class="ctx-item" @click="${() => { const f = this._ctxMenu.file; this._ctxMenu = null; this._setAsPwaIcon(f); }}">
                             <span class="material-icons">install_mobile</span>Set as PWA icon
                         </div>
