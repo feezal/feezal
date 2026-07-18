@@ -588,8 +588,25 @@ class FeezalSidebarInspector extends LitElement {
         }
     }
 
-    restoreViews(html) {
+    /**
+     * B35: tear down every DragSelect instance before discarding the map —
+     * dropping the references without stop() leaks each instance's
+     * SelectorArea overlay div in document.body (and its listeners).
+     */
+    _disposeDragSelect() {
+        Object.values(this.dragselect || {}).forEach(ds => {
+            if (ds.stopped) return;
+            try {
+                ds.stop();
+            } catch (err) {
+                console.warn('[feezal] DragSelect stop failed:', err);
+            }
+        });
         this.dragselect = {};
+    }
+
+    restoreViews(html) {
+        this._disposeDragSelect();
         if (html !== undefined) {
             feezal.site.innerHTML = html;
         }
@@ -610,7 +627,7 @@ class FeezalSidebarInspector extends LitElement {
     }
 
     loadViews(data, viewerConfig) {
-        this.dragselect = {};
+        this._disposeDragSelect();
         feezal.app.innerHTML = data;
         feezal.app.views = [...feezal.views];
         feezal.app._removeClassesFromChildren(feezal.site, ['feezal-selected']);
@@ -837,6 +854,7 @@ class FeezalSidebarInspector extends LitElement {
             const existing = [...view.querySelectorAll('.feezal-editable')];
             if (existing.length > 0) {
                 ds.addSelectables(existing);
+                existing.forEach(el => { el._feezalInDragSelect = true; });
             }
 
             // Reliable click-selection via composedPath — DragSelect alone cannot
@@ -893,7 +911,17 @@ class FeezalSidebarInspector extends LitElement {
         const viewName = this.view;
         requestAnimationFrame(() => {
             if (this.view === viewName && this.dragselect && this.dragselect[viewName]) {
-                this.dragselect[viewName].start();
+                const ds = this.dragselect[viewName];
+                ds.start();
+                // B35: the stop() on switch-away cleared the SelectableSet —
+                // re-register this view's editable elements on re-entry, or the
+                // rubber-band draws but selects nothing.
+                const missing = [...(feezal.getView(viewName)?.querySelectorAll('.feezal-editable') ?? [])]
+                    .filter(el => !el._feezalInDragSelect);
+                if (missing.length > 0) {
+                    ds.addSelectables(missing);
+                    missing.forEach(el => { el._feezalInDragSelect = true; });
+                }
             }
         });
     }
@@ -913,8 +941,23 @@ class FeezalSidebarInspector extends LitElement {
         // Stop DragSelect on all other views so only the active view
         // responds to pointer events. Without this, all views' DragSelect
         // instances compete for the same events when views were still visible.
+        // B35: ds.stop() is NOT idempotent — DragSelect's SelectorArea does an
+        // unguarded removeChild, so a second stop() throws NotFoundError and
+        // aborts the rest of _viewChanged (no rubber-band / no element init on
+        // the new view). Only stop running instances (ds.stopped is DragSelect's
+        // own flag), and since stop() also clears the SelectableSet, drop the
+        // per-element registration flags so the restart path re-registers them.
         Object.entries(this.dragselect).forEach(([name, ds]) => {
-            if (name !== this.view) ds.stop();
+            if (name === this.view || ds.stopped) return;
+            try {
+                ds.stop();
+            } catch (err) {
+                console.warn('[feezal] DragSelect stop failed:', err);
+            }
+            const v = feezal.getView(name);
+            if (v) {
+                v.querySelectorAll('.feezal-editable').forEach(el => { el._feezalInDragSelect = false; });
+            }
         });
 
         switch (view.childPosition) {

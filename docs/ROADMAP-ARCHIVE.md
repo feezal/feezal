@@ -227,6 +227,35 @@ When many elements are present on the canvas or the grid size is small, too many
 
 **Files to investigate:** `feezal-sidebar-inspector.js` — the drag `move` event handler and helper-line rendering logic.
 
+### B35 — Rubber-band select breaks after view switches ✅ fixed
+
+**Root cause identified (07/2026).** Reproduced with console open — on a view switch (3rd switch in the session, to a view with no elements) this fires:
+
+```
+Uncaught (in promise) NotFoundError: Failed to execute 'removeChild' on 'Node':
+The node to be removed is not a child of this node.
+    at SelectorArea.applyElements  (dragselect)
+    at SelectorArea.stop           (dragselect)
+    at DragSelect.stop             (dragselect)
+    at forEach callback in _viewChanged   (feezal-sidebar-inspector.js)
+    at mo.updated  →  Lit performUpdate
+```
+
+The same error repeats on every subsequent view change / view creation (reproduced again when adding a new view and placing an element).
+
+**Mechanism — `ds.stop()` is not idempotent, and we call it repeatedly.** DragSelect instances are created one-per-view (`this.dragselect[viewName]`, [feezal-sidebar-inspector.js:779](../www/src/feezal-sidebar-inspector.js#L779)). `_viewChanged()` stops **every non-active** instance on **every** switch ([feezal-sidebar-inspector.js:913-916](../www/src/feezal-sidebar-inspector.js#L913-L916)) — so from the second switch onwards, `stop()` hits instances that are **already stopped**. DragSelect's `SelectorArea.applyElements('remove')` ([SelectorArea.js:64-69](../www/node_modules/dragselect/src/modules/SelectorArea.js#L64-L69)) runs two unguarded `removeChild` calls (selector out of the SelectorArea node, SelectorArea node out of `document.body`); on the second stop the SelectorArea is no longer in `document.body` → **NotFoundError**.
+
+**Why it breaks everything downstream:** the throw happens inside the `forEach` **before** `_viewChanged()` reaches `_initDragSelect()`, `this.currentView = [view]`, and the per-element `initElem()` loop — the rest of `_viewChanged` never runs (Lit's `updated()` swallows it as an unhandled rejection, so nothing recovers). Consequences map 1:1 to the observed stages: a revisited view keeps a stopped/never-restarted instance (rectangle may still draw via stale wiring but selects nothing); a **newly created** view never gets an instance at all (**no rectangle**, total breakage); element/interact initialisation for the new view is skipped or runs against stale `currentView` state (→ B32's stuck snap lines during the next drag).
+
+**Fix directions** (pick during implementation):
+1. **Stop only the view actually being left** (track the previous view name) instead of iterating all instances — plus an idempotency guard (e.g. `ds._feezalStarted` flag toggled on start/stop, or wrap `stop()` in try/catch as a belt-and-braces).
+2. Or restructure to a **single DragSelect instance** whose `area`/selectables are swapped in `_viewChanged()` — removes the whole instance-zoo (worth weighing against E106-era cleanups).
+3. While in there, **verify selectables survive stop→start**: DragSelect's `stop(remove, fromSelection)` clears selection state, and elements keep `_feezalInDragSelect === true` ([feezal-sidebar-inspector.js:1476-1480](../www/src/feezal-sidebar-inspector.js#L1476-L1480)) — if `start()` doesn't restore the selectable set, revisited views need re-registration (reset the flags on stop). This was the pre-console-evidence suspect and may be a second, masked layer of the same bug.
+
+**Acceptance:** B35's original repro (switch views ≥3×, rubber-band on every view, incl. a freshly added one) with a console free of NotFoundError; retest B32/B33/B36 afterwards — they are plausibly downstream of this same aborted `_viewChanged`.
+
+**Relates:** B32 (stuck snap lines — downstream symptom of the aborted `_viewChanged`, same session/stack), B33 (elements not selectable/draggable — the skipped `initElem()` loop would produce exactly that; retest after the fix), B34 (stray orange dot — same `dragstart`/`ds.break()` surface), B36 (snapping stops until reload — plausibly the same aborted-init state), E106 (glass refactor — unrelated code, but option 2's single-instance restructure is the same "one shared thing instead of N copies" shape).
+
 ### B38 — glass-wled: details dropdowns ignore theme colours ✅ fixed
 
 The glass-wled details popup renders its **effect / palette / preset** selectors as native `<select>`/`<option>` elements ([feezal-element-glass-wled.js](www/packages/@feezal/feezal-element-glass-wled/feezal-element-glass-wled.js) — the `.fx` / `.pal` / `.preset` selects). Native selects inherit the browser's default (light) control chrome rather than the glass card's `--feezal-glass-*` colours, so on a dark theme (or the frosted-glass card generally) the closed select and its open option list render dark-on-dark / light-on-light and become **unreadable**. (Chromium honours `background`/`color` set on `<option>` for the popup list; Firefox/Safari and mobile native pickers ignore it — so pure CSS on the native control is only a partial fix.)

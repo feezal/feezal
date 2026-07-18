@@ -7,10 +7,9 @@ Work in progress — priorities and scope are not final.
 ## Table of Contents
 
 **Bugs**
-- [B32 — Snapping helper lines sometimes don't disappear](#b32--snapping-helper-lines-sometimes-dont-disappear-needs-investigation) ❓
+- [B32 — Snapping helper lines sometimes don't disappear](#b32--snapping-helper-lines-sometimes-dont-disappear--downstream-of-b35) *(downstream of B35)*
 - [B33 — Elements sometimes not selectable/draggable](#b33--elements-sometimes-not-selectabledraggable-needs-investigation) ❓
 - [B34 — Stray orange dot left over from rubber-band selection during element drag](#b34--stray-orange-dot-left-over-from-rubber-band-selection-during-element-drag) (not yet reproducable )❓
-- [B35 — Rubber-band select sometimes selects nothing](#b35--rubber-band-select-sometimes-selects-nothing-needs-investigation) ❓
 - [B36 — Snapping sometimes stops working until page reload](#b36--snapping-sometimes-stops-working-until-page-reload-needs-investigation) ❓
 
 **Near-term Improvements**
@@ -80,9 +79,15 @@ Work in progress — priorities and scope are not final.
 
 ## Bugs
 
-### B32 — Snapping helper lines sometimes don't disappear ❓ needs investigation
+### B32 — Snapping helper lines sometimes don't disappear — downstream of B35
 
-The snapping helper/alignment lines shown while dragging sometimes remain visible after they should have disappeared (drag ended / snap no longer active). No reliable repro yet — **further investigation/refinement needed**. Likely a missed cleanup path in the drag lifecycle in [feezal-sidebar-inspector.js](www/src/feezal-sidebar-inspector.js) (e.g. drag cancelled via Escape, pointer released outside the canvas, or interact.js end event not firing).
+The snapping helper/alignment lines shown while dragging sometimes remain visible after they should have disappeared (drag ended / snap no longer active).
+
+**Console evidence captured (07/2026, same session as B35):** the diagnostic step proposed here paid off — reproducing per B35's recipe with the console open shows the predicted uncaught exception, and it is **B35's `NotFoundError`** (DragSelect `SelectorArea.applyElements` → `stop`, thrown inside `_viewChanged`'s stop-all-other-views `forEach`). It fires on view switches **and again when creating a new view / placing an element** (`_addView` → Lit update → `_viewChanged` appears in the captured stack). Because the throw aborts `_viewChanged` before `this.currentView = [view]` and the per-element `initElem()` loop, the subsequent drag on the new view runs against **stale view state** — the observed outcome was one vertical and one horizontal snap line left stuck, immediately followed by rubber-band going totally dead (B35 stage 2).
+
+**Plan:** fix B35 first (idempotent/targeted `ds.stop()`), then retest this repro. Only if stuck lines still occur afterwards does B32 need its own investigation — then look at the drag-end cleanup paths in [feezal-sidebar-inspector.js](../www/src/feezal-sidebar-inspector.js) (Escape-cancelled drags, pointer released outside the canvas, interact.js `end` not firing) and the snap-line geometry derived from `#container-view` rects ([feezal-sidebar-inspector.js:1196-1236](../www/src/feezal-sidebar-inspector.js#L1196-L1236)).
+
+**Relates:** B35 (root cause — the aborted `_viewChanged`; fix and retest there first), B36 (snapping stops until reload — plausibly the same aborted-init state).
 
 ### B33 — Elements sometimes not selectable and/or draggable ❓ needs investigation
 
@@ -97,14 +102,6 @@ A tiny orange dot occasionally appears at the point of the initial click when dr
 **Fix direction:** explicitly hide the selector (`display:none` or equivalent) whenever `ds.break()` is called in the `dragstart` handler, rather than relying on DragSelect's own cleanup; verify against the installed `dragselect` version's `break()` behaviour (whether it already resets the selector and this is instead a timing/z-index issue). Needs a repro to confirm before fixing — grep-located candidate, not yet reproduced/verified.
 
 **Relates:** B32 (snapping helper lines not disappearing — same family of "leftover canvas overlay" bug, possibly worth investigating together), B33 (selectability/drag flakiness — same interact.js/DragSelect interaction surface).
-
-### B35 — Rubber-band select sometimes selects nothing ❓ needs investigation
-
-Dragging a rubber-band selection over elements sometimes selects nothing, even though it visibly overlaps elements. No reliable repro yet — **further investigation needed**.
-
-Candidate area: the DragSelect `callback` handler ([feezal-sidebar-inspector.js:806-833](../www/src/feezal-sidebar-inspector.js#L806-L833)) only applies `items` when `this._dsDidDrag` was set true by the `dragstart` handler ([feezal-sidebar-inspector.js:798-804](../www/src/feezal-sidebar-inspector.js#L798-L804)), which itself gates on `event.target.tagName === 'FEEZAL-VIEW'` — if the gesture starts on some other element/overlay first (or `dragstart` doesn't fire before `callback` in some ordering), `_dsDidDrag` stays false and the whole selection result is discarded (`wasDrag` false → early `return`, line 810-816) regardless of what DragSelect actually found under the rectangle. Also worth checking whether newly-registered elements (`ds.addSelectables`, [feezal-sidebar-inspector.js:1417-1421](../www/src/feezal-sidebar-inspector.js#L1417-L1421)) can miss registration in some ordering, making them invisible to DragSelect's hit-testing even though they're visually on canvas.
-
-**Relates:** B34 (stray orange dot — same `dragstart`/`ds.break()` gating logic, possibly a shared root cause worth investigating together), B32/B33 (same canvas-overlay/DragSelect/interact.js interaction surface).
 
 ### B36 — Snapping sometimes stops working until page reload ❓ needs investigation
 

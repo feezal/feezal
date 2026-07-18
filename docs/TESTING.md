@@ -133,6 +133,7 @@ copy/paste offset, Ctrl+D, Delete, context-menu lock/unlock incl. drag-blocking,
 single-element move, arrow nudge, single undo, source-mode error gating + apply,
 and palette drag-to-canvas are all automated.)
 
+- [ ] **Rubber-band survives view switches (B35)**: switch between views **at least 3×** (include an empty view and one **created mid-session**) — rubber-band select keeps working on *every* view after *every* switch (rectangle draws AND elements actually get selected), the console stays free of `NotFoundError … removeChild`, and elements on a freshly created view are selectable/draggable immediately. While at it, watch B32/B33/B36 (stuck snap lines, unselectable elements, dead snapping): they were plausibly downstream of the same aborted view-switch handler. *(Idempotent stop, selectable re-registration on revisit, mid-session view creation and overlay disposal are browser-tested with the real DragSelect.)*
 - [ ] **Resize** via handles; **snapping** to other elements + grid (both axes); snap guide lines show/hide correctly.
 - [ ] **Grid:** toggle visibility; change size + colour (both axes use the colour); grid aligns to the view origin, not the toolbar.
 - [ ] **Undo / redo** breadth: multi-step sequences, redo (Ctrl+Y), across add/delete/source-apply.
