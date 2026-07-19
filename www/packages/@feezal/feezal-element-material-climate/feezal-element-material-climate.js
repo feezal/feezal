@@ -145,7 +145,12 @@ class FeezalElementMaterialClimate extends FeezalElement {
                 {name: 'unit', type: 'string', default: '°C', help: 'Temperature unit label shown on the card.'},
                 // ── Mode chips ────────────────────────────────────────────────
                 {name: 'modes', type: 'string', default: '',
-                    help: 'JSON array of mode objects: [{"value":"heat","label":"Heat"},{"value":"cool","label":"Cool"}]. When non-empty, a chip row is shown.'},
+                    help: 'JSON array of mode entries. Simple: [{"value":"heat","label":"Heat"},…] publishes the value on publish-mode. ' +
+                        'E102 per-entry overrides: add "publish"+"payload" to write a specific datapoint — payload is a string OR a JSON ' +
+                        'object (published as-is, e.g. to a putParamset topic hm/paramset/<channel>/VALUES with {"CONTROL_MODE":1,"SET_POINT_TEMPERATURE":4.5}). ' +
+                        '"$setpoint" in a payload resolves to the last real setpoint (Homematic MANU_MODE=$setpoint; "off" = manual + 4.5). ' +
+                        'A "momentary":true entry (boost) is a push button — activate publishes it; deactivate runs "off": {"publish","payload"} ' +
+                        '(HmIP BOOST_MODE=false) or "off":"restore" (BidCoS — re-apply the pre-boost mode).'},
                 // ── Display ───────────────────────────────────────────────────
                 {name: 'label', type: 'string', default: '', help: 'Optional card title shown at the bottom.'},
                 // ── Availability ──────────────────────────────────────────────
@@ -221,6 +226,7 @@ class FeezalElementMaterialClimate extends FeezalElement {
         _valve:      {state: true},   // null | number (0–100)
         _humidity:   {state: true},   // null | number
         _dragSpan:   {state: true},   // null | number — live arc span during drag
+        _momentaryActive: {state: true},   // E102: active momentary (boost) entry value
     };
 
     static styles = [feezalBaseStyles, css`
@@ -362,6 +368,10 @@ class FeezalElementMaterialClimate extends FeezalElement {
         this._valve                = null;
         this._humidity             = null;
         this._dragSpan             = null;
+        // E102 — mode-entry machinery
+        this._lastRealSetpoint     = null;   // remembered setpoint > off sentinel (for $setpoint)
+        this._preBoostMode         = null;   // mode before a momentary/boost entry (for off:"restore")
+        this._momentaryActive      = null;   // value of the currently-active momentary entry
     }
 
     // The thermostat manages all subscriptions itself.
@@ -389,7 +399,7 @@ class FeezalElementMaterialClimate extends FeezalElement {
         if (this.subscribeSetpoint) {
             this.addSubscription(this.subscribeSetpoint, msg => {
                 const v = Number(this.getProperty(msg, this.msgPropSetpoint || this.messageProperty));
-                if (!isNaN(v)) this._setpoint = v;
+                if (!isNaN(v)) { this._setpoint = v; if (v > 4.5) this._lastRealSetpoint = v; }   // E102: remember real setpoint for $setpoint
             });
         }
         if (this.subscribeActual) {
@@ -447,7 +457,7 @@ class FeezalElementMaterialClimate extends FeezalElement {
         const map = this._jsonMap;
         const get = key => this.getProperty(obj, key);
         const sp = Number(get(map.setpoint));
-        if (!isNaN(sp)) this._setpoint = sp;
+        if (!isNaN(sp)) { this._setpoint = sp; if (sp > 4.5) this._lastRealSetpoint = sp; }   // E102
         const ac = Number(get(map.actual));
         if (!isNaN(ac)) this._actual = ac;
         const mode = get(map.mode);
@@ -467,16 +477,91 @@ class FeezalElementMaterialClimate extends FeezalElement {
         }
     }
 
+    /**
+     * E102 — publish a per-mode-entry override to an explicit topic. `payload`
+     * may be a string OR a JSON object (published as-is → the bridge's
+     * putParamset topic, e.g. hm/paramset/<channel>/VALUES with
+     * {CONTROL_MODE:1, SET_POINT_TEMPERATURE:4.5}). String values (also inside
+     * object values) support the `$setpoint` placeholder → the remembered last
+     * real setpoint (covers Homematic MANU_MODE=<temp>).
+     */
+    _pubEntry(topic, payload) {
+        if (feezal.isEditor || !topic) return;
+        const resolved = this._resolveModePayload(payload);
+        feezal.connection.pub(topic,
+            (resolved !== null && typeof resolved === 'object') ? JSON.stringify(resolved) : String(resolved ?? ''));
+    }
+
+    /** E102 — recursively substitute `$setpoint` in a string / object payload. */
+    _resolveModePayload(payload) {
+        const sp = this._lastRealSetpoint ?? this._setpoint ?? this.min;
+        const sub = v => typeof v === 'string' ? v.replace(/\$setpoint/g, String(sp)) : v;
+        if (payload !== null && typeof payload === 'object') {
+            const out = Array.isArray(payload) ? [] : {};
+            for (const [k, val] of Object.entries(payload)) {
+                out[k] = (val !== null && typeof val === 'object') ? this._resolveModePayload(val) : sub(val);
+            }
+            return out;
+        }
+        return sub(payload);
+    }
+
     _setSetpoint(temp) {
         const clamped = +(Math.min(this.max, Math.max(this.min, Math.round(temp / this.step) * this.step))).toFixed(2);
         this._setpoint  = clamped;
+        if (clamped > 4.5) this._lastRealSetpoint = clamped;   // E102: $setpoint memory
         this._dragSpan  = null;
         this._pub(this.publishSetpoint, clamped, {[this._jsonMap.setpoint]: clamped});
     }
 
-    _setMode(value) {
-        this._mode = value;
-        this._pub(this.publishMode, value, {[this._jsonMap.mode]: value});
+    /**
+     * E102 — apply a mode entry. Plain entries publish the mode value (default
+     * publish-mode / json write, unchanged). Entries with a per-entry `publish`
+     * write their `payload` (string or object, `$setpoint`-resolved) to that
+     * topic instead — covers Homematic's per-mode action datapoints
+     * (AUTO_MODE=true, MANU_MODE=$setpoint) and the HmIP combined putParamset
+     * write. A `momentary` entry (boost) toggles with its own off-strategy.
+     */
+    _setMode(entry) {
+        if (feezal.isEditor) return;
+        // Back-compat: callers may still pass a bare string value.
+        if (typeof entry === 'string') entry = {value: entry};
+
+        if (entry.momentary) { this._toggleMomentary(entry); return; }
+
+        this._mode = entry.value;
+        if (entry.publish) {
+            this._pubEntry(entry.publish, entry.payload ?? entry.value);
+        } else {
+            this._pub(this.publishMode, entry.value, {[this._jsonMap.mode]: entry.value});
+        }
+    }
+
+    /**
+     * E102 — momentary mode (boost). Activate publishes the entry; deactivate
+     * runs its off-strategy: `off: {publish, payload}` (HmIP BOOST_MODE=false)
+     * or `off: "restore"` (BidCoS — re-apply the pre-boost mode via the same
+     * per-entry machinery; the pre-boost mode is client-remembered, so a reload
+     * during boost degrades gracefully to "restore = the current read-back").
+     */
+    _toggleMomentary(entry) {
+        const active = this._momentaryActive === entry.value || this._mode === entry.value;
+        if (active) {
+            this._momentaryActive = null;
+            if (entry.off === 'restore') {
+                const prev = this._preBoostMode;
+                const prevEntry = this._parsedModes().find(m => m.value === prev && !m.momentary);
+                if (prevEntry) this._setMode(prevEntry);
+                else if (prev != null) this._pub(this.publishMode, prev, {[this._jsonMap.mode]: prev});
+            } else if (entry.off && entry.off.publish) {
+                this._pubEntry(entry.off.publish, entry.off.payload);
+            }
+        } else {
+            this._preBoostMode = this._mode;
+            this._momentaryActive = entry.value;
+            if (entry.publish) this._pubEntry(entry.publish, entry.payload ?? entry.value);
+            else this._pub(this.publishMode, entry.value, {[this._jsonMap.mode]: entry.value});
+        }
     }
 
     // ─── Arc interaction ──────────────────────────────────────────────────────
@@ -660,8 +745,8 @@ class FeezalElementMaterialClimate extends FeezalElement {
                     ${modeList.map(m => html`
                         <md-filter-chip
                             label="${m.label ?? m.value}"
-                            ?selected="${this._mode === m.value}"
-                            @click="${() => this._setMode(m.value)}">
+                            ?selected="${m.momentary ? (this._momentaryActive === m.value || this._mode === m.value) : this._mode === m.value}"
+                            @click="${() => this._setMode(m)}">
                         </md-filter-chip>
                     `)}
                 </div>
