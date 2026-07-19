@@ -32,7 +32,12 @@ class FeezalElementMetroClimate extends MetroTileBase {
                 {name: 'max',  type: 'number', default: 30, section: 'Setpoint', help: 'Setpoint maximum.'},
                 {name: 'unit', type: 'string', default: '°C', section: 'Setpoint', help: 'Temperature unit.'},
                 {name: 'modes', type: 'objectList', itemFields: [{key: '', placeholder: 'heat'}], section: 'Display',
-                    help: 'Selectable modes, e.g. off / heat / cool / auto.'},
+                    help: 'Selectable modes, e.g. off / heat / cool / auto. E102 per-entry overrides (edit the attribute as JSON): add ' +
+                        '"publish"+"payload" to a {"value":...} entry to write a specific datapoint — payload is a string OR a JSON ' +
+                        'object (published as-is, e.g. to a putParamset topic hm/paramset/<channel>/VALUES with {"CONTROL_MODE":1,"SET_POINT_TEMPERATURE":4.5}). ' +
+                        '"$setpoint" in a payload resolves to the last real setpoint (Homematic MANU_MODE=$setpoint; "off" = manual + 4.5). ' +
+                        'A "momentary":true entry (boost) is a push button — activate publishes it; deactivate runs "off": {"publish","payload"} ' +
+                        '(HmIP BOOST_MODE=false) or "off":"restore" (BidCoS — re-apply the pre-boost mode).'},
             ],
             styles: MetroTileBase.tileStyles,
             restrict: {minWidth: 40, minHeight: 40},
@@ -71,6 +76,7 @@ class FeezalElementMetroClimate extends MetroTileBase {
         _current:  {state: true},
         _setpoint: {state: true},
         _mode:     {state: true},
+        _momentaryActive: {state: true},   // E102: value of the currently-active momentary (boost) entry
     };
 
     static styles = [MetroTileBase.styles, css`
@@ -98,6 +104,10 @@ class FeezalElementMetroClimate extends MetroTileBase {
         this._current = null;
         this._setpoint = null;
         this._mode = '';
+        // E102 — mode-entry machinery
+        this._lastRealSetpoint = null;   // remembered setpoint > off sentinel (for $setpoint)
+        this._preBoostMode     = null;   // mode before a momentary/boost entry (for off:"restore")
+        this._momentaryActive  = null;   // value of the currently-active momentary entry
     }
 
     connectedCallback() {
@@ -109,7 +119,7 @@ class FeezalElementMetroClimate extends MetroTileBase {
         });
         sub(this.subSetpoint, msg => {
             const v = Number(this.getProperty(msg, this.msgPropSetpoint || this.messageProperty));
-            if (!isNaN(v)) this._setpoint = v;
+            if (!isNaN(v)) { this._setpoint = v; if (v > 4.5) this._lastRealSetpoint = v; }   // E102: remember real setpoint for $setpoint
         });
         sub(this.subMode, msg => {
             const v = this.getProperty(msg, this.msgPropMode || this.messageProperty);
@@ -117,10 +127,14 @@ class FeezalElementMetroClimate extends MetroTileBase {
         });
     }
 
-    _modeList() {
+    /** Modes attribute → [{value, label, ...}] (material-climate coercion). E102:
+     * object entries keep all fields (publish/payload/momentary/off), not just value/label. */
+    _parsedModes() {
         try {
-            const r = JSON.parse(this.modes || '[]');
-            return (Array.isArray(r) ? r : []).map(String).filter(Boolean);
+            const raw = JSON.parse(this.modes || '[]');
+            return (Array.isArray(raw) ? raw : []).map(m =>
+                typeof m === 'string' ? {value: m, label: m} : {...m, label: m.label || m.value})
+                .filter(m => m.value);
         } catch {
             return [];
         }
@@ -132,13 +146,87 @@ class FeezalElementMetroClimate extends MetroTileBase {
         const current = this._setpoint ?? (this.min + this.max) / 2;
         const next = Math.min(this.max, Math.max(this.min, Math.round((current + direction * step) * 100) / 100));
         this._setpoint = next;
+        if (next > 4.5) this._lastRealSetpoint = next;   // E102: $setpoint memory
         if (this.pubSetpoint) feezal.connection.pub(this.pubSetpoint, String(next));
     }
 
-    _setMode(mode) {
+    /**
+     * E102 — publish a per-mode-entry override to an explicit topic. `payload`
+     * may be a string OR a JSON object (published as-is → the bridge's
+     * putParamset topic, e.g. hm/paramset/<channel>/VALUES with
+     * {CONTROL_MODE:1, SET_POINT_TEMPERATURE:4.5}). String values (also inside
+     * object values) support the `$setpoint` placeholder → the remembered last
+     * real setpoint (covers Homematic MANU_MODE=<temp>).
+     */
+    _pubEntry(topic, payload) {
+        if (feezal.isEditor || !topic) return;
+        const resolved = this._resolveModePayload(payload);
+        feezal.connection.pub(topic,
+            (resolved !== null && typeof resolved === 'object') ? JSON.stringify(resolved) : String(resolved ?? ''));
+    }
+
+    /** E102 — recursively substitute `$setpoint` in a string / object payload. */
+    _resolveModePayload(payload) {
+        const sp = this._lastRealSetpoint ?? this._setpoint ?? this.min;
+        const sub = v => typeof v === 'string' ? v.replace(/\$setpoint/g, String(sp)) : v;
+        if (payload !== null && typeof payload === 'object') {
+            const out = Array.isArray(payload) ? [] : {};
+            for (const [k, val] of Object.entries(payload)) {
+                out[k] = (val !== null && typeof val === 'object') ? this._resolveModePayload(val) : sub(val);
+            }
+            return out;
+        }
+        return sub(payload);
+    }
+
+    /**
+     * E102 — apply a mode entry. Plain entries publish the mode value on
+     * publish-mode (unchanged). Entries with a per-entry `publish` write their
+     * `payload` (string or object, `$setpoint`-resolved) to that topic instead
+     * — covers Homematic's per-mode action datapoints (AUTO_MODE=true,
+     * MANU_MODE=$setpoint) and the HmIP combined putParamset write. A
+     * `momentary` entry (boost) toggles with its own off-strategy.
+     */
+    _setMode(entry) {
         if (feezal.isEditor) return;
-        this._mode = mode;
-        if (this.pubMode) feezal.connection.pub(this.pubMode, mode);
+        // Back-compat: callers may still pass a bare string value.
+        if (typeof entry === 'string') entry = {value: entry};
+
+        if (entry.momentary) { this._toggleMomentary(entry); return; }
+
+        this._mode = entry.value;
+        if (entry.publish) {
+            this._pubEntry(entry.publish, entry.payload ?? entry.value);
+        } else if (this.pubMode) {
+            feezal.connection.pub(this.pubMode, entry.value);
+        }
+    }
+
+    /**
+     * E102 — momentary mode (boost). Activate publishes the entry; deactivate
+     * runs its off-strategy: `off: {publish, payload}` (HmIP BOOST_MODE=false)
+     * or `off: "restore"` (BidCoS — re-apply the pre-boost mode via the same
+     * per-entry machinery; the pre-boost mode is client-remembered, so a reload
+     * during boost degrades gracefully to "restore = the current read-back").
+     */
+    _toggleMomentary(entry) {
+        const active = this._momentaryActive === entry.value || this._mode === entry.value;
+        if (active) {
+            this._momentaryActive = null;
+            if (entry.off === 'restore') {
+                const prev = this._preBoostMode;
+                const prevEntry = this._parsedModes().find(m => m.value === prev && !m.momentary);
+                if (prevEntry) this._setMode(prevEntry);
+                else if (prev != null && this.pubMode) feezal.connection.pub(this.pubMode, prev);
+            } else if (entry.off && entry.off.publish) {
+                this._pubEntry(entry.off.publish, entry.off.payload);
+            }
+        } else {
+            this._preBoostMode = this._mode;
+            this._momentaryActive = entry.value;
+            if (entry.publish) this._pubEntry(entry.publish, entry.payload ?? entry.value);
+            else if (this.pubMode) feezal.connection.pub(this.pubMode, entry.value);
+        }
     }
 
     renderFront() {
@@ -149,7 +237,7 @@ class FeezalElementMetroClimate extends MetroTileBase {
     }
 
     renderBack() {
-        const modes = this._modeList();
+        const modes = this._parsedModes();
         const hasModes = modes.length > 0;
         return html`
             <div class="stepper">
@@ -159,9 +247,9 @@ class FeezalElementMetroClimate extends MetroTileBase {
             </div>
             ${hasModes ? html`
                 <div class="chips">
-                    ${modes.map(mode => html`
-                        <button class="mbtn ${this._mode === mode ? 'active' : ''}"
-                            @click="${() => this._setMode(mode)}">${mode}</button>`)}
+                    ${modes.map(m => html`
+                        <button class="mbtn ${(m.momentary ? (this._momentaryActive === m.value || this._mode === m.value) : this._mode === m.value) ? 'active' : ''}"
+                            @click="${() => this._setMode(m)}">${m.label ?? m.value}</button>`)}
                 </div>` : ''}`;
     }
 }
