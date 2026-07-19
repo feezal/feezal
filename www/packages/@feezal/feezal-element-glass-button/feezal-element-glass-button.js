@@ -43,7 +43,7 @@ class FeezalElementGlassButton extends FeezalElement {
                 {property: '--feezal-glass-icon-size', default: '28px', help: 'Icon font size.'},
                 {property: '--feezal-glass-font-size-label', default: '12px', help: 'Label font size.'},
             ],
-            defaultStyle: {width: '150px', height: '110px'},
+            defaultStyle: {width: '172px', height: '128px'},
             restrict: {minWidth: 60, minHeight: 60},
         };
     }

@@ -80,7 +80,7 @@ class FeezalElementGlassWled extends FeezalElement {
                 {property: '--feezal-glass-font-size-label', default: '12px', help: 'Label font size.'},
                 {property: '--feezal-glass-font-size-unit', default: '12px', help: 'Flip/detail button icon size.'},
             ],
-            defaultStyle: {width: '150px', height: '110px'},
+            defaultStyle: {width: '172px', height: '128px'},
             restrict: {minWidth: 90, minHeight: 70},
         };
     }

@@ -68,7 +68,7 @@ class FeezalElementGlassOccupancy extends FeezalElement {
                 {property: '--feezal-glass-font-size-state', default: '15px', help: 'State line font size.'},
                 {property: '--feezal-glass-font-size-label', default: '12px', help: 'Label font size.'},
             ],
-            defaultStyle: {width: '150px', height: '110px'},
+            defaultStyle: {width: '172px', height: '128px'},
             restrict: {minWidth: 70, minHeight: 60},
         };
     }
