@@ -15,6 +15,8 @@ class FeezalElementMetroClimate extends MetroTileBase {
             description: 'Metro thermostat tile: current temperature on the front, setpoint stepper + mode chips on the back.',
             attributes: [
                 ...MetroTileBase.tileAttributes,
+                // E102 WP3: device-profile stamping picker (U39 custom hook).
+                {type: 'custom', component: 'feezal-climate-profiles', section: 'Device profile'},
                 // U39: grouped inspector; message-property-* twins tuck behind Advanced.
                 {name: 'subscribe', type: 'mqttTopic', section: 'Connection', help: 'Current temperature topic.'},
                 {name: 'message-property', type: 'string', default: 'payload', section: 'Connection', advanced: true,

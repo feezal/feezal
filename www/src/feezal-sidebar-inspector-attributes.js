@@ -11,6 +11,10 @@ import '@shoelace-style/shoelace/dist/components/select/select.js';
 import '@shoelace-style/shoelace/dist/components/option/option.js';
 import '@shoelace-style/shoelace/dist/components/checkbox/checkbox.js';
 import './feezal-template-editor.js';
+// E102 WP3: ensure the climate device-profile picker tag is defined in the
+// editor bundle so the `{type:'custom'}` inspector hook (glass/metro) and the
+// material-climate inspector embed can render <feezal-climate-profiles>.
+import './feezal-climate-profiles.js';
 import MATERIAL_ICONS from './material-design-icons.js';
 import {iconSets} from './feezal-icon.js';
 

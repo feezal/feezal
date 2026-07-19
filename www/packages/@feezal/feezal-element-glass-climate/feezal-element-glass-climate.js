@@ -58,6 +58,8 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
             // inspector — only the relevant payload-mode's topics show, and the
             // message-property-* twins tuck behind each section's Advanced group.
             attributes: [
+                // E102 WP3: device-profile stamping picker (U39 custom hook).
+                {type: 'custom', component: 'feezal-climate-profiles', section: 'Device profile'},
                 {name: 'size', type: 'select', options: ['', '2x2', '2x1'], default: '', section: 'Layout',
                     help: 'Preset size: 2x2 = square (150×150), 2x1 = wide (150×75). Empty keeps the current/manual size.'},
                 {name: 'payload-mode', type: 'select', options: ['separate', 'json'], default: 'separate', section: 'Connection',
