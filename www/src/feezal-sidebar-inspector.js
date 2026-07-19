@@ -1,7 +1,6 @@
 import {LitElement, html, css} from 'lit';
 
 import DragSelect from 'dragselect';
-import sortable from 'html5sortable/dist/html5sortable.es.js';
 import interact from 'interactjs';
 
 import '@shoelace-style/shoelace/dist/components/tab-group/tab-group.js';
@@ -787,7 +786,7 @@ class FeezalSidebarInspector extends LitElement {
 
     /**
      * U41 — click-select + context menu on the canvas via composedPath. Works
-     * for absolute (DragSelect) AND flow (html5sortable) views; the click never
+     * for absolute (DragSelect) AND flow (interact.js reorder) views; the click never
      * depends on the drag machinery. Attached once per view element.
      */
     _attachCanvasSelection(view) {
@@ -825,27 +824,71 @@ class FeezalSidebarInspector extends LitElement {
         }, true);
     }
 
-    _initSortable(view) {
-        sortable(view, {
-            // U41: canvas elements carry `.feezal-editable` (there is no
-            // `.feezal-element` class) — the old selector matched nothing, so
-            // reorder never actually worked.
-            items: '.feezal-editable',
-            forcePlaceholderSize: true,
-            placeholderClass: 'feezal-placeholder'
+    /**
+     * U41 — reorder an element within a flow view with **interact.js** (not
+     * native HTML5 drag): the dragged tile is lifted out of flow (position:
+     * fixed, following the pointer) while a placeholder holds its slot; moving
+     * the placeholder among the siblings live-reflows the flex layout. Reorder
+     * is DOM order (U33), committed to the dirty/undo pipeline on drop.
+     */
+    initFlow(element) {
+        interact(element).draggable({
+            autoScroll: {enabled: true, container: feezal.site, speed: 300, margin: 40},
+            listeners: {
+                start: () => {
+                    if (!this.selectedElems.includes(element)) this.selectElement(element);
+                    const r = element.getBoundingClientRect();
+                    const ph = document.createElement('div');
+                    ph.className = 'feezal-placeholder';
+                    ph.style.cssText = `width:${Math.round(r.width)}px;height:${Math.round(r.height)}px;flex:0 0 auto;box-sizing:border-box;`;
+                    element.parentElement.insertBefore(ph, element);
+                    element._flowPh = ph;
+                    element._flowPos = {x: r.left, y: r.top};
+                    Object.assign(element.style, {
+                        position: 'fixed', left: `${r.left}px`, top: `${r.top}px`,
+                        width: `${r.width}px`, height: `${r.height}px`,
+                        margin: '0', zIndex: '9999', pointerEvents: 'none', opacity: '0.85'
+                    });
+                    this.dragElement = element;
+                },
+                move: event => {
+                    const p = element._flowPos;
+                    p.x += event.dx; p.y += event.dy;
+                    element.style.left = `${p.x}px`;
+                    element.style.top = `${p.y}px`;
+                    this._flowMovePlaceholder(element, event.clientX, event.clientY);
+                },
+                end: () => {
+                    const ph = element._flowPh;
+                    if (ph && ph.parentElement) ph.parentElement.insertBefore(element, ph);
+                    ph?.remove();
+                    element._flowPh = null;
+                    for (const p of ['position', 'left', 'top', 'width', 'height', 'margin', 'z-index', 'pointer-events', 'opacity']) {
+                        element.style.removeProperty(p);
+                    }
+                    this.dragElement = null;
+                    this._ignoreNextClick = true;
+                    setTimeout(() => { this._ignoreNextClick = false; }, 50);
+                    feezal.app.change();   // reorder = DOM order; dirty + undo history
+                }
+            }
         });
-        // U41 (absorbs U40) — wire the reorder to the same dirty/undo pipeline
-        // every other edit uses, and give flow views the shared click-select.
-        if (!view._feezalSortableWired) {
-            view._feezalSortableWired = true;
-            view.addEventListener('sortupdate', () => {
-                // A drop fires a click on mouseup — don't let it clear selection.
-                this._ignoreNextClick = true;
-                setTimeout(() => { this._ignoreNextClick = false; }, 50);
-                feezal.app.change();   // reorder = DOM order; dirty + undo history
-            });
+    }
+
+    /** U41 — slot the flow placeholder before the sibling under the pointer (row-major). */
+    _flowMovePlaceholder(dragged, cx, cy) {
+        const view = dragged.parentElement;
+        const ph = dragged._flowPh;
+        if (!view || !ph) return;
+        const sibs = [...view.children].filter(el =>
+            el !== dragged && el !== ph && el.classList && el.classList.contains('feezal-editable'));
+        let before = null;
+        for (const el of sibs) {
+            const r = el.getBoundingClientRect();
+            if (cy < r.top + r.height / 2 || (cy < r.bottom && cx < r.left + r.width / 2)) { before = el; break; }
         }
-        this._attachCanvasSelection(view);
+        if (before) { if (ph.nextElementSibling !== before) view.insertBefore(ph, before); }
+        else view.appendChild(ph);
     }
 
     _initDragSelect() {
@@ -978,7 +1021,9 @@ class FeezalSidebarInspector extends LitElement {
         switch (view.childPosition) {
             case 'static':   // U41 — legacy alias, treated as flow
             case 'flow':
-                this._initSortable(view);
+                // Flow reorder is per-element interact.js (initFlow) — the view
+                // only needs the shared click-selection / context menu.
+                this._attachCanvasSelection(view);
                 break;
             default:
                 this._initDragSelect();
@@ -1458,7 +1503,7 @@ class FeezalSidebarInspector extends LitElement {
                 this.initAbsolute(element, elementOptions);
             }
         } else {
-            this.initStatic(element, elementOptions);
+            this.initFlow(element);
         }
     }
 
@@ -1470,13 +1515,6 @@ class FeezalSidebarInspector extends LitElement {
         }
     }
 
-    initStatic() {
-        // U41: selection for flow (formerly "static") views is handled once
-        // per view by _attachCanvasSelection (composedPath capture click),
-        // exactly like absolute views — no per-element click needed, and
-        // html5sortable manages the reorder gesture. Elements already carry
-        // `.feezal-editable` (set in initElem) so the sortable picks them up.
-    }
 
     /**
      * B8 — current canvas extent in view-content coordinates: the visible

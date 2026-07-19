@@ -47,20 +47,27 @@ beforeEach(() => {
 afterEach(() => { document.body.innerHTML = ''; });
 
 describe('U41 — flow view editor wiring', () => {
-    it('_viewChanged routes a flow view (and legacy static) to the sortable path, not DragSelect', () => {
+    it('_viewChanged routes a flow view (and legacy static) to click-selection, not DragSelect', () => {
         makeFlowView('home', 2);
         expect(() => ctx._viewChanged()).not.toThrow();
         expect(ctx.dragselect.home).toBeUndefined();     // no DragSelect for flow views
     });
 
-    it('a sortable reorder fires feezal.app.change (dirty + undo) and guards the next click', () => {
-        const view = makeFlowView('home', 2);
-        ctx._initSortable(view);
-        expect(view._feezalSortableWired).toBe(true);
-
-        view.dispatchEvent(new CustomEvent('sortupdate'));
-        expect(feezal.app.change).toHaveBeenCalledTimes(1);
-        expect(ctx._ignoreNextClick).toBe(true);
+    it('_flowMovePlaceholder slots the placeholder before the sibling under the pointer', () => {
+        const view = makeFlowView('home', 3);
+        const [a, b, c] = view.querySelectorAll('.feezal-editable');
+        // Simulate a drag of `a`: lift it, insert a placeholder in its slot.
+        const ph = document.createElement('div');
+        ph.className = 'feezal-placeholder';
+        view.insertBefore(ph, a);
+        a._flowPh = ph;
+        a.style.position = 'fixed';
+        // Give the siblings deterministic rects (jsdom-ish → set via getBoundingClientRect stub).
+        b.getBoundingClientRect = () => ({left: 0, top: 100, right: 90, bottom: 160, width: 90, height: 60});
+        c.getBoundingClientRect = () => ({left: 0, top: 200, right: 90, bottom: 260, width: 90, height: 60});
+        // Pointer over c's upper half → placeholder lands before c.
+        ctx._flowMovePlaceholder(a, 10, 205);
+        expect(ph.nextElementSibling).toBe(c);
     });
 
     it('click-selection works via the shared capture handler', () => {
