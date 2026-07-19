@@ -77,6 +77,9 @@ class FeezalElementGlassContact extends FeezalElement {
                 {property: '--feezal-glass-open-color', type: 'color', default: 'var(--warning-color, #ff9f0a)', help: 'Icon/state colour while open.'},
                 {property: '--feezal-glass-tilt-color', type: 'color', default: 'var(--info-color, #0a84ff)', help: 'Icon/state colour while tilted.'},
                 {property: '--feezal-glass-tint', type: 'color', help: 'Frost tint (defaults from the theme).'},
+                {property: '--feezal-glass-icon-size', default: '28px', help: 'Icon font size.'},
+                {property: '--feezal-glass-font-size-state', default: '15px', help: 'State line font size.'},
+                {property: '--feezal-glass-font-size-label', default: '12px', help: 'Label font size.'},
             ],
             defaultStyle: {width: '150px', height: '110px'},
             restrict: {minWidth: 70, minHeight: 60},
@@ -105,7 +108,7 @@ class FeezalElementGlassContact extends FeezalElement {
         .card {
             position: absolute; inset: var(--feezal-glass-margin, 6px); box-sizing: border-box;
             display: flex; flex-direction: column; justify-content: space-between;
-            padding: 11cqmin; gap: 2px;
+            padding: 12px; gap: 2px;
             border-radius: var(--feezal-glass-radius, 24px);
             background: var(--feezal-glass-tint, rgba(255,255,255,0.35));
             -webkit-backdrop-filter: blur(var(--feezal-glass-blur, 20px));
@@ -125,10 +128,10 @@ class FeezalElementGlassContact extends FeezalElement {
             -webkit-backdrop-filter: none; backdrop-filter: none;
             background: var(--feezal-glass-solid, rgba(245,245,247,0.94));
         }
-        feezal-icon { font-size: 20cqmin; line-height: 1; color: var(--_state-color); transition: color 0.2s ease; }
-        .state { font-size: 13cqmin; font-weight: 700; color: var(--_state-color); }
+        feezal-icon { font-size: var(--feezal-glass-icon-size, 28px); line-height: 1; color: var(--_state-color); transition: color 0.2s ease; }
+        .state { font-size: var(--feezal-glass-font-size-state, 15px); font-weight: 700; color: var(--_state-color); }
         .label {
-            font-size: 11cqmin; font-weight: 600; line-height: 1.2;
+            font-size: var(--feezal-glass-font-size-label, 12px); font-weight: 600; line-height: 1.2;
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
@@ -144,12 +147,12 @@ class FeezalElementGlassContact extends FeezalElement {
                 grid-template: 'icon state' auto 'icon label' auto / auto 1fr;
                 align-content: center;
                 align-items: center;
-                column-gap: 10cqmin;
+                column-gap: 10px;
                 text-align: left;
             }
-            .card > feezal-icon { grid-area: icon; font-size: 46cqmin; }
-            .card .state { grid-area: state; align-self: end; font-size: 13cqmax; }
-            .card .label { grid-area: label; align-self: start; font-size: 11cqmax; }
+            .card > feezal-icon { grid-area: icon; }
+            .card .state { grid-area: state; align-self: end; }
+            .card .label { grid-area: label; align-self: start; }
         }
     `];
 

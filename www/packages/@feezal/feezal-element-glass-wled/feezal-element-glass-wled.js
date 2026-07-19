@@ -75,6 +75,10 @@ class FeezalElementGlassWled extends FeezalElement {
                 {property: '--feezal-glass-accent', type: 'color', default: '#ff9f0a',
                     help: 'Icon/state colour while on (overridden by the live strip colour when known).'},
                 {property: '--feezal-glass-tint', type: 'color', help: 'Frost tint (defaults from the theme).'},
+                {property: '--feezal-glass-icon-size', default: '28px', help: 'Icon font size.'},
+                {property: '--feezal-glass-font-size-state', default: '15px', help: 'State line font size.'},
+                {property: '--feezal-glass-font-size-label', default: '12px', help: 'Label font size.'},
+                {property: '--feezal-glass-font-size-unit', default: '12px', help: 'Flip/detail button icon size.'},
             ],
             defaultStyle: {width: '150px', height: '110px'},
             restrict: {minWidth: 90, minHeight: 70},
@@ -113,7 +117,7 @@ class FeezalElementGlassWled extends FeezalElement {
         .card {
             position: absolute; inset: var(--feezal-glass-margin, 6px); box-sizing: border-box; cursor: pointer;
             display: flex; flex-direction: column; justify-content: space-between;
-            padding: 11cqmin; gap: 2px;
+            padding: 12px; gap: 2px;
             border-radius: var(--feezal-glass-radius, 24px);
             background: var(--feezal-glass-tint, rgba(255,255,255,0.35));
             -webkit-backdrop-filter: blur(var(--feezal-glass-blur, 20px));
@@ -133,25 +137,25 @@ class FeezalElementGlassWled extends FeezalElement {
             background: var(--feezal-glass-solid, rgba(245,245,247,0.94));
         }
         feezal-icon {
-            font-size: 20cqmin; line-height: 1;
+            font-size: var(--feezal-glass-icon-size, 28px); line-height: 1;
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
             transition: color 0.2s ease;
         }
         .card.on feezal-icon { color: var(--wled-accent, var(--feezal-glass-accent, #ff9f0a)); }
-        .state { font-size: 13cqmin; font-weight: 700; }
+        .state { font-size: var(--feezal-glass-font-size-state, 15px); font-weight: 700; }
         .label {
-            font-size: 11cqmin; font-weight: 600; line-height: 1.2;
+            font-size: var(--feezal-glass-font-size-label, 12px); font-weight: 600; line-height: 1.2;
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
         .flip-btn {
-            position: absolute; top: 6cqmin; right: 8cqmin;
+            position: absolute; top: 6px; right: 8px;
             border: none; background: none; cursor: pointer; padding: 2px;
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
-            font-family: 'Material Icons'; font-size: 12cqmin; line-height: 1;
+            font-family: 'Material Icons'; font-size: var(--feezal-glass-font-size-unit, 12px); line-height: 1;
         }
         .unavail {
-            position: absolute; bottom: 8cqmin; right: 10cqmin;
+            position: absolute; bottom: 8px; right: 10px;
             font-size: 12px; color: var(--error-color, #d32f2f); opacity: 0.85;
         }
         /* E105: much wider than tall → horizontal layout (Apple-Home wide
@@ -163,12 +167,12 @@ class FeezalElementGlassWled extends FeezalElement {
                 grid-template: 'icon state' auto 'icon label' auto / auto 1fr;
                 align-content: center;
                 align-items: center;
-                column-gap: 10cqmin;
+                column-gap: 10px;
                 text-align: left;
             }
-            .card > feezal-icon { grid-area: icon; font-size: 46cqmin; }
-            .card .state { grid-area: state; align-self: end; font-size: 13cqmax; }
-            .card .label { grid-area: label; align-self: start; font-size: 11cqmax; }
+            .card > feezal-icon { grid-area: icon; }
+            .card .state { grid-area: state; align-self: end; }
+            .card .label { grid-area: label; align-self: start; }
         }
         /* ── details popup — browser TOP LAYER via the popover API
            (glass-light pattern); fixed+z-index is the fallback. */

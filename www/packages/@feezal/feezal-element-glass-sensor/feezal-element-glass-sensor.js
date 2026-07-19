@@ -43,6 +43,10 @@ class FeezalElementGlassSensor extends FeezalElement {
                 'top', 'left', 'width', 'height',
                 {property: '--feezal-glass-accent', type: 'color', default: '#ff9f0a', help: 'Icon colour.'},
                 {property: '--feezal-glass-tint', type: 'color', help: 'Frost tint (defaults from the theme).'},
+                {property: '--feezal-glass-icon-size', default: '28px', help: 'Icon font size.'},
+                {property: '--feezal-glass-font-size-value', default: '26px', help: 'Value font size.'},
+                {property: '--feezal-glass-font-size-unit', default: '12px', help: 'Unit font size.'},
+                {property: '--feezal-glass-font-size-label', default: '12px', help: 'Label font size.'},
             ],
             defaultStyle: {width: '150px', height: '110px'},
             restrict: {minWidth: 70, minHeight: 60},
@@ -65,7 +69,7 @@ class FeezalElementGlassSensor extends FeezalElement {
         .card {
             position: absolute; inset: var(--feezal-glass-margin, 6px); box-sizing: border-box;
             display: flex; flex-direction: column; justify-content: space-between;
-            padding: 11cqmin; gap: 2px;
+            padding: 12px; gap: 2px;
             border-radius: var(--feezal-glass-radius, 24px);
             background: var(--feezal-glass-tint, rgba(255,255,255,0.35));
             -webkit-backdrop-filter: blur(var(--feezal-glass-blur, 20px));
@@ -81,15 +85,15 @@ class FeezalElementGlassSensor extends FeezalElement {
             -webkit-backdrop-filter: none; backdrop-filter: none;
             background: var(--feezal-glass-solid, rgba(245,245,247,0.94));
         }
-        feezal-icon { font-size: 20cqmin; line-height: 1; color: var(--feezal-glass-accent, #ff9f0a); }
+        feezal-icon { font-size: var(--feezal-glass-icon-size, 28px); line-height: 1; color: var(--feezal-glass-accent, #ff9f0a); }
         .value {
-            font-size: 24cqmin; font-weight: 700; line-height: 1.05;
+            font-size: var(--feezal-glass-font-size-value, 26px); font-weight: 700; line-height: 1.05;
             font-variant-numeric: tabular-nums;
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
-        .value .unit { font-size: 13cqmin; font-weight: 500; opacity: 0.6; margin-left: 2px; }
+        .value .unit { font-size: var(--feezal-glass-font-size-unit, 12px); font-weight: 500; opacity: 0.6; margin-left: 2px; }
         .label {
-            font-size: 11cqmin; font-weight: 600; line-height: 1.2;
+            font-size: var(--feezal-glass-font-size-label, 12px); font-weight: 600; line-height: 1.2;
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
@@ -101,12 +105,12 @@ class FeezalElementGlassSensor extends FeezalElement {
                 grid-template: 'icon value' auto 'icon label' auto / auto 1fr;
                 align-content: center;
                 align-items: center;
-                column-gap: 10cqmin;
+                column-gap: 10px;
                 text-align: left;
             }
-            .card > feezal-icon { grid-area: icon; font-size: 46cqmin; }
-            .card .value { grid-area: value; align-self: end; font-size: 24cqmax; }
-            .card .label { grid-area: label; align-self: start; font-size: 11cqmax; }
+            .card > feezal-icon { grid-area: icon; }
+            .card .value { grid-area: value; align-self: end; }
+            .card .label { grid-area: label; align-self: start; }
         }
     `];
 

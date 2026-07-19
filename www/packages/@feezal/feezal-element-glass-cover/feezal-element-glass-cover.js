@@ -86,6 +86,10 @@ class FeezalElementGlassCover extends FeezalElement {
                 {property: '--feezal-glass-accent', type: 'color', default: '#0a84ff', help: 'Button/state accent colour.'},
                 {property: '--feezal-glass-shade', type: 'color', help: 'Shade layer colour (defaults to a stronger frost tint).'},
                 {property: '--feezal-glass-tint', type: 'color', help: 'Frost tint (defaults from the theme).'},
+                {property: '--feezal-glass-icon-size', default: '28px', help: 'Icon font size.'},
+                {property: '--feezal-glass-font-size-state', default: '15px', help: 'State line font size.'},
+                {property: '--feezal-glass-font-size-label', default: '12px', help: 'Label font size.'},
+                {property: '--feezal-glass-font-size-unit', default: '12px', help: 'Flip/detail button icon size.'},
             ],
             defaultStyle: {width: '150px', height: '110px'},
             restrict: {minWidth: 90, minHeight: 70},
@@ -132,7 +136,7 @@ class FeezalElementGlassCover extends FeezalElement {
         .card {
             position: absolute; inset: var(--feezal-glass-margin, 6px); box-sizing: border-box; overflow: hidden;
             display: flex; flex-direction: column; justify-content: space-between;
-            padding: 10cqmin; gap: 2px;
+            padding: 10px; gap: 2px;
             border-radius: var(--feezal-glass-radius, 24px);
             background: var(--feezal-glass-tint, rgba(255,255,255,0.35));
             -webkit-backdrop-filter: blur(var(--feezal-glass-blur, 20px));
@@ -150,21 +154,21 @@ class FeezalElementGlassCover extends FeezalElement {
         }
         .card { cursor: pointer; transition: transform 0.15s ease, background 0.2s ease; }
         .card:active { transform: scale(0.97); }
-        feezal-icon { font-size: 18cqmin; line-height: 1; color: var(--feezal-glass-muted, rgba(29,29,31,0.55)); }
-        .state { font-size: 12cqmin; font-weight: 700; position: relative; }
+        feezal-icon { font-size: var(--feezal-glass-icon-size, 28px); line-height: 1; color: var(--feezal-glass-muted, rgba(29,29,31,0.55)); }
+        .state { font-size: var(--feezal-glass-font-size-state, 15px); font-weight: 700; position: relative; }
         .label {
-            font-size: 10cqmin; font-weight: 600; line-height: 1.2; position: relative;
+            font-size: var(--feezal-glass-font-size-label, 12px); font-weight: 600; line-height: 1.2; position: relative;
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
         .flip-btn {
-            position: absolute; top: 6cqmin; right: 8cqmin;
+            position: absolute; top: 6px; right: 8px;
             border: none; background: none; cursor: pointer; padding: 2px;
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
-            font-family: 'Material Icons'; font-size: 12cqmin; line-height: 1;
+            font-family: 'Material Icons'; font-size: var(--feezal-glass-font-size-unit, 12px); line-height: 1;
         }
         .unavail {
-            position: absolute; bottom: 8cqmin; right: 10cqmin;
+            position: absolute; bottom: 8px; right: 10px;
             font-size: 12px; color: var(--error-color, #d32f2f); opacity: 0.85; z-index: 1;
         }
         /* E105: much wider than tall → horizontal layout (Apple-Home wide
@@ -176,12 +180,12 @@ class FeezalElementGlassCover extends FeezalElement {
                 grid-template: 'icon state' auto 'icon label' auto / auto 1fr;
                 align-content: center;
                 align-items: center;
-                column-gap: 10cqmin;
+                column-gap: 10px;
                 text-align: left;
             }
-            .card > feezal-icon { grid-area: icon; font-size: 46cqmin; }
-            .card .state { grid-area: state; align-self: end; font-size: 12cqmax; }
-            .card .label { grid-area: label; align-self: start; font-size: 10cqmax; }
+            .card > feezal-icon { grid-area: icon; }
+            .card .state { grid-area: state; align-self: end; }
+            .card .label { grid-area: label; align-self: start; }
         }
 
         /* ── details popup (glass-light pattern) — browser top layer ── */
@@ -821,6 +825,15 @@ class FeezalElementGlassCoverInspector extends LitElement {
             <div class="section">
                 <div class="sec-head">Display</div>
                 <div class="sec-body">
+                    <div class="field">
+                        <label>Size</label>
+                        <sl-select size="small" value="${this._val('size') || ''}"
+                            @sl-change="${e => this._emit('size', e.target.value)}">
+                            <sl-option value="">Auto (manual size)</sl-option>
+                            <sl-option value="2x2">2x2</sl-option>
+                            <sl-option value="2x1">2x1</sl-option>
+                        </sl-select>
+                    </div>
                     <div class="field">
                         <sl-switch size="small" ?checked="${this._bool('invert', false)}"
                             @sl-change="${e => this._emit('invert', e.target.checked || null, true)}">

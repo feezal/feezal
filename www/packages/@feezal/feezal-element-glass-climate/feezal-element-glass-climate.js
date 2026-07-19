@@ -103,6 +103,11 @@ class FeezalElementGlassClimate extends FeezalElement {
                 'top', 'left', 'width', 'height',
                 {property: '--feezal-glass-accent', type: 'color', default: '#ff9f0a', help: 'Setpoint/heating accent colour.'},
                 {property: '--feezal-glass-tint', type: 'color', help: 'Frost tint (defaults from the theme).'},
+                {property: '--feezal-glass-icon-size', default: '28px', help: 'Icon font size.'},
+                {property: '--feezal-glass-font-size-value', default: '26px', help: 'Actual temperature font size.'},
+                {property: '--feezal-glass-font-size-state', default: '15px', help: 'State line font size.'},
+                {property: '--feezal-glass-font-size-label', default: '12px', help: 'Label font size.'},
+                {property: '--feezal-glass-font-size-unit', default: '12px', help: 'Flip/detail button icon size.'},
             ],
             defaultStyle: {width: '150px', height: '110px'},
             restrict: {minWidth: 90, minHeight: 70},
@@ -144,7 +149,7 @@ class FeezalElementGlassClimate extends FeezalElement {
         .card {
             position: absolute; inset: var(--feezal-glass-margin, 6px); box-sizing: border-box; cursor: pointer;
             display: flex; flex-direction: column; justify-content: space-between;
-            padding: 11cqmin; gap: 2px;
+            padding: 12px; gap: 2px;
             border-radius: var(--feezal-glass-radius, 24px);
             background: var(--feezal-glass-tint, rgba(255,255,255,0.35));
             -webkit-backdrop-filter: blur(var(--feezal-glass-blur, 20px));
@@ -162,27 +167,27 @@ class FeezalElementGlassClimate extends FeezalElement {
             -webkit-backdrop-filter: none; backdrop-filter: none;
             background: var(--feezal-glass-solid, rgba(245,245,247,0.94));
         }
-        .head { display: flex; align-items: baseline; gap: 6cqmin; }
-        feezal-icon { font-size: 16cqmin; line-height: 1; color: var(--feezal-glass-accent, #ff9f0a); }
-        .actual { font-size: 18cqmin; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .head { display: flex; align-items: baseline; gap: 6px; }
+        feezal-icon { font-size: var(--feezal-glass-icon-size, 28px); line-height: 1; color: var(--feezal-glass-accent, #ff9f0a); }
+        .actual { font-size: var(--feezal-glass-font-size-value, 26px); font-weight: 700; font-variant-numeric: tabular-nums; }
         .state {
-            font-size: 11cqmin; font-weight: 600;
+            font-size: var(--feezal-glass-font-size-state, 15px); font-weight: 600;
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
         }
         .state b { color: var(--feezal-glass-accent, #ff9f0a); }
         .label {
-            font-size: 11cqmin; font-weight: 600; line-height: 1.2;
+            font-size: var(--feezal-glass-font-size-label, 12px); font-weight: 600; line-height: 1.2;
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
         .flip-btn {
-            position: absolute; top: 6cqmin; right: 8cqmin;
+            position: absolute; top: 6px; right: 8px;
             border: none; background: none; cursor: pointer; padding: 2px;
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
-            font-family: 'Material Icons'; font-size: 12cqmin; line-height: 1;
+            font-family: 'Material Icons'; font-size: var(--feezal-glass-font-size-unit, 12px); line-height: 1;
         }
         .unavail {
-            position: absolute; bottom: 8cqmin; right: 10cqmin;
+            position: absolute; bottom: 8px; right: 10px;
             font-size: 12px; color: var(--error-color, #d32f2f); opacity: 0.85;
         }
         /* E105: much wider than tall → horizontal layout (Apple-Home wide
@@ -196,14 +201,14 @@ class FeezalElementGlassClimate extends FeezalElement {
                 grid-template: 'icon actual' auto 'icon state' auto 'icon label' auto / auto 1fr;
                 align-content: center;
                 align-items: center;
-                column-gap: 10cqmin;
+                column-gap: 10px;
                 text-align: left;
             }
             .head { display: contents; }
-            .head feezal-icon { grid-area: icon; font-size: 42cqmin; }
-            .card .actual { grid-area: actual; font-size: 18cqmax; }
-            .card .state { grid-area: state; font-size: 11cqmax; }
-            .card .label { grid-area: label; font-size: 11cqmax; }
+            .head feezal-icon { grid-area: icon; }
+            .card .actual { grid-area: actual; }
+            .card .state { grid-area: state; }
+            .card .label { grid-area: label; }
         }
 
         /* ── details popup (glass-light pattern) ── */

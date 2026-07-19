@@ -836,7 +836,15 @@ Three related Homematic/HmIP gaps in the `*-climate` family (`glass-climate`, `m
 
 **Relates:** B26 (min/max scaling pattern reused for `valve-min`/`valve-max`), B29 (shared slider geometry — the valve indicator follows it), U39 (inspector restructuring — mode-entry editing and profile stamping belong in that redesign, not in the flat attribute list), N31 (availability — same "shared contract, per-family rendering" shape), material-climate (reference implementation).
 
-### E106 — Glass family refactor: shared base class + shared-code package
+### E106 — Glass family refactor: shared base class + shared-code package 🔨 in progress
+
+**Progress (07/2026) — the two decided *behaviour* fixes shipped ahead of the base-class dedup** (per this entry's guidance to land the size gap and typography change as early standalone fixes):
+- **Typography → fixed px CSS vars (done):** the whole card family dropped container-query font/icon sizing (`cqmin`/`cqmax`, which came out oversized in a 2×1 tile) for fixed px defaults exposed as `--feezal-glass-icon-size` / `--feezal-glass-font-size-state` / `-label` / `-value` / `-unit`, listed in each element's `styles`. The E105 wide-layout container query now only switches the grid layout, not the type; padding/gaps converted to px too. All 10 card elements, patch-bumped, glass suites green.
+- **Size-preset gap (done):** glass-light and glass-cover custom inspectors now render the `size` (Auto / 2×2 / 2×1) control they previously omitted.
+
+**Remaining (the actual dedup — the bulk of this item):** create the shared **`@feezal/feezal-glass`** package (`FeezalGlassCard` base class; `glassCardStyles`/`glassWideLayoutStyles`/`glassPopupStyles`/`glassDialogStyles`; shared descriptor fragments; shared inspector building blocks) and the tier-1 helpers in `@feezal/feezal-element` (`payloadMatch`, `_wireSignature`, `applySizePreset`), then port elements one per commit. Pure refactor, behaviour unchanged. Original spec below.
+
+
 
 **Problem.** The Glass family has grown to 15 packages / ~6,700 lines with **zero cross-package imports** — every shared behaviour is an independent copy-paste. Measured duplication (07/2026): the ~40-line frosted-card CSS block (tint, backdrop blur, squircle, `degrade` solid fallback, `:active` scale, on-tint, ⚠ unavailability badge, E105 wide-layout container query) in ~9 device cards; `GLASS_SIZES` presets + the `updated()` size-stamping in **10** elements; the manual `_wireSignature`/`__wireSig` subscription-rewiring pattern in **8**; the `_positionDetails()` popup anchoring in **5**; `payloadMatch()` in **3**; near-identical attribute descriptor blocks (availability quad, `degrade`, `label`, `icon`, `size`) in most; the three dialog elements duplicate the glass dialog chrome among themselves. Drift has already started: glass-fan imports `feezalAvailabilityStyles`/`availabilityBadge` from `@feezal/feezal-element` while its siblings hand-roll the same badge — same intent, diverging implementations. Every cross-family fix (E99 labels, popup positioning, degrade tweaks) currently needs 5–10 identical edits, and each one is a chance for the family to drift further apart.
 
