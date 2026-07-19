@@ -15,7 +15,9 @@
  *     id:    string,
  *     state: <private accumulator>,
  *     match(topic)            → parsed | null   // cheap topic test + parse
- *     accumulate(state, parsed, value) → channelState | null
+ *     accumulate(state, parsed, value, payload) → channelState | null
+ *         // `payload` is the full parsed JSON-Extended object (or null) so a
+ *         // recognizer can read the CCU metadata in payload.hm.
  *     promote(channelState)   → entity | null   // null until signature complete
  *     reset()                                    // clear accumulator
  *   }
@@ -85,115 +87,175 @@ function buildHmModes(generation, p, ch) {
     ];
 }
 
+// Setpoint datapoints (per generation) — the presence of one on the CONTROL
+// channel is what tells us the generation, and its payload's datapointMin/Max
+// give the real setpoint range.
+const HM_SETPOINT_DPS = new Set(['SET_POINT_TEMPERATURE', 'SET_TEMPERATURE']);
+// CCU channelTypes of the climate-control channel (HmIP + BidCoS dialects).
+// Exact allowlist — extend as new device generations are confirmed. Channels
+// whose channelType is absent or unlisted fall through to the datapoint-signature
+// path in promote(), so metadata-less / unknown devices still work.
+const CONTROL_CHANNEL_TYPES = new Set([
+    'HEATING_CLIMATECONTROL_TRANSCEIVER',  // HmIP (WTH/eTRV/STHD/HEATING groups) — confirmed
+    'CLIMATECONTROL_RT_TRANSCEIVER',       // BidCoS classic (HM-CC-RT-DN) — confirmed
+    'THERMALCONTROL_TRANSMIT',             // BidCoS wall (HM-TC-IT-WM-W-EU) — documented, unconfirmed
+]);
+
 // ── Recognizer 1: Homematic climate ──────────────────────────────────────────
+// Rebuilt (E108 follow-up) to consume the rich CCU metadata carried in each
+// MQTT-Smarthome JSON-Extended payload's `hm` object — the authoritative source
+// for device grouping, the control channel (`channelType`), and setpoint range —
+// instead of guessing the channel from datapoint signatures. The datapoint-only
+// signature path survives as a fallback for metadata-less payloads.
 const hmClimateRecognizer = {
     id: 'homematic-climate',
-    state: {channels: new Map()},   // channelName → {channelName, dps:Set}
+    // deviceId → {deviceId, deviceName, deviceType, iface, channels: Map<seg, chan>}
+    // chan = {seg, channelType, channelAddr, dps:Set, min, max}
+    state: {devices: new Map()},
 
     match(topic) {
-        // hm/status/<channelName>/<DATAPOINT> — channelName is a single level.
+        // hm/status/<seg>/<DATAPOINT> — <seg> is one level (may be empty for a
+        // nameless device: hm/status//SET_POINT_TEMPERATURE).
         if (!topic.startsWith(hmPrefix + '/status/')) return null;
         const parts = topic.split('/');
-        if (parts.length !== 4) return null;            // exactly prefix/status/ch/DP
+        if (parts.length !== 4) return null;            // exactly prefix/status/seg/DP
         const datapoint = parts[3];
         if (!HM_THERMOSTAT_DPS.has(datapoint)) return null;
-        return {channelName: parts[2], datapoint};
+        return {seg: parts[2], datapoint};
     },
 
-    accumulate(state, parsed /* , value */) {
-        let ch = state.channels.get(parsed.channelName);
-        if (!ch) {
-            ch = {channelName: parsed.channelName, dps: new Set()};
-            state.channels.set(parsed.channelName, ch);
+    accumulate(state, parsed, value, payload) {
+        const hm = (payload && typeof payload === 'object' && payload.hm && typeof payload.hm === 'object')
+            ? payload.hm : null;
+
+        // Group by the CCU device id (space-free, stable). Fall back to the topic
+        // segment with its trailing :<n> stripped when metadata is absent.
+        const deviceId = (hm && hm.device) ? String(hm.device)
+            : parsed.seg.replace(/:\d+$/, '');
+
+        let dev = state.devices.get(deviceId);
+        if (!dev) {
+            dev = {deviceId, deviceName: undefined, deviceType: undefined,
+                iface: undefined, channels: new Map()};
+            state.devices.set(deviceId, dev);
         }
-        ch.dps.add(parsed.datapoint);
-        return ch;
+        // Metadata is authoritative but only present on annotated payloads; keep
+        // the last non-empty value we saw.
+        if (hm) {
+            if (hm.deviceName != null) dev.deviceName = hm.deviceName;
+            if (hm.deviceType != null) dev.deviceType = hm.deviceType;
+            if (hm.iface != null) dev.iface = hm.iface;
+        }
+
+        let chan = dev.channels.get(parsed.seg);
+        if (!chan) {
+            chan = {seg: parsed.seg, channelType: undefined, channelAddr: undefined,
+                dps: new Set(), min: undefined, max: undefined};
+            dev.channels.set(parsed.seg, chan);
+        }
+        if (hm) {
+            if (hm.channelType != null) chan.channelType = hm.channelType;
+            if (hm.channel != null) chan.channelAddr = hm.channel;
+        }
+        chan.dps.add(parsed.datapoint);
+        // Capture the real setpoint range from the setpoint datapoint's own
+        // metadata (other datapoints carry unrelated min/max).
+        if (hm && HM_SETPOINT_DPS.has(parsed.datapoint)) {
+            if (hm.datapointMin != null) chan.min = hm.datapointMin;
+            if (hm.datapointMax != null) chan.max = hm.datapointMax;
+        }
+        return dev;
     },
 
-    // Detect a channel's generation/setpoint/mode from its datapoint Set, or null
-    // if the thermostat signature is incomplete (E102 device matrix).
-    _detectSignature(dps) {
-        if (dps.has('SET_TEMPERATURE') && dps.has('CONTROL_MODE')) {
-            return {generation: 'bidcos', setpointDp: 'SET_TEMPERATURE', modeDp: 'CONTROL_MODE'};
-        }
-        if (dps.has('SET_POINT_TEMPERATURE') && dps.has('SET_POINT_MODE')) {
+    // Generation + read datapoint names, derived from the setpoint datapoint
+    // OBSERVED on the control channel (SET_POINT_TEMPERATURE ⇒ HmIP, SET_TEMPERATURE
+    // ⇒ BidCoS). Null until a setpoint has been seen there.
+    _detectGeneration(chan) {
+        if (chan.dps.has('SET_POINT_TEMPERATURE')) {
             return {generation: 'hmip', setpointDp: 'SET_POINT_TEMPERATURE', modeDp: 'SET_POINT_MODE'};
+        }
+        if (chan.dps.has('SET_TEMPERATURE')) {
+            return {generation: 'bidcos', setpointDp: 'SET_TEMPERATURE', modeDp: 'CONTROL_MODE'};
         }
         return null;
     },
 
-    promote(channelState) {
-        // A physical Homematic device exposes several channels (e.g. :1/:2/:4),
-        // and more than one may complete a thermostat signature. Group them into
-        // ONE device-level entity: strip the trailing :<n> to get the device name,
-        // then pick a single representative channel among the siblings.
-        const deviceName = channelState.channelName.replace(/:\d+$/, '');
+    // Datapoint-only completeness (fallback when channelType metadata is absent).
+    _hasCompleteSignature(chan) {
+        return (chan.dps.has('SET_TEMPERATURE') && chan.dps.has('CONTROL_MODE'))
+            || (chan.dps.has('SET_POINT_TEMPERATURE') && chan.dps.has('SET_POINT_MODE'));
+    },
 
-        // Channel number for ranking; a name with no :<n> suffix sorts LAST so
-        // numbered channels win (MAX_SAFE_INTEGER).
-        const channelNum = name => {
-            const m = /:(\d+)$/.exec(name);
-            return m ? parseInt(m[1], 10) : Number.MAX_SAFE_INTEGER;
-        };
+    promote(dev) {
+        const channels = [...dev.channels.values()];
 
-        // Heuristic: among all sibling channels of this device that have a COMPLETE
-        // signature, choose the LOWEST channel number. The user's device wants :1;
-        // this is easy to adjust (e.g. prefer the channel that also carries a valve
-        // datapoint) without touching the rest of the builder.
-        let chosen = null;   // {channelName, dps, sig, num}
-        for (const sib of this.state.channels.values()) {
-            if (sib.channelName.replace(/:\d+$/, '') !== deviceName) continue;
-            const sig = this._detectSignature(sib.dps);
-            if (!sig) continue;
-            const num = channelNum(sib.channelName);
-            if (!chosen || num < chosen.num) {
-                chosen = {channelName: sib.channelName, dps: sib.dps, sig, num};
-            }
+        // Pick the control channel: prefer the CCU-declared climate-control
+        // channelType; fall back to any channel with a complete datapoint
+        // signature (metadata-less payloads).
+        let control = channels.find(c => c.channelType && CONTROL_CHANNEL_TYPES.has(c.channelType));
+        if (!control) control = channels.find(c => this._hasCompleteSignature(c));
+        if (!control) return null;
+
+        // The control channel must have a setpoint observed to fix the generation
+        // (and thus the mode datapoint name). Mode topic is CONSTRUCTED — we needn't
+        // have seen the mode datapoint's own message.
+        const gen = this._detectGeneration(control);
+        if (!gen) return null;   // wait for the setpoint
+        const {generation, setpointDp, modeDp} = gen;
+
+        // Valve: wire only if a VALVE_STATE (BidCoS 0–100) or LEVEL (HmIP 0.0–1.0)
+        // datapoint was observed on ANY channel of the device; use that channel.
+        let valveChan = null, valveDp = null;
+        for (const c of channels) {
+            if (c.dps.has('VALVE_STATE')) { valveChan = c; valveDp = 'VALVE_STATE'; break; }
+            if (c.dps.has('LEVEL')) { valveChan = c; valveDp = 'LEVEL'; }
         }
-        if (!chosen) return null;   // no channel of the device has a complete signature
-
-        const dps = chosen.dps;
-        const ch = chosen.channelName;
-        const {generation, setpointDp, modeDp} = chosen.sig;
-
-        // Valve wiring: VALVE_STATE (BidCoS 0–100) | LEVEL (HmIP 0.0–1.0) ⇒ TRV.
-        const hasValveState = dps.has('VALVE_STATE');
-        const hasLevel = dps.has('LEVEL');
-        const valveDp = hasValveState ? 'VALVE_STATE' : (hasLevel ? 'LEVEL' : null);
         const isTRV = valveDp !== null;
-        const valveMax = (generation === 'hmip' && hasLevel) ? 1 : 100;
+        const valveMax = valveDp === 'LEVEL' ? 1 : 100;
 
+        // Read topics use the topic segment; write/paramset topics use the segment
+        // when non-empty, else the channel address (nameless device).
         const p = hmPrefix;
+        const readSeg = control.seg;
+        const writeSeg = control.seg !== '' ? control.seg : (control.channelAddr || control.seg);
+
+        const deviceId = dev.deviceId;
+        const name = dev.deviceName
+            || (dev.deviceType ? dev.deviceType + ' ' + deviceId : deviceId);
+
         const config = {
-            name: deviceName,
+            name,
             schema: 'separate',
-            temperature_state_topic:   hmStatus(p, ch, setpointDp),
-            temperature_command_topic: hmSet(p, ch, setpointDp),
-            current_temperature_topic: hmStatus(p, ch, 'ACTUAL_TEMPERATURE'),
-            mode_state_topic:          hmStatus(p, ch, modeDp),
-            min_temp: 4.5, max_temp: 30.5, temp_step: 0.5, temperature_unit: 'C',
-            modes: buildHmModes(generation, p, ch),
+            temperature_state_topic:   hmStatus(p, readSeg, setpointDp),
+            temperature_command_topic: hmSet(p, writeSeg, setpointDp),
+            current_temperature_topic: hmStatus(p, readSeg, 'ACTUAL_TEMPERATURE'),
+            mode_state_topic:          hmStatus(p, readSeg, modeDp),
+            min_temp: control.min != null ? control.min : 4.5,
+            max_temp: control.max != null ? control.max : 30.5,
+            temp_step: 0.5,
+            temperature_unit: 'C',
+            modes: buildHmModes(generation, p, writeSeg),
             // Native extras consumed by the climate discovery.map keys.
             message_property: 'val',
             valve_min: 0,
             valve_max: valveMax,
         };
-        if (isTRV) config.action_topic = hmStatus(p, ch, valveDp);
+        if (isTRV) config.action_topic = hmStatus(p, valveChan.seg, valveDp);
 
         // Availability (the :0 maintenance UNREACH) is out of MVP scope for HM.
         // Device-level discovery_id → one entry per physical device; re-promotes
-        // (updates) as more channels arrive and the chosen channel may change.
+        // (updates) as more datapoints arrive.
         return {
-            discovery_id: 'hm-climate:' + deviceName,
+            discovery_id: 'hm-climate:' + deviceId,
             component: 'climate',
             source: 'homematic',
             sourceLabel: 'hm',
-            name: deviceName,
+            name,
             config,
         };
     },
 
-    reset() { this.state.channels.clear(); },
+    reset() { this.state.devices.clear(); },
 };
 
 // ── Recognizer 2: WLED ────────────────────────────────────────────────────────
@@ -268,6 +330,25 @@ function extractValue(payloadOrBuf) {
 }
 
 /**
+ * Parse a raw MQTT payload into its full JSON object (MQTT-Smarthome JSON-Extended
+ * — {"val":…,"ts":…,"hm":{…}}), so a recognizer can read the rich CCU metadata in
+ * `payload.hm`. Returns null for non-object / non-JSON payloads. Guarded — never
+ * throws. WLED and other non-JSON-Extended payloads simply get null here.
+ */
+function parsePayload(payloadOrBuf) {
+    const str = Buffer.isBuffer(payloadOrBuf)
+        ? payloadOrBuf.toString()
+        : (payloadOrBuf == null ? '' : String(payloadOrBuf));
+    if (str.length && str[0] === '{') {
+        try {
+            const j = JSON.parse(str);
+            if (j && typeof j === 'object' && !Array.isArray(j)) return j;
+        } catch { /* not JSON */ }
+    }
+    return null;
+}
+
+/**
  * Run every recognizer over one MQTT message. Cheap: each recognizer's match()
  * does a startsWith/suffix guard before any work. A throwing recognizer is
  * isolated so it can never break the others (or the HA path that calls this).
@@ -284,8 +365,13 @@ function handleNativeMessage(topic, payloadOrBuf) {
         let value;
         try { value = extractValue(payloadOrBuf); } catch { value = undefined; }
 
+        // Full parsed JSON-Extended object (or null) so a recognizer can read the
+        // authoritative CCU metadata in payload.hm. Parsed once, guarded.
+        let payload;
+        try { payload = parsePayload(payloadOrBuf); } catch { payload = null; }
+
         let channelState;
-        try { channelState = rec.accumulate(rec.state, parsed, value); } catch { continue; }
+        try { channelState = rec.accumulate(rec.state, parsed, value, payload); } catch { continue; }
         if (!channelState) continue;
 
         let entity;
@@ -319,6 +405,8 @@ module.exports = {
     clearNativeEntities,
     setHomematicPrefix,
     // exported for tests / reuse
+    extractValue,
+    parsePayload,
     buildHmModes,
     recognizers,
 };
