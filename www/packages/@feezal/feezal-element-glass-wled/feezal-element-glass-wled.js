@@ -1,7 +1,7 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {WLED_EFFECTS, WLED_PALETTES, hexToRgb} from './wled-lists.js';
-import {applySizePreset, glassCardStyles} from '@feezal/feezal-glass';
+import {applySizePreset, glassCardStyles, glassPopupStyles} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-wled (E103 MVP)
@@ -112,7 +112,7 @@ class FeezalElementGlassWled extends FeezalElement {
         _details: {state: true},   // details popup open
     };
 
-    static styles = [feezalBaseStyles, glassCardStyles, css`
+    static styles = [feezalBaseStyles, glassCardStyles, glassPopupStyles, css`
         .card {
             cursor: pointer;
             gap: 2px;
@@ -132,12 +132,6 @@ class FeezalElementGlassWled extends FeezalElement {
             font-size: var(--feezal-glass-font-size-label, 12px); font-weight: 600; line-height: 1.2;
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-        }
-        .flip-btn {
-            position: absolute; top: 6px; right: 8px;
-            border: none; background: none; cursor: pointer; padding: 2px;
-            color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
-            font-family: 'Material Icons'; font-size: var(--feezal-glass-font-size-unit, 12px); line-height: 1;
         }
         .unavail {
             position: absolute; bottom: 8px; right: 10px;
@@ -160,31 +154,11 @@ class FeezalElementGlassWled extends FeezalElement {
             .card .label { grid-area: label; align-self: start; }
         }
         /* ── details popup — browser TOP LAYER via the popover API
-           (glass-light pattern); fixed+z-index is the fallback. */
-        .details {
-            position: fixed; left: 0; top: 0; margin: 0; z-index: 99999;
-            width: 200px; height: fit-content; max-height: 90vh;
-            box-sizing: border-box; padding: 16px;
-            display: flex; flex-direction: column; align-items: center; gap: 14px;
-            border: 1px solid var(--feezal-glass-border, rgba(255,255,255,0.55));
-            border-radius: var(--feezal-glass-radius, 24px);
-            background: var(--feezal-glass-tint, rgba(255,255,255,0.7));
-            -webkit-backdrop-filter: blur(var(--feezal-glass-blur, 20px));
-            backdrop-filter: blur(var(--feezal-glass-blur, 20px));
-            box-shadow: 0 16px 48px rgba(0,0,0,0.3);
-            color: var(--feezal-glass-color, #1d1d1f);
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            overflow: visible;
-        }
-        :host([degrade]) .details {
-            -webkit-backdrop-filter: none; backdrop-filter: none;
-            background: var(--feezal-glass-solid, rgba(245,245,247,0.97));
-        }
-        .details::backdrop { background: rgba(0, 0, 0, 0.35); }
-        .details .title {
-            font-size: 13px; font-weight: 700; align-self: stretch; text-align: center;
-            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-        }
+           (glass-light pattern); fixed+z-index is the fallback. E106:
+           glass-wled uses a tighter 14px gap than the other popup cards
+           (glassPopupStyles' fragment default is 16px) — override locally,
+           cascades after the fragment so it wins. */
+        .details { gap: 14px; }
         /* Big vertical brightness pill — filled from the bottom, drag anywhere. */
         .vslider {
             position: relative; width: 72px; height: 150px; flex: 0 0 auto;

@@ -76,3 +76,50 @@ export const glassCardStyles = css`
         background: var(--feezal-glass-solid, rgba(245,245,247,0.94));
     }
 `;
+
+/**
+ * Shared details-POPOVER chrome for the 5 "popup" glass cards (light,
+ * climate, cover, fan, wled). Diffed byte-for-byte across all five before
+ * extraction — contains ONLY the popover container (`.details`, its degrade
+ * variant, `::backdrop`, `.title`) and the `.flip-btn` that opens it. Popover
+ * CONTENTS (`.vslider`, `.wheel`, `input.ct`, `.mode*`, sliders, and every
+ * other card-specific control) stay local — those differ by at least one
+ * card. Composed after `glassCardStyles` and the card's own frost `.card`
+ * block in each element's `static styles` array.
+ *
+ * `gap: 16px` here matches light/climate/cover/fan; glass-wled uses 14px and
+ * keeps a local `.details { gap: 14px; }` override after this fragment.
+ */
+export const glassPopupStyles = css`
+    .details {
+        /* Anchored above (or below) the card by _positionDetails(). */
+        position: fixed; left: 0; top: 0; margin: 0; z-index: 99999;
+        width: 200px; height: fit-content; max-height: 90vh;
+        box-sizing: border-box; padding: 16px;
+        display: flex; flex-direction: column; align-items: center; gap: 16px;
+        border: 1px solid var(--feezal-glass-border, rgba(255,255,255,0.55));
+        border-radius: var(--feezal-glass-radius, 24px);
+        background: var(--feezal-glass-tint, rgba(255,255,255,0.7));
+        -webkit-backdrop-filter: blur(var(--feezal-glass-blur, 20px));
+        backdrop-filter: blur(var(--feezal-glass-blur, 20px));
+        box-shadow: 0 16px 48px rgba(0,0,0,0.3);
+        color: var(--feezal-glass-color, #1d1d1f);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        overflow: visible;
+    }
+    :host([degrade]) .details {
+        -webkit-backdrop-filter: none; backdrop-filter: none;
+        background: var(--feezal-glass-solid, rgba(245,245,247,0.97));
+    }
+    .details::backdrop { background: rgba(0, 0, 0, 0.35); }
+    .details .title {
+        font-size: 13px; font-weight: 700; align-self: stretch; text-align: center;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .flip-btn {
+        position: absolute; top: 6px; right: 8px;
+        border: none; background: none; cursor: pointer; padding: 2px;
+        color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
+        font-family: 'Material Icons'; font-size: var(--feezal-glass-font-size-unit, 12px); line-height: 1;
+    }
+`;
