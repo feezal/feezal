@@ -253,3 +253,30 @@ describe('U39 — default-collapsed sections (_initCollapsedSections)', () => {
         expect(ins._collapsedSections.size).toBe(0);
     });
 });
+
+// ── U41/U39 regression: flow knobs must actually appear for a flow view ──────
+import '../src/feezal-view.js';
+
+describe('feezal-view flow knobs surface in the inspector (U41 visibleWhen)', () => {
+    function itemsFor(childPosition) {
+        const view = document.createElement('feezal-view');
+        view.setAttribute('name', 'home');
+        if (childPosition) view.setAttribute('child-position', childPosition);
+        document.body.append(view);
+        const ins = document.createElement('feezal-sidebar-inspector-attributes');
+        ins.selectedElems = [view];
+        ins._rebuildItems();
+        const visible = ins._visibleGroups().flatMap(g => [...g.main, ...g.advanced]).map(x => x.item.attrName);
+        document.body.innerHTML = '';
+        return visible;
+    }
+
+    it('shows flow-gap/direction/justify/align only when child-position="flow"', () => {
+        const flow = itemsFor('flow');
+        for (const n of ['flow-gap', 'flow-direction', 'flow-justify', 'flow-align']) {
+            expect(flow).toContain(n);
+        }
+        const absolute = itemsFor('absolute');
+        expect(absolute).not.toContain('flow-gap');
+    });
+});

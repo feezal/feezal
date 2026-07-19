@@ -118,8 +118,15 @@ describe('feezal-view flow layout (U41)', () => {
         const gap = attrs.find(a => a.name === 'flow-gap');
         expect(gap).toBeTruthy();
         expect(gap.visibleWhen).toEqual({attr: 'child-position', equals: 'flow'});
-        // The child-position dropdown offers absolute | flow (no legacy "static").
-        const cp = attrs.find(a => a.name === 'childPosition');
+        // The child-position dropdown is kebab-named so its value keys the U39
+        // visibleWhen map — and offers absolute | flow (no legacy "static").
+        const cp = attrs.find(a => a.name === 'child-position');
+        expect(cp).toBeTruthy();
         expect(cp.dropdown).toEqual(['absolute', 'flow']);
+        // Every flow knob keys off 'child-position' — the SAME name the
+        // child-position descriptor exposes (regression: it was 'childPosition').
+        for (const n of ['flow-gap', 'flow-direction', 'flow-justify', 'flow-align']) {
+            expect(attrs.find(a => a.name === n).visibleWhen.attr).toBe(cp.name);
+        }
     });
 });

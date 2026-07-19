@@ -71,7 +71,10 @@ class FeezalView extends LitElement {
         return {
             attributes: [
                 {
-                    name: 'childPosition',
+                    // kebab HTML attribute name (matches the reflected attribute
+                    // AND the flow knobs' visibleWhen key — the inspector keys
+                    // its value map by this descriptor name).
+                    name: 'child-position',
                     dropdown: ['absolute', 'flow']
                 },
                 // U41 — flow knobs; U39 conditional visibility hides them unless
