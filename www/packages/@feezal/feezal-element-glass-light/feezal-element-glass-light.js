@@ -2,7 +2,7 @@
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
-import {applySizePreset, payloadMatch} from '@feezal/feezal-glass';
+import {applySizePreset, payloadMatch, glassCardStyles} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-light (E58)
@@ -216,30 +216,15 @@ class FeezalElementGlassLight extends FeezalElement {
         _details:   {state: true},   // details popup open
     };
 
-    static styles = [feezalBaseStyles, css`
-        :host { display: block; box-sizing: border-box; container-type: size; overflow: visible; }
+    static styles = [feezalBaseStyles, glassCardStyles, css`
         .card {
-            position: absolute; inset: var(--feezal-glass-margin, 6px); box-sizing: border-box; cursor: pointer;
-            display: flex; flex-direction: column; justify-content: space-between;
-            padding: 12px; gap: 2px;
-            border-radius: var(--feezal-glass-radius, 24px);
-            background: var(--feezal-glass-tint, rgba(255,255,255,0.35));
-            -webkit-backdrop-filter: blur(var(--feezal-glass-blur, 20px));
-            backdrop-filter: blur(var(--feezal-glass-blur, 20px));
-            border: 1px solid var(--feezal-glass-border, rgba(255,255,255,0.55));
-            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-            color: var(--feezal-glass-color, #1d1d1f);
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            cursor: pointer;
+            gap: 2px;
             transition: transform 0.15s ease, background 0.2s ease;
-            user-select: none; touch-action: manipulation;
+            touch-action: manipulation;
         }
-        @supports (corner-shape: squircle) { .card { corner-shape: squircle; } }
         .card:active { transform: scale(0.97); }
         .card.on { background: var(--feezal-glass-on-tint, rgba(255,255,255,0.62)); }
-        :host([degrade]) .card {
-            -webkit-backdrop-filter: none; backdrop-filter: none;
-            background: var(--feezal-glass-solid, rgba(245,245,247,0.94));
-        }
         feezal-icon {
             font-size: var(--feezal-glass-icon-size, 28px); line-height: 1;
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
