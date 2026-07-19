@@ -85,8 +85,8 @@ class FeezalElementMaterialClimate extends FeezalElement {
                     // Base-topic wiring — used by JSON-schema devices (zigbee2mqtt);
                     // harmless to set for separate-mode devices since subscribe/publish
                     // are not consumed in separate mode.
-                    temperature_state_topic:   {attr: 'subscribe'},
-                    temperature_command_topic: {attr: 'publish'},
+                    temperature_state_topic:   {attr: 'subscribe-setpoint'},
+                    temperature_command_topic: {attr: 'publish-setpoint'},
                     // Separate-mode per-property topic mappings (ESPHome, HA MQTT)
                     current_temperature_topic: {attr: 'subscribe-actual'},
                     mode_state_topic:          {attr: 'subscribe-mode'},

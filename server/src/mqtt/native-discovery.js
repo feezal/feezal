@@ -254,6 +254,10 @@ const hmClimateRecognizer = {
             valve_max: valveMax,
         };
         if (isTRV) config.action_topic = hmStatus(p, valveChan.seg, valveDp);
+        // Mode WRITE topic (→ publish-mode). HmIP writes the mode via CONTROL_MODE;
+        // BidCoS has no single mode-write datapoint (its per-entry `modes` publishes
+        // handle it), so publish-mode stays unset there.
+        if (generation === 'hmip') config.mode_command_topic = hmSet(p, writeSeg, 'CONTROL_MODE');
 
         // Availability: the device's :0 maintenance channel UNREACH datapoint
         // (UNREACH val=true ⇒ unreachable, so payload-available=false /
@@ -422,9 +426,13 @@ const hmContactRecognizer = {
             config.payload_tilted = '1';
             config.payload_on = '2';
         } else {
-            // SHUTTER_CONTACT: boolean STATE (false=closed, true=open). No tilt.
-            config.payload_on = 'true';
-            config.payload_off = 'false';
+            // SHUTTER_CONTACT: STATE is BidCoS boolean (false=closed/true=open)
+            // OR HmIP numeric (0=closed/1=open). Use '1'/'0' — the contact's
+            // payloadMatch matches BidCoS booleans via its true↔1 / false↔0
+            // aliases AND HmIP numerics by string equality, so one mapping covers
+            // both generations. No tilt.
+            config.payload_on = '1';
+            config.payload_off = '0';
         }
 
         // Availability from the device's :0 maintenance channel — derive the :0

@@ -39,8 +39,8 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
                 component: 'climate',
                 map: {
                     schema: {attr: 'payload-mode', valueMap: {json: 'json', _default: 'separate'}},
-                    temperature_state_topic:   {attr: 'subscribe'},
-                    temperature_command_topic: {attr: 'publish'},
+                    temperature_state_topic:   {attr: 'subscribe-setpoint'},
+                    temperature_command_topic: {attr: 'publish-setpoint'},
                     current_temperature_topic: {attr: 'subscribe-actual'},
                     mode_state_topic:          {attr: 'subscribe-mode'},
                     mode_command_topic:        {attr: 'publish-mode'},

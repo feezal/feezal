@@ -437,8 +437,8 @@ describe('E108 — native discovery stamps onto *-climate + wled elements', () =
             '[{"topic":"hm/status/TRV/0/UNREACH","property":"payload.val"}]');
         expect(el.getAttribute('payload-available')).toBe('false');
         expect(el.getAttribute('payload-unavailable')).toBe('true');
-        // Shared HA keys still map.
-        expect(el.getAttribute('subscribe')).toBe('hm/status/TRV/4/SET_TEMPERATURE');
+        // Setpoint topics stamp the SEPARATE-mode attrs (Homematic is separate mode).
+        expect(el.getAttribute('subscribe-setpoint')).toBe('hm/status/TRV/4/SET_TEMPERATURE');
         expect(el.getAttribute('subscribe-mode')).toBe('hm/status/TRV/4/CONTROL_MODE');
         expect(el.getAttribute('payload-mode')).toBe('separate');
         expect(el.getAttribute('unit')).toBe('°C');
@@ -574,7 +574,7 @@ describe('E108 — discovery picker encode/decode + source label', () => {
 
         // _applyDiscovery ran → attributes stamped, discovery-id preserves the space.
         expect(el.getAttribute('discovery-id')).toBe('hm-climate:Thermostat Hobbyraum');
-        expect(el.getAttribute('subscribe')).toBe('hm/status/Thermostat Hobbyraum:1/SET_POINT_TEMPERATURE');
+        expect(el.getAttribute('subscribe-setpoint')).toBe('hm/status/Thermostat Hobbyraum:1/SET_POINT_TEMPERATURE');
         expect(el.getAttribute('message-property')).toBe('payload.val');
         expect(change).toHaveBeenCalled();
     });

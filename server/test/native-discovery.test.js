@@ -71,6 +71,7 @@ describe('Homematic climate recognizer — HmIP wall thermostat (WTH-2)', () => 
         expect(c.temperature_command_topic).toBe('hm/set/Thermostat Hobbyraum:1/SET_POINT_TEMPERATURE');
         expect(c.current_temperature_topic).toBe('hm/status/Thermostat Hobbyraum:1/ACTUAL_TEMPERATURE');
         expect(c.mode_state_topic).toBe('hm/status/Thermostat Hobbyraum:1/SET_POINT_MODE');
+        expect(c.mode_command_topic).toBe('hm/set/Thermostat Hobbyraum:1/CONTROL_MODE');   // HmIP mode WRITE
         expect(c.message_property).toBe('payload.val');
         // Per-topic message-property twins are each stamped to payload.val too —
         // the per-read paths don't fall back to the element-level one (E108 fix).
@@ -284,8 +285,8 @@ describe('Homematic contact recognizer', () => {
         expect(c.state_topic).toBe('hm/status/Fenster Kueche:1/STATE');
         expect(c.value_template).toBe('{{ value_json.val }}');
         expect(c.device_class).toBe('window');
-        expect(c.payload_on).toBe('true');
-        expect(c.payload_off).toBe('false');
+        expect(c.payload_on).toBe('1');    // BidCoS bool true / HmIP numeric 1 (open)
+        expect(c.payload_off).toBe('0');   // BidCoS bool false / HmIP numeric 0 (closed)
         expect(c.payload_tilted).toBeUndefined();   // no tilt for a shutter contact
 
         // TWO :0 maintenance entries — UNREACH + LOWBAT (inside config).
