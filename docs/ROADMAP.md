@@ -68,6 +68,7 @@ Work in progress — priorities and scope are not final.
 - [A19 — Security model: multi-user / ACL story](#a19--security-model-multi-user--acl-story-needs-discussion) ⚠️
 - [A20 — Element/theme scaffolding and community ecosystem tooling](#a20--elementtheme-scaffolding-and-community-ecosystem-tooling)
 - [A21 — Accessibility: adopt the web-components Gold Standard for feezal elements](#a21--accessibility-adopt-the-web-components-gold-standard-for-feezal-elements)
+- [A23 — Externalize element families: own git repos + npm publish (paper, metro, tui, panel)](#a23--externalize-element-families-own-git-repos--npm-publish-paper-metro-tui-panel)
 
 
 ---
@@ -565,6 +566,7 @@ State-driven equipment symbols for plant/heating schematics — each bound to a 
 - **MVP symbol set** (all four groups): **pump** (circle symbol, rotates while running), **valve** (open/closed/position, incl. 3-way variant), **fan/motor** (rotating fan blades — ventilation), **sensor flag** (small value+unit readout flag to pin onto schematics), and the **pipe-flow polyline**.
 - **Appearance: simple/modern first** — clean flat symbols matching feezal's dashboard aesthetic. The switchable appearance-theme mechanism (P&ID schematic / skeuomorphic mimic as site-wide restyle) stays the design goal but ships **later as themes on top**; symbols must therefore draw everything from CSS custom properties from day one so a later appearance theme is pure CSS.
 - **Packaging: one N29 family bundle** — `@feezal/feezal-elements-schematic` (multi-element package, `feezal.elements` manifest) rather than five single-element packages: the symbols share their state machinery, SVG helpers and styling, and nobody wants a pump without a pipe. (The N29 `feezal-elements-*` mechanism is implemented in the server scan.)
+- **Born external (decided 07/2026):** this family lives in its **own GitHub repo** (`feezal/feezal-elements-schematic`) and is **published via npm** from day one — it never enters `www/packages/` in the feezal core repo. Follow the rail template and the A23 per-family checklist (repo scaffold, CI + `publish.yml` version-compare workflow, PUBLISHING.md, initial manual `npm publish --access public`, npmjs.com Trusted Publisher/OIDC config for the package). Installed on demand via the packages sidebar — keeping the element categories shipped with feezal small.
 
 **Implementation spec:**
 - **Common state contract** (pump/fan/valve): `subscribe` + `message-property`, `payload-on`/`payload-off` (dual-payload convention), optional `subscribe-fault`/`payload-fault` (fault overrides state, symbol turns `--error-color` + badge). Pump/fan: optional `subscribe-speed` (`speed-min`/`speed-max` scaling, B26 pattern) driving the rotation animation speed. Valve: either binary open/closed or `subscribe-position` 0–100 % (fill-level rendering); 3-way via a `variant` attribute.
@@ -1571,6 +1573,46 @@ Feezal's "widgets are plain npm packages" model is better infrastructure than vi
 **Relates:** A20 (`eslint-plugin-lit-a11y` tooling — this is the "why"), B25 (accessible dialog header/focus), E79 (button state/disabled semantics), E80/E93 (keyboard nav & sliders), element-spec.md (where the checklist lives).
 
 ---
+
+### A23 — Externalize element families: own git repos + npm publish (paper, metro, tui, panel)
+
+**Goal: keep the element set shipped with feezal small.** Four families move out of `www/packages/@feezal/` into their own GitHub repos and are published to npm — exactly the `feezal-elements-rail` pattern (local reference: `/mnt/c/Users/basti/source/repos/feezal-elements-rail`; also `feezal-elements-lcars`). Core keeps basic, material (Device), glass, layout and system.
+
+**Decided (07/2026):**
+- **N29 bundle per family** — each repo ships **one** `@feezal/feezal-elements-<family>` package (`feezal.type: elements` + `elements: [tags]` manifest) consolidating today's single-element packages. **Element tag names do not change**, so saved dashboards are untouched by the packaging change. Metro and TUI additionally carry their theme as a second package in `theme/` (rail precedent: `@feezal/feezal-theme-metro`, `-tui`).
+- **Opt-in install** — the families are **removed from the default install**; users add a family on demand via the packages sidebar (npm install path).
+- **Missing-element detection ships as part of this item** — see below; it is the upgrade path.
+- **Git history is preserved** — extract each family's history with `git filter-repo` rather than starting fresh.
+
+| Repo | Package(s) | Elements |
+|---|---|---|
+| `feezal/feezal-elements-paper` | `@feezal/feezal-elements-paper` | 11 (badge, button, card, checkbox, dialog, dialog-view, dropdown, listbox, slider, switch, tabs) |
+| `feezal/feezal-elements-metro` | `@feezal/feezal-elements-metro` + `@feezal/feezal-theme-metro` | 10 (climate, contact, cover, light, media, occupancy, sensor, switch, tile, wled) |
+| `feezal/feezal-elements-tui` | `@feezal/feezal-elements-tui` + `@feezal/feezal-theme-tui` | 8 (ascii, checkbox, crt, log, menu, panel, sparkline, value) |
+| `feezal/feezal-elements-panel` | `@feezal/feezal-elements-panel` | 5 (7seg, gauge, knob, led, switch) |
+
+**Repo-side work (per family):** consolidate the single-element packages into the bundle (shared `index.js` importing every element module; dedupe shared helpers while at it), copy the rail scaffolding (`ci.yml`, `publish.yml` with the version-compare jobs, `PUBLISHING.md`, `CLAUDE.md`, LICENSE, README, vitest setup), port the family's TESTING.md §6 entries into the repo, lockstep-major versioning with core (start at the current core major).
+
+**Core-side work (once, after the pilot family proves the path):**
+- Remove the family packages + their `www/package.json` entries, `npm install`, regenerate `www/editor/feezal-elements.js`, prune the moved TESTING.md sections (pointer to the family repos), update docs/element-spec references and release notes.
+- **Verify the package-manager install path handles `feezal-elements-*` bundles end-to-end** (server `_scan()` supports them; the sidebar install/uninstall flow must too, incl. theme packages).
+- **Missing-element detection (the migration feature):** on loading a site in the **editor**, collect custom-element tags matching `feezal-element-*` that are not registered (`customElements.get()` fails); map tag prefix → family npm package via a small static map shipped with the editor (`paper-* → @feezal/feezal-elements-paper`, …); show a non-blocking banner "This dashboard uses N elements from <family>, which is no longer bundled — Install?" wiring into the packages-sidebar install. Viewer: console warning listing missing tags. TESTING.md section for the detection flow.
+
+**Your checklist per family (ops steps, in order):**
+1. ☐ Create the GitHub repo under the `feezal` org (e.g. `feezal/feezal-elements-paper`), MIT, no auto-README.
+2. ☐ Clone to the local machine (`/mnt/c/Users/basti/source/repos/feezal-elements-<family>`).
+3. ☐ Extract history: `git filter-repo` over a fresh feezal clone, keeping `www/packages/@feezal/feezal-element-<family>-*` (+ theme package where applicable), then merge/graft that into the new repo.
+4. ☐ Scaffold from the rail template (workflows, PUBLISHING.md, CLAUDE.md, vitest) and consolidate to the N29 bundle; port tests + TESTING entries.
+5. ☐ Local smoke test against feezal: temporary `file:`/`npm link` dependency in `www/`, palette + one element of each type on a canvas, viewer render.
+6. ☐ **Initial manual npm publish** (Trusted Publisher config only exists after a first publish): `npm publish --access public` from the repo root — and from `theme/` for metro/tui. Verify with `npm view`.
+7. ☐ **Configure npm Trusted Publishing (OIDC)** on npmjs.com for **each** package: package page → Settings → Trusted Publisher → GitHub Actions, org `feezal`, repository `feezal-elements-<family>`, workflow `publish.yml`, environment empty. No tokens/secrets.
+8. ☐ Test the automated path: patch-bump, push to `main`, confirm `publish.yml` publishes with provenance.
+9. ☐ Install the family from npm via the feezal packages sidebar on a scratch site; verify palette/theme/uninstall.
+10. ☐ Only then: core-side removal PR (see above) + release note.
+
+**Sequencing:** pilot with **panel** (smallest, 5 elements, no theme), then tui, metro, paper. The detection feature lands with the pilot's core-removal PR. E63 (schematic family) starts external from day one and never enters core.
+
+**Relates:** N29 (bundle mechanism), A20 (scaffolding/ecosystem tooling — this creates the de-facto template), rail/lcars repos (living precedent incl. PUBLISHING.md), E63 (first born-external family), E106 (the glass shared-code lessons apply when consolidating families), packages sidebar + `server/src/build/install.js` (install path under test).
 
 ## Open Questions
 
