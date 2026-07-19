@@ -10,6 +10,46 @@ import {setupFeezal, mount} from './helpers.js';
 let feezal;
 beforeEach(() => { feezal = setupFeezal(); });
 
+describe('metro-climate valve scaling (E102 WP1)', () => {
+    it('separate-topic valve scales via valve-min/max and renders on the flip-face', async () => {
+        const el = await mount('feezal-element-metro-climate', {
+            'subscribe-valve': 'stat/level', 'valve-max': '1',
+        });
+        feezal.connection.deliver('stat/level', '0.5');
+        await el.updateComplete;
+        expect(el._valve).toBe(50);
+        const txt = el.renderRoot.textContent;
+        expect(txt).toContain('Valve');
+        expect(txt).toContain('50');
+    });
+
+    it('defaults 0–100 pass through unchanged (BidCoS VALVE_STATE)', async () => {
+        const el = await mount('feezal-element-metro-climate', {'subscribe-valve': 'stat/v'});
+        feezal.connection.deliver('stat/v', '73');
+        await el.updateComplete;
+        expect(el._valve).toBe(73);
+    });
+
+    it('clamps out-of-range values and survives a zero span', async () => {
+        const el = await mount('feezal-element-metro-climate', {
+            'subscribe-valve': 'stat/v', 'valve-min': '0', 'valve-max': '1',
+        });
+        feezal.connection.deliver('stat/v', '2');       // > max
+        await el.updateComplete;
+        expect(el._valve).toBe(100);
+        el.valveMax = 0;                                // degenerate span → passthrough+clamp
+        feezal.connection.deliver('stat/v', '42');
+        await el.updateComplete;
+        expect(el._valve).toBe(42);
+    });
+
+    it('nothing valve-related renders while subscribe-valve is unset', async () => {
+        const el = await mount('feezal-element-metro-climate', {});
+        expect(el._valve).toBeNull();
+        expect(el.renderRoot.textContent).not.toContain('Valve');
+    });
+});
+
 describe('metro-climate per-entry mode descriptors (E102)', () => {
     it('a plain mode entry still publishes the value on publish-mode (unchanged)', async () => {
         const el = await mount('feezal-element-metro-climate', {

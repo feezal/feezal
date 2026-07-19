@@ -27,6 +27,15 @@ class FeezalElementMetroClimate extends MetroTileBase {
                 {name: 'message-property-mode', type: 'string', default: 'payload', section: 'Connection', advanced: true,
                     help: 'Dot-notation path within mode messages. Default: payload'},
                 {name: 'publish-mode', type: 'mqttTopic', section: 'Connection', help: 'Mode command topic (enables the back mode chips).'},
+                // ── Valve / Position (E102) ──
+                {name: 'subscribe-valve',    type: 'mqttTopic', section: 'Valve',
+                    help: 'Optional: valve/position level. Scaled from valve-min…valve-max to 0–100 %.'},
+                {name: 'message-property-valve', type: 'string', default: 'payload', section: 'Valve', advanced: true,
+                    help: 'Dot-notation path within the valve message. Blank = fall back to element-level message-property.'},
+                {name: 'valve-min', type: 'number', default: 0, section: 'Valve',
+                    help: 'E102: valve device range minimum. Homematic BidCoS reports VALVE_STATE 0–100 (leave default); HmIP reports LEVEL 0…1 → set valve-max to 1. Incoming values scale from valve-min…valve-max to 0–100 %.'},
+                {name: 'valve-max', type: 'number', default: 100, section: 'Valve',
+                    help: 'E102: valve device range maximum. 100 for BidCoS VALVE_STATE (default), 1 for HmIP LEVEL.'},
                 {name: 'step', type: 'number', default: 0.5, section: 'Setpoint', help: 'Setpoint stepper increment.'},
                 {name: 'min',  type: 'number', default: 5,  section: 'Setpoint', help: 'Setpoint minimum.'},
                 {name: 'max',  type: 'number', default: 30, section: 'Setpoint', help: 'Setpoint maximum.'},
@@ -50,6 +59,7 @@ class FeezalElementMetroClimate extends MetroTileBase {
                     temperature_command_topic:  'publish-setpoint',
                     mode_state_topic:           'subscribe-mode',
                     mode_command_topic:         'publish-mode',
+                    action_topic:               'subscribe-valve',
                     modes:                      'modes',
                     min_temp:                   'min',
                     max_temp:                   'max',
@@ -73,9 +83,14 @@ class FeezalElementMetroClimate extends MetroTileBase {
         msgPropMode: {type: String, reflect: true, attribute: 'message-property-mode'},
         pubMode:     {type: String, reflect: true, attribute: 'publish-mode'},
         modes:       {type: String, reflect: true},
+        subValve:     {type: String, reflect: true, attribute: 'subscribe-valve'},
+        msgPropValve: {type: String, reflect: true, attribute: 'message-property-valve'},
+        valveMin:     {type: Number, reflect: true, attribute: 'valve-min'},
+        valveMax:     {type: Number, reflect: true, attribute: 'valve-max'},
         _current:  {state: true},
         _setpoint: {state: true},
         _mode:     {state: true},
+        _valve:    {state: true},   // null | number (0–100 %)
         _momentaryActive: {state: true},   // E102: value of the currently-active momentary (boost) entry
     };
 
@@ -86,6 +101,14 @@ class FeezalElementMetroClimate extends MetroTileBase {
         .stepper .val { font-size: 20px; font-weight: 300; min-width: 4ch; text-align: center; }
         .chips { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
         .chips .mbtn { padding: 2px 8px; font-size: 11px; }
+        /* E102: flat Metro valve readout on the flip-face (bar + %). */
+        .valve { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+        .valve-track {
+            flex: 1; height: 4px;
+            background: color-mix(in srgb, var(--feezal-metro-text, #fff) 30%, transparent);
+        }
+        .valve-fill { height: 100%; background: var(--feezal-metro-text, #fff); }
+        .valve-pct { min-width: 3.5ch; text-align: right; font-variant-numeric: tabular-nums; }
     `];
 
     constructor() {
@@ -101,9 +124,14 @@ class FeezalElementMetroClimate extends MetroTileBase {
         this.msgPropMode = '';
         this.pubMode = '';
         this.modes = '[]';
+        this.subValve = '';
+        this.msgPropValve = '';
+        this.valveMin = 0;
+        this.valveMax = 100;
         this._current = null;
         this._setpoint = null;
         this._mode = '';
+        this._valve = null;
         // E102 — mode-entry machinery
         this._lastRealSetpoint = null;   // remembered setpoint > off sentinel (for $setpoint)
         this._preBoostMode     = null;   // mode before a momentary/boost entry (for off:"restore")
@@ -125,6 +153,21 @@ class FeezalElementMetroClimate extends MetroTileBase {
             const v = this.getProperty(msg, this.msgPropMode || this.messageProperty);
             if (v !== null && v !== undefined) this._mode = String(v);
         });
+        sub(this.subValve, msg => {                                             // E102
+            const v = Number(this.getProperty(msg, this.msgPropValve || this.messageProperty));
+            if (!isNaN(v)) this._valve = this._scaleValve(v);
+        });
+    }
+
+    /**
+     * E102: scale an incoming valve value from the device range
+     * [valve-min, valve-max] to 0–100 %. Defaults 0/100 → unchanged (BidCoS
+     * VALVE_STATE); set valve-max=1 for HmIP LEVEL (0…1). Guards a zero span.
+     */
+    _scaleValve(v) {
+        const lo = Number(this.valveMin), hi = Number(this.valveMax);
+        const pct = (hi === lo) ? v : ((v - lo) / (hi - lo)) * 100;
+        return Math.max(0, Math.min(100, pct));
     }
 
     /** Modes attribute → [{value, label, ...}] (material-climate coercion). E102:
@@ -250,6 +293,12 @@ class FeezalElementMetroClimate extends MetroTileBase {
                     ${modes.map(m => html`
                         <button class="mbtn ${(m.momentary ? (this._momentaryActive === m.value || this._mode === m.value) : this._mode === m.value) ? 'active' : ''}"
                             @click="${() => this._setMode(m)}">${m.label ?? m.value}</button>`)}
+                </div>` : ''}
+            ${this._valve !== null ? html`
+                <div class="valve">
+                    <span>Valve</span>
+                    <div class="valve-track"><div class="valve-fill" style="width:${this._valve}%"></div></div>
+                    <span class="valve-pct">${Math.round(this._valve)}&nbsp;%</span>
                 </div>` : ''}`;
     }
 }

@@ -44,6 +44,7 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
                     current_temperature_topic: {attr: 'subscribe-actual'},
                     mode_state_topic:          {attr: 'subscribe-mode'},
                     mode_command_topic:        {attr: 'publish-mode'},
+                    action_topic:              {attr: 'subscribe-valve'},
                     min_temp:         {attr: 'min'},
                     max_temp:         {attr: 'max'},
                     temp_step:        {attr: 'step'},
@@ -85,6 +86,15 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
                 {name: 'max',  type: 'number', default: 30,   section: 'Setpoint', help: 'Maximum setpoint value.'},
                 {name: 'step', type: 'number', default: 0.5,  section: 'Setpoint', help: 'Setpoint snap increment.'},
                 {name: 'unit', type: 'string', default: '°C', section: 'Setpoint', help: 'Temperature unit label.'},
+                // ── Valve / Position (E102) ──
+                {name: 'subscribe-valve',    type: 'mqttTopic', section: 'Valve',
+                    help: 'Optional: valve/position level. Scaled from valve-min…valve-max to 0–100 %.'},
+                {name: 'message-property-valve', type: 'string', default: 'payload', section: 'Valve', advanced: true,
+                    help: 'Dot-notation path within the valve message. Blank = fall back to element-level message-property.'},
+                {name: 'valve-min', type: 'number', default: 0, section: 'Valve',
+                    help: 'E102: valve device range minimum. Homematic BidCoS reports VALVE_STATE 0–100 (leave default); HmIP reports LEVEL 0…1 → set valve-max to 1. Incoming values scale from valve-min…valve-max to 0–100 %.'},
+                {name: 'valve-max', type: 'number', default: 100, section: 'Valve',
+                    help: 'E102: valve device range maximum. 100 for BidCoS VALVE_STATE (default), 1 for HmIP LEVEL.'},
                 // ── Display ──
                 {name: 'modes', type: 'string', default: '', section: 'Display',
                     help: 'Mode buttons in the popup — JSON array of strings (["off","heat","auto"]) or {value,label} objects. Empty = no mode row. ' +
@@ -131,6 +141,10 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         subscribeMode:     {type: String, reflect: true, attribute: 'subscribe-mode'},
         msgPropMode:       {type: String, reflect: true, attribute: 'message-property-mode'},
         publishMode:       {type: String, reflect: true, attribute: 'publish-mode'},
+        subscribeValve:    {type: String, reflect: true, attribute: 'subscribe-valve'},
+        msgPropValve:      {type: String, reflect: true, attribute: 'message-property-valve'},
+        valveMin:          {type: Number, reflect: true, attribute: 'valve-min'},
+        valveMax:          {type: Number, reflect: true, attribute: 'valve-max'},
         min:  {type: Number, reflect: true},
         max:  {type: Number, reflect: true},
         step: {type: Number, reflect: true},
@@ -144,6 +158,7 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         _setpoint:  {state: true},
         _actual:    {state: true},
         _mode:      {state: true},
+        _valve:     {state: true},   // null | number (0–100 %)
         _dragSp:    {state: true},   // live setpoint while dragging the pill
         _momentaryActive: {state: true},   // E102: value of the currently-active momentary (boost) entry
     };
@@ -214,6 +229,19 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
             position: absolute; left: 0; right: 0; top: 12px; text-align: center;
             font-size: 11px; font-weight: 600; opacity: 0.65; pointer-events: none;
         }
+        /* E102: subtle valve-opening mark on the setpoint pill (a thin line at
+           the valve % height) — the glass analogue of material-climate's inner
+           valve arc. */
+        .vslider .valve-mark {
+            position: absolute; left: 0; right: 0; height: 2px;
+            background: color-mix(in srgb, var(--feezal-glass-color, #1d1d1f) 45%, transparent);
+            pointer-events: none;
+        }
+        .valve-line {
+            font-size: 12px; font-weight: 600; text-align: center;
+            font-variant-numeric: tabular-nums;
+            color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
+        }
         .modes { display: flex; gap: 8px; align-self: stretch; justify-content: center; flex-wrap: wrap; }
         .modes button {
             border: none; cursor: pointer; padding: 8px 10px; border-radius: 12px;
@@ -239,6 +267,10 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         this.subscribeMode = '';
         this.msgPropMode = '';
         this.publishMode = '';
+        this.subscribeValve = '';
+        this.msgPropValve = '';
+        this.valveMin = 0;
+        this.valveMax = 100;
         this.min = 5;
         this.max = 30;
         this.step = 0.5;
@@ -251,6 +283,7 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         this._setpoint = null;
         this._actual = null;
         this._mode = '';
+        this._valve = null;
         this._dragSp = null;
         // E102 — mode-entry machinery
         this._lastRealSetpoint = null;   // remembered setpoint > off sentinel (for $setpoint)
@@ -267,6 +300,7 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
             setpoint: 'current_heating_setpoint',
             actual:   'local_temperature',
             mode:     'system_mode',
+            valve:    'position',
         };
         if (this.jsonMap) {
             try { return {...defaults, ...JSON.parse(this.jsonMap)}; } catch { /* defaults */ }
@@ -274,9 +308,20 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         return defaults;
     }
 
+    /**
+     * E102: scale an incoming valve value from the device range
+     * [valve-min, valve-max] to 0–100 %. Defaults 0/100 → unchanged (BidCoS
+     * VALVE_STATE); set valve-max=1 for HmIP LEVEL (0…1). Guards a zero span.
+     */
+    _scaleValve(v) {
+        const lo = Number(this.valveMin), hi = Number(this.valveMax);
+        const pct = (hi === lo) ? v : ((v - lo) / (hi - lo)) * 100;
+        return Math.max(0, Math.min(100, pct));
+    }
+
     _wireSignature() {
         return [this.payloadMode, this.subscribe, this.subscribeSetpoint, this.subscribeActual,
-            this.subscribeMode].join('|');
+            this.subscribeMode, this.subscribeValve].join('|');
     }
 
     updated(changed) {
@@ -325,6 +370,8 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
                     if (!isNaN(ac)) this._actual = ac;
                     const mode = this.getProperty(obj, map.mode);
                     if (mode !== null && mode !== undefined) this._mode = String(mode);
+                    const valve = Number(this.getProperty(obj, map.valve));   // E102
+                    if (!isNaN(valve)) this._valve = this._scaleValve(valve);
                 });
             }
         } else {
@@ -345,6 +392,14 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
             this.addSubscription(this.subscribeActual, msg => {
                 const v = Number(this.getProperty(msg, this.msgPropActual || this.messageProperty));
                 if (!isNaN(v)) this._actual = v;
+            });
+        }
+        // E102: valve/position — separate topic works in BOTH payload modes
+        // (the JSON path above reads map.valve; a dedicated topic wins here).
+        if (this.subscribeValve) {
+            this.addSubscription(this.subscribeValve, msg => {
+                const v = Number(this.getProperty(msg, this.msgPropValve || this.messageProperty));
+                if (!isNaN(v)) this._valve = this._scaleValve(v);
             });
         }
     }
@@ -508,6 +563,7 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         const sp = this._dragSp ?? this._setpoint ?? (this.min + this.max) / 2;
         const fill = Math.max(0, Math.min(100, ((sp - this.min) / ((this.max - this.min) || 1)) * 100));
         const modes = this._parsedModes();
+        const valve = this._valve;
         return html`
             <div class="details" popover="manual">
                 <div class="title">${this.label || 'Climate'}</div>
@@ -516,9 +572,11 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
                     @pointermove="${this._spMove}"
                     @pointerup="${this._spUp}">
                     <div class="fill" style="height:${fill}%"></div>
+                    ${valve !== null ? html`<div class="valve-mark" style="bottom:${valve}%"></div>` : ''}
                     <div class="cur">${this._fmt(this._actual)}</div>
                     <div class="sp">${this._fmt(sp)}</div>
                 </div>
+                ${valve !== null ? html`<div class="valve-line">Valve ${Math.round(valve)}&nbsp;%</div>` : ''}
                 ${modes.length > 0 ? html`
                     <div class="modes">
                         ${modes.map(m => html`

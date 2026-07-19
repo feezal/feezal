@@ -10,6 +10,49 @@ import {setupFeezal, mount} from './helpers.js';
 let feezal;
 beforeEach(() => { feezal = setupFeezal(); });
 
+describe('glass-climate valve scaling (E102 WP1)', () => {
+    it('separate-topic valve scales via valve-min/max and renders the popup line', async () => {
+        const el = await mount('feezal-element-glass-climate', {
+            'payload-mode': 'separate', 'subscribe-valve': 'stat/level', 'valve-max': '1',
+        });
+        feezal.connection.deliver('stat/level', '0.5');
+        await el.updateComplete;
+        expect(el._valve).toBe(50);
+        el.openDetails();
+        await el.updateComplete;
+        const txt = el.renderRoot.textContent;
+        expect(txt).toContain('Valve');
+        expect(txt).toContain('50');
+    });
+
+    it('defaults 0–100 pass through unchanged (BidCoS VALVE_STATE)', async () => {
+        const el = await mount('feezal-element-glass-climate', {
+            'payload-mode': 'separate', 'subscribe-valve': 'stat/v',
+        });
+        feezal.connection.deliver('stat/v', '73');
+        await el.updateComplete;
+        expect(el._valve).toBe(73);
+    });
+
+    it('scales the valve read from a JSON payload too (position key)', async () => {
+        const el = await mount('feezal-element-glass-climate', {
+            'payload-mode': 'json', subscribe: 'stat/t', 'valve-max': '1',
+            'json-map': JSON.stringify({valve: 'level'}),
+        });
+        feezal.connection.deliver('stat/t', {level: 0.25});
+        await el.updateComplete;
+        expect(el._valve).toBe(25);
+    });
+
+    it('nothing valve-related renders while subscribe-valve is unset', async () => {
+        const el = await mount('feezal-element-glass-climate', {'payload-mode': 'separate'});
+        expect(el._valve).toBeNull();
+        el.openDetails();
+        await el.updateComplete;
+        expect(el.renderRoot.textContent).not.toContain('Valve');
+    });
+});
+
 describe('glass-climate per-entry mode descriptors (E102)', () => {
     it('a plain mode entry still publishes the value on publish-mode (unchanged)', async () => {
         const el = await mount('feezal-element-glass-climate', {
