@@ -29,7 +29,7 @@ Work in progress — priorities and scope are not final.
 - [E57 — E-ink / mono element family (`feezal-element-eink-*`)](#e57--e-ink--mono-element-family-feezal-element-eink-) 💡
 - [E61 — HMI / alarm element family (`feezal-element-hmi-*`)](#e61--hmi--alarm-element-family-feezal-element-hmi--️-reviewrefinement-needed) ⚠️
 - [E62 — MQTT broker introspection family (`feezal-element-mqtt-*`)](#e62--mqtt-broker-introspection-family-feezal-element-mqtt-)
-- [E63 — Plant-schematic symbol family (`feezal-element-schematic-*`)](#e63--plant-schematic-symbol-family-feezal-element-schematic-) 💡
+- [E63 — Plant-schematic symbol family (`feezal-elements-schematic`)](#e63--plant-schematic-symbol-family-feezal-elements-schematic)
 - [E64 — Camera image via MQTT (`feezal-element-basic-mqtt-image`)](#e64--camera-image-via-mqtt-feezal-element-basic-mqtt-image) 💡
 - [E65 — Pass/fail counter (`feezal-element-basic-passfail`)](#e65--passfail-counter-feezal-element-basic-passfail) 💡
 - [E66 — Fleet / heartbeat board (`feezal-element-basic-fleet`)](#e66--fleet--heartbeat-board-feezal-element-basic-fleet) 💡
@@ -43,7 +43,7 @@ Work in progress — priorities and scope are not final.
 - [E88 — JSON tree viewer (`feezal-element-basic-json`)](#e88--json-tree-viewer-feezal-element-basic-json)
 - [E89 — Lottie animation element (`feezal-element-basic-lottie`)](#e89--lottie-animation-element-feezal-element-basic-lottie)
 - [E90 — Vaadin element family (`feezal-element-vaadin-*`)](#e90--vaadin-element-family-feezal-element-vaadin-) 💡
-- [E91 — Theme switcher element (`feezal-element-system-theme-switch`)](#e91--theme-switcher-element-feezal-element-system-theme-switch) 💡
+- [E91 — Theme switcher element (`feezal-element-system-theme-switch`)](#e91--theme-switcher-element-feezal-element-system-theme-switch)
 - [E92 — PDF viewer element (`feezal-element-basic-pdf`)](#e92--pdf-viewer-element-feezal-element-basic-pdf) 💡
 - [E93 — Range slider: min/max band (`feezal-element-material-range`)](#e93--range-slider-minmax-band-feezal-element-material-range) 💡
 - [E94 — 3D model viewer (`feezal-element-basic-model`)](#e94--3d-model-viewer-feezal-element-basic-model) 💡
@@ -424,9 +424,20 @@ A countdown display toward a target time — common in ioBroker timer/schedule d
 
 > **Conventions:** dual-payload — (single topic) · auto-discovery: — · custom inspector: not required. See [Element platform conventions](#element-platform-conventions).
 
-**Editor preview:** static `12:34` digits with a ring at ~40 %.
+**Implementation spec (decided 07/2026 — implementation-ready):**
+- **Timestamp parsing (`target-timestamp` / `count-up` modes), auto-detected:** numeric payload `< 1e12` → Unix seconds, `≥ 1e12` → milliseconds; non-numeric string → `Date.parse()` (ISO). Unparseable → show `--:--`, never throw. **Clock-skew caveat** (ℹ help): these modes compare against the *client* clock — a wrong tablet clock shifts the countdown; `seconds-remaining` mode is immune.
+- **Ticking:** 1 s interval, but remaining time is always recomputed from `Date.now()` against the anchor (target timestamp, or value+receive-time in `seconds-remaining` mode) — no cumulative interval drift. Interval paused when the element is disconnected.
+- **`publish-on-zero` semantics (decided: keep + document):** arms only after a value `> 0` has been seen, fires exactly **once** on the transition to `≤ 0`, and never fires on load when the first (retained, stale) value is already `≤ 0`. **Multi-viewer caveat documented in the ℹ help:** every open viewer publishes at zero (2 tablets = 2 messages) — consuming automations must tolerate duplicates (or use a retained flag). Re-arms when a new value `> 0` arrives.
+- **Rendering:** monospace digits (`font-variant-numeric: tabular-nums`), SVG progress ring (or bar when the element box is much wider than tall — container query, same trick as E105); `warn-seconds` switches digits+ring to `--error-color`. At zero: `done-label` replaces the digits, ring full/empty per mode.
+- **Styles (§5.1 canonical vars):** digits `--primary-text-color`, ring `--primary-color`, warn `--error-color`, done-label `--secondary-text-color`.
+
+**Editor preview:** static `12:34` digits with a ring at ~40 %; no ticking in the editor.
 
 **Default size:** 160×100 px.
+
+**Ships with:** standard element scaffolding + patch version, TESTING.md §6 entry (all three modes, format auto, warn transition, publish-on-zero arm/fire-once/stale-retained no-fire, editor preview).
+
+**Deferred:** pause/reset control payloads (start/stop the stopwatch via MQTT), server-side deduped publish-on-zero.
 
 ### E38 — Element scaling / responsive sizing ⚠️ TBD — needs element audit
 
@@ -546,15 +557,27 @@ The highest value-to-effort family of the research-derived sets:
 
 **Relates:** N24 (the presence contract the first-cut element consumes), E32 (logbook), editor topic autocomplete (shared topic-tree machinery — now a decided direction, see topic-tree browser).
 
-### E63 — Plant-schematic symbol family (`feezal-element-schematic-*`) 💡 idea
+### E63 — Plant-schematic symbol family (`feezal-elements-schematic`)
 
-State-driven equipment symbols for plant/heating schematics: **pump, valve, motor, fan, damper, vessel, heat exchanger, sensor flag** — each bound to a topic with states (running/stopped/fault → color/animation, e.g. rotating fan), plus FlowChief's killer piece: an **animated-flow pipe polyline** (material flow along a path, direction/speed bindable). Ignition's design pattern to copy: few symbols × standard states × **switchable appearance themes** (P&ID schematic / mimic skeuomorphic / simple), settable globally per site so one dashboard restyles wholesale.
+State-driven equipment symbols for plant/heating schematics — each bound to a topic with states (running/stopped/fault → colour/animation), plus FlowChief's killer piece: an **animated-flow pipe polyline**. Home use cases: heat-pump, solar-thermal, ventilation, and pool schematics. Validation: ThingsBoard added exactly this category in 3.7+ (SCADA symbol bundles); Ignition's community begs for more symbols. E51 (`basic-svg`, **shipped**) stays the power-user path (import any schematic, bind ids); E63 is the canned library on top of the same binding concepts.
 
-Home use cases: heat-pump, solar-thermal, ventilation, and pool schematics. Validation: ThingsBoard added exactly this category in 3.7+ (SCADA symbol bundles); Ignition's community begs for more symbols (their library stalled at 5).
+**Decided (07/2026):**
+- **MVP symbol set** (all four groups): **pump** (circle symbol, rotates while running), **valve** (open/closed/position, incl. 3-way variant), **fan/motor** (rotating fan blades — ventilation), **sensor flag** (small value+unit readout flag to pin onto schematics), and the **pipe-flow polyline**.
+- **Appearance: simple/modern first** — clean flat symbols matching feezal's dashboard aesthetic. The switchable appearance-theme mechanism (P&ID schematic / skeuomorphic mimic as site-wide restyle) stays the design goal but ships **later as themes on top**; symbols must therefore draw everything from CSS custom properties from day one so a later appearance theme is pure CSS.
+- **Packaging: one N29 family bundle** — `@feezal/feezal-elements-schematic` (multi-element package, `feezal.elements` manifest) rather than five single-element packages: the symbols share their state machinery, SVG helpers and styling, and nobody wants a pump without a pipe. (The N29 `feezal-elements-*` mechanism is implemented in the server scan.)
 
-**Notes:** largest scope of the research-derived sets — sequence after E51 (SVG element), whose binding machinery it shares; E51 stays the power-user path (import any schematic, bind ids), E63 is the canned library.
+**Implementation spec:**
+- **Common state contract** (pump/fan/valve): `subscribe` + `message-property`, `payload-on`/`payload-off` (dual-payload convention), optional `subscribe-fault`/`payload-fault` (fault overrides state, symbol turns `--error-color` + badge). Pump/fan: optional `subscribe-speed` (`speed-min`/`speed-max` scaling, B26 pattern) driving the rotation animation speed. Valve: either binary open/closed or `subscribe-position` 0–100 % (fill-level rendering); 3-way via a `variant` attribute.
+- **Sensor flag:** `subscribe`, `message-property`, `unit`, `decimals`, `label` — a leader-line flag styled to sit on top of pipes/symbols.
+- **Pipe flow (`schematic-pipe`):** `points` attribute (JSON array of `[x,y]` pairs, relative to the element box, straight segments) rendered as an SVG polyline; **animated dashes** (CSS `stroke-dashoffset` keyframes) show flow. `subscribe-flow`: numeric payload — sign flips direction, magnitude scales animation speed (`flow-max` for scaling, `0` = animation off); `payload-on`/`payload-off` alternative for binary flow. Styles: pipe colour (`--feezal-schematic-pipe`, default `--secondary-text-color`), active-flow colour (default `--primary-color`), width. **Path editing is the JSON attribute in MVP** — a visual drag-handle path editor is deferred (N34/E51 territory).
+- **Animation discipline:** all rotation/flow animation is pure CSS, paused in the editor (static preview) and honouring `prefers-reduced-motion`.
+- **Styles (§5.1):** every colour a `--feezal-schematic-*` custom property defaulting to canonical theme vars (running → `--primary-color`, stopped → `--secondary-text-color`, fault → `--error-color`) — this is what makes the later appearance themes possible.
 
-**Relates:** E51 (shared binding concepts), E61 (alarm badge on symbols), E56 (gauge styling discipline).
+**Ships with:** the N29 bundle package + registration + manifest, patch/lockstep versioning, TESTING.md §6 entries per symbol (state colours, fault override, rotation speed, pipe direction flip, reduced-motion, editor-static preview).
+
+**Deferred:** damper, vessel, heat exchanger symbols (second wave), P&ID + mimic appearance themes, visual pipe-path editor, E61 alarm-badge integration.
+
+**Relates:** E51 (shipped — shared binding concepts, power-user alternative), N29 (family-bundle packaging), E61 (alarm badge on symbols — deferred hook), E56 (gauge styling discipline), B26 (speed/position scaling pattern).
 
 ### E64 — Camera image via MQTT (`feezal-element-basic-mqtt-image`) 💡 idea
 
@@ -727,16 +750,25 @@ An element **design system** backed by **Vaadin web components** ([vaadin.com](h
 
 **Relates:** E83 (Spectrum) / E84 (Wired) — the other concrete framework families; E85 (backlog it was promoted from); E75 (Vaadin Grid could back the data table), E25 (Vaadin date/time picker), and the charting items (Vaadin Charts — but commercial, so likely not); N29 (element sets — a design-system family is the prime "install as a set" case).
 
-### E91 — Theme switcher element (`feezal-element-system-theme-switch`) 💡 idea
+### E91 — Theme switcher element (`feezal-element-system-theme-switch`)
 
-*(Source: awesome-web-components, July 2026 — `<dark-mode-toggle>` / `<theme-switch>`.)* feezal ships many themes but has **no in-viewer control to switch them** — the theme is chosen in the editor. A viewer-facing switcher lets end users flip light/dark (or pick among installed themes) on the running dashboard.
+feezal ships many themes but has **no in-viewer control to switch them** — the theme is chosen in the editor. A viewer-facing switcher lets end users flip light/dark (or pick among installed themes) on the running dashboard.
 
-- **Two modes:** a simple **light/dark toggle**, or a **theme picker** (dropdown of installed `feezal-theme-*` names) — one attribute selects which.
-- **Persistence:** remember the choice per client (localStorage), and optionally publish/subscribe the selection to a topic so it can sync across viewers or be driven from automation (e.g. dark after sunset). Ties into the theme machinery that already surfaces `window.feezal.themes`.
-- **Editor:** a normal palette element (renders a real toggle/select); position/size on the canvas like any control.
-- **Attributes:** `mode` (`toggle` | `select`), `subscribe`/`publish` (optional cross-client sync), `default`, persistence on/off. **Styles:** themeable icon/track colours.
+**Decided (07/2026): three modes in MVP** — `toggle` (light/dark), `select` (theme picker dropdown), `auto` (follow OS `prefers-color-scheme`). **MQTT sync (subscribe/publish) is deferred.**
 
-**Relates:** the theme system (`window.feezal.themes`, theme packages), A18 (kiosk/wall-panel — auto dark/light there), E50 (conditions could also drive theme via a control topic), E71 (icon-value — the toggle's sun/moon glyphs).
+**Implementation spec:**
+- **Switch mechanism:** themes apply via a `<link href="/themes/<name>.css">` swap — the editor already does exactly this ([feezal-app-editor.js:433-439](../www/src/feezal-app-editor.js#L433-L439), `feezal-user-theme-link`). Extract that into a small shared `feezal.applyTheme(name)` helper usable by the viewer, and the element calls it. Verify the theme CSS files are present under the same path in the **static export** (the export must ship all installed themes, or at least the ones the element references — check `createExport()`), else document export limitation.
+- **Attributes:** `mode` (`toggle` | `select` | `auto`, default `toggle`), `theme-light` + `theme-dark` (theme names used by `toggle` and `auto`), `default-theme` (initial theme when nothing persisted; empty = the site's editor-chosen theme), `persist` (boolean, default `true`).
+- **Persistence & precedence:** persisted client choice (`localStorage`, key scoped per site) → `default-theme` attribute → the site's editor-set theme. `auto` mode is a **pure follower** of `prefers-color-scheme` (live via media-query listener) and never persists — keeping the override semantics trivial; users who want manual control use `toggle`.
+- **Picker source (`select` mode):** the installed-theme list surfaced by the existing theme machinery (`window.feezal.themes`; verify it's populated in the viewer, not only the editor — if not, expose it there).
+- **Rendering:** `toggle` = sun/moon icon button; `select` = a small `sl-select` of theme names; `auto` = renders a passive indicator (or nothing — `display:none` viewer-side, chip in editor). Editor mode: control renders but is **inert** (editor theme is not affected); standard palette element, normal position/size.
+- **Styles (§5.1):** icon/track colours as `--feezal-theme-switch-*` custom properties defaulting to `--primary-text-color` / `--primary-color`.
+
+**Ships with:** standard element scaffolding + patch version, TESTING.md §6 entry (all three modes, persistence across reload, precedence order, OS-scheme flip in auto mode, export behaviour, editor inertness).
+
+**Deferred:** MQTT sync — `subscribe`/`publish` of the theme name for cross-viewer sync and automation-driven switching (dark after sunset); per-view theme overrides.
+
+**Relates:** the theme system (`window.feezal.themes`, theme packages, the editor's link-swap this generalises), A18 (kiosk/wall-panel — auto dark/light there), E50 (conditions could drive theme once MQTT sync lands), E71 (icon-value — the toggle's sun/moon glyphs).
 
 ### E92 — PDF viewer element (`feezal-element-basic-pdf`) 💡 idea
 
