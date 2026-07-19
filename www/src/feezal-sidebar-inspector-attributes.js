@@ -1,4 +1,5 @@
 ﻿import {LitElement, html, css} from 'lit';
+import {html as staticHtml, unsafeStatic} from 'lit/static-html.js';
 
 // U36: trailing-debounce interval for live-apply-while-typing in the
 // attribute AND style inspectors (the styles panel imports this constant).
@@ -725,7 +726,26 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         this._helpTip = null;
     }
 
+    /**
+     * WP3/E106 platform hook — render a `type:'custom'` descriptor's component.
+     * The registered `<component>` tag is rendered with lit-html static
+     * interpolation (the tag is data-driven, so `unsafeStatic`/`staticHtml`),
+     * gets the selected element via `.element`, and has its N6
+     * `feezal-attribute-changed` events routed through _onCustomAttrChanged —
+     * the identical dirty+undo commit path used by whole-element N6 inspectors.
+     * No label row is rendered: the component owns its entire UI. Only single
+     * selection reaches here (multi-select custom items are dropped upstream).
+     */
+    _renderCustom(item) {
+        const el = this.selectedElems?.[0] || null;
+        const tag = unsafeStatic(item.component);
+        return staticHtml`
+            <${tag} .element="${el}"
+                @feezal-attribute-changed="${this._onCustomAttrChanged}"></${tag}>`;
+    }
+
     _renderInput(item, idx) {
+        if (item.custom) return this._renderCustom(item);
         const {elem, label, value, mixed} = item;
         const labelSlot = this._labelTpl(label, elem.help);
         const labelAttr = elem.help ? '' : label;
@@ -1217,6 +1237,36 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             const attrName = typeof attr === 'string' ? attr : attr.name;
             const attrSpec = typeof attr === 'string' ? {} : attr;
 
+            // WP3/E106 platform hook: a `type:'custom'` descriptor hosts a
+            // registered component (`component:'<tag>'`) inside the structured
+            // inspector instead of a labelled control. The component receives
+            // the selected element as `.element` and emits N6-style
+            // `feezal-attribute-changed` events, which are routed through the
+            // SAME dirty+undo commit path (_onCustomAttrChanged) that the
+            // whole-element N6 inspectors use. A custom entry lives in its
+            // `section` and honours `advanced`/`visibleWhen` like any other.
+            // Multi-select: dropped (returns null → filtered out below), because
+            // the component is authored around a single element — mirroring N6
+            // custom inspectors, which only render for a single selection.
+            if (attrSpec.type === 'custom') {
+                if (this.selectedElems.length !== 1) return null;
+                return {
+                    label:       attrName || attrSpec.component,
+                    attrName:    attrName || attrSpec.component,
+                    custom:      true,
+                    component:   attrSpec.component,
+                    value:       null,
+                    mixed:       false,
+                    half:        false,
+                    invalid:     false,
+                    section:     attrSpec.section || '',
+                    advanced:    Boolean(attrSpec.advanced),
+                    visibleWhen: attrSpec.visibleWhen || null,
+                    default:     undefined,
+                    elem:        {custom: true}
+                };
+            }
+
             // Support both legacy {dropdown: [...]} and new {type:'select', options:[...]} formats.
             const options = attrSpec.dropdown === 'views'
                 ? viewNames
@@ -1301,7 +1351,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                     step: attrSpec.step
                 }
             };
-        });
+        }).filter(Boolean);   // drop null entries (custom items under multi-select)
 
         // Inject locked checkbox for all non-view elements
         if (tagName !== 'feezal-view') {

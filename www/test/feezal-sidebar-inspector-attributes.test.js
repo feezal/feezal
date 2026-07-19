@@ -1,4 +1,4 @@
-import {describe, it, expect} from 'vitest';
+import {describe, it, expect, vi} from 'vitest';
 
 import '../src/feezal-sidebar-inspector-attributes.js';
 
@@ -278,5 +278,123 @@ describe('feezal-view flow knobs surface in the inspector (U41 visibleWhen)', ()
         }
         const absolute = itemsFor('absolute');
         expect(absolute).not.toContain('flow-gap');
+    });
+});
+
+// ── WP3/E106: type:'custom' custom-inspector platform hook ──────────────────
+import {LitElement as LitElementCustom, html} from 'lit';
+
+// Tiny stub component standing in for a hosted inspector building block
+// (e.g. the climate-profiles picker). It records the `.element` it receives and
+// can emit the N6 `feezal-attribute-changed` protocol on demand.
+class XTestPanel extends LitElementCustom {
+    static properties = {element: {attribute: false}};
+    constructor() { super(); this.element = null; }
+    render() { return html`<div class="x-test-panel-body">panel</div>`; }
+    stamp(name, value) {
+        this.dispatchEvent(new CustomEvent('feezal-attribute-changed', {
+            bubbles: true, composed: true, detail: {name, value},
+        }));
+    }
+}
+if (!customElements.get('x-test-panel')) customElements.define('x-test-panel', XTestPanel);
+
+// A host element that exposes a `type:'custom'` descriptor in a section, plus a
+// plain attribute and one gated behind visibleWhen.
+class XCustomHost extends LitElementCustom {
+    static get feezal() {
+        return {
+            attributes: [
+                'subscribe',
+                {name: 'mode', type: 'select', options: ['a', 'b'], section: 'Profiles', default: 'a'},
+                {type: 'custom', component: 'x-test-panel', section: 'Profiles'},
+                {type: 'custom', component: 'x-test-panel', section: 'Gated',
+                 visibleWhen: {attr: 'mode', equals: 'b'}},
+            ],
+        };
+    }
+    render() { return html``; }
+}
+if (!customElements.get('x-custom-host')) customElements.define('x-custom-host', XCustomHost);
+
+function makeInspectorFor(host) {
+    const ins = document.createElement('feezal-sidebar-inspector-attributes');
+    ins.selectedElems = [host];
+    ins._rebuildItems();
+    return ins;
+}
+
+describe('WP3/E106 — type:custom platform hook (_rebuildItems)', () => {
+    it('carries a custom descriptor into an item with component + section + visibleWhen', () => {
+        const host = document.createElement('x-custom-host');
+        const ins = makeInspectorFor(host);
+        const custom = ins.items.filter(it => it.custom);
+        expect(custom).toHaveLength(2);
+        expect(custom[0]).toMatchObject({custom: true, component: 'x-test-panel', section: 'Profiles'});
+        expect(custom[1].visibleWhen).toEqual({attr: 'mode', equals: 'b'});
+    });
+
+    it('places the custom item in its section group', () => {
+        const host = document.createElement('x-custom-host');
+        const ins = makeInspectorFor(host);
+        const profiles = ins._visibleGroups().find(g => g.section === 'Profiles');
+        expect(profiles).toBeTruthy();
+        expect(profiles.main.some(x => x.item.custom && x.item.component === 'x-test-panel')).toBe(true);
+    });
+
+    it('honours visibleWhen for the gated custom entry (hidden by default, shown when mode=b)', () => {
+        const host = document.createElement('x-custom-host');
+        let ins = makeInspectorFor(host);
+        expect(ins._visibleGroups().some(g => g.section === 'Gated')).toBe(false);
+        host.setAttribute('mode', 'b');
+        ins = makeInspectorFor(host);
+        expect(ins._visibleGroups().some(g => g.section === 'Gated')).toBe(true);
+    });
+
+    it('drops custom items under multi-select (component is single-element authored)', () => {
+        const a = document.createElement('x-custom-host');
+        const b = document.createElement('x-custom-host');
+        const ins = document.createElement('feezal-sidebar-inspector-attributes');
+        ins.selectedElems = [a, b];
+        ins._rebuildItems();
+        expect(ins.items.some(it => it.custom)).toBe(false);
+    });
+});
+
+describe('WP3/E106 — type:custom rendering + change routing', () => {
+    it('renders <x-test-panel> in the panel with .element set, and routes its change through the commit path', async () => {
+        const host = document.createElement('x-custom-host');
+        document.body.append(host);
+        const change = vi.fn();
+        globalThis.feezal.app = {change};
+
+        const ins = document.createElement('feezal-sidebar-inspector-attributes');
+        document.body.append(ins);
+        ins.selectedElems = [host];
+        await ins.updateComplete;
+        // _rebuildItems() runs in updated() and sets this.items, scheduling a
+        // second update — wait for that render too.
+        await ins.updateComplete;
+
+        const panel = ins.shadowRoot.querySelector('x-test-panel');
+        expect(panel).toBeTruthy();
+        expect(panel.element).toBe(host);
+
+        // Emit the N6 protocol — the inspector must write the attribute onto the
+        // selected element and mark the change (dirty + undo history).
+        panel.stamp('publish', 'home/thermostat/set');
+        expect(host.getAttribute('publish')).toBe('home/thermostat/set');
+        expect(change).toHaveBeenCalledTimes(1);
+
+        // A batch stamp of several attributes routes each through the same path
+        // (per-attribute commit — one history entry each, acceptable for now).
+        change.mockClear();
+        panel.stamp('subscribe', 'home/thermostat/state');
+        panel.stamp('mode', 'b');
+        expect(host.getAttribute('subscribe')).toBe('home/thermostat/state');
+        expect(host.getAttribute('mode')).toBe('b');
+        expect(change).toHaveBeenCalledTimes(2);
+
+        document.body.innerHTML = '';
     });
 });
