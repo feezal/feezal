@@ -139,6 +139,19 @@ class FeezalElementMaterialLight extends FeezalElement {
                     max_mireds: {attr: 'color-temp-min', unit: 'mired\u2192kelvin'}, // 500 → 2000 K
                     // effects
                     effect_list: {attr: 'effects', transform: 'join'},
+                    // E108 native Homematic (separate-mode dimmer) — HA-absent keys,
+                    // additive: zigbee2mqtt / HA discovery never emits these, so they
+                    // only stamp for the native hmLightRecognizer contract.
+                    payload_mode:             'payload-mode',
+                    brightness_state_topic:   'subscribe-brightness',   // hm/status/<seg>/LEVEL
+                    brightness_command_topic: 'publish-brightness',     // hm/set/<seg>/LEVEL
+                    brightness_min:           {attr: 'brightness-min'},
+                    on_off_source:            'on-off-source',          // brightness = derive on/off from level
+                    payload_off:              'payload-off',
+                    payload_on:               'payload-on',
+                    message_property:             'message-property',
+                    message_property_brightness:  'message-property-brightness',
+                    message_property_state:       'message-property-state',
                     // N31: availability is mapped automatically from the canonical discovery record.
                     // device name → label
                     name: 'label',

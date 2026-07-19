@@ -496,6 +496,22 @@ const hmContactRecognizer = {
 const COVER_BIDCOS_TYPES = new Set(['BLIND']);            // single channel, any index
 const COVER_HMIP_TYPES = new Set(['BLIND_VIRTUAL_RECEIVER']); // grouped in 3s
 
+// Shared HmIP virtual-receiver grouping (used by cover BLIND_VIRTUAL_RECEIVER and
+// light DIMMER_VIRTUAL_RECEIVER). HmIP actuators expose each physical output as a
+// consecutive TRIPLE of virtual-receiver channels (1 output = 3 channels). Given
+// the just-updated channel, returns the triple's leader (its lowest-channelIndex
+// member) + the group index, computed against the FULL current sorted set of that
+// channelType so the retained-message burst converges to a stable per-group id.
+function hmipVirtualGroup(dev, chan, channelType) {
+    const vr = [...dev.channels.values()]
+        .filter(c => c.channelType === channelType)
+        .sort((a, b) => (a.channelIndex ?? 0) - (b.channelIndex ?? 0));
+    const pos = vr.indexOf(chan);
+    if (pos < 0) return null;
+    const groupIndex = Math.floor(pos / 3);
+    return {leader: vr[groupIndex * 3], groupIndex};
+}
+
 const hmCoverRecognizer = {
     id: 'homematic-cover',
     // deviceId → {deviceId, deviceName, deviceType, channels: Map<seg, chan>}
@@ -545,19 +561,6 @@ const hmCoverRecognizer = {
         // Carry the just-updated channel so promote emits THIS channel's cover /
         // its HmIP group (a device can hold several independent covers).
         return {dev, chan};
-    },
-
-    // The HmIP virtual-receiver triple the just-updated channel belongs to, and
-    // that triple's leader (its lowest-channelIndex member). Computed against the
-    // FULL current sorted set so the burst converges to a stable per-group id.
-    _hmipGroup(dev, chan) {
-        const vr = [...dev.channels.values()]
-            .filter(c => c.channelType === 'BLIND_VIRTUAL_RECEIVER')
-            .sort((a, b) => (a.channelIndex ?? 0) - (b.channelIndex ?? 0));
-        const pos = vr.indexOf(chan);
-        if (pos < 0) return null;
-        const groupIndex = Math.floor(pos / 3);
-        return {leader: vr[groupIndex * 3], groupIndex};
     },
 
     _build(dev, chan, discoveryId, name) {
@@ -619,7 +622,7 @@ const hmCoverRecognizer = {
         }
 
         if (COVER_HMIP_TYPES.has(chan.channelType)) {
-            const grp = this._hmipGroup(dev, chan);
+            const grp = hmipVirtualGroup(dev, chan, 'BLIND_VIRTUAL_RECEIVER');
             if (!grp) return null;
             const {leader, groupIndex} = grp;
             // Stable per-group id (…:g0/:g1/…) keyed on the device + group index,
@@ -640,8 +643,184 @@ const hmCoverRecognizer = {
     reset() { this.state.devices.clear(); },
 };
 
+// ── Recognizer 5: Homematic light (dimmer) ────────────────────────────────────
+// Dimmable-light actuators. Two dialects, gated on the CCU channelType metadata
+// (LEVEL alone is not evidence — covers and TRV valves report LEVEL too), so a
+// channel with absent/unlisted channelType is NOT promoted:
+//
+//   BidCoS  DIMMER                  — one physical output = ONE DIMMER channel
+//                                     (the channel number varies per device, so
+//                                     we key off the channelType, not the index);
+//                                     each such channel → one light entity.
+//   HmIP    DIMMER_VIRTUAL_RECEIVER — a dimmer actuator exposes its outputs as
+//                                     virtual-receiver channels grouped in
+//                                     consecutive TRIPLES (1 output = 3 channels,
+//                                     the same HmIP convention as the blind
+//                                     actuator). We reuse hmipVirtualGroup() to
+//                                     sort ascending by channelIndex, chunk into
+//                                     3s, and wire the light to the FIRST
+//                                     (lowest-index) channel of each triple. A
+//                                     6-channel device → 2 lights. The
+//                                     discovery_id is STABLE per group (…:g0/:g1)
+//                                     so the retained burst can't leave stale
+//                                     duplicates as channels arrive out of order.
+//
+// Homematic dimmers have NO on/off datapoint — on/off is derived from the level
+// (on-off-source=brightness). Brightness is Homematic LEVEL (0.0–1.0): the entity
+// ships brightness_min 0 / brightness_scale 1 so the client element treats max=1
+// (feezal's internal 0–100 % scales to 0…1, no server scaling).
+const LIGHT_BIDCOS_TYPES = new Set(['DIMMER']);                    // single channel, any index
+const LIGHT_HMIP_TYPES = new Set(['DIMMER_VIRTUAL_RECEIVER']);     // grouped in 3s
+
+const hmLightRecognizer = {
+    id: 'homematic-light',
+    // deviceId → {deviceId, deviceName, deviceType, channels: Map<seg, chan>}
+    // chan = {seg, channelType, channelIndex, channelAddr, channelName}
+    state: {devices: new Map()},
+
+    match(topic) {
+        // hm/status/<seg>/LEVEL — LEVEL only. Covers + climate also match LEVEL;
+        // each recognizer independently gates on its own channelType, so a
+        // DIMMER's LEVEL only promotes here.
+        if (!topic.startsWith(hmPrefix + '/status/')) return null;
+        const parts = topic.split('/');
+        if (parts.length !== 4) return null;            // exactly prefix/status/seg/DP
+        if (parts[3] !== 'LEVEL') return null;
+        return {seg: parts[2], datapoint: 'LEVEL'};
+    },
+
+    accumulate(state, parsed, value, payload) {
+        const hm = (payload && typeof payload === 'object' && payload.hm && typeof payload.hm === 'object')
+            ? payload.hm : null;
+
+        // Group by the CCU device id; fall back to the topic segment with its
+        // trailing :<n> stripped when metadata is absent.
+        const deviceId = (hm && hm.device) ? String(hm.device)
+            : parsed.seg.replace(/:\d+$/, '');
+
+        let dev = state.devices.get(deviceId);
+        if (!dev) {
+            dev = {deviceId, deviceName: undefined, deviceType: undefined, channels: new Map()};
+            state.devices.set(deviceId, dev);
+        }
+        if (hm) {
+            if (hm.deviceName != null) dev.deviceName = hm.deviceName;
+            if (hm.deviceType != null) dev.deviceType = hm.deviceType;
+        }
+
+        let chan = dev.channels.get(parsed.seg);
+        if (!chan) {
+            chan = {seg: parsed.seg, channelType: undefined, channelIndex: undefined,
+                channelAddr: undefined, channelName: undefined};
+            dev.channels.set(parsed.seg, chan);
+        }
+        if (hm) {
+            if (hm.channelType != null) chan.channelType = hm.channelType;
+            if (hm.channelIndex != null) chan.channelIndex = hm.channelIndex;
+            if (hm.channel != null) chan.channelAddr = hm.channel;
+            if (hm.channelName != null) chan.channelName = hm.channelName;
+        }
+        // Carry the just-updated channel so promote emits THIS channel's light /
+        // its HmIP group (a device can hold several independent dimmers).
+        return {dev, chan};
+    },
+
+    _build(dev, chan, discoveryId, name) {
+        const p = hmPrefix;
+        const readSeg = chan.seg;
+        // Write topics use the segment when non-empty, else the channel address
+        // (nameless device) — mirrors the cover/climate/contact recognizers.
+        const writeSeg = chan.seg !== '' ? chan.seg : (chan.channelAddr || chan.seg);
+
+        const config = {
+            name,
+            // Homematic is SEPARATE mode — brightness goes to the separate-mode attrs.
+            payload_mode: 'separate',
+            brightness_state_topic:   hmStatus(p, readSeg, 'LEVEL'),
+            brightness_command_topic: hmSet(p, writeSeg, 'LEVEL'),
+            // LEVEL is 0.0–1.0 → the client treats max=1 (feezal 0–100 % scales to
+            // 0…1, no server scaling). brightness_scale → brightness-max.
+            brightness_min: 0,
+            brightness_scale: 1,
+            // Homematic dimmers have no on/off datapoint — derive on/off from level.
+            on_off_source: 'brightness',
+            payload_off: '0',                     // LEVEL 0 = off
+            // Homematic OLD_LEVEL restore convention: publishing 1.005 to LEVEL
+            // restores the last non-zero level on toggle-on. ASSUMED / device-
+            // specific — a plain '1' (full-on) is the alternative if a device
+            // doesn't honour the OLD_LEVEL sentinel.
+            payload_on: '1.005',
+            // Plain dimmer, no colour. supported_color_modes → mode via colorMode
+            // transform yields 'brightness' (reuses the existing map key, no new
+            // key needed).
+            supported_color_modes: ['brightness'],
+            // MQTT-Smarthome JSON-Extended: the value lives at payload.val. Each
+            // per-topic twin is stamped too — the per-read paths don't fall back
+            // to the element-level one (their default 'payload' is truthy).
+            message_property: 'payload.val',
+            message_property_brightness: 'payload.val',
+            message_property_state: 'payload.val',
+        };
+
+        // Availability from the device's :0 maintenance UNREACH datapoint. Dimmers
+        // carry no LOWBAT entry (mains-powered) — UNREACH only, mirrors the cover.
+        const availBase = readSeg !== '' ? readSeg : (chan.channelAddr || readSeg);
+        const availSeg = availBase.replace(/:\d+$/, ':0');
+        config.availability_normalized = {
+            entries: [{topic: hmStatus(p, availSeg, 'UNREACH'), property: 'payload.val'}],
+            mode: 'all',
+            payloadAvailable: false,
+            payloadUnavailable: true,
+        };
+
+        return {
+            discovery_id: discoveryId,
+            component: 'light',
+            source: 'homematic',
+            sourceLabel: 'hm',
+            name,
+            config,
+        };
+    },
+
+    promote(state) {
+        const {dev, chan} = state;
+        // channelType absent/unlisted ⇒ cannot know the group structure ⇒ no
+        // promotion (dimmers need the metadata; see the group-of-3 note above).
+        if (!chan.channelType) return null;
+
+        if (LIGHT_BIDCOS_TYPES.has(chan.channelType)) {
+            // One DIMMER channel = one light. Prefer the channel's own name so
+            // sibling dimmers on one device stay distinct.
+            const id = 'hm-light:' + (chan.channelAddr || chan.seg);
+            const name = chan.channelName || dev.deviceName
+                || (dev.deviceType ? dev.deviceType + ' ' + dev.deviceId : dev.deviceId);
+            return this._build(dev, chan, id, name);
+        }
+
+        if (LIGHT_HMIP_TYPES.has(chan.channelType)) {
+            const grp = hmipVirtualGroup(dev, chan, 'DIMMER_VIRTUAL_RECEIVER');
+            if (!grp) return null;
+            const {leader, groupIndex} = grp;
+            // Stable per-group id (…:g0/:g1/…) keyed on the device + group index,
+            // so re-emitting the leader as later channels arrive overwrites in place.
+            const id = 'hm-light:' + dev.deviceId + ':g' + groupIndex;
+            const name = (leader.channelName && leader.channelName !== dev.deviceName)
+                ? leader.channelName
+                : ((dev.deviceName
+                    || (dev.deviceType ? dev.deviceType + ' ' + dev.deviceId : dev.deviceId))
+                    + ' ' + (groupIndex + 1));
+            return this._build(dev, leader, id, name);
+        }
+
+        return null;
+    },
+
+    reset() { this.state.devices.clear(); },
+};
+
 // ── Framework ─────────────────────────────────────────────────────────────────
-const recognizers = [hmClimateRecognizer, wledRecognizer, hmContactRecognizer, hmCoverRecognizer];
+const recognizers = [hmClimateRecognizer, wledRecognizer, hmContactRecognizer, hmCoverRecognizer, hmLightRecognizer];
 
 /** @type {Map<string, object>} discovery_id → promoted native entity */
 const nativeEntities = new Map();

@@ -370,6 +370,7 @@ import '../packages/@feezal/feezal-element-material-climate/feezal-element-mater
 import '../packages/@feezal/feezal-element-glass-wled/feezal-element-glass-wled.js';
 import '../packages/@feezal/feezal-element-material-contact/feezal-element-material-contact.js';
 import '../packages/@feezal/feezal-element-material-cover/feezal-element-material-cover.js';
+import '../packages/@feezal/feezal-element-material-light/feezal-element-material-light.js';
 
 describe('E108 — native discovery stamps onto *-climate + wled elements', () => {
     it('Homematic climate: native config stamps message-property/valve/modes/topics', () => {
@@ -553,6 +554,70 @@ describe('E108 — native discovery stamps onto *-climate + wled elements', () =
         expect(el.getAttribute('payload-unavailable')).toBe('true');
         expect(el.getAttribute('label')).toBe('Rolladen Wohnzimmer:1');
         expect(el.getAttribute('discovery-id')).toBe('hm-cover:MEQ0500005:1');
+        expect(change).toHaveBeenCalled();
+    });
+
+    it('Homematic light: native dimmer config stamps separate-mode brightness topics + on-off-source + message-property + availability', () => {
+        // Exactly the shape the hmLightRecognizer emits for a Homematic dimmer
+        // (LEVEL 0.0–1.0 → brightness-max 1, on-off-source brightness, separate mode).
+        const entity = {
+            discovery_id: 'hm-light:MEQ0600006:3',
+            component: 'light',
+            source: 'homematic',
+            sourceLabel: 'hm',
+            name: 'Deckenlampe:3',
+            config: {
+                name: 'Deckenlampe:3',
+                payload_mode: 'separate',
+                brightness_state_topic:   'hm/status/Deckenlampe:3/LEVEL',
+                brightness_command_topic: 'hm/set/Deckenlampe:3/LEVEL',
+                brightness_min: 0,
+                brightness_scale: 1,
+                on_off_source: 'brightness',
+                payload_off: '0',
+                payload_on: '1.005',
+                supported_color_modes: ['brightness'],
+                message_property: 'payload.val',
+                message_property_brightness: 'payload.val',
+                message_property_state: 'payload.val',
+                availability_normalized: {
+                    entries: [{topic: 'hm/status/Deckenlampe:0/UNREACH', property: 'payload.val'}],
+                    mode: 'all', payloadAvailable: false, payloadUnavailable: true,
+                },
+            },
+        };
+
+        const el = document.createElement('feezal-element-material-light');
+        const change = vi.fn();
+        globalThis.feezal.app = {change};
+
+        const ins = document.createElement('feezal-sidebar-inspector-attributes');
+        ins.selectedElems = [el];
+        ins._applyDiscovery(entity);
+
+        // Homematic is SEPARATE mode — brightness LEVEL goes to the separate-mode attrs.
+        expect(el.getAttribute('payload-mode')).toBe('separate');
+        expect(el.getAttribute('subscribe-brightness')).toBe('hm/status/Deckenlampe:3/LEVEL');
+        expect(el.getAttribute('publish-brightness')).toBe('hm/set/Deckenlampe:3/LEVEL');
+        // LEVEL 0.0–1.0 → brightness-max 1 (element scales 0–100 % to 0…1, no server scaling).
+        expect(el.getAttribute('brightness-min')).toBe('0');
+        expect(el.getAttribute('brightness-max')).toBe('1');
+        // Dimmers have no on/off datapoint — on-off derived from level.
+        expect(el.getAttribute('on-off-source')).toBe('brightness');
+        expect(el.getAttribute('payload-off')).toBe('0');
+        expect(el.getAttribute('payload-on')).toBe('1.005');
+        // supported_color_modes ['brightness'] → colorMode transform → mode 'brightness'.
+        expect(el.getAttribute('mode')).toBe('brightness');
+        expect(el.getAttribute('message-property')).toBe('payload.val');
+        expect(el.getAttribute('message-property-brightness')).toBe('payload.val');
+        expect(el.getAttribute('message-property-state')).toBe('payload.val');
+        // :0 UNREACH availability (property → JSON-array form; false=available).
+        expect(el.getAttribute('subscribe-availability')).toBe(
+            '[{"topic":"hm/status/Deckenlampe:0/UNREACH","property":"payload.val"}]');
+        expect(el.getAttribute('payload-available')).toBe('false');
+        expect(el.getAttribute('payload-unavailable')).toBe('true');
+        expect(el.getAttribute('label')).toBe('Deckenlampe:3');
+        expect(el.getAttribute('discovery-id')).toBe('hm-light:MEQ0600006:3');
         expect(change).toHaveBeenCalled();
     });
 

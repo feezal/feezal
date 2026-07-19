@@ -107,6 +107,16 @@ class FeezalElementGlassLight extends FeezalGlassCard {
                     supported_color_modes:    {attr: 'mode', transform: 'colorMode'},
                     min_mireds: {attr: 'color-temp-max', unit: 'mired→kelvin', alsoSet: {'color-temp-unit': 'mired'}},
                     max_mireds: {attr: 'color-temp-min', unit: 'mired→kelvin'},
+                    // E108 native Homematic (separate-mode dimmer) — HA-absent keys,
+                    // additive (brightness_state/command_topic already mapped above).
+                    payload_mode:             'payload-mode',
+                    brightness_min:           {attr: 'brightness-min'},
+                    on_off_source:            'on-off-source',
+                    payload_off:              'payload-off',
+                    payload_on:               'payload-on',
+                    message_property:             'message-property',
+                    message_property_brightness:  'message-property-brightness',
+                    message_property_state:       'message-property-state',
                     // N31: availability is mapped automatically from the canonical discovery record.
                     name: 'label',
                 },

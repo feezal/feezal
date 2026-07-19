@@ -443,6 +443,93 @@ describe('Homematic cover recognizer', () => {
     });
 });
 
+describe('Homematic light recognizer', () => {
+    it('BidCoS DIMMER (non-:1 channel index) → one light, LEVEL brightness topics, scale 1, on-off-source brightness, :0 UNREACH', () => {
+        const dev = 'MEQ0600006';
+        // DIMMER channel is :3 here — the recognizer keys off channelType, not
+        // the channel number (which varies per device generation).
+        nat.handleNativeMessage('hm/status/Deckenlampe:3/LEVEL', je(0.4, {
+            device: dev, deviceName: 'Deckenlampe', deviceType: 'HM-LC-Dim1T-FM',
+            channel: dev + ':3', channelName: 'Deckenlampe:3',
+            channelType: 'DIMMER', channelIndex: 3, iface: 'BidCos-RF', datapoint: 'LEVEL',
+        }));
+
+        const lights = nat.getNativeEntities().filter(e => e.component === 'light');
+        expect(lights).toHaveLength(1);
+
+        const e = nat.getNativeEntity('hm-light:' + dev + ':3');
+        expect(e).toBeTruthy();
+        expect(e.component).toBe('light');
+        expect(e.source).toBe('homematic');
+        expect(e.sourceLabel).toBe('hm');
+        expect(e.name).toBe('Deckenlampe:3');
+
+        const c = e.config;
+        expect(c.payload_mode).toBe('separate');
+        expect(c.brightness_state_topic).toBe('hm/status/Deckenlampe:3/LEVEL');
+        expect(c.brightness_command_topic).toBe('hm/set/Deckenlampe:3/LEVEL');
+        expect(c.brightness_min).toBe(0);
+        expect(c.brightness_scale).toBe(1);                // LEVEL 0.0–1.0 → max 1
+        expect(c.on_off_source).toBe('brightness');        // dimmer has no on/off datapoint
+        expect(c.payload_off).toBe('0');
+        expect(c.payload_on).toBe('1.005');                // OLD_LEVEL restore convention
+        expect(c.supported_color_modes).toEqual(['brightness']);
+        expect(c.message_property).toBe('payload.val');
+        expect(c.message_property_brightness).toBe('payload.val');
+        expect(c.message_property_state).toBe('payload.val');
+        // :0 maintenance UNREACH only (no LOWBAT for mains-powered dimmers).
+        expect(c.availability_normalized).toEqual({
+            entries: [{topic: 'hm/status/Deckenlampe:0/UNREACH', property: 'payload.val'}],
+            mode: 'all',
+            payloadAvailable: false,
+            payloadUnavailable: true,
+        });
+    });
+
+    it('HmIP DIMMER_VIRTUAL_RECEIVER: a 6-channel device → exactly 2 lights (first-of-3 leaders)', () => {
+        const dev = '0044HMIPDIM';
+        const seg = i => 'Dimmaktor:' + i;
+        // Feed all 6 virtual-receiver channels out of order (+ a repeat) to
+        // exercise the stable per-group id.
+        const order = [3, 1, 2, 6, 5, 4, 1, 6];
+        for (const i of order) {
+            nat.handleNativeMessage('hm/status/' + seg(i) + '/LEVEL', je(0.5, {
+                device: dev, deviceName: 'Dimmaktor', deviceType: 'HmIP-BDT',
+                channel: dev + ':' + i, channelName: seg(i),
+                channelType: 'DIMMER_VIRTUAL_RECEIVER', channelIndex: i, iface: 'HmIP-RF', datapoint: 'LEVEL',
+            }));
+        }
+
+        const lights = nat.getNativeEntities().filter(e => e.component === 'light');
+        expect(lights).toHaveLength(2);
+
+        // Leaders at sorted positions 0 and 3 → channelIndex 1 and 4.
+        const leaders = {g0: 1, g1: 4};
+        for (const [g, idx] of Object.entries(leaders)) {
+            const e = nat.getNativeEntity('hm-light:' + dev + ':' + g);
+            expect(e, g).toBeTruthy();
+            expect(e.config.brightness_state_topic).toBe('hm/status/' + seg(idx) + '/LEVEL');
+            expect(e.config.brightness_command_topic).toBe('hm/set/' + seg(idx) + '/LEVEL');
+            expect(e.config.brightness_scale).toBe(1);
+            expect(e.config.on_off_source).toBe('brightness');
+        }
+    });
+
+    it('does NOT promote a LEVEL whose channelType is not a light type (e.g. a blind or TRV valve)', () => {
+        nat.handleNativeMessage('hm/status/Rollo:1/LEVEL', je(0.6, {
+            device: 'DEVBLIND9', deviceName: 'Rollo', deviceType: 'HmIP-BROLL',
+            channel: 'DEVBLIND9:1', channelName: 'Rollo:1',
+            channelType: 'BLIND_VIRTUAL_RECEIVER', channelIndex: 1, iface: 'HmIP-RF', datapoint: 'LEVEL',
+        }));
+        expect(nat.getNativeEntities().filter(e => e.component === 'light')).toHaveLength(0);
+    });
+
+    it('does NOT promote a LEVEL with no hm metadata (channelType unknown ⇒ cannot classify)', () => {
+        nat.handleNativeMessage('hm/status/Something:1/LEVEL', jePlain(0.5));
+        expect(nat.getNativeEntities().filter(e => e.component === 'light')).toHaveLength(0);
+    });
+});
+
 describe('WLED recognizer', () => {
     it('promotes on wled/<id>/v with device_topic + availability_normalized', () => {
         nat.handleNativeMessage('wled/desk/v', Buffer.from('{"state":{"on":true}}'));

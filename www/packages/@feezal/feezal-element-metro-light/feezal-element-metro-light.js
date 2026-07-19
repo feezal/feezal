@@ -94,6 +94,18 @@ class FeezalElementMetroLight extends MetroTileBase {
                     supported_color_modes:    {attr: 'mode', transform: 'colorMode'},
                     min_mireds: {attr: 'color-temp-max', unit: 'mired→kelvin', alsoSet: {'color-temp-unit': 'mired'}},
                     max_mireds: {attr: 'color-temp-min', unit: 'mired→kelvin'},
+                    // E108 native Homematic (separate-mode dimmer) — HA-absent keys,
+                    // additive (brightness_state/command_topic already mapped above).
+                    // NOTE: metro-light has no availability attributes (tile scope),
+                    // so availability_normalized is stamped but harmlessly ignored.
+                    payload_mode:             'payload-mode',
+                    brightness_min:           {attr: 'brightness-min'},
+                    on_off_source:            'on-off-source',
+                    payload_off:              'payload-off',
+                    payload_on:               'payload-on',
+                    message_property:             'message-property',
+                    message_property_brightness:  'message-property-brightness',
+                    message_property_state:       'message-property-state',
                     name: 'label',
                     // NO value_template mapping (matches material-light): in
                     // json mode message-property must stay 'payload' — the
