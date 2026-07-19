@@ -1,6 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
-import {applySizePreset} from '@feezal/feezal-glass';
+import {applySizePreset, glassCardStyles} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-contact (E58)
@@ -102,31 +102,14 @@ class FeezalElementGlassContact extends FeezalElement {
         _state:     {state: true},   // 'closed' | 'open' | 'tilted'
     };
 
-    static styles = [feezalBaseStyles, css`
-        :host { display: block; box-sizing: border-box; container-type: size; overflow: visible; }
+    static styles = [feezalBaseStyles, glassCardStyles, css`
         .card {
-            position: absolute; inset: var(--feezal-glass-margin, 6px); box-sizing: border-box;
-            display: flex; flex-direction: column; justify-content: space-between;
-            padding: 12px; gap: 2px;
-            border-radius: var(--feezal-glass-radius, 24px);
-            background: var(--feezal-glass-tint, rgba(255,255,255,0.35));
-            -webkit-backdrop-filter: blur(var(--feezal-glass-blur, 20px));
-            backdrop-filter: blur(var(--feezal-glass-blur, 20px));
-            border: 1px solid var(--feezal-glass-border, rgba(255,255,255,0.55));
-            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-            color: var(--feezal-glass-color, #1d1d1f);
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            gap: 2px;
             transition: background 0.2s ease;
-            user-select: none;
             --_state-color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
         }
-        @supports (corner-shape: squircle) { .card { corner-shape: squircle; } }
         .card.open   { background: var(--feezal-glass-on-tint, rgba(255,255,255,0.62)); --_state-color: var(--feezal-glass-open-color, #ff9f0a); }
         .card.tilted { background: var(--feezal-glass-on-tint, rgba(255,255,255,0.62)); --_state-color: var(--feezal-glass-tilt-color, #0a84ff); }
-        :host([degrade]) .card {
-            -webkit-backdrop-filter: none; backdrop-filter: none;
-            background: var(--feezal-glass-solid, rgba(245,245,247,0.94));
-        }
         feezal-icon { font-size: var(--feezal-glass-icon-size, 28px); line-height: 1; color: var(--_state-color); transition: color 0.2s ease; }
         .state { font-size: var(--feezal-glass-font-size-state, 15px); font-weight: 700; color: var(--_state-color); }
         .label {
