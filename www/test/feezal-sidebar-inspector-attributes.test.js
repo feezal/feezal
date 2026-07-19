@@ -464,6 +464,67 @@ describe('E108 — native discovery stamps onto *-climate + wled elements', () =
     });
 });
 
+describe('E108 — discovery picker encode/decode + source label', () => {
+    // Native Homematic discovery_ids contain spaces ("hm-climate:Thermostat
+    // Hobbyraum:1"), which Shoelace <sl-select> cannot round-trip as an option
+    // value. The picker percent-encodes values and _onPickDiscovery decodes them.
+    it('an entity whose discovery_id contains a space is still selectable (encode/decode round-trip)', () => {
+        const entity = {
+            discovery_id: 'hm-climate:Thermostat Hobbyraum',
+            component: 'climate',
+            source: 'homematic',
+            sourceLabel: 'hm',
+            name: 'Thermostat Hobbyraum',
+            config: {
+                name: 'Thermostat Hobbyraum',
+                schema: 'separate',
+                temperature_state_topic:   'hm/status/Thermostat Hobbyraum:1/SET_POINT_TEMPERATURE',
+                temperature_command_topic: 'hm/set/Thermostat Hobbyraum:1/SET_POINT_TEMPERATURE',
+                mode_state_topic:          'hm/status/Thermostat Hobbyraum:1/SET_POINT_MODE',
+                message_property: 'val',
+                valve_min: 0, valve_max: 1,
+            },
+        };
+
+        const el = document.createElement('feezal-element-material-climate');
+        const change = vi.fn();
+        globalThis.feezal.app = {change};
+
+        const ins = document.createElement('feezal-sidebar-inspector-attributes');
+        ins.selectedElems = [el];
+        ins.__discoveryEntities = [entity];
+
+        // Simulate the sl-select emitting the percent-encoded option value.
+        ins._onPickDiscovery(encodeURIComponent(entity.discovery_id));
+
+        // _applyDiscovery ran → attributes stamped, discovery-id preserves the space.
+        expect(el.getAttribute('discovery-id')).toBe('hm-climate:Thermostat Hobbyraum');
+        expect(el.getAttribute('subscribe')).toBe('hm/status/Thermostat Hobbyraum:1/SET_POINT_TEMPERATURE');
+        expect(el.getAttribute('message-property')).toBe('val');
+        expect(change).toHaveBeenCalled();
+    });
+
+    it('_discoveryOptionLabel: "hm: <name>" for a homematic-source entity, topic for an HA entity', () => {
+        const ins = document.createElement('feezal-sidebar-inspector-attributes');
+
+        // Native homematic entity → source-prefixed label.
+        expect(ins._discoveryOptionLabel({
+            sourceLabel: 'hm',
+            name: 'Thermostat Hobbyraum',
+            config: {current_temperature_topic: 'hm/status/Thermostat Hobbyraum:1/ACTUAL_TEMPERATURE'},
+        })).toBe('hm: Thermostat Hobbyraum');
+
+        // sourceLabel with no name falls back to just the label.
+        expect(ins._discoveryOptionLabel({sourceLabel: 'hm'})).toBe('hm');
+
+        // HA entity (no sourceLabel) → unchanged topic-preferring behaviour.
+        expect(ins._discoveryOptionLabel({
+            name: 'switch',
+            config: {state_topic: 'home/lamp/state'},
+        })).toBe('home/lamp/state');
+    });
+});
+
 describe('WP3/E106 — type:custom rendering + change routing', () => {
     it('renders <x-test-panel> in the panel with .element set, and routes its change through the commit path', async () => {
         const host = document.createElement('x-custom-host');

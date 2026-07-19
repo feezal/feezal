@@ -1595,12 +1595,19 @@ class FeezalSidebarInspectorAttributes extends LitElement {
 
         const linkedId = el.getAttribute('discovery-id') || '';
         const showSearch = allMatches.length > 5;
+        // Shoelace <sl-select> treats a space in an <sl-option> value as a value
+        // delimiter (multi-value tokens), so option/select values that contain a
+        // space can never resolve on @sl-change. Native Homematic discovery_ids
+        // like "hm-climate:Thermostat Hobbyraum:1" contain spaces, so we
+        // percent-encode every value here and decode in _onPickDiscovery. HA ids
+        // are space-free, so encodeURIComponent is a round-trip no-op for them
+        // (only ":"/"/" get encoded, which decode restores) \u2014 behaviour unchanged.
         return html`
             <div class="discovery-picker">
                 <span class="dp-icon" title="Auto-discovered devices (${allMatches.length})">\u26A1</span>
                 <sl-select class="dp-select" size="small" hoist
                     placeholder="Link a discovered device\u2026"
-                    value="${linkedId}"
+                    value="${encodeURIComponent(linkedId)}"
                     @sl-after-show="${() => this.renderRoot.querySelector('.dp-search')?.focus()}"
                     @sl-hide="${() => { this._discoveryFilter = ''; }}"
                     @sl-change="${e => this._onPickDiscovery(e.target.value)}">
@@ -1614,7 +1621,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                                 @input="${e => { e.stopPropagation(); this._discoveryFilter = e.target.value; }}"
                                 @keydown="${e => e.stopPropagation()}">
                         </div>` : ''}
-                    ${matches.map(m => html`<sl-option value="${m.discovery_id}">${this._discoveryOptionLabel(m)}</sl-option>`)}
+                    ${matches.map(m => html`<sl-option value="${encodeURIComponent(m.discovery_id)}">${this._discoveryOptionLabel(m)}</sl-option>`)}
                     ${!matches.length ? html`<sl-option value="" disabled>No matches for \u201c${this._discoveryFilter}\u201d</sl-option>` : ''}
                 </sl-select>
                 ${linkedId ? html`<button class="dp-clear" title="Unlink device" @click="${this._onClearDiscovery}">&#x2715;</button>` : ''}
@@ -1626,14 +1633,22 @@ class FeezalSidebarInspectorAttributes extends LitElement {
     // `name` is often just the component type ("light"), so prefer the status
     // topic(s) found in the config, falling back to the name.
     _discoveryOptionLabel(entity) {
+        // Native recognizers set a sourceLabel (e.g. "hm", "WLED") so the option
+        // reads as a friendly "<source>: <name>" instead of a raw MQTT topic.
+        if (entity.sourceLabel) {
+            return entity.name ? entity.sourceLabel + ': ' + entity.name : entity.sourceLabel;
+        }
         const cfg = entity.config || {};
         const topic = cfg.state_topic || cfg.position_topic || cfg.percentage_state_topic ||
             cfg.current_temperature_topic || cfg.command_topic || '';
         return topic || entity.name || entity.discovery_id;
     }
 
-    _onPickDiscovery(id) {
-        if (!id) return;
+    _onPickDiscovery(encodedId) {
+        if (!encodedId) return;
+        // Values are percent-encoded in _renderDiscoveryPicker (see note there) to
+        // survive Shoelace's space-delimited value handling — decode before lookup.
+        const id = decodeURIComponent(encodedId);
         const entity = (this.__discoveryEntities || []).find(e => e.discovery_id === id);
         if (entity) this._applyDiscovery(entity);
     }

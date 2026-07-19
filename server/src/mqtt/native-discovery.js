@@ -110,21 +110,51 @@ const hmClimateRecognizer = {
         return ch;
     },
 
-    promote(channelState) {
-        const dps = channelState.dps;
-        const ch = channelState.channelName;
-
-        // Signature → generation (E102 device matrix).
-        let generation;
-        let setpointDp;
-        let modeDp;
+    // Detect a channel's generation/setpoint/mode from its datapoint Set, or null
+    // if the thermostat signature is incomplete (E102 device matrix).
+    _detectSignature(dps) {
         if (dps.has('SET_TEMPERATURE') && dps.has('CONTROL_MODE')) {
-            generation = 'bidcos'; setpointDp = 'SET_TEMPERATURE'; modeDp = 'CONTROL_MODE';
-        } else if (dps.has('SET_POINT_TEMPERATURE') && dps.has('SET_POINT_MODE')) {
-            generation = 'hmip'; setpointDp = 'SET_POINT_TEMPERATURE'; modeDp = 'SET_POINT_MODE';
-        } else {
-            return null;    // incomplete — wait for more datapoints
+            return {generation: 'bidcos', setpointDp: 'SET_TEMPERATURE', modeDp: 'CONTROL_MODE'};
         }
+        if (dps.has('SET_POINT_TEMPERATURE') && dps.has('SET_POINT_MODE')) {
+            return {generation: 'hmip', setpointDp: 'SET_POINT_TEMPERATURE', modeDp: 'SET_POINT_MODE'};
+        }
+        return null;
+    },
+
+    promote(channelState) {
+        // A physical Homematic device exposes several channels (e.g. :1/:2/:4),
+        // and more than one may complete a thermostat signature. Group them into
+        // ONE device-level entity: strip the trailing :<n> to get the device name,
+        // then pick a single representative channel among the siblings.
+        const deviceName = channelState.channelName.replace(/:\d+$/, '');
+
+        // Channel number for ranking; a name with no :<n> suffix sorts LAST so
+        // numbered channels win (MAX_SAFE_INTEGER).
+        const channelNum = name => {
+            const m = /:(\d+)$/.exec(name);
+            return m ? parseInt(m[1], 10) : Number.MAX_SAFE_INTEGER;
+        };
+
+        // Heuristic: among all sibling channels of this device that have a COMPLETE
+        // signature, choose the LOWEST channel number. The user's device wants :1;
+        // this is easy to adjust (e.g. prefer the channel that also carries a valve
+        // datapoint) without touching the rest of the builder.
+        let chosen = null;   // {channelName, dps, sig, num}
+        for (const sib of this.state.channels.values()) {
+            if (sib.channelName.replace(/:\d+$/, '') !== deviceName) continue;
+            const sig = this._detectSignature(sib.dps);
+            if (!sig) continue;
+            const num = channelNum(sib.channelName);
+            if (!chosen || num < chosen.num) {
+                chosen = {channelName: sib.channelName, dps: sib.dps, sig, num};
+            }
+        }
+        if (!chosen) return null;   // no channel of the device has a complete signature
+
+        const dps = chosen.dps;
+        const ch = chosen.channelName;
+        const {generation, setpointDp, modeDp} = chosen.sig;
 
         // Valve wiring: VALVE_STATE (BidCoS 0–100) | LEVEL (HmIP 0.0–1.0) ⇒ TRV.
         const hasValveState = dps.has('VALVE_STATE');
@@ -135,7 +165,7 @@ const hmClimateRecognizer = {
 
         const p = hmPrefix;
         const config = {
-            name: ch,
+            name: deviceName,
             schema: 'separate',
             temperature_state_topic:   hmStatus(p, ch, setpointDp),
             temperature_command_topic: hmSet(p, ch, setpointDp),
@@ -151,11 +181,14 @@ const hmClimateRecognizer = {
         if (isTRV) config.action_topic = hmStatus(p, ch, valveDp);
 
         // Availability (the :0 maintenance UNREACH) is out of MVP scope for HM.
+        // Device-level discovery_id → one entry per physical device; re-promotes
+        // (updates) as more channels arrive and the chosen channel may change.
         return {
-            discovery_id: 'hm-climate:' + ch,
+            discovery_id: 'hm-climate:' + deviceName,
             component: 'climate',
             source: 'homematic',
-            name: ch,
+            sourceLabel: 'hm',
+            name: deviceName,
             config,
         };
     },
@@ -190,6 +223,7 @@ const wledRecognizer = {
             discovery_id: 'wled:' + dt,
             component: 'wled',
             source: 'wled',
+            sourceLabel: 'WLED',
             name: dt,
             config: {
                 name: dt,

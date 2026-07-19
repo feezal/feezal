@@ -100,6 +100,54 @@ describe('Homematic climate recognizer — HmIP', () => {
     });
 });
 
+describe('Homematic climate recognizer — device grouping (B-E108)', () => {
+    it('groups all channels of one device into ONE device-level entity, choosing the lowest qualifying channel', () => {
+        // Real hm2mqtt channel names: "<device>:<channel>", device name has spaces.
+        // Three channels each complete an HmIP signature; :1 also carries a valve.
+        nat.handleNativeMessage('hm/status/Thermostat Hobbyraum:1/SET_POINT_TEMPERATURE', je(21));
+        nat.handleNativeMessage('hm/status/Thermostat Hobbyraum:1/SET_POINT_MODE', je(1));
+        nat.handleNativeMessage('hm/status/Thermostat Hobbyraum:1/LEVEL', je(0.4));
+        nat.handleNativeMessage('hm/status/Thermostat Hobbyraum:2/SET_POINT_TEMPERATURE', je(21));
+        nat.handleNativeMessage('hm/status/Thermostat Hobbyraum:2/SET_POINT_MODE', je(1));
+        nat.handleNativeMessage('hm/status/Thermostat Hobbyraum:4/SET_POINT_TEMPERATURE', je(21));
+        nat.handleNativeMessage('hm/status/Thermostat Hobbyraum:4/SET_POINT_MODE', je(1));
+
+        // Exactly one climate entity for the whole device.
+        const climates = nat.getNativeEntities().filter(e => e.component === 'climate');
+        expect(climates).toHaveLength(1);
+
+        const e = nat.getNativeEntity('hm-climate:Thermostat Hobbyraum');
+        expect(e).toBeTruthy();
+        expect(e.name).toBe('Thermostat Hobbyraum');
+        expect(e.sourceLabel).toBe('hm');
+        expect(e.source).toBe('homematic');
+
+        // Config topics reference the CHOSEN (lowest qualifying) channel :1.
+        const c = e.config;
+        expect(c.name).toBe('Thermostat Hobbyraum');
+        expect(c.temperature_state_topic).toBe('hm/status/Thermostat Hobbyraum:1/SET_POINT_TEMPERATURE');
+        expect(c.temperature_command_topic).toBe('hm/set/Thermostat Hobbyraum:1/SET_POINT_TEMPERATURE');
+        expect(c.mode_state_topic).toBe('hm/status/Thermostat Hobbyraum:1/SET_POINT_MODE');
+        expect(c.action_topic).toBe('hm/status/Thermostat Hobbyraum:1/LEVEL');   // :1 is the TRV
+    });
+
+    it('chooses :4 when it is the only channel with a complete signature', () => {
+        // :1 is partial (setpoint only), :4 completes the signature.
+        nat.handleNativeMessage('hm/status/Bad OG:1/SET_POINT_TEMPERATURE', je(21));
+        nat.handleNativeMessage('hm/status/Bad OG:4/SET_POINT_TEMPERATURE', je(21));
+        nat.handleNativeMessage('hm/status/Bad OG:4/SET_POINT_MODE', je(1));
+
+        const climates = nat.getNativeEntities().filter(e => e.component === 'climate');
+        expect(climates).toHaveLength(1);
+
+        const e = nat.getNativeEntity('hm-climate:Bad OG');
+        expect(e).toBeTruthy();
+        expect(e.name).toBe('Bad OG');
+        expect(e.config.temperature_state_topic).toBe('hm/status/Bad OG:4/SET_POINT_TEMPERATURE');
+        expect(e.config.mode_state_topic).toBe('hm/status/Bad OG:4/SET_POINT_MODE');
+    });
+});
+
 describe('Homematic climate recognizer — non-matches', () => {
     it('ignores non-thermostat datapoints and multi-level channel names', () => {
         nat.handleNativeMessage('hm/status/Lamp/STATE', je(true));           // not a whitelisted DP
