@@ -51,10 +51,18 @@ describe('themable chrome (N36)', () => {
     it('exposes the --feezal-app-* chrome vars (incl. drawer icon/label + overlay bg) as color styles', () => {
         const props = styleObjs().map(s => s.property);
         for (const v of ['--feezal-app-bar-bg', '--feezal-app-bar-color', '--feezal-app-drawer-bg',
-            '--feezal-app-drawer-overlay-bg', '--feezal-app-drawer-color', '--feezal-app-drawer-icon-color',
-            '--feezal-app-drawer-label-color', '--feezal-app-active-indicator', '--feezal-app-active-color']) {
+            '--feezal-app-drawer-overlay-bg', '--feezal-app-drawer-overlay-opacity', '--feezal-app-drawer-color',
+            '--feezal-app-drawer-icon-color', '--feezal-app-drawer-label-color', '--feezal-app-active-indicator',
+            '--feezal-app-active-color']) {
             expect(props).toContain(v);
         }
+    });
+
+    it('overlay transparency is a plain 0–100 opacity knob (default 100 = opaque)', () => {
+        const op = styleObjs().find(s => s.property === '--feezal-app-drawer-overlay-opacity');
+        expect(op).toBeTruthy();
+        expect(op.default).toBe('100');
+        expect(op.type).not.toBe('color');   // a number, not a colour picker
     });
 
     it('defaults use only the canonical theme vars (no --md-sys-color-*), per requested mapping', () => {

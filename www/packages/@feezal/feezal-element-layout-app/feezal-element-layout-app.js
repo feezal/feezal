@@ -55,7 +55,8 @@ class FeezalElementLayoutApp extends FeezalElement {
                 {property: '--feezal-app-bar-bg', type: 'color', default: 'var(--primary-color, #0284c7)', help: 'Top app-bar background.'},
                 {property: '--feezal-app-bar-color', type: 'color', default: '#fff', help: 'Top app-bar text/icon colour (on the primary-coloured bar).'},
                 {property: '--feezal-app-drawer-bg', type: 'color', default: 'var(--divider-color, #e0e0e0)', help: 'Drawer background.'},
-                {property: '--feezal-app-drawer-overlay-bg', type: 'color', default: 'var(--feezal-app-drawer-bg, var(--divider-color, #e0e0e0))', help: 'Narrow-mode (overlay) drawer background — set an rgba/transparent value for a see-through overlay, or a solid colour. Defaults to the drawer background.'},
+                {property: '--feezal-app-drawer-overlay-bg', type: 'color', default: 'var(--feezal-app-drawer-bg, var(--divider-color, #e0e0e0))', help: 'Narrow-mode (overlay) drawer COLOUR. Defaults to the drawer background. For see-through, use the opacity knob below rather than an rgba value.'},
+                {property: '--feezal-app-drawer-overlay-opacity', default: '100', help: 'Narrow-mode (overlay) drawer TRANSPARENCY as a plain number 0–100: 100 = opaque, 60 = 60 % opaque (40 % see-through), 0 = fully transparent. Text/icons stay opaque.'},
                 {property: '--feezal-app-drawer-color', type: 'color', default: 'var(--primary-text-color, #222)', help: 'Drawer base text colour (icon/label default to this).'},
                 {property: '--feezal-app-drawer-icon-color', type: 'color', default: 'var(--feezal-app-drawer-color, var(--primary-text-color, #222))', help: 'Drawer entry icon colour.'},
                 {property: '--feezal-app-drawer-label-color', type: 'color', default: 'var(--primary-text-color, #222)', help: 'Drawer entry label colour.'},
@@ -171,12 +172,18 @@ class FeezalElementLayoutApp extends FeezalElement {
             display: flex; align-items: center; justify-content: center;
         }
 
-        /* Narrow: drawer becomes an overlay driven by the hamburger. Its
-           background is separately configurable via --feezal-app-drawer-overlay-bg
-           (defaults to the drawer background); set an rgba/transparent value for
-           a see-through overlay, or a solid colour for an opaque one. */
+        /* Narrow: drawer becomes an overlay driven by the hamburger. Its colour
+           is --feezal-app-drawer-overlay-bg (defaults to the drawer background)
+           and its TRANSPARENCY is a plain 0–100 number in
+           --feezal-app-drawer-overlay-opacity (100 = opaque, e.g. 60 = 60 %
+           opaque / 40 % see-through). color-mix keeps the text/icons fully
+           opaque; where color-mix is unsupported the declaration is ignored and
+           the drawer stays opaque. */
         :host(.narrow) .drawer { position: absolute; top: 0; bottom: 0; left: 0; z-index: 4; transform: translateX(-100%);
             background: var(--feezal-app-drawer-overlay-bg, var(--feezal-app-drawer-bg, var(--divider-color, #e0e0e0)));
+            background: color-mix(in srgb,
+                var(--feezal-app-drawer-overlay-bg, var(--feezal-app-drawer-bg, var(--divider-color, #e0e0e0)))
+                calc(var(--feezal-app-drawer-overlay-opacity, 100) * 1%), transparent);
             transition: transform 0.2s ease; box-shadow: 2px 0 12px rgba(0,0,0,0.25); }
         :host(.narrow) .drawer.open { transform: translateX(0); }
     `];
