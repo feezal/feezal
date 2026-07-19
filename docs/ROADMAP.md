@@ -24,7 +24,6 @@ Work in progress — priorities and scope are not final.
 - [E32 — Logbook / event list (`feezal-element-basic-logbook`)](#e32--logbook--event-list-feezal-element-basic-logbook)
 - [E34 — Countdown / timer element (`feezal-element-basic-countdown`)](#e34--countdown--timer-element-feezal-element-basic-countdown)
 - [E38 — Element scaling / responsive sizing](#e38--element-scaling--responsive-sizing-️-tbd--needs-element-audit) ⚠️
-- [E39 — Splash / FOUC-prevention element (`feezal-element-system-splash`)](#e39--splash--fouc-prevention-element-feezal-element-system-splash)
 - [E54 — Markdown element (`feezal-element-basic-markdown`)](#e54--markdown-element-feezal-element-basic-markdown)
 - [E57 — E-ink / mono element family (`feezal-element-eink-*`)](#e57--e-ink--mono-element-family-feezal-element-eink-) 💡
 - [E61 — HMI / alarm element family (`feezal-element-hmi-*`)](#e61--hmi--alarm-element-family-feezal-element-hmi--️-reviewrefinement-needed) ⚠️
@@ -40,8 +39,6 @@ Work in progress — priorities and scope are not final.
 - [E80 — Navigation rail element (`feezal-element-material-navrail`)](#e80--navigation-rail-element-feezal-element-material-navrail)
 - [E83 — Spectrum element family (`feezal-element-spectrum-*`)](#e83--spectrum-element-family-feezal-element-spectrum-) 💡
 - [E85 — Backlog: additional component-library design systems](#e85--backlog-additional-component-library-design-systems) 💡
-- [E88 — JSON tree viewer (`feezal-element-basic-json`)](#e88--json-tree-viewer-feezal-element-basic-json)
-- [E89 — Lottie animation element (`feezal-element-basic-lottie`)](#e89--lottie-animation-element-feezal-element-basic-lottie)
 - [E90 — Vaadin element family (`feezal-element-vaadin-*`)](#e90--vaadin-element-family-feezal-element-vaadin-) 💡
 - [E91 — Theme switcher element (`feezal-element-system-theme-switch`)](#e91--theme-switcher-element-feezal-element-system-theme-switch)
 - [E92 — PDF viewer element (`feezal-element-basic-pdf`)](#e92--pdf-viewer-element-feezal-element-basic-pdf) 💡
@@ -49,7 +46,6 @@ Work in progress — priorities and scope are not final.
 - [E94 — 3D model viewer (`feezal-element-basic-model`)](#e94--3d-model-viewer-feezal-element-basic-model) 💡
 - [E95 — Configurable keyboard shortcuts for interactive elements](#e95--configurable-keyboard-shortcuts-for-interactive-elements)
 - [E96 — MIDI input as an element trigger (Web MIDI)](#e96--midi-input-as-an-element-trigger-web-midi-️-questionable-future) ❓
-- [E102 — Climate elements: boost mode, thermostat mode datapoint conventions, valve position](#e102--climate-elements-boost-mode-thermostat-mode-datapoint-conventions-valve-position--partial--core-shipped-remaining-work-specd-072026) 🔽 *(partial — core shipped, remaining work spec'd)*
 - [E107 — Thermostat schedule elements (device week programs)](#e107--thermostat-schedule-elements-device-week-programs--blocked-by-upstream-homematic) 🚧 *(blocked by upstream — Homematic)*
 
 **Editor UX**
@@ -460,41 +456,6 @@ Some elements scale their internal UI proportionally when the element is resized
 
 **Remaining (todo):** audit the rest of the element set and apply the same pattern where internal content doesn't scale — this table only covers the four user-reported elements. Caveat: `container-type: size` requires the element to have an explicit height (always true for canvas-positioned elements); watch for elements that rely on auto height.
 
-### E39 — Splash / FOUC-prevention element (`feezal-element-system-splash`)
-
-A system element that prevents flash-of-unstyled-content and UI jitter on first load, before retained MQTT messages have been received and the dashboard has settled into its initial state.
-
-**Editor behaviour (decided): pseudo-element** — placeholder chip in the editor (like the E49/E53 system-element pattern); position and size are irrelevant; the overlay never shows in editor mode. Palette-discoverable, attributes edit in the normal inspector, no new site-settings surface — a built-in `feezal-site` behaviour was rejected for exactly these reasons ("place it once", same as E53).
-
-**Viewer behaviour:**
-- On first page load, renders a full-screen overlay above all other content (`position: fixed; inset: 0; z-index: 9999`), solid in the site/theme background colour.
-- The overlay hides once **all** of the following hold:
-  1. The MQTT connection is established.
-  2. The view's DOM is fully populated (element `connectedCallback`s have run).
-  3. **Quiet window (decided):** no message has arrived for a settle window (default **400 ms**) — broker-retained messages arrive in a burst right after subscribe, so a short silence means the initial state is in. Zero config, adapts to any topic count. (First-message-on-any-topic and configured-count rules were rejected: one unblocks too early, the other silently rots.)
-- **Fallback timeout (decided): default 3 s, configurable, measured from connection-up** — the splash must never hang on a dashboard with no retained topics. If the connection itself never establishes, the same timeout counts from page load as a hard cap.
-- **Spinner after ~1 s (decided):** a subtle spinner appears only if the wait exceeds ~1 s — fast loads see a clean colour flash, slow loads get feedback (this also covers the "unexpectedly long wait" concern). *(Candidate for the spinner itself, awesome-web-components July 2026: **LDRS** — lightweight, customizable, themeable loading animations as web components — instead of a hand-rolled spinner; verify bundle cost, else a CSS spinner is fine.)*
-- Once the conditions are met the overlay fades out with a short transition (target: ~250 ms).
-- Only fires on the initial load; navigating between views does not re-trigger the overlay.
-
-**Implementation spec (decided 07/2026 — implementation-ready):**
-- **Signal wiring:** `feezal.connection` already dispatches everything needed — `connected` / `disconnected` / `message` CustomEvents ([feezal-connection-feezal.js:43-64](../www/src/feezal-connection-feezal.js#L43-L64), same contract on the MQTT connection). The element listens: on `connected`, arm the quiet-window timer; every `message` resets it; when it expires (default 400 ms of silence) → hide. The fallback timeout runs in parallel from `connected` (or from element connect if the connection never comes up). No new platform API needed.
-- **Overlay rendering:** `position: fixed; inset: 0; z-index: 9999` div in the element's own shadow root (fixed positioning escapes the view box); fade-out ~250 ms then `display:none`. Editor mode: placeholder chip only (system-family pattern, like system-notification/system-pin), overlay never renders.
-- **Logo (decided: in MVP):** `logo` attribute — image URL (Asset Manager path, same resolution as other asset refs), rendered centered above the spinner, constrained to ~40% of viewport width / ~30% height, fades with the overlay. Empty = colour-only splash.
-- **Spinner (decided): CSS-only** — a single hand-rolled CSS spinner, shown after `spinner-delay` (default 1 s). LDRS rejected: not worth a dependency for one spinner.
-- **Lottie boot animation (decided 07/2026: in scope):** an optional `lottie` attribute (asset URL of an animation JSON) renders a Lottie animation on the splash — replacing the spinner (and shown immediately, not after `spinner-delay`); `logo` and `lottie` may combine (logo above, animation below). **Bundle constraint (hard requirement): the lottie-web dependency must not end up in the export/viewer payload when unused.** Implementation: reuse **E89's shared lazy loader** — one dynamic `import('lottie-web')` chunk used by both `basic-lottie` and the splash; the chunk is fetched **only when** the `lottie` attribute is actually set (not merely when the splash element exists), so colour/logo/spinner-only splashes and dashboards without Lottie ship zero extra bytes. Verify the export bundler preserves the dynamic import as a separate on-demand chunk (the same E54/E89 verification — do all three together). Boot-timing caveat, documented in the ℹ help: the chunk fetch races the splash itself — the overlay colour (and logo) shows instantly, the animation pops in when the chunk arrives; on fast loads the splash may hide before the animation ever renders. That's acceptable — the animation is progressive enhancement, never a blocker (the hide conditions are unchanged and independent of the Lottie load).
-- **Multiple instances:** place once; if several are present the first to initialise wins, the rest no-op (log a console warning). No hard `restrict` needed.
-
-**Attributes:** `settle-window` (number, ms, default `400`), `timeout` (number, seconds, default `3`), `spinner-delay` (number, ms, default `1000`), `logo` (string, asset URL, default empty), `lottie` (string, asset URL of a Lottie animation JSON, default empty — replaces the spinner, lazy-loads the shared E89 chunk on demand). All with ℹ help texts.
-
-**Styles:** `--feezal-splash-background` (default `var(--primary-background-color, #fff)`), `--feezal-splash-spinner-color` (default `var(--primary-color, #0284c7)`) — canonical theme vars per §5.1 discipline.
-
-**Ships with:** standard element scaffolding (package + `www/package.json` registration + `generate-elements` + patch version), TESTING.md §6 entry (fast load = clean flash, slow load = spinner after 1 s, no-retained-topics dashboard = 3 s cap, logo rendering, editor chip).
-
-**Deferred:** custom colour *attribute* (the CSS custom property covers theming), re-trigger on reconnect after connection loss.
-
-**Relates:** E89 (shared lazy lottie-web loader — the splash's `lottie` attribute rides on that chunk; implement the loader there first or extract it to a shared module both import), E54 (same dynamic-chunk export verification), A16 (logo/animation asset refs).
-
 ### E54 — Markdown element (`feezal-element-basic-markdown`)
 
 Render Markdown from a subscribed payload or an asset file (`src`) — notes, documentation panels, status summaries. Dashboard 2.0 ships `ui-markdown` (incl. Mermaid); uibuilder built a whole markdown-site node (Markweb). Cheap to build and has a nice AI synergy: the in-editor assistant already renders Markdown — an element displaying AI/script-generated markdown content closes that loop (E49 script computes a summary → publishes → markdown element renders).
@@ -692,47 +653,6 @@ When any of these is chosen, promote it to its own `Ex` entry (like E83/E84) wit
 
 **Relates:** E83 (Spectrum), E84 (Wired), paper/material families (the wrap-a-library precedent), E55–E63 (hand-rolled aesthetic families — the alternative to adopting a component library).
 
-### E88 — JSON tree viewer (`feezal-element-basic-json`)
-
-An element that subscribes to a topic and renders the **JSON payload as a collapsible tree** — the "inspect what this device is actually publishing" widget an MQTT dashboard is missing. Doubles as a debugging/diagnostics tool and a live structured-data readout.
-
-**Decided (07/2026):** ships **standalone as `basic-json` now** (not gated on the E62 family — E62 references it when it lands), with a **hand-rolled recursive Lit renderer** (~100 lines; the `<json-viewer>` lib was rejected: a dependency whose theming and Lit-3 compat would need bending for something this small).
-
-**Implementation spec:**
-- **Renderer:** recursive Lit template over the parsed value; objects/arrays render as toggleable nodes (chevron + key + preview `{…} 3 keys` / `[…] 5 items`), primitives as `key: value` rows with a per-type CSS class. **Expand/collapse state is kept per JSON path** (a `Set` of expanded paths) so it **survives message updates** — a live-updating payload must not snap the tree shut. New paths follow `expand-depth`.
-- **Attributes:** `subscribe` (mqttTopic), `message-property` (default `payload`), `expand-depth` (number, default `1` — auto-expand N levels), `max-nodes` (number, default `500` — render guard for huge payloads: beyond it, collapsed nodes with a "+N more" hint; never freeze the tab on a monster payload). Non-JSON payloads render as the raw string (never an error state).
-- **Styles:** `top/left/width/height` plus tree colours as CSS custom properties, all defaulting to canonical theme vars (§5.1): keys → `--primary-text-color`, strings → `--accent-color`, numbers/booleans → `--primary-color`, null/undefined + punctuation → `--secondary-text-color`, guides/borders → `--divider-color`; monospace font, `overflow: auto` within the element box.
-- **Interaction (MVP):** toggle on node click; long values ellipsized with full value in the `title` tooltip.
-
-**Ships with:** standard element scaffolding + patch version, TESTING.md §6 entry (tree renders, expand state survives updates, raw-string fallback, max-nodes guard, theming in light/dark).
-
-**Deferred:** path filter/search box, click-to-copy value/path, diff-highlight of changed keys between messages (nice debugging tier), `max-depth` hard cutoff (covered by `max-nodes` for now).
-
-**Relates:** E62 (MQTT broker introspection family — will reuse this as its payload inspector), `basic-template` (the other "render a payload" element — this is the structured/tree case), E32 (logbook — raw message feed sibling).
-
-### E89 — Lottie animation element (`feezal-element-basic-lottie`)
-
-An element that plays a **Lottie animation**, with playback driven by MQTT — animated weather glyphs, alert/attention states, "working"/progress spinners, playful status characters. Nothing in the palette offers rich vector animation today.
-
-**Decided (07/2026):** MVP = **playback control + the value→segment map** (the map *is* the dashboard use case — without it this is decoration). Backing lib: **wrap `lottie-web` directly** (svg renderer) rather than `<lottie-player>` — the player component adds UI chrome and a second wrapper layer feezal doesn't need; direct wrapping gives full segment/frame control. **Lazy-loaded**: `import('lottie-web')` on first viewer `connectedCallback` (the E54 Mermaid pattern) so the ~250 kB dep is a dynamic chunk fetched only when a dashboard actually contains the element; editor renders a static placeholder (first frame if cheaply available, else a film-strip chip) and never loads the lib.
-
-**Implementation spec:**
-- **Attributes:**
-  - `src` (string, asset URL / Asset Manager ref) — the animation JSON.
-  - `subscribe` (mqttTopic) + `message-property` (default `payload`) — drives playback.
-  - `payload-play` / `payload-pause` / `payload-stop` (strings, defaults `play`/`pause`/`stop`) — transport commands.
-  - `map` (json, default `{}`) — value → clip descriptor: `{"sunny": {"segment": [0, 60]}, "rain": {"segment": [61, 120], "loop": true}, "storm": {"src": "storm.json"}}` — a matched payload seeks/plays that segment (frame pair), optionally overriding `loop`/`speed`, or swaps `src` entirely. Checked **before** the transport payloads; unmatched values are ignored. ℹ help documents the format with this example.
-  - `autoplay` (boolean, default `true`), `loop` (boolean, default `true`), `speed` (number, default `1`).
-- **Behaviour details:** `src` change (attribute or map-driven) destroys and re-creates the lottie instance; element resize observes the box and calls the lib's resize (E38-friendly); `destroy()` on disconnect (popup/view-switch safety); a broken/missing `src` shows a subtle placeholder, never throws.
-- **Styles:** `top/left/width/height`; `--feezal-lottie-background` (default `transparent`). Animation scales to the element box (lottie-web's `preserveAspectRatio` default; expose nothing further in MVP).
-- **Bundle note:** the dynamic chunk lands in viewer *and* export bundles but is only fetched when the element exists on a view — verify the export bundler keeps the dynamic import intact (same verification E54 needs; do them together).
-
-**Ships with:** standard element scaffolding + patch version, TESTING.md §6 entry (lazy chunk loads only when element present, transport payloads, map segments incl. src-swap, editor placeholder, resize).
-
-**Deferred:** dotLottie (`.lottie` compressed) support, named-marker segments (`{"marker": "rain"}` — needs marker support verification in lottie-web), `renderer: canvas` option, play-count/`onComplete` publish.
-
-**Relates:** E54 (markdown — same lazy-dep bundling pattern, verify export handling together), E71 (icon-value — the value→variant mapping pattern this mirrors), E39 (splash — its `lottie` attribute **shares this element's lazy lottie-web loader**; build the loader as a small shared module both import, chunk fetched only on actual use), A16 (asset refs for the animation JSON).
-
 ### E90 — Vaadin element family (`feezal-element-vaadin-*`) 💡 idea
 
 An element **design system** backed by **Vaadin web components** ([vaadin.com](https://vaadin.com/)) — a "business/enterprise web app" look, promoted from the E85 backlog to its own concrete entry alongside Spectrum (E83) and Wired (E84).
@@ -844,83 +764,6 @@ Beside E95's keyboard shortcuts, allow **MIDI controllers** to drive element int
 **Open questions:** device identity/persistence across reconnects (match by port name/id); channel/note filtering; MIDI *feedback/out* (lighting a controller's LED from state) as a later phase; whether this is per-element bindings or a central MIDI-map surface. Given the Safari/Firefox gap, likely ships (if ever) as an optional power-user feature, not a core interaction path.
 
 **Relates:** E95 (shares the element-actions model + inversion of the "learn" UI; keyboard is the portable sibling), E50/E49 (a MIDI event is just another action trigger), N24 (per-client input state), A21 (accessibility — physical input is complementary, not a replacement for keyboard operability).
-
-### E102 — Climate elements: boost mode, thermostat mode datapoint conventions, valve position 🔽 partial — core shipped, remaining work spec'd 07/2026
-
-Three related Homematic/HmIP gaps in the `*-climate` family (`glass-climate`, `material-climate`, `metro-climate` — "device-climate" = `material-climate`, Device palette category).
-
-**Progress (07/2026):**
-- **Valve scaling (material-climate, done):** `valve-min`/`valve-max` scale an incoming valve level from the device range to 0–100 % (defaults 0/100 = BidCoS `VALVE_STATE`; set `valve-max=1` for HmIP `LEVEL` 0…1), for separate-topic and JSON reads, with a "Valve range" section + ℹ help (browser-tested).
-- **Per-entry mode-descriptor model + momentary boost (material-climate, done — U39 unblocked the inspector):** a `modes` entry may carry `publish`+`payload` to write a specific datapoint instead of the default `publish-mode`. `payload` is a string **or a JSON object** published as-is (→ the bridge's putParamset topic, e.g. `hm/paramset/<channel>/VALUES` with `{CONTROL_MODE:1, SET_POINT_TEMPERATURE:4.5}`), with the `$setpoint` placeholder resolving to the remembered last real setpoint (Homematic `MANU_MODE=$setpoint`; off = manual + 4.5). A `momentary:true` entry (boost) is a push button — activate publishes it, deactivate runs its off-strategy `off:{publish,payload}` (HmIP `BOOST_MODE=false`) or `off:"restore"` (BidCoS — re-apply the client-remembered pre-boost mode). Backwards compatible (plain entries unchanged). Browser-tested (per-entry write, `$setpoint`, object/putParamset payload, boost toggle + both off-strategies). Help text on the `modes` attribute documents the format.
-- **Mode-descriptor model ported to `glass-climate` + `metro-climate` (done):** the same per-entry `publish`/`payload`/`$setpoint`/object-putParamset/momentary-boost mechanism now works in the popup mode buttons (glass) and the flip-face mode chips (metro). (Fixed a latent bug in both: `_parsedModes` was stripping entries to `{value,label}`, which would have made any E102 override inert.) Browser-tested (10 tests, mirroring material-climate). Patch bumps: glass-climate 3.0.6, metro-climate 3.0.2.
-- **Remaining:** four work packages, each spec'd implementation-ready below — **(1)** valve indicator on glass/metro, **(2)** boost countdown badge, **(3)** profile-stamping presets (now **unblocked**: U39 shipped, paramset key confirmed `VALUES`), **(4)** help-text completion. Plus one settled scoping call: `match-setpoint-max` is **required** (without it an "Off" entry sharing `value: 1` with "Manu" can never display as active), the `steps` multi-write fallback is **deferred** (YAGNI — the putParamset topic covers the combined-write case; revisit only if a bridge without a paramset topic shows up).
-
-**Reference analysed:** [RedMatic-HomeKit `homematic-devices/`](https://github.com/rdmtc/RedMatic-HomeKit/tree/master/homematic-devices) (`hm-cc-rt-dn.js`, `hm-tc-it-wm-w-eu.js`, `hmip-etrv.js`, `hmip-wth.js`, `hmip-bwth.js`, `hmip-heating.js`) — a proven, deployed mapping of both Homematic thermostat generations onto a foreign mode model (HomeKit off/heat/auto), i.e. exactly the problem the climate elements face.
-
-#### Device matrix (from the RedMatic-HomeKit code)
-
-| | BidCoS TRV (HM-CC-RT-DN `:4`) | BidCoS wall (HM-TC-IT-WM-W-EU `:2`) | HmIP TRV (eTRV `:1`) | HmIP wall/floor (WTH/BWTH `:1`, HEATING group) |
-|---|---|---|---|---|
-| Setpoint | `SET_TEMPERATURE` r/w | `SET_TEMPERATURE` r/w | `SET_POINT_TEMPERATURE` r/w | `SET_POINT_TEMPERATURE` r/w |
-| Mode **read** | `CONTROL_MODE` 0=auto 1=manu 2=party 3=boost | same | `SET_POINT_MODE` 0=auto 1=manual (2=party) | same |
-| Mode **write** | separate action datapoints: `AUTO_MODE=true`, `MANU_MODE=<temperature>`, `BOOST_MODE=true` | same | `CONTROL_MODE` 0=auto 1=manual | same; "off"/"manu-with-setpoint" written as **combined** `putParamset {CONTROL_MODE:1, SET_POINT_TEMPERATURE:x}` |
-| "Off" | sentinel: `MANU_MODE = 4.5` (°C) | same | manual + setpoint 4.5 (combined write) | same |
-| Boost activate | `BOOST_MODE = true` | same (+ propagate to linked TRVs) | `BOOST_MODE = true` (plain r/w boolean) | same (+ propagate to linked TRVs) |
-| Boost deactivate | **restore previous mode**: `AUTO_MODE=true` or `MANU_MODE=<remembered setpoint>` | same | `BOOST_MODE = false` | same |
-| Boost read-back | `CONTROL_MODE === 3` | same | `BOOST_MODE` | same |
-| Heating activity | `VALVE_STATE` **0–100** | no valve — max over **linked TRVs'** `VALVE_STATE` | `LEVEL` **0.0–1.0** | no valve — max over linked TRVs' `LEVEL` |
-
-#### Key structural findings
-
-1. **Read topic ≠ write topic, and the generations swap names.** BidCoS reads `CONTROL_MODE` but writes per-mode action datapoints (with *different payload types* — boolean for auto/boost, a temperature for manu). HmIP reads `SET_POINT_MODE` but writes `CONTROL_MODE` — the same datapoint name is state on one generation and command on the other, with different value sets. A symmetric `subscribe-mode`/`publish-mode` + single `modes` enum cannot express either generation.
-2. **"Off" is a sentinel setpoint, not a mode.** Both generations: manual + 4.5 °C. The UI must additionally **remember the last real setpoint** (>4.5) to restore it when switching back to heat (RedMatic's `valueSetpoint` shadow). Mode *display* should also infer "off" from setpoint ≤ 4.5 while the mode datapoint still says "manual".
-3. **Boost is asymmetric per generation.** HmIP: trivial boolean toggle, device reverts itself. BidCoS: activation is a trigger, but **deactivation must restore the pre-boost mode** — the client remembers what was active before boost (RedMatic freezes its `target` state during boost for exactly this). This asymmetry is why boost should be a **dedicated control** with its own wiring, not just another `modes` chip.
-4. **Boost countdown:** BidCoS RT-DN exposes a remaining-time datapoint (`BOOST_STATE`, minutes — *verify against a real device*); HmIP devices may expose `BOOST_TIME` (*verify*). Fallback: client-side countdown from a configurable `boost-duration` attribute, bootstrapped when boost-active flips on.
-5. **HmIP's combined write → use the bridge's putParamset topic** (resolved 07/2026). The bridge exposes putParamset as `hm/paramset/<channelNameOrAddress>/<PARAMSET>` with a **JSON object payload** — so `{CONTROL_MODE: 1, SET_POINT_TEMPERATURE: 4.5}` published to `hm/paramset/<channel>/VALUES` is **one atomic MQTT publish**, exactly mirroring RedMatic-HomeKit's `putParamset [addr + ':1', 'VALUES', {CONTROL_MODE, SET_POINT_TEMPERATURE}]` (verified in `hmip-etrv.js` / `hmip-heating.js`). **The paramset key is `VALUES`, not `MASTER`** — rechecked against the whole RedMatic device set: it never touches MASTER for thermostat *control*; on these devices MASTER holds *configuration* parameters (week program, comfort/eco temperatures), not operating values. BidCoS mode changes are plain single-datapoint `setValue` writes (`AUTO_MODE`/`MANU_MODE`/`BOOST_MODE`, verified in `hm-cc-rt-dn.js`) → ordinary `hm/set/…` topics, no paramset write needed there either.
-6. **Valve scale differs:** BidCoS 0–100 vs HmIP 0.0–1.0 → the existing `subscribe-valve` needs **B26-style `valve-min`/`valve-max` scaling** (defaults 0/100). Wall thermostats have no valve; users point the valve topic at the linked TRV (max-aggregation over several TRVs is out of scope — one topic, or a pre-aggregated topic from the automation layer).
-7. **Virtual heating groups need no special machinery** (verified against `hm-cc-vg-1.js` / `hmip-heating.js`): **HM-CC-VG-1** (BidCoS group) speaks exactly the RT-DN dialect on its `:1` channel (`SET_TEMPERATURE`, `CONTROL_MODE` read, `AUTO_MODE`/`MANU_MODE`/`BOOST_MODE` write, off = `MANU_MODE` 4.5); **HmIP-HEATING** speaks exactly the WTH dialect on `:1` (`SET_POINT_TEMPERATURE`, `SET_POINT_MODE` read, `CONTROL_MODE`/combined-putParamset write, `BOOST_MODE`). Only valve differs: groups have none — RedMatic aggregates max over the members' `VALVE_STATE`/`LEVEL` client-side; for feezal this stays out of scope exactly as for wall thermostats (point `subscribe-valve` at one member TRV or a pre-aggregated topic). → **Already covered by the model**; the profiles and help texts just document "for a heating group, use the group's `:1` channel address with the matching generation's profile".
-
-#### Agreed model (decided 07/2026)
-
-- **Per-entry mode descriptors** replacing the flat `modes` value/label list. Each entry: `{value, label, publish?, payload?}` — `value` matches the *read* topic's payload (existing `subscribe-mode`), `publish`/`payload` override the default `publish-mode` write. `payload` may be a string **or a JSON object** (published as-is — this is how the putParamset topic gets its multi-param payload), and supports a **`$setpoint` placeholder** (also inside object values) resolving to the remembered last-real setpoint (covers `MANU_MODE = <temp>`) and constants like `4.5` (covers "off"). Example (BidCoS TRV + HmIP-off via putParamset, hm2mqtt-style topics):
-  ```json
-  [{"value": 0, "label": "Auto", "publish": "hm/set/TRV/4/AUTO_MODE", "payload": "true"},
-   {"value": 1, "label": "Manu", "publish": "hm/set/TRV/4/MANU_MODE", "payload": "$setpoint"},
-   {"value": 1, "label": "Off",  "match-setpoint-max": 4.5,
-    "publish": "hm/paramset/WTH:1/VALUES",
-    "payload": {"CONTROL_MODE": 1, "SET_POINT_TEMPERATURE": 4.5}}]
-  ```
-  **Combined mode+setpoint writes go through the bridge's putParamset topic** (`hm/paramset/<channel>/VALUES`, finding 5) — one atomic publish, no ordering/timing concerns. For bridges *without* a paramset topic, an ordered **`steps` array of `{topic, payload}`** was designed as the sequential-publish fallback — **deferred, not implemented** (see the scoping decision in the work-package spec below). `match-setpoint-max` (the off-entry's display-match rule) is **required and still open** — see WP3/scoping below. Entries without `publish` keep today's behaviour, so the change is **backwards compatible**.
-- **Boost = a momentary mode entry, rendered in the existing chip row** (decided: one modes list, no separate control). An entry can be marked `momentary: true` with its own **off-strategy**: `off: {publish, payload}` (HmIP — `BOOST_MODE=false`) or `off: "restore"` (BidCoS — re-publish the pre-boost entry via the same per-entry machinery; pre-boost mode is client-side, re-derived from the last seen non-boost mode read-back, so a reload during boost degrades to "restore = auto"). Momentary chips render push-button-style (active while the read-back matches, tap again to deactivate) and can carry a **countdown badge**: optional `subscribe-boost-remaining` topic, else a client-side timer from a `boost-duration` attribute.
-- **Device profiles via inspector stamping** (decided; **unblocked** — U39 shipped): a profile picker in the climate inspector stamps the mode entries/boost/valve attributes from a template with the user's base topic — **one preset per bridge × generation** (decided: target both bridge topologies): `hm2mqtt BidCoS`, `hm2mqtt HmIP`, `Node-RED/RedMatic flows` (single logical command topics, the flow does the combined write), `zigbee2mqtt TRV`, `generic`. Profiles are templates, not runtime switches — after stamping everything is plain, hand-editable attributes. Full implementation spec: **WP3** below.
-- **Party/holiday: display-only** (decided): mode read-back `2` renders a passive "Party" chip (never publishable — activation would need `PARTY_MODE_SUBMIT` string encoding, out of scope).
-- **Valve** (unchanged in substance): bring `subscribe-valve` to glass/metro in each family's visual language, plus `valve-min`/`valve-max` scaling on all of them (incl. material-climate, for HmIP 0…1). ✅ **material-climate done (07/2026)**; glass/metro pending.
-- **Inspector ℹ help texts** (decided 07/2026): the Homematic know-how above must reach the user through the attribute `help:` tooltips (the ℹ-icon popups), not stay buried in this roadmap entry. Concretely, the stamped attributes / mode-entry editor ship with hints covering: **(a)** the putParamset topic form — `hm/paramset/<channelNameOrAddress>/VALUES` with a JSON object payload for atomic multi-datapoint writes, and that the paramset segment is `VALUES` (**not** `MASTER` — MASTER is device *configuration* like week programs, never needed for mode/setpoint control); **(b)** off = manual + sentinel setpoint `4.5 °C` on both Homematic generations, and that the element restores the remembered last real setpoint via `$setpoint`; **(c)** boost semantics per generation (HmIP: `BOOST_MODE` true/false toggle; BidCoS: trigger + restore-previous-mode on deactivate); **(d)** virtual heating groups — HM-CC-VG-1 behaves like a BidCoS TRV, HmIP-HEATING like a wall thermostat, each on its group `:1` channel: pick the matching generation's profile and use the group channel address; **(e)** valve topic guidance for wall thermostats/groups (point at a member TRV or a pre-aggregated topic; scale via `valve-min`/`valve-max`).
-
-#### Remaining work — implementation-ready spec (decided 07/2026)
-
-**WP1 — Valve indicator on `glass-climate` + `metro-climate`** *(rendering decided: as originally sketched)*
-- Attributes on both, **identical names and help texts to material-climate** (share the descriptor fragment, E106-style): `subscribe-valve`, `message-property-valve`, `valve-min` (default `0`), `valve-max` (default `100`); support both the separate-topic and JSON-schema read paths exactly as material-climate does. Grouped in a `valve` section (both elements already use U39 sections).
-- **Glass rendering:** a subtle ring segment on the existing arc geometry (B29 shared-geometry styling) + a numeric "Valve x %" line in the details popup.
-- **Metro rendering:** a compact numeric/bar readout on the flip-face (back), flat Metro style.
-- Purely additive: nothing renders while `subscribe-valve` is unset. Patch bumps + TESTING.md notes per policy.
-
-**WP2 — Boost countdown badge** *(tier decided: client timer + optional device topic)* — all three climate elements:
-- New attributes: `boost-duration` (number, **minutes**, default `5` — Homematic's boost default), `subscribe-boost-remaining` + `message-property-boost-remaining` (device-reported remaining time), `boost-remaining-unit` (`minutes` | `seconds`, default `minutes` — BidCoS `BOOST_STATE` reports minutes; HmIP unit TBC). All in the boost/mode section, ℹ help texts included.
-- Behaviour: when a `momentary` chip goes active — if `subscribe-boost-remaining` is wired, show the device value (live-updating); otherwise start a client-side countdown from `boost-duration`. Badge renders `mm:ss` on the chip; cleared when the chip deactivates (read-back change or tap-off). A page reload without the device topic restarts the client timer from full — accepted degradation, noted in the help text.
-- **Real-device verification stays a pre-preset gate, not a code gate:** confirm `BOOST_STATE` (BidCoS RT-DN) / `BOOST_TIME` (HmIP) names and units before the WP3 presets wire them; the client-timer path ships regardless.
-
-**WP3 — Profile-stamping presets** *(unblocked: U39 shipped; paramset key confirmed `VALUES` (07/2026) — presets hard-code `hm/paramset/<channelNameOrAddress>/VALUES`)*
-- **Preset data lives once** (shared module, E106-style): five templates — `hm2mqtt BidCoS`, `hm2mqtt HmIP`, `Node-RED/RedMatic flows`, `zigbee2mqtt TRV`, `generic` — each a function of (base topic, channel) returning the full attribute map: `subscribe`/`publish` wiring, the `modes` JSON (incl. momentary boost entry with the generation's off-strategy and `match-setpoint-max` off entry), valve topics + `valve-min`/`valve-max`, boost-countdown wiring where verified.
-- **Picker UI** (shared component, e.g. `feezal-climate-profiles`): profile select + base-topic/channel input + **Stamp** button; stamping writes attributes through the normal change pipeline (dirty + undo), with an overwrite confirmation when `modes` is already non-default. Profiles are templates, not runtime switches — after stamping, plain hand-editable attributes.
-- **Hosting:** material-climate embeds the component at the top of its custom inspector's Config tab. glass/metro use the generic structured inspector, which today has **no custom-section hook** → add a minimal U39 extension: an attribute-descriptor entry of `type: 'custom'` with `component: '<tag>'` renders the registered element inside the panel (element passed in as `.element`, changes emitted like N6). This small platform hook is deliberately generic — it is also the mechanism E106's "shared inspector building blocks" need.
-- One remaining verification before the two hm2mqtt presets are frozen: confirm the bridge's exact read/set topic shapes (`hm/status/...` vs `hm/set/...` naming) against the live system.
-
-**WP4 — Help-text completion** (from the decided ℹ list above): already shipped — (a) putParamset/VALUES form and (b) off-sentinel/`$setpoint` (on the `modes` help). Still to add, on all three families with identical wording (shared descriptor fragments): the explicit **"`VALUES`, not `MASTER`"** clarification, **(c)** per-generation boost semantics, **(d)** virtual-group guidance (HM-CC-VG-1 ≙ BidCoS TRV, HmIP-HEATING ≙ wall thermostat, each on the group's `:1` channel + matching profile), **(e)** valve-topic guidance for wall thermostats/groups.
-
-**Settled scoping (07/2026):** `match-setpoint-max` **must be implemented** (WP3's off entries depend on it, and without it an "Off" entry sharing its `value` with "Manu" never displays active — first-match wins today). The **`steps` sequential-write fallback is deferred** — not implemented, documented here as the design for bridges without a paramset topic; the inter-publish-delay question is parked with it.
-
-**Relates:** B26 (min/max scaling pattern reused for `valve-min`/`valve-max`), B29 (shared slider geometry — the valve indicator follows it), U39 (inspector restructuring — mode-entry editing and profile stamping belong in that redesign, not in the flat attribute list), N31 (availability — same "shared contract, per-family rendering" shape), material-climate (reference implementation).
 
 ### E107 — Thermostat schedule elements (device week programs) 🚧 blocked by upstream (Homematic)
 
