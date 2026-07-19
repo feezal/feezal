@@ -15,8 +15,6 @@ class FeezalElementMetroClimate extends MetroTileBase {
             description: 'Metro thermostat tile: current temperature on the front, setpoint stepper + mode chips on the back.',
             attributes: [
                 ...MetroTileBase.tileAttributes,
-                // E102 WP3: device-profile stamping picker (U39 custom hook).
-                {type: 'custom', component: 'feezal-climate-profiles', section: 'Device profile'},
                 // U39: grouped inspector; message-property-* twins tuck behind Advanced.
                 {name: 'subscribe', type: 'mqttTopic', section: 'Connection', help: 'Current temperature topic.'},
                 {name: 'message-property', type: 'string', default: 'payload', section: 'Connection', advanced: true,
@@ -76,12 +74,19 @@ class FeezalElementMetroClimate extends MetroTileBase {
                     mode_state_topic:           'subscribe-mode',
                     mode_command_topic:         'publish-mode',
                     action_topic:               'subscribe-valve',
-                    modes:                      'modes',
+                    modes:                      {attr: 'modes', transform: 'jsonStringify'},
                     min_temp:                   'min',
                     max_temp:                   'max',
                     temp_step:                  'step',
                     name:                       'label',
                     value_template:             {attr: 'message-property', transform: 'valueTemplateToPath'},
+                    // E108: native-discovery-only keys (Homematic synthesised
+                    // entities). HA/z2m lack them → skipped (additive). The
+                    // Homematic message_property:'val' overrides value_template
+                    // (native entities carry no value_template).
+                    message_property:           {attr: 'message-property'},
+                    valve_min:                  {attr: 'valve-min'},
+                    valve_max:                  {attr: 'valve-max'},
                 },
             },
         };

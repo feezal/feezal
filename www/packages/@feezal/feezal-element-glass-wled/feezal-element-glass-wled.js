@@ -34,6 +34,18 @@ class FeezalElementGlassWled extends FeezalGlassCard {
             links: [
                 {label: 'WLED MQTT docs', url: 'https://kno.wled.ge/interfaces/mqtt/'},
             ],
+            // E108: native WLED self-discovery. The server synthesises a
+            // `component:'wled'` entity (device_topic + availability) from native
+            // WLED topics; the ⚡ picker / Auto-configure banner stamps it here.
+            // Availability is applied automatically by _applyDiscovery from the
+            // entity's availability_normalized record (no map entry needed).
+            discovery: {
+                component: 'wled',
+                map: {
+                    device_topic: {attr: 'topic'},
+                    name: 'label',
+                },
+            },
             attributes: [
                 {name: 'size', type: 'select', options: ['', '2x2', '2x1'], default: '',
                     help: 'Preset size: 2x2 = square (150×150), 2x1 = wide (150×75). Empty keeps the current/manual size.'},

@@ -30,6 +30,18 @@ class FeezalElementMetroWled extends MetroTileBase {
             links: [
                 {label: 'WLED MQTT docs', url: 'https://kno.wled.ge/interfaces/mqtt/'},
             ],
+            // E108: native WLED self-discovery. The server synthesises a
+            // `component:'wled'` entity (device_topic + availability) from native
+            // WLED topics; the ⚡ picker / Auto-configure banner stamps it here.
+            // Availability is applied automatically by _applyDiscovery from the
+            // entity's availability_normalized record (no map entry needed).
+            discovery: {
+                component: 'wled',
+                map: {
+                    device_topic: {attr: 'topic'},
+                    name: 'label',
+                },
+            },
             attributes: [
                 ...MetroTileBase.tileAttributes,
                 {name: 'topic', type: 'mqttTopic', default: 'wled/device',

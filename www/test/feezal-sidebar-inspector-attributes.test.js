@@ -361,6 +361,109 @@ describe('WP3/E106 — type:custom platform hook (_rebuildItems)', () => {
     });
 });
 
+// ── E108: native self-discovery — client map ⇄ server contract ─────────────
+// The server (native-discovery.js) synthesises discovery entities from native
+// Homematic climate / WLED topics and merges them into /api/discovery/devices.
+// These tests drive _applyDiscovery with the EXACT synthesised config shapes to
+// prove the real element discovery maps consume the native contract.
+import '../packages/@feezal/feezal-element-material-climate/feezal-element-material-climate.js';
+import '../packages/@feezal/feezal-element-glass-wled/feezal-element-glass-wled.js';
+
+describe('E108 — native discovery stamps onto *-climate + wled elements', () => {
+    it('Homematic climate: native config stamps message-property/valve/modes/topics', () => {
+        // Rich modes array exactly as the server emits for a BidCoS TRV.
+        const modes = [
+            {value: 0, label: 'Auto', publish: 'hm/set/TRV/4/AUTO_MODE', payload: 'true'},
+            {value: 1, label: 'Manu', publish: 'hm/set/TRV/4/MANU_MODE', payload: '$setpoint'},
+            {value: 1, label: 'Off', 'match-setpoint-max': 4.5,
+                publish: 'hm/set/TRV/4/MANU_MODE', payload: '4.5'},
+            {value: 3, label: 'Boost', momentary: true,
+                publish: 'hm/set/TRV/4/BOOST_MODE', payload: 'true', off: 'restore'},
+        ];
+        const entity = {
+            discovery_id: 'homematic/TRV/4',
+            component: 'climate',
+            source: 'homematic',
+            name: 'Living-room TRV',
+            config: {
+                name: 'Living-room TRV',
+                schema: 'separate',
+                temperature_state_topic:   'hm/status/TRV/4/SET_TEMPERATURE',
+                temperature_command_topic: 'hm/set/TRV/4/SET_TEMPERATURE',
+                current_temperature_topic: 'hm/status/TRV/4/ACTUAL_TEMPERATURE',
+                mode_state_topic:          'hm/status/TRV/4/CONTROL_MODE',
+                action_topic:              'hm/status/TRV/4/VALVE_STATE',
+                min_temp: 4.5, max_temp: 30.5, temp_step: 0.5,
+                temperature_unit: 'C',
+                modes,
+                message_property: 'val',
+                valve_min: 0,
+                valve_max: 100,
+            },
+        };
+
+        const el = document.createElement('feezal-element-material-climate');
+        const change = vi.fn();
+        globalThis.feezal.app = {change};
+
+        const ins = document.createElement('feezal-sidebar-inspector-attributes');
+        ins.selectedElems = [el];
+        ins._applyDiscovery(entity);
+
+        // Native-only keys (HA/z2m absent) — the crux of the E108 contract.
+        expect(el.getAttribute('message-property')).toBe('val');
+        expect(el.getAttribute('valve-min')).toBe('0');
+        expect(el.getAttribute('valve-max')).toBe('100');
+        expect(el.getAttribute('subscribe-valve')).toBe('hm/status/TRV/4/VALVE_STATE');
+        // Shared HA keys still map.
+        expect(el.getAttribute('subscribe')).toBe('hm/status/TRV/4/SET_TEMPERATURE');
+        expect(el.getAttribute('subscribe-mode')).toBe('hm/status/TRV/4/CONTROL_MODE');
+        expect(el.getAttribute('payload-mode')).toBe('separate');
+        expect(el.getAttribute('unit')).toBe('°C');
+        // modes is JSON-stringified (round-trips back to the rich array).
+        expect(JSON.parse(el.getAttribute('modes'))).toEqual(modes);
+        expect(el.getAttribute('discovery-id')).toBe('homematic/TRV/4');
+        expect(change).toHaveBeenCalled();
+    });
+
+    it('WLED: native config stamps topic + label + availability', () => {
+        const entity = {
+            discovery_id: 'wled/abc123',
+            component: 'wled',
+            source: 'wled',
+            name: 'Desk strip',
+            config: {
+                name: 'Desk strip',
+                device_topic: 'wled/abc123',
+                availability_topic: 'wled/abc123/status',
+                availability_normalized: {
+                    entries: [{topic: 'wled/abc123/status'}],
+                    mode: 'all',
+                    payloadAvailable: 'online',
+                    payloadUnavailable: 'offline',
+                },
+            },
+        };
+
+        const el = document.createElement('feezal-element-glass-wled');
+        const change = vi.fn();
+        globalThis.feezal.app = {change};
+
+        const ins = document.createElement('feezal-sidebar-inspector-attributes');
+        ins.selectedElems = [el];
+        ins._applyDiscovery(entity);
+
+        expect(el.getAttribute('topic')).toBe('wled/abc123');
+        expect(el.getAttribute('label')).toBe('Desk strip');
+        // Availability applied automatically from availability_normalized.
+        expect(el.getAttribute('subscribe-availability')).toBe('wled/abc123/status');
+        expect(el.getAttribute('payload-available')).toBe('online');
+        expect(el.getAttribute('payload-unavailable')).toBe('offline');
+        expect(el.getAttribute('discovery-id')).toBe('wled/abc123');
+        expect(change).toHaveBeenCalled();
+    });
+});
+
 describe('WP3/E106 — type:custom rendering + change routing', () => {
     it('renders <x-test-panel> in the panel with .element set, and routes its change through the commit path', async () => {
         const host = document.createElement('x-custom-host');

@@ -92,6 +92,13 @@ class FeezalElementMaterialClimate extends FeezalElement {
                     mode_state_topic:          {attr: 'subscribe-mode'},
                     mode_command_topic:        {attr: 'publish-mode'},
                     action_topic:              {attr: 'subscribe-valve'},
+                    // E108: native-discovery-only keys (HA/z2m entities lack them
+                    // and simply skip these — additive, backwards compatible).
+                    // Homematic synthesised entities carry message_property:'val'
+                    // and the valve device range (BidCoS 0–100, HmIP 0–1).
+                    message_property: {attr: 'message-property'},
+                    valve_min:        {attr: 'valve-min'},
+                    valve_max:        {attr: 'valve-max'},
                     // Range + step (apply in both modes)
                     min_temp:         {attr: 'min'},
                     max_temp:         {attr: 'max'},
@@ -1004,16 +1011,6 @@ class FeezalElementMaterialClimateInspector extends LitElement {
     _onInput(name, e)  { this._emit(name, e.target.value); }
     _onSelect(name, e) { this._emit(name, e.target.value, true); }
 
-    // E102 WP3: route the embedded profile picker's per-attribute
-    // feezal-attribute-changed events through this inspector's own emit path
-    // (the existing dirty+undo commit) — stop the original so it is not ALSO
-    // handled by the host, which would double-commit.
-    _onProfileStamp(e) {
-        e.stopPropagation();
-        const {name, value} = e.detail || {};
-        if (name) this._emit(name, value, true);
-    }
-
     _sectionEnabled(sec) {
         if (this._open[sec.id]) return true;
         return sec.topics.some(t => this._val(t.attr) !== '');
@@ -1111,10 +1108,6 @@ class FeezalElementMaterialClimateInspector extends LitElement {
     _renderConfig() {
         const payloadMode = this._val('payload-mode') || 'separate';
         return html`
-            <!-- E102 WP3: device-profile stamping picker at the top of Config. -->
-            <feezal-climate-profiles .element="${this.element}"
-                @feezal-attribute-changed="${this._onProfileStamp}"></feezal-climate-profiles>
-
             <div class="section">
                 <div class="sec-head">Payload mode</div>
                 <div class="sec-body">
