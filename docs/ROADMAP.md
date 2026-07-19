@@ -60,7 +60,6 @@ Work in progress — priorities and scope are not final.
 - [U30 — Auto-generated starter dashboard from MQTT discovery](#u30--auto-generated-starter-dashboard-from-mqtt-discovery-questionable-low-priority) ❓ 🔽
 - [U31 — Device-first element insertion](#u31--device-first-element-insertion-questionable-low-priority) ❓ 🔽
 - [U38 — Topic browser sidebar panel](#u38--topic-browser-sidebar-panel)
-- [U39 — Attribute inspector UX for attribute-heavy elements](#u39--attribute-inspector-ux-for-attribute-heavy-elements-️-needs-discussion) ⚠️
 - [U40 — Drag-and-drop reordering for `position:static` views](#u40--drag-and-drop-reordering-for-positionstatic-views) 🔽 partial
 
 **Architecture & Infrastructure**
@@ -965,24 +964,6 @@ A new tab in the right sidebar (the icon-tab row in [feezal-app-editor.js](www/s
 **Nice-to-haves:** drag a topic from the tree onto an inspector `mqttTopic` field (or onto a canvas element's primary `subscribe`); double-click to copy; per-node message-rate indicator.
 
 **Relates:** **E62** (topic-tree browser — already decided there as "element + editor panel" with a shared tree component: *this is that editor panel*; the canvas element reuses the component), the `mqttTopic` autocomplete (E62 names the panel as the candidate upgrade path to a browsable picker), B28 (custom-inspector topic fields — the shared picker/autocomplete component serves both), U37 (welcome wizard step 6 — "find a topic" is exactly where a browser beats blind typing).
-
-### U39 — Attribute inspector UX for attribute-heavy elements ⚠️ needs discussion
-
-The attribute inspector of some elements is **chaotic** — a long flat list with no structure. Worst-case example: **`glass-climate`** with **~25 attributes** rendered flat: `payload-mode`, the json-mode fields (`subscribe`, `publish`, `json-map`, `message-property`), then per-function separate-mode pairs (`subscribe-setpoint`/`publish-setpoint`/`subscribe-actual`/`subscribe-mode`/`publish-mode`, each with its `message-property-*` twin), then range/display fields (`min`/`max`/`step`/`unit`/`modes`/`label`/`icon`), then the availability block. Depending on `payload-mode`, **roughly half of these fields are irrelevant at any given time** — but all are shown, distinguished only by "json mode: …" / "separate mode: …" prose in the help tooltips.
-
-**Two possible directions — likely both, decided per element:**
-
-**A — Improve the standard attribute editor (descriptor-driven, benefits every element):**
-1. **Sections** — an optional `section:` field on attribute descriptors ([element-spec §3.2](element-spec.md)); the inspector renders collapsible groups (e.g. *Connection*, *Setpoint*, *Display*, *Availability*) instead of one flat list. Zero per-element UI code; N31's base-class availability attributes would land in their own section automatically.
-2. **Conditional visibility** — a `visibleWhen: {attr, value}` (or predicate) descriptor field, so e.g. the `subscribe-setpoint`… group only shows when `payload-mode=separate` and `json-map`/`message-property` only in json mode. Encodes what today lives as tooltip prose; the single biggest de-clutter for glass-climate/glass-cover/material-cover-style dual-mode elements.
-3. **Advanced tier** — `advanced: true` on rarely-touched descriptors (the `message-property-*` twins, payload overrides) collapses them behind an "Advanced" disclosure per section.
-4. Keep the existing type-specific inputs (mqttTopic autocomplete, color, select, icon picker) — they are fine; the problem is structure, not the individual controls.
-
-**B — More custom inspectors (N6 pattern):** full-freedom panels like material-climate/material-light already have. Best-in-class UX for genuinely bespoke needs (item-list builders, embedded editors, live previews) — but per-element code, and B28 shows custom inspectors drift from the standard editor's affordances (missing topic autocomplete). Every new custom inspector is UI that must be maintained and audited separately.
-
-**Recommendation to discuss:** do **A first** — sections + conditional visibility + advanced tier are one inspector change plus descriptor annotations, and probably fix 80 % of the chaos including glass-climate, with consistency for free. Reserve **B** for elements whose configuration is genuinely structural (lists of items, per-entry sub-forms — navbar, layouts, dialogs), not merely numerous. After A ships, audit the attribute-heavy elements (glass-climate, glass-cover, glass-light, material-cover, material-climate, E20 weather when it lands, …) and decide per element whether annotated descriptors suffice or a custom inspector is warranted.
-
-**Relates:** B28 (custom-inspector autocomplete gap — argues for fewer, better custom inspectors and shared building blocks), N31 (base-class availability attributes should render as a standard section), N6/§3.8 (custom inspector machinery), U17 (multi-select attribute intersection — sections must behave there too), element-spec §3.2 (new descriptor fields need spec'ing).
 
 ### U40 — Drag-and-drop reordering for `position:static` views 🔽 partial
 

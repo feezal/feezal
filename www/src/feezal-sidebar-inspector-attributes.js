@@ -294,8 +294,12 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         _iconIdx:           {state: true},  // item index with open icon picker (-1 = none)
         _iconQuery:         {state: true},  // current search text in the icon picker
         _iconSet:           {state: true},  // N23: active set chip ('all' | 'material' | registered set)
-        _iconCursor:        {state: true}   // N23: keyboard cursor in the icon grid (-1 = none)
+        _iconCursor:        {state: true},  // N23: keyboard cursor in the icon grid (-1 = none)
+        _collapsedSections: {state: true}   // U39: Set of collapsed section names
     };
+
+    // U39: section names that start collapsed (boilerplate / rarely-touched).
+    static DEFAULT_COLLAPSED_SECTIONS = new Set(['availability', 'advanced']);
 
     static styles = css`
         :host { display: block; margin: 12px; }
@@ -314,6 +318,25 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         .attr.mixed sl-textarea::part(textarea) { opacity: 0.75; }
         /* Checkbox alignment */
         sl-checkbox { padding-top: 18px; }
+
+        /* ── U39: structured inspector — sections + advanced disclosure ── */
+        .attr-section { margin: 0 0 6px; border-top: 1px solid var(--feezal-border, #e3e3e3); }
+        .attr-section:first-of-type { border-top: none; }
+        .sec-header {
+            display: flex; align-items: center; gap: 6px; cursor: pointer;
+            padding: 8px 0 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+            text-transform: uppercase; color: var(--feezal-color, #555); user-select: none;
+        }
+        .sec-header:hover { color: var(--sl-color-primary-600, #0284c7); }
+        .sec-caret { font-size: 10px; width: 10px; color: var(--feezal-color, #888); }
+        .sec-body { padding-top: 2px; }
+        details.adv-section { margin: 2px 0 6px; }
+        details.adv-section > summary {
+            cursor: pointer; font-size: 11px; color: var(--feezal-color, #777);
+            padding: 4px 0; list-style: revert; user-select: none;
+        }
+        details.adv-section > summary:hover { color: var(--sl-color-primary-600, #0284c7); }
+        details.adv-section[open] > summary { margin-bottom: 4px; }
         /* Dark mode: style Shoelace parts + checkbox via inherited CSS vars */
         sl-input::part(form-control-label), sl-textarea::part(form-control-label), sl-select::part(form-control-label) { color: var(--sl-input-label-color, inherit); font-size: 12px; }
         sl-checkbox { color: var(--feezal-color, inherit); }
@@ -490,6 +513,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         super();
         this.selectedElems = [];
         this.items         = [];
+        this._collapsedSections = new Set();
         this._completionIdx    = -1;
         this._completions      = [];
         this._completionCursor = -1;
@@ -594,11 +618,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                     <button class="disc-dismiss" title="Dismiss" @click="${() => { this._discoveryMatch = null; }}">&#x2715;</button>
                 </div>
             ` : ''}
-            ${this.items.map((item, idx) => html`
-                <div class="attr ${item.half ? 'half' : ''} ${item.invalid ? 'invalid' : ''} ${item.mixed ? 'mixed' : ''}">
-                    ${this._renderInput(item, idx)}
-                </div>
-            `)}
+            ${this._visibleGroups().map(g => this._renderGroup(g))}
             ${hasHelp ? html`
                 <details class="help-section">
                     <summary>Help</summary>
@@ -612,6 +632,38 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             ` : ''}
         ${this._helpTip ? html`<div class="help-tip" style="left:${this._helpTip.x}px;top:${this._helpTip.y}px">${this._helpTip.text}</div>` : ''}
         `;
+    }
+
+    /** U39: one attribute field. */
+    _renderAttr(item, idx) {
+        return html`
+            <div class="attr ${item.half ? 'half' : ''} ${item.invalid ? 'invalid' : ''} ${item.mixed ? 'mixed' : ''}">
+                ${this._renderInput(item, idx)}
+            </div>`;
+    }
+
+    /** U39: render one section group — header-less for the section-less leading group. */
+    _renderGroup(g) {
+        const advanced = g.advanced.length
+            ? html`<details class="adv-section"><summary>Advanced</summary>
+                    ${g.advanced.map(({item, idx}) => this._renderAttr(item, idx))}
+                </details>`
+            : '';
+        if (!g.section) {
+            return html`${g.main.map(({item, idx}) => this._renderAttr(item, idx))}${advanced}`;
+        }
+        const collapsed = this._collapsedSections.has(g.section.toLowerCase());
+        return html`
+            <div class="attr-section">
+                <div class="sec-header" @click="${() => this._toggleSection(g.section.toLowerCase())}">
+                    <span class="sec-caret">${collapsed ? '▸' : '▾'}</span>${g.section}
+                </div>
+                ${collapsed ? '' : html`
+                    <div class="sec-body">
+                        ${g.main.map(({item, idx}) => this._renderAttr(item, idx))}
+                        ${advanced}
+                    </div>`}
+            </div>`;
     }
 
     // ── Custom inspector sync (N6) ────────────────────────────────────────
@@ -1212,6 +1264,12 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                 mixed,
                 half,
                 invalid: false,
+                // U39: structured-inspector metadata (all optional; absent →
+                // today's flat behaviour).
+                section: attrSpec.section || '',
+                advanced: Boolean(attrSpec.advanced),
+                visibleWhen: attrSpec.visibleWhen || null,
+                default: attrSpec.default,
                 elem: {
                     input: !options && !attrSpec.textarea && !isBool && !isList && !isColor && !isTopic && !isIcon,
                     inputType,
@@ -1262,6 +1320,77 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                 }
             }];
         }
+
+        this._initCollapsedSections();
+    }
+
+    // ── U39: structured inspector — sections / conditional visibility / advanced
+
+    /**
+     * Reset which sections start collapsed for the current selection: the
+     * boilerplate "Availability"/"Advanced" sections (case-insensitive), only
+     * when they actually exist in this element's descriptors.
+     */
+    _initCollapsedSections() {
+        const present = new Set(this.items.map(it => (it.section || '').toLowerCase()).filter(Boolean));
+        this._collapsedSections = new Set(
+            [...FeezalSidebarInspectorAttributes.DEFAULT_COLLAPSED_SECTIONS].filter(s => present.has(s)));
+    }
+
+    /** Effective attribute values (inline value, else descriptor default) keyed by HTML attr name — for visibleWhen. */
+    _effectiveValues() {
+        const map = {};
+        for (const it of this.items) {
+            const v = (it.value === '' || it.value == null) ? it.default : it.value;
+            map[it.attrName] = v;
+        }
+        return map;
+    }
+
+    /**
+     * U39 visibleWhen: a single `{attr, equals}` or an array of them (ANDed).
+     * `equals` is a value or an array of accepted values. Absent → always visible.
+     * Comparison is loose-ish: booleans and numbers coerce to string so
+     * `equals: 'true'` / `equals: true` and `equals: 1` / `'1'` both work.
+     */
+    _passesVisibleWhen(cond, values) {
+        if (!cond) return true;
+        const list = Array.isArray(cond) ? cond : [cond];
+        const norm = v => (v === true ? 'true' : v === false ? 'false' : String(v ?? ''));
+        return list.every(c => {
+            if (!c || !c.attr) return true;
+            const actual = norm(values[c.attr]);
+            const accepted = (Array.isArray(c.equals) ? c.equals : [c.equals]).map(norm);
+            return accepted.includes(actual);
+        });
+    }
+
+    /**
+     * Group the currently-visible items by section for display, preserving each
+     * item's original index (change handlers key on it). Section-less items form
+     * a leading, header-less group. Groups order by first appearance; each group
+     * separates `advanced` items into an Advanced disclosure.
+     */
+    _visibleGroups() {
+        const values = this._effectiveValues();
+        const byName = new Map();
+        const order = [];
+        this.items.forEach((item, idx) => {
+            if (!this._passesVisibleWhen(item.visibleWhen, values)) return;
+            const section = item.section || '';
+            if (!byName.has(section)) { byName.set(section, {section, main: [], advanced: [], first: idx}); order.push(section); }
+            byName.get(section)[item.advanced ? 'advanced' : 'main'].push({item, idx});
+        });
+        return order
+            .map(s => byName.get(s))
+            .filter(g => g.main.length || g.advanced.length)
+            .sort((a, b) => a.first - b.first);
+    }
+
+    _toggleSection(name) {
+        const next = new Set(this._collapsedSections);
+        next.has(name) ? next.delete(name) : next.add(name);
+        this._collapsedSections = next;
     }
 
     /**

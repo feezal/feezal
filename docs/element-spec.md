@@ -142,7 +142,11 @@ attributes: [
         template: false,          // Store value in a <template> child, not as an attribute
         list:     false,          // Render as an editable key/value list (see §3.2.1)
         columns:  ['key','val'],  // Column names when list:true
-        validator: v => Boolean(v) // Optional; return false to mark input invalid
+        validator: v => Boolean(v), // Optional; return false to mark input invalid
+        // ── U39: structured inspector (all optional) ──
+        section:  'Connection',   // Collapsible group heading (see §3.2.2)
+        advanced: false,          // Tuck behind the section's "Advanced" disclosure
+        visibleWhen: {attr: 'payload-mode', equals: 'separate'} // Conditional visibility (§3.2.2)
     }
 ]
 ```
@@ -179,6 +183,25 @@ For attributes holding a **JSON array**, declare `type: 'objectList'` to get a c
 - **Bare-string arrays** (`["low","high"]`): declare a single field with an empty key — `itemFields: [{key: '', placeholder: 'preset'}]`.
 - **The attribute stays the single source of truth:** the control parses/serializes the same JSON string attribute — source mode, MQTT `setattribute`, and saved views are untouched. An unparseable existing value falls back to a raw text input (never destroyed).
 - The legacy `list: true` + `columns: ['a','b']` form still works (columns map to string-typed `itemFields`).
+
+#### 3.2.2 Structured inspector — sections, conditional visibility, advanced (U39)
+
+Attribute-heavy elements (dual-mode climate/cover cards, …) get a flat wall of ~25 fields, half irrelevant at any time. Three **optional** descriptor fields structure the standard inspector — no per-element UI code, and elements that omit them render exactly as before (one flat list).
+
+- **`section: 'Name'`** — groups the attribute under a collapsible heading. Attributes without a `section` stay in a leading, header-less group (so a partly-annotated element still looks natural). Groups appear in first-appearance order. Sections named **`Availability`** or **`Advanced`** (case-insensitive) **start collapsed**; all others start expanded. Collapse state is per-selection (not persisted).
+- **`advanced: true`** — moves the field into its section's **"Advanced"** disclosure (collapsed), for rarely-touched knobs like the `message-property-*` twins.
+- **`visibleWhen`** — show the field only when another attribute has a given value. Shape:
+  ```js
+  visibleWhen: {attr: 'payload-mode', equals: 'separate'}   // single value
+  visibleWhen: {attr: 'mode', equals: ['heat', 'auto']}      // any-of (array)
+  visibleWhen: [{attr: 'payload-mode', equals: 'separate'},  // array of conditions = AND
+                {attr: 'show-valve',  equals: true}]
+  ```
+  `equals` is compared against the controlling attribute's **effective** value (its inline value, else its descriptor `default`), with boolean/number coercion (`true`/`'true'`, `1`/`'1'` match). A section with no currently-visible fields is not rendered. Re-evaluated live as the user edits the controlling attribute.
+
+**Multi-select** (U17): grouping/visibility operate on the already-intersected attribute set, evaluated against the primary element's values.
+
+**Reference:** `glass-climate` — `payload-mode` gates the json vs separate topic sets via `visibleWhen`, the `message-property-*` twins are `advanced`, and Setpoint/Display/Availability sections tidy the rest.
 
 ### 3.3 `styles`
 

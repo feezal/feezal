@@ -154,3 +154,102 @@ describe('iconVariantBases() + variant picker mode — basic-icon-value', () => 
         expect(material.groups).toEqual([]);
     });
 });
+
+// ── U39: structured inspector (sections / visibleWhen / advanced) ──────────
+describe('U39 — conditional visibility (_passesVisibleWhen)', () => {
+    it('returns true when there is no condition', () => {
+        expect(el._passesVisibleWhen(null, {})).toBe(true);
+    });
+
+    it('matches a single value (with boolean/number coercion)', () => {
+        expect(el._passesVisibleWhen({attr: 'payload-mode', equals: 'json'}, {'payload-mode': 'json'})).toBe(true);
+        expect(el._passesVisibleWhen({attr: 'payload-mode', equals: 'json'}, {'payload-mode': 'separate'})).toBe(false);
+        expect(el._passesVisibleWhen({attr: 'on', equals: true}, {on: true})).toBe(true);
+        expect(el._passesVisibleWhen({attr: 'on', equals: 'true'}, {on: true})).toBe(true);
+        expect(el._passesVisibleWhen({attr: 'n', equals: 1}, {n: '1'})).toBe(true);
+    });
+
+    it('matches any value in an array', () => {
+        const c = {attr: 'mode', equals: ['heat', 'auto']};
+        expect(el._passesVisibleWhen(c, {mode: 'auto'})).toBe(true);
+        expect(el._passesVisibleWhen(c, {mode: 'off'})).toBe(false);
+    });
+
+    it('ANDs an array of conditions', () => {
+        const c = [{attr: 'payload-mode', equals: 'separate'}, {attr: 'show', equals: true}];
+        expect(el._passesVisibleWhen(c, {'payload-mode': 'separate', show: true})).toBe(true);
+        expect(el._passesVisibleWhen(c, {'payload-mode': 'separate', show: false})).toBe(false);
+    });
+});
+
+describe('U39 — grouping + advanced split (_visibleGroups)', () => {
+    function withItems(items) {
+        const ins = document.createElement('feezal-sidebar-inspector-attributes');
+        ins.items = items.map((it, i) => ({attrName: it.name, value: it.value ?? '', default: it.default,
+            section: it.section || '', advanced: Boolean(it.advanced), visibleWhen: it.visibleWhen || null, _i: i}));
+        return ins;
+    }
+
+    it('groups by section in first-appearance order, section-less items lead', () => {
+        const ins = withItems([
+            {name: 'locked'},                                  // section-less
+            {name: 'sub', section: 'Connection'},
+            {name: 'min', section: 'Setpoint'},
+            {name: 'pub', section: 'Connection'},
+        ]);
+        const groups = ins._visibleGroups();
+        expect(groups.map(g => g.section)).toEqual(['', 'Connection', 'Setpoint']);
+        expect(groups[1].main.map(x => x.item.attrName)).toEqual(['sub', 'pub']);
+    });
+
+    it('hides items whose visibleWhen fails against effective values (default applies when unset)', () => {
+        const ins = withItems([
+            {name: 'payload-mode', section: 'Connection', default: 'separate'},   // unset → default separate
+            {name: 'subscribe', section: 'Connection', visibleWhen: {attr: 'payload-mode', equals: 'json'}},
+            {name: 'subscribe-setpoint', section: 'Connection', visibleWhen: {attr: 'payload-mode', equals: 'separate'}},
+        ]);
+        const conn = ins._visibleGroups().find(g => g.section === 'Connection');
+        const names = conn.main.map(x => x.item.attrName);
+        expect(names).toContain('subscribe-setpoint');   // separate is the effective default
+        expect(names).not.toContain('subscribe');        // json-only, hidden
+    });
+
+    it('separates advanced items into the group.advanced bucket', () => {
+        const ins = withItems([
+            {name: 'sub', section: 'Connection'},
+            {name: 'message-property', section: 'Connection', advanced: true},
+        ]);
+        const conn = ins._visibleGroups().find(g => g.section === 'Connection');
+        expect(conn.main.map(x => x.item.attrName)).toEqual(['sub']);
+        expect(conn.advanced.map(x => x.item.attrName)).toEqual(['message-property']);
+    });
+
+    it('preserves each item’s original index for change handlers', () => {
+        const ins = withItems([
+            {name: 'a', section: 'X'},
+            {name: 'b', section: 'Y'},
+            {name: 'c', section: 'X'},
+        ]);
+        const gx = ins._visibleGroups().find(g => g.section === 'X');
+        expect(gx.main.map(x => x.idx)).toEqual([0, 2]);
+    });
+});
+
+describe('U39 — default-collapsed sections (_initCollapsedSections)', () => {
+    it('collapses Availability/Advanced when present, nothing else', () => {
+        const ins = document.createElement('feezal-sidebar-inspector-attributes');
+        ins.items = [
+            {attrName: 'sub', section: 'Connection'},
+            {attrName: 'av', section: 'Availability'},
+        ];
+        ins._initCollapsedSections();
+        expect([...ins._collapsedSections]).toEqual(['availability']);
+    });
+
+    it('is empty when no boilerplate sections exist', () => {
+        const ins = document.createElement('feezal-sidebar-inspector-attributes');
+        ins.items = [{attrName: 'sub', section: 'Connection'}];
+        ins._initCollapsedSections();
+        expect(ins._collapsedSections.size).toBe(0);
+    });
+});
