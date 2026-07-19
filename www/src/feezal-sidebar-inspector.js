@@ -837,47 +837,74 @@ class FeezalSidebarInspector extends LitElement {
         // doesn't offset them, and serialization stays clean.
         element.style.removeProperty('top');
         element.style.removeProperty('left');
-        interact(element).draggable({
-            autoScroll: {enabled: true, container: feezal.site, speed: 300, margin: 40},
-            listeners: {
-                start: () => {
-                    if (!this.selectedElems.includes(element)) this.selectElement(element);
-                    const r = element.getBoundingClientRect();
-                    const ph = document.createElement('div');
-                    ph.className = 'feezal-placeholder';
-                    ph.style.cssText = `width:${Math.round(r.width)}px;height:${Math.round(r.height)}px;flex:0 0 auto;box-sizing:border-box;`;
-                    element.parentElement.insertBefore(ph, element);
-                    element._flowPh = ph;
-                    element._flowPos = {x: r.left, y: r.top};
-                    Object.assign(element.style, {
-                        position: 'fixed', left: `${r.left}px`, top: `${r.top}px`,
-                        width: `${r.width}px`, height: `${r.height}px`,
-                        margin: '0', zIndex: '9999', pointerEvents: 'none', opacity: '0.85'
-                    });
-                    this.dragElement = element;
-                },
-                move: event => {
-                    const p = element._flowPos;
-                    p.x += event.dx; p.y += event.dy;
-                    element.style.left = `${p.x}px`;
-                    element.style.top = `${p.y}px`;
-                    this._flowMovePlaceholder(element, event.clientX, event.clientY);
-                },
-                end: () => {
-                    const ph = element._flowPh;
-                    if (ph && ph.parentElement) ph.parentElement.insertBefore(element, ph);
-                    ph?.remove();
-                    element._flowPh = null;
-                    for (const p of ['position', 'left', 'top', 'width', 'height', 'margin', 'z-index', 'pointer-events', 'opacity']) {
-                        element.style.removeProperty(p);
+        // Props the drag lift temporarily overrides — captured on start and
+        // restored on end so an AUTHORED width/height (e.g. set in the style
+        // inspector) survives a drag instead of being wiped.
+        const LIFT_PROPS = ['position', 'left', 'top', 'width', 'height', 'margin', 'z-index', 'pointer-events', 'opacity'];
+        interact(element)
+            .draggable({
+                autoScroll: {enabled: true, container: feezal.site, speed: 300, margin: 40},
+                listeners: {
+                    start: () => {
+                        if (!this.selectedElems.includes(element)) this.selectElement(element);
+                        const r = element.getBoundingClientRect();
+                        element._flowOrig = {};
+                        for (const p of LIFT_PROPS) element._flowOrig[p] = element.style.getPropertyValue(p);
+                        const ph = document.createElement('div');
+                        ph.className = 'feezal-placeholder';
+                        ph.style.cssText = `width:${Math.round(r.width)}px;height:${Math.round(r.height)}px;flex:0 0 auto;box-sizing:border-box;`;
+                        element.parentElement.insertBefore(ph, element);
+                        element._flowPh = ph;
+                        element._flowPos = {x: r.left, y: r.top};
+                        Object.assign(element.style, {
+                            position: 'fixed', left: `${r.left}px`, top: `${r.top}px`,
+                            width: `${r.width}px`, height: `${r.height}px`,
+                            margin: '0', zIndex: '9999', pointerEvents: 'none', opacity: '0.85'
+                        });
+                        this.dragElement = element;
+                    },
+                    move: event => {
+                        const p = element._flowPos;
+                        p.x += event.dx; p.y += event.dy;
+                        element.style.left = `${p.x}px`;
+                        element.style.top = `${p.y}px`;
+                        this._flowMovePlaceholder(element, event.clientX, event.clientY);
+                    },
+                    end: () => {
+                        const ph = element._flowPh;
+                        if (ph && ph.parentElement) ph.parentElement.insertBefore(element, ph);
+                        ph?.remove();
+                        element._flowPh = null;
+                        // Restore the authored inline values (top/left stay stripped).
+                        const orig = element._flowOrig || {};
+                        for (const p of LIFT_PROPS) {
+                            if (orig[p]) element.style.setProperty(p, orig[p]);
+                            else element.style.removeProperty(p);
+                        }
+                        element._flowOrig = null;
+                        this.dragElement = null;
+                        this._ignoreNextClick = true;
+                        setTimeout(() => { this._ignoreNextClick = false; }, 50);
+                        feezal.app.change();   // reorder = DOM order; dirty + undo history
                     }
-                    this.dragElement = null;
-                    this._ignoreNextClick = true;
-                    setTimeout(() => { this._ignoreNextClick = false; }, 50);
-                    feezal.app.change();   // reorder = DOM order; dirty + undo history
                 }
-            }
-        });
+            })
+            .resizable({
+                // U41: flow tiles keep their own width/height and float — resizing
+                // just adjusts the flex item's size (right/bottom edges + the left
+                // handle), the row reflows. Components are fixed-size.
+                enabled: element.localName !== 'feezal-component',
+                edges: {right: true, bottom: true, left: '.resize-left', top: false},
+                listeners: {
+                    start: () => { this.resizeElement = element; },
+                    move: event => {
+                        if (event.rect.width > 10) element.style.width = `${Math.round(event.rect.width)}px`;
+                        if (event.rect.height > 10) element.style.height = `${Math.round(event.rect.height)}px`;
+                        this.shadowRoot.querySelector('feezal-sidebar-inspector-styles').setStyle(element, ['width', 'height']);
+                    },
+                    end: () => { this.resizeElement = null; feezal.app.change(); }
+                }
+            });
     }
 
     /** U41 — slot the flow placeholder before the sibling under the pointer (row-major). */

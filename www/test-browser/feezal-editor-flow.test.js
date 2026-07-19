@@ -6,6 +6,7 @@
  */
 import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest';
 import '../src/feezal-sidebar-inspector.js';
+import '../src/feezal-sidebar-inspector-styles.js';
 import '../src/feezal-view.js';
 import {setupFeezal} from './helpers.js';
 
@@ -46,6 +47,29 @@ beforeEach(() => {
 
 afterEach(() => { document.body.innerHTML = ''; });
 
+describe('U41 — flow view style inspector', () => {
+    it('hides top/left (declared AND inline) for flow-view children, keeps width/height', () => {
+        customElements.get('feezal-element-flow-probe') || customElements.define(
+            'feezal-element-flow-probe', class extends HTMLElement {
+                static feezal = {styles: ['top', 'left', 'width', 'height']};
+            });
+        const view = makeFlowView('home', 0);
+        const el = document.createElement('feezal-element-flow-probe');
+        el.className = 'feezal-editable';
+        el.style.cssText = 'top:10px;left:20px;width:80px;height:40px';   // inline top/left present
+        view.append(el);
+
+        const styles = document.createElement('feezal-sidebar-inspector-styles');
+        styles.selectedElems = [el];
+        styles._selectedElemsChanged();
+        const props = styles.items.map(i => i.property);
+        expect(props).toContain('width');
+        expect(props).toContain('height');
+        expect(props).not.toContain('top');   // neither declared…
+        expect(props).not.toContain('left');  // …nor as a stray inline "custom" row
+    });
+});
+
 describe('U41 — flow view editor wiring', () => {
     it('_viewChanged routes a flow view (and legacy static) to click-selection, not DragSelect', () => {
         makeFlowView('home', 2);
@@ -83,6 +107,21 @@ describe('U41 — flow view editor wiring', () => {
         ctx.selectElement.mockClear();
         view.dispatchEvent(new MouseEvent('click', {bubbles: true, composed: true}));
         expect(ctx.selectElement).toHaveBeenCalledWith();
+    });
+
+    it('initFlow wires drag + resize on the element without throwing', () => {
+        const view = makeFlowView('home', 1);
+        const el = view.querySelector('.feezal-editable');
+        el.style.width = '120px';
+        el.style.height = '80px';
+        el.style.top = '30px';   // legacy — should be stripped
+        expect(() => ctx.initFlow(el)).not.toThrow();
+        // top/left stripped so `position: relative` doesn't offset the tile;
+        // authored width/height preserved.
+        expect(el.style.top).toBe('');
+        expect(el.style.left).toBe('');
+        expect(el.style.width).toBe('120px');
+        expect(el.style.height).toBe('80px');
     });
 
     it('_attachCanvasSelection is idempotent (wired once per view)', () => {

@@ -695,6 +695,10 @@ class FeezalSidebarInspectorStyles extends LitElement {
                 if (colonIdx === -1) continue;
                 const propName = decl.slice(0, colonIdx).trim();
                 if (!propName || propName.startsWith('--') || declaredSet.has(propName) || EDITOR_RESERVED_PROPS.has(propName)) continue;
+                // U41: top/left are meaningless in a flow view — never show them,
+                // even as a stray inline "custom" row (they were filtered out of
+                // the declared set above, which would otherwise re-surface them).
+                if (inFlowView && (propName === 'top' || propName === 'left')) continue;
                 const value = e.style.getPropertyValue(propName);
                 if (!customMap.has(propName)) customMap.set(propName, {values: [], presentCount: 0});
                 const entry = customMap.get(propName);
