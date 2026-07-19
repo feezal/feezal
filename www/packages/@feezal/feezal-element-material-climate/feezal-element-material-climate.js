@@ -128,9 +128,13 @@ class FeezalElementMaterialClimate extends FeezalElement {
                     help: 'Dot-notation path within the mode message. Blank = fall back to element-level message-property.'},
                 {name: 'publish-mode',   type: 'mqttTopic', help: 'separate: topic to publish the selected mode to.'},
                 // ── Separate mode — valve / humidity ──────────────────────────
-                {name: 'subscribe-valve',    type: 'mqttTopic', help: 'Optional: valve/position percentage (0–100).'},
+                {name: 'subscribe-valve',    type: 'mqttTopic', help: 'Optional: valve/position level. Scaled from valve-min…valve-max to 0–100 %.'},
                 {name: 'message-property-valve', type: 'string', default: 'payload',
                     help: 'Dot-notation path within the valve message. Blank = fall back to element-level message-property.'},
+                {name: 'valve-min', type: 'number', default: 0,
+                    help: 'E102: valve device range minimum. Homematic BidCoS reports VALVE_STATE 0–100 (leave default); HmIP reports LEVEL 0…1 → set valve-max to 1. Incoming values scale from valve-min…valve-max to 0–100 %.'},
+                {name: 'valve-max', type: 'number', default: 100,
+                    help: 'E102: valve device range maximum. 100 for BidCoS VALVE_STATE (default), 1 for HmIP LEVEL.'},
                 {name: 'subscribe-humidity', type: 'mqttTopic', help: 'Optional: relative humidity percentage (0–100).'},
                 {name: 'message-property-humidity', type: 'string', default: 'payload',
                     help: 'Dot-notation path within the humidity message. Blank = fall back to element-level message-property.'},
@@ -194,6 +198,8 @@ class FeezalElementMaterialClimate extends FeezalElement {
         subscribeMode:         {type: String,  reflect: true, attribute: 'subscribe-mode'},
         publishMode:           {type: String,  reflect: true, attribute: 'publish-mode'},
         subscribeValve:        {type: String,  reflect: true, attribute: 'subscribe-valve'},
+        valveMin:              {type: Number,  reflect: true, attribute: 'valve-min'},
+        valveMax:              {type: Number,  reflect: true, attribute: 'valve-max'},
         subscribeHumidity:     {type: String,  reflect: true, attribute: 'subscribe-humidity'},
         // N31: availability inherited from FeezalElement.
         min:                   {type: Number,  reflect: true},
@@ -335,6 +341,8 @@ class FeezalElementMaterialClimate extends FeezalElement {
         this.subscribeMode         = '';
         this.publishMode           = '';
         this.subscribeValve        = '';
+        this.valveMin              = 0;
+        this.valveMax              = 100;
         this.subscribeHumidity     = '';
         this.min                   = 5;
         this.max                   = 30;
@@ -398,7 +406,7 @@ class FeezalElementMaterialClimate extends FeezalElement {
         if (this.subscribeValve) {
             this.addSubscription(this.subscribeValve, msg => {
                 const v = Number(this.getProperty(msg, this.msgPropValve || this.messageProperty));
-                if (!isNaN(v)) this._valve = Math.max(0, Math.min(100, v));
+                if (!isNaN(v)) this._valve = this._scaleValve(v);
             });
         }
         if (this.subscribeHumidity) {
@@ -407,6 +415,17 @@ class FeezalElementMaterialClimate extends FeezalElement {
                 if (!isNaN(v)) this._humidity = Math.max(0, Math.min(100, v));
             });
         }
+    }
+
+    /**
+     * E102: scale an incoming valve value from the device range
+     * [valve-min, valve-max] to 0–100 %. Defaults 0/100 → unchanged (BidCoS
+     * VALVE_STATE); set valve-max=1 for HmIP LEVEL (0…1). Guards a zero span.
+     */
+    _scaleValve(v) {
+        const lo = Number(this.valveMin), hi = Number(this.valveMax);
+        const pct = (hi === lo) ? v : ((v - lo) / (hi - lo)) * 100;
+        return Math.max(0, Math.min(100, pct));
     }
 
     // ─── JSON payload mode ────────────────────────────────────────────────────
@@ -434,7 +453,7 @@ class FeezalElementMaterialClimate extends FeezalElement {
         const mode = get(map.mode);
         if (mode !== null && mode !== undefined) this._mode = String(mode);
         const valve = Number(get(map.valve));
-        if (!isNaN(valve)) this._valve = Math.max(0, Math.min(100, valve));
+        if (!isNaN(valve)) this._valve = this._scaleValve(valve);
         const hum = Number(get(map.humidity));
         if (!isNaN(hum)) this._humidity = Math.max(0, Math.min(100, hum));
     }
@@ -907,6 +926,21 @@ class FeezalElementMaterialClimateInspector extends LitElement {
                             placeholder="°C"
                             value="${this._val('unit') || '°C'}"
                             @sl-change="${e => this._onInput('unit', e)}"></sl-input>
+                    </div>
+                    <!-- E102: valve device range → scaled to 0–100 %. HmIP LEVEL is 0…1 (set Max=1). -->
+                    <div class="row">
+                        <div class="field">
+                            <label>Valve min</label>
+                            <sl-input size="small" type="number" autocomplete="off"
+                                value="${this._val('valve-min') || '0'}"
+                                @sl-change="${e => this._onInput('valve-min', e)}"></sl-input>
+                        </div>
+                        <div class="field">
+                            <label>Valve max</label>
+                            <sl-input size="small" type="number" autocomplete="off"
+                                value="${this._val('valve-max') || '100'}"
+                                @sl-change="${e => this._onInput('valve-max', e)}"></sl-input>
+                        </div>
                     </div>
                 </div>
             </div>
