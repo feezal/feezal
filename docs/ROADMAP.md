@@ -68,7 +68,8 @@ Work in progress — priorities and scope are not final.
 - [A19 — Security model: multi-user / ACL story](#a19--security-model-multi-user--acl-story-needs-discussion) ⚠️
 - [A20 — Element/theme scaffolding and community ecosystem tooling](#a20--elementtheme-scaffolding-and-community-ecosystem-tooling)
 - [A21 — Accessibility: adopt the web-components Gold Standard for feezal elements](#a21--accessibility-adopt-the-web-components-gold-standard-for-feezal-elements)
-- [A23 — Externalize element families: own git repos + npm publish (paper, metro, tui, panel)](#a23--externalize-element-families-own-git-repos--npm-publish-paper-metro-tui-panel)
+- [A23 — Externalize element families: own git repos + npm publish (paper, tui, panel)](#a23--externalize-element-families-own-git-repos--npm-publish-paper-tui-panel)
+- [A24 — Externalize the metro element family](#a24--externalize-the-metro-element-family-future--will-be-done-later) *(future)*
 
 
 ---
@@ -1574,12 +1575,12 @@ Feezal's "widgets are plain npm packages" model is better infrastructure than vi
 
 ---
 
-### A23 — Externalize element families: own git repos + npm publish (paper, metro, tui, panel)
+### A23 — Externalize element families: own git repos + npm publish (paper, tui, panel)
 
-**Goal: keep the element set shipped with feezal small.** Four families move out of `www/packages/@feezal/` into their own GitHub repos and are published to npm — exactly the `feezal-elements-rail` pattern (local reference: `/mnt/c/Users/basti/source/repos/feezal-elements-rail`; also `feezal-elements-lcars`). Core keeps basic, material (Device), glass, layout and system.
+**Goal: keep the element set shipped with feezal small.** Three families move out of `www/packages/@feezal/` into their own GitHub repos and are published to npm — exactly the `feezal-elements-rail` pattern (local reference: `/mnt/c/Users/basti/source/repos/feezal-elements-rail`; also `feezal-elements-lcars`). Core keeps basic, material (Device), glass, layout, system — **and metro for now** (its externalization is deferred to A24).
 
 **Decided (07/2026):**
-- **N29 bundle per family** — each repo ships **one** `@feezal/feezal-elements-<family>` package (`feezal.type: elements` + `elements: [tags]` manifest) consolidating today's single-element packages. **Element tag names do not change**, so saved dashboards are untouched by the packaging change. Metro and TUI additionally carry their theme as a second package in `theme/` (rail precedent: `@feezal/feezal-theme-metro`, `-tui`).
+- **N29 bundle per family** — each repo ships **one** `@feezal/feezal-elements-<family>` package (`feezal.type: elements` + `elements: [tags]` manifest) consolidating today's single-element packages. **Element tag names do not change**, so saved dashboards are untouched by the packaging change. TUI additionally carries its theme as a second package in `theme/` (rail precedent: `@feezal/feezal-theme-tui`).
 - **Opt-in install** — the families are **removed from the default install**; users add a family on demand via the packages sidebar (npm install path).
 - **Missing-element detection ships as part of this item** — see below; it is the upgrade path.
 - **Git history is preserved** — extract each family's history with `git filter-repo` rather than starting fresh.
@@ -1587,7 +1588,6 @@ Feezal's "widgets are plain npm packages" model is better infrastructure than vi
 | Repo | Package(s) | Elements |
 |---|---|---|
 | `feezal/feezal-elements-paper` | `@feezal/feezal-elements-paper` | 11 (badge, button, card, checkbox, dialog, dialog-view, dropdown, listbox, slider, switch, tabs) |
-| `feezal/feezal-elements-metro` | `@feezal/feezal-elements-metro` + `@feezal/feezal-theme-metro` | 10 (climate, contact, cover, light, media, occupancy, sensor, switch, tile, wled) |
 | `feezal/feezal-elements-tui` | `@feezal/feezal-elements-tui` + `@feezal/feezal-theme-tui` | 8 (ascii, checkbox, crt, log, menu, panel, sparkline, value) |
 | `feezal/feezal-elements-panel` | `@feezal/feezal-elements-panel` | 5 (7seg, gauge, knob, led, switch) |
 
@@ -1604,15 +1604,27 @@ Feezal's "widgets are plain npm packages" model is better infrastructure than vi
 3. ☐ Extract history: `git filter-repo` over a fresh feezal clone, keeping `www/packages/@feezal/feezal-element-<family>-*` (+ theme package where applicable), then merge/graft that into the new repo.
 4. ☐ Scaffold from the rail template (workflows, PUBLISHING.md, CLAUDE.md, vitest) and consolidate to the N29 bundle; port tests + TESTING entries.
 5. ☐ Local smoke test against feezal: temporary `file:`/`npm link` dependency in `www/`, palette + one element of each type on a canvas, viewer render.
-6. ☐ **Initial manual npm publish** (Trusted Publisher config only exists after a first publish): `npm publish --access public` from the repo root — and from `theme/` for metro/tui. Verify with `npm view`.
+6. ☐ **Initial manual npm publish** (Trusted Publisher config only exists after a first publish): `npm publish --access public` from the repo root — and from `theme/` for tui. Verify with `npm view`.
 7. ☐ **Configure npm Trusted Publishing (OIDC)** on npmjs.com for **each** package: package page → Settings → Trusted Publisher → GitHub Actions, org `feezal`, repository `feezal-elements-<family>`, workflow `publish.yml`, environment empty. No tokens/secrets.
 8. ☐ Test the automated path: patch-bump, push to `main`, confirm `publish.yml` publishes with provenance.
 9. ☐ Install the family from npm via the feezal packages sidebar on a scratch site; verify palette/theme/uninstall.
 10. ☐ Only then: core-side removal PR (see above) + release note.
 
-**Sequencing:** pilot with **panel** (smallest, 5 elements, no theme), then tui, metro, paper. The detection feature lands with the pilot's core-removal PR. E63 (schematic family) starts external from day one and never enters core.
+**Sequencing:** pilot with **panel** (smallest, 5 elements, no theme), then tui, paper. The detection feature lands with the pilot's core-removal PR. E63 (schematic family) starts external from day one and never enters core; metro follows later as A24.
 
-**Relates:** N29 (bundle mechanism), A20 (scaffolding/ecosystem tooling — this creates the de-facto template), rail/lcars repos (living precedent incl. PUBLISHING.md), E63 (first born-external family), E106 (the glass shared-code lessons apply when consolidating families), packages sidebar + `server/src/build/install.js` (install path under test).
+**Relates:** N29 (bundle mechanism), A20 (scaffolding/ecosystem tooling — this creates the de-facto template), rail/lcars repos (living precedent incl. PUBLISHING.md), E63 (first born-external family), A24 (metro — deferred follow-up), E106 (the glass shared-code lessons apply when consolidating families), packages sidebar + `server/src/build/install.js` (install path under test).
+
+### A24 — Externalize the metro element family *(future — will be done later)*
+
+Metro **stays bundled with feezal for now** (decided 07/2026) — it moves out **after** the A23 families (panel, tui, paper) have proven the path. When it happens, it is a straight application of the A23 playbook, nothing metro-specific to design:
+
+- Repo `feezal/feezal-elements-metro`, one N29 bundle `@feezal/feezal-elements-metro` (10 elements: climate, contact, cover, light, media, occupancy, sensor, switch, tile, wled) + `@feezal/feezal-theme-metro` in `theme/`.
+- Follow the A23 per-family ops checklist verbatim (repo, clone, `git filter-repo` history extraction, rail scaffold, manual first publish incl. theme, npmjs OIDC per package, automated-publish test, sidebar install verification, core-removal PR).
+- The A23 missing-element detection map gains the `metro-* → @feezal/feezal-elements-metro` entry **already in A23's implementation** (it costs nothing and future-proofs dashboards for this move).
+
+**Not before:** A23 complete for all three families and the detection/install flow proven in a release.
+
+**Relates:** A23 (the playbook — do that first), N29, E106 (metro shares the same consolidation considerations glass had).
 
 ## Open Questions
 
