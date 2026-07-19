@@ -35,6 +35,16 @@
 let hmPrefix = 'hm';
 function setHomematicPrefix(p) { hmPrefix = String(p || 'hm').replace(/\/+$/, ''); }
 
+// Staleness filter for CLIMATE ONLY. A thermostat publishes ACTUAL_TEMPERATURE
+// every few minutes, so a live device's newest datapoint timestamp is always
+// recent; a device whose newest `ts` is older than this is treated as a stale
+// "ghost" (old RETAINED topics left behind by a replaced device that shared the
+// name) and skipped. 7 days is far below any real ghost (months/years old) yet
+// far above any live thermostat's reporting gap. NOT applied to contact/cover/
+// light — those are event-driven and can be legitimately quiet. 0 disables it.
+let hmClimateStaleMs = 7 * 24 * 60 * 60 * 1000;
+function setHomematicClimateStaleMs(ms) { hmClimateStaleMs = Number(ms) || 0; }
+
 // Thermostat datapoint whitelist — only these are worth tracking off the firehose.
 const HM_THERMOSTAT_DPS = new Set([
     'SET_TEMPERATURE',
@@ -98,7 +108,7 @@ const HM_SETPOINT_DPS = new Set(['SET_POINT_TEMPERATURE', 'SET_TEMPERATURE']);
 const CONTROL_CHANNEL_TYPES = new Set([
     'HEATING_CLIMATECONTROL_TRANSCEIVER',  // HmIP (WTH/eTRV/STHD/HEATING groups) — confirmed
     'CLIMATECONTROL_RT_TRANSCEIVER',       // BidCoS classic (HM-CC-RT-DN) — confirmed
-    'THERMALCONTROL_TRANSMIT',             // BidCoS wall (HM-TC-IT-WM-W-EU) — documented, unconfirmed
+    'THERMALCONTROL_TRANSMIT',             // BidCoS wall (HM-TC-IT-WM-W-EU) — confirmed (channel :2)
 ]);
 
 // ── Recognizer 1: Homematic climate ──────────────────────────────────────────
@@ -136,8 +146,13 @@ const hmClimateRecognizer = {
         let dev = state.devices.get(deviceId);
         if (!dev) {
             dev = {deviceId, deviceName: undefined, deviceType: undefined,
-                iface: undefined, channels: new Map()};
+                iface: undefined, channels: new Map(), lastTs: 0};
             state.devices.set(deviceId, dev);
+        }
+        // Newest datapoint timestamp across the device — the liveness signal for
+        // the climate staleness filter (a live thermostat updates constantly).
+        if (payload && typeof payload.ts === 'number' && payload.ts > dev.lastTs) {
+            dev.lastTs = payload.ts;
         }
         // Metadata is authoritative but only present on annotated payloads; keep
         // the last non-empty value we saw.
@@ -187,6 +202,12 @@ const hmClimateRecognizer = {
     },
 
     promote(dev) {
+        // Staleness filter: skip a "ghost" device (stale retained topics left by a
+        // replaced device that shared the name). A live thermostat's newest ts is
+        // always recent; only genuinely dead devices exceed hmClimateStaleMs.
+        if (hmClimateStaleMs > 0 && dev.lastTs && (Date.now() - dev.lastTs) > hmClimateStaleMs) {
+            return null;
+        }
         const channels = [...dev.channels.values()];
 
         // Pick the control channel: prefer the CCU-declared climate-control
@@ -919,6 +940,7 @@ module.exports = {
     getNativeEntity,
     clearNativeEntities,
     setHomematicPrefix,
+    setHomematicClimateStaleMs,
     // exported for tests / reuse
     extractValue,
     parsePayload,

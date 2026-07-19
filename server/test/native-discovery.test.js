@@ -17,11 +17,12 @@ const nat = require('../src/mqtt/native-discovery.js');
 const disc = require('../src/mqtt/discovery.js');
 
 // MQTT-Smarthome "JSON Extended" payload buffer, optionally with the `hm`
-// CCU-metadata object (as hm2mqtt / RedMatic emit it).
-const je = (val, hm) => Buffer.from(JSON.stringify(hm ? {val, ts: 1, lc: 1, hm} : {val, ts: 1, lc: 1}));
+// CCU-metadata object (as hm2mqtt / RedMatic emit it). `ts` defaults to "now" so
+// climate entities pass the staleness filter; pass an old ts to exercise it.
+const je = (val, hm, ts = Date.now()) => Buffer.from(JSON.stringify(hm ? {val, ts, lc: ts, hm} : {val, ts, lc: ts}));
 
 // Metadata-less JSON-Extended (no `hm`) — the fallback signature path.
-const jePlain = val => Buffer.from(JSON.stringify({val, ts: 1, lc: 1}));
+const jePlain = val => Buffer.from(JSON.stringify({val, ts: Date.now(), lc: 1}));
 
 const byId = (list, id) => list.find(e => e.discovery_id === id) || null;
 
@@ -104,6 +105,30 @@ describe('Homematic climate recognizer — HmIP wall thermostat (WTH-2)', () => 
             payloadAvailable: false,
             payloadUnavailable: true,
         });
+    });
+});
+
+describe('Homematic climate recognizer — staleness filter (ghost devices)', () => {
+    it('skips a device whose newest datapoint is older than the stale window', () => {
+        const dev = 'KEQ1035974';
+        const hm = {
+            device: dev, deviceName: 'Thermostat Hobbyraum', deviceType: 'HM-TC-IT-WM-W-EU',
+            channel: dev + ':2', channelName: 'Thermostat Hobbyraum:2',
+            channelType: 'THERMALCONTROL_TRANSMIT', channelIndex: 2, iface: 'BidCos-RF',
+        };
+        const old = Date.now() - 30 * 24 * 60 * 60 * 1000;   // 30 days ago (window is 7d)
+        nat.handleNativeMessage('hm/status/Thermostat Hobbyraum:2/SET_TEMPERATURE',
+            je(12, {...hm, datapoint: 'SET_TEMPERATURE'}, old));
+        nat.handleNativeMessage('hm/status/Thermostat Hobbyraum:2/CONTROL_MODE',
+            je(1, {...hm, datapoint: 'CONTROL_MODE'}, old));
+
+        // Stale → filtered out entirely.
+        expect(nat.getNativeEntity('hm-climate:KEQ1035974')).toBe(null);
+
+        // A subsequent FRESH message on the same device revives it.
+        nat.handleNativeMessage('hm/status/Thermostat Hobbyraum:2/ACTUAL_TEMPERATURE',
+            je(19.7, {...hm, datapoint: 'ACTUAL_TEMPERATURE'}));   // fresh ts (now)
+        expect(nat.getNativeEntity('hm-climate:KEQ1035974')).toBeTruthy();
     });
 });
 
