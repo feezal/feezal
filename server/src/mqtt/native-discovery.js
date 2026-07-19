@@ -236,13 +236,32 @@ const hmClimateRecognizer = {
             temperature_unit: 'C',
             modes: buildHmModes(generation, p, writeSeg),
             // Native extras consumed by the climate discovery.map keys.
-            message_property: 'val',
+            // MQTT-Smarthome JSON-Extended: the value lives at `.val` inside the
+            // payload — feezal message-property paths start at the message root,
+            // so it's `payload.val` (not `val`).
+            message_property: 'payload.val',
             valve_min: 0,
             valve_max: valveMax,
         };
         if (isTRV) config.action_topic = hmStatus(p, valveChan.seg, valveDp);
 
-        // Availability (the :0 maintenance UNREACH) is out of MVP scope for HM.
+        // Availability: the device's :0 maintenance channel UNREACH datapoint
+        // (UNREACH val=true ⇒ unreachable, so payload-available=false /
+        // payload-unavailable=true). Derive the :0 channel from the control
+        // channel's name-based segment (device-name:1 → device-name:0), or its
+        // address for a nameless device. property `payload.val` reads the
+        // JSON-Extended value.
+        const availBase = readSeg !== '' ? readSeg : (control.channelAddr || readSeg);
+        const availSeg = availBase.replace(/:\d+$/, ':0');
+        // availability_normalized lives INSIDE config (the HA convention — the
+        // client's _applyDiscovery reads cfg.availability_normalized).
+        config.availability_normalized = {
+            entries: [{topic: hmStatus(p, availSeg, 'UNREACH'), property: 'payload.val'}],
+            mode: 'all',
+            payloadAvailable: false,
+            payloadUnavailable: true,
+        };
+
         // Device-level discovery_id → one entry per physical device; re-promotes
         // (updates) as more datapoints arrive.
         return {
@@ -291,12 +310,13 @@ const wledRecognizer = {
                 name: dt,
                 device_topic: 'wled/' + dt,
                 availability_topic: status,
-            },
-            availability_normalized: {
-                entries: [{topic: status}],
-                mode: 'all',
-                payloadAvailable: 'online',
-                payloadUnavailable: 'offline',
+                // Inside config (HA convention — _applyDiscovery reads cfg.availability_normalized).
+                availability_normalized: {
+                    entries: [{topic: status}],
+                    mode: 'all',
+                    payloadAvailable: 'online',
+                    payloadUnavailable: 'offline',
+                },
             },
         };
     },

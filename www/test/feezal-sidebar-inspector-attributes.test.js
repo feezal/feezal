@@ -396,9 +396,13 @@ describe('E108 — native discovery stamps onto *-climate + wled elements', () =
                 min_temp: 4.5, max_temp: 30.5, temp_step: 0.5,
                 temperature_unit: 'C',
                 modes,
-                message_property: 'val',
+                message_property: 'payload.val',
                 valve_min: 0,
                 valve_max: 100,
+                availability_normalized: {
+                    entries: [{topic: 'hm/status/TRV/0/UNREACH', property: 'payload.val'}],
+                    mode: 'all', payloadAvailable: false, payloadUnavailable: true,
+                },
             },
         };
 
@@ -411,10 +415,15 @@ describe('E108 — native discovery stamps onto *-climate + wled elements', () =
         ins._applyDiscovery(entity);
 
         // Native-only keys (HA/z2m absent) — the crux of the E108 contract.
-        expect(el.getAttribute('message-property')).toBe('val');
+        expect(el.getAttribute('message-property')).toBe('payload.val');
         expect(el.getAttribute('valve-min')).toBe('0');
         expect(el.getAttribute('valve-max')).toBe('100');
         expect(el.getAttribute('subscribe-valve')).toBe('hm/status/TRV/4/VALVE_STATE');
+        // :0 UNREACH availability (property → JSON-array form; false=available).
+        expect(el.getAttribute('subscribe-availability')).toBe(
+            '[{"topic":"hm/status/TRV/0/UNREACH","property":"payload.val"}]');
+        expect(el.getAttribute('payload-available')).toBe('false');
+        expect(el.getAttribute('payload-unavailable')).toBe('true');
         // Shared HA keys still map.
         expect(el.getAttribute('subscribe')).toBe('hm/status/TRV/4/SET_TEMPERATURE');
         expect(el.getAttribute('subscribe-mode')).toBe('hm/status/TRV/4/CONTROL_MODE');
@@ -481,7 +490,7 @@ describe('E108 — discovery picker encode/decode + source label', () => {
                 temperature_state_topic:   'hm/status/Thermostat Hobbyraum:1/SET_POINT_TEMPERATURE',
                 temperature_command_topic: 'hm/set/Thermostat Hobbyraum:1/SET_POINT_TEMPERATURE',
                 mode_state_topic:          'hm/status/Thermostat Hobbyraum:1/SET_POINT_MODE',
-                message_property: 'val',
+                message_property: 'payload.val',
                 valve_min: 0, valve_max: 1,
             },
         };
@@ -500,7 +509,7 @@ describe('E108 — discovery picker encode/decode + source label', () => {
         // _applyDiscovery ran → attributes stamped, discovery-id preserves the space.
         expect(el.getAttribute('discovery-id')).toBe('hm-climate:Thermostat Hobbyraum');
         expect(el.getAttribute('subscribe')).toBe('hm/status/Thermostat Hobbyraum:1/SET_POINT_TEMPERATURE');
-        expect(el.getAttribute('message-property')).toBe('val');
+        expect(el.getAttribute('message-property')).toBe('payload.val');
         expect(change).toHaveBeenCalled();
     });
 

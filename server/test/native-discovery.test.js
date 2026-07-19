@@ -71,7 +71,7 @@ describe('Homematic climate recognizer — HmIP wall thermostat (WTH-2)', () => 
         expect(c.temperature_command_topic).toBe('hm/set/Thermostat Hobbyraum:1/SET_POINT_TEMPERATURE');
         expect(c.current_temperature_topic).toBe('hm/status/Thermostat Hobbyraum:1/ACTUAL_TEMPERATURE');
         expect(c.mode_state_topic).toBe('hm/status/Thermostat Hobbyraum:1/SET_POINT_MODE');
-        expect(c.message_property).toBe('val');
+        expect(c.message_property).toBe('payload.val');
         expect(c.min_temp).toBe(4.5);
         expect(c.max_temp).toBe(30.5);
         expect(c.temp_step).toBe(0.5);
@@ -89,7 +89,13 @@ describe('Homematic climate recognizer — HmIP wall thermostat (WTH-2)', () => 
             {value: 3, label: 'Boost', momentary: true, publish: 'hm/set/Thermostat Hobbyraum:1/BOOST_MODE', payload: 'true', off: {publish: 'hm/set/Thermostat Hobbyraum:1/BOOST_MODE', payload: 'false'}},
         ]);
 
-        expect(e.availability_normalized).toBeUndefined();
+        // Availability from the :0 maintenance UNREACH datapoint (inside config).
+        expect(c.availability_normalized).toEqual({
+            entries: [{topic: 'hm/status/Thermostat Hobbyraum:0/UNREACH', property: 'payload.val'}],
+            mode: 'all',
+            payloadAvailable: false,
+            payloadUnavailable: true,
+        });
     });
 });
 
@@ -258,12 +264,13 @@ describe('WLED recognizer', () => {
             name: 'desk',
             device_topic: 'wled/desk',
             availability_topic: 'wled/desk/status',
-        });
-        expect(e.availability_normalized).toEqual({
-            entries: [{topic: 'wled/desk/status'}],
-            mode: 'all',
-            payloadAvailable: 'online',
-            payloadUnavailable: 'offline',
+            // availability_normalized lives INSIDE config (HA convention).
+            availability_normalized: {
+                entries: [{topic: 'wled/desk/status'}],
+                mode: 'all',
+                payloadAvailable: 'online',
+                payloadUnavailable: 'offline',
+            },
         });
     });
 
