@@ -40,8 +40,8 @@ Work in progress — priorities and scope are not final.
 - [E80 — Navigation rail element (`feezal-element-material-navrail`)](#e80--navigation-rail-element-feezal-element-material-navrail)
 - [E83 — Spectrum element family (`feezal-element-spectrum-*`)](#e83--spectrum-element-family-feezal-element-spectrum-) 💡
 - [E85 — Backlog: additional component-library design systems](#e85--backlog-additional-component-library-design-systems) 💡
-- [E88 — JSON tree viewer (`feezal-element-basic-json`)](#e88--json-tree-viewer-feezal-element-basic-json) 💡
-- [E89 — Lottie animation element (`feezal-element-basic-lottie`)](#e89--lottie-animation-element-feezal-element-basic-lottie) 💡
+- [E88 — JSON tree viewer (`feezal-element-basic-json`)](#e88--json-tree-viewer-feezal-element-basic-json)
+- [E89 — Lottie animation element (`feezal-element-basic-lottie`)](#e89--lottie-animation-element-feezal-element-basic-lottie)
 - [E90 — Vaadin element family (`feezal-element-vaadin-*`)](#e90--vaadin-element-family-feezal-element-vaadin-) 💡
 - [E91 — Theme switcher element (`feezal-element-system-theme-switch`)](#e91--theme-switcher-element-feezal-element-system-theme-switch) 💡
 - [E92 — PDF viewer element (`feezal-element-basic-pdf`)](#e92--pdf-viewer-element-feezal-element-basic-pdf) 💡
@@ -464,9 +464,23 @@ A system element that prevents flash-of-unstyled-content and UI jitter on first 
 - Once the conditions are met the overlay fades out with a short transition (target: ~250 ms).
 - Only fires on the initial load; navigating between views does not re-trigger the overlay.
 
-**Attributes:** `settle-window` (ms, default `400`), `timeout` (seconds, default `3`). Theming via CSS custom properties (`--feezal-splash-background` defaulting to the theme background, spinner colour/delay).
+**Implementation spec (decided 07/2026 — implementation-ready):**
+- **Signal wiring:** `feezal.connection` already dispatches everything needed — `connected` / `disconnected` / `message` CustomEvents ([feezal-connection-feezal.js:43-64](../www/src/feezal-connection-feezal.js#L43-L64), same contract on the MQTT connection). The element listens: on `connected`, arm the quiet-window timer; every `message` resets it; when it expires (default 400 ms of silence) → hide. The fallback timeout runs in parallel from `connected` (or from element connect if the connection never comes up). No new platform API needed.
+- **Overlay rendering:** `position: fixed; inset: 0; z-index: 9999` div in the element's own shadow root (fixed positioning escapes the view box); fade-out ~250 ms then `display:none`. Editor mode: placeholder chip only (system-family pattern, like system-notification/system-pin), overlay never renders.
+- **Logo (decided: in MVP):** `logo` attribute — image URL (Asset Manager path, same resolution as other asset refs), rendered centered above the spinner, constrained to ~40% of viewport width / ~30% height, fades with the overlay. Empty = colour-only splash.
+- **Spinner (decided): CSS-only** — a single hand-rolled CSS spinner, shown after `spinner-delay` (default 1 s). LDRS rejected: not worth a dependency for one spinner.
+- **Lottie boot animation (decided 07/2026: in scope):** an optional `lottie` attribute (asset URL of an animation JSON) renders a Lottie animation on the splash — replacing the spinner (and shown immediately, not after `spinner-delay`); `logo` and `lottie` may combine (logo above, animation below). **Bundle constraint (hard requirement): the lottie-web dependency must not end up in the export/viewer payload when unused.** Implementation: reuse **E89's shared lazy loader** — one dynamic `import('lottie-web')` chunk used by both `basic-lottie` and the splash; the chunk is fetched **only when** the `lottie` attribute is actually set (not merely when the splash element exists), so colour/logo/spinner-only splashes and dashboards without Lottie ship zero extra bytes. Verify the export bundler preserves the dynamic import as a separate on-demand chunk (the same E54/E89 verification — do all three together). Boot-timing caveat, documented in the ℹ help: the chunk fetch races the splash itself — the overlay colour (and logo) shows instantly, the animation pops in when the chunk arrives; on fast loads the splash may hide before the animation ever renders. That's acceptable — the animation is progressive enhancement, never a blocker (the hide conditions are unchanged and independent of the Lottie load).
+- **Multiple instances:** place once; if several are present the first to initialise wins, the rest no-op (log a console warning). No hard `restrict` needed.
 
-**Deferred:** logo image attribute (A16 asset — the branded kiosk boot screen), custom colour *attribute* (the CSS custom property covers theming meanwhile), re-trigger on reconnect after connection loss.
+**Attributes:** `settle-window` (number, ms, default `400`), `timeout` (number, seconds, default `3`), `spinner-delay` (number, ms, default `1000`), `logo` (string, asset URL, default empty), `lottie` (string, asset URL of a Lottie animation JSON, default empty — replaces the spinner, lazy-loads the shared E89 chunk on demand). All with ℹ help texts.
+
+**Styles:** `--feezal-splash-background` (default `var(--primary-background-color, #fff)`), `--feezal-splash-spinner-color` (default `var(--primary-color, #0284c7)`) — canonical theme vars per §5.1 discipline.
+
+**Ships with:** standard element scaffolding (package + `www/package.json` registration + `generate-elements` + patch version), TESTING.md §6 entry (fast load = clean flash, slow load = spinner after 1 s, no-retained-topics dashboard = 3 s cap, logo rendering, editor chip).
+
+**Deferred:** custom colour *attribute* (the CSS custom property covers theming), re-trigger on reconnect after connection loss.
+
+**Relates:** E89 (shared lazy lottie-web loader — the splash's `lottie` attribute rides on that chunk; implement the loader there first or extract it to a shared module both import), E54 (same dynamic-chunk export verification), A16 (logo/animation asset refs).
 
 ### E54 — Markdown element (`feezal-element-basic-markdown`)
 
@@ -652,28 +666,46 @@ When any of these is chosen, promote it to its own `Ex` entry (like E83/E84) wit
 
 **Relates:** E83 (Spectrum), E84 (Wired), paper/material families (the wrap-a-library precedent), E55–E63 (hand-rolled aesthetic families — the alternative to adopting a component library).
 
-### E88 — JSON tree viewer (`feezal-element-basic-json`) 💡 idea
+### E88 — JSON tree viewer (`feezal-element-basic-json`)
 
-*(Source: awesome-lit, July 2026 — `<json-viewer>`.)* An element that subscribes to a topic and renders the **JSON payload as a collapsible tree** — the "inspect what this device is actually publishing" widget an MQTT dashboard is missing. Doubles as a debugging/diagnostics tool and a live structured-data readout.
+An element that subscribes to a topic and renders the **JSON payload as a collapsible tree** — the "inspect what this device is actually publishing" widget an MQTT dashboard is missing. Doubles as a debugging/diagnostics tool and a live structured-data readout.
 
-- **Backing lib:** `<json-viewer>` (Lit, MIT — visualizes JSON as a tree view) as a candidate to wrap; verify Lit 3 compat + bundle cost, else a small hand-rolled recursive Lit renderer is cheap.
-- **Attributes:** primary `subscribe` (+ `message-property` to drill into a sub-path), `expand-depth` (auto-expand N levels, default e.g. 1), `filter`/path-search, optional `max-depth`. Non-JSON payloads fall back to showing the raw string (never error).
-- **Styles:** expose the tree's key/value/type colours as CSS custom properties so it themes with the active feezal theme.
-- **Fits the E62 MQTT-introspection family** — a topic-payload inspector is exactly that family's territory; decide whether it ships standalone as `basic-json` or as `mqtt-json` within E62.
+**Decided (07/2026):** ships **standalone as `basic-json` now** (not gated on the E62 family — E62 references it when it lands), with a **hand-rolled recursive Lit renderer** (~100 lines; the `<json-viewer>` lib was rejected: a dependency whose theming and Lit-3 compat would need bending for something this small).
 
-**Relates:** E62 (MQTT broker introspection family — natural home), `basic-template` (the other "render a payload" element — this is the structured/tree case), E32 (logbook — raw message feed sibling).
+**Implementation spec:**
+- **Renderer:** recursive Lit template over the parsed value; objects/arrays render as toggleable nodes (chevron + key + preview `{…} 3 keys` / `[…] 5 items`), primitives as `key: value` rows with a per-type CSS class. **Expand/collapse state is kept per JSON path** (a `Set` of expanded paths) so it **survives message updates** — a live-updating payload must not snap the tree shut. New paths follow `expand-depth`.
+- **Attributes:** `subscribe` (mqttTopic), `message-property` (default `payload`), `expand-depth` (number, default `1` — auto-expand N levels), `max-nodes` (number, default `500` — render guard for huge payloads: beyond it, collapsed nodes with a "+N more" hint; never freeze the tab on a monster payload). Non-JSON payloads render as the raw string (never an error state).
+- **Styles:** `top/left/width/height` plus tree colours as CSS custom properties, all defaulting to canonical theme vars (§5.1): keys → `--primary-text-color`, strings → `--accent-color`, numbers/booleans → `--primary-color`, null/undefined + punctuation → `--secondary-text-color`, guides/borders → `--divider-color`; monospace font, `overflow: auto` within the element box.
+- **Interaction (MVP):** toggle on node click; long values ellipsized with full value in the `title` tooltip.
 
-### E89 — Lottie animation element (`feezal-element-basic-lottie`) 💡 idea
+**Ships with:** standard element scaffolding + patch version, TESTING.md §6 entry (tree renders, expand state survives updates, raw-string fallback, max-nodes guard, theming in light/dark).
 
-*(Source: awesome-lit, July 2026 — `<lottie-player>`.)* An element that plays a **Lottie animation**, with playback driven by MQTT — animated weather glyphs, alert/attention states, "working"/progress spinners, playful status characters. Nothing in the palette offers rich vector animation today.
+**Deferred:** path filter/search box, click-to-copy value/path, diff-highlight of changed keys between messages (nice debugging tier), `max-depth` hard cutoff (covered by `max-nodes` for now).
 
-- **Backing lib:** `<lottie-player>` (Lit web component) wrapping lottie-web; verify bundle cost (lottie-web is sizable — likely a lazy-loaded/viewer-chunk concern like E54's Mermaid deferral).
-- **Source:** `src` (asset URL / Asset Manager reference) for the animation JSON; consider a `subscribe` to swap the animation or drive playback.
-- **MQTT-driven playback:** map payloads to play / pause / stop / loop, seek to a frame or named segment, or pick among several clips by value (e.g. `sunny`/`rain`/`storm` → different segments) — the same value→state mapping pattern the icon-value (E71) and status elements already use.
-- **Attributes:** `src`, `subscribe`, `autoplay`, `loop`, `speed`, plus a value→segment/clip map; `renderer` (svg/canvas) if the lib exposes it.
-- **Styles:** sizing scales to the element box (E38); background/transparency options.
+**Relates:** E62 (MQTT broker introspection family — will reuse this as its payload inspector), `basic-template` (the other "render a payload" element — this is the structured/tree case), E32 (logbook — raw message feed sibling).
 
-**Relates:** E54 (markdown — same "heavy dep, lazy-load into viewer/export" bundling problem to solve), E71 (icon-value — the value→variant mapping pattern), E39 (splash — a Lottie could be a richer FOUC/splash animation), A16 (asset refs for the animation JSON).
+### E89 — Lottie animation element (`feezal-element-basic-lottie`)
+
+An element that plays a **Lottie animation**, with playback driven by MQTT — animated weather glyphs, alert/attention states, "working"/progress spinners, playful status characters. Nothing in the palette offers rich vector animation today.
+
+**Decided (07/2026):** MVP = **playback control + the value→segment map** (the map *is* the dashboard use case — without it this is decoration). Backing lib: **wrap `lottie-web` directly** (svg renderer) rather than `<lottie-player>` — the player component adds UI chrome and a second wrapper layer feezal doesn't need; direct wrapping gives full segment/frame control. **Lazy-loaded**: `import('lottie-web')` on first viewer `connectedCallback` (the E54 Mermaid pattern) so the ~250 kB dep is a dynamic chunk fetched only when a dashboard actually contains the element; editor renders a static placeholder (first frame if cheaply available, else a film-strip chip) and never loads the lib.
+
+**Implementation spec:**
+- **Attributes:**
+  - `src` (string, asset URL / Asset Manager ref) — the animation JSON.
+  - `subscribe` (mqttTopic) + `message-property` (default `payload`) — drives playback.
+  - `payload-play` / `payload-pause` / `payload-stop` (strings, defaults `play`/`pause`/`stop`) — transport commands.
+  - `map` (json, default `{}`) — value → clip descriptor: `{"sunny": {"segment": [0, 60]}, "rain": {"segment": [61, 120], "loop": true}, "storm": {"src": "storm.json"}}` — a matched payload seeks/plays that segment (frame pair), optionally overriding `loop`/`speed`, or swaps `src` entirely. Checked **before** the transport payloads; unmatched values are ignored. ℹ help documents the format with this example.
+  - `autoplay` (boolean, default `true`), `loop` (boolean, default `true`), `speed` (number, default `1`).
+- **Behaviour details:** `src` change (attribute or map-driven) destroys and re-creates the lottie instance; element resize observes the box and calls the lib's resize (E38-friendly); `destroy()` on disconnect (popup/view-switch safety); a broken/missing `src` shows a subtle placeholder, never throws.
+- **Styles:** `top/left/width/height`; `--feezal-lottie-background` (default `transparent`). Animation scales to the element box (lottie-web's `preserveAspectRatio` default; expose nothing further in MVP).
+- **Bundle note:** the dynamic chunk lands in viewer *and* export bundles but is only fetched when the element exists on a view — verify the export bundler keeps the dynamic import intact (same verification E54 needs; do them together).
+
+**Ships with:** standard element scaffolding + patch version, TESTING.md §6 entry (lazy chunk loads only when element present, transport payloads, map segments incl. src-swap, editor placeholder, resize).
+
+**Deferred:** dotLottie (`.lottie` compressed) support, named-marker segments (`{"marker": "rain"}` — needs marker support verification in lottie-web), `renderer: canvas` option, play-count/`onComplete` publish.
+
+**Relates:** E54 (markdown — same lazy-dep bundling pattern, verify export handling together), E71 (icon-value — the value→variant mapping pattern this mirrors), E39 (splash — its `lottie` attribute **shares this element's lazy lottie-web loader**; build the loader as a small shared module both import, chunk fetched only on actual use), A16 (asset refs for the animation JSON).
 
 ### E90 — Vaadin element family (`feezal-element-vaadin-*`) 💡 idea
 
