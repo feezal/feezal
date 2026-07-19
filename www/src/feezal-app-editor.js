@@ -2083,7 +2083,10 @@ class FeezalAppEditor extends LitElement {
     }
 
     _view() {
-        const base = feezal.siteName === 'default' ? '/viewer/' : '/viewer/' + feezal.siteName;
+        // B39: keep a trailing slash on the site segment so the opened URL reads
+        // /viewer/<Site>/#/<view>, not /viewer/<Site>#/<view> (the default site
+        // already ends in a slash — match it for named sites too).
+        const base = feezal.siteName === 'default' ? '/viewer/' : '/viewer/' + feezal.siteName + '/';
         const hash = window.location.hash || '';
         window.open(base + hash, 'feezal-' + feezal.siteName);
     }

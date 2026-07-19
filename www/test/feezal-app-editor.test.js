@@ -8,6 +8,17 @@ import '../src/feezal-app-editor.js';
 const FeezalAppEditor = customElements.get('feezal-app-editor');
 const reconcile = tree => FeezalAppEditor.prototype._reconcile.call({}, tree);
 
+// B39: _view() only reads feezal.siteName + location.hash and calls
+// window.open — drive it on the prototype with a captured window.open.
+function openedUrlFor(siteName, hash) {
+    feezal.siteName = siteName;
+    const orig = window.open;
+    let url;
+    window.open = u => { url = u; };
+    try { FeezalAppEditor.prototype._view.call({}); } finally { window.open = orig; }
+    return url;
+}
+
 function setViews(...names) {
     feezal.views = names.map(name => {
         const view = document.createElement('feezal-view');
@@ -280,5 +291,22 @@ describe('_maybeAutoStartTour() — U37/U41 trigger gating', () => {
         expect(await run({sourceMode: true})).toBe(false);
         feezal.views = [];
         expect(await run()).toBe(false);
+    });
+});
+
+describe('_view() — opened viewer URL (B39)', () => {
+    it('keeps a trailing slash on the site segment for a named site', () => {
+        window.location.hash = '#/view1';
+        expect(openedUrlFor('Rooms')).toBe('/viewer/Rooms/#/view1');
+    });
+
+    it('opens /viewer/ for the default site (unchanged)', () => {
+        window.location.hash = '#/view1';
+        expect(openedUrlFor('default')).toBe('/viewer/#/view1');
+    });
+
+    it('works with no hash', () => {
+        window.location.hash = '';
+        expect(openedUrlFor('Rooms')).toBe('/viewer/Rooms/');
     });
 });

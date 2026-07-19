@@ -253,6 +253,18 @@ A tiny orange dot occasionally appears at the point of the initial click when dr
 
 **Relates:** B32 (snapping helper lines not disappearing — same family of "leftover canvas overlay" bug, possibly worth investigating together), B33 (selectability/drag flakiness — same interact.js/DragSelect interaction surface).
 
+### B39 — Missing slash in the viewer URL for non-default sites ✅ fixed
+
+**✅ Fixed (07/2026)** in `_view()` — the named-site branch now appends the trailing slash (`/viewer/Rooms/#/view1`), matching the default-site branch; 3 unit tests cover the opened URL. Original report:
+
+Opening a view on a **non-default** site produces `https://<host>/viewer/Rooms#/view1` — cosmetically it should be `https://<host>/viewer/Rooms/#/view1` (trailing slash between the site segment and the hash).
+
+**Cause.** `_view()` ([feezal-app-editor.js:2085-2089](../www/src/feezal-app-editor.js#L2085-L2089)) builds the base as `feezal.siteName === 'default' ? '/viewer/' : '/viewer/' + feezal.siteName` — the default branch has the trailing slash, the non-default branch does not, then `base + location.hash` yields `/viewer/Rooms#/view1`.
+
+**Fix.** Append the slash in the non-default branch (`'/viewer/' + feezal.siteName + '/'`) so both branches match. While in there, sweep the other `/viewer/${siteName}` link builders for consistency — [feezal-history-bar.js:177-206](../www/src/feezal-history-bar.js#L177-L206) and [feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183) append `?sha=…` (query, unaffected by the missing slash) and the bare live link — but a canonical trailing slash is nicer everywhere. A more robust alternative is a **server-side redirect** `/viewer/:site` → `/viewer/:site/` in the viewer route ([app.js](../server/src/app.js) `viewerHandler`), which fixes any hand-typed or externally-linked URL too; the client one-liner is the minimal cosmetic fix the report asks for.
+
+**Ships with:** a browser/e2e assertion that the opened viewer URL for a non-default site carries `/viewer/<site>/#/<view>`.
+
 ### B35 — Rubber-band select breaks after view switches ✅ fixed
 
 **Root cause identified (07/2026).** Reproduced with console open — on a view switch (3rd switch in the session, to a view with no elements) this fires:
