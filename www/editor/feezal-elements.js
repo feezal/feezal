@@ -5,6 +5,7 @@ import '@feezal/feezal-element-basic-icon-value';
 import '@feezal/feezal-element-basic-iframe';
 import '@feezal/feezal-element-basic-image';
 import '@feezal/feezal-element-basic-json';
+import '@feezal/feezal-element-basic-lottie';
 import '@feezal/feezal-element-basic-navigation';
 import '@feezal/feezal-element-basic-number';
 import '@feezal/feezal-element-basic-qrcode';
@@ -133,6 +134,7 @@ window.feezal.elements = [
   "feezal-element-basic-iframe",
   "feezal-element-basic-image",
   "feezal-element-basic-json",
+  "feezal-element-basic-lottie",
   "feezal-element-basic-navigation",
   "feezal-element-basic-number",
   "feezal-element-basic-qrcode",
