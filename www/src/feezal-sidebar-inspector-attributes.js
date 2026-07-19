@@ -746,8 +746,10 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         }
 
         if (elem.dropdown) {
+            // Show the default option when the attribute is unset (a select
+            // can't show a greyed placeholder), so the effective value is visible.
             return html`
-                <sl-select .label="${labelAttr}" size="small" .value="${mixed ? '' : (value || '')}"
+                <sl-select .label="${labelAttr}" size="small" .value="${mixed ? '' : (value || (item.default ?? ''))}"
                     @sl-change="${e => this._change(e.target.value, idx, true)}">
                     ${labelSlot}
                     ${(elem.options || []).map(opt => html`
@@ -922,14 +924,15 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             `;
         }
 
-        // Default: text / number input
+        // Default: text / number input — an unset field shows the default as a
+        // greyed placeholder so the effective value is visible.
         return html`
             <sl-input .label="${labelAttr}" size="small"
                 type="${elem.inputType || 'text'}"
                 autocomplete="off"
                 title="${elem.tooltip || ''}"
                 .value="${mixed ? '' : (value ?? '')}"
-                placeholder="${mixed ? '— varies —' : ''}"
+                placeholder="${mixed ? '— varies —' : (item.default != null ? String(item.default) : '')}"
                 min="${elem.min ?? ''}" max="${elem.max ?? ''}" step="${elem.step ?? ''}"
                 @sl-input="${e => this._liveChange(e.target.value, idx)}"
                 @sl-change="${e => this._flushChange(e.target.value, idx)}">

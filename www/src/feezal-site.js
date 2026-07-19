@@ -52,6 +52,17 @@ class FeezalSite extends LitElement {
         feezal-view {
             margin: var(--feezal-view-margin);
         }
+        /* Editor only (the viewer host gets the .feezal-viewer class): a
+           theme-aware checkerboard fills the canvas so the area OUTSIDE a
+           fixed-size view's width/height reads as "outside the view". The view
+           element paints its own background on top, covering its own area. */
+        :host(:not(.feezal-viewer)) {
+            background-color: var(--secondary-background-color, #2a2a2e);
+            background-image: repeating-conic-gradient(rgba(128,128,128,0.16) 0% 25%, transparent 0% 50%);
+            background-size: 24px 24px;
+            background-position: 0 0;
+            background-attachment: local;
+        }
         :host(.dark) {
             --primary-background-color: black;
         }

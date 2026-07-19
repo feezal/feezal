@@ -7,6 +7,7 @@
 import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest';
 import '../src/feezal-sidebar-inspector.js';
 import '../src/feezal-sidebar-inspector-styles.js';
+import '../src/feezal-sidebar-inspector-attributes.js';
 import '../src/feezal-view.js';
 import {setupFeezal} from './helpers.js';
 
@@ -46,6 +47,29 @@ beforeEach(() => {
 });
 
 afterEach(() => { document.body.innerHTML = ''; });
+
+describe('U41/U39 — attribute defaults show in the inspector fields', () => {
+    it('a select shows its default option and a number shows its default as placeholder when unset', async () => {
+        const view = document.createElement('feezal-view');
+        view.setAttribute('name', 'home');
+        view.setAttribute('child-position', 'flow');   // no flow-* attrs set
+        document.body.append(view);
+        const ins = document.createElement('feezal-sidebar-inspector-attributes');
+        ins.selectedElems = [view];
+        document.body.append(ins);
+        ins._rebuildItems();
+        await ins.updateComplete;
+
+        const selects = [...ins.shadowRoot.querySelectorAll('sl-select')];
+        const dir = selects.find(s => [...s.querySelectorAll('sl-option')].some(o => o.value === 'column'));
+        expect(dir).toBeTruthy();
+        expect(dir.value).toBe('row');   // default shown even though unset
+
+        const inputs = [...ins.shadowRoot.querySelectorAll('sl-input')];
+        const gap = inputs.find(i => i.getAttribute('placeholder') === '5');
+        expect(gap).toBeTruthy();        // flow-gap default surfaced as placeholder
+    });
+});
 
 describe('U41 — flow view style inspector', () => {
     it('hides top/left (declared AND inline) for flow-view children, keeps width/height', () => {
