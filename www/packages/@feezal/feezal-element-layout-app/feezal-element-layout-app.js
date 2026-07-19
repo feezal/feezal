@@ -52,14 +52,15 @@ class FeezalElementLayoutApp extends FeezalElement {
                 'publish',
             ],
             styles: ['background', 'border',
-                {property: '--feezal-app-bar-bg', type: 'color', default: 'var(--md-sys-color-primary, var(--primary-color, #0284c7))', help: 'Top app-bar background.'},
-                {property: '--feezal-app-bar-color', type: 'color', default: 'var(--md-sys-color-on-primary, #fff)', help: 'Top app-bar text/icon colour.'},
-                {property: '--feezal-app-drawer-bg', type: 'color', default: 'var(--md-sys-color-surface-container, #f2f3f5)', help: 'Drawer background.'},
-                {property: '--feezal-app-drawer-color', type: 'color', default: 'var(--md-sys-color-on-surface, #222)', help: 'Drawer base text colour (icon/label default to this).'},
-                {property: '--feezal-app-drawer-icon-color', type: 'color', default: 'var(--feezal-app-drawer-color, var(--md-sys-color-on-surface, #222))', help: 'Drawer entry icon colour.'},
-                {property: '--feezal-app-drawer-label-color', type: 'color', default: 'var(--feezal-app-drawer-color, var(--md-sys-color-on-surface, #222))', help: 'Drawer entry label colour.'},
-                {property: '--feezal-app-active-indicator', type: 'color', default: 'var(--md-sys-color-secondary-container, rgba(2,132,199,0.16))', help: 'Active drawer entry highlight.'},
-                {property: '--feezal-app-active-color', type: 'color', default: 'var(--md-sys-color-on-secondary-container, var(--primary-color, #0284c7))', help: 'Active drawer entry text/icon colour.'},
+                {property: '--feezal-app-bar-bg', type: 'color', default: 'var(--primary-color, #0284c7)', help: 'Top app-bar background.'},
+                {property: '--feezal-app-bar-color', type: 'color', default: '#fff', help: 'Top app-bar text/icon colour (on the primary-coloured bar).'},
+                {property: '--feezal-app-drawer-bg', type: 'color', default: 'var(--divider-color, #e0e0e0)', help: 'Drawer background.'},
+                {property: '--feezal-app-drawer-overlay-bg', type: 'color', default: 'var(--feezal-app-drawer-bg, var(--divider-color, #e0e0e0))', help: 'Narrow-mode (overlay) drawer background — set an rgba/transparent value for a see-through overlay, or a solid colour. Defaults to the drawer background.'},
+                {property: '--feezal-app-drawer-color', type: 'color', default: 'var(--primary-text-color, #222)', help: 'Drawer base text colour (icon/label default to this).'},
+                {property: '--feezal-app-drawer-icon-color', type: 'color', default: 'var(--feezal-app-drawer-color, var(--primary-text-color, #222))', help: 'Drawer entry icon colour.'},
+                {property: '--feezal-app-drawer-label-color', type: 'color', default: 'var(--primary-text-color, #222)', help: 'Drawer entry label colour.'},
+                {property: '--feezal-app-active-indicator', type: 'color', default: 'var(--secondary-background-color, rgba(2,132,199,0.16))', help: 'Active drawer entry highlight.'},
+                {property: '--feezal-app-active-color', type: 'color', default: 'var(--primary-color, #0284c7)', help: 'Active drawer entry text/icon colour.'},
                 {property: '--feezal-app-drawer-width', type: 'string', default: '220px', help: 'Expanded drawer width.'},
             ],
             restrict: {move: false, resize: false, minWidth: 240, minHeight: 160},
@@ -88,11 +89,11 @@ class FeezalElementLayoutApp extends FeezalElement {
     static styles = [feezalBaseStyles, css`
         :host { display: block; box-sizing: border-box; overflow: hidden; container-type: inline-size; }
         .shell { display: flex; flex-direction: column; width: 100%; height: 100%; box-sizing: border-box;
-            background: var(--feezal-app-drawer-bg, var(--primary-background-color, #fafafa)); }
+            background: var(--primary-background-color, #fafafa); }
         .bar {
             flex: 0 0 auto; display: flex; align-items: center; gap: 8px; height: 56px; padding: 0 10px; box-sizing: border-box;
-            background: var(--feezal-app-bar-bg, var(--md-sys-color-primary, var(--primary-color, #0284c7)));
-            color: var(--feezal-app-bar-color, var(--md-sys-color-on-primary, #fff));
+            background: var(--feezal-app-bar-bg, var(--primary-color, #0284c7));
+            color: var(--feezal-app-bar-color, #fff);
             z-index: 2;
         }
         .bar .title { flex: 1; min-width: 0; font-size: 18px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -105,8 +106,8 @@ class FeezalElementLayoutApp extends FeezalElement {
         .body { flex: 1; min-height: 0; display: flex; position: relative; }
         .drawer {
             flex: 0 0 auto; width: var(--feezal-app-drawer-width, 220px); box-sizing: border-box;
-            background: var(--feezal-app-drawer-bg, var(--md-sys-color-surface-container, #f2f3f5));
-            color: var(--feezal-app-drawer-color, var(--md-sys-color-on-surface, #222));
+            background: var(--feezal-app-drawer-bg, var(--divider-color, #e0e0e0));
+            color: var(--feezal-app-drawer-color, var(--primary-text-color, #222));
             border-right: 1px solid var(--divider-color, rgba(128,128,128,0.2));
             padding: 8px; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 2px;
         }
@@ -118,13 +119,13 @@ class FeezalElementLayoutApp extends FeezalElement {
         .entry:hover { background: rgba(128,128,128,0.12); }
         /* Keyboard/TV focus is visible even without a pointer. */
         .entry:focus-visible { outline: 2px solid var(--feezal-app-active-color, var(--primary-color, #0284c7)); outline-offset: -2px; }
-        .entry.active { background: var(--feezal-app-active-indicator, var(--md-sys-color-secondary-container, rgba(2,132,199,0.16)));
+        .entry.active { background: var(--feezal-app-active-indicator, var(--secondary-background-color, rgba(2,132,199,0.16)));
             font-weight: 600; }
         .entry .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-            color: var(--feezal-app-drawer-label-color, var(--feezal-app-drawer-color, inherit)); }
-        .entry feezal-icon { flex: 0 0 auto; color: var(--feezal-app-drawer-icon-color, var(--feezal-app-drawer-color, inherit)); }
+            color: var(--feezal-app-drawer-label-color, var(--primary-text-color, #222)); }
+        .entry feezal-icon { flex: 0 0 auto; color: var(--feezal-app-drawer-icon-color, var(--feezal-app-drawer-color, var(--primary-text-color, #222))); }
         .entry.active .label, .entry.active feezal-icon {
-            color: var(--feezal-app-active-color, var(--md-sys-color-on-secondary-container, var(--primary-color, #0284c7))); }
+            color: var(--feezal-app-active-color, var(--primary-color, #0284c7)); }
 
         /* entry-style="list": flat edge-to-edge rows — no pill radius, no side
            inset; hover/active highlight the full drawer width. */
@@ -164,14 +165,18 @@ class FeezalElementLayoutApp extends FeezalElement {
         .fab-menu {
             position: absolute; top: 10px; left: 10px; z-index: 5;
             width: 42px; height: 42px; border-radius: 50%; border: none; cursor: pointer;
-            background: var(--feezal-app-bar-bg, var(--md-sys-color-primary, var(--primary-color, #0284c7)));
-            color: var(--feezal-app-bar-color, var(--md-sys-color-on-primary, #fff));
+            background: var(--feezal-app-bar-bg, var(--primary-color, #0284c7));
+            color: var(--feezal-app-bar-color, #fff);
             box-shadow: 0 2px 8px rgba(0,0,0,0.3);
             display: flex; align-items: center; justify-content: center;
         }
 
-        /* Narrow: drawer becomes an overlay driven by the hamburger. */
+        /* Narrow: drawer becomes an overlay driven by the hamburger. Its
+           background is separately configurable via --feezal-app-drawer-overlay-bg
+           (defaults to the drawer background); set an rgba/transparent value for
+           a see-through overlay, or a solid colour for an opaque one. */
         :host(.narrow) .drawer { position: absolute; top: 0; bottom: 0; left: 0; z-index: 4; transform: translateX(-100%);
+            background: var(--feezal-app-drawer-overlay-bg, var(--feezal-app-drawer-bg, var(--divider-color, #e0e0e0)));
             transition: transform 0.2s ease; box-shadow: 2px 0 12px rgba(0,0,0,0.25); }
         :host(.narrow) .drawer.open { transform: translateX(0); }
     `];
@@ -266,6 +271,11 @@ class FeezalElementLayoutApp extends FeezalElement {
         // → routeToEmbedded runs in connectedCallback, before this).
         if (!this._active) this._active = this.activeView || (this._entries()[0]?.view) || '';
         this._embed(true);
+        // Bug fix: the ResizeObserver's first delivery can race the initial
+        // layout — a transient sub-breakpoint width would flip to overlay mode
+        // and hide the persistent drawer until a manual resize. Re-measure once
+        // layout has settled so a wide viewer shows the drawer immediately.
+        requestAnimationFrame(() => this._recomputeNarrow());
     }
     updated(changed) {
         super.updated(changed);

@@ -538,6 +538,12 @@ feezal themes and the Home Assistant theme integration inject these CSS custom p
 
 Always use these variables as defaults rather than hardcoding hex values.
 
+**Theme-var discipline — use ONLY the canonical theme variables for `--feezal-*` defaults (all elements).** When choosing the default a `--feezal-<element>-<role>` var falls back to, use exclusively:
+
+`--primary-background-color`, `--secondary-background-color`, `--primary-text-color`, `--secondary-text-color`, `--disabled-text-color`, `--divider-color`, `--primary-color`, `--accent-color`, `--error-color`
+
+(each with a literal hex last-resort fallback, e.g. `var(--primary-color, #0284c7)`). **Do not** default to Material-Design-3 tokens (`--md-sys-color-*`) — feezal themes define the canonical set above, not the MD3 palette, so an `--md-sys-color-*` default silently falls through to its hardcoded hex and ignores the active theme. Pick the closest canonical var for each role (bar/accent → `--primary-color`; drawer/panel surface → `--divider-color` or `--secondary-background-color`; body text → `--primary-text-color`; muted → `--secondary-text-color`; active highlight → `--secondary-background-color`). *(Reference migration: `feezal-element-layout-app`. Existing `--md-sys-color-*` usages in the `material-*` family are legacy — migrate them to the canonical set as those elements are next touched.)*
+
 ### 5.2 Exposing `--feezal-*` custom properties
 
 Every element with meaningful colours must expose them as `--feezal-<element>-<role>` CSS custom properties so users can override them from the Style inspector and so they respond to the active feezal theme.

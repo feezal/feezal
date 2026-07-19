@@ -151,6 +151,16 @@ These are editor UI components, not dashboard elements. Only modify these when c
 
 ---
 
+## Theme variable discipline (ALL elements)
+
+When defaulting a `--feezal-*` CSS custom property (element chrome, `styles` descriptors, inline CSS `var(...)` fallbacks), use **only** these canonical theme variables — each with a literal hex last-resort fallback:
+
+`--primary-background-color`, `--secondary-background-color`, `--primary-text-color`, `--secondary-text-color`, `--disabled-text-color`, `--divider-color`, `--primary-color`, `--accent-color`, `--error-color`
+
+**Never default to `--md-sys-color-*` (Material Design 3) tokens** — feezal themes define the canonical set above, not the MD3 palette, so an `--md-sys-color-*` default silently falls through to its hardcoded hex and ignores the active theme. Role mapping: bar/accent → `--primary-color`; drawer/panel surface → `--divider-color` or `--secondary-background-color`; body text → `--primary-text-color`; muted → `--secondary-text-color`; active highlight → `--secondary-background-color`. See `docs/element-spec.md` §5.1. (`feezal-element-layout-app` is the reference; the `material-*` family's remaining `--md-sys-color-*` usages are legacy — migrate them to the canonical set when next touching those elements.)
+
+---
+
 ## Stack versions
 
 - Lit 3

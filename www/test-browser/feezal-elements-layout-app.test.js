@@ -45,16 +45,25 @@ describe('drawer-mode reactivity (N36 burger fix)', () => {
 });
 
 describe('themable chrome (N36)', () => {
-    it('exposes the --feezal-app-* chrome vars (incl. drawer icon/label) as color styles', () => {
-        const cls = customElements.get('feezal-element-layout-app');
-        const props = cls.feezal.styles
-            .filter(s => typeof s === 'object')
-            .map(s => s.property);
+    const cls = () => customElements.get('feezal-element-layout-app');
+    const styleObjs = () => cls().feezal.styles.filter(s => typeof s === 'object');
+
+    it('exposes the --feezal-app-* chrome vars (incl. drawer icon/label + overlay bg) as color styles', () => {
+        const props = styleObjs().map(s => s.property);
         for (const v of ['--feezal-app-bar-bg', '--feezal-app-bar-color', '--feezal-app-drawer-bg',
-            '--feezal-app-drawer-color', '--feezal-app-drawer-icon-color', '--feezal-app-drawer-label-color',
-            '--feezal-app-active-indicator', '--feezal-app-active-color']) {
+            '--feezal-app-drawer-overlay-bg', '--feezal-app-drawer-color', '--feezal-app-drawer-icon-color',
+            '--feezal-app-drawer-label-color', '--feezal-app-active-indicator', '--feezal-app-active-color']) {
             expect(props).toContain(v);
         }
+    });
+
+    it('defaults use only the canonical theme vars (no --md-sys-color-*), per requested mapping', () => {
+        const byProp = Object.fromEntries(styleObjs().map(s => [s.property, s.default]));
+        // No MD3 tokens anywhere in the defaults.
+        for (const s of styleObjs()) expect(String(s.default)).not.toContain('--md-sys-color');
+        // The two explicitly requested mappings.
+        expect(byProp['--feezal-app-drawer-bg']).toContain('--divider-color');
+        expect(byProp['--feezal-app-drawer-label-color']).toContain('--primary-text-color');
     });
 });
 
