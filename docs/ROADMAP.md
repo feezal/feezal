@@ -7,9 +7,7 @@ Work in progress — priorities and scope are not final.
 ## Table of Contents
 
 **Bugs**
-- [B32 — Snapping helper lines sometimes don't disappear](#b32--snapping-helper-lines-sometimes-dont-disappear--downstream-of-b35) *(downstream of B35)*
 - [B33 — Elements sometimes not selectable/draggable](#b33--elements-sometimes-not-selectabledraggable-needs-investigation) ❓
-- [B34 — Stray orange dot left over from rubber-band selection during element drag](#b34--stray-orange-dot-left-over-from-rubber-band-selection-during-element-drag) (not yet reproducable )❓
 - [B36 — Snapping sometimes stops working until page reload](#b36--snapping-sometimes-stops-working-until-page-reload-needs-investigation) ❓
 - [B39 — Missing slash in the viewer URL for non-default sites (`/viewer/Rooms#/…`)](#b39--missing-slash-in-the-viewer-url-for-non-default-sites)
 
@@ -82,31 +80,9 @@ Work in progress — priorities and scope are not final.
 
 ## Bugs
 
-### B32 — Snapping helper lines sometimes don't disappear — downstream of B35
-
-The snapping helper/alignment lines shown while dragging sometimes remain visible after they should have disappeared (drag ended / snap no longer active).
-
-**Console evidence captured (07/2026, same session as B35):** the diagnostic step proposed here paid off — reproducing per B35's recipe with the console open shows the predicted uncaught exception, and it is **B35's `NotFoundError`** (DragSelect `SelectorArea.applyElements` → `stop`, thrown inside `_viewChanged`'s stop-all-other-views `forEach`). It fires on view switches **and again when creating a new view / placing an element** (`_addView` → Lit update → `_viewChanged` appears in the captured stack). Because the throw aborts `_viewChanged` before `this.currentView = [view]` and the per-element `initElem()` loop, the subsequent drag on the new view runs against **stale view state** — the observed outcome was one vertical and one horizontal snap line left stuck, immediately followed by rubber-band going totally dead (B35 stage 2).
-
-**Plan:** fix B35 first (idempotent/targeted `ds.stop()`), then retest this repro. Only if stuck lines still occur afterwards does B32 need its own investigation — then look at the drag-end cleanup paths in [feezal-sidebar-inspector.js](../www/src/feezal-sidebar-inspector.js) (Escape-cancelled drags, pointer released outside the canvas, interact.js `end` not firing) and the snap-line geometry derived from `#container-view` rects ([feezal-sidebar-inspector.js:1196-1236](../www/src/feezal-sidebar-inspector.js#L1196-L1236)).
-
-**Second, independent cause found & fixed (07/2026): palette drag-drop.** Dropping a NEW element from the palette left one vertical + one horizontal line stuck whenever the drop position snapped: the palette's interact `onend` hid the four guide lines **first** and then called `_applySnappedPos()` for the final snapped placement — which calls the inspector's `_snap()`, and `_snap()` *redraws* the winning guide lines. Fixed by hiding the lines **after** the final `_applySnappedPos()` on every exit path ([feezal-palette.js](../www/src/feezal-palette.js) `onend`). E2E regression test: second palette drop snap-aligned to an existing element → all four lines hidden after mouseup (verified to fail against the pre-fix bundle). The view-switch cause (B35) and this palette cause are both fixed — **B32 stays open only pending a manual retest** of the original "sometimes" reports; close it if stuck lines no longer occur in normal use.
-
-**Relates:** B35 (first root cause — the aborted `_viewChanged`; fixed), B36 (snapping stops until reload — plausibly the same aborted-init state).
-
 ### B33 — Elements sometimes not selectable and/or draggable ❓ needs investigation
 
 Sporadically, elements on the canvas cannot be selected and/or dragged. No reliable repro yet — **further investigation/refinement needed**. Candidate directions: interact.js handlers not (re)attached after view switch / paste / undo / element creation; a stale overlay (group box, helper line, DragSelect surface) with a higher z-index swallowing pointer events; the `locked` code path suppressing interaction more broadly than intended. First step: when it occurs, inspect which element receives the pointer events (`document.elementFromPoint`) and whether the interact.js instance is still bound.
-
-### B34 — Stray orange dot left over from rubber-band selection during element drag
-
-A tiny orange dot occasionally appears at the point of the initial click when dragging an element around the canvas (not a rubber-band drag) — looks like a leftover from the rubber-band selection rectangle.
-
-**Likely root cause:** the DragSelect selector element ([feezal-sidebar-inspector.js:787-790](../www/src/feezal-sidebar-inspector.js#L787-L790)) is styled `border:1px dotted rgba(250,120,0,0.8); display:none` and only toggled visible by the DragSelect library itself during a rubber-band gesture. When a real element drag starts (not an empty-canvas rubber-band), the `dragstart` handler calls `ds.break()` ([feezal-sidebar-inspector.js:798-804](../www/src/feezal-sidebar-inspector.js#L798-L804)) to abort DragSelect's gesture — but by that point DragSelect may already have flipped the selector to visible at the click origin with near-zero width/height. If `ds.break()` doesn't reliably reset `display` back to `none` in that race, the near-zero-size dotted orange-bordered box stays on screen, rendering as a tiny dot exactly at the first-click position — matching the reported symptom.
-
-**Fix direction:** explicitly hide the selector (`display:none` or equivalent) whenever `ds.break()` is called in the `dragstart` handler, rather than relying on DragSelect's own cleanup; verify against the installed `dragselect` version's `break()` behaviour (whether it already resets the selector and this is instead a timing/z-index issue). Needs a repro to confirm before fixing — grep-located candidate, not yet reproduced/verified.
-
-**Relates:** B32 (snapping helper lines not disappearing — same family of "leftover canvas overlay" bug, possibly worth investigating together), B33 (selectability/drag flakiness — same interact.js/DragSelect interaction surface).
 
 ### B36 — Snapping sometimes stops working until page reload ❓ needs investigation
 

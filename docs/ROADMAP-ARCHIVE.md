@@ -227,6 +227,32 @@ When many elements are present on the canvas or the grid size is small, too many
 
 **Files to investigate:** `feezal-sidebar-inspector.js` — the drag `move` event handler and helper-line rendering logic.
 
+### B32 — Snapping helper lines sometimes don't disappear ✅ fixed
+
+The snapping helper/alignment lines shown while dragging sometimes remained visible after they should have disappeared.
+
+**✅ Resolved (07/2026)** by the two view-change fixes below: **B35** (idempotent/guarded `ds.stop()` so `_viewChanged` no longer aborts mid-switch and leaves stale drag state) and the **palette drag-drop** snap-line fix (guide lines hidden *after* the final `_applySnappedPos()`). Both root causes eliminated; no longer reproducible in normal use. Original analysis kept for reference:
+
+**Console evidence captured (07/2026, same session as B35):** the diagnostic step proposed here paid off — reproducing per B35's recipe with the console open shows the predicted uncaught exception, and it is **B35's `NotFoundError`** (DragSelect `SelectorArea.applyElements` → `stop`, thrown inside `_viewChanged`'s stop-all-other-views `forEach`). It fires on view switches **and again when creating a new view / placing an element** (`_addView` → Lit update → `_viewChanged` appears in the captured stack). Because the throw aborts `_viewChanged` before `this.currentView = [view]` and the per-element `initElem()` loop, the subsequent drag on the new view runs against **stale view state** — the observed outcome was one vertical and one horizontal snap line left stuck, immediately followed by rubber-band going totally dead (B35 stage 2).
+
+**Plan:** fix B35 first (idempotent/targeted `ds.stop()`), then retest this repro. Only if stuck lines still occur afterwards does B32 need its own investigation — then look at the drag-end cleanup paths in [feezal-sidebar-inspector.js](../www/src/feezal-sidebar-inspector.js) (Escape-cancelled drags, pointer released outside the canvas, interact.js `end` not firing) and the snap-line geometry derived from `#container-view` rects ([feezal-sidebar-inspector.js:1196-1236](../www/src/feezal-sidebar-inspector.js#L1196-L1236)).
+
+**Second, independent cause found & fixed (07/2026): palette drag-drop.** Dropping a NEW element from the palette left one vertical + one horizontal line stuck whenever the drop position snapped: the palette's interact `onend` hid the four guide lines **first** and then called `_applySnappedPos()` for the final snapped placement — which calls the inspector's `_snap()`, and `_snap()` *redraws* the winning guide lines. Fixed by hiding the lines **after** the final `_applySnappedPos()` on every exit path ([feezal-palette.js](../www/src/feezal-palette.js) `onend`). E2E regression test: second palette drop snap-aligned to an existing element → all four lines hidden after mouseup (verified to fail against the pre-fix bundle). The view-switch cause (B35) and this palette cause are both fixed — **B32 stays open only pending a manual retest** of the original "sometimes" reports; close it if stuck lines no longer occur in normal use.
+
+**Relates:** B35 (first root cause — the aborted `_viewChanged`; fixed), B36 (snapping stops until reload — plausibly the same aborted-init state).
+
+### B34 — Stray orange dot left over from rubber-band selection during element drag ✅ fixed
+
+**✅ Resolved (07/2026)** — the stray dot was the DragSelect selector rectangle (`border: 1px dotted rgba(250,120,0,0.8)`) left visible at near-zero size; the **B35** DragSelect-lifecycle fixes (idempotent stop, instance disposal, selectable re-registration across view changes) clean it up, and it is no longer reproducible after the B35 / palette view-change fixes. Original analysis kept for reference:
+
+A tiny orange dot occasionally appears at the point of the initial click when dragging an element around the canvas (not a rubber-band drag) — looks like a leftover from the rubber-band selection rectangle.
+
+**Likely root cause:** the DragSelect selector element ([feezal-sidebar-inspector.js:787-790](../www/src/feezal-sidebar-inspector.js#L787-L790)) is styled `border:1px dotted rgba(250,120,0,0.8); display:none` and only toggled visible by the DragSelect library itself during a rubber-band gesture. When a real element drag starts (not an empty-canvas rubber-band), the `dragstart` handler calls `ds.break()` ([feezal-sidebar-inspector.js:798-804](../www/src/feezal-sidebar-inspector.js#L798-L804)) to abort DragSelect's gesture — but by that point DragSelect may already have flipped the selector to visible at the click origin with near-zero width/height. If `ds.break()` doesn't reliably reset `display` back to `none` in that race, the near-zero-size dotted orange-bordered box stays on screen, rendering as a tiny dot exactly at the first-click position — matching the reported symptom.
+
+**Fix direction:** explicitly hide the selector (`display:none` or equivalent) whenever `ds.break()` is called in the `dragstart` handler, rather than relying on DragSelect's own cleanup; verify against the installed `dragselect` version's `break()` behaviour (whether it already resets the selector and this is instead a timing/z-index issue). Needs a repro to confirm before fixing — grep-located candidate, not yet reproduced/verified.
+
+**Relates:** B32 (snapping helper lines not disappearing — same family of "leftover canvas overlay" bug, possibly worth investigating together), B33 (selectability/drag flakiness — same interact.js/DragSelect interaction surface).
+
 ### B35 — Rubber-band select breaks after view switches ✅ fixed
 
 **Root cause identified (07/2026).** Reproduced with console open — on a view switch (3rd switch in the session, to a view with no elements) this fires:
