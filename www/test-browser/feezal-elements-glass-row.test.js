@@ -43,16 +43,16 @@ describe('glass wide-tile row layout (E105)', () => {
 });
 
 describe('glass size preset attribute', () => {
-    it('size=2x1 sets 150x75 inline geometry', async () => {
+    it('size=2x1 sets 172x64 inline geometry', async () => {
         const el = await mount('feezal-element-glass-switch', {size: '2x1'});
-        expect(el.style.width).toBe('150px');
-        expect(el.style.height).toBe('75px');
+        expect(el.style.width).toBe('172px');
+        expect(el.style.height).toBe('64px');
     });
 
-    it('size=2x2 sets 150x150 inline geometry', async () => {
+    it('size=2x2 sets 172x128 inline geometry', async () => {
         const el = await mount('feezal-element-glass-switch', {size: '2x2'});
-        expect(el.style.width).toBe('150px');
-        expect(el.style.height).toBe('150px');
+        expect(el.style.width).toBe('172px');
+        expect(el.style.height).toBe('128px');
     });
 
     it('size="" (default) leaves inline geometry unset', async () => {

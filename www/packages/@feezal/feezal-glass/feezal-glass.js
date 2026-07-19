@@ -20,7 +20,7 @@ import {css} from '@feezal/feezal-element';
 
 /** Size preset → [width, height] px, shared by every glass card's `size`
  * attribute (Auto / 2×2 / 2×1). */
-export const GLASS_SIZES = {'2x2': [150, 150], '2x1': [150, 75]};
+export const GLASS_SIZES = {'2x2': [172, 128], '2x1': [172, 64]};
 
 /** The size grid writes the element's inline geometry (editor keeps full
  * manual control afterwards). Call from `updated()` when `changed.has('size')`. */
