@@ -115,6 +115,11 @@ class FeezalConnection extends LitElement {
                 const msg = event.detail;
                 console.log('[feezal-msg] topic=%s payload=%o retain=%o', msg.topic, msg.payload, msg.retain);
                 this._spreadMessage(msg);
+                // E39 (splash): re-dispatch a public 'message' event on the
+                // connection so the splash element can time its retained-message
+                // settle window against the raw broker stream. `_spreadMessage`
+                // stays the subscription fan-out; nothing else consumes this.
+                this.dispatchEvent(new CustomEvent('message', {detail: msg}));
             });
         });
     }

@@ -128,6 +128,7 @@
         "@feezal/feezal-element-system-notification": "*",
         "@feezal/feezal-element-system-pin": "*",
         "@feezal/feezal-element-system-script": "*",
+        "@feezal/feezal-element-system-splash": "*",
         "@feezal/feezal-element-tui-ascii": "*",
         "@feezal/feezal-element-tui-checkbox": "*",
         "@feezal/feezal-element-tui-crt": "*",
