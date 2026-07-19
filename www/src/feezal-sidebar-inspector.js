@@ -832,6 +832,11 @@ class FeezalSidebarInspector extends LitElement {
      * is DOM order (U33), committed to the dirty/undo pipeline on drop.
      */
     initFlow(element) {
+        // Flow tiles are laid out by the flex container — strip any legacy
+        // top/left (from absolute editing or old data) so `position: relative`
+        // doesn't offset them, and serialization stays clean.
+        element.style.removeProperty('top');
+        element.style.removeProperty('left');
         interact(element).draggable({
             autoScroll: {enabled: true, container: feezal.site, speed: 300, margin: 40},
             listeners: {

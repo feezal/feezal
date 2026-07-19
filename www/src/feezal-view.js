@@ -41,7 +41,15 @@ class FeezalView extends LitElement {
             min-height: 100%;
             box-sizing: border-box;
         }
-        :host([child-position="flow"]) ::slotted(*) { position: static !important; }
+        /* Flow items stay in flex flow but must be POSITIONED (relative) — the
+           editor injects a click-catching :host(.feezal-editable)::after overlay
+           with position:absolute;inset:0, which only stays contained to the tile
+           when the tile itself is a positioned ancestor. A static tile lets that
+           overlay escape and cover the whole canvas (cursor:move everywhere,
+           dead view tabs, off-by-coordinates selection). No !important — the
+           drag lift sets position:fixed inline, and the editor strips legacy
+           top/left from flow tiles so relative doesn't offset them. */
+        :host([child-position="flow"]) ::slotted(*) { position: relative; }
         ::slotted(.feezal-placeholder) {
             display: block;
             background-color: rgba(var(--feezal-selection-rgb, 2,132,199), 0.1);
