@@ -190,3 +190,27 @@ describe('metro-climate boost countdown badge (E102 WP2)', () => {
         } finally { vi.useRealTimers(); }
     });
 });
+
+describe('metro-climate match-setpoint-max mode display (E102)', () => {
+    // Off shares mode read-back value 1 with Manu, but carries match-setpoint-max.
+    const modes = JSON.stringify([
+        {value: 1, label: 'Manu'},
+        {value: 1, label: 'Off', 'match-setpoint-max': 4.5},
+    ]);
+
+    it('shows Off active when the setpoint is <= 4.5, Manu active above it', async () => {
+        const el = await mount('feezal-element-metro-climate', {
+            'subscribe-mode': 'stat/mode', 'subscribe-setpoint': 'stat/sp', modes,
+        });
+        feezal.connection.deliver('stat/mode', '1');
+        feezal.connection.deliver('stat/sp', '4.5');    // off sentinel
+        await el.updateComplete;
+        let active = [...el.renderRoot.querySelectorAll('.chips .mbtn.active')];
+        expect(active.map(b => b.textContent.trim())).toEqual(['Off']);
+
+        feezal.connection.deliver('stat/sp', '20');     // real setpoint → Manu
+        await el.updateComplete;
+        active = [...el.renderRoot.querySelectorAll('.chips .mbtn.active')];
+        expect(active.map(b => b.textContent.trim())).toEqual(['Manu']);
+    });
+});

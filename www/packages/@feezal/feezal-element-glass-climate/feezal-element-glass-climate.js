@@ -88,7 +88,8 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
                 {name: 'unit', type: 'string', default: '°C', section: 'Setpoint', help: 'Temperature unit label.'},
                 // ── Valve / Position (E102) ──
                 {name: 'subscribe-valve',    type: 'mqttTopic', section: 'Valve',
-                    help: 'Optional: valve/position level. Scaled from valve-min…valve-max to 0–100 %.'},
+                    help: 'Optional: valve/position level. Scaled from valve-min…valve-max to 0–100 %. ' +
+                        'Wall thermostats and heating groups have no valve of their own — point this at a member TRV or a pre-aggregated topic, and scale it via valve-min/valve-max.'},
                 {name: 'message-property-valve', type: 'string', default: 'payload', section: 'Valve', advanced: true,
                     help: 'Dot-notation path within the valve message. Blank = fall back to element-level message-property.'},
                 {name: 'valve-min', type: 'number', default: 0, section: 'Valve',
@@ -102,7 +103,11 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
                         'object (published as-is, e.g. to a putParamset topic hm/paramset/<channel>/VALUES with {"CONTROL_MODE":1,"SET_POINT_TEMPERATURE":4.5}). ' +
                         '"$setpoint" in a payload resolves to the last real setpoint (Homematic MANU_MODE=$setpoint; "off" = manual + 4.5). ' +
                         'A "momentary":true entry (boost) is a push button — activate publishes it; deactivate runs "off": {"publish","payload"} ' +
-                        '(HmIP BOOST_MODE=false) or "off":"restore" (BidCoS — re-apply the pre-boost mode).'},
+                        '(HmIP BOOST_MODE=false) or "off":"restore" (BidCoS — re-apply the pre-boost mode). ' +
+                        'The paramset segment is VALUES, not MASTER — MASTER is device configuration such as week programs, never needed for mode/setpoint control. ' +
+                        'Boost is per-generation: HmIP is a BOOST_MODE true/false toggle; BidCoS is a trigger whose deactivate restores the previous mode. ' +
+                        'An "off" entry may carry "match-setpoint-max" (e.g. 4.5): when several entries share the same mode read-back value, the entry with match-setpoint-max shows active only while the effective setpoint is <= that number (so "Off" wins over "Manu" at <= 4.5, "Manu" above). ' +
+                        'Virtual heating groups need no special setup — HM-CC-VG-1 behaves like a BidCoS TRV and HmIP-HEATING like a wall thermostat: pick the matching generation profile and use the group :1 channel address.'},
                 // ── Boost countdown (E102 WP2) ──
                 {name: 'boost-duration', type: 'number', default: 5, section: 'Display',
                     help: 'E102 boost countdown: duration in minutes (Homematic default 5). When a momentary (boost) mode goes active and no subscribe-boost-remaining topic is wired, a client-side mm:ss countdown starts from this value. A page reload while boost is active (without the device topic) restarts the client timer from full — accepted degradation.'},
@@ -614,6 +619,33 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         }
     }
 
+    /**
+     * E102 — pick the single active (non-momentary) mode entry for the current
+     * mode read-back and effective setpoint. An entry is a candidate when its
+     * value matches the read-back AND (its `match-setpoint-max` is undefined, or
+     * the effective setpoint <= that max). A candidate carrying match-setpoint-max
+     * wins over one without (more specific — so an "Off" entry sharing its value
+     * with "Manu" shows active only while sp <= its max); otherwise the first
+     * match wins (today's order). Returns null when nothing matches. Backwards
+     * compatible: entries without match-setpoint-max behave exactly as before.
+     */
+    _activeModeEntry(list) {
+        const v = this._mode;
+        if (v === null || v === undefined || v === '') return null;
+        const sp = this._lastRealSetpoint ?? this._setpoint;
+        const capOk = m => {
+            const cap = m['match-setpoint-max'];
+            if (cap === null || cap === undefined) return true;
+            return sp !== null && sp !== undefined && Number(sp) <= Number(cap);
+        };
+        const candidates = list.filter(m => !m.momentary && String(m.value) === String(v) && capOk(m));
+        if (candidates.length === 0) return null;
+        return candidates.find(m => {
+            const cap = m['match-setpoint-max'];
+            return cap !== null && cap !== undefined;
+        }) ?? candidates[0];
+    }
+
     // ── details popup ─────────────────────────────────────────────────────────
 
     _onCardClick() {
@@ -662,6 +694,7 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         const sp = this._dragSp ?? this._setpoint ?? (this.min + this.max) / 2;
         const fill = Math.max(0, Math.min(100, ((sp - this.min) / ((this.max - this.min) || 1)) * 100));
         const modes = this._parsedModes();
+        const active = this._activeModeEntry(modes);   // E102: match-setpoint-max-aware active button
         const valve = this._valve;
         return html`
             <div class="details" popover="manual">
@@ -682,7 +715,7 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
                             const boostActive = m.momentary && (this._momentaryActive === m.value || this._mode === m.value);
                             const badge = boostActive ? this._boostBadge() : '';
                             return html`
-                                <button class="${MODE_ICONS[m.value] ? '' : 'text'} ${boostActive || this._mode === m.value ? 'active' : ''}"
+                                <button class="${MODE_ICONS[m.value] ? '' : 'text'} ${boostActive || m === active ? 'active' : ''}"
                                     title="${m.label}"
                                     @click="${() => this._setMode(m)}">${MODE_ICONS[m.value] || m.label}${badge ? html`<span class="boost-badge">${badge}</span>` : ''}</button>`;
                         })}
