@@ -1,6 +1,6 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, feezalAvailabilityStyles, availabilityBadge, html, css} from '@feezal/feezal-element';
-import {applySizePreset, glassCardStyles, glassPopupStyles} from '@feezal/feezal-glass';
+import {feezalBaseStyles, feezalAvailabilityStyles, availabilityBadge, html, css} from '@feezal/feezal-element';
+import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-fan (E100)
@@ -27,7 +27,7 @@ export function speedDuration(pct) {
 
 const LONG_PRESS_MS = 450;
 
-class FeezalElementGlassFan extends FeezalElement {
+class FeezalElementGlassFan extends FeezalGlassCard {
     static get feezal() {
         return {
             palette: {name: 'Fan', category: 'Glass', color: '#7aa5c9', icon: 'mode_fan'},
@@ -120,7 +120,6 @@ class FeezalElementGlassFan extends FeezalElement {
         _on:      {state: true},
         _speed:   {state: true},   // 0–100 or null
         _preset:  {state: true},
-        _details: {state: true},   // details popup open
     };
 
     static styles = [feezalBaseStyles, feezalAvailabilityStyles, glassCardStyles, glassPopupStyles, css`
@@ -230,18 +229,8 @@ class FeezalElementGlassFan extends FeezalElement {
         this._on = false;
         this._speed = null;
         this._preset = null;
-        this._details = false;
         this._pressTimer = null;
         this._longPressed = false;
-        this._suppressTap = false;
-        // Outside tap closes the details popup; a tap landing back on the
-        // card must not also toggle the fan.
-        this.__outsideDown = e => {
-            const path = e.composedPath();
-            if (path.includes(this.renderRoot?.querySelector('.details'))) return;
-            this._closeDetails();
-            if (path.includes(this)) this._suppressTap = true;
-        };
     }
 
     // Device cards manage subscriptions manually; suppress the base class path.
@@ -255,7 +244,6 @@ class FeezalElementGlassFan extends FeezalElement {
     disconnectedCallback() {
         super.disconnectedCallback();
         clearTimeout(this._pressTimer);
-        document.removeEventListener('pointerdown', this.__outsideDown);
     }
 
     /** Topic attributes changed at runtime (inspector edits on the live
@@ -376,20 +364,6 @@ class FeezalElementGlassFan extends FeezalElement {
         clearTimeout(this._pressTimer);
     }
 
-    openDetails() {
-        if (feezal.isEditor || this._details) return;
-        this._details = true;
-        // Deferred: don't catch the very tap that opened the popup.
-        setTimeout(() => {
-            if (this._details) document.addEventListener('pointerdown', this.__outsideDown);
-        });
-    }
-
-    _closeDetails() {
-        this._details = false;
-        document.removeEventListener('pointerdown', this.__outsideDown);
-    }
-
     // ── details popup controls ────────────────────────────────────────────────
 
     /** Vertical speed pill: pointer position → %; publish on release. */
@@ -415,25 +389,6 @@ class FeezalElementGlassFan extends FeezalElement {
         const rect = e.currentTarget.getBoundingClientRect();
         const pct = Math.round((1 - (e.clientY - rect.top) / rect.height) * 100);
         this._speed = Math.max(0, Math.min(100, pct));
-    }
-
-    /** Place the details popup above the card (below when there is no room),
-     * horizontally centred on it, clamped so nothing goes off-screen. */
-    _positionDetails() {
-        const popup = this.renderRoot.querySelector('.details');
-        if (!popup) return;
-        const host = this.getBoundingClientRect();
-        const pw = popup.offsetWidth;
-        const ph = popup.offsetHeight;
-        const margin = 8;
-        const gap = 12;
-        let left = host.left + host.width / 2 - pw / 2;
-        left = Math.max(margin, Math.min(left, window.innerWidth - pw - margin));
-        let top = host.top - ph - gap;                       // preferred: above
-        if (top < margin) top = host.bottom + gap;           // no room -> below
-        top = Math.max(margin, Math.min(top, window.innerHeight - ph - margin));
-        popup.style.left = `${left}px`;
-        popup.style.top = `${top}px`;
     }
 
     _presets() {

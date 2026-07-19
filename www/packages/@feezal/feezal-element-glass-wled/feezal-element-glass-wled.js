@@ -1,7 +1,7 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {WLED_EFFECTS, WLED_PALETTES, hexToRgb} from './wled-lists.js';
-import {applySizePreset, glassCardStyles, glassPopupStyles} from '@feezal/feezal-glass';
+import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-wled (E103 MVP)
@@ -25,7 +25,7 @@ import {applySizePreset, glassCardStyles, glassPopupStyles} from '@feezal/feezal
 
 const LONG_PRESS_MS = 450;
 
-class FeezalElementGlassWled extends FeezalElement {
+class FeezalElementGlassWled extends FeezalGlassCard {
     static get feezal() {
         return {
             palette: {name: 'WLED', category: 'Glass', color: '#7aa5c9', icon: 'wb_iridescent'},
@@ -109,7 +109,6 @@ class FeezalElementGlassWled extends FeezalElement {
         _pal:     {state: true},   // locally selected palette id
         _speed:     {state: true},   // raw 0–255 (null = unknown → default 128)
         _intensity: {state: true},   // raw 0–255 (null = unknown → default 128)
-        _details: {state: true},   // details popup open
     };
 
     static styles = [feezalBaseStyles, glassCardStyles, glassPopupStyles, css`
@@ -245,18 +244,8 @@ class FeezalElementGlassWled extends FeezalElement {
         this._pal     = null;
         this._speed     = null;
         this._intensity = null;
-        this._details = false;
         this._pressTimer  = null;
         this._longPressed = false;
-        this._suppressTap = false;
-        // Outside tap closes the details popup; a tap landing back on the
-        // card must not also toggle the strip.
-        this.__outsideDown = e => {
-            const path = e.composedPath();
-            if (path.includes(this.renderRoot?.querySelector('.details'))) return;
-            this._closeDetails();
-            if (path.includes(this)) this._suppressTap = true;
-        };
     }
 
     connectedCallback() {
@@ -269,7 +258,6 @@ class FeezalElementGlassWled extends FeezalElement {
         super.disconnectedCallback();
         clearTimeout(this._pressTimer);
         clearTimeout(this.__colorDebounce);
-        document.removeEventListener('pointerdown', this.__outsideDown);
     }
 
     /** Auto-derive `<topic>/status` while subscribe-availability is empty or
@@ -474,20 +462,6 @@ class FeezalElementGlassWled extends FeezalElement {
         clearTimeout(this._pressTimer);
     }
 
-    openDetails() {
-        if (feezal.isEditor || this._details) return;
-        this._details = true;
-        // Deferred: don't catch the very tap that opened the popup.
-        setTimeout(() => {
-            if (this._details) document.addEventListener('pointerdown', this.__outsideDown);
-        });
-    }
-
-    _closeDetails() {
-        this._details = false;
-        document.removeEventListener('pointerdown', this.__outsideDown);
-    }
-
     /** Vertical brightness pill: pointer position → %; publish on release. */
     _vsliderDown(e) {
         if (feezal.isEditor) return;
@@ -511,25 +485,6 @@ class FeezalElementGlassWled extends FeezalElement {
         const rect = e.currentTarget.getBoundingClientRect();
         const pct = Math.round((1 - (e.clientY - rect.top) / rect.height) * 100);
         this._bri = Math.round((Math.max(0, Math.min(100, pct)) / 100) * 255);
-    }
-
-    /** Place the details popup above the card (below when there is no room),
-     * horizontally centred on it, clamped so nothing goes off-screen. */
-    _positionDetails() {
-        const popup = this.renderRoot.querySelector('.details');
-        if (!popup) return;
-        const host = this.getBoundingClientRect();
-        const pw = popup.offsetWidth;
-        const ph = popup.offsetHeight;
-        const margin = 8;
-        const gap = 12;
-        let left = host.left + host.width / 2 - pw / 2;
-        left = Math.max(margin, Math.min(left, window.innerWidth - pw - margin));
-        let top = host.top - ph - gap;
-        if (top < margin) top = host.bottom + gap;
-        top = Math.max(margin, Math.min(top, window.innerHeight - ph - margin));
-        popup.style.left = `${left}px`;
-        popup.style.top = `${top}px`;
     }
 
     _stateText() {

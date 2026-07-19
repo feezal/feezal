@@ -1,4 +1,5 @@
-import {css} from '@feezal/feezal-element';
+/* global feezal */
+import {FeezalElement, css} from '@feezal/feezal-element';
 
 /**
  * @feezal/feezal-glass (E106)
@@ -12,10 +13,11 @@ import {css} from '@feezal/feezal-element';
  * First dedup increment (E106): only logic provably identical across all
  * ten glass card elements today (GLASS_SIZES/applySizePreset/payloadMatch).
  *
- * Second increment (E106): `glassCardStyles` below — the frost-chrome CSS
- * fragment shared by the 5 "simple" cards (button/switch/contact/occupancy/
- * sensor). Popup cards (light/climate/cover/fan/wled) and dialogs are a
- * later increment — see the E106 roadmap entry for the remaining scope.
+ * Later increments (E106): the shared style fragments `glassCardStyles`
+ * (frost `.card` chrome, all 10 cards) and `glassPopupStyles` (details-popover
+ * chrome, the 5 popup cards), plus `FeezalGlassCard` — the base class that
+ * owns the popover-open lifecycle for the 5 popup cards. See each export's
+ * doc comment and the E106 roadmap entry.
  */
 
 /** Size preset → [width, height] px, shared by every glass card's `size`
@@ -123,3 +125,72 @@ export const glassPopupStyles = css`
         font-family: 'Material Icons'; font-size: var(--feezal-glass-font-size-unit, 12px); line-height: 1;
     }
 `;
+
+/**
+ * FeezalGlassCard — base class for the 5 glass cards that own a details
+ * popover (light/climate/cover/fan/wled). Extracts the popover-open lifecycle
+ * that was byte-identical across all of them:
+ *   - the `_details` reactive open-state,
+ *   - `_suppressTap` (set by the outside-click handler so the dismissing tap
+ *     doesn't also re-trigger the card),
+ *   - `__outsideDown` outside-pointerdown dismiss,
+ *   - `openDetails()` / `_closeDetails()` open/close (deferred listener so the
+ *     opening tap isn't caught), and
+ *   - `_positionDetails()` above-or-below viewport-clamped placement.
+ * Card-specific behaviour (subscriptions, gestures, sliders, render) stays in
+ * the subclass. A subclass that overrides `disconnectedCallback()` MUST call
+ * `super.disconnectedCallback()` so the document listener is removed.
+ */
+export class FeezalGlassCard extends FeezalElement {
+    static properties = {
+        _details: {state: true},   // details popover open
+    };
+
+    constructor() {
+        super();
+        this._details = false;
+        this._suppressTap = false;
+        this.__outsideDown = e => {
+            const path = e.composedPath();
+            if (path.includes(this.renderRoot?.querySelector('.details'))) return;
+            this._closeDetails();
+            if (path.includes(this)) this._suppressTap = true;
+        };
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        document.removeEventListener('pointerdown', this.__outsideDown);
+    }
+
+    openDetails() {
+        if (feezal.isEditor || this._details) return;
+        this._details = true;
+        // Deferred: don't catch the very tap that opened the popup.
+        setTimeout(() => {
+            if (this._details) document.addEventListener('pointerdown', this.__outsideDown);
+        });
+    }
+
+    _closeDetails() {
+        this._details = false;
+        document.removeEventListener('pointerdown', this.__outsideDown);
+    }
+
+    _positionDetails() {
+        const popup = this.renderRoot.querySelector('.details');
+        if (!popup) return;
+        const host = this.getBoundingClientRect();
+        const pw = popup.offsetWidth;
+        const ph = popup.offsetHeight;
+        const margin = 8;
+        const gap = 12;
+        let left = host.left + host.width / 2 - pw / 2;
+        left = Math.max(margin, Math.min(left, window.innerWidth - pw - margin));
+        let top = host.top - ph - gap;                       // preferred: above
+        if (top < margin) top = host.bottom + gap;           // no room -> below
+        top = Math.max(margin, Math.min(top, window.innerHeight - ph - margin));
+        popup.style.left = `${left}px`;
+        popup.style.top = `${top}px`;
+    }
+}

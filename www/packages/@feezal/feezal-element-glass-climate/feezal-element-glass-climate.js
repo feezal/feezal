@@ -1,6 +1,6 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
-import {applySizePreset, glassCardStyles, glassPopupStyles} from '@feezal/feezal-glass';
+import {feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-climate (E58, renamed from glass-thermostat)
@@ -28,7 +28,7 @@ const MODE_ICONS = {
     fan_only: 'mode_fan',
 };
 
-class FeezalElementGlassClimate extends FeezalElement {
+class FeezalElementGlassClimate extends FeezalGlassCard {
     static get feezal() {
         return {
             palette: {name: 'Climate', category: 'Glass', color: '#7aa5c9', icon: 'thermostat'},
@@ -145,7 +145,6 @@ class FeezalElementGlassClimate extends FeezalElement {
         _actual:    {state: true},
         _mode:      {state: true},
         _dragSp:    {state: true},   // live setpoint while dragging the pill
-        _details:   {state: true},
         _momentaryActive: {state: true},   // E102: value of the currently-active momentary (boost) entry
     };
 
@@ -253,23 +252,10 @@ class FeezalElementGlassClimate extends FeezalElement {
         this._actual = null;
         this._mode = '';
         this._dragSp = null;
-        this._details = false;
-        this._suppressTap = false;
         // E102 — mode-entry machinery
         this._lastRealSetpoint = null;   // remembered setpoint > off sentinel (for $setpoint)
         this._preBoostMode     = null;   // mode before a momentary/boost entry (for off:"restore")
         this._momentaryActive  = null;   // value of the currently-active momentary entry
-        this.__outsideDown = e => {
-            const path = e.composedPath();
-            if (path.includes(this.renderRoot?.querySelector('.details'))) return;
-            this._closeDetails();
-            if (path.includes(this)) this._suppressTap = true;
-        };
-    }
-
-    disconnectedCallback() {
-        super.disconnectedCallback();
-        document.removeEventListener('pointerdown', this.__outsideDown);
     }
 
     // Device cards manage subscriptions manually; suppress the base class path.
@@ -476,19 +462,6 @@ class FeezalElementGlassClimate extends FeezalElement {
 
     // ── details popup ─────────────────────────────────────────────────────────
 
-    openDetails() {
-        if (feezal.isEditor || this._details) return;
-        this._details = true;
-        setTimeout(() => {
-            if (this._details) document.addEventListener('pointerdown', this.__outsideDown);
-        });
-    }
-
-    _closeDetails() {
-        this._details = false;
-        document.removeEventListener('pointerdown', this.__outsideDown);
-    }
-
     _onCardClick() {
         if (this._suppressTap) {
             this._suppressTap = false;
@@ -530,25 +503,6 @@ class FeezalElementGlassClimate extends FeezalElement {
         return v === null || v === undefined ? '—' : `${v}${this.unit}`;
     }
 
-
-    /** Place the details popup above the card (below when there is no room),
-     * horizontally centred on it, clamped so nothing goes off-screen. */
-    _positionDetails() {
-        const popup = this.renderRoot.querySelector('.details');
-        if (!popup) return;
-        const host = this.getBoundingClientRect();
-        const pw = popup.offsetWidth;
-        const ph = popup.offsetHeight;
-        const margin = 8;
-        const gap = 12;
-        let left = host.left + host.width / 2 - pw / 2;
-        left = Math.max(margin, Math.min(left, window.innerWidth - pw - margin));
-        let top = host.top - ph - gap;                       // preferred: above
-        if (top < margin) top = host.bottom + gap;           // no room -> below
-        top = Math.max(margin, Math.min(top, window.innerHeight - ph - margin));
-        popup.style.left = `${left}px`;
-        popup.style.top = `${top}px`;
-    }
 
     _renderDetails() {
         const sp = this._dragSp ?? this._setpoint ?? (this.min + this.max) / 2;

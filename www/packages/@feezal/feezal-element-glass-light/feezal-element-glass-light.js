@@ -1,8 +1,8 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
-import {applySizePreset, payloadMatch, glassCardStyles, glassPopupStyles} from '@feezal/feezal-glass';
+import {applySizePreset, payloadMatch, glassCardStyles, glassPopupStyles, FeezalGlassCard} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-light (E58)
@@ -85,7 +85,7 @@ function xyToRgb(x, y, bri = 1) {
 
 const LONG_PRESS_MS = 450;
 
-class FeezalElementGlassLight extends FeezalElement {
+class FeezalElementGlassLight extends FeezalGlassCard {
     static get feezal() {
         return {
             palette: {name: 'Light', category: 'Glass', color: '#7aa5c9', icon: 'lightbulb'},
@@ -213,7 +213,6 @@ class FeezalElementGlassLight extends FeezalElement {
         _colorTemp: {state: true},   // Kelvin (null = unknown)
         _rgb:       {state: true},   // [r, g, b]
         _hs:        {state: true},   // [h 0–360, s 0–100]
-        _details:   {state: true},   // details popup open
     };
 
     static styles = [feezalBaseStyles, glassCardStyles, glassPopupStyles, css`
@@ -351,18 +350,8 @@ class FeezalElementGlassLight extends FeezalElement {
         this._colorTemp = null;
         this._rgb = null;
         this._hs = null;
-        this._details = false;
         this._pressTimer = null;
         this._longPressed = false;
-        this._suppressTap = false;
-        // Outside tap closes the details popup; a tap landing back on the
-        // card must not also toggle the light.
-        this.__outsideDown = e => {
-            const path = e.composedPath();
-            if (path.includes(this.renderRoot?.querySelector('.details'))) return;
-            this._closeDetails();
-            if (path.includes(this)) this._suppressTap = true;
-        };
     }
 
     // Device cards manage subscriptions manually; suppress the base class path.
@@ -632,24 +621,9 @@ class FeezalElementGlassLight extends FeezalElement {
         clearTimeout(this._pressTimer);
     }
 
-    openDetails() {
-        if (feezal.isEditor || this._details) return;
-        this._details = true;
-        // Deferred: don't catch the very tap that opened the popup.
-        setTimeout(() => {
-            if (this._details) document.addEventListener('pointerdown', this.__outsideDown);
-        });
-    }
-
-    _closeDetails() {
-        this._details = false;
-        document.removeEventListener('pointerdown', this.__outsideDown);
-    }
-
     disconnectedCallback() {
         super.disconnectedCallback();
         clearTimeout(this._pressTimer);
-        document.removeEventListener('pointerdown', this.__outsideDown);
     }
 
     // ── details popup controls ────────────────────────────────────────────────
@@ -742,25 +716,6 @@ class FeezalElementGlassLight extends FeezalElement {
         };
     }
 
-
-    /** Place the details popup above the card (below when there is no room),
-     * horizontally centred on it, clamped so nothing goes off-screen. */
-    _positionDetails() {
-        const popup = this.renderRoot.querySelector('.details');
-        if (!popup) return;
-        const host = this.getBoundingClientRect();
-        const pw = popup.offsetWidth;
-        const ph = popup.offsetHeight;
-        const margin = 8;
-        const gap = 12;
-        let left = host.left + host.width / 2 - pw / 2;
-        left = Math.max(margin, Math.min(left, window.innerWidth - pw - margin));
-        let top = host.top - ph - gap;                       // preferred: above
-        if (top < margin) top = host.bottom + gap;           // no room -> below
-        top = Math.max(margin, Math.min(top, window.innerHeight - ph - margin));
-        popup.style.left = `${left}px`;
-        popup.style.top = `${top}px`;
-    }
 
     _renderDetails() {
         const caps = this._capabilities();
