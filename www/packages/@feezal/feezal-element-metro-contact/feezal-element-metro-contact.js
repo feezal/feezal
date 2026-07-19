@@ -164,6 +164,9 @@ class FeezalElementMetroContact extends MetroTileBase {
                     state_topic:  'subscribe',
                     payload_on:   'payload-open',
                     payload_off:  'payload-closed',
+                    // Set by the native Homematic ROTARY_HANDLE recognizer; HA/z2m
+                    // binary_sensor entities lack it → skipped (undefined config key).
+                    payload_tilted: 'payload-tilted',
                     device_class: {attr: 'type', valueMap: {window: 'window', door: 'door', moisture: 'waterleak', smoke: 'firealarm', garage_door: 'garagedoor', _default: 'window'}},
                     // N31: availability is mapped automatically from the canonical discovery record.
                     name:           'label',

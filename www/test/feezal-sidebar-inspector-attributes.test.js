@@ -368,6 +368,7 @@ describe('WP3/E106 — type:custom platform hook (_rebuildItems)', () => {
 // prove the real element discovery maps consume the native contract.
 import '../packages/@feezal/feezal-element-material-climate/feezal-element-material-climate.js';
 import '../packages/@feezal/feezal-element-glass-wled/feezal-element-glass-wled.js';
+import '../packages/@feezal/feezal-element-material-contact/feezal-element-material-contact.js';
 
 describe('E108 — native discovery stamps onto *-climate + wled elements', () => {
     it('Homematic climate: native config stamps message-property/valve/modes/topics', () => {
@@ -444,6 +445,59 @@ describe('E108 — native discovery stamps onto *-climate + wled elements', () =
         // modes is JSON-stringified (round-trips back to the rich array).
         expect(JSON.parse(el.getAttribute('modes'))).toEqual(modes);
         expect(el.getAttribute('discovery-id')).toBe('homematic/TRV/4');
+        expect(change).toHaveBeenCalled();
+    });
+
+    it('Homematic contact: native binary_sensor config stamps payload-tilted/type/subscribe/message-property + availability', () => {
+        // Exactly the shape the ROTARY_HANDLE recognizer emits (tristate + tilt).
+        const entity = {
+            discovery_id: 'hm-contact:MEQ0200002',
+            component: 'binary_sensor',
+            source: 'homematic',
+            sourceLabel: 'hm',
+            name: 'Fenstergriff Bad',
+            config: {
+                name: 'Fenstergriff Bad',
+                state_topic: 'hm/status/Fenstergriff Bad:1/STATE',
+                value_template: '{{ value_json.val }}',
+                device_class: 'window',
+                payload_off: '0',
+                payload_tilted: '1',
+                payload_on: '2',
+                availability_normalized: {
+                    entries: [
+                        {topic: 'hm/status/Fenstergriff Bad:0/UNREACH', property: 'payload.val'},
+                        {topic: 'hm/status/Fenstergriff Bad:0/LOWBAT', property: 'payload.val'},
+                    ],
+                    mode: 'all', payloadAvailable: false, payloadUnavailable: true,
+                },
+            },
+        };
+
+        const el = document.createElement('feezal-element-material-contact');
+        const change = vi.fn();
+        globalThis.feezal.app = {change};
+
+        const ins = document.createElement('feezal-sidebar-inspector-attributes');
+        ins.selectedElems = [el];
+        ins._applyDiscovery(entity);
+
+        // The native-only tilt key lands on payload-tilted.
+        expect(el.getAttribute('payload-tilted')).toBe('1');
+        expect(el.getAttribute('payload-open')).toBe('2');
+        expect(el.getAttribute('payload-closed')).toBe('0');
+        // device_class → type via valueMap; value_template → message-property path.
+        expect(el.getAttribute('type')).toBe('window');
+        expect(el.getAttribute('subscribe')).toBe('hm/status/Fenstergriff Bad:1/STATE');
+        expect(el.getAttribute('message-property')).toBe('payload.val');
+        // Two-entry availability → JSON-array form; false=available.
+        expect(el.getAttribute('subscribe-availability')).toBe(JSON.stringify([
+            {topic: 'hm/status/Fenstergriff Bad:0/UNREACH', property: 'payload.val'},
+            {topic: 'hm/status/Fenstergriff Bad:0/LOWBAT', property: 'payload.val'},
+        ]));
+        expect(el.getAttribute('payload-available')).toBe('false');
+        expect(el.getAttribute('payload-unavailable')).toBe('true');
+        expect(el.getAttribute('discovery-id')).toBe('hm-contact:MEQ0200002');
         expect(change).toHaveBeenCalled();
     });
 

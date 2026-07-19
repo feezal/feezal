@@ -43,6 +43,9 @@ class FeezalElementGlassContact extends FeezalElement {
                     state_topic:           {attr: 'subscribe'},
                     payload_on:            {attr: 'payload-open'},
                     payload_off:           {attr: 'payload-closed'},
+                    // Set by the native Homematic ROTARY_HANDLE recognizer; HA/z2m
+                    // binary_sensor entities lack it → skipped (undefined config key).
+                    payload_tilted:        {attr: 'payload-tilted'},
                     device_class:          {attr: 'type', valueMap: {window: 'window', door: 'door', moisture: 'waterleak', smoke: 'firealarm', garage_door: 'garagedoor', _default: 'window'}},
                     // N31: availability is mapped automatically from the canonical discovery record.
                     value_template:        {attr: 'message-property', transform: 'valueTemplateToPath'},

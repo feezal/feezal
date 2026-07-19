@@ -334,8 +334,134 @@ const wledRecognizer = {
     reset() { this.state.devices.clear(); },
 };
 
+// ── Recognizer 3: Homematic contact ───────────────────────────────────────────
+// STATE is a generic datapoint on many device kinds (switches, actors, …), so a
+// STATE message alone is NOT evidence of a contact. Promotion is gated on the CCU
+// channelType — only these two channel types are window/door contacts. If the
+// channelType metadata is absent we cannot classify the channel, so we do NOT
+// promote (contacts need the metadata to avoid false positives on switches etc.).
+const CONTACT_CHANNEL_TYPES = new Set([
+    'SHUTTER_CONTACT',            // HM-Sec-SC / HmIP-SWDO — boolean STATE (false=closed, true=open)
+    'ROTARY_HANDLE_TRANSCEIVER',  // HM-Sec-RHS / HmIP-SRH — tristate STATE (0/1/2)
+]);
+
+const hmContactRecognizer = {
+    id: 'homematic-contact',
+    // deviceId → {deviceId, deviceName, deviceType, channels: Map<seg, chan>}
+    // chan = {seg, channelType, channelAddr}
+    state: {devices: new Map()},
+
+    match(topic) {
+        // hm/status/<seg>/STATE — STATE only (whitelisted datapoint).
+        if (!topic.startsWith(hmPrefix + '/status/')) return null;
+        const parts = topic.split('/');
+        if (parts.length !== 4) return null;            // exactly prefix/status/seg/DP
+        if (parts[3] !== 'STATE') return null;
+        return {seg: parts[2], datapoint: 'STATE'};
+    },
+
+    accumulate(state, parsed, value, payload) {
+        const hm = (payload && typeof payload === 'object' && payload.hm && typeof payload.hm === 'object')
+            ? payload.hm : null;
+
+        // Group by the CCU device id; fall back to the topic segment with its
+        // trailing :<n> stripped when metadata is absent.
+        const deviceId = (hm && hm.device) ? String(hm.device)
+            : parsed.seg.replace(/:\d+$/, '');
+
+        let dev = state.devices.get(deviceId);
+        if (!dev) {
+            dev = {deviceId, deviceName: undefined, deviceType: undefined, channels: new Map()};
+            state.devices.set(deviceId, dev);
+        }
+        if (hm) {
+            if (hm.deviceName != null) dev.deviceName = hm.deviceName;
+            if (hm.deviceType != null) dev.deviceType = hm.deviceType;
+        }
+
+        let chan = dev.channels.get(parsed.seg);
+        if (!chan) {
+            chan = {seg: parsed.seg, channelType: undefined, channelAddr: undefined};
+            dev.channels.set(parsed.seg, chan);
+        }
+        if (hm) {
+            if (hm.channelType != null) chan.channelType = hm.channelType;
+            if (hm.channel != null) chan.channelAddr = hm.channel;
+        }
+        return dev;
+    },
+
+    promote(dev) {
+        const channels = [...dev.channels.values()];
+
+        // ONLY promote when the channel's channelType is a known contact type.
+        // channelType absent ⇒ metadata-less ⇒ cannot classify ⇒ no promotion.
+        const contact = channels.find(c => c.channelType && CONTACT_CHANNEL_TYPES.has(c.channelType));
+        if (!contact) return null;
+
+        const p = hmPrefix;
+        const seg = contact.seg;
+        const deviceId = dev.deviceId;
+        const name = dev.deviceName
+            || (dev.deviceType ? dev.deviceType + ' ' + deviceId : deviceId);
+
+        // The map's value_template → message-property via valueTemplateToPath
+        // yields payload.val (MQTT-Smarthome JSON-Extended value path).
+        const config = {
+            name,
+            state_topic: hmStatus(p, seg, 'STATE'),
+            value_template: '{{ value_json.val }}',
+            device_class: 'window',
+        };
+
+        if (contact.channelType === 'ROTARY_HANDLE_TRANSCEIVER') {
+            // Tristate STATE. NOTE: these numeric values (0=closed, 1=tilted,
+            // 2=open) are ASSUMED from the common CCU rotary-handle convention —
+            // easy to adjust here should a device report differently.
+            config.payload_off = '0';
+            config.payload_tilted = '1';
+            config.payload_on = '2';
+        } else {
+            // SHUTTER_CONTACT: boolean STATE (false=closed, true=open). No tilt.
+            config.payload_on = 'true';
+            config.payload_off = 'false';
+        }
+
+        // Availability from the device's :0 maintenance channel — derive the :0
+        // segment from the contact channel's name-based segment (device:1 →
+        // device:0), or its channel address for a nameless device.
+        const availBase = seg !== '' ? seg : (contact.channelAddr || seg);
+        const availSeg = availBase.replace(/:\d+$/, ':0');
+        // availability_normalized lives INSIDE config (HA convention — the client's
+        // _applyDiscovery reads cfg.availability_normalized). TWO entries: UNREACH +
+        // LOWBAT (both JSON-Extended .val). mode 'all' ⇒ the element shows
+        // unavailable when unreachable OR battery low — acceptable since contacts
+        // have no dedicated battery attribute of their own.
+        config.availability_normalized = {
+            entries: [
+                {topic: hmStatus(p, availSeg, 'UNREACH'), property: 'payload.val'},
+                {topic: hmStatus(p, availSeg, 'LOWBAT'), property: 'payload.val'},
+            ],
+            mode: 'all',
+            payloadAvailable: false,
+            payloadUnavailable: true,
+        };
+
+        return {
+            discovery_id: 'hm-contact:' + deviceId,
+            component: 'binary_sensor',
+            source: 'homematic',
+            sourceLabel: 'hm',
+            name,
+            config,
+        };
+    },
+
+    reset() { this.state.devices.clear(); },
+};
+
 // ── Framework ─────────────────────────────────────────────────────────────────
-const recognizers = [hmClimateRecognizer, wledRecognizer];
+const recognizers = [hmClimateRecognizer, wledRecognizer, hmContactRecognizer];
 
 /** @type {Map<string, object>} discovery_id → promoted native entity */
 const nativeEntities = new Map();

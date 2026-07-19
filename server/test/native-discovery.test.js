@@ -260,6 +260,84 @@ describe('Homematic climate recognizer — non-matches', () => {
     });
 });
 
+describe('Homematic contact recognizer', () => {
+    it('promotes a SHUTTER_CONTACT to one binary_sensor with boolean payloads + :0 UNREACH/LOWBAT availability', () => {
+        const dev = 'MEQ0100001';
+        nat.handleNativeMessage('hm/status/Fenster Kueche:1/STATE', je(false, {
+            device: dev, deviceName: 'Fenster Kueche', deviceType: 'HmIP-SWDO',
+            channel: dev + ':1', channelName: 'Fenster Kueche:1',
+            channelType: 'SHUTTER_CONTACT', channelIndex: 1, iface: 'HmIP-RF', datapoint: 'STATE',
+        }));
+
+        const sensors = nat.getNativeEntities().filter(e => e.component === 'binary_sensor');
+        expect(sensors).toHaveLength(1);
+
+        const e = nat.getNativeEntity('hm-contact:MEQ0100001');
+        expect(e).toBeTruthy();
+        expect(e.component).toBe('binary_sensor');
+        expect(e.source).toBe('homematic');
+        expect(e.sourceLabel).toBe('hm');
+        expect(e.name).toBe('Fenster Kueche');
+
+        const c = e.config;
+        expect(c.name).toBe('Fenster Kueche');
+        expect(c.state_topic).toBe('hm/status/Fenster Kueche:1/STATE');
+        expect(c.value_template).toBe('{{ value_json.val }}');
+        expect(c.device_class).toBe('window');
+        expect(c.payload_on).toBe('true');
+        expect(c.payload_off).toBe('false');
+        expect(c.payload_tilted).toBeUndefined();   // no tilt for a shutter contact
+
+        // TWO :0 maintenance entries — UNREACH + LOWBAT (inside config).
+        expect(c.availability_normalized).toEqual({
+            entries: [
+                {topic: 'hm/status/Fenster Kueche:0/UNREACH', property: 'payload.val'},
+                {topic: 'hm/status/Fenster Kueche:0/LOWBAT', property: 'payload.val'},
+            ],
+            mode: 'all',
+            payloadAvailable: false,
+            payloadUnavailable: true,
+        });
+    });
+
+    it('promotes a ROTARY_HANDLE_TRANSCEIVER with tristate 0/1/2 payloads', () => {
+        const dev = 'MEQ0200002';
+        nat.handleNativeMessage('hm/status/Fenstergriff Bad:1/STATE', je(1, {
+            device: dev, deviceName: 'Fenstergriff Bad', deviceType: 'HmIP-SRH',
+            channel: dev + ':1', channelName: 'Fenstergriff Bad:1',
+            channelType: 'ROTARY_HANDLE_TRANSCEIVER', channelIndex: 1, iface: 'HmIP-RF', datapoint: 'STATE',
+        }));
+
+        const e = nat.getNativeEntity('hm-contact:MEQ0200002');
+        expect(e).toBeTruthy();
+        const c = e.config;
+        expect(c.state_topic).toBe('hm/status/Fenstergriff Bad:1/STATE');
+        expect(c.device_class).toBe('window');
+        expect(c.payload_off).toBe('0');
+        expect(c.payload_tilted).toBe('1');
+        expect(c.payload_on).toBe('2');
+        expect(c.availability_normalized.entries).toEqual([
+            {topic: 'hm/status/Fenstergriff Bad:0/UNREACH', property: 'payload.val'},
+            {topic: 'hm/status/Fenstergriff Bad:0/LOWBAT', property: 'payload.val'},
+        ]);
+    });
+
+    it('does NOT promote a STATE whose channelType is not a contact type (e.g. a switch)', () => {
+        nat.handleNativeMessage('hm/status/Steckdose:3/STATE', je(true, {
+            device: 'MEQ0300003', deviceName: 'Steckdose', deviceType: 'HmIP-PS',
+            channel: 'MEQ0300003:3', channelName: 'Steckdose:3',
+            channelType: 'SWITCH_VIRTUAL_RECEIVER', channelIndex: 3, iface: 'HmIP-RF', datapoint: 'STATE',
+        }));
+        expect(nat.getNativeEntity('hm-contact:MEQ0300003')).toBe(null);
+        expect(nat.getNativeEntities().filter(e => e.component === 'binary_sensor')).toHaveLength(0);
+    });
+
+    it('does NOT promote a STATE with no hm metadata (channelType unknown ⇒ cannot classify)', () => {
+        nat.handleNativeMessage('hm/status/Something:1/STATE', jePlain(true));
+        expect(nat.getNativeEntities().filter(e => e.component === 'binary_sensor')).toHaveLength(0);
+    });
+});
+
 describe('WLED recognizer', () => {
     it('promotes on wled/<id>/v with device_topic + availability_normalized', () => {
         nat.handleNativeMessage('wled/desk/v', Buffer.from('{"state":{"on":true}}'));
