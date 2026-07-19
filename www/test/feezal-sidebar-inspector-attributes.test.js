@@ -397,6 +397,11 @@ describe('E108 — native discovery stamps onto *-climate + wled elements', () =
                 temperature_unit: 'C',
                 modes,
                 message_property: 'payload.val',
+                message_property_setpoint: 'payload.val',
+                message_property_actual: 'payload.val',
+                message_property_mode: 'payload.val',
+                message_property_valve: 'payload.val',
+                message_property_boost_remaining: 'payload.val',
                 valve_min: 0,
                 valve_max: 100,
                 availability_normalized: {
@@ -416,6 +421,13 @@ describe('E108 — native discovery stamps onto *-climate + wled elements', () =
 
         // Native-only keys (HA/z2m absent) — the crux of the E108 contract.
         expect(el.getAttribute('message-property')).toBe('payload.val');
+        // Per-topic message-property twins each stamped to payload.val (E108 fix):
+        // the per-read paths never fall back to the element-level one.
+        expect(el.getAttribute('message-property-setpoint')).toBe('payload.val');
+        expect(el.getAttribute('message-property-actual')).toBe('payload.val');
+        expect(el.getAttribute('message-property-mode')).toBe('payload.val');
+        expect(el.getAttribute('message-property-valve')).toBe('payload.val');
+        expect(el.getAttribute('message-property-boost-remaining')).toBe('payload.val');
         expect(el.getAttribute('valve-min')).toBe('0');
         expect(el.getAttribute('valve-max')).toBe('100');
         expect(el.getAttribute('subscribe-valve')).toBe('hm/status/TRV/4/VALVE_STATE');

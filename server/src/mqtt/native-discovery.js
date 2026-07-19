@@ -240,6 +240,16 @@ const hmClimateRecognizer = {
             // payload — feezal message-property paths start at the message root,
             // so it's `payload.val` (not `val`).
             message_property: 'payload.val',
+            // Per-topic message-property twins: each *-climate element reads its
+            // per-topic path WITHOUT falling back to the element-level one (their
+            // default 'payload' is truthy), so every one must be stamped to
+            // payload.val too. Set unconditionally — an unused one is harmless
+            // since its subscribe-* topic is unset.
+            message_property_setpoint: 'payload.val',
+            message_property_actual: 'payload.val',
+            message_property_mode: 'payload.val',
+            message_property_valve: 'payload.val',
+            message_property_boost_remaining: 'payload.val',
             valve_min: 0,
             valve_max: valveMax,
         };

@@ -97,6 +97,14 @@ class FeezalElementMaterialClimate extends FeezalElement {
                     // Homematic synthesised entities carry message_property:'val'
                     // and the valve device range (BidCoS 0–100, HmIP 0–1).
                     message_property: {attr: 'message-property'},
+                    // Per-topic message-property twins — native reads use these
+                    // per-topic (their 'payload' default never falls back), so the
+                    // recognizer stamps each to payload.val too. HA/z2m absent → skipped.
+                    message_property_setpoint:        {attr: 'message-property-setpoint'},
+                    message_property_actual:          {attr: 'message-property-actual'},
+                    message_property_mode:            {attr: 'message-property-mode'},
+                    message_property_valve:           {attr: 'message-property-valve'},
+                    message_property_boost_remaining: {attr: 'message-property-boost-remaining'},
                     valve_min:        {attr: 'valve-min'},
                     valve_max:        {attr: 'valve-max'},
                     // Range + step (apply in both modes)

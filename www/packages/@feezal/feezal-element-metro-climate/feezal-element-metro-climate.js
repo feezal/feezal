@@ -85,6 +85,14 @@ class FeezalElementMetroClimate extends MetroTileBase {
                     // Homematic message_property:'val' overrides value_template
                     // (native entities carry no value_template).
                     message_property:           {attr: 'message-property'},
+                    // Per-topic message-property twins — native reads use these
+                    // per-topic (their 'payload' default never falls back), so the
+                    // recognizer stamps each to payload.val too. HA/z2m absent → skipped.
+                    // (No message-property-actual attribute on metro-climate — omit it.)
+                    message_property_setpoint:        {attr: 'message-property-setpoint'},
+                    message_property_mode:            {attr: 'message-property-mode'},
+                    message_property_valve:           {attr: 'message-property-valve'},
+                    message_property_boost_remaining: {attr: 'message-property-boost-remaining'},
                     valve_min:                  {attr: 'valve-min'},
                     valve_max:                  {attr: 'valve-max'},
                 },

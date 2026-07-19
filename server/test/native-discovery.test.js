@@ -72,6 +72,13 @@ describe('Homematic climate recognizer — HmIP wall thermostat (WTH-2)', () => 
         expect(c.current_temperature_topic).toBe('hm/status/Thermostat Hobbyraum:1/ACTUAL_TEMPERATURE');
         expect(c.mode_state_topic).toBe('hm/status/Thermostat Hobbyraum:1/SET_POINT_MODE');
         expect(c.message_property).toBe('payload.val');
+        // Per-topic message-property twins are each stamped to payload.val too —
+        // the per-read paths don't fall back to the element-level one (E108 fix).
+        expect(c.message_property_setpoint).toBe('payload.val');
+        expect(c.message_property_actual).toBe('payload.val');
+        expect(c.message_property_mode).toBe('payload.val');
+        expect(c.message_property_valve).toBe('payload.val');
+        expect(c.message_property_boost_remaining).toBe('payload.val');
         expect(c.min_temp).toBe(4.5);
         expect(c.max_temp).toBe(30.5);
         expect(c.temp_step).toBe(0.5);
