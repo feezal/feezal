@@ -27,6 +27,7 @@
         "@feezal/feezal-element-basic-icon-value": "*",
         "@feezal/feezal-element-basic-iframe": "*",
         "@feezal/feezal-element-basic-image": "*",
+        "@feezal/feezal-element-basic-json": "*",
         "@feezal/feezal-element-basic-navigation": "*",
         "@feezal/feezal-element-basic-number": "*",
         "@feezal/feezal-element-basic-qrcode": "*",

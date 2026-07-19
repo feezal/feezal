@@ -1,0 +1,25 @@
+{
+    "author": {
+        "name": "Sebastian Raff",
+        "email": "hobbyquaker@gmail.com"
+    },
+    "dependencies": {
+        "@feezal/feezal-element": "*"
+    },
+    "description": "Renders a JSON payload as a collapsible tree — expand/collapse per path (survives live updates), per-type colouring, raw-string fallback for non-JSON, and a max-nodes render guard for huge payloads",
+    "feezal": {
+        "type": "element"
+    },
+    "keywords": [
+        "feezal",
+        "feezal-element"
+    ],
+    "license": "MIT",
+    "main": "feezal-element-basic-json.js",
+    "name": "@feezal/feezal-element-basic-json",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/feezal/feezal.git"
+    },
+    "version": "0.1.0"
+}
