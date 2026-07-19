@@ -564,6 +564,16 @@ class FeezalElementLayoutAppInspector extends LitElement {
                             @sl-change="${e => this._emit('drawer-persistent', e.target.checked)}"></sl-switch>
                         Persistent drawer when wide
                     </label>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:11px">
+                        <sl-switch size="small" ?checked="${this.element.hasAttribute('slim')}"
+                            @sl-change="${e => this._emit('slim', e.target.checked)}"></sl-switch>
+                        Slim rail (icons only, expand on hover/focus)
+                    </label>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:11px">
+                        <sl-switch size="small" ?checked="${this.element.hasAttribute('autohide')}"
+                            @sl-change="${e => this._emit('autohide', e.target.checked)}"></sl-switch>
+                        Autohide (collapse to a thin edge until hover/focus)
+                    </label>
                 </div>
             </div>
         `;
