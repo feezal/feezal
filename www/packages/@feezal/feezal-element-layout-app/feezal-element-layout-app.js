@@ -175,16 +175,25 @@ class FeezalElementLayoutApp extends FeezalElement {
         /* Narrow: drawer becomes an overlay driven by the hamburger. Its colour
            is --feezal-app-drawer-overlay-bg (defaults to the drawer background)
            and its TRANSPARENCY is a plain 0–100 number in
-           --feezal-app-drawer-overlay-opacity (100 = opaque, e.g. 60 = 60 %
-           opaque / 40 % see-through). color-mix keeps the text/icons fully
-           opaque; where color-mix is unsupported the declaration is ignored and
-           the drawer stays opaque. */
+           --feezal-app-drawer-overlay-opacity (100 = opaque, 60 = 60 % opaque /
+           40 % see-through, 0 = fully transparent).
+           The background lives on a ::before layer that composites the drawer
+           colour OVER an opaque page-background backing — so opacity 100 is
+           truly opaque even though the drawer colour (default --divider-color)
+           is itself semi-transparent — and a real opacity fades the backing
+           without touching the text/icons. */
         :host(.narrow) .drawer { position: absolute; top: 0; bottom: 0; left: 0; z-index: 4; transform: translateX(-100%);
-            background: var(--feezal-app-drawer-overlay-bg, var(--feezal-app-drawer-bg, var(--divider-color, #e0e0e0)));
-            background: color-mix(in srgb,
-                var(--feezal-app-drawer-overlay-bg, var(--feezal-app-drawer-bg, var(--divider-color, #e0e0e0)))
-                calc(var(--feezal-app-drawer-overlay-opacity, 100) * 1%), transparent);
+            background: none;
             transition: transform 0.2s ease; box-shadow: 2px 0 12px rgba(0,0,0,0.25); }
+        :host(.narrow) .drawer::before {
+            content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+            background:
+                linear-gradient(
+                    var(--feezal-app-drawer-overlay-bg, var(--feezal-app-drawer-bg, var(--divider-color, #e0e0e0))),
+                    var(--feezal-app-drawer-overlay-bg, var(--feezal-app-drawer-bg, var(--divider-color, #e0e0e0)))),
+                var(--primary-background-color, #1e1e1e);
+            opacity: calc(var(--feezal-app-drawer-overlay-opacity, 100) / 100);
+        }
         :host(.narrow) .drawer.open { transform: translateX(0); }
     `];
 
