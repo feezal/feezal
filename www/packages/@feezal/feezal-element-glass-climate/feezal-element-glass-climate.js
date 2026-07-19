@@ -103,6 +103,15 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
                         '"$setpoint" in a payload resolves to the last real setpoint (Homematic MANU_MODE=$setpoint; "off" = manual + 4.5). ' +
                         'A "momentary":true entry (boost) is a push button — activate publishes it; deactivate runs "off": {"publish","payload"} ' +
                         '(HmIP BOOST_MODE=false) or "off":"restore" (BidCoS — re-apply the pre-boost mode).'},
+                // ── Boost countdown (E102 WP2) ──
+                {name: 'boost-duration', type: 'number', default: 5, section: 'Display',
+                    help: 'E102 boost countdown: duration in minutes (Homematic default 5). When a momentary (boost) mode goes active and no subscribe-boost-remaining topic is wired, a client-side mm:ss countdown starts from this value. A page reload while boost is active (without the device topic) restarts the client timer from full — accepted degradation.'},
+                {name: 'subscribe-boost-remaining', type: 'mqttTopic', section: 'Display',
+                    help: 'E102 boost countdown: optional device-reported remaining time. When wired, the active boost badge shows this live value (converted to seconds via boost-remaining-unit) instead of the client timer.'},
+                {name: 'message-property-boost-remaining', type: 'string', default: 'payload', section: 'Display', advanced: true,
+                    help: 'Dot-notation path within the boost-remaining message. Blank = fall back to element-level message-property.'},
+                {name: 'boost-remaining-unit', type: 'select', options: ['minutes', 'seconds'], default: 'minutes', section: 'Display',
+                    help: 'E102 boost countdown: unit of the subscribe-boost-remaining value. BidCoS BOOST_STATE reports minutes; HmIP unit is device-dependent and verify-gated.'},
                 {name: 'label', type: 'string', section: 'Display', help: 'Card label.'},
                 {name: 'icon',  type: 'string', default: 'thermostat', section: 'Display', help: 'Icon name.'},
                 {name: 'degrade', type: 'boolean', default: false, section: 'Display', advanced: true,
@@ -145,6 +154,10 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         msgPropValve:      {type: String, reflect: true, attribute: 'message-property-valve'},
         valveMin:          {type: Number, reflect: true, attribute: 'valve-min'},
         valveMax:          {type: Number, reflect: true, attribute: 'valve-max'},
+        boostDuration:           {type: Number, reflect: true, attribute: 'boost-duration'},
+        subscribeBoostRemaining: {type: String, reflect: true, attribute: 'subscribe-boost-remaining'},
+        msgPropBoostRemaining:   {type: String, reflect: true, attribute: 'message-property-boost-remaining'},
+        boostRemainingUnit:      {type: String, reflect: true, attribute: 'boost-remaining-unit'},
         min:  {type: Number, reflect: true},
         max:  {type: Number, reflect: true},
         step: {type: Number, reflect: true},
@@ -161,6 +174,7 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         _valve:     {state: true},   // null | number (0–100 %)
         _dragSp:    {state: true},   // live setpoint while dragging the pill
         _momentaryActive: {state: true},   // E102: value of the currently-active momentary (boost) entry
+        _boostRemaining:  {state: true},   // E102 WP2: boost remaining seconds (null when inactive)
     };
 
     static styles = [feezalBaseStyles, glassCardStyles, glassPopupStyles, css`
@@ -251,6 +265,12 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         }
         .modes button.text { font-family: inherit; font-size: 12px; font-weight: 600; }
         .modes button.active { background: var(--feezal-glass-accent, #ff9f0a); color: #fff; }
+        /* E102 WP2: mm:ss boost countdown badge on the active momentary button. */
+        .modes button .boost-badge {
+            display: block; margin-top: 2px;
+            font-family: inherit; font-size: 10px; font-weight: 700; line-height: 1;
+            font-variant-numeric: tabular-nums;
+        }
     `];
 
     constructor() {
@@ -271,6 +291,10 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         this.msgPropValve = '';
         this.valveMin = 0;
         this.valveMax = 100;
+        this.boostDuration = 5;
+        this.subscribeBoostRemaining = '';
+        this.msgPropBoostRemaining = '';
+        this.boostRemainingUnit = 'minutes';
         this.min = 5;
         this.max = 30;
         this.step = 0.5;
@@ -289,6 +313,9 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         this._lastRealSetpoint = null;   // remembered setpoint > off sentinel (for $setpoint)
         this._preBoostMode     = null;   // mode before a momentary/boost entry (for off:"restore")
         this._momentaryActive  = null;   // value of the currently-active momentary entry
+        // E102 WP2 — boost countdown
+        this._boostRemaining   = null;   // remaining seconds while boost active (null = inactive)
+        this._boostTimer       = null;   // non-reactive setInterval handle
     }
 
     // Device cards manage subscriptions manually; suppress the base class path.
@@ -321,7 +348,7 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
 
     _wireSignature() {
         return [this.payloadMode, this.subscribe, this.subscribeSetpoint, this.subscribeActual,
-            this.subscribeMode, this.subscribeValve].join('|');
+            this.subscribeMode, this.subscribeValve, this.subscribeBoostRemaining].join('|');
     }
 
     updated(changed) {
@@ -349,6 +376,11 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         this._wireSubscriptions();
     }
 
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        this._stopBoostCountdown();   // E102 WP2: never leak the interval
+    }
+
     _wireSubscriptions() {
         this.__wireSig = this._wireSignature();
 
@@ -369,7 +401,7 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
                     const ac = Number(this.getProperty(obj, map.actual));
                     if (!isNaN(ac)) this._actual = ac;
                     const mode = this.getProperty(obj, map.mode);
-                    if (mode !== null && mode !== undefined) this._mode = String(mode);
+                    if (mode !== null && mode !== undefined) this._applyModeReadback(String(mode));
                     const valve = Number(this.getProperty(obj, map.valve));   // E102
                     if (!isNaN(valve)) this._valve = this._scaleValve(valve);
                 });
@@ -382,7 +414,7 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
             });
             sub(this.subscribeMode, msg => {
                 const v = this.getProperty(msg, this.msgPropMode || this.messageProperty);
-                if (v !== null && v !== undefined) this._mode = String(v);
+                if (v !== null && v !== undefined) this._applyModeReadback(String(v));
             });
         }
 
@@ -400,6 +432,13 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
             this.addSubscription(this.subscribeValve, msg => {
                 const v = Number(this.getProperty(msg, this.msgPropValve || this.messageProperty));
                 if (!isNaN(v)) this._valve = this._scaleValve(v);
+            });
+        }
+        // E102 WP2: device-reported boost remaining time (both payload modes).
+        if (this.subscribeBoostRemaining) {
+            this.addSubscription(this.subscribeBoostRemaining, msg => {
+                const v = Number(this.getProperty(msg, this.msgPropBoostRemaining || this.messageProperty));
+                if (!isNaN(v)) this._applyBoostRemaining(v);
             });
         }
     }
@@ -486,6 +525,7 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         const active = this._momentaryActive === entry.value || this._mode === entry.value;
         if (active) {
             this._momentaryActive = null;
+            this._clearBoost();   // E102 WP2: tap-off clears the badge/timer
             if (entry.off === 'restore') {
                 const prev = this._preBoostMode;
                 const prevEntry = this._parsedModes().find(m => m.value === prev && !m.momentary);
@@ -499,7 +539,66 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
             this._momentaryActive = entry.value;
             if (entry.publish) this._pubEntry(entry.publish, entry.payload ?? entry.value);
             else this._pub(this.publishMode, entry.value, {[this._jsonMap.mode]: entry.value});
+            this._startBoostCountdown();   // E102 WP2
         }
+    }
+
+    // ─── E102 WP2 — boost countdown badge ─────────────────────────────────────
+    /**
+     * Route a mode read-back: update _mode and, if the read-back no longer
+     * matches the active boost value, clear the boost badge/timer (deactivation
+     * via read-back change, as opposed to an explicit tap-off).
+     */
+    _applyModeReadback(v) {
+        this._mode = v;
+        if (this._momentaryActive !== null && String(v) !== String(this._momentaryActive)) {
+            this._momentaryActive = null;
+            this._clearBoost();
+        }
+    }
+
+    /** Device-reported remaining time → seconds (via boost-remaining-unit). */
+    _applyBoostRemaining(v) {
+        const secs = this.boostRemainingUnit === 'seconds' ? Math.round(v) : Math.round(v * 60);
+        this._boostRemaining = Math.max(0, secs);
+    }
+
+    /**
+     * Start the boost badge. When a subscribe-boost-remaining topic is wired the
+     * device drives the value (leave it alone); otherwise run a client-side
+     * per-second countdown from boost-duration (minutes → seconds).
+     */
+    _startBoostCountdown() {
+        this._stopBoostCountdown();
+        if (this.subscribeBoostRemaining) return;   // device topic drives the badge
+        const mins = Number(this.boostDuration);
+        const secs = (isNaN(mins) ? 0 : mins) * 60;
+        if (secs <= 0) { this._boostRemaining = null; return; }
+        this._boostRemaining = secs;
+        this._boostTimer = setInterval(() => {
+            const next = (this._boostRemaining ?? 0) - 1;
+            if (next <= 0) { this._boostRemaining = 0; this._stopBoostCountdown(); }
+            else this._boostRemaining = next;
+        }, 1000);
+    }
+
+    _stopBoostCountdown() {
+        if (this._boostTimer) { clearInterval(this._boostTimer); this._boostTimer = null; }
+    }
+
+    /** Clear the badge + timer (deactivation / read-back change). */
+    _clearBoost() {
+        this._stopBoostCountdown();
+        this._boostRemaining = null;
+    }
+
+    /** Format the remaining seconds as an mm:ss badge ('' when inactive). */
+    _boostBadge() {
+        const s = this._boostRemaining;
+        if (s === null || s === undefined || s < 0) return '';
+        const mm = Math.floor(s / 60);
+        const ss = s % 60;
+        return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
     }
 
     /** Modes attribute → [{value, label, ...}] (material-climate coercion). E102:
@@ -579,10 +678,14 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
                 ${valve !== null ? html`<div class="valve-line">Valve ${Math.round(valve)}&nbsp;%</div>` : ''}
                 ${modes.length > 0 ? html`
                     <div class="modes">
-                        ${modes.map(m => html`
-                            <button class="${MODE_ICONS[m.value] ? '' : 'text'} ${(m.momentary ? (this._momentaryActive === m.value || this._mode === m.value) : this._mode === m.value) ? 'active' : ''}"
-                                title="${m.label}"
-                                @click="${() => this._setMode(m)}">${MODE_ICONS[m.value] || m.label}</button>`)}
+                        ${modes.map(m => {
+                            const boostActive = m.momentary && (this._momentaryActive === m.value || this._mode === m.value);
+                            const badge = boostActive ? this._boostBadge() : '';
+                            return html`
+                                <button class="${MODE_ICONS[m.value] ? '' : 'text'} ${boostActive || this._mode === m.value ? 'active' : ''}"
+                                    title="${m.label}"
+                                    @click="${() => this._setMode(m)}">${MODE_ICONS[m.value] || m.label}${badge ? html`<span class="boost-badge">${badge}</span>` : ''}</button>`;
+                        })}
                     </div>` : ''}
             </div>`;
     }

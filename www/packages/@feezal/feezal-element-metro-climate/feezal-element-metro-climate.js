@@ -47,6 +47,15 @@ class FeezalElementMetroClimate extends MetroTileBase {
                         '"$setpoint" in a payload resolves to the last real setpoint (Homematic MANU_MODE=$setpoint; "off" = manual + 4.5). ' +
                         'A "momentary":true entry (boost) is a push button — activate publishes it; deactivate runs "off": {"publish","payload"} ' +
                         '(HmIP BOOST_MODE=false) or "off":"restore" (BidCoS — re-apply the pre-boost mode).'},
+                // ── Boost countdown (E102 WP2) ──
+                {name: 'boost-duration', type: 'number', default: 5, section: 'Display',
+                    help: 'E102 boost countdown: duration in minutes (Homematic default 5). When a momentary (boost) mode goes active and no subscribe-boost-remaining topic is wired, a client-side mm:ss countdown starts from this value. A page reload while boost is active (without the device topic) restarts the client timer from full — accepted degradation.'},
+                {name: 'subscribe-boost-remaining', type: 'mqttTopic', section: 'Display',
+                    help: 'E102 boost countdown: optional device-reported remaining time. When wired, the active boost badge shows this live value (converted to seconds via boost-remaining-unit) instead of the client timer.'},
+                {name: 'message-property-boost-remaining', type: 'string', default: 'payload', section: 'Display', advanced: true,
+                    help: 'Dot-notation path within the boost-remaining message. Blank = fall back to element-level message-property.'},
+                {name: 'boost-remaining-unit', type: 'select', options: ['minutes', 'seconds'], default: 'minutes', section: 'Display',
+                    help: 'E102 boost countdown: unit of the subscribe-boost-remaining value. BidCoS BOOST_STATE reports minutes; HmIP unit is device-dependent and verify-gated.'},
             ],
             styles: MetroTileBase.tileStyles,
             restrict: {minWidth: 40, minHeight: 40},
@@ -87,11 +96,16 @@ class FeezalElementMetroClimate extends MetroTileBase {
         msgPropValve: {type: String, reflect: true, attribute: 'message-property-valve'},
         valveMin:     {type: Number, reflect: true, attribute: 'valve-min'},
         valveMax:     {type: Number, reflect: true, attribute: 'valve-max'},
+        boostDuration:        {type: Number, reflect: true, attribute: 'boost-duration'},
+        subBoostRemaining:    {type: String, reflect: true, attribute: 'subscribe-boost-remaining'},
+        msgPropBoostRemaining: {type: String, reflect: true, attribute: 'message-property-boost-remaining'},
+        boostRemainingUnit:   {type: String, reflect: true, attribute: 'boost-remaining-unit'},
         _current:  {state: true},
         _setpoint: {state: true},
         _mode:     {state: true},
         _valve:    {state: true},   // null | number (0–100 %)
         _momentaryActive: {state: true},   // E102: value of the currently-active momentary (boost) entry
+        _boostRemaining:  {state: true},   // E102 WP2: boost remaining seconds (null when inactive)
     };
 
     static styles = [MetroTileBase.styles, css`
@@ -101,6 +115,11 @@ class FeezalElementMetroClimate extends MetroTileBase {
         .stepper .val { font-size: 20px; font-weight: 300; min-width: 4ch; text-align: center; }
         .chips { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
         .chips .mbtn { padding: 2px 8px; font-size: 11px; }
+        /* E102 WP2: mm:ss boost countdown badge on the active momentary chip. */
+        .chips .mbtn .boost-badge {
+            display: inline-block; margin-left: 4px;
+            font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums;
+        }
         /* E102: flat Metro valve readout on the flip-face (bar + %). */
         .valve { display: flex; align-items: center; gap: 6px; font-size: 11px; }
         .valve-track {
@@ -128,6 +147,10 @@ class FeezalElementMetroClimate extends MetroTileBase {
         this.msgPropValve = '';
         this.valveMin = 0;
         this.valveMax = 100;
+        this.boostDuration = 5;
+        this.subBoostRemaining = '';
+        this.msgPropBoostRemaining = '';
+        this.boostRemainingUnit = 'minutes';
         this._current = null;
         this._setpoint = null;
         this._mode = '';
@@ -136,6 +159,9 @@ class FeezalElementMetroClimate extends MetroTileBase {
         this._lastRealSetpoint = null;   // remembered setpoint > off sentinel (for $setpoint)
         this._preBoostMode     = null;   // mode before a momentary/boost entry (for off:"restore")
         this._momentaryActive  = null;   // value of the currently-active momentary entry
+        // E102 WP2 — boost countdown
+        this._boostRemaining   = null;   // remaining seconds while boost active (null = inactive)
+        this._boostTimer       = null;   // non-reactive setInterval handle
     }
 
     connectedCallback() {
@@ -151,12 +177,21 @@ class FeezalElementMetroClimate extends MetroTileBase {
         });
         sub(this.subMode, msg => {
             const v = this.getProperty(msg, this.msgPropMode || this.messageProperty);
-            if (v !== null && v !== undefined) this._mode = String(v);
+            if (v !== null && v !== undefined) this._applyModeReadback(String(v));
         });
         sub(this.subValve, msg => {                                             // E102
             const v = Number(this.getProperty(msg, this.msgPropValve || this.messageProperty));
             if (!isNaN(v)) this._valve = this._scaleValve(v);
         });
+        sub(this.subBoostRemaining, msg => {                                    // E102 WP2
+            const v = Number(this.getProperty(msg, this.msgPropBoostRemaining || this.messageProperty));
+            if (!isNaN(v)) this._applyBoostRemaining(v);
+        });
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        this._stopBoostCountdown();   // E102 WP2: never leak the interval
     }
 
     /**
@@ -256,6 +291,7 @@ class FeezalElementMetroClimate extends MetroTileBase {
         const active = this._momentaryActive === entry.value || this._mode === entry.value;
         if (active) {
             this._momentaryActive = null;
+            this._clearBoost();   // E102 WP2: tap-off clears the badge/timer
             if (entry.off === 'restore') {
                 const prev = this._preBoostMode;
                 const prevEntry = this._parsedModes().find(m => m.value === prev && !m.momentary);
@@ -269,7 +305,66 @@ class FeezalElementMetroClimate extends MetroTileBase {
             this._momentaryActive = entry.value;
             if (entry.publish) this._pubEntry(entry.publish, entry.payload ?? entry.value);
             else if (this.pubMode) feezal.connection.pub(this.pubMode, entry.value);
+            this._startBoostCountdown();   // E102 WP2
         }
+    }
+
+    // ─── E102 WP2 — boost countdown badge ─────────────────────────────────────
+    /**
+     * Route a mode read-back: update _mode and, if the read-back no longer
+     * matches the active boost value, clear the boost badge/timer (deactivation
+     * via read-back change, as opposed to an explicit tap-off).
+     */
+    _applyModeReadback(v) {
+        this._mode = v;
+        if (this._momentaryActive !== null && String(v) !== String(this._momentaryActive)) {
+            this._momentaryActive = null;
+            this._clearBoost();
+        }
+    }
+
+    /** Device-reported remaining time → seconds (via boost-remaining-unit). */
+    _applyBoostRemaining(v) {
+        const secs = this.boostRemainingUnit === 'seconds' ? Math.round(v) : Math.round(v * 60);
+        this._boostRemaining = Math.max(0, secs);
+    }
+
+    /**
+     * Start the boost badge. When a subscribe-boost-remaining topic is wired the
+     * device drives the value (leave it alone); otherwise run a client-side
+     * per-second countdown from boost-duration (minutes → seconds).
+     */
+    _startBoostCountdown() {
+        this._stopBoostCountdown();
+        if (this.subBoostRemaining) return;   // device topic drives the badge
+        const mins = Number(this.boostDuration);
+        const secs = (isNaN(mins) ? 0 : mins) * 60;
+        if (secs <= 0) { this._boostRemaining = null; return; }
+        this._boostRemaining = secs;
+        this._boostTimer = setInterval(() => {
+            const next = (this._boostRemaining ?? 0) - 1;
+            if (next <= 0) { this._boostRemaining = 0; this._stopBoostCountdown(); }
+            else this._boostRemaining = next;
+        }, 1000);
+    }
+
+    _stopBoostCountdown() {
+        if (this._boostTimer) { clearInterval(this._boostTimer); this._boostTimer = null; }
+    }
+
+    /** Clear the badge + timer (deactivation / read-back change). */
+    _clearBoost() {
+        this._stopBoostCountdown();
+        this._boostRemaining = null;
+    }
+
+    /** Format the remaining seconds as an mm:ss badge ('' when inactive). */
+    _boostBadge() {
+        const s = this._boostRemaining;
+        if (s === null || s === undefined || s < 0) return '';
+        const mm = Math.floor(s / 60);
+        const ss = s % 60;
+        return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
     }
 
     renderFront() {
@@ -290,9 +385,13 @@ class FeezalElementMetroClimate extends MetroTileBase {
             </div>
             ${hasModes ? html`
                 <div class="chips">
-                    ${modes.map(m => html`
-                        <button class="mbtn ${(m.momentary ? (this._momentaryActive === m.value || this._mode === m.value) : this._mode === m.value) ? 'active' : ''}"
-                            @click="${() => this._setMode(m)}">${m.label ?? m.value}</button>`)}
+                    ${modes.map(m => {
+                        const boostActive = m.momentary && (this._momentaryActive === m.value || this._mode === m.value);
+                        const badge = boostActive ? this._boostBadge() : '';
+                        return html`
+                            <button class="mbtn ${boostActive || this._mode === m.value ? 'active' : ''}"
+                                @click="${() => this._setMode(m)}">${m.label ?? m.value}${badge ? html`<span class="boost-badge">${badge}</span>` : ''}</button>`;
+                    })}
                 </div>` : ''}
             ${this._valve !== null ? html`
                 <div class="valve">

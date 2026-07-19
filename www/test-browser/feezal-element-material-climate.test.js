@@ -2,7 +2,7 @@
  * E102 (partial) — material-climate valve-min/valve-max scaling. HmIP reports
  * the valve as LEVEL 0…1, BidCoS as VALVE_STATE 0–100; both must show 0–100 %.
  */
-import {describe, it, expect, beforeEach} from 'vitest';
+import {describe, it, expect, beforeEach, vi} from 'vitest';
 import '../packages/@feezal/feezal-element-material-climate/feezal-element-material-climate.js';
 import {setupFeezal, mount} from './helpers.js';
 
@@ -135,5 +135,75 @@ describe('material-climate per-entry mode descriptors (E102)', () => {
         el._setMode(boost);
         expect(published).toContainEqual({t: 'hm/set/eTRV/1/BOOST_MODE', p: 'true'});
         expect(published).toContainEqual({t: 'hm/set/eTRV/1/BOOST_MODE', p: 'false'});
+    });
+});
+
+describe('material-climate boost countdown badge (E102 WP2)', () => {
+    const boostModes = JSON.stringify([{value: 'boost', label: 'Boost', momentary: true,
+        publish: 'hm/set/TRV/4/BOOST_MODE', payload: 'true',
+        off: {publish: 'hm/set/TRV/4/BOOST_MODE', payload: 'false'}}]);
+
+    it('activating a momentary entry with no device topic starts a client countdown (mm:ss badge)', async () => {
+        const el = await mount('feezal-element-material-climate', {
+            'payload-mode': 'separate', subscribe: 'stat/t', 'boost-duration': '5', modes: boostModes,
+        });
+        vi.useFakeTimers();
+        try {
+            el._setMode(el._parsedModes()[0]);          // activate
+            expect(el._boostRemaining).toBe(300);       // 5 min → 300 s
+            vi.advanceTimersByTime(3000);
+            expect(el._boostRemaining).toBe(297);
+            expect(el._boostBadge()).toBe('04:57');
+            await el.updateComplete;
+            const label = el.renderRoot.querySelector('md-filter-chip[selected]')?.getAttribute('label') || '';
+            expect(label).toContain('04:57');
+        } finally { vi.useRealTimers(); }
+    });
+
+    it('a wired subscribe-boost-remaining message overrides with the device value (converted per unit)', async () => {
+        const el = await mount('feezal-element-material-climate', {
+            'payload-mode': 'separate', subscribe: 'stat/t',
+            'subscribe-boost-remaining': 'stat/boost', 'boost-remaining-unit': 'minutes', modes: boostModes,
+        });
+        el._setMode(el._parsedModes()[0]);              // activate — device topic wired → no client timer
+        expect(el._boostTimer).toBeNull();
+        feezal.connection.deliver('stat/boost', '3');   // 3 minutes → 180 s
+        await el.updateComplete;
+        expect(el._boostRemaining).toBe(180);
+        expect(el._boostBadge()).toBe('03:00');
+
+        el.boostRemainingUnit = 'seconds';
+        feezal.connection.deliver('stat/boost', '90');  // 90 seconds as-is
+        await el.updateComplete;
+        expect(el._boostRemaining).toBe(90);
+        expect(el._boostBadge()).toBe('01:30');
+    });
+
+    it('deactivation clears the badge/timer', async () => {
+        const el = await mount('feezal-element-material-climate', {
+            'payload-mode': 'separate', subscribe: 'stat/t', 'boost-duration': '5', modes: boostModes,
+        });
+        vi.useFakeTimers();
+        try {
+            const boost = el._parsedModes()[0];
+            el._setMode(boost);                         // activate
+            expect(el._boostRemaining).toBe(300);
+            el._setMode(boost);                         // deactivate
+            expect(el._boostRemaining).toBeNull();
+            expect(el._boostTimer).toBeNull();
+        } finally { vi.useRealTimers(); }
+    });
+
+    it('disconnect clears the interval', async () => {
+        const el = await mount('feezal-element-material-climate', {
+            'payload-mode': 'separate', subscribe: 'stat/t', 'boost-duration': '5', modes: boostModes,
+        });
+        vi.useFakeTimers();
+        try {
+            el._setMode(el._parsedModes()[0]);          // activate → interval running
+            expect(el._boostTimer).not.toBeNull();
+            el.remove();                                // disconnectedCallback
+            expect(el._boostTimer).toBeNull();
+        } finally { vi.useRealTimers(); }
     });
 });
