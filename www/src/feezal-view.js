@@ -33,12 +33,17 @@ class FeezalView extends LitElement {
             display: flex;
             flex-wrap: wrap;
             flex-direction: var(--feezal-flow-direction, row);
-            gap: var(--feezal-flow-gap, 8px);
+            gap: var(--feezal-flow-gap, 5px);
             justify-content: var(--feezal-flow-justify, flex-start);
             align-items: var(--feezal-flow-align, flex-start);
             align-content: var(--feezal-flow-align, flex-start);
             width: 100%;
-            min-height: 100%;
+            /* height (not min-height): the flex container is capped to the view's
+               height so flex-wrap can start a NEW COLUMN when column-direction
+               content reaches the bottom (or a new row for row-direction). The
+               view fills the canvas via its own width/height, so an empty flow
+               view still fills. */
+            height: 100%;
             box-sizing: border-box;
         }
         /* Flow items stay in flex flow but must be POSITIONED (relative) — the
@@ -79,7 +84,7 @@ class FeezalView extends LitElement {
                 },
                 // U41 — flow knobs; U39 conditional visibility hides them unless
                 // the view is in flow mode.
-                {name: 'flow-gap', type: 'number', default: 8, section: 'Flow layout',
+                {name: 'flow-gap', type: 'number', default: 5, section: 'Flow layout',
                     visibleWhen: {attr: 'child-position', equals: 'flow'}, help: 'Gap between elements (px).'},
                 {name: 'flow-direction', type: 'select', options: ['row', 'column'], default: 'row', section: 'Flow layout',
                     visibleWhen: {attr: 'child-position', equals: 'flow'}, help: 'Main axis: row = left→right then wrap; column = top→bottom then wrap.'},
