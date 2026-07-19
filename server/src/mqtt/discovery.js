@@ -14,6 +14,8 @@
  * REST consumers call getDiscoveredEntities() / getDiscoveredEntity(id).
  */
 
+const native = require('./native-discovery.js');
+
 // ── Abbreviation expansion table ──────────────────────────────────────────
 // Maps the short keys used in discovery payloads to their full equivalents.
 const ABBREVS = {
@@ -325,8 +327,18 @@ function handleDeviceDiscovery(nodeId, payloadBuf) {
  */
 function handleMessage(topic, payloadBuf, prefix) {
     const p = prefix || 'homeassistant';
-    if (!topic.startsWith(p + '/') || !topic.endsWith('/config')) return;
+    if (topic.startsWith(p + '/') && topic.endsWith('/config')) {
+        handleHaMessage(topic, payloadBuf, p);
+    }
 
+    // E108: native recognizers run for EVERY message (Homematic / WLED etc. never
+    // publish HA config topics). Isolated so a bad native parse can never break
+    // the HA discovery path above.
+    try { native.handleNativeMessage(topic, payloadBuf); } catch { /* ignore */ }
+}
+
+/** HA / zigbee2mqtt discovery-config topic handling. */
+function handleHaMessage(topic, payloadBuf, p) {
     const inner = topic.slice(p.length + 1, -'/config'.length); // strip prefix/ and /config
     const parts = inner.split('/');
 
@@ -341,19 +353,20 @@ function handleMessage(topic, payloadBuf, prefix) {
     }
 }
 
-/** Return all currently known entities as an array. */
+/** Return all currently known entities as an array (HA + native recognizers). */
 function getDiscoveredEntities() {
-    return [...entities.values()];
+    return [...entities.values(), ...native.getNativeEntities()];
 }
 
 /** Return a single entity by discovery_id, or null if not found. */
 function getDiscoveredEntity(id) {
-    return entities.get(id) ?? null;
+    return entities.get(id) ?? native.getNativeEntity(id) ?? null;
 }
 
 /** Clear all entities (call on broker disconnect / reconnect to different broker). */
 function clearEntities() {
     entities.clear();
+    native.clearNativeEntities();
 }
 
 /**
