@@ -84,3 +84,42 @@ describe('viewer addclass/removeclass subscriptions', () => {
         expect(feezal.connection.sub).not.toHaveBeenCalled();
     });
 });
+
+// ── U41: flow layout ───────────────────────────────────────────────────────
+describe('feezal-view flow layout (U41)', () => {
+    it('aliases the legacy child-position="static" to "flow" on load', async () => {
+        const view = makeView('home');
+        view.setAttribute('child-position', 'static');
+        document.body.append(view);
+        await view.updateComplete;
+        await view.updateComplete;   // alias sets the prop, reflection flushes next cycle
+        // updated() rewrites it; the alias reflects to the attribute (saves flow).
+        expect(view.childPosition).toBe('flow');
+        expect(view.getAttribute('child-position')).toBe('flow');
+    });
+
+    it('maps the flow-* attributes onto --feezal-flow-* custom properties', async () => {
+        const view = makeView('home');
+        view.setAttribute('child-position', 'flow');
+        view.setAttribute('flow-gap', '16');
+        view.setAttribute('flow-direction', 'column');
+        view.setAttribute('flow-justify', 'space-between');
+        view.setAttribute('flow-align', 'stretch');
+        document.body.append(view);
+        await view.updateComplete;
+        expect(view.style.getPropertyValue('--feezal-flow-gap')).toBe('16px');
+        expect(view.style.getPropertyValue('--feezal-flow-direction')).toBe('column');
+        expect(view.style.getPropertyValue('--feezal-flow-justify')).toBe('space-between');
+        expect(view.style.getPropertyValue('--feezal-flow-align')).toBe('stretch');
+    });
+
+    it('exposes flow knobs as attributes gated on child-position="flow" (U39 visibleWhen)', () => {
+        const attrs = customElements.get('feezal-view').feezal.attributes;
+        const gap = attrs.find(a => a.name === 'flow-gap');
+        expect(gap).toBeTruthy();
+        expect(gap.visibleWhen).toEqual({attr: 'child-position', equals: 'flow'});
+        // The child-position dropdown offers absolute | flow (no legacy "static").
+        const cp = attrs.find(a => a.name === 'childPosition');
+        expect(cp.dropdown).toEqual(['absolute', 'flow']);
+    });
+});

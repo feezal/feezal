@@ -785,12 +785,67 @@ class FeezalSidebarInspector extends LitElement {
         this.dispatchEvent(new CustomEvent('view-selected-changed', {bubbles: true, composed: true, detail: {value: this.viewSelected}}));
     }
 
+    /**
+     * U41 — click-select + context menu on the canvas via composedPath. Works
+     * for absolute (DragSelect) AND flow (html5sortable) views; the click never
+     * depends on the drag machinery. Attached once per view element.
+     */
+    _attachCanvasSelection(view) {
+        if (view._feezalSelectionWired) return;
+        view._feezalSelectionWired = true;
+
+        view.addEventListener('click', e => {
+            // Ignore the synthetic click after a rubber-band / drag / reorder
+            // gesture (which set _ignoreNextClick to keep the selection).
+            if (this._ignoreNextClick) { this._ignoreNextClick = false; return; }
+
+            const elem = e.composedPath().find(el => isCanvasElement(el) && el.feezalEditable);
+            if (!elem) {
+                this.selectElement();   // empty canvas → select the view
+                return;
+            }
+            if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                const cur = this.selectedElems.filter(el => el.tagName !== 'FEEZAL-VIEW');
+                const newSel = cur.includes(elem) ? cur.filter(el => el !== elem) : [...cur, elem];
+                this.selectElement(newSel.length ? newSel : undefined);
+            } else {
+                this.selectElement(elem);
+            }
+        }, true); // capture phase
+
+        view.addEventListener('contextmenu', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            const elem = e.composedPath().find(el => isCanvasElement(el) && el.feezalEditable);
+            if (elem && !this.selectedElems.includes(elem)) {
+                this.selectElement(elem);
+            }
+            const onElem = Boolean(elem) && !this.viewSelected;
+            this._showCtxMenu(e.clientX, e.clientY, onElem);
+        }, true);
+    }
+
     _initSortable(view) {
         sortable(view, {
-            items: '.feezal-element',
+            // U41: canvas elements carry `.feezal-editable` (there is no
+            // `.feezal-element` class) — the old selector matched nothing, so
+            // reorder never actually worked.
+            items: '.feezal-editable',
             forcePlaceholderSize: true,
             placeholderClass: 'feezal-placeholder'
         });
+        // U41 (absorbs U40) — wire the reorder to the same dirty/undo pipeline
+        // every other edit uses, and give flow views the shared click-select.
+        if (!view._feezalSortableWired) {
+            view._feezalSortableWired = true;
+            view.addEventListener('sortupdate', () => {
+                // A drop fires a click on mouseup — don't let it clear selection.
+                this._ignoreNextClick = true;
+                setTimeout(() => { this._ignoreNextClick = false; }, 50);
+                feezal.app.change();   // reorder = DOM order; dirty + undo history
+            });
+        }
+        this._attachCanvasSelection(view);
     }
 
     _initDragSelect() {
@@ -857,49 +912,9 @@ class FeezalSidebarInspector extends LitElement {
                 existing.forEach(el => { el._feezalInDragSelect = true; });
             }
 
-            // Reliable click-selection via composedPath — DragSelect alone cannot
-            // reliably detect clicks on Polymer elements with shadow DOM.
-            // Capture phase fires before Polymer's internal event handlers.
-            // Also handles empty-space clicks to select the view, so view selection
-            // is not solely dependent on DragSelect's callback (which can become
-            // unreliable after stop()/start() cycles on view switch).
-            view.addEventListener('click', e => {
-                // Ignore the synthetic click that fires after rubber-band selection or
-                // element drag ends — those gestures set _ignoreNextClick to prevent
-                // inadvertently clearing the selection.
-                if (this._ignoreNextClick) { this._ignoreNextClick = false; return; }
-
-                const elem = e.composedPath().find(
-                    el => isCanvasElement(el) && el.feezalEditable
-                );
-                if (!elem) {
-                    // Click on empty canvas space — select the view itself.
-                    this.selectElement();
-                    return;
-                }
-
-                if (e.shiftKey || e.ctrlKey || e.metaKey) {
-                    const cur = this.selectedElems.filter(el => el.tagName !== 'FEEZAL-VIEW');
-                    const newSel = cur.includes(elem) ? cur.filter(el => el !== elem) : [...cur, elem];
-                    this.selectElement(newSel.length ? newSel : undefined);
-                } else {
-                    this.selectElement(elem);
-                }
-            }, true); // capture phase
-
-            // Context menu (right-click) on the canvas
-            view.addEventListener('contextmenu', e => {
-                e.preventDefault();
-                e.stopPropagation();
-                const elem = e.composedPath().find(
-                    el => isCanvasElement(el) && el.feezalEditable
-                );
-                if (elem && !this.selectedElems.includes(elem)) {
-                    this.selectElement(elem);
-                }
-                const onElem = Boolean(elem) && !this.viewSelected;
-                this._showCtxMenu(e.clientX, e.clientY, onElem);
-            }, true);
+            // Reliable click-selection via composedPath — shared with flow views
+            // (U41), which have no DragSelect. Attached once per view.
+            this._attachCanvasSelection(view);
         }
 
         // Defer start() to the next animation frame so DragSelect computes
@@ -961,7 +976,8 @@ class FeezalSidebarInspector extends LitElement {
         });
 
         switch (view.childPosition) {
-            case 'static':
+            case 'static':   // U41 — legacy alias, treated as flow
+            case 'flow':
                 this._initSortable(view);
                 break;
             default:
@@ -1454,11 +1470,12 @@ class FeezalSidebarInspector extends LitElement {
         }
     }
 
-    initStatic(element) {
-        element.addEventListener('click', () => {
-            [...feezal.view.querySelectorAll('.feezal-selected')].forEach(el => el.classList.remove('feezal-selected'));
-            this.selectElement(element);
-        });
+    initStatic() {
+        // U41: selection for flow (formerly "static") views is handled once
+        // per view by _attachCanvasSelection (composedPath capture click),
+        // exactly like absolute views — no per-element click needed, and
+        // html5sortable manages the reorder gesture. Elements already carry
+        // `.feezal-editable` (set in initElem) so the sortable picks them up.
     }
 
     /**

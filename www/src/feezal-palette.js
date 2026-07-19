@@ -272,8 +272,39 @@ class FeezalPalette extends LitElement {
      * clamped: `_dragPos` stays raw so dragging far left back over the
      * palette still cancels the creation in onend (x + width < 0).
      */
+    /**
+     * U41 — drop into a flow view: no top/left, insert the new tile at the DOM
+     * position under the cursor (row-major). Reorder is DOM order.
+     */
+    _flowReposition() {
+        if (!this.newElem || !this._dragPos) return;
+        const view = feezal.view;
+        // Flow items are position:static — strip the defaultStyle top/left so
+        // the serialized markup stays clean.
+        this.newElem.style.removeProperty('top');
+        this.newElem.style.removeProperty('left');
+        const viewRect = view.getBoundingClientRect();
+        const cx = this._dragPos.x + viewRect.x;
+        const cy = this._dragPos.y + viewRect.y;
+        const sibs = [...view.children].filter(el =>
+            el !== this.newElem && el.classList && el.classList.contains('feezal-editable'));
+        let before = null;
+        for (const el of sibs) {
+            const r = el.getBoundingClientRect();
+            if (cy < r.top + r.height / 2 || (cy < r.bottom && cx < r.left + r.width / 2)) { before = el; break; }
+        }
+        if (before) view.insertBefore(this.newElem, before);
+        else view.append(this.newElem);
+    }
+
     _applySnappedPos() {
         if (!this.newElem || !this._dragPos) {
+            return;
+        }
+
+        // U41 — flow views place by DOM order, not top/left.
+        if (feezal.view && feezal.view.childPosition === 'flow') {
+            this._flowReposition();
             return;
         }
 

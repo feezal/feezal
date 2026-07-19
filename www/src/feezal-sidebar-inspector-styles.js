@@ -642,7 +642,14 @@ class FeezalSidebarInspectorStyles extends LitElement {
         this.options = cls.feezal;
 
         // For multi-select: intersect declared styles across all selected element classes.
-        const allDeclared = this.options.styles || [];
+        let allDeclared = this.options.styles || [];
+        // U41: children of a flow view are laid out by the flex container — top/
+        // left are meaningless, so hide them (width/height + the % presets stay).
+        const inFlowView = !el.name && this.selectedElems.every(e =>
+            !e.name && e.parentElement?.localName === 'feezal-view' && e.parentElement.childPosition === 'flow');
+        if (inFlowView) {
+            allDeclared = allDeclared.filter(p => !['top', 'left'].includes(styleKey(p)));
+        }
         const filteredDeclared = this.selectedElems.length === 1 ? allDeclared : allDeclared.filter(prop => {
             const key = styleKey(prop);
             return this.selectedElems.every(e => {

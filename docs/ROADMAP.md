@@ -60,7 +60,6 @@ Work in progress — priorities and scope are not final.
 - [U30 — Auto-generated starter dashboard from MQTT discovery](#u30--auto-generated-starter-dashboard-from-mqtt-discovery-questionable-low-priority) ❓ 🔽
 - [U31 — Device-first element insertion](#u31--device-first-element-insertion-questionable-low-priority) ❓ 🔽
 - [U38 — Topic browser sidebar panel](#u38--topic-browser-sidebar-panel)
-- [U40 — Drag-and-drop reordering for `position:static` views](#u40--drag-and-drop-reordering-for-positionstatic-views) 🔽 partial
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -841,13 +840,17 @@ Three related Homematic/HmIP gaps in the `*-climate` family (`glass-climate`, `m
 
 **Problem.** The Glass family has grown to 15 packages / ~6,700 lines with **zero cross-package imports** — every shared behaviour is an independent copy-paste. Measured duplication (07/2026): the ~40-line frosted-card CSS block (tint, backdrop blur, squircle, `degrade` solid fallback, `:active` scale, on-tint, ⚠ unavailability badge, E105 wide-layout container query) in ~9 device cards; `GLASS_SIZES` presets + the `updated()` size-stamping in **10** elements; the manual `_wireSignature`/`__wireSig` subscription-rewiring pattern in **8**; the `_positionDetails()` popup anchoring in **5**; `payloadMatch()` in **3**; near-identical attribute descriptor blocks (availability quad, `degrade`, `label`, `icon`, `size`) in most; the three dialog elements duplicate the glass dialog chrome among themselves. Drift has already started: glass-fan imports `feezalAvailabilityStyles`/`availabilityBadge` from `@feezal/feezal-element` while its siblings hand-roll the same badge — same intent, diverging implementations. Every cross-family fix (E99 labels, popup positioning, degrade tweaks) currently needs 5–10 identical edits, and each one is a chance for the family to drift further apart.
 
+**Live symptom of exactly this (07/2026):** the `2x2`/`2x1` **size presets** are declared as a `size` select attribute in all 10 device cards — but **glass-light and glass-cover ship N6 custom inspectors, which replace the generic attribute panel and render no `size` control**, so on precisely those two elements the presets are declared yet unreachable: the user cannot set them at all. A family-standard attribute silently dropped by two hand-written inspectors is the drift failure mode this refactor exists to prevent.
+
 **Proposal — two tiers, matching where each piece actually belongs:**
 
 1. **Family-agnostic mechanics → `@feezal/feezal-element`** (the existing shared base package; precedent: `feezalAvailabilityStyles`/`availabilityBadge` already live there). Candidates: `payloadMatch()` (it's generic on/off payload semantics, nothing glassy about it), the topic-rewire-on-inspector-edit pattern (`_wireSignature` — arguably useful to *every* device-card family incl. material/metro), and a small size-preset helper (`applySizePreset(el, map)`).
 2. **Glass chrome → one shared glass package**, e.g. **`@feezal/feezal-glass`**. ⚠ **Naming constraint:** it must **not** be called `feezal-element-glass-…` — the server's package scan ([elements.js](../server/src/build/elements.js) `_scan()`) treats every `feezal-element-*` directory as an element and would try to palette/bundle it; `@feezal/feezal-element` itself only escapes because the filter requires the trailing dash. A non-matching name (like the existing `feezal-element` precedent) is cleaner than a BLACKLIST entry. Contents:
    - **`FeezalGlassCard` base class** (extends `FeezalElement`): manual-subscription lifecycle (suppressed `_subscribe()`, wire/rewire via signature), size-preset handling, long-press-vs-tap gesture handling, details-popup open/close + `_positionDetails()` anchoring.
    - **Exported style fragments**: `glassCardStyles` (frost chrome incl. `degrade` + squircle), `glassWideLayoutStyles` (E105 container query), `glassPopupStyles`, `glassDialogStyles` (shared by the three dialog elements).
+   - **Typography: drop auto-font-sizing, expose CSS vars instead** (decided 07/2026). The cards currently size type and icons with container-query units (`13cqmin`, `20cqmin`, and `13cqmax`/`11cqmax` in the E105 wide layout) — auto-scaling that produces visibly wrong results: in a 2x1 tile (150×75) the `cqmax`-based sizes come out **too big**. Replace the cq-unit sizing throughout the family with **fixed defaults exposed as CSS custom properties** — e.g. `--feezal-glass-font-size-state`, `--feezal-glass-font-size-label`, `--feezal-glass-icon-size` — defaulted once in `glassCardStyles` (plain px fallbacks; these are sizes, not colours, so the §5.1 canonical-theme-var rule doesn't apply) and listed in each element's `styles` descriptors so they're settable per element in the style inspector and overridable by themes. The wide-layout container query keeps switching the *layout* (grid areas), but no longer scales the *type*.
    - **Shared descriptor fragments**: reusable attribute-descriptor arrays (size preset, availability quad, degrade, label/icon) spread into each element's `feezal.attributes` — so inspector help texts stay identical across the family by construction.
+   - **Shared inspector building blocks**: a reusable size-preset select (plus degrade/availability controls) that the family's N6 custom inspectors embed, so family-standard attributes are always exposed — **fixing the size-preset gap above** (glass-light/glass-cover custom inspectors omitting `size`). The cleaner *platform* fix — a custom inspector composing the generic attribute renderer for attributes it doesn't take over — is U39 territory; the shared component is the family-level answer, and the size gap is small enough to ship as an early standalone fix in the first refactor commits.
 
 **Explicitly a pure refactor:** no attribute renames, no MQTT contract changes, no serialized-HTML changes — a dashboard saved before the refactor renders identically after. Elements keep their own render templates and element-specific logic; the base class only absorbs what is provably identical today. **Do not over-abstract**: chrome that intentionally differs (dialog surfaces vs. cards, climate's arc geometry) stays local; anything needing a third configuration knob to be shared probably shouldn't be.
 
@@ -855,7 +858,7 @@ Three related Homematic/HmIP gaps in the `*-climate` family (`glass-climate`, `m
 
 **Migration order:** land the shared package, then port elements one per commit (patch bump each, per policy) — small elements first (switch/contact/occupancy/sensor/button) to harden the base, then the popup cards (light/fan/wled/cover/climate), dialogs last. Full TESTING.md §6 glass regression pass at the end; no TESTING.md content changes expected (behaviour is unchanged — that's the acceptance criterion).
 
-**Relates:** E58 (glass-light — origin of most copied patterns), E105 (wide-layout CSS — one of the 9 copies), N31 (availability — the half-migrated example proving drift), N29 (`feezal-elements-*` family bundles — the *packaging*-level alternative: one bundle for the whole family; orthogonal to this code-level refactor and combinable later), material/metro families (same disease, milder — the tier-1 helpers land where they can reuse them).
+**Relates:** E58 (glass-light — origin of most copied patterns), E105 (wide-layout CSS — one of the 9 copies), N31 (availability — the half-migrated example proving drift), N29 (`feezal-elements-*` family bundles — the *packaging*-level alternative: one bundle for the whole family; orthogonal to this code-level refactor and combinable later), U39 (custom inspectors composing the generic attribute renderer — the platform-level fix for the size-preset gap), material/metro families (same disease, milder — the tier-1 helpers land where they can reuse them).
 
 ### E107 — Thermostat schedule elements (device week programs) 🚧 blocked by upstream (Homematic)
 
@@ -964,20 +967,6 @@ A new tab in the right sidebar (the icon-tab row in [feezal-app-editor.js](www/s
 **Nice-to-haves:** drag a topic from the tree onto an inspector `mqttTopic` field (or onto a canvas element's primary `subscribe`); double-click to copy; per-node message-rate indicator.
 
 **Relates:** **E62** (topic-tree browser — already decided there as "element + editor panel" with a shared tree component: *this is that editor panel*; the canvas element reuses the component), the `mqttTopic` autocomplete (E62 names the panel as the candidate upgrade path to a browsable picker), B28 (custom-inspector topic fields — the shared picker/autocomplete component serves both), U37 (welcome wizard step 6 — "find a topic" is exactly where a browser beats blind typing).
-
-### U40 — Drag-and-drop reordering for `position:static` views 🔽 partial
-
-Views with `child-position="static"` lay out their elements in normal document flow (no `top`/`left`), so the only thing that determines on-screen order is DOM order. There should be a way to reorder them by drag & drop, the same way absolute-position views let you drag elements freely.
-
-**This is already partially wired up:** `_viewChanged()` in [feezal-sidebar-inspector.js](www/src/feezal-sidebar-inspector.js) branches on `view.childPosition === 'static'` and calls `_initSortable(view)`, which wraps the view with [html5sortable](https://github.com/lukasoppermann/html5sortable) (`items: '.feezal-element'`, placeholder class `feezal-placeholder`) — so elements in a static view can already be dragged to a new position visually.
-
-**What's missing:** html5sortable emits `sortstart`/`sortstop`/`sortupdate` events, but `_initSortable` doesn't listen for any of them. As far as could be found there's no `feezal.app.change()` call (or equivalent dirty/undo-history hook) wired to the reorder, so:
-- it's unclear whether a completed drag is picked up by the undo history the same way other edits are (compare `_reorderSelection()`'s Cmd+`[`/`]` front/back/forward/backward stacking-order commands for absolute views, which do call `feezal.app.change()`).
-- selection state / the attribute inspector may not refresh to reflect the element's new position in the list after a drag.
-
-Needs verification against current behaviour, then wiring `sortupdate` (or `sortstop`) to the same change/undo pipeline other mutations use.
-
-**Relates:** U33 (Cmd+`[`/`]` stacking-order reorder for absolute-position views — the equivalent affordance to keep consistent with).
 
 ## Architecture & Infrastructure
 
