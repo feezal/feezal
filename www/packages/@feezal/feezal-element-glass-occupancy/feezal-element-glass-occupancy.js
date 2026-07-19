@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {applySizePreset} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-occupancy (E58)
@@ -20,8 +21,6 @@ const TYPE_ICONS = {
     radar: 'radar',
     zone: 'meeting_room',
 };
-
-const GLASS_SIZES = {'2x2': [150, 150], '2x1': [150, 75]};
 
 class FeezalElementGlassOccupancy extends FeezalElement {
     static get feezal() {
@@ -181,11 +180,7 @@ class FeezalElementGlassOccupancy extends FeezalElement {
         }
         // The size grid writes the element's inline geometry (editor keeps
         // full manual control afterwards).
-        if (changed.has('size') && GLASS_SIZES[this.size]) {
-            const [w, h] = GLASS_SIZES[this.size];
-            this.style.width = `${w}px`;
-            this.style.height = `${h}px`;
-        }
+        if (changed.has('size')) applySizePreset(this);
     }
 
     _wireSubscriptions() {

@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, feezalAvailabilityStyles, availabilityBadge, html, css} from '@feezal/feezal-element';
+import {applySizePreset} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-fan (E100)
@@ -25,7 +26,6 @@ export function speedDuration(pct) {
 }
 
 const LONG_PRESS_MS = 450;
-const GLASS_SIZES = {'2x2': [150, 150], '2x1': [150, 75]};
 
 class FeezalElementGlassFan extends FeezalElement {
     static get feezal() {
@@ -318,11 +318,7 @@ class FeezalElementGlassFan extends FeezalElement {
         }
         // The size grid writes the element's inline geometry (editor keeps
         // full manual control afterwards).
-        if (changed.has('size') && GLASS_SIZES[this.size]) {
-            const [w, h] = GLASS_SIZES[this.size];
-            this.style.width = `${w}px`;
-            this.style.height = `${h}px`;
-        }
+        if (changed.has('size')) applySizePreset(this);
         // Promote the details popup into the top layer (glass-light pattern).
         if (changed.has('_details') && this._details) {
             const popup = this.renderRoot.querySelector('.details');

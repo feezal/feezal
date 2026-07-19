@@ -134,6 +134,7 @@
         "@feezal/feezal-element-tui-panel": "*",
         "@feezal/feezal-element-tui-sparkline": "*",
         "@feezal/feezal-element-tui-value": "*",
+        "@feezal/feezal-glass": "*",
         "@feezal/feezal-theme-blue-night": "*",
         "@feezal/feezal-theme-dark-mint": "*",
         "@feezal/feezal-theme-dark-orange": "*",

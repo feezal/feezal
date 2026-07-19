@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {applySizePreset, payloadMatch} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-switch (E58)
@@ -12,15 +13,6 @@ import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element
  *
  * Family conventions (frost vars, degrade, squircle): see glass-button.
  */
-
-const GLASS_SIZES = {'2x2': [150, 150], '2x1': [150, 75]};
-
-export function payloadMatch(value, configured) {
-    if (String(value).toLowerCase() === String(configured).toLowerCase()) return true;
-    if (value === true && /^(on|true|1|yes)$/i.test(String(configured))) return true;
-    if (value === false && /^(off|false|0|no)$/i.test(String(configured))) return true;
-    return false;
-}
 
 class FeezalElementGlassSwitch extends FeezalElement {
     static get feezal() {
@@ -187,11 +179,7 @@ class FeezalElementGlassSwitch extends FeezalElement {
         }
         // The size grid writes the element's inline geometry (editor keeps
         // full manual control afterwards).
-        if (changed.has('size') && GLASS_SIZES[this.size]) {
-            const [w, h] = GLASS_SIZES[this.size];
-            this.style.width = `${w}px`;
-            this.style.height = `${h}px`;
-        }
+        if (changed.has('size')) applySizePreset(this);
     }
 
     _wireSubscriptions() {

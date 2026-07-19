@@ -1,6 +1,7 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {WLED_EFFECTS, WLED_PALETTES, hexToRgb} from './wled-lists.js';
+import {applySizePreset} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-wled (E103 MVP)
@@ -23,7 +24,6 @@ import {WLED_EFFECTS, WLED_PALETTES, hexToRgb} from './wled-lists.js';
  */
 
 const LONG_PRESS_MS = 450;
-const GLASS_SIZES = {'2x2': [150, 150], '2x1': [150, 75]};
 
 class FeezalElementGlassWled extends FeezalElement {
     static get feezal() {
@@ -377,11 +377,7 @@ class FeezalElementGlassWled extends FeezalElement {
         }
         // The size grid writes the element's inline geometry (editor keeps
         // full manual control afterwards).
-        if (changed.has('size') && GLASS_SIZES[this.size]) {
-            const [w, h] = GLASS_SIZES[this.size];
-            this.style.width = `${w}px`;
-            this.style.height = `${h}px`;
-        }
+        if (changed.has('size')) applySizePreset(this);
         // Promote the details popup into the top layer (popover pattern).
         if (changed.has('_details') && this._details) {
             const popup = this.renderRoot.querySelector('.details');

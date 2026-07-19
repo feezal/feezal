@@ -2,6 +2,7 @@
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
+import {applySizePreset, payloadMatch} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-light (E58)
@@ -39,13 +40,6 @@ export function rawToPct(raw, min, max) {
     const n = Number(raw);
     if (!Number.isFinite(n) || max === min) return null;
     return Math.max(0, Math.min(100, Math.round(((n - min) / (max - min)) * 100)));
-}
-
-export function payloadMatch(value, configured) {
-    if (String(value).toLowerCase() === String(configured).toLowerCase()) return true;
-    if (value === true && /^(on|true|1|yes)$/i.test(String(configured))) return true;
-    if (value === false && /^(off|false|0|no)$/i.test(String(configured))) return true;
-    return false;
 }
 
 // ── Colour helpers (private in material-light — duplicated, keep in sync) ──
@@ -90,7 +84,6 @@ function xyToRgb(x, y, bri = 1) {
 }
 
 const LONG_PRESS_MS = 450;
-const GLASS_SIZES = {'2x2': [150, 150], '2x1': [150, 75]};
 
 class FeezalElementGlassLight extends FeezalElement {
     static get feezal() {
@@ -547,11 +540,7 @@ class FeezalElementGlassLight extends FeezalElement {
         }
         // The size grid writes the element's inline geometry (editor keeps
         // full manual control afterwards).
-        if (changed.has('size') && GLASS_SIZES[this.size]) {
-            const [w, h] = GLASS_SIZES[this.size];
-            this.style.width = `${w}px`;
-            this.style.height = `${h}px`;
-        }
+        if (changed.has('size')) applySizePreset(this);
         // Promote the details popup into the top layer (system-pin pattern).
         // Removing it from the DOM on close dismisses the popover.
         if (changed.has('_details') && this._details) {

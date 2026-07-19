@@ -2,6 +2,7 @@
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
+import {applySizePreset} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-cover (E58)
@@ -14,8 +15,6 @@ import {LitElement} from 'lit';
  * details popup: a big vertical position pill (drag to set, fill = open
  * portion), up/stop/down buttons beneath, tilt slider when configured.
  */
-
-const GLASS_SIZES = {'2x2': [150, 150], '2x1': [150, 75]};
 
 class FeezalElementGlassCover extends FeezalElement {
     static get feezal() {
@@ -352,11 +351,7 @@ class FeezalElementGlassCover extends FeezalElement {
         }
         // The size grid writes the element's inline geometry (editor keeps
         // full manual control afterwards).
-        if (changed.has('size') && GLASS_SIZES[this.size]) {
-            const [w, h] = GLASS_SIZES[this.size];
-            this.style.width = `${w}px`;
-            this.style.height = `${h}px`;
-        }
+        if (changed.has('size')) applySizePreset(this);
         // Promote the details popup into the top layer (glass-light pattern).
         if (changed.has('_details') && this._details) {
             const popup = this.renderRoot.querySelector('.details');
