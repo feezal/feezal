@@ -14,7 +14,6 @@ Work in progress — priorities and scope are not final.
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
 - [N12 — Export bundle: strip mqtt.js for feezal-bridge users](#n12--export-bundle-strip-mqttjs-for-feezal-bridge-users-partial) *(partial)*
 - [N13 — Lighter MQTT client for export bundle](#n13--lighter-mqtt-client-for-export-bundle-️-tbd) ⚠️
-- [N36 — layout-app improvements: burger bug, themable chrome, slim rail, embedded-view backgrounds](#n36--layout-app-improvements)
 
 **Element Ecosystem**
 - [E7 — Swipe gesture element](#e7--swipe-gesture-element)
@@ -147,26 +146,6 @@ client.json_send('my/topic', payload);
 
 ### N2b — Repeater with live canvas sub-elements *(future)*
 Each repeater child becomes individually selectable and configurable on the editor canvas. Requires a virtual sub-editor context — significantly more complex, deferred until the MVP repeater is proven useful.
-
-### N36 — layout-app improvements
-
-A batch of bugs, missing polish and UX gaps in `feezal-element-layout-app` ([feezal-element-layout-app.js](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js)). Grouped below; the drawer-mode reactivity bug (2) likely underlies several of the reported symptoms and should be fixed first.
-
-**1. Bug — hamburger button never appears** (neither the top-bar `.iconbtn` nor the floating `.fab-menu`). Both are gated on `showHam = this._narrow` in `render()`. `_narrow` is a reactive `@state`, but it is **only ever recomputed by the `ResizeObserver`** (on element *size* changes) — see `connectedCallback()`. So in the common viewer case (full-bleed element, persistent drawer off, or a breakpoint the RO never re-crosses) the burger can stay hidden. Repro + fix belongs with (2).
-
-**2. Bug — drawer-mode changes need a hard refresh; `_narrow` not recomputed on config change.** Changing `drawer-persistent` (or `breakpoint`) does **not** recompute `_narrow` — `updated()` only reacts to `items`/`activeView`, and the `ResizeObserver` fires on size, not attribute, changes. So toggling "drawer always visible" / overlay mode via the inspector or a deploy has no effect until the element is resized or the page is fully reloaded (matching the reported "a normal view reload didn't work, a hard refresh did"). Fix: recompute `_narrow`/drawer mode in `updated()` when `drawerPersistent`/`breakpoint` change (factor the RO body into a shared `_recomputeNarrow()`). **Note:** layout-app persists *nothing* to `localStorage` (verified) — the hard-refresh symptom is this reactivity gap and/or bundle/HTML caching, not localStorage state, so the "do we interfere with localStorage?" hypothesis can be ruled out.
-
-**3. Feature — expose the chrome CSS vars as editable styles, with theme-aware defaults.** The element already *reads* `--feezal-app-bar-bg` / `--feezal-app-bar-color` / `--feezal-app-drawer-bg` / `--feezal-app-drawer-color` / `--feezal-app-active-indicator` / `--feezal-app-active-color` / `--feezal-app-drawer-width`, but its `styles` descriptor only exposes `['background','border']`, so none are editable in the Style inspector. Add them as `{property, type:'color', default}` descriptors (defaults keeping the current MD3/`--primary-*` fallbacks so themes still drive them), **plus two new ones the drawer doesn't separate today**: a **drawer icon colour** and **drawer label colour** (currently both fall under `--feezal-app-drawer-color`). Theme-aware defaults per §5.2.
-
-**4. Feature — icon-only slim rail that expands on hover/focus (modern, accessible, TV-usable).** Add a slim navigation-rail mode: icons only at rest, expanding to the current icon+label drawer on hover or keyboard focus (MD3 rail → drawer). Requirements: full keyboard operation (Tab into the rail, Arrow-key move between entries, Enter/Space activate, Esc collapse an overlay), visible focus rings, and it must work with a **smart-TV D-pad** (focus-driven, no hover dependency — expand on focus, not just pointer hover). Give the configuration good UX too: an autohide option, the slim-rail toggle, and the existing persistent/overlay/breakpoint controls should read as one coherent set in the inspector rather than scattered booleans.
-
-**5. Feature/bug — embedded views should keep their own background.** `_embed()` mounts a drawer-entry view via `view.cloneNode(true)` and only sets `clone.style.display=''`. A view's own background (solid/image/gradient — now authorable via the N34 Background editor as inline `background-*` longhands) should show when that view is embedded in the shell, but the reporter sees a uniform background instead. Investigate: the clone copies inline style so the longhands *should* travel — suspect the site-level `feezal-site._syncViewBackground()` (which mirrors only the **top-level active view's** background to `--feezal-canvas-bg`/the document) and/or the shell's `.content`/`#content` background covering the clone. Fix so each embedded view renders with its authored background.
-
-**6. Deep-link / hash reflection of the selected sub-view — already designed in [N30](#n30--layout-app-breaks-the-site-active-view-mqtt-contract), not yet implemented.** The reporter's recollection is correct: N30's decided design includes `#/<viewName>/<embeddedViewName>` deep-links and keeping the hash in sync while navigating drawer entries (N30 §1), but it has **not been built** — layout-app still just clones views with no hash/site-contract integration. Implement as part of N30 (or land the hash-sync slice of N30 alongside this batch); don't duplicate the contract here.
-
-**Ships with (per slice):** patch bump(s), TESTING.md §6 layout-app notes (burger visibility across modes, live drawer-mode switch without reload, the new style vars, slim-rail keyboard/D-pad operation, embedded-view backgrounds), and browser tests for the reactivity fixes.
-
-**Relates:** N30 (site active-view contract + the hash-sync design that point 6 belongs to), N34 (Background editor — authors the view backgrounds point 5 must honour), E80 (navigation rail — the slim-rail UX overlaps; consider sharing), E106-style shared chrome (if a rail/drawer component gets reused), material-navbar (active-item-follows-view precedent).
 
 ### Element platform conventions
 

@@ -28,8 +28,9 @@ class FeezalElementLayoutApp extends FeezalElement {
         return {
             palette: {name: 'App', category: 'Layout', color: '#4a7080', icon: 'space_dashboard'},
             description: 'A full-bleed app shell: top bar + navigation drawer whose entries swap the embedded ' +
-                'content view. Drawer is persistent when wide, an overlay + hamburger when narrow. Manage entries, ' +
-                'title and actions in the inspector.',
+                'content view. Drawer is persistent when wide, an overlay + hamburger when narrow; optional slim ' +
+                'icon-rail that expands on hover/focus and autohide mode. Keyboard- and smart-TV-D-pad navigable. ' +
+                'Themable via the --feezal-app-* style vars. Manage entries, title and actions in the inspector.',
             inspector: 'feezal-element-layout-app-inspector',
             attributes: [
                 {name: 'items', type: 'json', default: '[]', help: 'Drawer entries [{label, icon, view}] (managed in the inspector).'},
@@ -40,13 +41,27 @@ class FeezalElementLayoutApp extends FeezalElement {
                 {name: 'active-view', type: 'string', help: 'Initially selected content view (defaults to the first entry).'},
                 {name: 'breakpoint', type: 'number', default: 768, help: 'Element width below which the drawer becomes an overlay.'},
                 {name: 'drawer-persistent', type: 'boolean', default: true, help: 'If off, the drawer is always an overlay (hamburger at all sizes).'},
+                {name: 'slim', type: 'boolean', default: false,
+                    help: 'Persistent drawer starts as an icon-only rail and expands to icon+label on hover or keyboard focus (modern navigation rail). No effect in overlay mode.'},
+                {name: 'autohide', type: 'boolean', default: false,
+                    help: 'Persistent drawer/rail stays collapsed to a thin edge until you hover it or move focus into it, giving the content maximum width.'},
                 {name: 'entry-style', type: 'select', options: ['pill', 'list'], default: 'pill',
                     help: 'Drawer entry look: "pill" = MD3 rounded chips with side inset; "list" = flat edge-to-edge rows, hover/active highlight the full drawer width.'},
                 {name: 'actions', type: 'json', default: '[]', help: 'Top-bar action buttons [{icon, publish, payload}] (managed in the inspector).'},
                 'subscribe',
                 'publish',
             ],
-            styles: ['background', 'border'],
+            styles: ['background', 'border',
+                {property: '--feezal-app-bar-bg', type: 'color', default: 'var(--md-sys-color-primary, var(--primary-color, #0284c7))', help: 'Top app-bar background.'},
+                {property: '--feezal-app-bar-color', type: 'color', default: 'var(--md-sys-color-on-primary, #fff)', help: 'Top app-bar text/icon colour.'},
+                {property: '--feezal-app-drawer-bg', type: 'color', default: 'var(--md-sys-color-surface-container, #f2f3f5)', help: 'Drawer background.'},
+                {property: '--feezal-app-drawer-color', type: 'color', default: 'var(--md-sys-color-on-surface, #222)', help: 'Drawer base text colour (icon/label default to this).'},
+                {property: '--feezal-app-drawer-icon-color', type: 'color', default: 'var(--feezal-app-drawer-color, var(--md-sys-color-on-surface, #222))', help: 'Drawer entry icon colour.'},
+                {property: '--feezal-app-drawer-label-color', type: 'color', default: 'var(--feezal-app-drawer-color, var(--md-sys-color-on-surface, #222))', help: 'Drawer entry label colour.'},
+                {property: '--feezal-app-active-indicator', type: 'color', default: 'var(--md-sys-color-secondary-container, rgba(2,132,199,0.16))', help: 'Active drawer entry highlight.'},
+                {property: '--feezal-app-active-color', type: 'color', default: 'var(--md-sys-color-on-secondary-container, var(--primary-color, #0284c7))', help: 'Active drawer entry text/icon colour.'},
+                {property: '--feezal-app-drawer-width', type: 'string', default: '220px', help: 'Expanded drawer width.'},
+            ],
             restrict: {move: false, resize: false, minWidth: 240, minHeight: 160},
             defaultStyle: {top: '0px', left: '0px', width: '100%', height: '100%'},
         };
@@ -60,6 +75,8 @@ class FeezalElementLayoutApp extends FeezalElement {
         activeView:      {type: String,  reflect: true, attribute: 'active-view'},
         breakpoint:      {type: Number,  reflect: true},
         drawerPersistent:{type: Boolean, reflect: true, attribute: 'drawer-persistent'},
+        slim:            {type: Boolean, reflect: true},
+        autohide:        {type: Boolean, reflect: true},
         entryStyle:      {type: String,  reflect: true, attribute: 'entry-style'},
         actions:         {type: String,  reflect: true},
         _active:         {state: true},
@@ -91,21 +108,48 @@ class FeezalElementLayoutApp extends FeezalElement {
             background: var(--feezal-app-drawer-bg, var(--md-sys-color-surface-container, #f2f3f5));
             color: var(--feezal-app-drawer-color, var(--md-sys-color-on-surface, #222));
             border-right: 1px solid var(--divider-color, rgba(128,128,128,0.2));
-            padding: 8px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px;
+            padding: 8px; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 2px;
         }
         .entry {
             display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: none; background: none; cursor: pointer;
             color: inherit; font: inherit; text-align: left; border-radius: 24px; width: 100%; box-sizing: border-box;
+            white-space: nowrap;
         }
         .entry:hover { background: rgba(128,128,128,0.12); }
+        /* Keyboard/TV focus is visible even without a pointer. */
+        .entry:focus-visible { outline: 2px solid var(--feezal-app-active-color, var(--primary-color, #0284c7)); outline-offset: -2px; }
         .entry.active { background: var(--feezal-app-active-indicator, var(--md-sys-color-secondary-container, rgba(2,132,199,0.16)));
-            color: var(--feezal-app-active-color, var(--md-sys-color-on-secondary-container, var(--primary-color, #0284c7))); font-weight: 600; }
-        .entry .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            font-weight: 600; }
+        .entry .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            color: var(--feezal-app-drawer-label-color, var(--feezal-app-drawer-color, inherit)); }
+        .entry feezal-icon { flex: 0 0 auto; color: var(--feezal-app-drawer-icon-color, var(--feezal-app-drawer-color, inherit)); }
+        .entry.active .label, .entry.active feezal-icon {
+            color: var(--feezal-app-active-color, var(--md-sys-color-on-secondary-container, var(--primary-color, #0284c7))); }
 
         /* entry-style="list": flat edge-to-edge rows — no pill radius, no side
            inset; hover/active highlight the full drawer width. */
         :host([entry-style="list"]) .drawer { padding: 8px 0; gap: 0; }
         :host([entry-style="list"]) .entry { border-radius: 0; padding: 11px 16px; }
+
+        /* ── N36: slim navigation rail (persistent mode only) ──────────────
+           Icon-only at rest, expands to icon+label on hover or when keyboard/
+           D-pad focus enters the drawer (:focus-within works for both). */
+        .drawer { transition: width 0.18s ease; }
+        :host([slim]:not(.narrow)) .drawer { width: 64px; }
+        :host([slim]:not(.narrow)) .drawer:hover,
+        :host([slim]:not(.narrow)) .drawer:focus-within { width: var(--feezal-app-drawer-width, 220px); }
+        :host([slim]:not(.narrow)) .drawer:not(:hover):not(:focus-within) .entry { justify-content: center; padding: 10px 0; }
+        :host([slim]:not(.narrow)) .drawer:not(:hover):not(:focus-within) .label { opacity: 0; width: 0; }
+
+        /* autohide: collapse the persistent drawer/rail to a thin edge until
+           hover/focus reveals it, maximising content width. */
+        :host([autohide]:not(.narrow)) .drawer { width: 8px; padding-left: 0; padding-right: 0; }
+        :host([autohide]:not(.narrow)) .drawer:hover,
+        :host([autohide]:not(.narrow)) .drawer:focus-within {
+            width: var(--feezal-app-drawer-width, 220px); padding: 8px;
+            box-shadow: 2px 0 12px rgba(0,0,0,0.18);
+        }
+        :host([autohide]:not(.narrow)) .drawer:not(:hover):not(:focus-within) .entry { opacity: 0; }
         .content { flex: 1; min-width: 0; position: relative; overflow: auto; }
         #content { width: 100%; height: 100%; }
         .ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
@@ -141,6 +185,8 @@ class FeezalElementLayoutApp extends FeezalElement {
         this.activeView = '';
         this.breakpoint = 768;
         this.drawerPersistent = true;
+        this.slim = false;
+        this.autohide = false;
         this.entryStyle = 'pill';
         this.actions = '[]';
         this._active = '';
@@ -169,18 +215,26 @@ class FeezalElementLayoutApp extends FeezalElement {
         catch { return []; }
     }
 
+    /**
+     * N36: recompute overlay/persistent mode. Shared by the ResizeObserver
+     * (width changes) AND updated() (drawer-persistent / breakpoint changes) —
+     * previously only the RO recomputed it, so toggling the drawer mode had no
+     * effect until a resize or full reload, and the overlay hamburger could
+     * stay hidden (the burger bug).
+     */
+    _recomputeNarrow() {
+        const narrow = this.clientWidth > 0 && this.clientWidth < (Number(this.breakpoint) || 768);
+        const nowNarrow = narrow || this.drawerPersistent === false;
+        if (nowNarrow !== this._narrow) {
+            this._narrow = nowNarrow;
+            this.classList.toggle('narrow', nowNarrow);
+            if (!nowNarrow) this._drawerOpen = false;
+        }
+    }
+
     connectedCallback() {
         super.connectedCallback();
-        this._ro = new ResizeObserver(() => {
-            const narrow = this.clientWidth > 0 && this.clientWidth < (Number(this.breakpoint) || 768);
-            const persistent = this.drawerPersistent !== false;
-            const nowNarrow = narrow || !persistent;
-            if (nowNarrow !== this._narrow) {
-                this._narrow = nowNarrow;
-                this.classList.toggle('narrow', nowNarrow);
-                if (!nowNarrow) this._drawerOpen = false;
-            }
-        });
+        this._ro = new ResizeObserver(() => this._recomputeNarrow());
         this._ro.observe(this);
         // N30: register as a site "view router" so the site's active-view
         // contract (URL hash, <publish>/view, inbound <subscribe>/view) covers
@@ -215,6 +269,12 @@ class FeezalElementLayoutApp extends FeezalElement {
     }
     updated(changed) {
         super.updated(changed);
+        // N36: re-derive overlay mode when the config that drives it changes,
+        // not only on resize — so switching drawer mode in the inspector / via
+        // a deploy takes effect without a manual resize or hard reload.
+        if (changed.has('drawerPersistent') || changed.has('breakpoint')) {
+            this._recomputeNarrow();
+        }
         if (!this._initialized) return;
         if (changed.has('items') && !this._entries().some(e => e.view === this._active)) {
             this._active = this.activeView || (this._entries()[0]?.view) || '';
@@ -246,13 +306,50 @@ class FeezalElementLayoutApp extends FeezalElement {
         const view = feezal.site.querySelector(`feezal-view[name="${name}"]`);
         if (!view) { content.replaceChildren(); return; }
         const clone = view.cloneNode(true);
-        clone.style.display = '';
+        // N36: the embedded view must lay out as a block so its own width/height
+        // apply (inside #content, which is not a flex container like the site is,
+        // an inline feezal-view would collapse and swallow its background).
+        clone.style.display = 'block';
         content.replaceChildren(clone);
+        // N36: fill the content area with the embedded view's OWN background so
+        // it shows even where the view is smaller than the shell — the same
+        // contract feezal-site applies via --feezal-canvas-bg for top-level views.
+        const box = this.renderRoot.querySelector('.content');
+        if (box) {
+            for (const p of ['background', 'background-color', 'background-image', 'background-size', 'background-position', 'background-repeat']) {
+                box.style.setProperty(p, view.style.getPropertyValue(p) || '');
+            }
+        }
     }
 
     _doAction(a) {
         if (feezal.isEditor) return;
         if (a.publish) feezal.connection?.pub?.(a.publish, a.payload ?? '');
+    }
+
+    /**
+     * N36: keyboard / smart-TV D-pad navigation between drawer entries.
+     * Up/Down (and Left/Right for a horizontal remote feel) move focus; Home/End
+     * jump to the ends; Escape closes an open overlay drawer. Enter/Space
+     * activate natively (the entries are real buttons). Focus entering the
+     * drawer also expands a slim/autohide rail via :focus-within (CSS).
+     */
+    _onDrawerKeydown(e) {
+        if (e.key === 'Escape' && this._narrow && this._drawerOpen) {
+            this._drawerOpen = false;
+            return;
+        }
+        const nav = {ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1};
+        const buttons = [...this.renderRoot.querySelectorAll('.entry')];
+        if (!buttons.length) return;
+        if (e.key === 'Home') { e.preventDefault(); buttons[0].focus(); return; }
+        if (e.key === 'End') { e.preventDefault(); buttons[buttons.length - 1].focus(); return; }
+        if (!(e.key in nav)) return;
+        e.preventDefault();
+        const idx = buttons.indexOf(this.renderRoot.activeElement);
+        const from = idx < 0 ? (nav[e.key] > 0 ? -1 : 0) : idx;
+        const next = (from + nav[e.key] + buttons.length) % buttons.length;
+        buttons[next].focus();
     }
 
     render() {
@@ -272,11 +369,15 @@ class FeezalElementLayoutApp extends FeezalElement {
                 <div class="body">
                     ${this.hideHeader && showHam && !this._drawerOpen ? html`
                         <button class="fab-menu" title="Menu" @click="${() => { this._drawerOpen = true; }}"><span class="mi">menu</span></button>` : ''}
-                    <div class="drawer ${this._drawerOpen ? 'open' : ''}">
+                    <div class="drawer ${this._drawerOpen ? 'open' : ''}" role="navigation"
+                        @keydown="${e => this._onDrawerKeydown(e)}">
                         ${entries.length === 0
                             ? html`<div style="opacity:.6;padding:10px;font-size:12px">${feezal.isEditor ? 'Add drawer entries in the inspector →' : ''}</div>`
                             : entries.map(e => html`
-                                <button class="entry ${e.view === this._active ? 'active' : ''}" @click="${() => this._select(e.view)}">
+                                <button class="entry ${e.view === this._active ? 'active' : ''}"
+                                    title="${e.label || e.view}"
+                                    aria-current="${e.view === this._active ? 'page' : 'false'}"
+                                    @click="${() => this._select(e.view)}">
                                     ${e.icon ? html`<feezal-icon class="mi" name="${e.icon}"></feezal-icon>` : ''}
                                     <span class="label">${e.label || e.view}</span>
                                 </button>`)}
