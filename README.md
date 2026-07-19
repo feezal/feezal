@@ -2,10 +2,6 @@
 
 <img src="www/favicon/apple-touch-icon.png" align="left"><br><h3>Dashboard editor powered by Web Components and MQTT</h3><br><br><br><br>
 
-
-> [!WARNING]
-> This project is a work in progress. Expect incomplete documentation, bugs, missing features and rough edges. Feedback and bug reports via the issue tracker are very welcome. See [Roadmap](docs/ROADMAP.md) for what's coming next.
-
 [![codecov](https://codecov.io/gh/feezal/feezal/branch/master/graph/badge.svg)](https://codecov.io/gh/feezal/feezal)
 
 ---
