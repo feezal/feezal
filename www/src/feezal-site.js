@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2019-2026 Sebastian Raff — feezal viewer runtime
 import {LitElement, html, css} from 'lit';
-import {viewFromHash} from './hash-view.js';
+import {viewPathFromHash} from './hash-view.js';
 
 /**
  * feezal-site
@@ -87,6 +87,72 @@ class FeezalSite extends LitElement {
         this.playlistDwell = 10;
         this.playlistResume = 60;
         this.playlistTransition = 'none';
+        // N30 — registered "view routers" (layout-app shells that embed and
+        // swap sub-views). Empty on a plain site → every code path below
+        // reduces to the pre-N30 single-level behaviour.
+        this._routers = new Set();
+        this._pendingEmbedded = null;
+    }
+
+    // ── N30: layout-app view-router integration ──────────────────────────────
+    // A layout-app registers itself so the site's active-view contract (hash,
+    // <publish>/view, inbound <subscribe>/view) covers the sub-view it shows.
+    // Router interface (duck-typed): routableViews():string[],
+    // routeToEmbedded(name):void, activeEmbedded():string|null.
+
+    registerViewRouter(el) {
+        this._routers.add(el);
+        // A router that mounts after the initial view may be the target of a
+        // pending deep-link (#/view/embedded) — try to apply it now.
+        this._applyPendingEmbedded();
+    }
+
+    unregisterViewRouter(el) {
+        this._routers.delete(el);
+    }
+
+    /** Routers whose containing view is the active top-level view. */
+    _visibleRouters() {
+        return [...this._routers].filter(r =>
+            r.isConnected && r.closest('feezal-view')?.getAttribute('name') === this.view);
+    }
+
+    /** The full active-view path: `view` or `view/embedded` when a visible router shows a sub-view. */
+    _currentViewPath() {
+        const emb = this._visibleRouters()[0]?.activeEmbedded?.();
+        return emb ? `${this.view}/${emb}` : this.view;
+    }
+
+    /** Route a pending deep-link/inbound embedded view into the visible router (once it exists). */
+    _applyPendingEmbedded() {
+        if (!this._pendingEmbedded) return;
+        const emb = this._pendingEmbedded;
+        const router = this._visibleRouters().find(r => r.routableViews?.().includes(emb));
+        if (!router) return;                 // router not ready yet — keep pending
+        this._pendingEmbedded = null;
+        router.routeToEmbedded?.(emb);       // programmatic: site drives the sync below
+    }
+
+    /**
+     * A visible router's sub-view changed (user picked a drawer entry) — resync
+     * the hash and republish the full path. Called by the layout-app.
+     */
+    notifyRouterView(el) {
+        if (feezal.isEditor || !this._visibleRouters().includes(el)) return;
+        this._syncPathHashAndPublish();
+    }
+
+    /** Write the address-bar hash + publish `<publish>/view` for the current full path. */
+    _syncPathHashAndPublish() {
+        const path = this._currentViewPath();
+        const cur = viewPathFromHash();
+        const curPath = cur.embedded ? `${cur.view}/${cur.embedded}` : cur.view;
+        if (curPath !== path) {
+            location.hash = '/' + path;
+        }
+        if (this.publish) {
+            feezal.connection.pub(this.publish + '/view', path);
+        }
     }
 
     render() {
@@ -99,8 +165,11 @@ class FeezalSite extends LitElement {
         // Read initial view from URL hash. feezal-app-editor also derives
         // its nav.view from the hash, so this is equivalent for both contexts
         // and works correctly in the viewer where feezal.app.nav doesn't exist.
-        const hashView = viewFromHash();
+        const {view: hashView, embedded} = viewPathFromHash();
         if (hashView) {
+            // N30: a deep-link #/view/embedded stashes the embedded view; it is
+            // routed into the layout-app once it registers (order-independent).
+            this._pendingEmbedded = embedded;
             this.view = hashView;
         } else {
             this.view = feezal.views[0].getAttribute('name');
@@ -224,7 +293,7 @@ class FeezalSite extends LitElement {
     applyControlCommand(cmd, payload) {
         switch (cmd) {
             case 'view':
-                this.view = payload;
+                this._applyViewCommand(String(payload ?? ''));
                 break;
             case 'reload':
                 window.location.reload();
@@ -257,6 +326,33 @@ class FeezalSite extends LitElement {
                 break;
             // unknown commands are ignored
         }
+    }
+
+    /**
+     * N30: apply an inbound `view` command. Accepts a bare view name or the
+     * nested `view/embedded` form. A bare name is offered to the visible
+     * router FIRST (so `page2` swaps inside the shell instead of dumping the
+     * user onto a raw top-level view); only if no visible router hosts it does
+     * the site switch top-level as before. On a plain site (no routers) this is
+     * exactly `this.view = payload`.
+     */
+    _applyViewCommand(raw) {
+        const slash = raw.indexOf('/');
+        if (slash >= 0) {
+            const top = raw.slice(0, slash);
+            this._pendingEmbedded = raw.slice(slash + 1) || null;
+            if (this.view !== top) this.view = top;   // _viewChanged applies the embedded
+            else this._applyPendingEmbedded();
+            return;
+        }
+        const router = this._visibleRouters().find(r => r.routableViews?.().includes(raw));
+        if (router) {
+            router.routeToEmbedded?.(raw);
+            this._syncPathHashAndPublish();
+            return;
+        }
+        this._pendingEmbedded = null;
+        this.view = raw;
     }
 
     /** `<site>/playlist` control commands: on / off / pause / next / prev. */
@@ -307,19 +403,17 @@ class FeezalSite extends LitElement {
     _viewChanged(view) {
         this.updateVisibility();
         this._syncViewBackground();
+        // N30: a top-level switch to a shell view applies any pending deep-link
+        // /inbound embedded view into that view's router before we sync.
+        this._applyPendingEmbedded();
 
         if (!feezal.isEditor) {
-            // Keep the address-bar hash in sync regardless of what triggered the
-            // view change (MQTT message, navigation element, or initial load).
-            // Compare decoded (B30): the browser percent-encodes umlauts, so a
-            // raw string comparison would re-write the hash on every switch.
-            if (viewFromHash() !== view) {
-                location.hash = '/' + view;
-            }
-        }
-
-        if (!feezal.isEditor && this.publish) {
-            feezal.connection.pub(this.publish + '/view', view);
+            // Keep the address-bar hash in sync + publish `<publish>/view`.
+            // On a plain view this is `view`; on a shell view it is
+            // `view/embedded` (N30). Compare decoded (B30): the browser
+            // percent-encodes umlauts, so a raw comparison would re-write the
+            // hash on every switch.
+            this._syncPathHashAndPublish();
         }
         // (addclass/removeclass moved to connectedCallback with the other
         // control topics — subscribing here re-subscribed them on EVERY view

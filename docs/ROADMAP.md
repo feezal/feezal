@@ -14,7 +14,6 @@ Work in progress — priorities and scope are not final.
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
 - [N12 — Export bundle: strip mqtt.js for feezal-bridge users](#n12--export-bundle-strip-mqttjs-for-feezal-bridge-users-partial) *(partial)*
 - [N13 — Lighter MQTT client for export bundle](#n13--lighter-mqtt-client-for-export-bundle-️-tbd) ⚠️
-- [N30 — layout-app breaks the site active-view MQTT contract](#n30--layout-app-breaks-the-site-active-view-mqtt-contract)
 - [N36 — layout-app improvements: burger bug, themable chrome, slim rail, embedded-view backgrounds](#n36--layout-app-improvements)
 
 **Element Ecosystem**
@@ -148,21 +147,6 @@ client.json_send('my/topic', payload);
 
 ### N2b — Repeater with live canvas sub-elements *(future)*
 Each repeater child becomes individually selectable and configurable on the editor canvas. Requires a virtual sub-editor context — significantly more complex, deferred until the MVP repeater is proven useful.
-
-### N30 — layout-app breaks the site active-view MQTT contract
-
-**Problem.** `feezal-site` owns the "active view" contract: switching views publishes the view name to `<site-publish>/view` ([feezal-site.js](../www/src/feezal-site.js) `_viewChanged`), incoming `<site-subscribe>/view` (and the N24 per-client variant `…/clients/<id>/view`) switches via `applyControlCommand()`, the URL hash tracks it, and the N26 playlist drives it. **layout-app bypasses all of it**: it sits on one site view (e.g. `main`) and *clones* drawer-entry views into its content pane — the site's active view never changes. Consequences: (1) the viewer publishes `main` forever, automations never learn the user is on `page2`; (2) an incoming `view: page2` command switches the *site* view — dumping the user out of the app shell onto the raw page instead of swapping the shell's content; (3) hash/deep-links and playlist rotation have the same blind spot. layout-app's own element-level `subscribe`/`publish` is a parallel, duplicate contract — it doesn't heal the site one.
-
-**Approach: view-router delegation** (option B of the July 2026 discussion — keep the architecture, integrate the protocol). *Outbound:* when layout-app swaps its embedded view it notifies the site, which publishes on the standard `<publish>/view` and syncs the URL hash. *Inbound:* `applyControlCommand('view', name)` first offers the command to a registered, currently-visible "view router" (the layout-app) — if `name` is one of its drawer entries it swaps internally, else the site switches top-level as today. Playlist advances route through the same path (rotation inside the shell for shell views). One MQTT contract; layout-app's own element-level `publish`/`subscribe` become deprecable. (Alternatives considered and rejected: **A** — shell as site-level chrome, architecturally cleanest but requires a new element category, canvas/serialization changes and dashboard migration; **C** — document layout-app's element topics as the official mechanism, leaves two competing contracts.)
-
-**Design decided (07/2026):**
-
-1. **URL / deep-link format — additive, existing hashes untouched.** `#/<viewName>` **always works exactly as today** for every view — this must not change. *Additionally*, for a view containing a layout-app, `#/<viewName>/<embeddedViewName>` deep-links into the shell: the site opens `<viewName>` and the layout-app activates the drawer entry whose **view name** (the `view` field of its `{label, icon, view}` entries — not the display label, which is optional, non-unique and encoding-hostile) matches the second segment. The hash is **always kept in sync** while navigating inside the shell — switching drawer entries rewrites the URL to `#/<viewName>/<embeddedViewName>` — so a page reload restores the exact shell state instead of falling back to the default entry.
-2. **Published MQTT payload — nested path.** While the user is inside the shell, the viewer publishes `<viewName>/<embeddedViewName>` (e.g. `main/page2`) to `<site-publish>/view`; plain top-level views keep publishing the bare view name. Unambiguous and mirrors the URL format; automations matching on plain names must adapt for shell views. Inbound commands accept both forms: a bare name is offered to the visible router first (per the delegation above), a nested `a/b` explicitly targets view `a` with entry `b`.
-3. **Always-on.** The integration (hash sync + inbound delegation + nested publish) is standard layout-app behaviour, no opt-in attribute. The element-level `subscribe`/`publish` topics keep working but are deprecated in favour of the site contract.
-4. **Precedence rules** — multiple layout-apps (on different top-level views): only the *visible* one may claim a command, first match wins, nesting unsupported. A command naming a view that is *not* a drawer entry switches the site top-level as today (the shell disappears).
-
-**Relates:** N24 (per-client view commands — must route through the same delegation), N26 (playlist — should rotate inside the shell), E47 (layout-app, archive), E80 (navigation rail — any future shell-style element needs the same router hook), material-navbar (already switches the *site* view directly — the consistent counter-example).
 
 ### N36 — layout-app improvements
 

@@ -182,12 +182,35 @@ class FeezalElementLayoutApp extends FeezalElement {
             }
         });
         this._ro.observe(this);
+        // N30: register as a site "view router" so the site's active-view
+        // contract (URL hash, <publish>/view, inbound <subscribe>/view) covers
+        // the sub-view this shell shows. Viewer only — the editor never routes.
+        if (!feezal.isEditor) feezal.site?.registerViewRouter?.(this);
     }
-    disconnectedCallback() { this._ro?.disconnect(); super.disconnectedCallback(); }
+    disconnectedCallback() {
+        this._ro?.disconnect();
+        if (!feezal.isEditor) feezal.site?.unregisterViewRouter?.(this);
+        super.disconnectedCallback();
+    }
+
+    // ── N30: view-router interface (consumed by feezal-site) ─────────────────
+    /** Drawer-entry view names this shell can show. */
+    routableViews() { return this._entries().map(e => e.view); }
+    /** The sub-view currently embedded, or null. */
+    activeEmbedded() { return this._active || null; }
+    /** Programmatic route from the site (inbound MQTT / deep-link) — no re-notify. */
+    routeToEmbedded(view) {
+        if (!view || !this.routableViews().includes(view)) return;
+        this._active = view;
+        if (this._narrow) this._drawerOpen = false;
+        this._embed(true);
+    }
 
     firstUpdated() {
         this._initialized = true;
-        this._active = this.activeView || (this._entries()[0]?.view) || '';
+        // Keep an _active already set by an N30 deep-link route (registerViewRouter
+        // → routeToEmbedded runs in connectedCallback, before this).
+        if (!this._active) this._active = this.activeView || (this._entries()[0]?.view) || '';
         this._embed(true);
     }
     updated(changed) {
@@ -204,6 +227,11 @@ class FeezalElementLayoutApp extends FeezalElement {
         this._active = view;
         if (closeDrawer && this._narrow) this._drawerOpen = false;
         this._embed(true);
+        // N30: tell the site so it syncs the URL hash to #/<view>/<embedded>
+        // and publishes the nested path on <publish>/view.
+        if (!feezal.isEditor) feezal.site?.notifyRouterView?.(this);
+        // Element-level publish kept for back-compat (deprecated in favour of
+        // the site view contract; see N30).
         if (this.publish && !feezal.isEditor) feezal.connection?.pub?.(this.publish, view);
     }
 

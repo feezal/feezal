@@ -208,3 +208,103 @@ describe('_syncViewBackground() — document mirroring for iOS safe areas', () =
         expect(document.body.style.background).not.toContain('rgb(7, 8, 9)');
     });
 });
+
+// ── N30: layout-app view-router delegation ─────────────────────────────────
+import {viewPathFromHash} from '../src/hash-view.js';
+
+describe('viewPathFromHash() (N30)', () => {
+    it('splits bare and nested hashes and decodes each segment', () => {
+        expect(viewPathFromHash('#/main')).toEqual({view: 'main', embedded: null});
+        expect(viewPathFromHash('#/main/page2')).toEqual({view: 'main', embedded: 'page2'});
+        expect(viewPathFromHash('#/K%C3%BCche/B%C3%BCro')).toEqual({view: 'Küche', embedded: 'Büro'});
+        expect(viewPathFromHash('')).toEqual({view: '', embedded: null});
+    });
+});
+
+describe('site ↔ view-router delegation (N30)', () => {
+    // Minimal fake router = a layout-app stand-in inside a feezal-view.
+    function makeRouter(viewName, entries) {
+        const holder = document.createElement('feezal-view');
+        holder.setAttribute('name', viewName);
+        const router = document.createElement('div');
+        router.routableViews = () => entries;
+        router._embedded = null;
+        router.activeEmbedded = () => router._embedded;
+        router.routeToEmbedded = vi.fn(name => { router._embedded = name; });
+        holder.append(router);
+        document.body.append(holder);
+        return router;
+    }
+
+    function viewerSite(attrs = {}) {
+        feezal.isEditor = false;
+        feezal.connection = {sub: vi.fn(), pub: vi.fn()};
+        feezal.views = makeViews('main', 'other');
+        const site = document.createElement('feezal-site');
+        Object.entries(attrs).forEach(([k, v]) => site.setAttribute(k, v));
+        document.body.append(site);
+        return site;
+    }
+
+    it('publishes and hashes the nested path when a visible router shows a sub-view', () => {
+        const site = viewerSite({publish: 'state'});
+        const router = makeRouter('main', ['page1', 'page2']);
+        site.registerViewRouter(router);
+        site.view = 'main';
+        router._embedded = 'page2';
+        site._viewChanged('main');
+        expect(feezal.connection.pub).toHaveBeenCalledWith('state/view', 'main/page2');
+        expect(location.hash).toBe('#/main/page2');
+    });
+
+    it('a bare inbound view command routes inside the visible router (no top-level switch)', () => {
+        const site = viewerSite({publish: 'state'});
+        const router = makeRouter('main', ['page1', 'page2']);
+        site.registerViewRouter(router);
+        site.view = 'main';
+        feezal.connection.pub.mockClear();
+        site.applyControlCommand('view', 'page2');
+        expect(router.routeToEmbedded).toHaveBeenCalledWith('page2');
+        expect(site.view).toBe('main');                               // top-level unchanged
+        expect(feezal.connection.pub).toHaveBeenCalledWith('state/view', 'main/page2');
+    });
+
+    it('a bare command for a non-embedded name still switches the top-level view', () => {
+        const site = viewerSite();
+        const router = makeRouter('main', ['page1']);
+        site.registerViewRouter(router);
+        site.view = 'main';
+        site.applyControlCommand('view', 'other');
+        expect(site.view).toBe('other');
+    });
+
+    it('a nested inbound command switches top-level and routes the embedded view', async () => {
+        const site = viewerSite();
+        const router = makeRouter('main', ['page1', 'page2']);
+        site.registerViewRouter(router);
+        site.view = 'other';
+        await site.updateComplete;
+        site.applyControlCommand('view', 'main/page2');
+        expect(site.view).toBe('main');
+        await site.updateComplete;                       // _viewChanged applies the pending embedded
+        expect(router.routeToEmbedded).toHaveBeenCalledWith('page2');
+    });
+
+    it('applies a deep-link embedded view once the router registers (order-independent)', () => {
+        location.hash = '#/main/page2';
+        const site = viewerSite();
+        expect(site.view).toBe('main');
+        const router = makeRouter('main', ['page1', 'page2']);
+        site.registerViewRouter(router);                              // registers late
+        expect(router.routeToEmbedded).toHaveBeenCalledWith('page2');
+    });
+
+    it('a plain site with no routers behaves exactly as before', () => {
+        const site = viewerSite({publish: 'state'});
+        site.applyControlCommand('view', 'other');
+        expect(site.view).toBe('other');
+        site._viewChanged('other');
+        expect(feezal.connection.pub).toHaveBeenCalledWith('state/view', 'other');
+        expect(location.hash).toBe('#/other');
+    });
+});
