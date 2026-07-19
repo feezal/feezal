@@ -848,7 +848,13 @@ Three related Homematic/HmIP gaps in the `*-climate` family (`glass-climate`, `m
 
 **Shared package + logic dedup (done — first refactor increment):** created the shared **`@feezal/feezal-glass`** package (not `feezal-element-*`, so the server's element scan ignores it) exporting the provably-identical LOGIC — `GLASS_SIZES` + `applySizePreset(el, map)` (removed the copy-pasted size map + `updated()` size-stamping from all 10 cards) and `payloadMatch` (consolidated from glass-switch/glass-light). **⚠ Behavioural discrepancy surfaced, deliberately NOT merged:** `glass-contact`'s local `payloadMatch` is **case-sensitive** while glass-switch/glass-light are case-insensitive — left local pending a decision (likely a latent glass-contact bug: `open`/`OPEN` payloads wouldn't match). Pure refactor, no CSS/render/descriptor changes; build + full browser suite green.
 
-**Remaining (the bulk):** the **`FeezalGlassCard` base class** + the frost-CSS style fragments (`glassCardStyles`/`glassWideLayoutStyles`/`glassPopupStyles`/`glassDialogStyles`) + shared descriptor/inspector fragments, and the `_wireSignature` / `_positionDetails` extraction — the "renders-identically" part, best done one element per commit with a visual pass. Original spec below.
+**`glassCardStyles` frost fragment (done — 2nd & 3rd increments):** the frosted-glass `.card` chrome (`:host` basics, `.card` position/flex/tint/backdrop-filter/border/shadow/color/font, `@supports squircle`, `:host([degrade]) .card`) is extracted into `glassCardStyles` in `@feezal/feezal-glass` and composed first in **all 10 cards**' `static styles`. Only declarations byte-identical across the family live in the fragment; per-card extras (`cursor`, `gap` 4px/2px, `transition`, `touch-action`, `--_state-color`, every `.card.<state>` override) stay local. glass-cover keeps a deliberate local `padding:10px` that overrides the fragment's 12px (cascades after → identical render). Pure refactor, full browser suite green.
+
+**Remaining (needs the app running — a visual pass, one element per commit):**
+- **popup/dialog overlay CSS fragments** (`glassPopupStyles`/`glassDialogStyles`/`glassWideLayoutStyles`) — the `.popup`/`.dialog`/`.sheet`/backdrop/slider chrome on light/climate/cover/fan/wled. Tests don't check pixels or popup positioning, so extract + verify visually.
+- **`FeezalGlassCard` base class** — the shared subscription/gesture/popup lifecycle (`_wireSignature`, `_positionDetails`, manual-subscription plumbing) + shared descriptor/inspector fragments. A behavioural refactor; verify each card live.
+
+Original spec below.
 
 
 
