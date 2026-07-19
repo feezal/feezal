@@ -369,6 +369,7 @@ describe('WP3/E106 — type:custom platform hook (_rebuildItems)', () => {
 import '../packages/@feezal/feezal-element-material-climate/feezal-element-material-climate.js';
 import '../packages/@feezal/feezal-element-glass-wled/feezal-element-glass-wled.js';
 import '../packages/@feezal/feezal-element-material-contact/feezal-element-material-contact.js';
+import '../packages/@feezal/feezal-element-material-cover/feezal-element-material-cover.js';
 
 describe('E108 — native discovery stamps onto *-climate + wled elements', () => {
     it('Homematic climate: native config stamps message-property/valve/modes/topics', () => {
@@ -498,6 +499,60 @@ describe('E108 — native discovery stamps onto *-climate + wled elements', () =
         expect(el.getAttribute('payload-available')).toBe('false');
         expect(el.getAttribute('payload-unavailable')).toBe('true');
         expect(el.getAttribute('discovery-id')).toBe('hm-contact:MEQ0200002');
+        expect(change).toHaveBeenCalled();
+    });
+
+    it('Homematic cover: native config stamps separate-mode position/stop topics + min/max + message-property + availability', () => {
+        // Exactly the shape the hmCoverRecognizer emits for a Homematic blind
+        // (LEVEL 0.0–1.0 → position_max 1, separate mode).
+        const entity = {
+            discovery_id: 'hm-cover:MEQ0500005:1',
+            component: 'cover',
+            source: 'homematic',
+            sourceLabel: 'hm',
+            name: 'Rolladen Wohnzimmer:1',
+            config: {
+                name: 'Rolladen Wohnzimmer:1',
+                payload_mode: 'separate',
+                position_state_topic:   'hm/status/Rolladen Wohnzimmer:1/LEVEL',
+                position_command_topic: 'hm/set/Rolladen Wohnzimmer:1/LEVEL',
+                stop_command_topic:     'hm/set/Rolladen Wohnzimmer:1/STOP',
+                position_min: 0,
+                position_max: 1,
+                message_property: 'payload.val',
+                message_property_position: 'payload.val',
+                availability_normalized: {
+                    entries: [{topic: 'hm/status/Rolladen Wohnzimmer:0/UNREACH', property: 'payload.val'}],
+                    mode: 'all', payloadAvailable: false, payloadUnavailable: true,
+                },
+            },
+        };
+
+        const el = document.createElement('feezal-element-material-cover');
+        const change = vi.fn();
+        globalThis.feezal.app = {change};
+
+        const ins = document.createElement('feezal-sidebar-inspector-attributes');
+        ins.selectedElems = [el];
+        ins._applyDiscovery(entity);
+
+        // Homematic is SEPARATE mode — LEVEL position goes to the separate-mode attrs.
+        expect(el.getAttribute('payload-mode')).toBe('separate');
+        expect(el.getAttribute('subscribe-position')).toBe('hm/status/Rolladen Wohnzimmer:1/LEVEL');
+        expect(el.getAttribute('publish-position')).toBe('hm/set/Rolladen Wohnzimmer:1/LEVEL');
+        expect(el.getAttribute('publish-stop')).toBe('hm/set/Rolladen Wohnzimmer:1/STOP');
+        // LEVEL 0.0–1.0 → max 1 (element scales to 0–100 %, no server scaling).
+        expect(el.getAttribute('min')).toBe('0');
+        expect(el.getAttribute('max')).toBe('1');
+        expect(el.getAttribute('message-property')).toBe('payload.val');
+        expect(el.getAttribute('message-property-position')).toBe('payload.val');
+        // :0 UNREACH availability (property → JSON-array form; false=available).
+        expect(el.getAttribute('subscribe-availability')).toBe(
+            '[{"topic":"hm/status/Rolladen Wohnzimmer:0/UNREACH","property":"payload.val"}]');
+        expect(el.getAttribute('payload-available')).toBe('false');
+        expect(el.getAttribute('payload-unavailable')).toBe('true');
+        expect(el.getAttribute('label')).toBe('Rolladen Wohnzimmer:1');
+        expect(el.getAttribute('discovery-id')).toBe('hm-cover:MEQ0500005:1');
         expect(change).toHaveBeenCalled();
     });
 

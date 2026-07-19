@@ -339,6 +339,110 @@ describe('Homematic contact recognizer', () => {
     });
 });
 
+describe('Homematic cover recognizer', () => {
+    it('BidCoS BLIND (any channel index) → one cover, LEVEL position topics, max 1, :0 UNREACH', () => {
+        const dev = 'MEQ0500005';
+        nat.handleNativeMessage('hm/status/Rolladen Wohnzimmer:1/LEVEL', je(0.6, {
+            device: dev, deviceName: 'Rolladen Wohnzimmer', deviceType: 'HM-LC-Bl1-FM',
+            channel: dev + ':1', channelName: 'Rolladen Wohnzimmer:1',
+            channelType: 'BLIND', channelIndex: 1, iface: 'BidCos-RF', datapoint: 'LEVEL',
+        }));
+
+        const covers = nat.getNativeEntities().filter(e => e.component === 'cover');
+        expect(covers).toHaveLength(1);
+
+        const e = nat.getNativeEntity('hm-cover:' + dev + ':1');
+        expect(e).toBeTruthy();
+        expect(e.component).toBe('cover');
+        expect(e.source).toBe('homematic');
+        expect(e.sourceLabel).toBe('hm');
+        expect(e.name).toBe('Rolladen Wohnzimmer:1');
+
+        const c = e.config;
+        expect(c.payload_mode).toBe('separate');
+        expect(c.position_state_topic).toBe('hm/status/Rolladen Wohnzimmer:1/LEVEL');
+        expect(c.position_command_topic).toBe('hm/set/Rolladen Wohnzimmer:1/LEVEL');
+        expect(c.stop_command_topic).toBe('hm/set/Rolladen Wohnzimmer:1/STOP');
+        expect(c.position_min).toBe(0);
+        expect(c.position_max).toBe(1);                    // LEVEL 0.0–1.0
+        expect(c.message_property).toBe('payload.val');
+        expect(c.message_property_position).toBe('payload.val');
+        // :0 maintenance UNREACH only (no LOWBAT for covers).
+        expect(c.availability_normalized).toEqual({
+            entries: [{topic: 'hm/status/Rolladen Wohnzimmer:0/UNREACH', property: 'payload.val'}],
+            mode: 'all',
+            payloadAvailable: false,
+            payloadUnavailable: true,
+        });
+    });
+
+    it('HmIP BLIND_VIRTUAL_RECEIVER: a 12-channel device → exactly 4 covers (first-of-3 leaders)', () => {
+        const dev = '0022HMIPBLIND';
+        const seg = i => 'Jalousieaktor:' + i;
+        // Feed all 12 virtual-receiver channels (channelIndex 1..12). Two of them
+        // fed twice / out of order to exercise the stable per-group id.
+        const order = [3, 1, 2, 6, 5, 4, 7, 8, 9, 12, 11, 10, 1, 12];
+        for (const i of order) {
+            nat.handleNativeMessage('hm/status/' + seg(i) + '/LEVEL', je(0.5, {
+                device: dev, deviceName: 'Jalousieaktor', deviceType: 'HmIP-BROLL',
+                channel: dev + ':' + i, channelName: seg(i),
+                channelType: 'BLIND_VIRTUAL_RECEIVER', channelIndex: i, iface: 'HmIP-RF', datapoint: 'LEVEL',
+            }));
+        }
+
+        const covers = nat.getNativeEntities().filter(e => e.component === 'cover');
+        expect(covers).toHaveLength(4);
+
+        // Group ids g0..g3, leaders at channelIndex 1,4,7,10 (first of each triple).
+        const leaders = {g0: 1, g1: 4, g2: 7, g3: 10};
+        for (const [g, idx] of Object.entries(leaders)) {
+            const e = nat.getNativeEntity('hm-cover:' + dev + ':' + g);
+            expect(e, g).toBeTruthy();
+            expect(e.config.position_state_topic).toBe('hm/status/' + seg(idx) + '/LEVEL');
+            expect(e.config.position_command_topic).toBe('hm/set/' + seg(idx) + '/LEVEL');
+            expect(e.config.stop_command_topic).toBe('hm/set/' + seg(idx) + '/STOP');
+            expect(e.config.position_max).toBe(1);
+        }
+    });
+
+    it('HmIP device with exactly 3 BLIND_VIRTUAL_RECEIVER channels → one cover', () => {
+        const dev = '0033HMIPONE';
+        for (const i of [1, 2, 3]) {
+            nat.handleNativeMessage('hm/status/Rollo Bad:' + i + '/LEVEL', je(0.2, {
+                device: dev, deviceName: 'Rollo Bad', deviceType: 'HmIP-BROLL',
+                channel: dev + ':' + i, channelName: 'Rollo Bad:' + i,
+                channelType: 'BLIND_VIRTUAL_RECEIVER', channelIndex: i, iface: 'HmIP-RF', datapoint: 'LEVEL',
+            }));
+        }
+        const covers = nat.getNativeEntities().filter(e => e.component === 'cover');
+        expect(covers).toHaveLength(1);
+        const e = nat.getNativeEntity('hm-cover:' + dev + ':g0');
+        expect(e).toBeTruthy();
+        expect(e.config.position_state_topic).toBe('hm/status/Rollo Bad:1/LEVEL');   // leader = index 1
+    });
+
+    it('does NOT promote a LEVEL whose channelType is not a cover type (e.g. a TRV valve or dimmer)', () => {
+        // eTRV valve LEVEL — HEATING channel, not a blind.
+        nat.handleNativeMessage('hm/status/Heizung:1/LEVEL', je(0.35, {
+            device: 'DEVTRV01', deviceName: 'Heizung', deviceType: 'HmIP-eTRV-2',
+            channel: 'DEVTRV01:1', channelName: 'Heizung:1',
+            channelType: 'HEATING_CLIMATECONTROL_TRANSCEIVER', channelIndex: 1, iface: 'HmIP-RF', datapoint: 'LEVEL',
+        }));
+        // Dimmer LEVEL — DIMMER channel.
+        nat.handleNativeMessage('hm/status/Lampe:1/LEVEL', je(0.8, {
+            device: 'DEVDIM01', deviceName: 'Lampe', deviceType: 'HmIP-BDT',
+            channel: 'DEVDIM01:1', channelName: 'Lampe:1',
+            channelType: 'DIMMER_VIRTUAL_RECEIVER', channelIndex: 1, iface: 'HmIP-RF', datapoint: 'LEVEL',
+        }));
+        expect(nat.getNativeEntities().filter(e => e.component === 'cover')).toHaveLength(0);
+    });
+
+    it('does NOT promote a LEVEL with no hm metadata (channelType unknown ⇒ cannot classify)', () => {
+        nat.handleNativeMessage('hm/status/Something:1/LEVEL', jePlain(0.5));
+        expect(nat.getNativeEntities().filter(e => e.component === 'cover')).toHaveLength(0);
+    });
+});
+
 describe('WLED recognizer', () => {
     it('promotes on wled/<id>/v with device_topic + availability_normalized', () => {
         nat.handleNativeMessage('wled/desk/v', Buffer.from('{"state":{"on":true}}'));

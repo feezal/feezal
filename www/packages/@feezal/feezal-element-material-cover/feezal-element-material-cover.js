@@ -40,6 +40,19 @@ class FeezalElementMaterialCover extends FeezalElement {
                     // tilt / slat angle support
                     tilt_status_topic:  {attr: 'slat-angle'},
                     tilt_command_topic: {attr: 'publish-slat-angle'},
+                    // ── E108: native Homematic (separate-mode) keys ───────────
+                    // Native-only (HA/z2m absent → skipped, additive). Homematic
+                    // covers are SEPARATE mode: LEVEL position goes to the
+                    // separate-mode attrs, not the json base. LEVEL is 0.0–1.0 →
+                    // position_max 1 sets max=1 so the element scales to 0–100 %.
+                    payload_mode:             {attr: 'payload-mode'},
+                    position_state_topic:     {attr: 'subscribe-position'},
+                    position_command_topic:   {attr: 'publish-position'},
+                    stop_command_topic:       {attr: 'publish-stop'},
+                    position_min:             {attr: 'min'},
+                    position_max:             {attr: 'max'},
+                    message_property:          {attr: 'message-property'},
+                    message_property_position: {attr: 'message-property-position'},
                     // N31: availability is mapped automatically from the canonical discovery record.
                     // device name → label
                     name: 'label',

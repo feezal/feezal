@@ -468,8 +468,180 @@ const hmContactRecognizer = {
     reset() { this.state.devices.clear(); },
 };
 
+// ── Recognizer 4: Homematic cover ─────────────────────────────────────────────
+// Blind / shutter actuators. Two dialects, gated on the CCU channelType metadata
+// (LEVEL alone is not evidence — dimmers and TRV valves report LEVEL too), so a
+// channel with absent/unlisted channelType is NOT promoted:
+//
+//   BidCoS  BLIND                  — one physical output = ONE BLIND channel;
+//                                    each such channel → one cover entity.
+//   HmIP    BLIND_VIRTUAL_RECEIVER — a blind/shutter actuator exposes its outputs
+//                                    as virtual-receiver channels grouped in
+//                                    consecutive TRIPLES (per the user's HmIP
+//                                    virtual-receiver convention: 1 output = 3
+//                                    channels). We sort the device's
+//                                    BLIND_VIRTUAL_RECEIVER channels ascending by
+//                                    channelIndex, chunk them into 3s, and wire
+//                                    the cover to the FIRST (lowest-index) channel
+//                                    of each triple. A 12-channel device → 4
+//                                    covers. The discovery_id is STABLE per group
+//                                    (…:g0/:g1/…) so the retained-message burst
+//                                    can't leave stale duplicates as channels
+//                                    arrive out of order.
+//
+// Position is Homematic LEVEL (0.0–1.0): the entity ships position_min 0 /
+// position_max 1 so the client element scales it to 0–100 % (max=1, no server
+// scaling). STOP is a write-only datapoint, so it is not part of the match; it is
+// simply constructed as the stop_command_topic.
+const COVER_BIDCOS_TYPES = new Set(['BLIND']);            // single channel, any index
+const COVER_HMIP_TYPES = new Set(['BLIND_VIRTUAL_RECEIVER']); // grouped in 3s
+
+const hmCoverRecognizer = {
+    id: 'homematic-cover',
+    // deviceId → {deviceId, deviceName, deviceType, channels: Map<seg, chan>}
+    // chan = {seg, channelType, channelIndex, channelAddr, channelName}
+    state: {devices: new Map()},
+
+    match(topic) {
+        // hm/status/<seg>/LEVEL — LEVEL only (whitelisted DP; STOP is write-only).
+        if (!topic.startsWith(hmPrefix + '/status/')) return null;
+        const parts = topic.split('/');
+        if (parts.length !== 4) return null;            // exactly prefix/status/seg/DP
+        if (parts[3] !== 'LEVEL') return null;
+        return {seg: parts[2], datapoint: 'LEVEL'};
+    },
+
+    accumulate(state, parsed, value, payload) {
+        const hm = (payload && typeof payload === 'object' && payload.hm && typeof payload.hm === 'object')
+            ? payload.hm : null;
+
+        // Group by the CCU device id; fall back to the topic segment with its
+        // trailing :<n> stripped when metadata is absent.
+        const deviceId = (hm && hm.device) ? String(hm.device)
+            : parsed.seg.replace(/:\d+$/, '');
+
+        let dev = state.devices.get(deviceId);
+        if (!dev) {
+            dev = {deviceId, deviceName: undefined, deviceType: undefined, channels: new Map()};
+            state.devices.set(deviceId, dev);
+        }
+        if (hm) {
+            if (hm.deviceName != null) dev.deviceName = hm.deviceName;
+            if (hm.deviceType != null) dev.deviceType = hm.deviceType;
+        }
+
+        let chan = dev.channels.get(parsed.seg);
+        if (!chan) {
+            chan = {seg: parsed.seg, channelType: undefined, channelIndex: undefined,
+                channelAddr: undefined, channelName: undefined};
+            dev.channels.set(parsed.seg, chan);
+        }
+        if (hm) {
+            if (hm.channelType != null) chan.channelType = hm.channelType;
+            if (hm.channelIndex != null) chan.channelIndex = hm.channelIndex;
+            if (hm.channel != null) chan.channelAddr = hm.channel;
+            if (hm.channelName != null) chan.channelName = hm.channelName;
+        }
+        // Carry the just-updated channel so promote emits THIS channel's cover /
+        // its HmIP group (a device can hold several independent covers).
+        return {dev, chan};
+    },
+
+    // The HmIP virtual-receiver triple the just-updated channel belongs to, and
+    // that triple's leader (its lowest-channelIndex member). Computed against the
+    // FULL current sorted set so the burst converges to a stable per-group id.
+    _hmipGroup(dev, chan) {
+        const vr = [...dev.channels.values()]
+            .filter(c => c.channelType === 'BLIND_VIRTUAL_RECEIVER')
+            .sort((a, b) => (a.channelIndex ?? 0) - (b.channelIndex ?? 0));
+        const pos = vr.indexOf(chan);
+        if (pos < 0) return null;
+        const groupIndex = Math.floor(pos / 3);
+        return {leader: vr[groupIndex * 3], groupIndex};
+    },
+
+    _build(dev, chan, discoveryId, name) {
+        const p = hmPrefix;
+        const readSeg = chan.seg;
+        // Write/stop topics use the segment when non-empty, else the channel
+        // address (nameless device) — mirrors the climate/contact recognizers.
+        const writeSeg = chan.seg !== '' ? chan.seg : (chan.channelAddr || chan.seg);
+
+        const config = {
+            name,
+            // Homematic is SEPARATE mode — position goes to the separate-mode attrs.
+            payload_mode: 'separate',
+            position_state_topic:   hmStatus(p, readSeg, 'LEVEL'),
+            position_command_topic: hmSet(p, writeSeg, 'LEVEL'),
+            stop_command_topic:     hmSet(p, writeSeg, 'STOP'),
+            // LEVEL is 0.0–1.0 → the client scales max=1 to 0–100 % (no server scaling).
+            position_min: 0,
+            position_max: 1,
+            // MQTT-Smarthome JSON-Extended: the value lives at payload.val.
+            message_property: 'payload.val',
+            message_property_position: 'payload.val',
+        };
+
+        // Availability from the device's :0 maintenance UNREACH datapoint. Covers
+        // carry no LOWBAT entry (per the user) — UNREACH only.
+        const availBase = readSeg !== '' ? readSeg : (chan.channelAddr || readSeg);
+        const availSeg = availBase.replace(/:\d+$/, ':0');
+        config.availability_normalized = {
+            entries: [{topic: hmStatus(p, availSeg, 'UNREACH'), property: 'payload.val'}],
+            mode: 'all',
+            payloadAvailable: false,
+            payloadUnavailable: true,
+        };
+
+        return {
+            discovery_id: discoveryId,
+            component: 'cover',
+            source: 'homematic',
+            sourceLabel: 'hm',
+            name,
+            config,
+        };
+    },
+
+    promote(state) {
+        const {dev, chan} = state;
+        // channelType absent/unlisted ⇒ cannot know the group structure ⇒ no
+        // promotion (covers need the metadata; see the group-of-3 note above).
+        if (!chan.channelType) return null;
+
+        if (COVER_BIDCOS_TYPES.has(chan.channelType)) {
+            // One BLIND channel = one cover. Prefer the channel's own name so
+            // sibling blinds on one device stay distinct.
+            const id = 'hm-cover:' + (chan.channelAddr || chan.seg);
+            const name = chan.channelName || dev.deviceName
+                || (dev.deviceType ? dev.deviceType + ' ' + dev.deviceId : dev.deviceId);
+            return this._build(dev, chan, id, name);
+        }
+
+        if (COVER_HMIP_TYPES.has(chan.channelType)) {
+            const grp = this._hmipGroup(dev, chan);
+            if (!grp) return null;
+            const {leader, groupIndex} = grp;
+            // Stable per-group id (…:g0/:g1/…) keyed on the device + group index,
+            // so re-emitting the leader as later channels arrive overwrites in place.
+            const id = 'hm-cover:' + dev.deviceId + ':g' + groupIndex;
+            // Prefer a distinct leader channel name; else deviceName + group number.
+            const name = (leader.channelName && leader.channelName !== dev.deviceName)
+                ? leader.channelName
+                : ((dev.deviceName
+                    || (dev.deviceType ? dev.deviceType + ' ' + dev.deviceId : dev.deviceId))
+                    + ' ' + (groupIndex + 1));
+            return this._build(dev, leader, id, name);
+        }
+
+        return null;
+    },
+
+    reset() { this.state.devices.clear(); },
+};
+
 // ── Framework ─────────────────────────────────────────────────────────────────
-const recognizers = [hmClimateRecognizer, wledRecognizer, hmContactRecognizer];
+const recognizers = [hmClimateRecognizer, wledRecognizer, hmContactRecognizer, hmCoverRecognizer];
 
 /** @type {Map<string, object>} discovery_id → promoted native entity */
 const nativeEntities = new Map();
