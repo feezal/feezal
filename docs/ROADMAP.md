@@ -11,6 +11,7 @@ Work in progress — priorities and scope are not final.
 - [B33 — Elements sometimes not selectable/draggable](#b33--elements-sometimes-not-selectabledraggable-needs-investigation) ❓
 - [B34 — Stray orange dot left over from rubber-band selection during element drag](#b34--stray-orange-dot-left-over-from-rubber-band-selection-during-element-drag) (not yet reproducable )❓
 - [B36 — Snapping sometimes stops working until page reload](#b36--snapping-sometimes-stops-working-until-page-reload-needs-investigation) ❓
+- [B39 — Missing slash in the viewer URL for non-default sites (`/viewer/Rooms#/…`)](#b39--missing-slash-in-the-viewer-url-for-non-default-sites)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -116,6 +117,16 @@ Snapping occasionally just stops working during drag/resize — no snap lines, n
 **Fix direction (pending confirmation):** don't trust keyup alone — also resync modifier state from `window blur`/`visibilitychange` (clear both flags when focus leaves the window) and from every subsequent `pointerdown`/`mousedown` (read `event.ctrlKey`/`event.shiftKey` opportunistically). Needs a repro to confirm the stuck-modifier theory before implementing.
 
 **Relates:** B32 (snapping helper lines sometimes don't disappear — could be the same stuck-modifier root cause manifesting as lines stuck *visible* instead of snapping stuck *off*; worth investigating together).
+
+### B39 — Missing slash in the viewer URL for non-default sites
+
+Opening a view on a **non-default** site produces `https://<host>/viewer/Rooms#/view1` — cosmetically it should be `https://<host>/viewer/Rooms/#/view1` (trailing slash between the site segment and the hash).
+
+**Cause.** `_view()` ([feezal-app-editor.js:2085-2089](../www/src/feezal-app-editor.js#L2085-L2089)) builds the base as `feezal.siteName === 'default' ? '/viewer/' : '/viewer/' + feezal.siteName` — the default branch has the trailing slash, the non-default branch does not, then `base + location.hash` yields `/viewer/Rooms#/view1`.
+
+**Fix.** Append the slash in the non-default branch (`'/viewer/' + feezal.siteName + '/'`) so both branches match. While in there, sweep the other `/viewer/${siteName}` link builders for consistency — [feezal-history-bar.js:177-206](../www/src/feezal-history-bar.js#L177-L206) and [feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183) append `?sha=…` (query, unaffected by the missing slash) and the bare live link — but a canonical trailing slash is nicer everywhere. A more robust alternative is a **server-side redirect** `/viewer/:site` → `/viewer/:site/` in the viewer route ([app.js](../server/src/app.js) `viewerHandler`), which fixes any hand-typed or externally-linked URL too; the client one-liner is the minimal cosmetic fix the report asks for.
+
+**Ships with:** a browser/e2e assertion that the opened viewer URL for a non-default site carries `/viewer/<site>/#/<view>`.
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
