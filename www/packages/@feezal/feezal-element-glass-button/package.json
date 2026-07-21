@@ -1,6 +1,6 @@
 {
-  "name": "@feezal/feezal-element-glass-button",
-  "version": "3.0.7",
-  "main": "feezal-element-glass-button.js",
-  "license": "MIT"
+    "name": "@feezal/feezal-element-glass-button",
+    "version": "3.0.7",
+    "main": "feezal-element-glass-button.js",
+    "license": "MIT"
 }
