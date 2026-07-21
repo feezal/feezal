@@ -1097,7 +1097,8 @@ class FeezalSidebarInspector extends LitElement {
             // Ctrl+I toggles the shortcuts dialog regardless of canvas focus.
             if ((event.metaKey || event.ctrlKey) && event.key === 'i') {
                 event.preventDefault();
-                this._shortcutsOpen = !this._shortcutsOpen;
+                if (this._shortcutsOpen) this._shortcutsOpen = false;
+                else this._openShortcutsRevealed();
                 return;
             }
 
@@ -1194,7 +1195,8 @@ class FeezalSidebarInspector extends LitElement {
                         break;
                     case '?':
                         if (!event.metaKey && !event.ctrlKey) {
-                            this._shortcutsOpen = !this._shortcutsOpen;
+                            if (this._shortcutsOpen) this._shortcutsOpen = false;
+                            else this._openShortcutsRevealed();
                         }
 
                         break;
@@ -1206,6 +1208,22 @@ class FeezalSidebarInspector extends LitElement {
             }
         };
         window.addEventListener('keydown', this._keyHandler);
+    }
+
+    /**
+     * B43: open the shortcuts dialog AND make sure it can actually be seen.
+     * The overlay renders inside this sidebar panel, which is display:none
+     * whenever another sidebar tab is active or the sidebar is collapsed —
+     * opening it there produced an invisible dialog and the ? button (and
+     * Ctrl+I / ?) appeared dead. Reveal transiently: the tab choice is NOT
+     * persisted, so the user's saved sidebar tab survives a reload.
+     */
+    _openShortcutsRevealed() {
+        if (feezal.app) {
+            feezal.app.sidebarVisible = true;
+            feezal.app.sidebar = 'inspector';
+        }
+        this._shortcutsOpen = true;
     }
 
     _deleteElems() {

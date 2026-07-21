@@ -2049,8 +2049,10 @@ class FeezalAppEditor extends LitElement {
             this._sourceHelpOpen = true;
             return;
         }
-        const inspector = this.shadowRoot.querySelector('feezal-sidebar-inspector');
-        if (inspector) inspector._shortcutsOpen = true;
+        // B43: the overlay lives inside the inspector panel — the helper
+        // reveals the panel (sidebar + inspector tab) before opening, so the
+        // ? button works while any other sidebar tab is active.
+        this.shadowRoot.querySelector('feezal-sidebar-inspector')?._openShortcutsRevealed();
     }
 
     // -------------------------------------------------------------------
