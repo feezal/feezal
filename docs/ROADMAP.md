@@ -62,6 +62,7 @@ Work in progress — priorities and scope are not final.
 - [E124 — Contact elements: dedicated low-battery indicator](#e124--contact-elements-dedicated-low-battery-indicator)
 - [E125 — Homematic battery voltage (`OPERATING_VOLTAGE`)](#e125--homematic-battery-voltage-operating_voltage--future) 💡
 - [E128 — Homematic blinds: settling behaviour + `DIRECTION` indicator](#e128--homematic-blinds-settling-behaviour--direction-indicator-later--after-e127) *(later)*
+- [E129 — metro-* family: expose font/icon sizes as CSS vars, larger icon defaults](#e129--metro--family-expose-fonticon-sizes-as-css-vars-larger-icon-defaults)
 
 **Editor UX**
 
@@ -1287,6 +1288,18 @@ Blinds/covers have **the same LEVEL ramp problem** as dimmers (position reports 
 **Ships with:** cover-family attributes + help texts (patch bumps, E114 parity), recognizer update, TESTING.md notes (slow-travel timeout, direction indicator, tilt check).
 
 **Relates:** **E127** (the machinery this reuses — do first), E108 ✅ (recognizer), E114 (parity), E120 ✅-era cover-discovery work (same recognizer area).
+
+### E129 — metro-* family: expose font/icon sizes as CSS vars, larger icon defaults
+
+The metro tiles hardcode their typography and icon sizing (labels 12–13 px, values 16–18 px, tile icon `min(42px, 40cqh)`) — the family exposes **colour** vars (`--feezal-metro-text`/`-accent`/`-off-color`/`-unit`) but **no size vars**, so neither themes nor the style inspector can adjust text or icon sizes. Same move as the glass family's E106 typography decision, applied to metro:
+
+- **Expose sizes as `--feezal-metro-*` custom properties**, defaulted once (shared metro styles / `MetroTileBase` where the family already shares chrome): e.g. `--feezal-metro-icon-size`, `--feezal-metro-font-size-label`, `--feezal-metro-font-size-value`, `--feezal-metro-font-size-unit` — plain px fallbacks (sizes, not colours — §5.1 canonical-var rule doesn't apply). List them in each element's `styles` descriptors so they're settable per element in the style inspector and overridable by `feezal-theme-metro`.
+- **Defaults get bigger — icons in particular:** nudge the defaults up, with the **icon size getting the larger increase** (the current 42 px cap reads small on the flat tiles); exact values tuned visually at implementation across all tile sizes (1x1/2x2/4x2/4x4 mosaic) and both front/back faces.
+- Apply family-wide (tile, switch, light, climate, contact, sensor, occupancy, media, cover, wled) — one shared definition, per-element descriptor listing (E106 lesson: no ten hand-rolled copies).
+
+**Ships with:** patch bumps across the family, TESTING.md metro-family note (size vars visible in the style inspector, theme override works, new defaults look right on every tile size), and — since metro is A24's future externalization candidate — the shared definition placed where the family bundle can take it along.
+
+**Relates:** E106 ✅ (the glass typography precedent — same pattern), E114 (family parity — glass has vars, metro gets them now, material worth checking after), A24 (metro externalization — shared styles must move with the family), feezal-theme-metro (gains override examples), E38 (element scaling — cq-based icon cap interacts with tile size).
 
 ## Architecture & Infrastructure
 
