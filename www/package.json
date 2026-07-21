@@ -87,6 +87,7 @@
         "@feezal/feezal-element-material-media-player": "*",
         "@feezal/feezal-element-material-motion": "*",
         "@feezal/feezal-element-material-navbar": "*",
+        "@feezal/feezal-element-material-outlet": "*",
         "@feezal/feezal-element-material-plant": "*",
         "@feezal/feezal-element-material-progress": "*",
         "@feezal/feezal-element-material-radio": "*",

@@ -64,6 +64,7 @@ import '@feezal/feezal-element-material-map';
 import '@feezal/feezal-element-material-media-player';
 import '@feezal/feezal-element-material-motion';
 import '@feezal/feezal-element-material-navbar';
+import '@feezal/feezal-element-material-outlet';
 import '@feezal/feezal-element-material-plant';
 import '@feezal/feezal-element-material-progress';
 import '@feezal/feezal-element-material-radio';
@@ -194,6 +195,7 @@ window.feezal.elements = [
   "feezal-element-material-media-player",
   "feezal-element-material-motion",
   "feezal-element-material-navbar",
+  "feezal-element-material-outlet",
   "feezal-element-material-plant",
   "feezal-element-material-progress",
   "feezal-element-material-radio",

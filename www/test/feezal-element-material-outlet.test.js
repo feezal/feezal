@@ -1,0 +1,70 @@
+import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
+
+import '../packages/@feezal/feezal-element-material-outlet/feezal-element-material-outlet.js';
+
+// E121 — smart plug / outlet card: material-light locked to on_off mode
+// (E122). One rendering/publishing code path, own palette identity.
+
+beforeEach(() => {
+    feezal.isEditor = false;
+    feezal.connection = {sub: vi.fn(() => ({})), unsubscribe: vi.fn(), pub: vi.fn()};
+});
+
+afterEach(() => {
+    document.body.innerHTML = '';
+});
+
+async function mountOutlet(attrs = {}) {
+    const el = document.createElement('feezal-element-material-outlet');
+    for (const [k, v] of Object.entries({
+        'subscribe-state': 'plug/state',
+        'publish-state': 'plug/set',
+        ...attrs,
+    })) el.setAttribute(k, v);
+    document.body.append(el);
+    await el.updateComplete;
+    return el;
+}
+
+describe('feezal-element-material-outlet (E121)', () => {
+    it('is a material-light subclass locked to on_off mode', async () => {
+        const el = await mountOutlet();
+        expect(el instanceof customElements.get('feezal-element-material-light')).toBe(true);
+        expect(el.mode).toBe('on_off');
+    });
+
+    it('renders the power button without any ring track', async () => {
+        const el = await mountOutlet();
+        el._on = true;
+        await el.updateComplete;
+        expect(el.shadowRoot.querySelector('svg path')).toBeNull();
+        expect([...el.shadowRoot.querySelectorAll('svg text')].some(t => t.textContent.includes('⏻'))).toBe(true);
+    });
+
+    it('tap toggles and publishes the state payload', async () => {
+        const el = await mountOutlet({'payload-on': 'ON', 'payload-off': 'OFF'});
+        el._on = false;
+        el._toSvgCoords = () => ({sx: 50, sy: 20});
+        el._onSvgPointerDown({preventDefault() {}, currentTarget: null});
+        expect(el._on).toBe(true);
+        expect(feezal.connection.pub).toHaveBeenCalledWith('plug/set', 'ON');
+    });
+
+    it('declares its own palette identity and no mode/brightness attributes', () => {
+        const cls = customElements.get('feezal-element-material-outlet');
+        expect(cls.feezal.palette).toMatchObject({name: 'Outlet', category: 'Material'});
+        const names = cls.feezal.attributes.map(a => a.name);
+        expect(names).not.toContain('mode');
+        expect(names).not.toContain('subscribe-brightness');
+        expect(names).toContain('subscribe-state');
+        // no custom inspector inherited — the reduced attribute list uses the generic panel
+        expect(cls.feezal.inspector).toBeUndefined();
+    });
+
+    it('shares the light theme tokens for styling', () => {
+        const cls = customElements.get('feezal-element-material-outlet');
+        const props = cls.feezal.styles.filter(s => typeof s === 'object').map(s => s.property);
+        expect(props).toContain('--feezal-light-on-color');
+        expect(props).toContain('--feezal-light-surface-color');
+    });
+});
