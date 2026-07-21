@@ -64,6 +64,7 @@ Work in progress — priorities and scope are not final.
 - [E123 — material-cover: stronger colour, and size parity with material-light](#e123--material-cover-stronger-colour-and-size-parity-with-material-light)
 - [E124 — Contact elements: dedicated low-battery indicator](#e124--contact-elements-dedicated-low-battery-indicator)
 - [E125 — Homematic battery voltage (`OPERATING_VOLTAGE`)](#e125--homematic-battery-voltage-operating_voltage--future) 💡
+- [E126 — Homematic discovery: switch recognizer with name word-list heuristic (+ light classification)](#e126--homematic-discovery-switch-recognizer-with-name-word-list-heuristic--light-classification)
 
 **Editor UX**
 
@@ -1355,6 +1356,28 @@ HmIP battery devices publish **`OPERATING_VOLTAGE`** on the `:0` maintenance cha
 - **Reporting cadence.** Battery voltage updates rarely and drifts with temperature — a chart of it is only useful over days/weeks, which has implications for history retention (see the history/logbook items).
 
 **Relates:** **E124** (low-battery boolean — the prerequisite), E108 ✅ (native Homematic discovery — where the recognizer lives), N31 (availability), E30 (sparkline — the natural place a voltage trend would render).
+
+### E126 — Homematic discovery: switch recognizer with name word-list heuristic (+ light classification)
+
+Add **switch support to the native Homematic discovery** ([native-discovery.js](../server/src/mqtt/native-discovery.js)) — but *not* by promoting every switch channel: a Homematic installation exposes **tremendous numbers of irrelevant switch datapoints** (unused actuator channels, virtual triples), and promoting them all would bury the discovered-device list. The recognizer therefore needs a **naming heuristic** on top of the channel-type gate.
+
+**Channel-type gate (first filter):** `channelType === 'SWITCH'` (BidCoS) or `'SWITCH_VIRTUAL_RECEIVER'` (HmIP). HmIP actuators expose their output as a **triple of virtual-receiver channels — only the first is promoted**, exactly the dedup the blind recognizer already does for `BLIND_VIRTUAL_RECEIVER` (reuse that mechanism, same `*_VIRTUAL_RECEIVER` problem). Metadata-less channels (no `channelType`) are never promoted, per the framework's existing rule.
+
+**Name word-list gate (second filter — the heuristic):** Homematic users leave irrelevant channels **unnamed**, so their topic segment is the CCU default — device model + serial + channel, e.g. `HmIP-BSM 000855699C49CB:9`. Relevant channels get real names. A switch channel is only promoted when its topic/channel name contains (case-insensitive substring) a word from a **bilingual word list**:
+
+- **Switch/plug words** (→ promoted as `switch` component): `steckdose`, `standby`, `plug` *(core, per request)* — proposed additions: `socket`, `outlet`, `schalter`.
+- **Light words** (→ promoted as **`light`** component instead): `light`, `licht`, `lamp`, `lampe` *(core, per request)* — proposed additions: `leuchte`, `beleuchtung`, `bulb`, `spot`.
+
+**Light classification:** a Homematic switch whose name matches the light list joins the **discovered lights**, and its discovery config assigns **on/off mode** — depends on **E122** (lights: on/off-only mode); the discovery config sets that mode so no brightness ring is offered for a relay. Light words win over switch words when both match.
+
+**Implementation notes:**
+- New recognizer following the contact/blind pattern: collect channels per device from the CCU metadata, gate on channel type, dedup the virtual-receiver triple, apply the word lists to the channel-name segment, emit `{component: 'switch' | 'light', config}` wiring `STATE` (r/w, `true`/`false` payloads) via the standard `hmSet`/read segments.
+- **Word lists live in server config** (defaults as above, user-extensible/overridable) — naming conventions differ per household; hard-coding only the defaults. Matching: lowercase substring against the decoded name segment.
+- Unmatched switch channels are simply not promoted — manual wiring in the editor remains available as always. Document the word-list convention (and how to extend it) in the discovery docs + a ℹ hint in the discovery UI.
+
+**Ships with:** recognizer unit tests (named/unnamed/triple/light-vs-switch/word-list-override cases), TESTING.md discovery-section update, docs.
+
+**Relates:** E108 ✅ (native discovery framework — contact/blind recognizers as the pattern, incl. the `*_VIRTUAL_RECEIVER` triple dedup), **E122** (on/off light mode — dependency for the light assignment), **E121** (outlet/plug card — the natural element for discovered `plug`/`steckdose` switches once it exists), E120 (sibling discovery item), N31 (availability wiring comes from the same framework).
 
 ## Architecture & Infrastructure
 
