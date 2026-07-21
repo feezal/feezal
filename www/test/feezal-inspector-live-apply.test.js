@@ -125,3 +125,53 @@ describe('styles panel — debounced live-apply (U36)', () => {
         expect(feezal.app.change).not.toHaveBeenCalled();
     });
 });
+
+// B45: after committing a new custom property, focus must land in the new
+// row's value control so "name ⏎ value ⏎" works keyboard-only.
+describe('add custom property — focus handoff (B45)', () => {
+    async function makeAttachedPanel() {
+        const panel = document.createElement('feezal-sidebar-inspector-styles');
+        panel.selectedElems = [target];
+        panel.items = [];
+        document.body.append(panel);
+        await panel.updateComplete;
+        return panel;
+    }
+
+    it('renders the new value control with a data-property hook and focuses it', async () => {
+        const panel = await makeAttachedPanel();
+        panel._commitAddProp('font-size');
+        await panel.updateComplete;
+        await Promise.resolve();                 // the focus microtask
+
+        const ctl = panel.renderRoot.querySelector('sl-input[data-property="font-size"]');
+        expect(ctl).toBeTruthy();
+        const active = panel.renderRoot.activeElement;
+        expect(active === ctl || ctl.contains(active)).toBe(true);
+    });
+
+    it('enum properties render an sl-select carrying the same hook', async () => {
+        const panel = await makeAttachedPanel();
+        panel._commitAddProp('text-transform');  // CSS_ENUMS entry → sl-select
+        await panel.updateComplete;
+        await Promise.resolve();
+
+        const ctl = panel.renderRoot.querySelector('sl-select[data-property="text-transform"]');
+        expect(ctl).toBeTruthy();
+    });
+
+    it('refuses editor-reserved properties (cursor stays with the editor)', async () => {
+        const panel = await makeAttachedPanel();
+        panel._commitAddProp('cursor');
+        await panel.updateComplete;
+        expect(panel.items).toHaveLength(0);
+    });
+
+    it('clears the add-property input after commit', async () => {
+        const panel = await makeAttachedPanel();
+        panel._addProp = 'font-size';
+        panel._commitAddProp('font-size');
+        expect(panel._addProp).toBe('');
+        expect(panel._addPropList).toEqual([]);
+    });
+});

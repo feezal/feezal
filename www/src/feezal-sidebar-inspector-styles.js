@@ -312,6 +312,7 @@ class FeezalSidebarInspectorStyles extends LitElement {
                             <sl-select
                                 label="${item.property}"
                                 size="small"
+                                data-property="${item.property}"
                                 .value="${item.mixed ? '' : (item.value || '')}"
                                 @sl-change="${e => this._change(e, idx)}">
                                 ${CSS_ENUMS[item.property].map(v => html`
@@ -797,6 +798,18 @@ class FeezalSidebarInspectorStyles extends LitElement {
         this._addProp = '';
         this._addPropList = [];
         this._addPropCursor = -1;
+        // B45: move focus into the new row's value control so the keyboard
+        // flow "name ⏎ value ⏎" works without reaching for the mouse. The row
+        // renders on the next update; both control shapes (sl-input, and
+        // sl-select for enum properties) carry data-property and focus().
+        this.updateComplete.then(() => {
+            const esc = window.CSS?.escape ? CSS.escape(prop) : prop;
+            const ctl = this.renderRoot?.querySelector(`[data-property="${esc}"]`);
+            if (ctl) {
+                ctl.scrollIntoView?.({block: 'nearest'});
+                ctl.focus?.();
+            }
+        });
     }
 
     // ── Style Classes ─────────────────────────────────────────────────────────────────
