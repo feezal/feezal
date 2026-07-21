@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, publishLocalAttribute} from '@feezal/feezal-element';
 import '@carbon/web-components/es/components/button/button.js';
 
 class FeezalElementCarbonButton extends FeezalElement {
@@ -15,6 +15,7 @@ class FeezalElementCarbonButton extends FeezalElement {
             attributes: [
                 {name: 'label',   type: 'string',  help: 'Button label text.', default: 'Button'},
                 {name: 'publish', type: 'mqttTopic', help: 'MQTT topic to publish to on click.'},
+                publishLocalAttribute,
                 {name: 'payload', type: 'string',  help: 'Payload published on click.', default: '1'},
                 // E79: state feedback — the button highlights while the state
                 // it controls is active (same contract as material-button).
@@ -39,6 +40,7 @@ class FeezalElementCarbonButton extends FeezalElement {
     }
 
     static properties = {
+        publishLocal: {type: Boolean, reflect: true, attribute: 'publish-local'},
         label:   {type: String, reflect: true},
         publish: {type: String, reflect: true},
         payload: {type: String, reflect: true},
@@ -94,6 +96,7 @@ class FeezalElementCarbonButton extends FeezalElement {
 
     constructor() {
         super();
+        this.publishLocal = false;
         this.label   = 'Button';
         this.publish = '';
         this.payload = '1';
@@ -119,7 +122,7 @@ class FeezalElementCarbonButton extends FeezalElement {
     _click() {
         if (this.disabled) return;
         if (this.publish) {
-            feezal.connection.pub(this.publish, this.payload);
+            feezal.connection.pub(this.publish, this.payload, {local: this.publishLocal});
         }
     }
 

@@ -36,6 +36,12 @@ class FeezalElementPaperButton extends FeezalPolymerElement {
     }
     static get properties() {
         return {
+            // E117: page-local publish (see publishLocalAttribute in the base pkg)
+            publishLocal: {
+                type: Boolean,
+                value: false,
+                reflectToAttribute: true
+            },
             label: {
                 type: String,
                 value: ' ',
@@ -94,6 +100,8 @@ class FeezalElementPaperButton extends FeezalPolymerElement {
             },
             attributes: [
                 'publish',
+                {name: 'publish-local', type: 'boolean', default: false,
+                    help: 'Publish page-locally instead of to the broker: the payload reaches only subscribers in THIS browser tab (dialog triggers, view switches, wiring elements together). Nothing is sent over MQTT, nothing is retained, and it works while disconnected.'},
                 'label',
                 'payload',
                 // E79: state feedback — same attribute contract as material-button.
@@ -154,7 +162,7 @@ class FeezalElementPaperButton extends FeezalPolymerElement {
     _click() {
         if (this.disabled) return;   // E79: UI guard only — not a security boundary
         if (this.publish) {
-            feezal.connection.pub(this.publish, this.payload);
+            feezal.connection.pub(this.publish, this.payload, {local: this.publishLocal});
         }
     }
 }

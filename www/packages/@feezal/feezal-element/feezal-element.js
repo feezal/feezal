@@ -414,5 +414,21 @@ export function availabilityBadge(available) {
     return available ? '' : html`<span class="feezal-unavail-badge" title="Device unavailable">⚠</span>`;
 }
 
+/**
+ * E117: shared descriptor for the `publish-local` attribute — spread into an
+ * element's `feezal.attributes` right after `publish` so the label and help
+ * text can never drift between elements. The element declares
+ * `publishLocal: {type: Boolean, reflect: true, attribute: 'publish-local'}`
+ * and passes `{local: this.publishLocal}` as the pub() options; the
+ * connection then loops the message back page-locally instead of sending it
+ * to the broker (see FeezalConnection.pub).
+ */
+export const publishLocalAttribute = {
+    name: 'publish-local',
+    type: 'boolean',
+    default: false,
+    help: 'Publish page-locally instead of to the broker: the payload reaches only subscribers in THIS browser tab (dialog triggers, view switches, wiring elements together). Nothing is sent over MQTT, nothing is retained, and it works while disconnected.'
+};
+
 // Re-export so element files can do a single import.
 export {html, css};

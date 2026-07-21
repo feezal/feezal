@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, publishLocalAttribute} from '@feezal/feezal-element';
 import '@material/web/iconbutton/icon-button.js';
 
 class FeezalElementMaterialIconButton extends FeezalElement {
@@ -11,6 +11,7 @@ class FeezalElementMaterialIconButton extends FeezalElement {
                 {name: 'icon',        type: 'string',    help: 'Material icon name (e.g. "home", "power_settings_new").'},
                 {name: 'icon-off',    type: 'string',    help: 'Icon shown when in OFF/unselected state (toggle mode only).'},
                 {name: 'publish',     type: 'mqttTopic', help: 'Topic to publish to on click.'},
+                publishLocalAttribute,
                 {name: 'payload',     type: 'string',    help: 'Payload to publish (action mode). Default: 1'},
                 {name: 'toggle',      type: 'boolean',   help: 'Enable toggle mode: button tracks on/off state.'},
                 {name: 'subscribe',   type: 'mqttTopic', help: 'Topic to read ON/OFF state from (toggle mode).'},
@@ -27,6 +28,7 @@ class FeezalElementMaterialIconButton extends FeezalElement {
     }
 
     static properties = {
+        publishLocal: {type: Boolean, reflect: true, attribute: 'publish-local'},
         icon:       {type: String,  reflect: true},
         iconOff:    {type: String,  reflect: true, attribute: 'icon-off'},
         publish:    {type: String,  reflect: true},
@@ -72,6 +74,7 @@ class FeezalElementMaterialIconButton extends FeezalElement {
 
     constructor() {
         super();
+        this.publishLocal = false;
         this.icon       = 'touch_app';
         this.iconOff    = '';
         this.publish    = '';
@@ -98,9 +101,9 @@ class FeezalElementMaterialIconButton extends FeezalElement {
         if (!this.publish) return;
         if (this.toggle) {
             this._on = !this._on;
-            feezal.connection.pub(this.publish, this._on ? this.payloadOn : this.payloadOff);
+            feezal.connection.pub(this.publish, this._on ? this.payloadOn : this.payloadOff, {local: this.publishLocal});
         } else {
-            feezal.connection.pub(this.publish, this.payload);
+            feezal.connection.pub(this.publish, this.payload, {local: this.publishLocal});
         }
     }
 

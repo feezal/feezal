@@ -57,6 +57,35 @@ describe('publishing', () => {
         el.shadowRoot.querySelector('md-filled-button').click();
         expect(feezal.connection.published).toEqual([]);
     });
+
+    // E117: publish-local — the pub() options carry {local: true} so the
+    // connection loops the payload back page-locally instead of sending it
+    // to the broker.
+    it('publish-local passes {local: true} to pub()', async () => {
+        const calls = [];
+        feezal.connection.pub = (topic, payload, options) => calls.push({topic, payload, options});
+        const el = await mount('feezal-element-material-button', {
+            label: 'Go', publish: 'ui/dialog', payload: 'open', 'publish-local': ''
+        });
+        el.shadowRoot.querySelector('md-filled-button').click();
+        expect(calls).toEqual([{topic: 'ui/dialog', payload: 'open', options: {local: true}}]);
+    });
+
+    it('without publish-local the options say local: false', async () => {
+        const calls = [];
+        feezal.connection.pub = (topic, payload, options) => calls.push(options);
+        const el = await mount('feezal-element-material-button', {
+            label: 'Go', publish: 'cmnd/light', payload: 'TOGGLE'
+        });
+        el.shadowRoot.querySelector('md-filled-button').click();
+        expect(calls).toEqual([{local: false}]);
+    });
+
+    it('declares the shared publish-local descriptor', () => {
+        const cls = customElements.get('feezal-element-material-button');
+        const spec = cls.feezal.attributes.find(a => a?.name === 'publish-local');
+        expect(spec).toMatchObject({type: 'boolean', default: false});
+    });
 });
 
 // E79: state feedback + disabled — same contract as feezal-element-paper-button.

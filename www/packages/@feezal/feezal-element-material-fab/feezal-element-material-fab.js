@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, publishLocalAttribute} from '@feezal/feezal-element';
 import '@material/web/fab/fab.js';
 
 class FeezalElementMaterialFab extends FeezalElement {
@@ -11,6 +11,7 @@ class FeezalElementMaterialFab extends FeezalElement {
                 {name: 'icon',     type: 'string',    help: 'Material icon name inside the FAB (e.g. "add", "edit").'},
                 {name: 'label',    type: 'string',    help: 'Text label (makes the FAB extended).'},
                 {name: 'publish',  type: 'mqttTopic', help: 'Topic to publish to on click.'},
+                publishLocalAttribute,
                 {name: 'payload',  type: 'string',    help: 'Payload to publish. Default: 1'},
                 {name: 'size',     type: 'select',    options: ['small', 'medium', 'large'], help: 'FAB size. Default: medium'},
                 {name: 'variant',  type: 'select',    options: ['surface', 'primary', 'secondary', 'tertiary'], help: 'Color variant.'},
@@ -25,6 +26,7 @@ class FeezalElementMaterialFab extends FeezalElement {
     }
 
     static properties = {
+        publishLocal: {type: Boolean, reflect: true, attribute: 'publish-local'},
         icon:     {type: String,  reflect: true},
         label:    {type: String,  reflect: true},
         publish:  {type: String,  reflect: true},
@@ -76,6 +78,7 @@ class FeezalElementMaterialFab extends FeezalElement {
 
     constructor() {
         super();
+        this.publishLocal = false;
         this.icon     = 'add';
         this.label    = '';
         this.publish  = '';
@@ -87,7 +90,7 @@ class FeezalElementMaterialFab extends FeezalElement {
 
     _onClick() {
         if (!this.publish) return;
-        feezal.connection.pub(this.publish, this.payload);
+        feezal.connection.pub(this.publish, this.payload, {local: this.publishLocal});
     }
 
     render() {

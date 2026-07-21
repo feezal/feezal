@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, publishLocalAttribute} from '@feezal/feezal-element';
 import {applySizePreset, glassCardStyles} from '@feezal/feezal-glass';
 
 /**
@@ -28,6 +28,7 @@ class FeezalElementGlassButton extends FeezalElement {
                 {name: 'label',   type: 'string', help: 'Label under the icon.'},
                 {name: 'icon',    type: 'string', default: 'auto_awesome', help: 'Icon name (icon picker sets, e.g. "movie" or "mdi:sofa").'},
                 {name: 'publish', type: 'mqttTopic', help: 'Topic the tap publishes to.'},
+                publishLocalAttribute,
                 {name: 'payload', type: 'string', default: '1', help: 'Payload published on tap.'},
                 {name: 'subscribe', type: 'mqttTopic', help: 'Optional state topic — highlights the card while active.'},
                 {name: 'message-property', type: 'string', default: 'payload',
@@ -49,6 +50,7 @@ class FeezalElementGlassButton extends FeezalElement {
     }
 
     static properties = {
+        publishLocal: {type: Boolean, reflect: true, attribute: 'publish-local'},
         size:          {type: String,  reflect: true},
         label:         {type: String,  reflect: true},
         icon:          {type: String,  reflect: true},
@@ -95,6 +97,7 @@ class FeezalElementGlassButton extends FeezalElement {
 
     constructor() {
         super();
+        this.publishLocal = false;
         this.size = '';
         this.label = '';
         this.icon = 'auto_awesome';
@@ -137,7 +140,7 @@ class FeezalElementGlassButton extends FeezalElement {
             return;
         }
         if (this.publish) {
-            feezal.connection.pub(this.publish, this.payload ?? '1');
+            feezal.connection.pub(this.publish, this.payload ?? '1', {local: this.publishLocal});
         }
     }
 
