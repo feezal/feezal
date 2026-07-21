@@ -9,7 +9,6 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B33 — Elements sometimes not selectable/draggable](#b33--elements-sometimes-not-selectabledraggable-needs-investigation) ❓
 - [B36 — Snapping sometimes stops working until page reload](#b36--snapping-sometimes-stops-working-until-page-reload-needs-investigation) ❓
-- [B48 — Component edit mode: click-selection and context menu don't work](#b48--component-edit-mode-click-selection-and-context-menu-dont-work)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -60,7 +59,6 @@ Work in progress — priorities and scope are not final.
 - [E119 — `basic-number`: configurable placeholder before the first value](#e119--basic-number-configurable-placeholder-before-the-first-value)
 - [E124 — Contact elements: dedicated low-battery indicator](#e124--contact-elements-dedicated-low-battery-indicator)
 - [E125 — Homematic battery voltage (`OPERATING_VOLTAGE`)](#e125--homematic-battery-voltage-operating_voltage--future) 💡
-- [E126 — Homematic discovery: switch recognizer with name word-list heuristic (+ light classification)](#e126--homematic-discovery-switch-recognizer-with-name-word-list-heuristic--light-classification)
 
 **Editor UX**
 
@@ -69,13 +67,10 @@ Work in progress — priorities and scope are not final.
 - [U30 — Auto-generated starter dashboard from MQTT discovery](#u30--auto-generated-starter-dashboard-from-mqtt-discovery-questionable-low-priority) ❓ 🔽
 - [U31 — Device-first element insertion](#u31--device-first-element-insertion-) ⚡
 - [U38 — Topic browser sidebar panel](#u38--topic-browser-sidebar-panel)
-- [U42 — Resize handle affordance on the selected element](#u42--resize-handle-affordance-on-the-selected-element)
-- [U43 — "Apply connection settings" button with dirty detection](#u43--apply-connection-settings-button-with-dirty-detection)
 - [U45 — Element insertion: palette sidebar + full-screen picker](#u45--element-insertion-palette-sidebar--full-screen-picker--to-refine) 💡 *(to refine)*
 - [U46 — Clippy easter egg in the help popup](#u46--clippy-easter-egg-in-the-help-popup--low-priority) 🔽
 - [U48 — Make the viewer's `Connected as "…"` toast optional](#u48--make-the-viewers-connected-as--toast-optional)
 - [U50 — layout-app: expose the content area's inset (padding)](#u50--layout-app-expose-the-content-areas-inset-padding)
-- [U52 — Component edit mode: double-click to enter, attribute-mapping editor in the banner](#u52--component-edit-mode-double-click-to-enter-attribute-mapping-editor-in-the-banner)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -107,19 +102,6 @@ Snapping occasionally just stops working during drag/resize — no snap lines, n
 **Fix direction (pending confirmation):** don't trust keyup alone — also resync modifier state from `window blur`/`visibilitychange` (clear both flags when focus leaves the window) and from every subsequent `pointerdown`/`mousedown` (read `event.ctrlKey`/`event.shiftKey` opportunistically). Needs a repro to confirm the stuck-modifier theory before implementing.
 
 **Relates:** B32 (snapping helper lines sometimes don't disappear — could be the same stuck-modifier root cause manifesting as lines stuck *visible* instead of snapping stuck *off*; worth investigating together).
-
-### B48 — Component edit mode: click-selection and context menu don't work
-
-Inside **component edit mode** (the U32 "Editing component …" pseudo-view), the canvas is half-broken:
-
-- **Elements cannot be selected by click** — clicking a stamped element does nothing. Selecting via **drag (rubber-band) works**, which is the tell: DragSelect's rectangle path finds the elements, but the click-selection path doesn't.
-- **No context menu** — right-click on elements (or the canvas) shows nothing, so every context-menu action (incl. the component entries themselves) is unreachable in edit mode.
-
-**Candidate causes** (the click path and the context-menu handler are both wired per *view*): the component-edit pseudo-view may not run through the same `_viewChanged()` / `initElem()` wiring as regular views, and the click-selection `composedPath` handler + `dragstart` gating check for `FEEZAL-VIEW` targets — while stamped children inside a component are **direct children of the `feezal-component` instance, not of the view** (see the `isCanvasElement` note, [feezal-component.js:15-19](../www/src/feezal-component.js#L15-L19)); membership/target checks that assume "canvas element ⇒ child of feezal-view" silently fail there.
-
-**Acceptance:** inside component edit mode — single click selects, multi-select works, right-click shows the standard context menu, attribute/style inspectors follow the selection; behaviour identical to a normal view.
-
-**Relates:** U32 (component feature — where the pseudo-view is built), U52 (edit-mode UX additions — do together), B35 ✅-adjacent (same selection wiring surface), B33 (if the wiring fix generalises, retest).
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
@@ -919,24 +901,6 @@ A new tab in the right sidebar (the icon-tab row in [feezal-app-editor.js](www/s
 
 **Relates:** **E62** (topic-tree browser — already decided there as "element + editor panel" with a shared tree component: *this is that editor panel*; the canvas element reuses the component), the `mqttTopic` autocomplete (E62 names the panel as the candidate upgrade path to a browsable picker), B28 (custom-inspector topic fields — the shared picker/autocomplete component serves both), U37 (welcome wizard step 6 — "find a topic" is exactly where a browser beats blind typing).
 
-### U42 — Resize handle affordance on the selected element
-
-Hovering a **currently selected** element should show an explicit **resize handle in its lower-right corner**. Today resizing works but is undiscoverable — the hit area is implicit, so users don't know an element *can* be resized until they stumble into it.
-
-**Spec sketch:** small corner grip, visible on hover of a selected element only (not on every hover — that would be noisy on a dense canvas), matching the selection ring's styling, and suppressed exactly where resize is already suppressed (grouped/locked members per **U3**, component instances per U32, flow-view children where only width/height apply). Cursor already changes on the resize edges — the handle makes that affordance visible rather than changing behaviour.
-
-**Relates:** **U3** (grouping/locking — owns selection affordances and already defines when handles are suppressed), B33 (selection/drag reliability — verify the handle doesn't add another pointer-event surface that can swallow clicks), E38 (element internal scaling — different concern).
-
-### U43 — "Apply connection settings" button with dirty detection
-
-Changing the MQTT broker settings and then having to find the global **Deploy** button is unintuitive — users don't connect "I edited the broker host" with "I must deploy the site". Add a **second, clearly-labelled button next to the broker config inputs** (e.g. *Apply connection settings*) that performs the deploy, so the action is where the change was made.
-
-**Decided:** it must have **dirty detection** — enabled only while there are *undeployed* changes to the broker settings, so it reads as "you have unapplied changes here" rather than as a second permanent Deploy. Disabled/quiet state otherwise.
-
-**Open:** whether it deploys the whole site (same action as Deploy, just surfaced locally — simplest and consistent) or only the connection settings (more precise, but introduces a second deploy semantics users would have to understand). Leaning to the former with local labelling.
-
-**Relates:** N7 ✅ (MQTT connection configuration UI — the form this attaches to), N32 ✅ (deploy auto-reloads connected viewers — so applying settings has an immediate visible effect), **A12** (export/deployment targets — owns the Deploy button and its dropdown; keep the two consistent), U37/U41 ✅ (the wizard already spotlights the Host input — this closes the loop the wizard opens).
-
 ### U45 — Element insertion: palette sidebar + full-screen picker 💡 to refine
 
 The left palette is a poor place to *browse* a catalog that now spans many families and dozens of elements — it's narrow, filtering was weak (**B42** ✅ fixed — name/category/family now all match), and finding the right element requires knowing where it lives. But the sidebar has one irreplaceable strength: **drag-to-canvas**, which places the element exactly where the user wants it.
@@ -991,18 +955,6 @@ The embedded view sits flush against the app bar and drawer — there is no way 
 - Accept a full CSS shorthand (`8px`, `8px 16px`, …) rather than a number, so per-side insets need no extra knobs.
 
 **Relates:** E-layout-app (the shell), N36 (the `--feezal-app-*` style-var set this extends), E38 (element scaling / responsive sizing — a responsive inset would belong there).
-
-### U52 — Component edit mode: double-click to enter, attribute-mapping editor in the banner
-
-Two UX additions to the U32 component feature:
-
-**1. Double-click enters component edit mode.** Double-clicking a `feezal-component` instance on the canvas opens component edit mode for that component — the same action as the context-menu entry, which is today the *only* entry point (and per **B48** the context menu is currently unreachable inside edit mode, making discoverability doubly poor). Scope: `dblclick` on an instance (not on elements inside edit mode); must not conflict with existing double-click behaviours on other element types — guard on `localName === 'feezal-component'`.
-
-**2. Attribute-mapping editor in the edit-mode banner.** The component-edit banner (`#component-edit-banner`, [feezal-app-editor.js:1054](../www/src/feezal-app-editor.js#L1054)) gains an **"Attribute mapping…"** button opening the mapping table — the same instance-attribute → inner-element/attribute table the create-component dialog shows — for the component being edited. Today the mapping is only definable at creation time; editing it afterwards requires recreating the component. Changes apply to the component definition (all instances), go through the normal change pipeline (dirty + undo), and re-stamp instances like other component edits.
-
-**Ships with:** TESTING.md updates in the components section (double-click entry, mapping edit round-trip incl. undo, re-stamp of existing instances).
-
-**Relates:** U32 (component feature), **B48** (edit-mode selection/context-menu fix — do together; double-click is also the workaround-proof entry point while context menus are broken), B46 (instance-size stamping — same re-stamp path the mapping edit exercises).
 
 ### E109 — evcc integration: native discovery + energy/charging elements 💡 to refine
 
@@ -1251,28 +1203,6 @@ HmIP battery devices publish **`OPERATING_VOLTAGE`** on the `:0` maintenance cha
 - **Reporting cadence.** Battery voltage updates rarely and drifts with temperature — a chart of it is only useful over days/weeks, which has implications for history retention (see the history/logbook items).
 
 **Relates:** **E124** (low-battery boolean — the prerequisite), E108 ✅ (native Homematic discovery — where the recognizer lives), N31 (availability), E30 (sparkline — the natural place a voltage trend would render).
-
-### E126 — Homematic discovery: switch recognizer with name word-list heuristic (+ light classification)
-
-Add **switch support to the native Homematic discovery** ([native-discovery.js](../server/src/mqtt/native-discovery.js)) — but *not* by promoting every switch channel: a Homematic installation exposes **tremendous numbers of irrelevant switch datapoints** (unused actuator channels, virtual triples), and promoting them all would bury the discovered-device list. The recognizer therefore needs a **naming heuristic** on top of the channel-type gate.
-
-**Channel-type gate (first filter):** `channelType === 'SWITCH'` (BidCoS) or `'SWITCH_VIRTUAL_RECEIVER'` (HmIP). HmIP actuators expose their output as a **triple of virtual-receiver channels — only the first is promoted**, exactly the dedup the blind recognizer already does for `BLIND_VIRTUAL_RECEIVER` (reuse that mechanism, same `*_VIRTUAL_RECEIVER` problem). Metadata-less channels (no `channelType`) are never promoted, per the framework's existing rule.
-
-**Name word-list gate (second filter — the heuristic):** Homematic users leave irrelevant channels **unnamed**, so their topic segment is the CCU default — device model + serial + channel, e.g. `HmIP-BSM 000855699C49CB:9`. Relevant channels get real names. A switch channel is only promoted when its topic/channel name contains (case-insensitive substring) a word from a **bilingual word list**:
-
-- **Switch/plug words** (→ promoted as `switch` component): `steckdose`, `standby`, `plug` *(core, per request)* — proposed additions: `socket`, `outlet`, `schalter`.
-- **Light words** (→ promoted as **`light`** component instead): `light`, `licht`, `lamp`, `lampe` *(core, per request)* — proposed additions: `leuchte`, `beleuchtung`, `bulb`, `spot`.
-
-**Light classification:** a Homematic switch whose name matches the light list joins the **discovered lights**, and its discovery config assigns **on/off mode** — E122 ✅ shipped that mode (07/2026), so this dependency is satisfied; the discovery config sets `mode: on_off` and no brightness ring is offered for a relay. Light words win over switch words when both match.
-
-**Implementation notes:**
-- New recognizer following the contact/blind pattern: collect channels per device from the CCU metadata, gate on channel type, dedup the virtual-receiver triple, apply the word lists to the channel-name segment, emit `{component: 'switch' | 'light', config}` wiring `STATE` (r/w, `true`/`false` payloads) via the standard `hmSet`/read segments.
-- **Word lists live in server config** (defaults as above, user-extensible/overridable) — naming conventions differ per household; hard-coding only the defaults. Matching: lowercase substring against the decoded name segment.
-- Unmatched switch channels are simply not promoted — manual wiring in the editor remains available as always. Document the word-list convention (and how to extend it) in the discovery docs + a ℹ hint in the discovery UI.
-
-**Ships with:** recognizer unit tests (named/unnamed/triple/light-vs-switch/word-list-override cases), TESTING.md discovery-section update, docs.
-
-**Relates:** E108 ✅ (native discovery framework — contact/blind recognizers as the pattern, incl. the `*_VIRTUAL_RECEIVER` triple dedup), E122 ✅ (on/off light mode — the light-assignment dependency, satisfied), E121 ✅ (outlet/plug card — now exists; the natural element for discovered `plug`/`steckdose` switches, note it has no discovery map yet), E120 (sibling discovery item), N31 (availability wiring comes from the same framework).
 
 ## Architecture & Infrastructure
 

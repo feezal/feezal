@@ -3,7 +3,7 @@
 Completed and closed roadmap items — **one file per item**, named after its ID (e.g. `U39.md`).
 Open items live in [../ROADMAP.md](../ROADMAP.md).
 
-**216 items.**
+**221 items.**
 
 ## Bugs
 
@@ -49,6 +49,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [B45 — "Add CSS property": Enter does not move focus to the new value field ✅ fixed](B45.md)
 - [B46 — Component instances: authored width/height is overwritten with the template's px size ✅ fixed](B46.md)
 - [B47 — material-light: dragging the brightness ring scrolls the page on mobile ✅ fixed](B47.md)
+- [B48 — Component edit mode: click-selection and context menu don't work ✅ fixed](B48.md)
 
 ## Near-term Improvements
 
@@ -96,6 +97,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [E123 — material-cover: stronger colour, and size parity with material-light ✅ implemented](E123.md)
 - [E118 — `click-through` on `basic-number`, `basic-icon-value`, `basic-datetime` ✅ implemented](E118.md)
 - [E120 — Homematic cover discovery: wire Up/Down to the LEVEL set topic ✅ implemented](E120.md)
+- [E126 — Homematic discovery: switch recognizer with name word-list heuristic (+ light classification) ✅ implemented](E126.md)
 
 ## Editor UX
 
@@ -206,6 +208,9 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [U49 — Conditions: expose the message property in the inspector ✅ implemented](U49.md)
 - [U44 — Inspector: clear (×) button on fields that have a default ✅ implemented](U44.md)
 - [U51 — Per-view themes ✅ implemented](U51.md)
+- [U42 — Resize handle affordance on the selected element ✅ implemented](U42.md)
+- [U43 — "Apply connection settings" button with dirty detection ✅ implemented](U43.md)
+- [U52 — Component edit mode: double-click to enter, attribute-mapping editor in the banner ✅ implemented](U52.md)
 
 ## Architecture & Infrastructure
 
