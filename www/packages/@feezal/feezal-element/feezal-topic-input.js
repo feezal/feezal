@@ -141,7 +141,7 @@ class FeezalTopicInput extends LitElement {
     render() {
         return html`
             <div class="topic-wrap">
-                <sl-input size="${this.size}" autocomplete="off"
+                <sl-input size="${this.size}" autocomplete="off" clearable
                     label="${this.label || ''}"
                     placeholder="${this.placeholder}"
                     .value="${this.value ?? ''}"

@@ -562,12 +562,39 @@ class FeezalSidebarInspectorAttributes extends LitElement {
     // checkpoint, so a typing burst is one undo step.
 
     _liveChange(value, idx) {
+        // U44: the × clear already removed the attribute — swallow the empty
+        // sl-input Shoelace emits right after sl-clear, or the debounced
+        // commit would re-create the attribute as an empty string.
+        if (this._clearGuard === idx && value === '') return;
         this._liveTimers ??= {};
         clearTimeout(this._liveTimers[idx]);
         this._liveTimers[idx] = setTimeout(() => {
             delete this._liveTimers[idx];
             this._change(value, idx, false);
         }, LIVE_APPLY_DEBOUNCE_MS);
+    }
+
+    /**
+     * U44: × clear — remove the attribute entirely (back to the descriptor
+     * default) instead of writing an empty string; the default placeholder
+     * takes over again. Routed through the normal dirty pipeline (one undo
+     * step). Shoelace's clear click ALSO emits sl-input + sl-change with ''
+     * — a one-tick guard swallows those so they can't undo the removal,
+     * while deliberate "explicit empty" edits (select-all + delete) keep
+     * their existing setAttribute('') semantics.
+     */
+    _clearAttr(idx) {
+        if (this._liveTimers) {
+            clearTimeout(this._liveTimers[idx]);
+            delete this._liveTimers[idx];
+        }
+        const item = this.items[idx];
+        const htmlAttr = this._toKebab(item.attrName || item.label);
+        feezal.editor.selectedElems.forEach(el => el.removeAttribute(htmlAttr));
+        this.items = this.items.map((it, i) => i === idx ? {...it, value: '', invalid: false, mixed: false} : it);
+        this._clearGuard = idx;
+        setTimeout(() => { if (this._clearGuard === idx) this._clearGuard = null; }, 0);
+        feezal.app.change();
     }
 
     _flushChange(value, idx) {
@@ -768,8 +795,13 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         if (elem.dropdown) {
             // Show the default option when the attribute is unset (a select
             // can't show a greyed placeholder), so the effective value is visible.
+            // U44: × only while the attribute is EXPLICITLY set — the select
+            // always displays an effective value, so Shoelace's own "when
+            // non-empty" rule would show × permanently.
             return html`
                 <sl-select .label="${labelAttr}" size="small" .value="${mixed ? '' : (value || (item.default ?? ''))}"
+                    ?clearable="${!mixed && value != null && value !== ''}"
+                    @sl-clear="${() => this._clearAttr(idx)}"
                     @sl-change="${e => this._change(e.target.value, idx, true)}">
                     ${labelSlot}
                     ${(elem.options || []).map(opt => html`
@@ -818,9 +850,10 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             return html`
                 <div class="color-wrap">
                     <sl-input .label="${labelAttr}" size="small"
-                        autocomplete="off"
+                        autocomplete="off" clearable
                         .value="${mixed ? '' : (value ?? '')}"
                         placeholder="${mixed ? '— varies —' : ''}"
+                        @sl-clear="${() => this._clearAttr(idx)}"
                         @sl-input="${e => this._liveChange(e.target.value, idx)}"
                         @sl-change="${e => this._flushChange(e.target.value, idx)}">
                         ${labelSlot}
@@ -920,9 +953,10 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             return html`
                 <div class="topic-wrap">
                     <sl-input .label="${labelAttr}" size="small"
-                        autocomplete="off"
+                        autocomplete="off" clearable
                         .value="${mixed ? '' : (value ?? '')}"
                         placeholder="${mixed ? '— varies —' : ''}"
+                        @sl-clear="${() => this._clearAttr(idx)}"
                         @sl-focus="${e => this._onTopicInput(e.target.value, idx)}"
                         @sl-input="${e => { this._onTopicInput(e.target.value, idx); this._liveChange(e.target.value, idx); }}"
                         @sl-blur="${() => this._scheduleCloseCompletions(idx)}"
@@ -945,15 +979,18 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         }
 
         // Default: text / number input — an unset field shows the default as a
-        // greyed placeholder so the effective value is visible.
+        // greyed placeholder so the effective value is visible. U44: × clears
+        // back to that default (Shoelace shows it only while non-empty, which
+        // is exactly "explicitly set" here).
         return html`
             <sl-input .label="${labelAttr}" size="small"
                 type="${elem.inputType || 'text'}"
-                autocomplete="off"
+                autocomplete="off" clearable
                 title="${elem.tooltip || ''}"
                 .value="${mixed ? '' : (value ?? '')}"
                 placeholder="${mixed ? '— varies —' : (item.default != null ? String(item.default) : '')}"
                 min="${elem.min ?? ''}" max="${elem.max ?? ''}" step="${elem.step ?? ''}"
+                @sl-clear="${() => this._clearAttr(idx)}"
                 @sl-input="${e => this._liveChange(e.target.value, idx)}"
                 @sl-change="${e => this._flushChange(e.target.value, idx)}">
                 ${labelSlot}
@@ -1104,6 +1141,9 @@ class FeezalSidebarInspectorAttributes extends LitElement {
     }
 
     _change(newValue, idx, applyImmediately) {
+        // U44: swallow the empty sl-change Shoelace emits right after sl-clear
+        // (see _clearAttr) — the attribute was already removed.
+        if (this._clearGuard === idx && (newValue === '' || newValue == null)) return;
         const item  = this.items[idx];
         const attr  = item.attrName || item.label;  // attrName for attribute ops, label as fallback
         let invalid = false;

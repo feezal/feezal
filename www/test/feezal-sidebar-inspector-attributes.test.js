@@ -4,6 +4,14 @@ import '../src/feezal-sidebar-inspector-attributes.js';
 
 const el = document.createElement('feezal-sidebar-inspector-attributes');
 
+// Shared test target with a feezal descriptor — _change()/_clearAttr() skip
+// elements whose class carries none.
+class TestTarget extends HTMLElement {
+    static feezal = {attributes: [{name: 'label-off', default: 'off'}, 'subscribe', 'minValue', 'min-value'], styles: []};
+}
+customElements.define('feezal-element-attr-test-target', TestTarget);
+const makeTarget = () => document.createElement('feezal-element-attr-test-target');
+
 describe('_toKebab() — property name to attribute name', () => {
     it('converts camelCase to kebab-case', () => {
         expect(el._toKebab('childPosition')).toBe('child-position');
@@ -37,20 +45,20 @@ describe('_toCssColorHex() — normalise colors for <input type=color>', () => {
 
 describe('attribute item factories', () => {
     it('_makeTextItem() reads the kebab-case attribute first', () => {
-        const target = document.createElement('div');
+        const target = makeTarget();
         target.setAttribute('min-value', '5');
         expect(el._makeTextItem(target, 'minValue').value).toBe('5');
     });
 
     it('_makeTextItem() falls back to the raw name, then empty string', () => {
-        const target = document.createElement('div');
+        const target = makeTarget();
         target.setAttribute('minValue', '7');
         expect(el._makeTextItem(target, 'minValue').value).toBe('7');
         expect(el._makeTextItem(target, 'missing').value).toBe('');
     });
 
     it('_makeTopicItem() flags the item as an MQTT topic input', () => {
-        const target = document.createElement('div');
+        const target = makeTarget();
         target.setAttribute('subscribe', 'home/temp');
         const item = el._makeTopicItem(target, 'subscribe');
         expect(item.value).toBe('home/temp');
@@ -755,5 +763,69 @@ describe('WP3/E106 — type:custom rendering + change routing', () => {
         expect(change).toHaveBeenCalledTimes(2);
 
         document.body.innerHTML = '';
+    });
+});
+
+// ── U44: × clear — remove the attribute, back to the descriptor default ─────
+
+describe('U44 — _clearAttr() removes the attribute through the dirty pipeline', () => {
+    function makePanel(target) {
+        const panel = document.createElement('feezal-sidebar-inspector-attributes');
+        panel.selectedElems = [target];
+        panel.items = [{label: 'label-off', attrName: 'label-off', value: 'aus', default: 'off', mixed: false, invalid: false, elem: {}}];
+        feezal.app = {change: vi.fn()};
+        feezal.editor = {selectedElems: [target]};
+        return panel;
+    }
+
+    it('removes the attribute (not an empty string) and commits one change', () => {
+        const target = makeTarget();
+        target.setAttribute('label-off', 'aus');
+        const panel = makePanel(target);
+
+        panel._clearAttr(0);
+
+        expect(target.hasAttribute('label-off')).toBe(false);
+        expect(panel.items[0].value).toBe('');
+        expect(feezal.app.change).toHaveBeenCalledTimes(1);
+    });
+
+    it('swallows the empty sl-change/sl-input Shoelace emits after sl-clear', () => {
+        const target = makeTarget();
+        target.setAttribute('label-off', 'aus');
+        const panel = makePanel(target);
+
+        panel._clearAttr(0);
+        // Shoelace's clear click emits these synchronously right after:
+        panel._change('', 0, true);       // would setAttribute('label-off', '')
+        panel._liveChange('', 0);         // would schedule a debounced '' commit
+
+        expect(target.hasAttribute('label-off')).toBe(false);
+        expect(panel._liveTimers?.[0]).toBeUndefined();
+    });
+
+    it('a normal empty commit later still writes an explicit empty string', async () => {
+        const target = makeTarget();
+        target.setAttribute('label-off', 'aus');
+        const panel = makePanel(target);
+
+        panel._clearAttr(0);
+        await new Promise(resolve => setTimeout(resolve, 1));   // guard expires
+        panel._change('', 0, true);                             // deliberate explicit-empty edit
+
+        expect(target.getAttribute('label-off')).toBe('');
+    });
+
+    it('cancels a pending debounced commit for the same field', () => {
+        vi.useFakeTimers();
+        const target = makeTarget();
+        const panel = makePanel(target);
+
+        panel._liveChange('halfway', 0);
+        panel._clearAttr(0);
+        vi.runAllTimers();
+
+        expect(target.hasAttribute('label-off')).toBe(false);
+        vi.useRealTimers();
     });
 });
