@@ -84,6 +84,7 @@ Work in progress — priorities and scope are not final.
 - [A23 — Externalize element families: own git repos + npm publish (paper, tui, panel)](#a23--externalize-element-families-own-git-repos--npm-publish-paper-tui-panel)
 - [A24 — Externalize the metro element family](#a24--externalize-the-metro-element-family-future--will-be-done-later) *(future)*
 - [A25 — Privacy: zero telemetry, zero third-party CDN, works offline](#a25--privacy-zero-telemetry-zero-third-party-cdn-works-offline-) ⚡
+- [A26 — Release notes: commit links + roadmap-item links](#a26--release-notes-commit-links--roadmap-item-links)
 
 
 ---
@@ -1860,6 +1861,23 @@ Metro **stays bundled with feezal for now** (decided 07/2026) — it moves out *
 **Ships with:** the fixes above, a **documented privacy statement** (what feezal contacts, when, and why — likely in the self-hosting guide, D2 ✅), and the CI check.
 
 **Relates:** A9 (cloud builds — already argued to "contradict feezal's self-hosted, privacy-focused nature"; this codifies that principle), E97/N28 (the existing **no-external-fetch export rule** for theme assets — this generalises it to the whole app), D2 ✅ (self-hosting guide — home for the privacy statement), A18 (kiosk/wall panel — often on isolated VLANs where CDN calls simply fail), N12 (export bundle slimming — same export pipeline).
+
+### A26 — Release notes: commit links + roadmap-item links
+
+Chore improvement to the generated GitHub release body (the A22 ✅ `Build release body` step in [release-docker.yml](../.github/workflows/release-docker.yml#L123-L183)). Today each changelog line is the bare commit subject; wanted:
+
+1. **Short commit id as a clickable link** on every list item — e.g.
+   `- feat(discovery): E120 - … ([\`ecc80f4\`](https://github.com/feezal/feezal/commit/ecc80f4))`.
+   Implementation note: the generator currently logs `--pretty=format:"%s"` and the `section()` grep patterns match `^feat`/`^fix`/… against the line start — switch to a subject+hash format (e.g. `%s\t%h`), keep grouping on the subject field, and append the link when rendering the bullet. Short hash from `%h`, full URL `https://github.com/${REPO}/commit/<hash>`.
+2. **Roadmap-item IDs link to their archive file:** when a subject mentions an item ID (`E120`, `B48`, `U52`, `N37`, `A23`, …), the rendered bullet links that token to the corresponding archive markdown — `https://github.com/${REPO}/blob/${TAG}/docs/roadmap-archive/<ID>.md`.
+   - **Match rule:** word-bounded `\b[BENUA][0-9]+\b` on the subject (the known ID prefixes — avoids false positives like `MQTT5`; extend the prefix class if new series letters appear).
+   - **Only link when the archive file exists** in the checked-out tree at the release tag (`[ -f docs/roadmap-archive/${ID}.md ]`) — items still open (not yet archived) render as plain text rather than a 404 link. Reused-ID files carry `<ID>-<slug>.md` names; fall back to the first `docs/roadmap-archive/${ID}-*.md` glob match before giving up.
+   - Multiple IDs per subject all get linked.
+3. Everything stays inside the existing shell step (bash + git + sed/awk — no new dependencies, no action swap); `chore(release)` filtering and the section grouping remain as they are.
+
+**Acceptance:** next release's body shows every bullet with a working short-hash commit link; subjects citing archived items (e.g. `E120`, `B46`) link to the right archive file; an open item's ID renders unlinked; the Features/Fixes/Docs/Chore/Other grouping is unchanged.
+
+**Relates:** A22 ✅ (the grouped-changelog generator this extends), roadmap-archive convention (one file per ID — what makes the deep links possible), release-docker.yml (the only file touched).
 
 ## Open Questions
 
