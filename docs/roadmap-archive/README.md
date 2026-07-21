@@ -3,7 +3,7 @@
 Completed and closed roadmap items — **one file per item**, named after its ID (e.g. `U39.md`).
 Open items live in [../ROADMAP.md](../ROADMAP.md).
 
-**199 items.**
+**207 items.**
 
 ## Bugs
 
@@ -41,6 +41,14 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [B37 — material-climate arc vertically centred — misaligned with material-light's top-anchored ring ✅ fixed](B37.md)
 - [B38 — glass-wled: details dropdowns ignore theme colours ✅ fixed](B38.md)
 - [B39 — Missing slash in the viewer URL for non-default sites ✅ fixed](B39.md)
+- [B40 — Late subscribers never get a value: elements mounted after connect stay empty ✅ fixed](B40.md)
+- [B41 — Deeplinking to a layout-app sub-view does not work ✅ fixed](B41.md)
+- [B42 — Palette filter does not match category / family names ✅ fixed](B42.md)
+- [B43 — Help popup (`?` button) does not open ✅ fixed](B43.md)
+- [B44 — Asset Manager "new folder" dialog ignores dark mode ✅ fixed](B44.md)
+- [B45 — "Add CSS property": Enter does not move focus to the new value field ✅ fixed](B45.md)
+- [B46 — Component instances: authored width/height is overwritten with the template's px size ✅ fixed](B46.md)
+- [B47 — material-light: dragging the brightness ring scrolls the page on mobile ✅ fixed](B47.md)
 
 ## Near-term Improvements
 

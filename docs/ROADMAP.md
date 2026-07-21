@@ -9,14 +9,6 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B33 — Elements sometimes not selectable/draggable](#b33--elements-sometimes-not-selectabledraggable-needs-investigation) ❓
 - [B36 — Snapping sometimes stops working until page reload](#b36--snapping-sometimes-stops-working-until-page-reload-needs-investigation) ❓
-- [B40 — Late subscribers never get a value: elements mounted after connect stay empty](#b40--late-subscribers-never-get-a-value-elements-mounted-after-connect-stay-empty-) ⚡
-- [B41 — Deeplinking to a layout-app sub-view does not work](#b41--deeplinking-to-a-layout-app-sub-view-does-not-work-needs-investigation) ❓
-- [B42 — Palette filter does not match category / family names](#b42--palette-filter-does-not-match-category--family-names)
-- [B43 — Help popup (`?` button) does not open](#b43--help-popup--button-does-not-open-needs-investigation) ❓
-- [B44 — Asset Manager "new folder" dialog ignores dark mode](#b44--asset-manager-new-folder-dialog-ignores-dark-mode)
-- [B45 — "Add CSS property": Enter does not move focus to the new value field](#b45--add-css-property-enter-does-not-move-focus-to-the-new-value-field)
-- [B46 — Component instances: authored width/height is overwritten with the template's px size](#b46--component-instances-authored-widthheight-is-overwritten-with-the-templates-px-size)
-- [B47 — material-light: dragging the brightness ring scrolls the page on mobile](#b47--material-light-dragging-the-brightness-ring-scrolls-the-page-on-mobile-needs-device-repro) ❓
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -120,123 +112,6 @@ Snapping occasionally just stops working during drag/resize — no snap lines, n
 **Fix direction (pending confirmation):** don't trust keyup alone — also resync modifier state from `window blur`/`visibilitychange` (clear both flags when focus leaves the window) and from every subsequent `pointerdown`/`mousedown` (read `event.ctrlKey`/`event.shiftKey` opportunistically). Needs a repro to confirm the stuck-modifier theory before implementing.
 
 **Relates:** B32 (snapping helper lines sometimes don't disappear — could be the same stuck-modifier root cause manifesting as lines stuck *visible* instead of snapping stuck *off*; worth investigating together).
-
-### B40 — Late subscribers never get a value: elements mounted after connect stay empty ⚡
-
-**Repro (confirmed, viewer on the bridge backend, dashboard built on `layout-app`):**
-
-1. Open the viewer on view1 → all values present. ✅
-2. Switch to view2 via the drawer menu → view2 is empty. ❌
-3. Switch back to view1 via the drawer → view1 is **now empty too**. ❌
-4. Navigating the same views directly via the URL hash → always works. ✅
-
-The original report ("no values until a reload") was a symptom of this: a reload re-runs the one code path that does work (the bulk subscribe on `connected`), so everything looks fine again until the next drawer switch.
-
-**Why it matters:** this is the worst class of bug for feezal — the dashboard looks broken exactly when a new user judges it, and `layout-app` is the shell we recommend for real dashboards.
-
-**Root cause (confirmed by reading the code, not yet by instrumenting a run): `feezal-connection` has no last-value cache, and its topic dedupe suppresses the only mechanism that would replay one.**
-
-The chain:
-
-1. `feezal-site` keeps **every** view in the DOM — inactive ones are just `display:none`. Elements subscribe in `connectedCallback` regardless of visibility (`this.visible || !this.dynamicSubscriptions`, and `dynamicSubscriptions` defaults to `false` — [feezal-element.js:108-112](../www/packages/@feezal/feezal-element/feezal-element.js#L108-L112)). So **every topic in the site already has a live subscriber from first load**, whichever view is showing.
-2. `layout-app._embed()` does not reveal the real view — it **clones** it: `view.cloneNode(true)` into `#content`, replacing whatever was there ([feezal-element-layout-app.js:324-349](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js#L324-L349)). `cloneNode` copies attributes only, so the clone is a **cold element**: it holds no state and depends entirely on getting a value delivered after it subscribes. (`layout-view` does the same — [feezal-element-layout-view.js:79-99](../www/packages/@feezal/feezal-element-layout-view/feezal-element-layout-view.js#L79-L99).)
-3. `FeezalConnection.sub()` only forwards a subscribe to the backend **if no other subscription for that topic exists**: `if (this.conn && this.connected && !this.subscriptions.some(s => s.topic === topic))` ([feezal-connection.js:137-154](../www/src/feezal-connection.js#L137-L154)). Because of (1) that condition is **always false** for a clone — the hidden original still holds the subscription.
-4. Nothing is sent to the backend → the hub's per-socket retained replay ([hub.js:154-176](../server/src/socket/hub.js#L154-L176)) and `bridge.refreshRetained()` never fire → no message arrives → `_spreadMessage` has nothing to fan out → **the clone renders its default forever**, until some device happens to publish on that topic.
-
-Why the observed steps behave the way they do:
-
-- **Step 1 works** because the *first* embed happens while `connected` is still `false`. The dedupe is bypassed (the `this.connected` guard short-circuits), and the `connected` handler then bulk-subscribes every collected topic at once — `this.conn.subscribe([...new Set(this.subscriptions.map(s => s.topic))])` ([feezal-connection.js:97-99](../www/src/feezal-connection.js#L97-L99)) — so the retained burst reaches the clone via the normal fan-out.
-- **Steps 2 and 3 fail** because every embed after `connected` hits the dedupe. Step 3 is not a regression on top of step 2: the first view1 clone was destroyed on switch-away (`disconnectedCallback` → `_unsubscribe` → [feezal-element.js:310-317](../www/packages/@feezal/feezal-element/feezal-element.js#L310-L317)), and its replacement is just another cold late subscriber.
-- **Step 4 works** because hash navigation never destroys anything — `feezal-site` toggles `display` on the real view elements, which subscribed at connect time and still hold their values.
-
-**Fix direction — add a last-value cache to `feezal-connection` (backend-agnostic, fixes the whole class):**
-
-- Keep a `topic → lastMessage` map, written in the `message` handler before `_spreadMessage` (cache the *live* stream, not only `retain=1`, so it also covers topics the broker never retained).
-- In `sub()`, replay every cached topic matching the new subscription's filter — to **that callback only**, on a microtask so the subscriber has finished mounting. Wildcard subs must replay all matching cached topics, mirroring `topicMatch` in `_spreadMessage`.
-- Keep the cache across `unsubscribe()` — it is a value store, not a subscriber registry.
-- Evict on empty payload (the MQTT retained-clear convention), matching what the hub already does ([hub.js:56-65](../server/src/socket/hub.js#L56-L65)).
-
-Cheaper interim patch: drop the `!this.subscriptions.some(...)` dedupe so a duplicate subscribe is still forwarded, letting the hub/broker replay. It works (the fan-out reaches all subscribers) but re-delivers the value to every existing subscriber of the topic and depends on the backend replaying — the client-side cache is the correct fix and also covers direct-MQTT viewers whose topics were never retained.
-
-**Verify with:** the exact repro above, plus a non-retained topic (publish once, then switch views twice — the value must survive), plus a wildcard `subscribe` (`+`/`#`) to confirm multi-topic replay.
-
-**Relates:** E-layout-app (the app shell), N30 (view routing), B41 (deeplinking into a sub-view — same late-mount window; likely fixed or unmasked by this), B43 (help popup "appears only after switching the view" — different symptom, same clone/remount lifecycle worth checking).
-
-### B41 — Deeplinking to a layout-app sub-view does not work ❓ needs investigation
-
-Opening a URL that targets a specific `layout-app` sub-view does not land on that view. N30 added view-router delegation and hash `#/<view>/<embedded>` parsing, so the routing contract exists — this is either the app shell not consuming the initial hash on first render (only reacting to *subsequent* changes), or a race where the router resolves before the shell's views are registered.
-
-**Relates:** N30 (view-router registry + `viewPathFromHash()`), B40 (same first-load lifecycle window — check together).
-
-### B42 — Palette filter does not match category / family names
-
-Typing a family or category name into the palette filter finds nothing — e.g. `lcars` returns no results even with the LCARS family installed, because the filter matches only element *names*, not their category/family.
-
-**Fix direction:** widen the filter to also match the element's category, family/package name and (optionally) keywords. Note this is a **symptom of the taxonomy problem** in **E113** — once function and style are explicit axes, "lcars" is a first-class facet rather than a string that happens to appear in a package name. Worth fixing standalone first (small), then folding into E113's picker.
-
-**Relates:** E113 (function × style taxonomy — the structural fix), U45 (palette/picker rework), U24 ✅ (collapsible categories).
-
-### B43 — Help popup (`?` button) does not open ❓ needs investigation
-
-The question-mark button does not open the help popup on first use; in one observation it appeared only **after switching the view**. That "appears after a view change" symptom points at a render/attach timing issue (popup mounted into a container that isn't ready yet, or a stale reference held across view switches) rather than a broken click handler.
-
-**Relates:** U7 ✅ (element help panel), U37/U41 ✅ (welcome wizard, re-launchable from Editor Settings → Help), U46 (the Clippy easter egg would sit in this popup — fix this first).
-
-### B44 — Asset Manager "new folder" dialog ignores dark mode
-
-The folder-name input in the Asset Manager's new-folder dialog renders with a white background regardless of the editor theme. Precedent for the fix: **U21 ✅** (view rename/delete dialog made dark-mode-aware) — likely the same missing theme-aware styling on a raw `input`/dialog rather than a themed component.
-
-**Relates:** U21 ✅ (dark-mode-aware dialog precedent), N5 ✅ (Asset Manager), B10 (older, unresolved "Asset Manager not functional" catch-all).
-
-### B45 — "Add CSS property": Enter does not move focus to the new value field
-
-In the style inspector's **Add CSS property** box, typing a property name and pressing Enter adds the row but leaves focus in the add-property input. You have to reach for the mouse to click the value field before typing the value — breaking the obvious keyboard flow (`font-size` ⏎ `14px` ⏎).
-
-**Cause:** `_commitAddProp()` ([feezal-sidebar-inspector-styles.js:775-800](../www/src/feezal-sidebar-inspector-styles.js#L775-L800)) appends the item to `this.items` and clears the add-property state, but never focuses the row it just created. Same on the click path (picking a suggestion from the autocomplete list).
-
-**Fix direction:** after committing, `await this.updateComplete` and focus the new row's editor — the value inputs already carry `data-property` ([feezal-sidebar-inspector-styles.js:328](../www/src/feezal-sidebar-inspector-styles.js#L328)), so `this.renderRoot.querySelector(\`[data-property="${prop}"]\`)?.focus()` finds it. Cover both control shapes: enum properties render an `sl-select` rather than an `sl-input` ([feezal-sidebar-inspector-styles.js:311-330](../www/src/feezal-sidebar-inspector-styles.js#L311-L330)), and the row may be appended below the fold — scroll it into view. Keep the add-property input's own Enter handling intact (`e.preventDefault()` already stops a stray form submit).
-
-**Relates:** U36 (debounced live style commits — the value field's commit path), N34 (custom style-group editors, which render their own controls and have no single value input to focus).
-
-### B46 — Component instances: authored width/height is overwritten with the template's px size
-
-Setting a component instance to `width: 100%` in the editor sticks there, but the viewer renders it at the template's pixel width (e.g. `100px`). The authored size is silently discarded.
-
-**Confirmed: this is not editor-vs-viewer — it is "any fresh load wins over the author".** After a deploy + reload the **editor** snaps from `100%` to `100px` too. The edit only ever survives in the live editor session that made it.
-
-**Cause:** `_updateSize()` computes the bounding box of the template's children from their inline px styles and **assigns it straight onto the instance**: `this.style.width = right + 'px'` ([feezal-component.js:166-179](../www/src/feezal-component.js#L166-L179)). It runs at the end of every `_stamp()` ([feezal-component.js:127](../www/src/feezal-component.js#L127)), and `_stamp()` runs from `connectedCallback` ([feezal-component.js:57-58](../www/src/feezal-component.js#L57-L58)). So on viewer load the saved `style="width:100%"` is parsed onto the element, then immediately clobbered by the template-derived px value.
-
-The editor only *looks* different while you are editing because `style` is in `IGNORED_ATTRS` ([feezal-component.js:26](../www/src/feezal-component.js#L26)) — changing the width doesn't trigger a re-stamp, so the `100%` survives until the next load. That matches the confirmed deploy-and-reload behaviour above exactly: the value is saved correctly, and then thrown away by the next `connectedCallback`.
-
-**Fix direction:** treat the template bounding box as a **default, not an override** — only write `style.width`/`style.height` when the instance has no author-specified value. The authored size arrives as an inline style on the tag, so capture it before the first stamp (or test `this.style.width` before assigning) rather than reading it back after `_stamp()` has already overwritten it. Re-stamps triggered by param changes must not resurrect the px size either.
-
-**Design question to settle first — is `width: 100%` even meaningful here?** The instance's children are absolutely positioned at fixed px offsets (`::slotted(*) { position: absolute }` — [feezal-component.js:44](../www/src/feezal-component.js#L44)), and the code documents instances as fixed-size by design ("Fixed-size instances (MVP) … resize handles are suppressed in the editor"). Honouring `100%` therefore yields a wide box with unchanged px children parked in its top-left — probably not what the user wants. Two coherent outcomes:
-
-- **(a) Honour the authored size** and leave children unscaled — correct per CSS, arguably still surprising.
-- **(b) Honour it *and* scale the content** (`transform: scale()` against the template's natural size, or a container-query/`svg`-style viewBox mapping) — this is the behaviour users actually expect from a "100% wide component", and it belongs with **E38** (element scaling / responsive sizing).
-
-Either way the current behaviour — accept the edit in the inspector, then discard it on load — is wrong. If (b) is deferred, the minimum fix is (a) plus **not offering** a width the runtime intends to override.
-
-**Relates:** U32 ✅ (composed components — the feature), E38 (element scaling / responsive sizing — where content-scaling belongs), U3 (grouping/locking — the other multi-element abstraction with the same sizing question).
-
-### B47 — material-light: dragging the brightness ring scrolls the page on mobile ❓ needs device repro
-
-On a touch device, dragging the circular brightness ring pans the page up/down instead of (or as well as) changing the brightness. The gesture is unusable on exactly the devices the card is designed for.
-
-**What the code already does right — so the obvious cause is ruled out:** the `svg` carries `touch-action: none` and `user-select: none` ([feezal-element-material-light.js:359-366](../www/packages/@feezal/feezal-element-material-light/feezal-element-material-light.js#L359-L366)), which should stop the browser treating a touch that starts there as a pan.
-
-**Two concrete differences from the colour-temperature track, which reportedly does not misbehave:**
-
-1. **No pointer capture.** `_onCtDown` calls `e.currentTarget.setPointerCapture(e.pointerId)` ([feezal-element-material-light.js:776](../www/packages/@feezal/feezal-element-material-light/feezal-element-material-light.js#L776)). The ring drag does not — `_startBrtDrag` instead attaches `pointermove`/`pointerup` listeners to **`document`** ([feezal-element-material-light.js:733-763](../www/packages/@feezal/feezal-element-material-light/feezal-element-material-light.js#L733-L763)). Without capture the gesture is not owned by the SVG, and a circular drag travels well outside it.
-2. **No `preventDefault()`** on the `pointerdown` in either path.
-
-**Suspected aggravator:** the card is typically inside a scrollable ancestor — `layout-app`'s content pane is `overflow: auto` ([feezal-element-layout-app.js:155](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js#L155)) — which is what actually does the scrolling.
-
-**Fix direction:** mirror the CT track — `setPointerCapture` on pointerdown, attach `pointermove`/`pointerup` to the captured element rather than `document`, release on up, and `preventDefault()` the pointerdown. Confirm `touch-action: none` is not being defeated by the SVG's `overflow: visible` (ring geometry painted outside the box may hit-test differently than expected).
-
-**Needs a real device repro** before implementing — the mechanism above is inferred from a code read, and `touch-action: none` being present means the simple explanation is already ruled out. Reproduce on a phone (or DevTools touch emulation, which does honour `touch-action`) and confirm whether the scroll is the page or a `layout-app` content pane.
-
-**Relates:** E-material-light (the element), U-layout-app (the usual scrolling ancestor), E38 (touch/responsive behaviour generally).
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
@@ -1063,18 +938,18 @@ Every inspector input **that has a default** should offer a small `×` inside th
 
 ### U45 — Element insertion: palette sidebar + full-screen picker 💡 to refine
 
-The left palette is a poor place to *browse* a catalog that now spans many families and dozens of elements — it's narrow, filtering is weak (**B42**), and finding the right element requires knowing where it lives. But the sidebar has one irreplaceable strength: **drag-to-canvas**, which places the element exactly where the user wants it.
+The left palette is a poor place to *browse* a catalog that now spans many families and dozens of elements — it's narrow, filtering was weak (**B42** ✅ fixed — name/category/family now all match), and finding the right element requires knowing where it lives. But the sidebar has one irreplaceable strength: **drag-to-canvas**, which places the element exactly where the user wants it.
 
 **Decided (07/2026): ship both, and make it configurable in Editor Settings.**
-- **Palette sidebar** — keep, and rework: tab switcher at the top, better grouping and tiles, working family/category filter (B42). Retains drag-to-canvas.
+- **Palette sidebar** — keep, and rework: tab switcher at the top, better grouping and tiles (family/category filtering: B42 ✅ fixed). Retains drag-to-canvas.
 - **Full-screen picker** — an **Add element** button in the top bar (and, suggested, double-click on empty canvas) opening a large, searchable modal with room for previews, descriptions, family switching and **device-first insertion (U31)**. Inserts at a sensible default position (canvas centre / last click point).
 - **Editor Settings** decides which surfaces are active (sidebar only / picker only / both).
 
 > **Trade-off, recorded deliberately:** a user-facing toggle means two insertion surfaces to design, test and document forever, and "which one is on" becomes a support question. Accepted knowingly — the two genuinely serve different needs (precise placement vs. browsing a big catalog) and neither fully replaces the other. If the setting proves unused in practice, collapsing to "both, always" is the natural simplification.
 
-**Depends on E113** for its structure: the picker should filter on **function × style**, which is what makes a large catalog navigable and what fixes B42 properly.
+**Depends on E113** for its structure: the picker should filter on **function × style**, which is what makes a large catalog navigable (B42 ✅ gave the filter substring family/category matching; the taxonomy makes it structural).
 
-**Relates:** **E113** (taxonomy — the picker's information architecture), **U31** (device-first insertion — a mode *inside* this picker, not a separate tab), **B42** (filter bug — fix standalone, then subsumed), U24 ✅ (collapsible categories), U32 ✅ (site-specific Components category — must appear in both surfaces), B20 ✅ (palette drag → snap machinery to preserve).
+**Relates:** **E113** (taxonomy — the picker's information architecture), **U31** (device-first insertion — a mode *inside* this picker, not a separate tab), B42 ✅ (filter bug — fixed standalone 07/2026, subsumed here), U24 ✅ (collapsible categories), U32 ✅ (site-specific Components category — must appear in both surfaces), B20 ✅ (palette drag → snap machinery to preserve).
 
 ### U46 — Clippy easter egg in the help popup 🔽 low priority
 
@@ -1082,9 +957,7 @@ Optional, off-by-default **Editor Settings** toggle that adds a paperclip assist
 
 **Constraints:** must be **opt-in**, must not interfere with the actual help content, and the artwork must be **self-drawn/self-hosted** (an original paperclip, not Microsoft's asset — trademark/copyright) and bundled locally per **A25** (no CDN). Respect `prefers-reduced-motion` if it animates.
 
-**Blocked on B43** — the help popup doesn't reliably open yet; fix that first.
-
-**Relates:** **B43** (help popup bug — prerequisite), **A25** (self-hosted assets), U37 ✅ (welcome wizard — the other "friendly onboarding" surface).
+**Relates:** B43 ✅ (help popup bug — was the blocker, fixed 07/2026), **A25** (self-hosted assets), U37 ✅ (welcome wizard — the other "friendly onboarding" surface).
 
 ### U47 — layout-app drawer entries: stop auto-creating views, offer "create new view" in the dropdown
 

@@ -58,6 +58,17 @@ file:// export all run automated on every change.)
 
 These shipped this cycle and were validated by build/unit tests **only** — give them a real click-through first.
 
+### Bug-fix batch B40–B47
+
+- [ ] **B40 (retained replay)** — bridged viewer on a `layout-app` dashboard: load view1 (values present), switch to view2 via the drawer, back to view1 → **both views show live values** with no device publish in between. Repeat with a direct-MQTT viewer.
+- [ ] **B41 (deep link)** — with the viewer open, edit the address bar to `#/<view>/<drawer-entry>` → the shell switches to that drawer entry without a reload. Also verify a cold load of the same URL, and that picking a drawer entry still updates the hash to the full path (no loops, no double-loading).
+- [ ] **B42 (palette filter)** — type a category (`layout`) and a family (`metro`, or `lcars` if installed) into the palette filter → the whole family/category appears; element-name search still works.
+- [ ] **B43 (shortcuts dialog)** — switch the sidebar to *Assets* (or collapse the sidebar entirely), press the top-bar `?` button → the sidebar reveals the Inspector tab and the Keyboard Shortcuts dialog opens. Same for `Ctrl+I` and the `?` key. Reload → the previously saved sidebar tab is restored (the reveal is not persisted).
+- [ ] **B44 (assets dialog dark mode)** — dark editor theme → Assets → new-folder button: dialog panel and input are dark (regression-tested in `test-browser/feezal-sidebar-assets-dialogs.test.js`; a quick visual glance suffices).
+- [ ] **B45 (add-property focus)** — style inspector → "Add CSS property" → type `font-size` ⏎ → focus lands in the new value field; type `14px` ⏎ → applied. Also with an enum property (`text-transform`) → the select gets focus.
+- [ ] **B46 (component size)** — give a component instance `width: 100%` via Add CSS property → deploy → reload editor and viewer → the instance is still 100 % wide (children stay at their template px positions). A fresh instance with no explicit size still gets the template's bounding box.
+- [ ] **B47 (ring drag on iOS)** — iPhone/iPad (or the installed PWA): drag the material-light brightness ring in a scrollable view → the page must not scroll/rubber-band during the drag; the CT track still works; scrolling the page by touching OUTSIDE the card still works.
+
 ### Release notes grouping (A22) — verify on the next tag
 
 - [ ] Push the next release tag → the generated GitHub release body groups commits into **Features → Fixes → Docs → Chore** sections (Chore includes test/ci/refactor/build/style/perf; the `chore(release)` commit itself is absent); commits without a conventional prefix appear in a trailing **Other** section; empty sections are omitted; the Full-Changelog compare link and the Docker update instructions are unchanged.
