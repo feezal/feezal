@@ -100,7 +100,7 @@ describe('incoming messages', () => {
         const detail = lastMessageDetail(el);
         el.connect();
         client.emit('message', 'a/b', Buffer.from('{"val": 1}'));
-        expect(detail()).toEqual({topic: 'a/b', payload: {val: 1}});
+        expect(detail()).toEqual({topic: 'a/b', payload: {val: 1}, retain: false});
     });
 
     it('parses JSON array payloads', () => {
@@ -108,7 +108,7 @@ describe('incoming messages', () => {
         const detail = lastMessageDetail(el);
         el.connect();
         client.emit('message', 'a/b', Buffer.from('[1,2,3]'));
-        expect(detail()).toEqual({topic: 'a/b', payload: [1, 2, 3]});
+        expect(detail()).toEqual({topic: 'a/b', payload: [1, 2, 3], retain: false});
     });
 
     it('keeps plain string payloads as strings', () => {
@@ -116,7 +116,7 @@ describe('incoming messages', () => {
         const detail = lastMessageDetail(el);
         el.connect();
         client.emit('message', 'a/b', Buffer.from('21.5'));
-        expect(detail()).toEqual({topic: 'a/b', payload: '21.5'});
+        expect(detail()).toEqual({topic: 'a/b', payload: '21.5', retain: false});
     });
 
     it('falls back to the raw string for malformed JSON', () => {
@@ -124,7 +124,17 @@ describe('incoming messages', () => {
         const detail = lastMessageDetail(el);
         el.connect();
         client.emit('message', 'a/b', Buffer.from('{not json'));
-        expect(detail()).toEqual({topic: 'a/b', payload: '{not json'});
+        expect(detail()).toEqual({topic: 'a/b', payload: '{not json', retain: false});
+    });
+
+    // B40: the retain flag from the broker packet must reach the wrapper —
+    // its known-retained last-value cache keys off it.
+    it('forwards the packet retain flag', () => {
+        const el = makeElement({uri: 'ws://b'});
+        const detail = lastMessageDetail(el);
+        el.connect();
+        client.emit('message', 'a/b', Buffer.from('on'), {retain: true});
+        expect(detail()).toEqual({topic: 'a/b', payload: 'on', retain: true});
     });
 });
 

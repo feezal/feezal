@@ -24,6 +24,8 @@ class FeezalConnection extends LitElement {
         this.connected = false;
         this.backend = 'feezal';
         this.subscriptions = [];
+        // B40: known-retained last-value cache — see _cacheRetained().
+        this._retained = new Map();
     }
 
     /** MQTT wildcard topic matching */
@@ -125,9 +127,37 @@ class FeezalConnection extends LitElement {
     }
 
     _spreadMessage(message) {
+        this._cacheRetained(message);
         this.subscriptions
             .filter(s => FeezalConnection.topicMatch(message.topic, s.topic) !== null)
             .forEach(s => s.callback(message));
+    }
+
+    /**
+     * B40: known-retained last-value cache, mirroring the hub's heuristic
+     * (server/src/socket/hub.js). A topic seen with retain=1 is a state topic
+     * in the broker's retained store; every later live message on it (retain=0)
+     * refreshes the cached payload, and an empty payload evicts (the MQTT
+     * retained-clear convention). Topics never seen retained — commands,
+     * dialog triggers, reload — are never cached, so no stale command is ever
+     * replayed to a late subscriber.
+     *
+     * Why: elements mounted after the initial retained burst (layout-app /
+     * layout-view clone embedded views on every view switch) subscribe to
+     * topics the hidden originals already hold, so sub() never re-asks the
+     * backend and nothing re-delivers the state — the clone rendered empty
+     * until the next device publish. Replaying from this cache gives a late
+     * subscriber exactly what a fresh page load would have received.
+     */
+    _cacheRetained(message) {
+        const {topic, payload} = message;
+        if (payload === '' || payload === null || payload === undefined) {
+            this._retained.delete(topic);
+        } else if (message.retain) {
+            this._retained.set(topic, message);
+        } else if (this._retained.has(topic)) {
+            this._retained.set(topic, {...this._retained.get(topic), payload});
+        }
     }
 
     getSite(site, callback) {
@@ -150,6 +180,24 @@ class FeezalConnection extends LitElement {
 
         const subscription = {topic, options, callback};
         this.subscriptions.push(subscription);
+
+        // B40: replay cached retained values to THIS subscriber only, on a
+        // microtask so the caller (typically an element's connectedCallback)
+        // finishes mounting first. Wildcard filters replay every matching
+        // cached topic. A double delivery (cache replay + broker retained
+        // replay for a first subscriber) is harmless — same value, and MQTT
+        // semantics already allow repeated retained delivery.
+        if (this._retained.size > 0) {
+            queueMicrotask(() => {
+                if (!this.subscriptions.includes(subscription)) return; // unsubscribed meanwhile
+                for (const [cachedTopic, message] of this._retained) {
+                    if (FeezalConnection.topicMatch(cachedTopic, topic) !== null) {
+                        subscription.callback(message);
+                    }
+                }
+            });
+        }
+
         return subscription;
     }
 

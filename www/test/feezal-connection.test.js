@@ -179,6 +179,116 @@ describe('message fan-out', () => {
     });
 });
 
+// B40: known-retained last-value cache — late subscribers (layout-app /
+// layout-view clones mounted after the initial retained burst) get the
+// cached state replayed instead of rendering empty until the next publish.
+describe('retained replay for late subscribers (B40)', () => {
+    // Flush the queueMicrotask-deferred replay.
+    const microtasks = () => Promise.resolve();
+
+    it('replays a retained message to a subscriber added later', async () => {
+        const el = makeConnection();
+        el._spreadMessage({topic: 'home/temp', payload: '21.5', retain: true});
+
+        const late = vi.fn();
+        el.sub('home/temp', late);
+        expect(late).not.toHaveBeenCalled();     // deferred to a microtask
+        await microtasks();
+        expect(late).toHaveBeenCalledWith({topic: 'home/temp', payload: '21.5', retain: true});
+    });
+
+    it('replays only to the new subscriber, not existing ones', async () => {
+        const el = makeConnection();
+        const early = vi.fn();
+        el.sub('home/temp', early);
+        el._spreadMessage({topic: 'home/temp', payload: '21.5', retain: true});
+        expect(early).toHaveBeenCalledTimes(1);
+
+        el.sub('home/temp', vi.fn());
+        await microtasks();
+        expect(early).toHaveBeenCalledTimes(1);  // no re-delivery to the old sub
+    });
+
+    it('live (retain=0) messages refresh an already-cached topic', async () => {
+        const el = makeConnection();
+        el._spreadMessage({topic: 'home/temp', payload: '21.5', retain: true});
+        el._spreadMessage({topic: 'home/temp', payload: '22.0'});
+
+        const late = vi.fn();
+        el.sub('home/temp', late);
+        await microtasks();
+        expect(late).toHaveBeenCalledTimes(1);
+        expect(late.mock.calls[0][0].payload).toBe('22.0');
+    });
+
+    it('never caches topics not seen retained (no stale command replay)', async () => {
+        const el = makeConnection();
+        el._spreadMessage({topic: 'dialog/open', payload: '1'});   // live command
+
+        const late = vi.fn();
+        el.sub('dialog/open', late);
+        await microtasks();
+        expect(late).not.toHaveBeenCalled();
+    });
+
+    it('an empty payload evicts the cached value (retained-clear convention)', async () => {
+        const el = makeConnection();
+        el._spreadMessage({topic: 'home/temp', payload: '21.5', retain: true});
+        el._spreadMessage({topic: 'home/temp', payload: ''});
+
+        const late = vi.fn();
+        el.sub('home/temp', late);
+        await microtasks();
+        expect(late).not.toHaveBeenCalled();
+    });
+
+    it('a falsy-but-real payload (0) stays cached', async () => {
+        const el = makeConnection();
+        el._spreadMessage({topic: 'home/level', payload: 0, retain: true});
+
+        const late = vi.fn();
+        el.sub('home/level', late);
+        await microtasks();
+        expect(late).toHaveBeenCalledTimes(1);
+        expect(late.mock.calls[0][0].payload).toBe(0);
+    });
+
+    it('a wildcard subscriber gets every matching cached topic', async () => {
+        const el = makeConnection();
+        el._spreadMessage({topic: 'home/kitchen/temp', payload: '21', retain: true});
+        el._spreadMessage({topic: 'home/bath/temp', payload: '23', retain: true});
+        el._spreadMessage({topic: 'office/temp', payload: '19', retain: true});
+
+        const late = vi.fn();
+        el.sub('home/#', late);
+        await microtasks();
+        expect(late).toHaveBeenCalledTimes(2);
+        const topics = late.mock.calls.map(c => c[0].topic).sort();
+        expect(topics).toEqual(['home/bath/temp', 'home/kitchen/temp']);
+    });
+
+    it('does not replay to a subscription unsubscribed before the microtask', async () => {
+        const el = makeConnection();
+        el._spreadMessage({topic: 'home/temp', payload: '21.5', retain: true});
+
+        const late = vi.fn();
+        const sub = el.sub('home/temp', late);
+        el.unsubscribe(sub);
+        await microtasks();
+        expect(late).not.toHaveBeenCalled();
+    });
+
+    it('a local pub does not enter the cache (no retain flag)', async () => {
+        const el = makeConnection();
+        el.pub('ui/selected', 'kitchen', {local: true});
+
+        const late = vi.fn();
+        el.sub('ui/selected', late);
+        await microtasks();
+        expect(late).not.toHaveBeenCalled();
+    });
+});
+
 describe('connectedCallback backend wiring', () => {
     async function attachConnection() {
         const el = makeConnection();

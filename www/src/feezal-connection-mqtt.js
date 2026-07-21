@@ -118,7 +118,7 @@ class FeezalConnectionMqtt extends LitElement {
             }
         });
 
-        this.client.on('message', (topic, payload) => {
+        this.client.on('message', (topic, payload, packet) => {
             let payloadStr = payload.toString();
             let parsed = payloadStr;
             if (payloadStr.startsWith('{') || payloadStr.startsWith('[')) {
@@ -128,7 +128,9 @@ class FeezalConnectionMqtt extends LitElement {
             }
 
             this.dispatchEvent(new CustomEvent('message', {
-                detail: {topic, payload: parsed}
+                // B40: forward the retain flag — the wrapper's known-retained
+                // last-value cache keys off it (bridge backend already does).
+                detail: {topic, payload: parsed, retain: packet?.retain === true}
             }));
         });
     }
