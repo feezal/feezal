@@ -9,7 +9,6 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B33 — Elements sometimes not selectable/draggable](#b33--elements-sometimes-not-selectabledraggable-needs-investigation) ❓
 - [B36 — Snapping sometimes stops working until page reload](#b36--snapping-sometimes-stops-working-until-page-reload-needs-investigation) ❓
-- [B49 — Attribute-mapping button + dialog ignore editor dark mode](#b49--attribute-mapping-button--dialog-ignore-editor-dark-mode)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -61,7 +60,6 @@ Work in progress — priorities and scope are not final.
 - [E119 — `basic-number`: configurable placeholder before the first value](#e119--basic-number-configurable-placeholder-before-the-first-value)
 - [E124 — Contact elements: dedicated low-battery indicator](#e124--contact-elements-dedicated-low-battery-indicator)
 - [E125 — Homematic battery voltage (`OPERATING_VOLTAGE`)](#e125--homematic-battery-voltage-operating_voltage--future) 💡
-- [E127 — Homematic dimmers: settling behaviour (`WORKING` / `_NOTWORKING`)](#e127--homematic-dimmers-settling-behaviour-working--_notworking--no-slider-jumping)
 - [E128 — Homematic blinds: settling behaviour + `DIRECTION` indicator](#e128--homematic-blinds-settling-behaviour--direction-indicator-later--after-e127) *(later)*
 
 **Editor UX**
@@ -86,7 +84,6 @@ Work in progress — priorities and scope are not final.
 - [A21 — Accessibility: adopt the web-components Gold Standard for feezal elements](#a21--accessibility-adopt-the-web-components-gold-standard-for-feezal-elements)
 - [A23 — Externalize element families: own git repos + npm publish (paper, tui, panel)](#a23--externalize-element-families-own-git-repos--npm-publish-paper-tui-panel)
 - [A24 — Externalize the metro element family](#a24--externalize-the-metro-element-family-future--will-be-done-later) *(future)*
-- [A26 — Release notes: commit links + roadmap-item links](#a26--release-notes-commit-links--roadmap-item-links)
 
 
 ---
@@ -106,16 +103,6 @@ Snapping occasionally just stops working during drag/resize — no snap lines, n
 **Fix direction (pending confirmation):** don't trust keyup alone — also resync modifier state from `window blur`/`visibilitychange` (clear both flags when focus leaves the window) and from every subsequent `pointerdown`/`mousedown` (read `event.ctrlKey`/`event.shiftKey` opportunistically). Needs a repro to confirm the stuck-modifier theory before implementing.
 
 **Relates:** B32 (snapping helper lines sometimes don't disappear — could be the same stuck-modifier root cause manifesting as lines stuck *visible* instead of snapping stuck *off*; worth investigating together).
-
-### B49 — Attribute-mapping button + dialog ignore editor dark mode
-
-The U52 ✅ component-mapping UI doesn't respect the editor's dark mode: the **"Attribute mapping…" button's hover effect** in the component-edit banner ([feezal-app-editor.js:1059](../www/src/feezal-app-editor.js#L1059)) renders light-mode colours, and the **mapping dialog** (`#componentmappingdialog`, [feezal-app-editor.js:1192](../www/src/feezal-app-editor.js#L1192)) shows wrong colours in dark mode too.
-
-Fix direction: the editor's dark mode is the `:host(.dark)` class pattern (the banner itself already has a `:host(.dark) #component-edit-banner` rule — the button hover and the dialog just never got their variants). For the `sl-dialog`/`sl-button`, that means dark values for the relevant `--sl-*` tokens (panel background, text, border) scoped under `:host(.dark)`, consistent with how other editor dialogs handle it — check the export/create-component dialogs for an existing pattern to copy, and sweep the mapping dialog's table rows/inputs while in there.
-
-**Acceptance:** banner button hover and the complete mapping dialog (surface, labels, table, inputs, buttons) legible and consistent in both editor modes.
-
-**Relates:** U52 ✅ (the feature), B45-era dialog styling patterns (existing dark-mode dialogs as reference).
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
@@ -1245,23 +1232,6 @@ HmIP battery devices publish **`OPERATING_VOLTAGE`** on the `:0` maintenance cha
 
 **Relates:** **E124** (low-battery boolean — the prerequisite), E108 ✅ (native Homematic discovery — where the recognizer lives), N31 (availability), E30 (sparkline — the natural place a voltage trend would render).
 
-### E127 — Homematic dimmers: settling behaviour (`WORKING` / `_NOTWORKING`) — no slider jumping
-
-**Problem.** Homematic dimmers ramp: publish `LEVEL 0` while the dimmer is at 1 and it immediately reports back `0.95`, then `0.5`, … then `0` — the slider the user just set **jumps around** during the ramp. Homematic exposes a **`WORKING` datapoint** (`true` while LEVEL is moving), but common interfaces (hm2mqtt, ccu-jack) **cannot guarantee** the `WORKING=true` message arrives *before* the first intermediate report — only that it arrives shortly after (≤ ~100 ms). RedMatic solves it differently: it additionally publishes **`…/LEVEL_NOTWORKING`** carrying only **settled** values (emitted once `WORKING` has returned to false). *(Blinds have the same ramp problem plus a `DIRECTION` datapoint — split out to **E128**, later.)*
-
-**Decided design (07/2026)** — scope: the `*-light` family (brightness):
-
-1. **Hold-at-target (own commands):** on publishing a set value the element enters **suppression immediately** — this sidesteps the WORKING-ordering race entirely for user-initiated changes. The slider holds the user's target; incoming intermediate reports are swallowed until the reported value reaches the target, a settled signal arrives (`WORKING→false` or a `_NOTWORKING` message), or a **`settle-timeout`** (attribute, default 5 s) reconciles the slider to the last reported value (covers interrupted ramps / device clamping).
-2. **`WORKING` topic attributes** (`WORKING` is a **distinct topic**, e.g. `hm/status/dimmer/WORKING`, mqtt-smarthome `{val: bool}` convention): `subscribe-working` + `message-property-working` (default `val`). `WORKING=true` enters/extends suppression (also for externally-initiated ramps); `WORKING=false` ends it and accepts the next report as settled.
-3. **External-change race → ~100 ms display buffer:** incoming level reports render after a short delay (**`report-delay-ms`**, default `100`, `0` = off, only active when `subscribe-working` is wired); a `WORKING=true` arriving within the buffer cancels the pending jumpy update and enters suppression. Costs 100 ms latency on external changes only.
-4. **RedMatic dual-topic mode:** new **`subscribe-settled`** attribute (e.g. `hm/status/dimmer/LEVEL_NOTWORKING`). When wired, **the slider position follows the settled topic only**, while the plain `LEVEL` subscription keeps driving the **numeric percentage readout live** (ramp feedback without handle jumping). Hold-at-target still applies after own publishes until the settled topic confirms.
-5. **Discovery:** the Homematic recognizer (E108) already watches the firehose — when it **observes** `LEVEL_NOTWORKING` for a channel (RedMatic publishes retained, so it shows up), the emitted config wires both topics (mode 4); otherwise it wires the channel's `WORKING` sibling topic (mode 2/3) when observed. No blind guessing — only topics actually seen get wired.
-6. **Implementation:** the settling machinery is a shared **family-agnostic helper** (shared module per the E106 pattern) — built so **E128** can apply it to the cover family unchanged; ℹ help texts explain the three wiring tiers (nothing / WORKING / settled topic). Family parity across material/glass/metro lights per **E114**.
-
-**Ships with:** attributes + help texts across the light family (patch bumps), recognizer update + tests, TESTING.md notes (hold-at-target, timeout reconcile, external ramp with and without WORKING, RedMatic dual-topic, discovery wiring).
-
-**Relates:** **E128** (blinds follow-up — reuses the helper, adds `DIRECTION`), E108 ✅ (recognizer — where `_NOTWORKING`/`WORKING` observation lands), **E114** (family parity contract), E102 ✅-era climate work (same "device reports lag commands" family of problems — setpoint shadowing there, level settling here), material/glass/metro light (the consumers), N37 (subscription lifecycle — the settled/live dual subscription must play nice with pause/resume).
-
 ### E128 — Homematic blinds: settling behaviour + `DIRECTION` indicator *(later — after E127)*
 
 Blinds/covers have **the same LEVEL ramp problem** as dimmers (position reports trail the command while the blind travels) — deliberately split from **E127** so the settling machinery ships and hardens on lights first.
@@ -1869,23 +1839,6 @@ Metro **stays bundled with feezal for now** (decided 07/2026) — it moves out *
 **Not before:** A23 complete for all three families and the detection/install flow proven in a release.
 
 **Relates:** A23 (the playbook — do that first), N29, E106 (metro shares the same consolidation considerations glass had).
-
-### A26 — Release notes: commit links + roadmap-item links
-
-Chore improvement to the generated GitHub release body (the A22 ✅ `Build release body` step in [release-docker.yml](../.github/workflows/release-docker.yml#L123-L183)). Today each changelog line is the bare commit subject; wanted:
-
-1. **Short commit id as a clickable link** on every list item — e.g.
-   `- feat(discovery): E120 - … ([\`ecc80f4\`](https://github.com/feezal/feezal/commit/ecc80f4))`.
-   Implementation note: the generator currently logs `--pretty=format:"%s"` and the `section()` grep patterns match `^feat`/`^fix`/… against the line start — switch to a subject+hash format (e.g. `%s\t%h`), keep grouping on the subject field, and append the link when rendering the bullet. Short hash from `%h`, full URL `https://github.com/${REPO}/commit/<hash>`.
-2. **Roadmap-item IDs link to their archive file:** when a subject mentions an item ID (`E120`, `B48`, `U52`, `N37`, `A23`, …), the rendered bullet links that token to the corresponding archive markdown — `https://github.com/${REPO}/blob/${TAG}/docs/roadmap-archive/<ID>.md`.
-   - **Match rule:** word-bounded `\b[BENUA][0-9]+\b` on the subject (the known ID prefixes — avoids false positives like `MQTT5`; extend the prefix class if new series letters appear).
-   - **Only link when the archive file exists** in the checked-out tree at the release tag (`[ -f docs/roadmap-archive/${ID}.md ]`) — items still open (not yet archived) render as plain text rather than a 404 link. Reused-ID files carry `<ID>-<slug>.md` names; fall back to the first `docs/roadmap-archive/${ID}-*.md` glob match before giving up.
-   - Multiple IDs per subject all get linked.
-3. Everything stays inside the existing shell step (bash + git + sed/awk — no new dependencies, no action swap); `chore(release)` filtering and the section grouping remain as they are.
-
-**Acceptance:** next release's body shows every bullet with a working short-hash commit link; subjects citing archived items (e.g. `E120`, `B46`) link to the right archive file; an open item's ID renders unlinked; the Features/Fixes/Docs/Chore/Other grouping is unchanged.
-
-**Relates:** A22 ✅ (the grouped-changelog generator this extends), roadmap-archive convention (one file per ID — what makes the deep links possible), release-docker.yml (the only file touched).
 
 ## Open Questions
 

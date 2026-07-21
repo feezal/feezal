@@ -3,7 +3,7 @@
 Completed and closed roadmap items — **one file per item**, named after its ID (e.g. `U39.md`).
 Open items live in [../ROADMAP.md](../ROADMAP.md).
 
-**222 items.**
+**225 items.**
 
 ## Bugs
 
@@ -50,6 +50,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [B46 — Component instances: authored width/height is overwritten with the template's px size ✅ fixed](B46.md)
 - [B47 — material-light: dragging the brightness ring scrolls the page on mobile ✅ fixed](B47.md)
 - [B48 — Component edit mode: click-selection and context menu don't work ✅ fixed](B48.md)
+- [B49 — Attribute-mapping button + dialog ignore editor dark mode ✅ fixed](B49.md)
 
 ## Near-term Improvements
 
@@ -98,6 +99,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [E118 — `click-through` on `basic-number`, `basic-icon-value`, `basic-datetime` ✅ implemented](E118.md)
 - [E120 — Homematic cover discovery: wire Up/Down to the LEVEL set topic ✅ implemented](E120.md)
 - [E126 — Homematic discovery: switch recognizer with name word-list heuristic (+ light classification) ✅ implemented](E126.md)
+- [E127 — Homematic dimmers: settling behaviour (`WORKING` / `_NOTWORKING`) — no slider jumping ✅ implemented](E127.md)
 
 ## Editor UX
 
@@ -228,6 +230,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [A21 — Licensing model: AGPL-3.0 core, MIT element SDK and viewer runtime ✅ implemented](A21.md)
 - [A22 — Release workflow: changelog grouped by category ✅ implemented](A22.md)
 - [A25 — Privacy: zero telemetry, zero third-party CDN, works offline ✅ implemented](A25.md)
+- [A26 — Release notes: commit links + roadmap-item links ✅ implemented](A26.md)
 
 ## Documentation
 
