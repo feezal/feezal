@@ -128,12 +128,18 @@ describe('context menu lock', () => {
 
 describe('resize grip affordance (U42)', () => {
     it('a selected element shows the corner grip on hover; unselected does not', async () => {
-        await btn('A').click();
-        await btn('A').hover();
-        const grip = await btn('A').evaluate(el => getComputedStyle(el, '::before').backgroundImage);
+        // Earlier tests in this sequential file cloned/deleted buttons — pick
+        // whatever element is first on the canvas rather than a label.
+        const el = page.locator('feezal-view[name="main"] feezal-element-material-button').first();
+        await el.click();
+        await el.hover();
+        const grip = await el.evaluate(e => getComputedStyle(e, '::before').backgroundImage);
         expect(grip).toContain('linear-gradient');
 
-        const other = await btn('B').evaluate(el => getComputedStyle(el, '::before').backgroundImage);
-        expect(other).toBe('none');
+        // Deselect (click empty canvas) → hovering shows no grip anymore.
+        await page.locator('feezal-view[name="main"]').click({position: {x: 600, y: 500}});
+        await el.hover();
+        const after = await el.evaluate(e => getComputedStyle(e, '::before').backgroundImage);
+        expect(after).toBe('none');
     });
 });
