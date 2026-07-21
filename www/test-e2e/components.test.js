@@ -63,8 +63,25 @@ describe('stamping', () => {
     });
 
     it('derives the instance size from the template bounding box', async () => {
-        expect(await instance().evaluate(el => el.style.width)).toBe('160px');
-        expect(await instance().evaluate(el => el.style.height)).toBe('40px');
+        // B46: the template box is a shadow :host DEFAULT, not an inline
+        // style — an authored width/height (e.g. 100% from the inspector)
+        // beats it and survives stamping/reloads. The rendered size still
+        // comes out at the template bounding box.
+        expect(await instance().evaluate(el => el.style.width)).toBe('');
+        expect(await instance().evaluate(el => el.style.height)).toBe('');
+        expect(await instance().evaluate(el => el._sizeStyle.textContent))
+            .toBe(':host { width: 160px; height: 40px; }');
+        const box = await instance().boundingBox();
+        expect(box.width).toBe(160);
+        expect(box.height).toBe(40);
+    });
+
+    it('an authored inline size beats the template default (B46)', async () => {
+        await instance().evaluate(el => { el.style.width = '320px'; });
+        const box = await instance().boundingBox();
+        expect(box.width).toBe(320);
+        expect(box.height).toBe(40);                          // other axis keeps the default
+        await instance().evaluate(el => { el.style.width = ''; });   // restore for later tests
     });
 
     it('re-stamps when a param attribute changes', async () => {
