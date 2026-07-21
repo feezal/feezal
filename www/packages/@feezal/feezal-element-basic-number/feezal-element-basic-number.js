@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, html} from '@feezal/feezal-element';
+import {FeezalElement, html, css} from '@feezal/feezal-element';
 
 class FeezalElementBasicNumber extends FeezalElement {
     static get feezal() {
@@ -15,7 +15,9 @@ class FeezalElementBasicNumber extends FeezalElement {
                 {name: 'digits',           type: 'number', label: 'Decimal digits'},
                 {name: 'decimalSeparator', label: 'Decimal separator'},
                 'prefix',
-                'suffix'
+                'suffix',
+                {name: 'click-through', type: 'boolean', default: false,
+                    help: 'Viewer: let clicks/taps pass through this element to whatever sits beneath it (e.g. a button under a value label). In the editor the element stays selectable/draggable.'}
             ],
             baseAttribute: 'value',
             styles: [
@@ -40,8 +42,17 @@ class FeezalElementBasicNumber extends FeezalElement {
         digits:           {type: Number, reflect: true},
         prefix:           {type: String, reflect: true},
         suffix:           {type: String, reflect: true},
+        clickThrough:     {type: Boolean, reflect: true, attribute: 'click-through'},
         _formatedValue:   {state: true},
     };
+
+    // E118: click-through — pointer events pass to elements beneath in the
+    // viewer; the editor keeps the element selectable/draggable.
+    static styles = [FeezalElement.styles, css`
+        :host([click-through]:not(.feezal-editable)) {
+            pointer-events: none;
+        }
+    `];
 
     constructor() {
         super();
@@ -49,6 +60,7 @@ class FeezalElementBasicNumber extends FeezalElement {
         this.digits           = undefined;
         this.prefix           = '';
         this.suffix           = '';
+        this.clickThrough     = false;
         this._formatedValue   = '';
     }
 

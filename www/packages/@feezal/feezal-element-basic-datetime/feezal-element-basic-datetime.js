@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, html} from '@feezal/feezal-element';
+import {FeezalElement, html, css} from '@feezal/feezal-element';
 
 import {utcToZonedTime, format} from 'date-fns-tz';
 import {be, de, enGB, enUS, es, fr, hr, hu, it, nl, pl, ru} from 'date-fns/locale';
@@ -27,7 +27,9 @@ class FeezalElementBasicDatetime extends FeezalElement {
                     name: 'timezone',
                     label: 'Timezone',
                     validator: FeezalElementBasicDatetime.isValidTimeZone
-                }
+                },
+                {name: 'click-through', type: 'boolean', default: false,
+                    help: 'Viewer: let clicks/taps pass through this element to whatever sits beneath it (e.g. a button under a clock). In the editor the element stays selectable/draggable.'}
             ],
             baseAttribute: 'value',
             styles: [
@@ -47,14 +49,24 @@ class FeezalElementBasicDatetime extends FeezalElement {
         format:         {type: String, reflect: true},
         locale:         {type: String, reflect: true},
         timezone:       {type: String, reflect: true},
+        clickThrough:   {type: Boolean, reflect: true, attribute: 'click-through'},
         _formatedValue: {state: true},
     };
+
+    // E118: click-through — pointer events pass to elements beneath in the
+    // viewer; the editor keeps the element selectable/draggable.
+    static styles = [FeezalElement.styles, css`
+        :host([click-through]:not(.feezal-editable)) {
+            pointer-events: none;
+        }
+    `];
 
     constructor() {
         super();
         this.format         = 'cccc, dd. MMMM yyyy H:mm:ss';
         this.locale         = FeezalElementBasicDatetime.getLocale();
         this.timezone       = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        this.clickThrough   = false;
         this._formatedValue = '';
     }
 

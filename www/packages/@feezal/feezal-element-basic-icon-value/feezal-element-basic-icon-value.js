@@ -36,7 +36,9 @@ class FeezalElementBasicIconValue extends FeezalElement {
                     help: 'Base icon of a variant family (e.g. knx-uf:fts_blade_s) — the picker offers only families with all 11 _0.._100 variants.'},
                 {name: 'min', type: 'number', size: 'half', help: 'Payload value mapped to variant _0'},
                 {name: 'max', type: 'number', size: 'half', help: 'Payload value mapped to variant _100'},
-                {name: 'value', type: 'number', help: 'Current value — live via subscribe; editable here for preview'}
+                {name: 'value', type: 'number', help: 'Current value — live via subscribe; editable here for preview'},
+                {name: 'click-through', type: 'boolean', default: false,
+                    help: 'Viewer: let clicks/taps pass through this element to whatever sits beneath it (e.g. a button under the icon). In the editor the element stays selectable/draggable.'}
             ],
             styles: [
                 'top', 'left', 'width', 'height',
@@ -60,7 +62,8 @@ class FeezalElementBasicIconValue extends FeezalElement {
         value: {type: Number},
         icon:  {type: String, reflect: true},
         min:   {type: Number, reflect: true},
-        max:   {type: Number, reflect: true}
+        max:   {type: Number, reflect: true},
+        clickThrough: {type: Boolean, reflect: true, attribute: 'click-through'}
     };
 
     static styles = [FeezalElement.styles, css`
@@ -75,6 +78,11 @@ class FeezalElementBasicIconValue extends FeezalElement {
             container-type: size;
         }
         feezal-icon { font-size: 90cqmin; line-height: 1; }
+        /* E118: click-through — pointer events pass to elements beneath in
+           the viewer; the editor keeps the element selectable/draggable. */
+        :host([click-through]:not(.feezal-editable)) {
+            pointer-events: none;
+        }
     `];
 
     constructor() {
@@ -83,6 +91,7 @@ class FeezalElementBasicIconValue extends FeezalElement {
         this.min = 0;
         this.max = 100;
         this.icon = '';
+        this.clickThrough = false;
     }
 
     connectedCallback() {
