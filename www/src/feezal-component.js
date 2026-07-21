@@ -51,6 +51,14 @@ class FeezalComponent extends HTMLElement {
                 border: 1px dashed #c62828;
             }`;
         shadow.appendChild(style);
+        // B46: the template-derived natural size lives in its own :host rule,
+        // updated by _updateSize() on every stamp. Author inline styles
+        // (style="width:100%") always beat shadow :host rules, so the
+        // template box is a DEFAULT the author can override — previously it
+        // was assigned to this.style directly and clobbered the authored
+        // size on every fresh load.
+        this._sizeStyle = document.createElement('style');
+        shadow.appendChild(this._sizeStyle);
         shadow.appendChild(document.createElement('slot'));
     }
 
@@ -157,11 +165,17 @@ class FeezalComponent extends HTMLElement {
     }
 
     /**
-     * Fixed-size instances (MVP): the instance box is the template's bounding
-     * box, computed from the children's inline px styles (the editor always
-     * positions with px inline styles; elements without inline width/height
-     * contribute only their origin). Resize handles are suppressed in the
-     * editor, so width/height are entirely template-derived.
+     * The instance's DEFAULT size is the template's bounding box, computed
+     * from the children's inline px styles (the editor always positions with
+     * px inline styles; elements without inline width/height contribute only
+     * their origin).
+     *
+     * B46: the box is written as a :host rule into the shadow root, NOT onto
+     * this.style — an inline author style (width: 100% from the inspector)
+     * has higher precedence than shadow :host rules, so it survives stamping.
+     * The old direct assignment overwrote the authored size on every fresh
+     * load (editor reload and viewer alike). Instances saved before this fix
+     * carry the serialized px inline — they keep behaving as fixed-size.
      */
     _updateSize(template) {
         let right = 0;
@@ -174,8 +188,10 @@ class FeezalComponent extends HTMLElement {
             right = Math.max(right, left + width);
             bottom = Math.max(bottom, top + height);
         }
-        if (right > 0) this.style.width = right + 'px';
-        if (bottom > 0) this.style.height = bottom + 'px';
+        const rules = [];
+        if (right > 0) rules.push(`width: ${right}px;`);
+        if (bottom > 0) rules.push(`height: ${bottom}px;`);
+        this._sizeStyle.textContent = rules.length ? `:host { ${rules.join(' ')} }` : '';
     }
 }
 

@@ -101,11 +101,42 @@ describe('feezal-component stamping + substitution', () => {
     });
 });
 
-describe('feezal-component sizing (fixed-size MVP)', () => {
-    it('sets width/height to the template bounding box', () => {
+describe('feezal-component sizing (template box as default, B46)', () => {
+    it('writes the template bounding box as a shadow :host rule', () => {
         const {instance} = buildSite({params: DEFAULT_PARAMS});
-        expect(instance.style.width).toBe('180px');
-        expect(instance.style.height).toBe('104px');
+        expect(instance._sizeStyle.textContent).toBe(':host { width: 180px; height: 104px; }');
+    });
+
+    it('does NOT write the size onto the instance inline style', () => {
+        const {instance} = buildSite({params: DEFAULT_PARAMS});
+        expect(instance.style.width).toBe('');
+        expect(instance.style.height).toBe('');
+    });
+
+    // B46: an authored size (width: 100% in the inspector) must survive
+    // stamping — the old direct style assignment clobbered it on every load.
+    it('an authored inline size survives stamping and re-stamping', async () => {
+        const {instance} = buildSite({
+            params: DEFAULT_PARAMS,
+            instanceAttrs: {style: 'width: 100%; height: 300px;'}
+        });
+        expect(instance.style.width).toBe('100%');
+        expect(instance.style.height).toBe('300px');
+
+        instance.setAttribute('prefix', 'home/bath');   // param change → re-stamp
+        await flush();
+        expect(instance.style.width).toBe('100%');
+        expect(instance.style.height).toBe('300px');
+    });
+
+    it('an authored size on one axis leaves the other on the template default', () => {
+        const {instance} = buildSite({
+            params: DEFAULT_PARAMS,
+            instanceAttrs: {style: 'width: 100%;'}
+        });
+        expect(instance.style.width).toBe('100%');
+        expect(instance.style.height).toBe('');
+        expect(instance._sizeStyle.textContent).toContain('height: 104px;');
     });
 });
 
