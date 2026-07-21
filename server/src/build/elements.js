@@ -185,7 +185,9 @@ function generateElementsModule(elements) {
  * @returns {Promise<void>}
  */
 async function writeElementsFile(wwwDir, logger) {
-    fetchMaterialIcons(wwwDir);
+    // A25: refreshing the Material Icons codepoints hits raw.githubusercontent.com
+    // — opt-in only (maintainer action), never an implicit boot-time request.
+    if (process.env.FEEZAL_FETCH_ICON_CODEPOINTS === '1') fetchMaterialIcons(wwwDir);
 
     // For writing the build-time file, scan node_modules/ directly (we're in the monorepo).
     const nodeModulesDir = path.join(wwwDir, 'node_modules');

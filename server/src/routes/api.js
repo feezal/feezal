@@ -580,18 +580,25 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
     // (Scoped names contain '/', so remove/update take the name in the body
     //  rather than a path param.)
 
-    // List installed add-on packages (all types), best-effort "latest" per pkg.
-    router.get('/elements', async (_req, res) => {
+    // List installed add-on packages (all types).
+    // A25: the npm "latest" lookup is OPT-IN via ?checkUpdates=1 — routinely
+    // telling registry.npmjs.org the full installed package list on every
+    // panel open violates the no-implicit-outbound-traffic policy. The
+    // Packages sidebar triggers it from an explicit "Check for updates"
+    // button instead.
+    router.get('/elements', async (req, res) => {
         if (!storage.dataDir) return res.json({packages: []});
         try {
             const installed = await pkgManager.listInstalled(storage.dataDir);
-            // Best-effort latest-version lookup (never fail the list on a registry hiccup).
-            await Promise.all(installed.map(async p => {
-                try {
-                    const r = await fetch(`https://registry.npmjs.org/${p.name.replace('/', '%2f')}/latest`);
-                    if (r.ok) { const j = await r.json(); if (j.version) p.latest = j.version; }
-                } catch { /* offline — no update badge */ }
-            }));
+            if (req.query.checkUpdates === '1') {
+                // Best-effort latest-version lookup (never fail the list on a registry hiccup).
+                await Promise.all(installed.map(async p => {
+                    try {
+                        const r = await fetch(`https://registry.npmjs.org/${p.name.replace('/', '%2f')}/latest`);
+                        if (r.ok) { const j = await r.json(); if (j.version) p.latest = j.version; }
+                    } catch { /* offline — no update badge */ }
+                }));
+            }
             res.json({packages: installed});
         } catch (err) {
             res.status(500).json({error: err.message});

@@ -17,7 +17,7 @@
         }
     </style>
 
-    <link href="https://fonts.googleapis.com/css?family=Roboto|Material+Icons&display=block" rel="stylesheet">
+    <link href="/fonts/fonts.css" rel="stylesheet">
 
     <script>
 
@@ -82,7 +82,9 @@
     <script type="module" src="../src/feezal-connection.js"></script>
     <script type="module">
         import { setBasePath } from '@shoelace-style/shoelace/dist/utilities/base-path.js';
-        setBasePath('https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.1/dist');
+        // A25: Shoelace assets are self-hosted (copied to dist/shoelace by the
+        // Vite build; served from node_modules in dev) — never a CDN.
+        setBasePath('/shoelace');
     </script>
     <script type="module" src="../src/feezal-app-editor.js"></script>
     <script type="module" src="feezal-elements.js"></script>

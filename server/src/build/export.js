@@ -400,7 +400,7 @@ function composeIndexHtml(siteName, siteHtml, connectionConfig, inlineJs, themeO
 html, body { width: 100%; height: 100%; padding: 0; margin: 0; font-family: 'Roboto', sans-serif; font-size: 14px; }
 .feezal-view { margin: auto !important; }
 </style>
-<link href="https://fonts.googleapis.com/css?family=Roboto|Material+Icons&display=block" rel="stylesheet">
+<link href="fonts/fonts.css" rel="stylesheet">
 <script>
 window.feezal = {
     elements: new Set(),
@@ -806,11 +806,27 @@ async function buildExportBundle(wwwDir, siteName, {html: siteHtml, config}, log
         }
     }
 
+    // A25: self-hosted fonts — the export's index.html links fonts/fonts.css
+    // (relative), so the ZIP (and the Capacitor bundle nesting it) must carry
+    // the font files; otherwise the export would fall back to raw ligature
+    // text offline, or worse, someone would "fix" it with a CDN link again.
+    const fontEntries = [];
+    try {
+        const fontsDir = path.join(distDir, 'fonts');
+        for (const f of require('fs').readdirSync(fontsDir)) {
+            fontEntries.push({abs: path.join(fontsDir, f), zip: 'fonts/' + f});
+        }
+    } catch (err) {
+        logger.warn('export: fonts missing from dist (run the www build): ' + err.message);
+    }
+
     return {
         indexHtml,
         entries: [
             // A16: one flat assets/ tree with only the referenced files.
             ...plan.entries.map(entry => ({zip: entry.zip, abs: entry.abs})),
+            // A25: self-hosted Roboto + Material Icons.
+            ...fontEntries,
             // A9: PWA manifest, service worker and icons (only when opted in).
             ...pwaFiles.map(file => ({zip: file.name, content: file.content})),
             ...pwaIconEntries.map(entry => ({zip: entry.zip, abs: entry.abs})),

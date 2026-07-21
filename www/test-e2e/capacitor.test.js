@@ -64,7 +64,8 @@ describe('pre-export dialog', () => {
         const AdmZip = serverRequire('adm-zip');
         const zip = new AdmZip(await download.path());
         const names = zip.getEntries().filter(e => !e.isDirectory).map(e => e.entryName).sort();
-        expect(names).toEqual([
+        // A25: the web bundle carries the self-hosted fonts under www/fonts/.
+        expect(names.filter(n => !n.startsWith('mein-zuhause/www/fonts/'))).toEqual([
             'mein-zuhause/README.md',
             'mein-zuhause/capacitor.config.json',
             'mein-zuhause/package.json',
@@ -72,6 +73,7 @@ describe('pre-export dialog', () => {
             'mein-zuhause/scripts/platform.mjs',
             'mein-zuhause/www/index.html',
         ]);
+        expect(names).toContain('mein-zuhause/www/fonts/fonts.css');
 
         const cfg = JSON.parse(zip.readAsText('mein-zuhause/capacitor.config.json'));
         expect(cfg).toMatchObject({appId: 'io.feezal.meinzuhause', appName: 'Mein Zuhause', webDir: 'www'});

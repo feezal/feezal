@@ -106,8 +106,13 @@ describe('static export opened from file://', () => {
 
         // A16 layout: index.html + a single assets/ tree, no global/ folder
         const names = zip.getEntries().filter(e => !e.isDirectory).map(e => e.entryName).sort();
-        expect(names).toEqual(['direct/assets/logo.png', 'direct/index.html']);
+        // A25: the ZIP additionally carries the self-hosted fonts (fonts/…).
+        expect(names.filter(n => !n.startsWith('direct/fonts/')))
+            .toEqual(['direct/assets/logo.png', 'direct/index.html']);
+        expect(names).toContain('direct/fonts/fonts.css');
+        expect(names).toContain('direct/fonts/material-icons.woff2');
         expect(zip.readAsText('direct/index.html')).toContain('src="assets/logo.png"');
+        expect(zip.readAsText('direct/index.html')).toContain('href="fonts/fonts.css"');
 
         const exportDir = join(stack.dataDir, 'export');
         await mkdir(exportDir, {recursive: true});

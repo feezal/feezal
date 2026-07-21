@@ -1,5 +1,11 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+// A25: Leaflet's default marker images, bundled by Vite (small PNGs inline as
+// data URIs, so live viewer AND static exports are self-contained) — never
+// fetched from a CDN.
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
 // Cached, shareable Leaflet stylesheet. Leaflet's CSS MUST live inside each
 // map's shadow root — document.head styles do not cross the shadow boundary, so
@@ -20,12 +26,13 @@ async function getLeaflet() {
             _leafletSheet = false;
         }
     }
-    // Fix default icon URLs (bundler strips the image URLs from Leaflet's defaults)
+    // Fix default icon URLs (bundler strips the image URLs from Leaflet's
+    // defaults) — A25: point them at the BUNDLED images, not a CDN.
     delete L.Icon.Default.prototype._getIconUrl;
     L.Icon.Default.mergeOptions({
-        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-        iconUrl:       'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-        shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconRetinaUrl: markerIcon2x,
+        iconUrl:       markerIcon,
+        shadowUrl:     markerShadow,
     });
     return L;
 }
@@ -63,7 +70,7 @@ class FeezalElementMaterialMap extends FeezalElement {
                 {name: 'zoom',             type: 'number',    help: 'Initial zoom level. Default: 13'},
                 {name: 'home-lat',         type: 'number',    help: 'Home/default map centre latitude.'},
                 {name: 'home-lon',         type: 'number',    help: 'Home/default map centre longitude.'},
-                {name: 'tile-url',         type: 'string',    help: 'Tile server URL template. Default: OpenStreetMap'},
+                {name: 'tile-url',         type: 'string',    help: 'Tile server URL template. Default: OpenStreetMap — NOTE: the default contacts tile.openstreetmap.org (the only network request this element makes besides your MQTT broker); point it at your own tile server for a fully offline dashboard.'},
                 {name: 'follow',           type: 'boolean',   help: 'Pan the map to follow the most recently updated position. Takes precedence over auto-fit.'},
                 {name: 'auto-fit',         type: 'boolean',   help: 'Zoom/pan so all pins are visible at once — on load and every time the view becomes active. Ignored when follow is on. Default: on'},
                 {name: 'stale-minutes',    type: 'number',    help: 'Mark a person as stale (greyed) after this many minutes. Default: 60'},
@@ -161,12 +168,11 @@ class FeezalElementMaterialMap extends FeezalElement {
                     ...this.shadowRoot.adoptedStyleSheets,
                     _leafletSheet,
                 ];
-            } else if (_leafletSheet === false &&
-                       !this.shadowRoot.querySelector('link[data-leaflet]')) {
-                this.shadowRoot.appendChild(Object.assign(document.createElement('link'), {
-                    rel: 'stylesheet',
-                    href: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
-                })).setAttribute('data-leaflet', '');
+            } else if (_leafletSheet === false) {
+                // A25: no CDN fallback — the ?inline import is guaranteed in
+                // every Vite-built context feezal ships; if it ever fails the
+                // map renders unstyled rather than phoning unpkg.
+                console.warn('[feezal-map] Leaflet CSS could not be bundled — map tiles may render unpositioned');
             }
 
             const lat  = this.homeLat ?? 51.505;

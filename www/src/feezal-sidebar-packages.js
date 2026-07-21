@@ -115,9 +115,11 @@ class FeezalSidebarPackages extends LitElement {
         this._loadInstalled();
     }
 
-    async _loadInstalled() {
+    async _loadInstalled(checkUpdates = false) {
+        // A25: the npm latest-version lookup is opt-in — the routine list
+        // never leaves the server; "Check for updates" passes the flag.
         try {
-            const res = await fetch('/api/elements');
+            const res = await fetch('/api/elements' + (checkUpdates ? '?checkUpdates=1' : ''));
             const data = await res.json();
             this._installed = data.packages || [];
         } catch { /* leave as-is */ }
@@ -233,7 +235,13 @@ class FeezalSidebarPackages extends LitElement {
                 <h4>Search results</h4>
                 ${results.map(r => this._resultRow(r))}` : ''}
 
-            <h4>Installed${this._filter !== 'all' ? ` · ${typeLabel(this._filter)}s` : ''}</h4>
+            <h4 style="display:flex;align-items:center;gap:8px">
+                Installed${this._filter !== 'all' ? ` · ${typeLabel(this._filter)}s` : ''}
+                <span style="flex:1"></span>
+                ${installed.length ? html`
+                    <sl-button size="small" title="Query registry.npmjs.org for newer versions of the installed packages (A25: only on request — nothing is contacted automatically)"
+                        @click="${() => this._loadInstalled(true)}">Check for updates</sl-button>` : ''}
+            </h4>
             ${installed.length
                 ? installed.map(({p, member}) => this._installedRow(p, member))
                 : html`<div class="empty">No packages installed${this._filter !== 'all' ? ` of this type` : ''} yet.</div>`}

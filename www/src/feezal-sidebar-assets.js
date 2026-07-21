@@ -1144,7 +1144,7 @@ class FeezalSidebarAssets extends LitElement {
 
     render() {
         return html`
-            <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+            <link rel="stylesheet" href="/fonts/fonts.css">
             <sl-tab-group @sl-tab-show="${e => {
                 // Only a real category change resets the folder — a programmatic
                 // show() after a move-transfer must keep the current folder.

@@ -28,6 +28,30 @@ const feezalElementsRuntimePlugin = {
     }
 };
 
+// Plugin (A25): self-hosted Shoelace assets. setBasePath('/shoelace') in the
+// editor points sl-icon & friends at /shoelace/assets/… — the build copies
+// the assets from node_modules into dist/shoelace/, and the dev server serves
+// them from node_modules directly. No CDN, works offline.
+const shoelaceAssetsPlugin = {
+    name: 'feezal-shoelace-assets',
+    configureServer(server) {
+        const assetsDir = path.resolve('node_modules/@shoelace-style/shoelace/dist/assets');
+        server.middlewares.use('/shoelace/assets', (req, res, next) => {
+            const rel = decodeURIComponent((req.url || '').split('?')[0]).replace(/^\/+/, '');
+            const file = path.join(assetsDir, rel);
+            if (!file.startsWith(assetsDir) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return next();
+            if (file.endsWith('.svg')) res.setHeader('Content-Type', 'image/svg+xml');
+            fs.createReadStream(file).pipe(res);
+        });
+    },
+    closeBundle() {
+        const src = path.resolve('node_modules/@shoelace-style/shoelace/dist/assets');
+        const dest = path.resolve('dist/shoelace/assets');
+        if (!fs.existsSync(src)) return;
+        fs.cpSync(src, dest, {recursive: true});
+    }
+};
+
 // Plugin: write dist/feezal-builtin-elements.json after the build.
 // The server reads this in production to know which elements are already bundled
 // in the editor chunk (so their names appear in window.feezal.elements).
@@ -57,6 +81,7 @@ export default defineConfig({
     plugins: [
         feezalElementsRuntimePlugin,
         feezalBuiltinManifestPlugin,
+        shoelaceAssetsPlugin,
         // Bundle Monaco language workers as separate async chunks (editor-only).
         // The viewer bundle never imports monaco-editor so these chunks are not
         // included in viewer-bundle.js.

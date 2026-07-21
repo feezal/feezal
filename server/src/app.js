@@ -90,6 +90,36 @@ async function createApp(config) {
     app.use(express.json());
     app.use(express.urlencoded({extended: false}));
 
+    // --- A25: Content-Security-Policy ------------------------------------
+    // The structural no-third-party guarantee: scripts, styles and fonts may
+    // only come from feezal itself — a pasted CDN link fails loudly instead
+    // of silently phoning out. Deliberately open where dashboards carry
+    // user-configured content: images/media (cameras, OSM tiles, asset URLs),
+    // connect (the MQTT broker lives wherever the user says), and frames
+    // (basic-iframe embeds Grafana & friends). 'unsafe-inline' is required by
+    // the generated viewer bootstrap and shadow-DOM style injection — this
+    // CSP is an egress policy, not an XSS boundary.
+    const CSP = [
+        "default-src 'self'",
+        // 'unsafe-eval': feezal-element-basic-template (and system-script)
+        // compile the dashboard author's templates via new Function — a core
+        // feature. The eval'd code is the author's own site content.
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+        "style-src 'self' 'unsafe-inline'",
+        "font-src 'self' data:",
+        "img-src * data: blob:",
+        "media-src * data: blob:",
+        'connect-src *',
+        'frame-src *',
+        "worker-src 'self' blob:",
+        "object-src 'none'",
+        "base-uri 'self'",
+    ].join('; ');
+    app.use((_req, res, next) => {
+        res.setHeader('Content-Security-Policy', CSP);
+        next();
+    });
+
     // --- Login routes (public) ---
     app.use('/login', loginRouter);
 
@@ -321,7 +351,7 @@ async function createApp(config) {
 html, body { width: 100%; height: 100%; padding: 0; margin: 0; font-family: 'Roboto', sans-serif; font-size: 14px; }
 .feezal-view { margin: auto !important; }
 </style>
-<link href="https://fonts.googleapis.com/css?family=Roboto|Material+Icons&display=block" rel="stylesheet">
+<link href="/fonts/fonts.css" rel="stylesheet">
 <script>
 window.feezal = {
     elements: new Set(),
