@@ -2,14 +2,29 @@ import {describe, it, expect, beforeEach} from 'vitest';
 
 import '../src/feezal-app-viewer.js';
 
-// The viewer app derives the active view from the URL hash. feezal.site is a
-// plain stand-in here — only its writable `view` property is used.
+// The viewer app derives the active view from the URL hash and delegates it
+// to the site's view command (B41: the full `view/embedded` path, so deep
+// links into a layout-app sub-view work on hash changes too). feezal.site is
+// a plain stand-in here — `applyControlCommand('view', path)` records the
+// path and mirrors the top-level part into `view` like the real site does.
 function makeViews(...names) {
     return names.map(name => {
         const view = document.createElement('feezal-view');
         view.setAttribute('name', name);
         return view;
     });
+}
+
+function makeFakeSite() {
+    return {
+        view: null,
+        viewCommands: [],
+        applyControlCommand(cmd, payload) {
+            if (cmd !== 'view') return;
+            this.viewCommands.push(payload);
+            this.view = String(payload).split('/')[0];
+        }
+    };
 }
 
 async function attachViewer() {
@@ -23,7 +38,7 @@ beforeEach(() => {
     location.hash = '';
     feezal.isEditor = false;
     feezal.views = makeViews('home', 'kitchen');
-    feezal.site = {view: null};
+    feezal.site = makeFakeSite();
 });
 
 describe('initial navigation', () => {
@@ -47,11 +62,12 @@ describe('initial navigation', () => {
 });
 
 describe('hashchange handling', () => {
-    it('routes hash changes to feezal.site.view', async () => {
+    it('routes hash changes to the site view command', async () => {
         await attachViewer();
         location.hash = '#/kitchen';
         window.dispatchEvent(new Event('hashchange'));
         expect(feezal.site.view).toBe('kitchen');
+        expect(feezal.site.viewCommands.at(-1)).toBe('kitchen');
     });
 
     it('strips both "#" and a leading "/" from the hash', async () => {
@@ -59,6 +75,23 @@ describe('hashchange handling', () => {
         location.hash = '#kitchen';
         window.dispatchEvent(new Event('hashchange'));
         expect(feezal.site.view).toBe('kitchen');
+    });
+
+    // B41: a deep link #/<view>/<embedded> must carry the embedded part into
+    // the site's view command instead of dropping it.
+    it('routes the full view/embedded path for deep links', async () => {
+        await attachViewer();
+        location.hash = '#/kitchen/heating';
+        window.dispatchEvent(new Event('hashchange'));
+        expect(feezal.site.viewCommands.at(-1)).toBe('kitchen/heating');
+        expect(feezal.site.view).toBe('kitchen');
+    });
+
+    it('decodes percent-encoded names in both segments', async () => {
+        await attachViewer();
+        location.hash = '#/K%C3%BCche/Heizung%20oben';
+        window.dispatchEvent(new Event('hashchange'));
+        expect(feezal.site.viewCommands.at(-1)).toBe('Küche/Heizung oben');
     });
 
     it('stops listening after disconnect', async () => {

@@ -273,9 +273,11 @@ class FeezalElementLayoutApp extends FeezalElement {
     routableViews() { return this._entries().map(e => e.view); }
     /** The sub-view currently embedded, or null. */
     activeEmbedded() { return this._active || null; }
-    /** Programmatic route from the site (inbound MQTT / deep-link) — no re-notify. */
+    /** Programmatic route from the site (inbound MQTT / deep-link) — no re-notify.
+     * Same-view routes no-op (B41): the drawer's own hash write fires hashchange,
+     * which routes back here — without the guard every pick re-cloned the view. */
     routeToEmbedded(view) {
-        if (!view || !this.routableViews().includes(view)) return;
+        if (!view || view === this._active || !this.routableViews().includes(view)) return;
         this._active = view;
         if (this._narrow) this._drawerOpen = false;
         this._embed(true);

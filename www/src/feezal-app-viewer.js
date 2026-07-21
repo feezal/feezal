@@ -4,7 +4,7 @@ import {LitElement, html, css} from 'lit';
 
 import './feezal-site.js';
 import './feezal-view.js';
-import {viewFromHash} from './hash-view.js';
+import {viewFromHash, viewPathFromHash} from './hash-view.js';
 
 class FeezalAppViewer extends LitElement {
     static styles = css`
@@ -17,9 +17,17 @@ class FeezalAppViewer extends LitElement {
         super.connectedCallback();
 
         this._onHashChange = () => {
-            const view = viewFromHash();
-            if (feezal.site) {
-                feezal.site.view = view;
+            // B41: route the FULL hash path, not just the top-level view. A
+            // hash-only URL change never reloads the page — it fires only this
+            // handler — so a deep link #/<view>/<embedded> typed into an open
+            // viewer (or reached via back/forward) must land on the layout-app
+            // sub-view here. Delegate to the site's view command, which owns
+            // the nested-path contract (N30): `view/embedded` routes into the
+            // shell, and a bare sub-view name is offered to the visible shell
+            // before switching top-level.
+            const {view, embedded} = viewPathFromHash();
+            if (feezal.site && view) {
+                feezal.site.applyControlCommand('view', embedded ? `${view}/${embedded}` : view);
             }
         };
 
