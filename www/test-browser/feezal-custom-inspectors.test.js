@@ -98,7 +98,9 @@ describe('material-navbar inspector', () => {
 });
 
 describe('layout-app inspector', () => {
-    it('"+ add" creates a fresh hidden view AND the drawer entry', async () => {
+    // U47: "+ add" no longer auto-creates a pageN view — the entry starts
+    // unbound; view creation lives in the entry dropdown's create dialog.
+    it('"+ add" appends an unbound entry without creating a view', async () => {
         feezal.site = makeSite('main');
         feezal.site.view = 'main';
         const shell = document.createElement('feezal-element-layout-app');
@@ -107,6 +109,22 @@ describe('layout-app inspector', () => {
         // first section is the top bar; the drawer-entries add button is the
         // first .sec-head .btn
         inspector.shadowRoot.querySelector('.sec-head .btn').click();
+        await inspector.updateComplete;
+
+        expect(items(shell)).toEqual([{view: ''}]);
+        expect(feezal.site.querySelector('feezal-view[name="page1"]')).toBeNull();
+    });
+
+    it('the create-view dialog (U47) creates a hidden view and binds the entry', async () => {
+        feezal.site = makeSite('main');
+        feezal.site.view = 'main';
+        feezal.app = {...feezal.app, views: [], requestUpdate() {}, change() {}};
+        const shell = document.createElement('feezal-element-layout-app');
+        shell.setAttribute('items', JSON.stringify([{view: ''}]));
+        const inspector = await mountInspector('feezal-element-layout-app-inspector', shell);
+
+        inspector._onEntryViewChange(0, {target: {value: '__feezal-create-new-view__'}});
+        inspector._createDlgSubmit();                 // default suggested name: page1
         await inspector.updateComplete;
 
         expect(items(shell)).toEqual([{view: 'page1', label: 'page1'}]);

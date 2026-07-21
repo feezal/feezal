@@ -6,6 +6,9 @@ import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/select/select.js';
 import '@shoelace-style/shoelace/dist/components/option/option.js';
 import '@shoelace-style/shoelace/dist/components/switch/switch.js';
+import '@shoelace-style/shoelace/dist/components/dialog/dialog.js';
+import '@shoelace-style/shoelace/dist/components/button/button.js';
+import '@shoelace-style/shoelace/dist/components/divider/divider.js';
 
 /**
  * feezal-element-layout-app (E47)
@@ -425,8 +428,14 @@ export {FeezalElementLayoutApp};
 
 // ─── N6 custom inspector ────────────────────────────────────────────────────────
 
+// U47: sentinel value for the "create new view" entry in the per-entry view
+// dropdown. Never written into `items` — picking it opens the create dialog.
+// No spaces (Shoelace option values must be space-free) and namespaced so no
+// real view name can collide with it.
+const CREATE_VIEW_SENTINEL = '__feezal-create-new-view__';
+
 class FeezalElementLayoutAppInspector extends LitElement {
-    static properties = {element: {attribute: false}, _tick: {state: true}};
+    static properties = {element: {attribute: false}, _tick: {state: true}, _createDlg: {state: true}};
 
     static styles = css`
         :host { display: block; font-size: 12px; color: var(--feezal-color, #333); }
@@ -461,7 +470,7 @@ class FeezalElementLayoutAppInspector extends LitElement {
         .grid .field { flex: 1; min-width: 0; }
     `;
 
-    constructor() { super(); this.element = null; this._tick = 0; }
+    constructor() { super(); this.element = null; this._tick = 0; this._createDlg = null; }
 
     _attr(n, d = '') { return this.element?.getAttribute(n) ?? d; }
     _emit(name, value) { this.dispatchEvent(new CustomEvent('feezal-attribute-changed', {bubbles: true, composed: true, detail: {name, value}})); }
@@ -486,8 +495,54 @@ class FeezalElementLayoutAppInspector extends LitElement {
     // ── entries ──
     _entries() { return this._json('items').map(e => ({label: e.label, icon: e.icon, view: e.view})); }
     _saveEntries(list) { this._emit('items', list.map(e => { const o = {view: e.view || ''}; if (e.label) o.label = e.label; if (e.icon) o.icon = e.icon; return o; })); this._tick++; }
-    _addEntry() { const name = this._uniqueViewName('page'); this._createView(name); this._saveEntries([...this._entries(), {view: name, label: name}]); }
+    // U47: "+ add" no longer auto-creates a pageN view. The entry starts
+    // unbound — the runtime's _entries() skips entries without a view, so an
+    // unbound entry renders nothing in the drawer. Bind an existing view in
+    // the dropdown, or pick "＋ Create new view…" there.
+    _addEntry() { this._saveEntries([...this._entries(), {}]); }
     _setEntry(i, k, v) { const l = this._entries(); if (!l[i]) return; if (v === '' || v == null) delete l[i][k]; else l[i][k] = v; this._saveEntries(l); }
+
+    // ── U47: per-entry view change + "create new view" dialog ──────────────
+    _onEntryViewChange(i, ev) {
+        const v = ev.target.value;
+        if (v === CREATE_VIEW_SENTINEL) {
+            // Never persist the sentinel — open the create dialog instead.
+            // Create binds the real name; cancel restores the previous value.
+            this._createDlg = {
+                index: i,
+                prev: this._entries()[i]?.view || '',
+                name: this._uniqueViewName('page'),
+                select: ev.target,
+            };
+            return;
+        }
+        this._setEntry(i, 'view', v);
+    }
+
+    _createDlgSubmit() {
+        const dlg = this._createDlg;
+        if (!dlg) return;
+        const name = (dlg.name || '').trim();
+        if (!name || this._viewNames().includes(name)) return;   // button is disabled, belt-and-braces
+        this._createView(name);
+        const l = this._entries();
+        if (l[dlg.index]) {
+            l[dlg.index].view = name;
+            if (!l[dlg.index].label) l[dlg.index].label = name;
+            this._saveEntries(l);
+        }
+        this._createDlg = null;
+    }
+
+    _createDlgCancel() {
+        const dlg = this._createDlg;
+        if (!dlg) return;
+        this._createDlg = null;
+        // Shoelace keeps the picked (sentinel) value — put the previous view
+        // back explicitly.
+        if (dlg.select) dlg.select.value = dlg.prev;
+        this._tick++;
+    }
     _moveEntry(i, d) { const l = this._entries(); const j = i + d; if (j < 0 || j >= l.length) return; [l[i], l[j]] = [l[j], l[i]]; this._saveEntries(l); }
     _removeEntry(i) { const l = this._entries(); l.splice(i, 1); this._saveEntries(l); }
     _editView(v) { if (v && feezal.app) feezal.app._setView(v); }
@@ -524,13 +579,16 @@ class FeezalElementLayoutAppInspector extends LitElement {
                 <div class="sec-head">Drawer entries <span class="spacer"></span><button class="btn" @click="${this._addEntry}">+ add</button></div>
                 <div class="sec-body">
                     ${entries.length === 0
-                        ? html`<div class="hint">No entries yet. “+ add” creates a page view and adds an entry — ✎ to edit it.</div>`
+                        ? html`<div class="hint">No entries yet. “+ add” adds an entry — pick its view in the dropdown, or create a new view right there.</div>`
                         : entries.map((e, i) => html`
                             <div class="item">
                                 <div class="item-head">
                                     <span class="item-num">${i + 1}</span>
-                                    <sl-select size="small" value="${e.view || ''}" @sl-change="${ev => this._setEntry(i, 'view', ev.target.value)}">
+                                    <sl-select size="small" placeholder="pick a view…" value="${e.view || ''}"
+                                        @sl-change="${ev => this._onEntryViewChange(i, ev)}">
                                         ${views.map(v => html`<sl-option value="${v}">${v}</sl-option>`)}
+                                        <sl-divider></sl-divider>
+                                        <sl-option value="${CREATE_VIEW_SENTINEL}">＋ Create new view…</sl-option>
                                     </sl-select>
                                     <button class="ib" title="Edit this view" @click="${() => this._editView(e.view)}">&#9998;</button>
                                     <button class="ib" title="Up" ?disabled="${i === 0}" @click="${() => this._moveEntry(i, -1)}">&#8593;</button>
@@ -594,6 +652,21 @@ class FeezalElementLayoutAppInspector extends LitElement {
                     </label>
                 </div>
             </div>
+
+            <!-- U47: create-new-view dialog (opened from the entry dropdown) -->
+            <sl-dialog label="Create new view" ?open="${!!this._createDlg}"
+                @sl-request-close="${() => this._createDlgCancel()}">
+                <sl-input label="View name" autocomplete="off"
+                    .value="${this._createDlg?.name ?? ''}"
+                    help-text="${this._createDlg && this._viewNames().includes((this._createDlg.name || '').trim())
+                        ? 'A view with this name already exists.' : ''}"
+                    @sl-input="${e => { this._createDlg = {...this._createDlg, name: e.target.value}; }}"
+                    @keydown="${e => { if (e.key === 'Enter') this._createDlgSubmit(); }}"></sl-input>
+                <sl-button slot="footer" variant="default" @click="${() => this._createDlgCancel()}">Cancel</sl-button>
+                <sl-button slot="footer" variant="primary"
+                    ?disabled="${!this._createDlg || !(this._createDlg.name || '').trim() || this._viewNames().includes((this._createDlg.name || '').trim())}"
+                    @click="${() => this._createDlgSubmit()}">Create</sl-button>
+            </sl-dialog>
         `;
     }
 }

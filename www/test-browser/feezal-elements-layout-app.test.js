@@ -107,6 +107,107 @@ describe('keyboard / D-pad drawer navigation (N36)', () => {
     });
 });
 
+// U47: "+ add" no longer auto-creates a pageN view; view creation moved into
+// the entry dropdown ("＋ Create new view…" sentinel → dialog).
+describe('drawer-entry management (U47)', () => {
+    async function mountInspector(items = []) {
+        // Fake enough editor surface for _createView / _saveEntries.
+        const site = document.createElement('div');
+        document.body.append(site);
+        feezal.isEditor = true;
+        feezal.site = site;
+        feezal.app = {views: [], requestUpdate() {}, change() {}, _setView() {}};
+
+        const target = document.createElement('feezal-element-layout-app');
+        target.setAttribute('items', JSON.stringify(items));
+
+        const inspector = document.createElement('feezal-element-layout-app-inspector');
+        inspector.element = target;
+        // The editor's attribute panel applies emitted changes — mirror that.
+        inspector.addEventListener('feezal-attribute-changed', e => {
+            target.setAttribute(e.detail.name, typeof e.detail.value === 'string'
+                ? e.detail.value : JSON.stringify(e.detail.value));
+        });
+        document.body.append(inspector);
+        await inspector.updateComplete;
+        return {inspector, target, site};
+    }
+
+    it('"+ add" appends an unbound entry and creates NO view', async () => {
+        const {inspector, target, site} = await mountInspector();
+        inspector._addEntry();
+        await inspector.updateComplete;
+
+        const items = JSON.parse(target.getAttribute('items'));
+        expect(items).toEqual([{view: ''}]);
+        expect(site.querySelectorAll('feezal-view')).toHaveLength(0);
+        // Unbound entries render nothing in the drawer (runtime filters them).
+        expect(target._entries()).toHaveLength(0);
+    });
+
+    it('the entry dropdown offers the create-new sentinel after the real views', async () => {
+        const {inspector, site} = await mountInspector([{view: ''}]);
+        const view = document.createElement('feezal-view');
+        view.setAttribute('name', 'existing');
+        site.append(view);
+        inspector._tick++;
+        await inspector.updateComplete;
+
+        const options = [...inspector.shadowRoot.querySelectorAll('.item-head sl-select sl-option')];
+        expect(options.map(o => o.textContent.trim()).at(-1)).toContain('Create new view');
+        expect(options.at(-1).value).not.toBe('existing');
+    });
+
+    it('picking the sentinel opens the dialog instead of persisting it', async () => {
+        const {inspector, target} = await mountInspector([{view: ''}]);
+        inspector._onEntryViewChange(0, {target: {value: '__feezal-create-new-view__'}});
+        await inspector.updateComplete;
+
+        expect(inspector._createDlg).toBeTruthy();
+        expect(inspector._createDlg.name).toBe('page1');   // suggested default
+        expect(JSON.parse(target.getAttribute('items'))[0].view).toBe('');
+    });
+
+    it('submit creates the view, binds the entry and defaults the label', async () => {
+        const {inspector, target, site} = await mountInspector([{view: ''}]);
+        inspector._onEntryViewChange(0, {target: {value: '__feezal-create-new-view__'}});
+        inspector._createDlg = {...inspector._createDlg, name: 'heating'};
+        inspector._createDlgSubmit();
+        await inspector.updateComplete;
+
+        expect(site.querySelector('feezal-view[name="heating"]')).toBeTruthy();
+        const item = JSON.parse(target.getAttribute('items'))[0];
+        expect(item.view).toBe('heating');
+        expect(item.label).toBe('heating');
+        expect(inspector._createDlg).toBeNull();
+    });
+
+    it('cancel keeps items untouched and restores the previous select value', async () => {
+        const {inspector, target, site} = await mountInspector([{view: 'old'}]);
+        const fakeSelect = {value: '__feezal-create-new-view__'};
+        inspector._onEntryViewChange(0, {target: fakeSelect});
+        inspector._createDlgCancel();
+        await inspector.updateComplete;
+
+        expect(JSON.parse(target.getAttribute('items'))[0].view).toBe('old');
+        expect(fakeSelect.value).toBe('old');
+        expect(site.querySelectorAll('feezal-view')).toHaveLength(0);
+    });
+
+    it('refuses a duplicate view name', async () => {
+        const {inspector, site} = await mountInspector([{view: ''}]);
+        const view = document.createElement('feezal-view');
+        view.setAttribute('name', 'taken');
+        site.append(view);
+
+        inspector._onEntryViewChange(0, {target: {value: '__feezal-create-new-view__'}});
+        inspector._createDlg = {...inspector._createDlg, name: 'taken'};
+        inspector._createDlgSubmit();
+        expect(inspector._createDlg).toBeTruthy();               // stays open
+        expect(site.querySelectorAll('feezal-view')).toHaveLength(1);
+    });
+});
+
 describe('embedded view background (N36)', () => {
     it('copies the embedded view’s background onto the shell content area', async () => {
         // Fake site with a background-styled view.
