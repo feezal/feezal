@@ -363,6 +363,10 @@ class FeezalElementMaterialLight extends FeezalElement {
             overflow: visible;
             touch-action: none;
             user-select: none;
+            /* B47: iOS Safari — no text-selection callout / magnifier on a
+               long-press mid-drag. */
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
         }
         .controls { width: 100%; display: flex; flex-direction: column; gap: 4px; }
         .ctrl-label {
@@ -626,6 +630,9 @@ class FeezalElementMaterialLight extends FeezalElement {
     // ─── SVG pointer handling ─────────────────────────────────────────────────
     _onSvgPointerDown(e) {
         if (feezal.isEditor) return;
+        // B47: claim the gesture before the browser does — without this, iOS
+        // Safari (and standalone/PWA viewers) starts a page scroll mid-drag.
+        e.preventDefault();
         const {sx, sy} = this._toSvgCoords(e);
         const dx = sx - CX, dy = sy - CY;
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -733,6 +740,16 @@ class FeezalElementMaterialLight extends FeezalElement {
     _startBrtDrag(e, sx, sy) {
         this._dragBrt = this._brt ?? 0;
 
+        // B47: own the gesture like the CT track does — capture the pointer
+        // on the SVG so a circular drag that leaves the element keeps
+        // delivering here, and swallow touchmove for the drag's duration:
+        // iOS Safari (and the standalone/PWA viewer) otherwise rubber-band
+        // scrolls the page mid-drag despite touch-action: none.
+        const svg = e.currentTarget;
+        try { svg.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+        const onTouchMove = ev => ev.preventDefault();
+        document.addEventListener('touchmove', onTouchMove, {passive: false});
+
         const onMove = ev => {
             const {sx: x, sy: y} = this._toSvgCoords(ev);
             const deg = ((Math.atan2(y - CY, x - CX) * 180 / Math.PI) + 90 + 360) % 360;
@@ -741,6 +758,7 @@ class FeezalElementMaterialLight extends FeezalElement {
         const onUp = () => {
             document.removeEventListener('pointermove', onMove);
             document.removeEventListener('pointerup', onUp);
+            document.removeEventListener('touchmove', onTouchMove);
             const final = this._dragBrt;
             this._dragBrt = null;
             this._brt = final;
