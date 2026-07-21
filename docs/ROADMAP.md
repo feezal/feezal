@@ -9,6 +9,7 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B33 — Elements sometimes not selectable/draggable](#b33--elements-sometimes-not-selectabledraggable-needs-investigation) ❓
 - [B36 — Snapping sometimes stops working until page reload](#b36--snapping-sometimes-stops-working-until-page-reload-needs-investigation) ❓
+- [B48 — Component edit mode: click-selection and context menu don't work](#b48--component-edit-mode-click-selection-and-context-menu-dont-work)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -74,6 +75,7 @@ Work in progress — priorities and scope are not final.
 - [U46 — Clippy easter egg in the help popup](#u46--clippy-easter-egg-in-the-help-popup--low-priority) 🔽
 - [U48 — Make the viewer's `Connected as "…"` toast optional](#u48--make-the-viewers-connected-as--toast-optional)
 - [U50 — layout-app: expose the content area's inset (padding)](#u50--layout-app-expose-the-content-areas-inset-padding)
+- [U52 — Component edit mode: double-click to enter, attribute-mapping editor in the banner](#u52--component-edit-mode-double-click-to-enter-attribute-mapping-editor-in-the-banner)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -105,6 +107,19 @@ Snapping occasionally just stops working during drag/resize — no snap lines, n
 **Fix direction (pending confirmation):** don't trust keyup alone — also resync modifier state from `window blur`/`visibilitychange` (clear both flags when focus leaves the window) and from every subsequent `pointerdown`/`mousedown` (read `event.ctrlKey`/`event.shiftKey` opportunistically). Needs a repro to confirm the stuck-modifier theory before implementing.
 
 **Relates:** B32 (snapping helper lines sometimes don't disappear — could be the same stuck-modifier root cause manifesting as lines stuck *visible* instead of snapping stuck *off*; worth investigating together).
+
+### B48 — Component edit mode: click-selection and context menu don't work
+
+Inside **component edit mode** (the U32 "Editing component …" pseudo-view), the canvas is half-broken:
+
+- **Elements cannot be selected by click** — clicking a stamped element does nothing. Selecting via **drag (rubber-band) works**, which is the tell: DragSelect's rectangle path finds the elements, but the click-selection path doesn't.
+- **No context menu** — right-click on elements (or the canvas) shows nothing, so every context-menu action (incl. the component entries themselves) is unreachable in edit mode.
+
+**Candidate causes** (the click path and the context-menu handler are both wired per *view*): the component-edit pseudo-view may not run through the same `_viewChanged()` / `initElem()` wiring as regular views, and the click-selection `composedPath` handler + `dragstart` gating check for `FEEZAL-VIEW` targets — while stamped children inside a component are **direct children of the `feezal-component` instance, not of the view** (see the `isCanvasElement` note, [feezal-component.js:15-19](../www/src/feezal-component.js#L15-L19)); membership/target checks that assume "canvas element ⇒ child of feezal-view" silently fail there.
+
+**Acceptance:** inside component edit mode — single click selects, multi-select works, right-click shows the standard context menu, attribute/style inspectors follow the selection; behaviour identical to a normal view.
+
+**Relates:** U32 (component feature — where the pseudo-view is built), U52 (edit-mode UX additions — do together), B35 ✅-adjacent (same selection wiring surface), B33 (if the wiring fix generalises, retest).
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
@@ -976,6 +991,18 @@ The embedded view sits flush against the app bar and drawer — there is no way 
 - Accept a full CSS shorthand (`8px`, `8px 16px`, …) rather than a number, so per-side insets need no extra knobs.
 
 **Relates:** E-layout-app (the shell), N36 (the `--feezal-app-*` style-var set this extends), E38 (element scaling / responsive sizing — a responsive inset would belong there).
+
+### U52 — Component edit mode: double-click to enter, attribute-mapping editor in the banner
+
+Two UX additions to the U32 component feature:
+
+**1. Double-click enters component edit mode.** Double-clicking a `feezal-component` instance on the canvas opens component edit mode for that component — the same action as the context-menu entry, which is today the *only* entry point (and per **B48** the context menu is currently unreachable inside edit mode, making discoverability doubly poor). Scope: `dblclick` on an instance (not on elements inside edit mode); must not conflict with existing double-click behaviours on other element types — guard on `localName === 'feezal-component'`.
+
+**2. Attribute-mapping editor in the edit-mode banner.** The component-edit banner (`#component-edit-banner`, [feezal-app-editor.js:1054](../www/src/feezal-app-editor.js#L1054)) gains an **"Attribute mapping…"** button opening the mapping table — the same instance-attribute → inner-element/attribute table the create-component dialog shows — for the component being edited. Today the mapping is only definable at creation time; editing it afterwards requires recreating the component. Changes apply to the component definition (all instances), go through the normal change pipeline (dirty + undo), and re-stamp instances like other component edits.
+
+**Ships with:** TESTING.md updates in the components section (double-click entry, mapping edit round-trip incl. undo, re-stamp of existing instances).
+
+**Relates:** U32 (component feature), **B48** (edit-mode selection/context-menu fix — do together; double-click is also the workaround-proof entry point while context menus are broken), B46 (instance-size stamping — same re-stamp path the mapping edit exercises).
 
 ### E109 — evcc integration: native discovery + energy/charging elements 💡 to refine
 
