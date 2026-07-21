@@ -598,6 +598,16 @@ const hmCoverRecognizer = {
             position_state_topic:   hmStatus(p, readSeg, 'LEVEL'),
             position_command_topic: hmSet(p, writeSeg, 'LEVEL'),
             stop_command_topic:     hmSet(p, writeSeg, 'STOP'),
+            // E120: Up/Down buttons — full open/close via the SAME LEVEL set
+            // topic (LEVEL is 0.0–1.0: 1 = fully open, 0 = fully closed).
+            // Without these the discovered cover's Up/Down buttons published
+            // nowhere. The payloads double as command values only — Homematic
+            // state is position-based, so the elements' state_open/state_closed
+            // interpretation of payload-up/-down is never exercised here.
+            open_command_topic:  hmSet(p, writeSeg, 'LEVEL'),
+            close_command_topic: hmSet(p, writeSeg, 'LEVEL'),
+            payload_open:  '1',
+            payload_close: '0',
             // LEVEL is 0.0–1.0 → the client scales max=1 to 0–100 % (no server scaling).
             position_min: 0,
             position_max: 1,

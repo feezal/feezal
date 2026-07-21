@@ -388,6 +388,11 @@ describe('Homematic cover recognizer', () => {
         expect(c.position_state_topic).toBe('hm/status/Rolladen Wohnzimmer:1/LEVEL');
         expect(c.position_command_topic).toBe('hm/set/Rolladen Wohnzimmer:1/LEVEL');
         expect(c.stop_command_topic).toBe('hm/set/Rolladen Wohnzimmer:1/STOP');
+        // E120: Up/Down buttons — full open/close via the LEVEL set topic.
+        expect(c.open_command_topic).toBe('hm/set/Rolladen Wohnzimmer:1/LEVEL');
+        expect(c.close_command_topic).toBe('hm/set/Rolladen Wohnzimmer:1/LEVEL');
+        expect(c.payload_open).toBe('1');
+        expect(c.payload_close).toBe('0');
         expect(c.position_min).toBe(0);
         expect(c.position_max).toBe(1);                    // LEVEL 0.0–1.0
         expect(c.message_property).toBe('payload.val');

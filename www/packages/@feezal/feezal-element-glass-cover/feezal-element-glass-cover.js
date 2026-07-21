@@ -47,6 +47,10 @@ class FeezalElementGlassCover extends FeezalGlassCard {
                     position_state_topic:     {attr: 'subscribe-position'},
                     position_command_topic:   {attr: 'publish-position'},
                     stop_command_topic:       {attr: 'publish-stop'},
+                    // E120: native Homematic — Up/Down buttons drive the LEVEL set
+                    // topic (payload_open/close 1/0 arrive via the payload map above).
+                    open_command_topic:       {attr: 'publish-up'},
+                    close_command_topic:      {attr: 'publish-down'},
                     position_min:             {attr: 'min'},
                     position_max:             {attr: 'max'},
                     message_property:          {attr: 'message-property'},
