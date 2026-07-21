@@ -15,6 +15,7 @@
 11. [Assets](#11-assets)
 12. [Keyboard shortcuts](#12-keyboard-shortcuts)
 13. [Reverse proxy setup (nginx)](#13-reverse-proxy-setup-nginx)
+14. [Privacy: what feezal contacts, and when](#14-privacy-what-feezal-contacts-and-when)
 
 ---
 
