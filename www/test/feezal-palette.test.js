@@ -102,6 +102,36 @@ describe('_rebuildCategories()', () => {
         expect(el.categories.map(c => c.name)).toEqual(['Components']);
     });
 
+    // B42: the filter also matches the category and the tag name (family) —
+    // "paper" or "lcars" must find the family even though no element NAME
+    // contains it.
+    it('filters by category name', () => {
+        const el = makePalette();
+        el.filter = 'paper';
+        el._rebuildCategories();
+        expect(el.categories.map(c => c.name)).toEqual(['Paper']);
+        expect(el.categories[0].elements.map(e => e.name)).toEqual(['Legacy Knob']);
+    });
+
+    it('filters by tag/family name', () => {
+        class LcarsEl extends HTMLElement {
+            static feezal = {palette: {name: 'Gauge', category: 'LCARS'}};
+        }
+        customElements.define('feezal-element-lcars-gauge', LcarsEl);
+        feezal.elements = ['@feezal/feezal-element-pal-button', '@feezal/feezal-element-lcars-gauge'];
+        const el = makePalette();
+        el.filter = 'lcars';
+        el._rebuildCategories();
+        expect(el.categories.map(c => c.name)).toEqual(['LCARS']);
+    });
+
+    it('ignores surrounding whitespace in the filter', () => {
+        const el = makePalette();
+        el.filter = '  button  ';
+        el._rebuildCategories();
+        expect(el.categories.map(c => c.name)).toEqual(['Basic']);
+    });
+
     it('sorts unknown categories alphabetically after the known ones', () => {
         class ZebraEl extends HTMLElement {
             static feezal = {palette: {name: 'Zebra', category: 'Zebra'}};

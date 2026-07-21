@@ -201,6 +201,12 @@ class FeezalPalette extends LitElement {
     _rebuildCategories() {
         const categories = {};
 
+        // B42: the filter matches the palette name, the category AND the tag
+        // name — the tag carries the family/package (feezal-element-lcars-*),
+        // so typing "lcars" or "layout" finds the whole family, not nothing.
+        const q = (this.filter || '').trim().toLowerCase();
+        const matches = (...hay) => !q || hay.some(h => String(h || '').toLowerCase().includes(q));
+
         // U32: the site's own components come first — one palette entry per
         // <template feezal-component> definition; dropping creates an instance.
         const componentTemplates = feezal.site
@@ -209,7 +215,7 @@ class FeezalPalette extends LitElement {
         componentTemplates.forEach(template => {
             const name = template.getAttribute('feezal-component');
             if (!name) return;
-            if (!this.filter || name.toLowerCase().includes(this.filter.toLowerCase())) {
+            if (matches(name, 'components')) {
                 (categories.Components = categories.Components || [])
                     .push({el: 'feezal-component', name, component: name});
             }
@@ -227,7 +233,7 @@ class FeezalPalette extends LitElement {
             }
 
             const config = (cls.paletteOptions || cls.feezal || {}).palette || {name: tagName, category: 'Other'};
-            if (!this.filter || config.name.toLowerCase().includes(this.filter.toLowerCase())) {
+            if (matches(config.name, config.category, tagName)) {
                 if (!categories[config.category]) {
                     categories[config.category] = [];
                 }
