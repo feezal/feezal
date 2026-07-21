@@ -86,6 +86,7 @@ Work in progress — priorities and scope are not final.
 - [A21 — Accessibility: adopt the web-components Gold Standard for feezal elements](#a21--accessibility-adopt-the-web-components-gold-standard-for-feezal-elements)
 - [A23 — Externalize element families: own git repos + npm publish (paper, tui, panel)](#a23--externalize-element-families-own-git-repos--npm-publish-paper-tui-panel)
 - [A24 — Externalize the metro element family](#a24--externalize-the-metro-element-family-future--will-be-done-later) *(future)*
+- [A27 — i18n: editor localization + language-aware element defaults](#a27--i18n-editor-localization--language-aware-element-defaults--to-refine--needs-discussion) 💡 *(to refine)*
 
 
 ---
@@ -1865,6 +1866,25 @@ Metro **stays bundled with feezal for now** (decided 07/2026) — it moves out *
 **Not before:** A23 complete for all three families and the detection/install flow proven in a release.
 
 **Relates:** A23 (the playbook — do that first), N29, E106 (metro shares the same consolidation considerations glass had).
+
+### A27 — i18n: editor localization + language-aware element defaults 💡 to refine — needs discussion
+
+feezal is English-only today — and not just the editor chrome: **element attribute defaults bake English into every dashboard** (`label-on: 'On'`, `label-off: 'Off'`, `done-label: 'Done'`, contact state texts, `labelOff: 'off'` centre text, …). A German wall tablet should say "Ein/Aus" without the user hand-setting every label on every element.
+
+**Proposed scope split (phased — the phases are independently shippable):**
+
+1. **Phase 1 — language-aware element text defaults** (smallest string count, highest end-user value). The *runtime display defaults* of text attributes become locale-aware; **explicitly set attributes always win**, and **serialized HTML stays locale-independent** (an unset `label-on` stores nothing — a shared dashboard renders "On" on an English tablet and "Ein" on a German one; that's a feature, not a bug).
+   - **Mechanism suggestion:** attribute descriptors gain inline dictionaries — e.g. `default: 'On', defaultI18n: {de: 'Ein'}` — resolved at render time against the active locale (fallback chain: exact locale → language → `default`). Inline dicts keep **element packages self-contained** (critical for A23/A24 externalized families — no central catalog dependency), and the inspector shows the localized default as the field placeholder.
+   - Locale source: a **site-level `lang` setting** (site attribute; default = browser `navigator.language`) — the *viewer's* texts follow the site/browser, not the editor.
+   - Date/number elements (`basic-datetime`, clock, sensor decimals) should pass the same locale to the `Intl` APIs they already use.
+2. **Phase 2 — editor chrome** (menus, dialogs, sidebar labels, context menus, toasts). Needs a real message catalog. **Library decision to discuss:** `@lit/localize` (Lit-3-native, XLIFF workflow, runtime or build-time transform mode, small and self-hosted — A25-compatible) vs. a hand-rolled `t()` + JSON dictionaries (zero dependency, no tooling, fine for two languages). Editor language = editor user preference (separate from the site `lang`).
+3. **Phase 3 — ℹ help texts and docs** — by far the largest surface (hundreds of strings across all element packages). Realistically community- or AI-assisted translation; keep them in the per-descriptor inline-dict format from phase 1 (`help` / `helpI18n`) so external packages stay self-contained. Explicitly fine to lag behind phases 1–2.
+
+**Languages:** `de` + `en` first (en stays the source language / final fallback).
+
+**Open questions (refine before implementation):** exact locale fallback semantics (de-AT → de → en); whether phase 1's resolution happens in the base `FeezalElement` (a `localizedDefault(attr)` helper reading the descriptor) or at descriptor-registration time; how the AI assistant's generated labels interact with locale defaults; whether the viewer export should pin a locale or stay dynamic; editor-language persistence (localStorage vs settings).
+
+**Relates:** A23/A24 (externalized element packages must carry their own translations — the inline-dict design exists because of this), A25 (no-CDN rule — any i18n lib must be bundled/self-hosted), E99 ✅-era label work (`label-on`/`label-off` — the attributes phase 1 localizes were introduced for exactly this localisation need, just manually), U37 (welcome wizard — early editor-chrome translation candidate), basic-datetime/clock (Intl locale pass-through).
 
 ## Open Questions
 
