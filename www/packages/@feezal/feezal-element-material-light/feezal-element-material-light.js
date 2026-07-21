@@ -166,54 +166,56 @@ class FeezalElementMaterialLight extends FeezalElement {
                 {name: 'message-property',  type: 'string', default: 'payload', help: 'Property path within message payloads (dot-notation). json mode: extracts the JSON state object; separate mode: global fallback for all topics.'},
                 // On/off
                 {name: 'on-off-source',     type: 'select', options: ['topic', 'brightness'], default: 'topic',
+                    visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']},
                     help: 'topic = dedicated on/off state topic; brightness = derive on/off from the brightness value (off when it equals payload-off — e.g. Homematic dimmers, LEVEL 0–1).'},
                 {name: 'subscribe-state',   type: 'mqttTopic', help: 'Separate mode: on/off state topic. Falls back to `subscribe` when empty (back-compat).'},
                 {name: 'message-property-state', type: 'string', default: 'payload', help: 'Property path for the on/off state topic. Defaults to message-property.'},
                 {name: 'publish-state',     type: 'mqttTopic', help: 'Topic to publish on/off.'},
                 {name: 'payload-on',        type: 'string',    default: 'on',  help: 'Payload representing "on". on-off-source=brightness: compared against / published to the brightness topic; Homematic: 1.005 restores the last brightness (OLD_LEVEL).'},
                 {name: 'payload-off',       type: 'string',    default: 'off', help: 'Payload representing "off". on-off-source=brightness: numeric value compared against the brightness topic (non-numeric falls back to brightness-min).'},
-                // Brightness
-                {name: 'subscribe-brightness', type: 'mqttTopic', help: 'Current brightness (0–100 %).'},
-                {name: 'publish-brightness',   type: 'mqttTopic', help: 'Publish brightness on ring release.'},
-                {name: 'brightness-min', type: 'number', default: 0,   size: 'half', help: 'Minimum brightness value on the MQTT topic.'},
-                {name: 'brightness-max', type: 'number', default: 100, size: 'half', help: 'Maximum brightness value on the MQTT topic.'},
+                // Brightness (E122: hidden in on_off mode — a relay lamp has none)
+                {name: 'subscribe-brightness', type: 'mqttTopic', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Current brightness (0–100 %).'},
+                {name: 'publish-brightness',   type: 'mqttTopic', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Publish brightness on ring release.'},
+                {name: 'brightness-min', type: 'number', default: 0,   size: 'half', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Minimum brightness value on the MQTT topic.'},
+                {name: 'brightness-max', type: 'number', default: 100, size: 'half', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Maximum brightness value on the MQTT topic.'},
                 // Colour temperature
-                {name: 'subscribe-color-temp', type: 'mqttTopic', help: 'Current colour temperature.'},
-                {name: 'publish-color-temp',   type: 'mqttTopic', help: 'Publish colour temperature.'},
-                {name: 'color-temp-unit', type: 'select', options: ['kelvin', 'mired'], default: 'kelvin', help: 'Unit used on colour-temp topics.'},
-                {name: 'color-temp-min',  type: 'number', default: 2700, help: 'Minimum colour temperature (K).'},
-                {name: 'color-temp-max',  type: 'number', default: 6500, help: 'Maximum colour temperature (K).'},
+                {name: 'subscribe-color-temp', type: 'mqttTopic', visibleWhen: {attr: 'mode', equals: ['brightness_ct', 'color_temp']}, help: 'Current colour temperature.'},
+                {name: 'publish-color-temp',   type: 'mqttTopic', visibleWhen: {attr: 'mode', equals: ['brightness_ct', 'color_temp']}, help: 'Publish colour temperature.'},
+                {name: 'color-temp-unit', type: 'select', options: ['kelvin', 'mired'], default: 'kelvin', visibleWhen: {attr: 'mode', equals: ['brightness_ct', 'color_temp']}, help: 'Unit used on colour-temp topics.'},
+                {name: 'color-temp-min',  type: 'number', default: 2700, visibleWhen: {attr: 'mode', equals: ['brightness_ct', 'color_temp']}, help: 'Minimum colour temperature (K).'},
+                {name: 'color-temp-max',  type: 'number', default: 6500, visibleWhen: {attr: 'mode', equals: ['brightness_ct', 'color_temp']}, help: 'Maximum colour temperature (K).'},
                 // RGB / HS
-                {name: 'subscribe-rgb', type: 'mqttTopic', help: 'Current RGB value (JSON [r,g,b] or "r,g,b").'},
-                {name: 'publish-rgb',   type: 'mqttTopic', help: 'Publish RGB value as JSON [r,g,b].'},
-                {name: 'subscribe-hs',  type: 'mqttTopic', help: 'Current hue/saturation (JSON [h,s]).'},
-                {name: 'publish-hs',    type: 'mqttTopic', help: 'Publish hue/saturation as JSON [h,s].'},
-                // Mode
-                {name: 'mode', type: 'select', options: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs'], default: 'brightness', help: 'Control mode shown in the card centre.'},
-                // Effects
-                {name: 'subscribe-effect', type: 'mqttTopic', help: 'Current effect name.'},
-                {name: 'publish-effect',   type: 'mqttTopic', help: 'Publish selected effect name.'},
-                {name: 'effects',          type: 'string',    default: '', help: 'Comma-separated list of available effect names.'},
-                // White / RGBW / RGBWW
-                {name: 'subscribe-white',      type: 'mqttTopic', help: 'White channel (0–100 %) for RGBW lamps.'},
-                {name: 'publish-white',        type: 'mqttTopic', help: 'Publish white channel.'},
-                {name: 'subscribe-warm-white', type: 'mqttTopic', help: 'Warm-white channel (0–100 %) for RGBWW lamps.'},
-                {name: 'publish-warm-white',   type: 'mqttTopic', help: 'Publish warm-white channel.'},
-                {name: 'subscribe-cold-white', type: 'mqttTopic', help: 'Cold-white channel (0–100 %) for RGBWW lamps.'},
-                {name: 'publish-cold-white',   type: 'mqttTopic', help: 'Publish cold-white channel.'},
+                {name: 'subscribe-rgb', type: 'mqttTopic', visibleWhen: {attr: 'mode', equals: 'rgb'}, help: 'Current RGB value (JSON [r,g,b] or "r,g,b").'},
+                {name: 'publish-rgb',   type: 'mqttTopic', visibleWhen: {attr: 'mode', equals: 'rgb'}, help: 'Publish RGB value as JSON [r,g,b].'},
+                {name: 'subscribe-hs',  type: 'mqttTopic', visibleWhen: {attr: 'mode', equals: 'hs'}, help: 'Current hue/saturation (JSON [h,s]).'},
+                {name: 'publish-hs',    type: 'mqttTopic', visibleWhen: {attr: 'mode', equals: 'hs'}, help: 'Publish hue/saturation as JSON [h,s].'},
+                // Mode (E122: on_off = pure switch — centre power button, no ring)
+                {name: 'mode', type: 'select', options: ['on_off', 'brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs'], default: 'brightness', help: 'Control mode shown in the card centre. on_off = a lamp that can only be switched (relay/plug): a large centre power button, no brightness ring.'},
+                // Effects (E122: hidden in on_off mode)
+                {name: 'subscribe-effect', type: 'mqttTopic', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Current effect name.'},
+                {name: 'publish-effect',   type: 'mqttTopic', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Publish selected effect name.'},
+                {name: 'effects',          type: 'string',    default: '', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Comma-separated list of available effect names.'},
+                // White / RGBW / RGBWW (E122: hidden in on_off mode)
+                {name: 'subscribe-white',      type: 'mqttTopic', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'White channel (0–100 %) for RGBW lamps.'},
+                {name: 'publish-white',        type: 'mqttTopic', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Publish white channel.'},
+                {name: 'subscribe-warm-white', type: 'mqttTopic', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Warm-white channel (0–100 %) for RGBWW lamps.'},
+                {name: 'publish-warm-white',   type: 'mqttTopic', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Publish warm-white channel.'},
+                {name: 'subscribe-cold-white', type: 'mqttTopic', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Cold-white channel (0–100 %) for RGBWW lamps.'},
+                {name: 'publish-cold-white',   type: 'mqttTopic', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Publish cold-white channel.'},
                 // Availability
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability. When unavailable a small badge is shown; the control stays usable.'},
                 {name: 'payload-available',      type: 'string', default: 'online',  help: 'Payload meaning the device is available.'},
                 {name: 'payload-unavailable',    type: 'string', default: 'offline', help: 'Payload meaning the device is unavailable.'},
-                // Per-topic message-property overrides (separate mode)
-                {name: 'message-property-brightness',  type: 'string', default: 'payload', help: 'Property path for brightness topic. Defaults to message-property.'},
-                {name: 'message-property-color-temp',  type: 'string', default: 'payload', help: 'Property path for colour-temperature topic. Defaults to message-property.'},
-                {name: 'message-property-rgb',         type: 'string', default: 'payload', help: 'Property path for RGB topic. Defaults to message-property.'},
-                {name: 'message-property-hs',          type: 'string', default: 'payload', help: 'Property path for hue/saturation topic. Defaults to message-property.'},
-                {name: 'message-property-effect',      type: 'string', default: 'payload', help: 'Property path for effect topic. Defaults to message-property.'},
-                {name: 'message-property-white',       type: 'string', default: 'payload', help: 'Property path for white-channel topic. Defaults to message-property.'},
-                {name: 'message-property-warm-white',  type: 'string', default: 'payload', help: 'Property path for warm-white topic. Defaults to message-property.'},
-                {name: 'message-property-cold-white',  type: 'string', default: 'payload', help: 'Property path for cold-white topic. Defaults to message-property.'},
+                // Per-topic message-property overrides (separate mode; E122: the
+                // mode-specific ones hide in on_off mode with their topics)
+                {name: 'message-property-brightness',  type: 'string', default: 'payload', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Property path for brightness topic. Defaults to message-property.'},
+                {name: 'message-property-color-temp',  type: 'string', default: 'payload', visibleWhen: {attr: 'mode', equals: ['brightness_ct', 'color_temp']}, help: 'Property path for colour-temperature topic. Defaults to message-property.'},
+                {name: 'message-property-rgb',         type: 'string', default: 'payload', visibleWhen: {attr: 'mode', equals: 'rgb'}, help: 'Property path for RGB topic. Defaults to message-property.'},
+                {name: 'message-property-hs',          type: 'string', default: 'payload', visibleWhen: {attr: 'mode', equals: 'hs'}, help: 'Property path for hue/saturation topic. Defaults to message-property.'},
+                {name: 'message-property-effect',      type: 'string', default: 'payload', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Property path for effect topic. Defaults to message-property.'},
+                {name: 'message-property-white',       type: 'string', default: 'payload', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Property path for white-channel topic. Defaults to message-property.'},
+                {name: 'message-property-warm-white',  type: 'string', default: 'payload', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Property path for warm-white topic. Defaults to message-property.'},
+                {name: 'message-property-cold-white',  type: 'string', default: 'payload', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Property path for cold-white topic. Defaults to message-property.'},
                 {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path for availability topic. Defaults to message-property.'},
                 // Label
                 {name: 'label', type: 'string', default: '', help: 'Optional label shown below the circle.'},
@@ -637,6 +639,13 @@ class FeezalElementMaterialLight extends FeezalElement {
         const dx = sx - CX, dy = sy - CY;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
+        // E122: on_off mode — the whole enlarged disc toggles; there is no
+        // ring, so no drag can ever start.
+        if ((this.mode || 'brightness') === 'on_off') {
+            if (dist <= TRACK_R + RING_W / 2) this._toggle();
+            return;
+        }
+
         if (dist <= CENTER_R) {
             this._handleCenterTap(dx, dy, dist);
         } else if ((this._on || this._dragFromOffAllowed()) && dist <= TRACK_R + RING_W) {
@@ -854,6 +863,30 @@ class FeezalElementMaterialLight extends FeezalElement {
         const accent = this._accentColor ?? 'var(--feezal-light-on-color)';
         const trackC = 'var(--feezal-light-off-color)';
         const mode   = this.mode || 'brightness';
+
+        // E122: on_off mode — no ring, just a large centre power button
+        // filling the ring's footprint (relay lamps / plugs have no level).
+        if (mode === 'on_off') {
+            const R = TRACK_R + RING_W / 2;
+            return svg`
+                <circle cx="${CX}" cy="${CY}" r="${R}"
+                    fill="var(--feezal-light-surface-color)"
+                    stroke="${isOn ? accent : trackC}" stroke-width="1.5"
+                    pointer-events="none"/>
+                ${isOn ? svg`
+                    <circle cx="${CX}" cy="${CY}" r="${R - 1.5}"
+                        fill="${accent}" opacity="0.14" pointer-events="none"/>
+                ` : ''}
+                <text x="${CX}" y="${CY - (isOn ? 0 : 4)}" text-anchor="middle"
+                    dominant-baseline="middle" font-size="22"
+                    fill="${isOn ? accent : trackC}" pointer-events="none">⏻</text>
+                ${!isOn ? svg`
+                    <text x="${CX}" y="${CY + 16}" text-anchor="middle"
+                        dominant-baseline="middle" font-size="9"
+                        opacity="0.55" fill="var(--feezal-light-off-color)"
+                        pointer-events="none">${this.labelOff || 'off'}</text>
+                ` : ''}`;
+        }
 
         const arcEndAngle = (ARC_START + ARC_SWEEP) % 360; // 135°
         const fillAngle   = pctToAngle(brt);
@@ -1218,6 +1251,26 @@ class FeezalElementMaterialLightInspector extends LitElement {
     }
 
     _renderTopics() {
+        // E122: on_off — a switch-only lamp has exactly the state topics;
+        // don't offer brightness/CT/colour/effect/white capability sections.
+        if ((this._val('mode') || 'brightness') === 'on_off') {
+            const isJson = this._val('payload-mode') === 'json';
+            return html`
+                <div class="hint">On/Off mode — the lamp is a pure switch.</div>
+                <div class="section">
+                    <div class="sec-head">State</div>
+                    <div class="sec-body">
+                        ${isJson ? html`
+                            ${this._topicInput({attr: 'subscribe', label: 'Subscribe (state)'})}
+                            ${this._topicInput({attr: 'publish',   label: 'Publish (…/set)'})}
+                        ` : html`
+                            ${this._topicInput({attr: 'subscribe-state', label: 'Subscribe'})}
+                            ${this._topicInput({attr: 'publish-state',   label: 'Publish'})}
+                        `}
+                    </div>
+                </div>`;
+        }
+
         // json mode → single State & Control section + optional capabilities
         if (this._val('payload-mode') === 'json') {
             return html`
@@ -1291,6 +1344,7 @@ class FeezalElementMaterialLightInspector extends LitElement {
                         <label>Active control</label>
                         <sl-select size="small" value="${this._val('mode') || 'brightness'}"
                             @sl-change="${e => this._onSelect('mode', e)}">
+                            <sl-option value="on_off">On/Off only (switch)</sl-option>
                             <sl-option value="brightness">Brightness</sl-option>
                             <sl-option value="brightness_ct">Brightness + Color temp</sl-option>
                             <sl-option value="color_temp">Color temperature</sl-option>

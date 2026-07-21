@@ -261,3 +261,71 @@ describe('json mode state fallback (E77)', () => {
         expect(el._on).toBe(false);
     });
 });
+
+// ── E122: on_off mode — pure switch, no brightness ring ─────────────────────
+
+describe('on_off mode (E122)', () => {
+    beforeEach(async () => {
+        await import('../packages/@feezal/feezal-element-material-light/feezal-element-material-light.js');
+        feezal.isEditor = false;
+    });
+
+    async function mountOnOff(attrs = {}) {
+        const el = document.createElement('feezal-element-material-light');
+        for (const [k, v] of Object.entries({
+            mode: 'on_off',
+            'subscribe-state': 'plug/state',
+            'publish-state': 'plug/set',
+            'payload-on': 'on',
+            'payload-off': 'off',
+            ...attrs,
+        })) el.setAttribute(k, v);
+        document.body.append(el);
+        await el.updateComplete;
+        return el;
+    }
+
+    it('renders no ring track and no drag handle', async () => {
+        const el = await mountOnOff();
+        el._on = true;
+        await el.updateComplete;
+        // ring/handle are <path>/<circle r=5>; on_off draws only the disc circles + power glyph
+        expect(el.shadowRoot.querySelector('svg path')).toBeNull();
+        expect([...el.shadowRoot.querySelectorAll('svg text')].some(t => t.textContent.includes('⏻'))).toBe(true);
+    });
+
+    it('a tap anywhere on the disc toggles and publishes', async () => {
+        const el = await mountOnOff();
+        el._on = false;
+        el._toSvgCoords = () => ({sx: 50, sy: 15});   // well outside CENTER_R, inside the big disc
+        el._onSvgPointerDown({preventDefault() {}, currentTarget: null});
+        expect(el._on).toBe(true);
+        expect(feezal.connection.pub).toHaveBeenCalledWith('plug/set', 'on');
+    });
+
+    it('never starts a brightness drag', async () => {
+        const el = await mountOnOff();
+        el._on = true;
+        const spy = vi.spyOn(el, '_startBrtDrag');
+        el._toSvgCoords = () => ({sx: 50, sy: 10});   // ring zone in other modes
+        el._onSvgPointerDown({preventDefault() {}, currentTarget: null});
+        expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('the mode select offers on_off', () => {
+        const cls = customElements.get('feezal-element-material-light');
+        const mode = cls.feezal.attributes.find(a => a.name === 'mode');
+        expect(mode.options).toContain('on_off');
+        expect(mode.default).toBe('brightness');      // back-compat: default unchanged
+    });
+
+    it('brightness/CT/colour attributes hide in on_off mode via visibleWhen', () => {
+        const cls = customElements.get('feezal-element-material-light');
+        for (const name of ['subscribe-brightness', 'publish-brightness', 'subscribe-color-temp', 'subscribe-rgb', 'subscribe-hs', 'subscribe-effect']) {
+            const spec = cls.feezal.attributes.find(a => a.name === name);
+            expect(spec.visibleWhen, name).toBeTruthy();
+            const accepted = Array.isArray(spec.visibleWhen.equals) ? spec.visibleWhen.equals : [spec.visibleWhen.equals];
+            expect(accepted, name).not.toContain('on_off');
+        }
+    });
+});

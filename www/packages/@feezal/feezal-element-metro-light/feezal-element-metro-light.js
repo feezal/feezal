@@ -149,7 +149,7 @@ class FeezalElementMetroLight extends MetroTileBase {
                 {name: 'message-property-hs', type: 'string', default: 'payload', help: 'Property path for hue/saturation topic. Defaults to message-property.'},
                 {name: 'publish-hs', type: 'mqttTopic', help: 'Publish hue/saturation as JSON [h,s].'},
                 // Mode
-                {name: 'mode', type: 'select', options: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs'], default: 'brightness', help: 'Detail controls shown on the tile back.'},
+                {name: 'mode', type: 'select', options: ['on_off', 'brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs'], default: 'brightness', help: 'Detail controls shown on the tile back. on_off (E122) = switch-only lamp — the back shows just the ON/OFF buttons.'},
                 // State icons
                 {name: 'icon-on',  type: 'icon', help: 'Icon shown while ON (empty = the base icon).'},
                 {name: 'icon-off', type: 'icon', help: 'Icon shown while OFF (empty = the base icon).'},

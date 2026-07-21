@@ -143,8 +143,8 @@ class FeezalElementGlassLight extends FeezalGlassCard {
                 {name: 'publish-brightness', type: 'mqttTopic', help: 'Publish brightness on slider release.'},
                 {name: 'brightness-min', type: 'number', default: 0,   help: 'Minimum brightness value on the MQTT topic.'},
                 {name: 'brightness-max', type: 'number', default: 100, help: 'Maximum brightness value on the MQTT topic (z2m: 254, Homematic: 1).'},
-                {name: 'mode', type: 'select', options: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs'], default: 'brightness',
-                    help: 'Capability declaration for json mode (which popup sections exist): brightness, brightness + colour temperature, colour temperature, RGB or hue/saturation. Separate mode derives sections from the configured topics.'},
+                {name: 'mode', type: 'select', options: ['on_off', 'brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs'], default: 'brightness',
+                    help: 'Capability declaration for json mode (which popup sections exist): brightness, brightness + colour temperature, colour temperature, RGB or hue/saturation. Separate mode derives sections from the configured topics. on_off (E122) = switch-only lamp — the popup is a pure on/off toggle regardless of topics.'},
                 {name: 'subscribe-color-temp', type: 'mqttTopic', help: 'Current colour temperature.'},
                 {name: 'message-property-color-temp', type: 'string', default: 'payload', help: 'Property path for the colour-temperature topic. Defaults to message-property.'},
                 {name: 'publish-color-temp', type: 'mqttTopic', help: 'Publish colour temperature.'},
@@ -717,6 +717,9 @@ class FeezalElementGlassLight extends FeezalGlassCard {
     _capabilities() {
         const mode = this.mode || 'brightness';
         const json = this.payloadMode === 'json';
+        // E122: on_off declares a switch-only lamp — no popup sections at
+        // all, regardless of which topics happen to be configured.
+        if (mode === 'on_off') return {brightness: false, ct: false, color: false};
         return {
             brightness: Boolean(this.subscribeBrightness || this.publishBrightness || json),
             ct: Boolean(this.subscribeColorTemp || this.publishColorTemp ||
