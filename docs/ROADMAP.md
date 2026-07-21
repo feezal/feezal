@@ -61,7 +61,8 @@ Work in progress — priorities and scope are not final.
 - [E119 — `basic-number`: configurable placeholder before the first value](#e119--basic-number-configurable-placeholder-before-the-first-value)
 - [E124 — Contact elements: dedicated low-battery indicator](#e124--contact-elements-dedicated-low-battery-indicator)
 - [E125 — Homematic battery voltage (`OPERATING_VOLTAGE`)](#e125--homematic-battery-voltage-operating_voltage--future) 💡
-- [E127 — Homematic dimmers/blinds: settling behaviour (`WORKING` / `_NOTWORKING`)](#e127--homematic-dimmersblinds-settling-behaviour-working--_notworking--no-slider-jumping)
+- [E127 — Homematic dimmers: settling behaviour (`WORKING` / `_NOTWORKING`)](#e127--homematic-dimmers-settling-behaviour-working--_notworking--no-slider-jumping)
+- [E128 — Homematic blinds: settling behaviour + `DIRECTION` indicator](#e128--homematic-blinds-settling-behaviour--direction-indicator-later--after-e127) *(later)*
 
 **Editor UX**
 
@@ -1244,22 +1245,34 @@ HmIP battery devices publish **`OPERATING_VOLTAGE`** on the `:0` maintenance cha
 
 **Relates:** **E124** (low-battery boolean — the prerequisite), E108 ✅ (native Homematic discovery — where the recognizer lives), N31 (availability), E30 (sparkline — the natural place a voltage trend would render).
 
-### E127 — Homematic dimmers/blinds: settling behaviour (`WORKING` / `_NOTWORKING`) — no slider jumping
+### E127 — Homematic dimmers: settling behaviour (`WORKING` / `_NOTWORKING`) — no slider jumping
 
-**Problem.** Homematic dimmers ramp: publish `LEVEL 0` while the dimmer is at 1 and it immediately reports back `0.95`, then `0.5`, … then `0` — the slider the user just set **jumps around** during the ramp. Blinds behave the same on their position. Homematic exposes a **`WORKING` datapoint** (`true` while LEVEL is moving), but common interfaces (hm2mqtt, ccu-jack) **cannot guarantee** the `WORKING=true` message arrives *before* the first intermediate report — only that it arrives shortly after (≤ ~100 ms). RedMatic solves it differently: it additionally publishes **`…/LEVEL_NOTWORKING`** carrying only **settled** values (emitted once `WORKING` has returned to false).
+**Problem.** Homematic dimmers ramp: publish `LEVEL 0` while the dimmer is at 1 and it immediately reports back `0.95`, then `0.5`, … then `0` — the slider the user just set **jumps around** during the ramp. Homematic exposes a **`WORKING` datapoint** (`true` while LEVEL is moving), but common interfaces (hm2mqtt, ccu-jack) **cannot guarantee** the `WORKING=true` message arrives *before* the first intermediate report — only that it arrives shortly after (≤ ~100 ms). RedMatic solves it differently: it additionally publishes **`…/LEVEL_NOTWORKING`** carrying only **settled** values (emitted once `WORKING` has returned to false). *(Blinds have the same ramp problem plus a `DIRECTION` datapoint — split out to **E128**, later.)*
 
-**Decided design (07/2026):**
+**Decided design (07/2026)** — scope: the `*-light` family (brightness):
 
 1. **Hold-at-target (own commands):** on publishing a set value the element enters **suppression immediately** — this sidesteps the WORKING-ordering race entirely for user-initiated changes. The slider holds the user's target; incoming intermediate reports are swallowed until the reported value reaches the target, a settled signal arrives (`WORKING→false` or a `_NOTWORKING` message), or a **`settle-timeout`** (attribute, default 5 s) reconciles the slider to the last reported value (covers interrupted ramps / device clamping).
-2. **`WORKING` topic attributes** on the affected element families (`*-light` brightness, `*-cover` position — per your note, `WORKING` is a **distinct topic**, e.g. `hm/status/dimmer/WORKING`, mqtt-smarthome `{val: bool}` convention): `subscribe-working` + `message-property-working` (default `val`). `WORKING=true` enters/extends suppression (also for externally-initiated ramps); `WORKING=false` ends it and accepts the next report as settled.
+2. **`WORKING` topic attributes** (`WORKING` is a **distinct topic**, e.g. `hm/status/dimmer/WORKING`, mqtt-smarthome `{val: bool}` convention): `subscribe-working` + `message-property-working` (default `val`). `WORKING=true` enters/extends suppression (also for externally-initiated ramps); `WORKING=false` ends it and accepts the next report as settled.
 3. **External-change race → ~100 ms display buffer:** incoming level reports render after a short delay (**`report-delay-ms`**, default `100`, `0` = off, only active when `subscribe-working` is wired); a `WORKING=true` arriving within the buffer cancels the pending jumpy update and enters suppression. Costs 100 ms latency on external changes only.
 4. **RedMatic dual-topic mode:** new **`subscribe-settled`** attribute (e.g. `hm/status/dimmer/LEVEL_NOTWORKING`). When wired, **the slider position follows the settled topic only**, while the plain `LEVEL` subscription keeps driving the **numeric percentage readout live** (ramp feedback without handle jumping). Hold-at-target still applies after own publishes until the settled topic confirms.
 5. **Discovery:** the Homematic recognizer (E108) already watches the firehose — when it **observes** `LEVEL_NOTWORKING` for a channel (RedMatic publishes retained, so it shows up), the emitted config wires both topics (mode 4); otherwise it wires the channel's `WORKING` sibling topic (mode 2/3) when observed. No blind guessing — only topics actually seen get wired.
-6. **Scope/implementation:** one shared **settling helper** (shared module per the E106 pattern) used by the light and cover families — same machinery, two families; ℹ help texts explain the three wiring tiers (nothing / WORKING / settled topic). Family parity per **E114**.
+6. **Implementation:** the settling machinery is a shared **family-agnostic helper** (shared module per the E106 pattern) — built so **E128** can apply it to the cover family unchanged; ℹ help texts explain the three wiring tiers (nothing / WORKING / settled topic). Family parity across material/glass/metro lights per **E114**.
 
-**Ships with:** attributes + help texts across both families (patch bumps), recognizer update + tests, TESTING.md notes (hold-at-target, timeout reconcile, external ramp with and without WORKING, RedMatic dual-topic, discovery wiring).
+**Ships with:** attributes + help texts across the light family (patch bumps), recognizer update + tests, TESTING.md notes (hold-at-target, timeout reconcile, external ramp with and without WORKING, RedMatic dual-topic, discovery wiring).
 
-**Relates:** E108 ✅ (recognizer — where `_NOTWORKING`/`WORKING` observation lands), **E114** (family parity contract), E102 ✅-era climate work (same "device reports lag commands" family of problems — setpoint shadowing there, level settling here), material/glass/metro light + cover (the consumers), N37 (subscription lifecycle — the settled/live dual subscription must play nice with pause/resume).
+**Relates:** **E128** (blinds follow-up — reuses the helper, adds `DIRECTION`), E108 ✅ (recognizer — where `_NOTWORKING`/`WORKING` observation lands), **E114** (family parity contract), E102 ✅-era climate work (same "device reports lag commands" family of problems — setpoint shadowing there, level settling here), material/glass/metro light (the consumers), N37 (subscription lifecycle — the settled/live dual subscription must play nice with pause/resume).
+
+### E128 — Homematic blinds: settling behaviour + `DIRECTION` indicator *(later — after E127)*
+
+Blinds/covers have **the same LEVEL ramp problem** as dimmers (position reports trail the command while the blind travels) — deliberately split from **E127** so the settling machinery ships and hardens on lights first.
+
+- **Settling:** apply E127's shared helper to the `*-cover` family's position slider unchanged — same attributes (`subscribe-working`, `message-property-working`, `subscribe-settled`, `settle-timeout`, `report-delay-ms`), same three wiring tiers, same discovery observation (`LEVEL_NOTWORKING` / `WORKING` siblings of the blind channel). Blind travel is much slower than a dimmer ramp — the cover default for `settle-timeout` needs to be generous (blinds can travel ~30–60 s; default around 60 s, still configurable).
+- **`DIRECTION` datapoint (the blind extra):** blind actuators additionally expose **`DIRECTION`** (mqtt-smarthome `{val}`; enum: none / up / down) while moving. Wire it as optional `subscribe-direction` + `message-property-direction` and render a **movement-direction indicator** on the cover card (e.g. animated ▲/▼ arrow while travelling, per family style) — also observed-only in discovery. Kept in this item, **not** in E127.
+- Tilt/slat settling: check whether the slat angle reports ramp the same way on venetian actuators; if so the helper applies to the tilt slider too — verify on real hardware during implementation.
+
+**Ships with:** cover-family attributes + help texts (patch bumps, E114 parity), recognizer update, TESTING.md notes (slow-travel timeout, direction indicator, tilt check).
+
+**Relates:** **E127** (the machinery this reuses — do first), E108 ✅ (recognizer), E114 (parity), E120 ✅-era cover-discovery work (same recognizer area).
 
 ## Architecture & Infrastructure
 
