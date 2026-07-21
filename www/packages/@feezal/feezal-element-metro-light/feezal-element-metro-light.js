@@ -1,5 +1,6 @@
 /* global feezal */
 import {html, css} from '@feezal/feezal-element';
+import {SettlingController} from '@feezal/feezal-element/feezal-settling.js';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
 import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
@@ -109,6 +110,12 @@ class FeezalElementMetroLight extends MetroTileBase {
                     message_property:             'message-property',
                     message_property_brightness:  'message-property-brightness',
                     message_property_state:       'message-property-state',
+                    // E127: ramp settling — emitted only when the recognizer has
+                    // observed the topics (WORKING / RedMatic LEVEL_NOTWORKING).
+                    working_topic:            'subscribe-working',
+                    message_property_working: 'message-property-working',
+                    settled_topic:            'subscribe-settled',
+                    message_property_settled: 'message-property-settled',
                     name: 'label',
                     // NO value_template mapping (matches material-light): in
                     // json mode message-property must stay 'payload' — the
@@ -137,6 +144,14 @@ class FeezalElementMetroLight extends MetroTileBase {
                 {name: 'publish-brightness', type: 'mqttTopic', help: 'Publish brightness on slider release.'},
                 {name: 'brightness-min', type: 'number', default: 0,   help: 'Minimum brightness value on the MQTT topic.'},
                 {name: 'brightness-max', type: 'number', default: 100, help: 'Maximum brightness value on the MQTT topic (255 for zigbee2mqtt, 1 for HmIP LEVEL).'},
+                // E127: ramp settling (Homematic dimmers report every intermediate
+                // level while ramping — these keep the slider from jumping).
+                {name: 'subscribe-working', type: 'mqttTopic', help: 'WORKING datapoint topic (true while the level ramps, e.g. hm/status/<dimmer>/WORKING). While true, brightness reports are suppressed instead of making the slider jump; false applies the final value.'},
+                {name: 'message-property-working', type: 'string', default: 'payload.val', help: 'Property path for the WORKING topic (mqtt-smarthome publishes {"val": true} → payload.val).'},
+                {name: 'subscribe-settled', type: 'mqttTopic', help: 'Settled-values topic carrying only final levels (RedMatic: …/LEVEL_NOTWORKING). When set, the slider follows THIS topic; subscribe-brightness keeps the front-tile % readout live during ramps.'},
+                {name: 'message-property-settled', type: 'string', default: 'payload.val', help: 'Property path for the settled topic (mqtt-smarthome: payload.val).'},
+                {name: 'settle-timeout', type: 'number', default: 5, help: 'Seconds after a command before the slider reconciles to the last reported value (covers interrupted ramps and sentinel commands like 1.005).'},
+                {name: 'report-delay-ms', type: 'number', default: 100, help: 'Only with subscribe-working: delay before showing an incoming brightness report — a WORKING=true within the window suppresses ramp jitter from changes made elsewhere. 0 disables.'},
                 // Colour temperature
                 {name: 'subscribe-color-temp', type: 'mqttTopic', help: 'Current colour temperature.'},
                 {name: 'message-property-color-temp', type: 'string', default: 'payload', help: 'Property path for colour-temperature topic. Defaults to message-property.'},
@@ -177,6 +192,14 @@ class FeezalElementMetroLight extends MetroTileBase {
         payloadOn:      {type: String, reflect: true, attribute: 'payload-on'},
         payloadOff:     {type: String, reflect: true, attribute: 'payload-off'},
         subscribeBrightness: {type: String, reflect: true, attribute: 'subscribe-brightness'},
+        // E127: ramp settling
+        subscribeWorking:    {type: String, reflect: true, attribute: 'subscribe-working'},
+        msgPropWorking:      {type: String, reflect: true, attribute: 'message-property-working'},
+        subscribeSettled:    {type: String, reflect: true, attribute: 'subscribe-settled'},
+        msgPropSettled:      {type: String, reflect: true, attribute: 'message-property-settled'},
+        settleTimeout:       {type: Number, reflect: true, attribute: 'settle-timeout'},
+        reportDelayMs:       {type: Number, reflect: true, attribute: 'report-delay-ms'},
+        _brtLive:            {state: true},   // E127 dual-topic mode: live % readout while the slider holds
         msgPropBrightness:   {type: String, reflect: true, attribute: 'message-property-brightness'},
         publishBrightness:   {type: String, reflect: true, attribute: 'publish-brightness'},
         brightnessMin: {type: Number, reflect: true, attribute: 'brightness-min'},
@@ -233,6 +256,14 @@ class FeezalElementMetroLight extends MetroTileBase {
         this.payloadOn = 'on';
         this.payloadOff = 'off';
         this.subscribeBrightness = '';
+        // E127: ramp settling
+        this.subscribeWorking = '';
+        this.msgPropWorking = 'payload.val';
+        this.subscribeSettled = '';
+        this.msgPropSettled = 'payload.val';
+        this.settleTimeout = 5;
+        this.reportDelayMs = 100;
+        this._brtLive = null;
         this.msgPropBrightness = '';
         this.publishBrightness = '';
         this.brightnessMin = 0;
@@ -272,12 +303,21 @@ class FeezalElementMetroLight extends MetroTileBase {
         this._wireSubscriptions();
     }
 
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        // E127: clear pending hold/buffer timers with the subscriptions.
+        this._settling?.dispose();
+        this._settling = null;
+    }
+
     /** Everything that identifies the subscription wiring — when it changes
      * at runtime (inspector edits on the live canvas, MQTT setattribute),
      * updated() rewires instead of silently keeping the stale topics. */
     _wireSignature() {
         return [this.payloadMode, this.onOffSource, this.subscribe, this.subscribeState,
-            this.subscribeBrightness, this.subscribeColorTemp, this.subscribeRgb, this.subscribeHs].join('|');
+            this.subscribeBrightness, this.subscribeColorTemp, this.subscribeRgb, this.subscribeHs,
+            // E127
+            this.subscribeWorking, this.subscribeSettled, this.settleTimeout, this.reportDelayMs].join('|');
     }
 
     _wireSubscriptions() {
@@ -324,18 +364,52 @@ class FeezalElementMetroLight extends MetroTileBase {
             });
         }
         if (this.subscribeBrightness) {
+            // E127: raw brightness reports run through the SettlingController —
+            // it decides which ones may reach the slider (hold-at-target after an
+            // own command, WORKING-gated suppression, optional settled topic).
+            const rawToPct = v => {
+                const min = this.brightnessMin ?? 0;
+                const max = this.brightnessMax ?? 100;
+                return max === min ? 0 : Math.max(0, Math.min(100, (v - min) / (max - min) * 100));
+            };
+            const applyBrt = v => {
+                this._brt = rawToPct(v);
+                this._brtLive = null;
+                if (this.onOffSource === 'brightness') {
+                    this._on = v !== this._effOffRaw();
+                    if (this._on) this._lastBrt = this._brt;
+                }
+            };
+            this._settling?.dispose();
+            this._settling = new SettlingController({
+                apply: applyBrt,
+                timeoutMs: (Math.max(0, Number(this.settleTimeout)) || 5) * 1000,
+                reportDelayMs: Math.max(0, Number(this.reportDelayMs ?? 100) || 0),
+                workingWired: Boolean(this.subscribeWorking),
+                settledWired: Boolean(this.subscribeSettled),
+            });
             this.addSubscription(this.subscribeBrightness, msg => {
                 const v = Number(this.getProperty(msg, this.msgPropBrightness || this.messageProperty));
-                if (!isNaN(v)) {
-                    const min = this.brightnessMin ?? 0;
-                    const max = this.brightnessMax ?? 100;
-                    this._brt = max === min ? 0 : Math.max(0, Math.min(100, (v - min) / (max - min) * 100));
-                    if (this.onOffSource === 'brightness') {
-                        this._on = v !== this._effOffRaw();
-                        if (this._on) this._lastBrt = this._brt;
-                    }
+                if (isNaN(v)) return;
+                if (this.subscribeSettled) {
+                    // Dual-topic mode (RedMatic): live topic keeps the front-tile
+                    // % readout updating; the slider follows the settled topic.
+                    this._brtLive = rawToPct(v);
                 }
+                this._settling.live(v);
             });
+            if (this.subscribeWorking) {
+                this.addSubscription(this.subscribeWorking, msg => {
+                    const v = this.getProperty(msg, this.msgPropWorking || 'payload.val');
+                    this._settling.working(v === true || v === 'true' || v === 1 || v === '1');
+                });
+            }
+            if (this.subscribeSettled) {
+                this.addSubscription(this.subscribeSettled, msg => {
+                    const v = Number(this.getProperty(msg, this.msgPropSettled || 'payload.val'));
+                    if (!isNaN(v)) this._settling.settled(v);
+                });
+            }
         }
         if (this.subscribeColorTemp) {
             this.addSubscription(this.subscribeColorTemp, msg => {
@@ -450,6 +524,7 @@ class FeezalElementMetroLight extends MetroTileBase {
             const offNum = Number(this.payloadOff);
             const raw = (this.payloadOff !== '' && !isNaN(offNum)) ? String(this.payloadOff) : String(min);
             this._pub(this.publishBrightness, raw, {[this._jsonMap.brightness]: raw});
+            this._settling?.command(Number(raw));
             return;
         }
 
@@ -459,7 +534,12 @@ class FeezalElementMetroLight extends MetroTileBase {
             // Numeric payload-on published verbatim (Homematic OLD_LEVEL 1.005
             // = "restore last level"); in-range values predict the local %.
             this._pub(this.publishBrightness, String(this.payloadOn), {[this._jsonMap.brightness]: onNum});
-            if (onNum >= Math.min(min, max) && onNum <= Math.max(min, max)) {
+            // E127: sentinel targets (1.005 OLD_LEVEL) are never echoed verbatim,
+            // so they hold ONLY when a WORKING/settled signal can end the hold —
+            // otherwise the restore-ramp reports keep flowing as before.
+            const onInRange = onNum >= Math.min(min, max) && onNum <= Math.max(min, max);
+            if (onInRange || this.subscribeWorking || this.subscribeSettled) this._settling?.command(onNum);
+            if (onInRange) {
                 this._brt = max === min ? 0 : Math.max(0, Math.min(100, (onNum - min) / (max - min) * 100));
             }
         } else {
@@ -467,6 +547,7 @@ class FeezalElementMetroLight extends MetroTileBase {
             this._brt = pct;
             const raw = pctToRaw(pct, min, max);
             this._pub(this.publishBrightness, String(raw), {[this._jsonMap.brightness]: raw});
+            this._settling?.command(Number(raw));
         }
     }
 
@@ -484,6 +565,7 @@ class FeezalElementMetroLight extends MetroTileBase {
         const raw = pctToRaw(pct, this.brightnessMin ?? 0, this.brightnessMax ?? 100);
         const jsonRaw = pctToRaw(pct, 0, this.brightnessMax || 100);
         this._pub(this.publishBrightness, String(raw), {[this._jsonMap.brightness]: jsonRaw});
+        this._settling?.command(Number(raw));
     }
 
     _onCt(e) {
@@ -534,7 +616,9 @@ class FeezalElementMetroLight extends MetroTileBase {
     // ── Faces ─────────────────────────────────────────────────────────────────
 
     renderFront() {
-        const pct = this._brt !== null && this._on ? ` ${Math.round(this._brt)}%` : '';
+        // E127 dual-topic mode: the % readout follows the live topic during ramps.
+        const brtDisp = this._brtLive ?? this._brt;
+        const pct = brtDisp !== null && this._on ? ` ${Math.round(brtDisp)}%` : '';
         const icon = (this._on ? this.iconOn : this.iconOff) || this.icon;
         return html`
             ${icon ? html`<feezal-icon name="${icon}"></feezal-icon>` : ''}
@@ -590,6 +674,11 @@ const METRO_LIGHT_SECTIONS = [
     {id: 'brightness', title: 'Brightness', topics: [
         {attr: 'subscribe-brightness', label: 'Subscribe'},
         {attr: 'publish-brightness',   label: 'Publish'},
+    ]},
+    // E127: ramp settling — Homematic WORKING / RedMatic LEVEL_NOTWORKING.
+    {id: 'settling', title: 'Settling (Homematic ramps)', topics: [
+        {attr: 'subscribe-working', label: 'WORKING ↓', placeholder: 'hm/status/<dimmer>/WORKING'},
+        {attr: 'subscribe-settled', label: 'Settled ↓', placeholder: 'hm/status/<dimmer>/LEVEL_NOTWORKING'},
     ]},
     {id: 'color_temp', title: 'Color Temperature', topics: [
         {attr: 'subscribe-color-temp', label: 'Subscribe'},
@@ -805,6 +894,10 @@ class FeezalElementMetroLightInspector extends LitElement {
                         <div class="row">
                             ${this._numInput('brightness-min', 'Min', '0')}
                             ${this._numInput('brightness-max', 'Max (255 = z2m, 1 = HmIP)', '100')}
+                        </div>
+                        <div class="row">
+                            ${this._numInput('settle-timeout', 'Settle timeout (s)', '5')}
+                            ${this._numInput('report-delay-ms', 'Report delay (ms)', '100')}
                         </div>
                     </div>
                 </div>` : ''}

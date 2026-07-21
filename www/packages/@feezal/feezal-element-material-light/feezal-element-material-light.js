@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {SettlingController} from '@feezal/feezal-element/feezal-settling.js';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {svg, LitElement} from 'lit';
 import '@material/web/slider/slider.js';
@@ -155,6 +156,13 @@ class FeezalElementMaterialLight extends FeezalElement {
                     message_property:             'message-property',
                     message_property_brightness:  'message-property-brightness',
                     message_property_state:       'message-property-state',
+                    // E127: ramp settling — the recognizer emits these only when it
+                    // has actually observed the topics on the broker (WORKING
+                    // sibling datapoint / RedMatic's LEVEL_NOTWORKING).
+                    working_topic:            'subscribe-working',
+                    message_property_working: 'message-property-working',
+                    settled_topic:            'subscribe-settled',
+                    message_property_settled: 'message-property-settled',
                     // N31: availability is mapped automatically from the canonical discovery record.
                     // device name → label
                     name: 'label',
@@ -181,6 +189,14 @@ class FeezalElementMaterialLight extends FeezalElement {
                 {name: 'publish-brightness',   type: 'mqttTopic', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Publish brightness on ring release.'},
                 {name: 'brightness-min', type: 'number', default: 0,   size: 'half', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Minimum brightness value on the MQTT topic.'},
                 {name: 'brightness-max', type: 'number', default: 100, size: 'half', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Maximum brightness value on the MQTT topic.'},
+                // E127: ramp settling (Homematic dimmers report every intermediate
+                // level while ramping — these keep the ring from jumping).
+                {name: 'subscribe-working', type: 'mqttTopic', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'WORKING datapoint topic (true while the level ramps, e.g. hm/status/<dimmer>/WORKING). While true, brightness reports are suppressed instead of making the ring jump; false applies the final value. Distinct topic — not a property of the brightness topic.'},
+                {name: 'message-property-working', type: 'string', default: 'payload.val', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Property path for the WORKING topic (mqtt-smarthome publishes {"val": true} → payload.val).'},
+                {name: 'subscribe-settled', type: 'mqttTopic', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Settled-values topic carrying only final levels (RedMatic: …/LEVEL_NOTWORKING). When set, the ring follows THIS topic; subscribe-brightness keeps the centre % readout live during ramps.'},
+                {name: 'message-property-settled', type: 'string', default: 'payload.val', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Property path for the settled topic (mqtt-smarthome: payload.val).'},
+                {name: 'settle-timeout', type: 'number', default: 5, size: 'half', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Seconds after a command before the ring reconciles to the last reported value (covers interrupted ramps and sentinel commands like 1.005).'},
+                {name: 'report-delay-ms', type: 'number', default: 100, size: 'half', visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}, help: 'Only with subscribe-working: delay before showing an incoming brightness report — a WORKING=true arriving within the window suppresses ramp jitter from changes made elsewhere (interfaces deliver WORKING up to ~100 ms late). 0 disables.'},
                 // Colour temperature
                 {name: 'subscribe-color-temp', type: 'mqttTopic', visibleWhen: {attr: 'mode', equals: ['brightness_ct', 'color_temp']}, help: 'Current colour temperature.'},
                 {name: 'publish-color-temp',   type: 'mqttTopic', visibleWhen: {attr: 'mode', equals: ['brightness_ct', 'color_temp']}, help: 'Publish colour temperature.'},
@@ -284,6 +300,13 @@ class FeezalElementMaterialLight extends FeezalElement {
         // N31: availability inherited from FeezalElement.
         discoveryId:        {type: String, reflect: true, attribute: 'discovery-id'},
         msgPropBrightness:  {type: String, reflect: true, attribute: 'message-property-brightness'},
+        // E127: ramp settling
+        subscribeWorking:   {type: String, reflect: true, attribute: 'subscribe-working'},
+        msgPropWorking:     {type: String, reflect: true, attribute: 'message-property-working'},
+        subscribeSettled:   {type: String, reflect: true, attribute: 'subscribe-settled'},
+        msgPropSettled:     {type: String, reflect: true, attribute: 'message-property-settled'},
+        settleTimeout:      {type: Number, reflect: true, attribute: 'settle-timeout'},
+        reportDelayMs:      {type: Number, reflect: true, attribute: 'report-delay-ms'},
         msgPropColorTemp:   {type: String, reflect: true, attribute: 'message-property-color-temp'},
         msgPropRgb:         {type: String, reflect: true, attribute: 'message-property-rgb'},
         msgPropHs:          {type: String, reflect: true, attribute: 'message-property-hs'},
@@ -296,6 +319,7 @@ class FeezalElementMaterialLight extends FeezalElement {
         // Internal state
         _on:        {state: true},
         _brt:       {state: true},   // brightness 0–100
+        _brtLive:   {state: true},   // E127 dual-topic mode: live % readout while the ring holds
         _colorTemp: {state: true},   // colour temperature in Kelvin
         _rgb:       {state: true},   // [r, g, b]
         _hs:        {state: true},   // [h, s]  h: 0–360, s: 0–100
@@ -444,6 +468,14 @@ class FeezalElementMaterialLight extends FeezalElement {
         this.publishColdWhite    = '';
         this.discoveryId         = '';
         this.msgPropBrightness   = '';
+        // E127: ramp settling
+        this.subscribeWorking    = '';
+        this.msgPropWorking      = 'payload.val';
+        this.subscribeSettled    = '';
+        this.msgPropSettled      = 'payload.val';
+        this.settleTimeout       = 5;
+        this.reportDelayMs       = 100;
+        this._brtLive            = null;
         this.msgPropColorTemp    = '';
         this.msgPropRgb          = '';
         this.msgPropHs           = '';
@@ -474,6 +506,13 @@ class FeezalElementMaterialLight extends FeezalElement {
     // base subscription path (which would otherwise fire for the json-mode
     // `subscribe` topic and try to set attributes by topic suffix).
     _subscribe() { /* intentionally empty — see connectedCallback */ }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        // E127: clear pending hold/buffer timers with the subscriptions.
+        this._settling?.dispose();
+        this._settling = null;
+    }
 
     connectedCallback() {
         super.connectedCallback();
@@ -507,21 +546,56 @@ class FeezalElementMaterialLight extends FeezalElement {
             });
         }
         if (this.subscribeBrightness) {
+            // E127: raw brightness reports run through the SettlingController —
+            // it decides which ones may reach the ring (hold-at-target after an
+            // own command, WORKING-gated suppression of external ramps, optional
+            // settled-values topic). applyBrt is the pre-E127 handler body.
+            const rawToPct = v => {
+                const min = this.brightnessMin ?? 0;
+                const max = this.brightnessMax ?? 100;
+                return max === min ? 0 : Math.max(0, Math.min(100, (v - min) / (max - min) * 100));
+            };
+            const applyBrt = v => {
+                this._brt = rawToPct(v);
+                this._brtLive = null;
+                // E77: Homematic dimmers have no on/off datapoint — off is
+                // simply LEVEL = effOff. Derive on/off from the raw value
+                // and remember the last non-off % for toggle-on restore.
+                if (this.onOffSource === 'brightness') {
+                    this._on = v !== this._effOffRaw();
+                    if (this._on) this._lastBrt = this._brt;
+                }
+            };
+            this._settling?.dispose();
+            this._settling = new SettlingController({
+                apply: applyBrt,
+                timeoutMs: (Math.max(0, Number(this.settleTimeout)) || 5) * 1000,
+                reportDelayMs: Math.max(0, Number(this.reportDelayMs ?? 100) || 0),
+                workingWired: Boolean(this.subscribeWorking),
+                settledWired: Boolean(this.subscribeSettled),
+            });
             this.addSubscription(this.subscribeBrightness, msg => {
                 const v = Number(this.getProperty(msg, this.msgPropBrightness || this.messageProperty));
-                if (!isNaN(v)) {
-                    const min = this.brightnessMin ?? 0;
-                    const max = this.brightnessMax ?? 100;
-                    this._brt = max === min ? 0 : Math.max(0, Math.min(100, (v - min) / (max - min) * 100));
-                    // E77: Homematic dimmers have no on/off datapoint — off is
-                    // simply LEVEL = effOff. Derive on/off from the raw value
-                    // and remember the last non-off % for toggle-on restore.
-                    if (this.onOffSource === 'brightness') {
-                        this._on = v !== this._effOffRaw();
-                        if (this._on) this._lastBrt = this._brt;
-                    }
+                if (isNaN(v)) return;
+                if (this.subscribeSettled) {
+                    // Dual-topic mode (RedMatic): the live topic keeps the centre
+                    // % readout updating during ramps; the ring follows settled.
+                    this._brtLive = rawToPct(v);
                 }
+                this._settling.live(v);
             });
+            if (this.subscribeWorking) {
+                this.addSubscription(this.subscribeWorking, msg => {
+                    const v = this.getProperty(msg, this.msgPropWorking || 'payload.val');
+                    this._settling.working(v === true || v === 'true' || v === 1 || v === '1');
+                });
+            }
+            if (this.subscribeSettled) {
+                this.addSubscription(this.subscribeSettled, msg => {
+                    const v = Number(this.getProperty(msg, this.msgPropSettled || 'payload.val'));
+                    if (!isNaN(v)) this._settling.settled(v);
+                });
+            }
         }
         if (this.subscribeColorTemp) {
             this.addSubscription(this.subscribeColorTemp, msg => {
@@ -708,6 +782,7 @@ class FeezalElementMaterialLight extends FeezalElement {
             const offNum = Number(this.payloadOff);
             const raw = (this.payloadOff !== '' && !isNaN(offNum)) ? String(this.payloadOff) : String(min);
             this._pub(this.publishBrightness, raw, {[this._jsonMap.brightness]: raw});
+            this._settling?.command(Number(raw));
             return;
         }
 
@@ -719,7 +794,12 @@ class FeezalElementMaterialLight extends FeezalElement {
             // (Homematic OLD_LEVEL 1.005 = "restore last level") — the actual
             // level is unknown until the device echoes it, so _brt stays.
             this._pub(this.publishBrightness, String(this.payloadOn), {[this._jsonMap.brightness]: onNum});
-            if (onNum >= Math.min(min, max) && onNum <= Math.max(min, max)) {
+            // E127: sentinel targets (1.005 OLD_LEVEL) are never echoed verbatim,
+            // so they hold ONLY when a WORKING/settled signal can end the hold —
+            // otherwise the restore-ramp reports keep flowing as before.
+            const onInRange = onNum >= Math.min(min, max) && onNum <= Math.max(min, max);
+            if (onInRange || this.subscribeWorking || this.subscribeSettled) this._settling?.command(onNum);
+            if (onInRange) {
                 this._brt = max === min ? 0 : Math.max(0, Math.min(100, (onNum - min) / (max - min) * 100));
             }
         } else {
@@ -729,6 +809,7 @@ class FeezalElementMaterialLight extends FeezalElement {
             this._brt = pct;
             const raw = pctToRaw(pct, min, max);
             this._pub(this.publishBrightness, String(raw), {[this._jsonMap.brightness]: raw});
+            this._settling?.command(Number(raw));
         }
     }
 
@@ -785,6 +866,7 @@ class FeezalElementMaterialLight extends FeezalElement {
             const raw = pctToRaw(final, min, max);
             const jsonRaw = pctToRaw(final, 0, this.brightnessMax || 100);
             this._pub(this.publishBrightness, String(raw), {[this._jsonMap.brightness]: jsonRaw});
+            this._settling?.command(Number(raw));
         };
         document.addEventListener('pointermove', onMove);
         document.addEventListener('pointerup', onUp);
@@ -924,7 +1006,7 @@ class FeezalElementMaterialLight extends FeezalElement {
 
             <!-- Centre content -->
             ${isOn
-                ? this._svgCenter(mode, brt, accent)
+                ? this._svgCenter(mode, this._dragBrt !== null ? brt : (this._brtLive ?? brt), accent)
                 : svg`<text x="${CX}" y="${CY}" text-anchor="middle"
                         dominant-baseline="middle" font-size="9"
                         opacity="0.55" fill="var(--feezal-light-off-color)"
@@ -1144,6 +1226,11 @@ const LIGHT_SECTIONS = [
         {attr: 'subscribe-effect', label: 'Subscribe state'},
         {attr: 'publish-effect',   label: 'Publish command'},
         {attr: 'effects', label: 'Available effects', placeholder: 'colorloop, rainbow, sparkle, …'},
+    ]},
+    // E127: ramp settling — Homematic WORKING / RedMatic LEVEL_NOTWORKING.
+    {id: 'settling', title: 'Settling (Homematic ramps)', topics: [
+        {attr: 'subscribe-working', label: 'WORKING ↓', placeholder: 'hm/status/<dimmer>/WORKING'},
+        {attr: 'subscribe-settled', label: 'Settled ↓', placeholder: 'hm/status/<dimmer>/LEVEL_NOTWORKING'},
     ]},
 ];
 
@@ -1421,6 +1508,23 @@ class FeezalElementMaterialLightInspector extends LitElement {
                             <label>Max</label>
                             <sl-input type="number" size="small" autocomplete="off" value="${this._val('brightness-max') || '100'}"
                                 @sl-change="${e => this._onInput('brightness-max', e)}"></sl-input>
+                        </div>
+                    </div>
+                </div>` : ''}
+
+            ${!isJson && this._sectionEnabled(LIGHT_SECTIONS.find(s => s.id === 'settling')) ? html`
+                <div class="section">
+                    <div class="sec-head">Settling (E127)</div>
+                    <div class="sec-body row">
+                        <div class="field">
+                            <label>Timeout (s)</label>
+                            <sl-input type="number" size="small" autocomplete="off" value="${this._val('settle-timeout') || '5'}"
+                                @sl-change="${e => this._onInput('settle-timeout', e)}"></sl-input>
+                        </div>
+                        <div class="field">
+                            <label>Report delay (ms)</label>
+                            <sl-input type="number" size="small" autocomplete="off" value="${this._val('report-delay-ms') || '100'}"
+                                @sl-change="${e => this._onInput('report-delay-ms', e)}"></sl-input>
                         </div>
                     </div>
                 </div>` : ''}

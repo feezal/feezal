@@ -713,11 +713,15 @@ const hmLightRecognizer = {
         // hm/status/<seg>/LEVEL — LEVEL only. Covers + climate also match LEVEL;
         // each recognizer independently gates on its own channelType, so a
         // DIMMER's LEVEL only promotes here.
+        // E127: WORKING and LEVEL_NOTWORKING (RedMatic) are additionally
+        // OBSERVED — never promoted on their own, but their presence makes the
+        // emitted config wire the ramp-settling attributes. No blind guessing:
+        // only topics actually seen on the broker are wired.
         if (!topic.startsWith(hmPrefix + '/status/')) return null;
         const parts = topic.split('/');
         if (parts.length !== 4) return null;            // exactly prefix/status/seg/DP
-        if (parts[3] !== 'LEVEL') return null;
-        return {seg: parts[2], datapoint: 'LEVEL'};
+        if (parts[3] !== 'LEVEL' && parts[3] !== 'WORKING' && parts[3] !== 'LEVEL_NOTWORKING') return null;
+        return {seg: parts[2], datapoint: parts[3]};
     },
 
     accumulate(state, parsed, value, payload) {
@@ -742,7 +746,8 @@ const hmLightRecognizer = {
         let chan = dev.channels.get(parsed.seg);
         if (!chan) {
             chan = {seg: parsed.seg, channelType: undefined, channelIndex: undefined,
-                channelAddr: undefined, channelName: undefined};
+                channelAddr: undefined, channelName: undefined,
+                hasWorking: false, hasNotWorking: false};
             dev.channels.set(parsed.seg, chan);
         }
         if (hm) {
@@ -751,6 +756,9 @@ const hmLightRecognizer = {
             if (hm.channel != null) chan.channelAddr = hm.channel;
             if (hm.channelName != null) chan.channelName = hm.channelName;
         }
+        // E127: remember which settling topics this channel actually publishes.
+        if (parsed.datapoint === 'WORKING') chan.hasWorking = true;
+        if (parsed.datapoint === 'LEVEL_NOTWORKING') chan.hasNotWorking = true;
         // Carry the just-updated channel so promote emits THIS channel's light /
         // its HmIP group (a device can hold several independent dimmers).
         return {dev, chan};
@@ -792,6 +800,19 @@ const hmLightRecognizer = {
             message_property_brightness: 'payload.val',
             message_property_state: 'payload.val',
         };
+
+        // E127: ramp settling — wire only topics actually observed on the broker.
+        // WORKING gates report suppression; LEVEL_NOTWORKING (RedMatic) carries
+        // settled values only and takes over the slider, LEVEL stays the live
+        // readout. Both may be present; the element handles either or both.
+        if (chan.hasWorking) {
+            config.working_topic = hmStatus(p, readSeg, 'WORKING');
+            config.message_property_working = 'payload.val';
+        }
+        if (chan.hasNotWorking) {
+            config.settled_topic = hmStatus(p, readSeg, 'LEVEL_NOTWORKING');
+            config.message_property_settled = 'payload.val';
+        }
 
         // Availability from the device's :0 maintenance UNREACH datapoint. Dimmers
         // carry no LOWBAT entry (mains-powered) — UNREACH only, mirrors the cover.

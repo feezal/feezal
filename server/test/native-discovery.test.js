@@ -516,6 +516,37 @@ describe('Homematic light recognizer', () => {
         });
     });
 
+    it('E127: observed WORKING / LEVEL_NOTWORKING topics are wired into the config — never guessed', () => {
+        const dev = 'MEQ0600007';
+        const meta = dp => ({
+            device: dev, deviceName: 'Flurlicht', deviceType: 'HM-LC-Dim1T-FM',
+            channel: dev + ':1', channelName: 'Flurlicht:1',
+            channelType: 'DIMMER', channelIndex: 1, iface: 'BidCos-RF', datapoint: dp,
+        });
+
+        // LEVEL alone → no settling keys in the config.
+        nat.handleNativeMessage('hm/status/Flurlicht:1/LEVEL', je(0.4, meta('LEVEL')));
+        let c = nat.getNativeEntity('hm-light:' + dev + ':1').config;
+        expect(c.working_topic).toBeUndefined();
+        expect(c.settled_topic).toBeUndefined();
+
+        // WORKING observed on the broker → wired.
+        nat.handleNativeMessage('hm/status/Flurlicht:1/WORKING', je(true, meta('WORKING')));
+        c = nat.getNativeEntity('hm-light:' + dev + ':1').config;
+        expect(c.working_topic).toBe('hm/status/Flurlicht:1/WORKING');
+        expect(c.message_property_working).toBe('payload.val');
+        expect(c.settled_topic).toBeUndefined();
+
+        // RedMatic's LEVEL_NOTWORKING observed → settled topic wired too.
+        nat.handleNativeMessage('hm/status/Flurlicht:1/LEVEL_NOTWORKING', je(0.4, meta('LEVEL_NOTWORKING')));
+        c = nat.getNativeEntity('hm-light:' + dev + ':1').config;
+        expect(c.settled_topic).toBe('hm/status/Flurlicht:1/LEVEL_NOTWORKING');
+        expect(c.message_property_settled).toBe('payload.val');
+
+        // Still exactly one light — the observations update the entity in place.
+        expect(nat.getNativeEntities().filter(e => e.component === 'light')).toHaveLength(1);
+    });
+
     it('HmIP DIMMER_VIRTUAL_RECEIVER: a 6-channel device → exactly 2 lights (first-of-3 leaders)', () => {
         const dev = '0044HMIPDIM';
         const seg = i => 'Dimmaktor:' + i;

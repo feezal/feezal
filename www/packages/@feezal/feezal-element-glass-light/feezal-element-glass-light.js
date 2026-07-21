@@ -1,5 +1,6 @@
 /* global feezal */
 import {feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {SettlingController} from '@feezal/feezal-element/feezal-settling.js';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
 import {applySizePreset, payloadMatch, glassCardStyles, glassPopupStyles, FeezalGlassCard} from '@feezal/feezal-glass';
@@ -119,6 +120,12 @@ class FeezalElementGlassLight extends FeezalGlassCard {
                     message_property:             'message-property',
                     message_property_brightness:  'message-property-brightness',
                     message_property_state:       'message-property-state',
+                    // E127: ramp settling — emitted only when the recognizer has
+                    // observed the topics (WORKING / RedMatic LEVEL_NOTWORKING).
+                    working_topic:            'subscribe-working',
+                    message_property_working: 'message-property-working',
+                    settled_topic:            'subscribe-settled',
+                    message_property_settled: 'message-property-settled',
                     // N31: availability is mapped automatically from the canonical discovery record.
                     name: 'label',
                 },
@@ -145,6 +152,14 @@ class FeezalElementGlassLight extends FeezalGlassCard {
                 {name: 'publish-brightness', type: 'mqttTopic', help: 'Publish brightness on slider release.'},
                 {name: 'brightness-min', type: 'number', default: 0,   help: 'Minimum brightness value on the MQTT topic.'},
                 {name: 'brightness-max', type: 'number', default: 100, help: 'Maximum brightness value on the MQTT topic (z2m: 254, Homematic: 1).'},
+                // E127: ramp settling (Homematic dimmers report every intermediate
+                // level while ramping — these keep the slider from jumping).
+                {name: 'subscribe-working', type: 'mqttTopic', help: 'WORKING datapoint topic (true while the level ramps, e.g. hm/status/<dimmer>/WORKING). While true, brightness reports are suppressed instead of making the slider jump; false applies the final value.'},
+                {name: 'message-property-working', type: 'string', default: 'payload.val', help: 'Property path for the WORKING topic (mqtt-smarthome publishes {"val": true} → payload.val).'},
+                {name: 'subscribe-settled', type: 'mqttTopic', help: 'Settled-values topic carrying only final levels (RedMatic: …/LEVEL_NOTWORKING). When set, the slider follows THIS topic; subscribe-brightness keeps the % state text live during ramps.'},
+                {name: 'message-property-settled', type: 'string', default: 'payload.val', help: 'Property path for the settled topic (mqtt-smarthome: payload.val).'},
+                {name: 'settle-timeout', type: 'number', default: 5, help: 'Seconds after a command before the slider reconciles to the last reported value (covers interrupted ramps and sentinel commands like 1.005).'},
+                {name: 'report-delay-ms', type: 'number', default: 100, help: 'Only with subscribe-working: delay before showing an incoming brightness report — a WORKING=true within the window suppresses ramp jitter from changes made elsewhere. 0 disables.'},
                 {name: 'mode', type: 'select', options: ['on_off', 'brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs'], default: 'brightness',
                     help: 'Capability declaration for json mode (which popup sections exist): brightness, brightness + colour temperature, colour temperature, RGB or hue/saturation. Separate mode derives sections from the configured topics. on_off (E122) = switch-only lamp — the popup is a pure on/off toggle regardless of topics.'},
                 {name: 'subscribe-color-temp', type: 'mqttTopic', help: 'Current colour temperature.'},
@@ -197,6 +212,13 @@ class FeezalElementGlassLight extends FeezalGlassCard {
         payloadOff:          {type: String, reflect: true, attribute: 'payload-off'},
         subscribeBrightness: {type: String, reflect: true, attribute: 'subscribe-brightness'},
         msgPropBrightness:   {type: String, reflect: true, attribute: 'message-property-brightness'},
+        // E127: ramp settling
+        subscribeWorking:    {type: String, reflect: true, attribute: 'subscribe-working'},
+        msgPropWorking:      {type: String, reflect: true, attribute: 'message-property-working'},
+        subscribeSettled:    {type: String, reflect: true, attribute: 'subscribe-settled'},
+        msgPropSettled:      {type: String, reflect: true, attribute: 'message-property-settled'},
+        settleTimeout:       {type: Number, reflect: true, attribute: 'settle-timeout'},
+        reportDelayMs:       {type: Number, reflect: true, attribute: 'report-delay-ms'},
         publishBrightness:   {type: String, reflect: true, attribute: 'publish-brightness'},
         brightnessMin:       {type: Number, reflect: true, attribute: 'brightness-min'},
         brightnessMax:       {type: Number, reflect: true, attribute: 'brightness-max'},
@@ -222,6 +244,7 @@ class FeezalElementGlassLight extends FeezalGlassCard {
         discoveryId:         {type: String, reflect: true, attribute: 'discovery-id'},
         _on:        {state: true},
         _brt:       {state: true},   // 0–100 % (null = unknown)
+        _brtLive:   {state: true},   // E127 dual-topic mode: live % readout while the slider holds
         _colorTemp: {state: true},   // Kelvin (null = unknown)
         _rgb:       {state: true},   // [r, g, b]
         _hs:        {state: true},   // [h 0–360, s 0–100]
@@ -335,6 +358,13 @@ class FeezalElementGlassLight extends FeezalGlassCard {
         this.payloadOff = 'off';
         this.subscribeBrightness = '';
         this.msgPropBrightness = '';
+        // E127: ramp settling
+        this.subscribeWorking = '';
+        this.msgPropWorking = 'payload.val';
+        this.subscribeSettled = '';
+        this.msgPropSettled = 'payload.val';
+        this.settleTimeout = 5;
+        this.reportDelayMs = 100;
         this.publishBrightness = '';
         this.brightnessMin = 0;
         this.brightnessMax = 100;
@@ -359,6 +389,7 @@ class FeezalElementGlassLight extends FeezalGlassCard {
         this.discoveryId = '';
         this._on = false;
         this._brt = null;
+        this._brtLive = null;
         this._colorTemp = null;
         this._rgb = null;
         this._hs = null;
@@ -393,7 +424,9 @@ class FeezalElementGlassLight extends FeezalGlassCard {
      * updated() rewires instead of silently keeping the stale topics. */
     _wireSignature() {
         return [this.payloadMode, this.onOffSource, this.subscribe, this.subscribeState,
-            this.subscribeBrightness, this.subscribeColorTemp, this.subscribeRgb, this.subscribeHs].join('|');
+            this.subscribeBrightness, this.subscribeColorTemp, this.subscribeRgb, this.subscribeHs,
+            // E127
+            this.subscribeWorking, this.subscribeSettled, this.settleTimeout, this.reportDelayMs].join('|');
     }
 
     _wireSubscriptions() {
@@ -450,10 +483,40 @@ class FeezalElementGlassLight extends FeezalGlassCard {
             });
         }
         if (this.subscribeBrightness) {
+            // E127: brightness reports run through the SettlingController — it
+            // decides which ones may reach the slider (hold-at-target after own
+            // commands, WORKING-gated suppression, optional settled topic).
+            this._settling?.dispose();
+            this._settling = new SettlingController({
+                apply: raw => this._applyBrightness(raw),
+                timeoutMs: (Math.max(0, Number(this.settleTimeout)) || 5) * 1000,
+                reportDelayMs: Math.max(0, Number(this.reportDelayMs ?? 100) || 0),
+                workingWired: Boolean(this.subscribeWorking),
+                settledWired: Boolean(this.subscribeSettled),
+            });
             this.addSubscription(this.subscribeBrightness, msg => {
                 const raw = this.getProperty(msg, this.msgPropBrightness || this.messageProperty);
-                this._applyBrightness(raw);
+                const v = Number(raw);
+                if (isNaN(v)) return;
+                if (this.subscribeSettled) {
+                    // Dual-topic mode (RedMatic): live topic keeps the % state
+                    // text updating; the slider follows the settled topic.
+                    this._brtLive = rawToPct(raw, Number(this.brightnessMin) || 0, Number(this.brightnessMax) ?? 100);
+                }
+                this._settling.live(v);
             });
+            if (this.subscribeWorking) {
+                this.addSubscription(this.subscribeWorking, msg => {
+                    const v = this.getProperty(msg, this.msgPropWorking || 'payload.val');
+                    this._settling.working(v === true || v === 'true' || v === 1 || v === '1');
+                });
+            }
+            if (this.subscribeSettled) {
+                this.addSubscription(this.subscribeSettled, msg => {
+                    const v = Number(this.getProperty(msg, this.msgPropSettled || 'payload.val'));
+                    if (!isNaN(v)) this._settling.settled(v);
+                });
+            }
         }
         if (this.subscribeColorTemp) {
             this.addSubscription(this.subscribeColorTemp, msg => {
@@ -510,6 +573,7 @@ class FeezalElementGlassLight extends FeezalGlassCard {
         const pct = rawToPct(raw, Number(this.brightnessMin) || 0, Number(this.brightnessMax) ?? 100);
         if (pct !== null) {
             this._brt = pct;
+            this._brtLive = null;   // E127: settled — live readout re-syncs
         }
         if (this.onOffSource === 'brightness') {
             const n = Number(raw);
@@ -535,7 +599,16 @@ class FeezalElementGlassLight extends FeezalGlassCard {
             // E77: on/off travels over the brightness topic (Homematic:
             // payload-on 1.005 restores the previous level, payload-off 0).
             if (this.publishBrightness) {
-                feezal.connection.pub(this.publishBrightness, next ? this.payloadOn : this.payloadOff);
+                const payload = next ? this.payloadOn : this.payloadOff;
+                feezal.connection.pub(this.publishBrightness, payload);
+                // E127: sentinel targets (1.005 OLD_LEVEL) are never echoed
+                // verbatim, so they hold ONLY when a WORKING/settled signal can
+                // end the hold — otherwise ramp reports keep flowing as before.
+                const n = Number(payload);
+                const min = Number(this.brightnessMin) || 0;
+                const max = Number(this.brightnessMax) ?? 100;
+                const inRange = Number.isFinite(n) && n >= Math.min(min, max) && n <= Math.max(min, max);
+                if (inRange || this.subscribeWorking || this.subscribeSettled) this._settling?.command(n);
             }
             return;
         }
@@ -555,6 +628,7 @@ class FeezalElementGlassLight extends FeezalGlassCard {
         }
         if (this.publishBrightness) {
             feezal.connection.pub(this.publishBrightness, raw);
+            this._settling?.command(Number(raw));
         }
         if (this.onOffSource === 'brightness') {
             this._on = raw !== this._offRaw;
@@ -636,6 +710,9 @@ class FeezalElementGlassLight extends FeezalGlassCard {
     disconnectedCallback() {
         super.disconnectedCallback();
         clearTimeout(this._pressTimer);
+        // E127: clear pending hold/buffer timers with the subscriptions.
+        this._settling?.dispose();
+        this._settling = null;
     }
 
     // ── details popup controls ────────────────────────────────────────────────
@@ -709,7 +786,9 @@ class FeezalElementGlassLight extends FeezalGlassCard {
     _stateText() {
         if (!this._on) return this.labelOff || 'Off';
         const on = this.labelOn || 'On';
-        return this._brt !== null ? `${on} • ${this._brt} %` : on;
+        // E127 dual-topic mode: the % text follows the live topic during ramps.
+        const brt = this._brtLive ?? this._brt;
+        return brt !== null ? `${on} • ${Math.round(brt)} %` : on;
     }
 
     /** Capabilities decide which popup sections exist — NOT the mode alone:
@@ -936,6 +1015,13 @@ class FeezalElementGlassLightInspector extends LitElement {
                 </div>
             </div>
             <div class="section">
+                <div class="sec-head">Settling (Homematic ramps)</div>
+                <div class="sec-body">
+                    ${this._topicInput('subscribe-working', 'WORKING ↓')}
+                    ${this._topicInput('subscribe-settled', 'Settled ↓ (LEVEL_NOTWORKING)')}
+                </div>
+            </div>
+            <div class="section">
                 <div class="sec-head">Color Temperature</div>
                 <div class="sec-body">
                     ${this._topicInput('subscribe-color-temp', 'Subscribe')}
@@ -1002,6 +1088,10 @@ class FeezalElementGlassLightInspector extends LitElement {
                     <div class="row">
                         ${this._textInput('brightness-min', 'Brightness min', '0')}
                         ${this._textInput('brightness-max', 'Brightness max', '100')}
+                    </div>
+                    <div class="row">
+                        ${this._textInput('settle-timeout', 'Settle timeout (s)', '5')}
+                        ${this._textInput('report-delay-ms', 'Report delay (ms)', '100')}
                     </div>
                     <div class="field">
                         <label>Color temp unit (topics)</label>
