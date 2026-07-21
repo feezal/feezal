@@ -105,8 +105,8 @@ class FeezalElementMaterialCover extends FeezalElement {
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
                 // Theme-aware colour tokens. Leave blank to inherit from theme.
-                {property: '--feezal-cover-frame-color', type: 'color', default: 'var(--primary-text-color)',
-                    help: 'Window frame, dividers, and slat line colour.'},
+                {property: '--feezal-cover-frame-color', type: 'color', default: 'var(--primary-color)',
+                    help: 'Accent: window frame, dividers, slat lines, position slider and the fully-closed panel (E123 — the theme accent, same role the primary colour plays on other Material cards).'},
                 {property: '--feezal-cover-panel-color', type: 'color', default: 'var(--secondary-background-color)',
                     help: 'Cover panel fill colour.'},
                 {property: '--feezal-cover-text-color',  type: 'color', default: 'var(--primary-text-color)',
@@ -115,7 +115,10 @@ class FeezalElementMaterialCover extends FeezalElement {
                     help: 'Colour of the unavailability badge.'},
             ],
             restrict:     {minWidth: 80, minHeight: 100},
-            defaultStyle: {width: '120px', height: '160px'},
+            // E123: size parity with material-light (180×220) so a row of
+            // mixed Material cards lines up. Existing covers keep their saved
+            // inline size — this only affects newly inserted elements.
+            defaultStyle: {width: '180px', height: '220px'},
         };
     }
 
@@ -169,7 +172,9 @@ class FeezalElementMaterialCover extends FeezalElement {
                Four overridable colours, each defaulting to a feezal/HA theme
                variable (with a literal fallback). Override per-element via the
                Style inspector or a theme rule.                              */
-            --feezal-cover-frame-color: var(--primary-text-color,        var(--feezal-color, #333));
+            /* E123: the frame is the card's ACCENT — primary colour, like the
+               active track/knob on the other Material cards. */
+            --feezal-cover-frame-color: var(--primary-color, #0284c7);
             --feezal-cover-panel-color: var(--secondary-background-color, var(--feezal-bg-sub, #ddd));
             --feezal-cover-text-color:  var(--primary-text-color,        var(--feezal-color, #333));
             --feezal-cover-error-color: var(--error-color, #b00020);
@@ -469,6 +474,11 @@ class FeezalElementMaterialCover extends FeezalElement {
         const slats     = [];
 
         if (coverH > 0) {
+            // E123: on the accent-filled fully-closed panel the accent slat
+            // lines would disappear — use the neutral panel colour instead.
+            const slatStroke = effectivePos <= 0
+                ? 'var(--feezal-cover-panel-color)'
+                : 'var(--feezal-cover-frame-color)';
             const spacing = coverH / slatCount;
             for (let i = 0; i < slatCount; i++) {
                 const cy = FY + spacing * (i + 0.5);
@@ -477,7 +487,7 @@ class FeezalElementMaterialCover extends FeezalElement {
                 slats.push(svg`<line
                     x1="${FX}" y1="${(cy - dy).toFixed(2)}"
                     x2="${FX + FW}" y2="${(cy + dy).toFixed(2)}"
-                    stroke="var(--feezal-cover-frame-color)"
+                    stroke="${slatStroke}"
                     stroke-opacity="0.35" stroke-width="0.9"/>`);
             }
         }
@@ -493,10 +503,13 @@ class FeezalElementMaterialCover extends FeezalElement {
                 stroke="var(--feezal-cover-frame-color)" stroke-width="1" stroke-opacity="0.2"/>
             <line x1="${FX + FW * 0.63}" y1="${FY}" x2="${FX + FW * 0.63}" y2="${FY + FH}"
                 stroke="var(--feezal-cover-frame-color)" stroke-width="1" stroke-opacity="0.2"/>
-            <!-- Cover panel -->
+            <!-- Cover panel. E123: a FULLY closed cover fills with the accent
+                 (frame) colour so "closed" is visible at a glance; while
+                 moving/partially closed it stays the neutral panel colour. -->
             ${coverH > 0 ? svg`
                 <rect x="${FX}" y="${FY}" width="${FW}" height="${coverH}"
-                    fill="var(--feezal-cover-panel-color)" rx="1"/>` : svg``}
+                    fill="${effectivePos <= 0 ? 'var(--feezal-cover-frame-color)' : 'var(--feezal-cover-panel-color)'}"
+                    fill-opacity="${effectivePos <= 0 ? 0.75 : 1}" rx="1"/>` : svg``}
             <!-- Slat lines -->
             ${slats}
             <!-- Window frame — drawn on top so it always shows clearly -->
