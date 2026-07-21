@@ -12,6 +12,7 @@ Work in progress — priorities and scope are not final.
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
+- [N37 — Pause subscriptions of hidden views (bandwidth saver)](#n37--pause-subscriptions-of-hidden-views-bandwidth-saver)
 - [N12 — Export bundle: strip mqtt.js for feezal-bridge users](#n12--export-bundle-strip-mqttjs-for-feezal-bridge-users-partial) *(partial)*
 - [N13 — Lighter MQTT client for export bundle](#n13--lighter-mqtt-client-for-export-bundle-️-tbd) ⚠️
 
@@ -159,7 +160,34 @@ client.json_send('my/topic', payload);
 ### N2b — Repeater with live canvas sub-elements *(future)*
 Each repeater child becomes individually selectable and configurable on the editor canvas. Requires a virtual sub-editor context — significantly more complex, deferred until the MVP repeater is proven useful.
 
-### Element platform conventions
+### N37 — Pause subscriptions of hidden views (bandwidth saver)
+
+**Goal:** the viewer only receives the topics it actually needs. Today **every** element of **every** view subscribes on load and stays subscribed — hidden views' elements consume bandwidth forever. On wall tablets and metered/slow links that adds up.
+
+**Feasibility (verified 07/2026 — the groundwork exists):**
+- The connection layer **ref-counts subscriptions**: broker/server-side subscribe happens only for the first subscriber of a topic, unsubscribe when the last leaves ([feezal-connection.js:167-211](../www/src/feezal-connection.js#L167-L211)) — pause/resume plugs into an existing mechanism.
+- The connection keeps a **retained-value cache with late-subscriber replay** (B40, [feezal-connection.js:143-192](../www/src/feezal-connection.js#L143-L192)): a resubscribing element **repaints instantly from cache**, then heals from the broker's retained redelivery. Resume is visually seamless for retained topics.
+- Elements already unsubscribe in `disconnectedCallback` — dialog-view/layout-app **clone teardown is correct today**; the waste is the *hidden originals* (connected, `display:none`) and scrolled-out elements.
+- **Verification item:** confirm the feezal/socket backend honours per-client subscription lists server-side (so unsubscribe actually stops socket traffic, not just local dispatch); direct-MQTT connections trivially benefit.
+
+**Decided (07/2026):**
+- **View-level granularity (MVP):** a view is "visible" or not; all its elements pause/resume together. Elements in a visible view stay subscribed even when scrolled out — **element-level pausing** (IntersectionObserver/`checkVisibility()` per element) is a **later tier**, as is page-level pausing on `document.visibilityState` (tab in background).
+- **Config: site default + per-view override.** Site setting `pause-hidden-subscriptions` (default **off** — backwards compatible); per-view tri-state `pause-subscriptions` = `inherit` | `always` | `never`. **`never` is the escape hatch for views with non-retained data** that must not miss messages while hidden.
+- **Viewer only.** The editor keeps today's always-subscribed behaviour (inspectors/conditions on hidden views stay live).
+- **Grace period, configurable:** site setting `pause-grace-seconds` (default **30**) — a view must stay hidden that long before its topics unsubscribe, so quick back-and-forth navigation doesn't churn. **Resubscribe on show is always immediate.**
+
+**Visibility model (the hard part — must cover every embedding path):** "visible" is decided by a small central controller (`feezal.visibility`) in the viewer, not by each element guessing from CSS:
+- The **site's active view** is visible (hash/MQTT/playlist switching all funnel through the existing active-view machinery).
+- **Embedded views** (layout-app, layout-view, dialog-view, flex regions) render as **clones** — clone elements subscribe on connect and unsubscribe on removal, which is already correct. The **originals** of embedded views are never shown in the viewer → they pause under `inherit`.
+- **Non-retained + embedding interplay** (why `never` matters even for embedded views): a freshly stamped clone can only replay what the connection cache holds. A view marked `never` keeps its **original's** subscriptions alive, keeping the cache warm, so a later clone starts with the last-seen values. **Verify the B40 cache stores the last value for non-retained messages too while a subscriber exists — if it only caches broker-retained ones, extend it for held topics** (this is the load-bearing detail of the `never` mode).
+- Elements stamped *into* an already-paused context (late clones, conditions unhiding) must consult the controller **before** subscribing in `connectedCallback` — pause state is a precondition, not only an event.
+- Availability subscriptions (N31 machinery) pause/resume together with the element's data subscriptions.
+
+**Mechanism sketch:** `FeezalElement` gains `_pauseSubscriptions()` / `_resumeSubscriptions()` (re-running the element's normal wiring); the controller tracks active view + settings, walks the affected view's subtree (all feezal elements incl. component instances) on visibility change, applies the grace timer per view, and exposes `isVisible(el)` for the connectedCallback precondition.
+
+**Ships with:** TESTING.md section (pause after grace, instant repaint on return via cache replay, `never` view keeps receiving, non-retained survival via warm cache, dialog/layout-app embeds, editor unaffected), docs for the two site settings + view attribute.
+
+**Relates:** B40 (retained cache/replay — the resume mechanism), N31 (availability subscriptions pause too), layout-app / dialog-view / layout-view (embedding paths), N12/N13 (the other bandwidth items), A18 (kiosk/wall tablets — the main beneficiary), U51 ✅ (per-view settings precedent on `feezal-view`).
 
 See **[docs/element-spec.md](../docs/element-spec.md)** §4 (subscribe naming / dual-payload / `message-property-*`), §3.7 (discovery descriptor), §3.8 (custom inspector / N6) for the full platform conventions spec. Individual element entries below reference these by name.
 
