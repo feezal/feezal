@@ -3,7 +3,7 @@
 Completed and closed roadmap items — **one file per item**, named after its ID (e.g. `U39.md`).
 Open items live in [../ROADMAP.md](../ROADMAP.md).
 
-**207 items.**
+**212 items.**
 
 ## Bugs
 
@@ -91,6 +91,9 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [E102 — Climate elements: boost mode, thermostat mode datapoint conventions, valve position ✅ implemented (code-complete; hm2mqtt topic shapes pending live verification)](E102.md)
 - [E103 — WLED elements (Device / Glass / Metro) ✅ MVP implemented](E103.md)
 - [E108 — Native device self-discovery (Homematic climate + WLED) via server-side topic recognizers ✅ implemented (live-system smoke test pending)](E108.md)
+- [E121 — New element: outlet / plug card (`feezal-element-material-outlet`) ✅ implemented](E121.md)
+- [E122 — Lights: on/off-only mode (no dimming) ✅ implemented](E122.md)
+- [E123 — material-cover: stronger colour, and size parity with material-light ✅ implemented](E123.md)
 
 ## Editor UX
 
@@ -197,6 +200,8 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [U39 — Attribute inspector UX for attribute-heavy elements ✅ implemented (Direction A)](U39.md)
 - [U41 — Flow layout for views: `child-position: flow` replaces `static` ✅ implemented (MVP) *(absorbs U40)*](U41-flow-layout-for-views-child-position.md)
 - [U41 — Welcome wizard improvements (theme step, finer spotlights, broker-text fix) ✅ implemented](U41-welcome-wizard-improvements-theme-step-finer.md)
+- [U47 — layout-app drawer entries: stop auto-creating views, offer "create new view" in the dropdown ✅ implemented](U47.md)
+- [U49 — Conditions: expose the message property in the inspector ✅ implemented](U49.md)
 
 ## Architecture & Infrastructure
 

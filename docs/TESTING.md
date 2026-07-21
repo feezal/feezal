@@ -69,6 +69,14 @@ These shipped this cycle and were validated by build/unit tests **only** — giv
 - [ ] **B46 (component size)** — give a component instance `width: 100%` via Add CSS property → deploy → reload editor and viewer → the instance is still 100 % wide (children stay at their template px positions). A fresh instance with no explicit size still gets the template's bounding box.
 - [ ] **B47 (ring drag on iOS)** — iPhone/iPad (or the installed PWA): drag the material-light brightness ring in a scrollable view → the page must not scroll/rubber-band during the drag; the CT track still works; scrolling the page by touching OUTSIDE the card still works.
 
+### Feature batch U47 / U49 / E121–E123
+
+- [ ] **U47 (drawer entries)** — layout-app inspector: "+ add" appends an entry with an empty *pick a view…* dropdown and creates **no** view; the dropdown's last item *＋ Create new view…* opens a name dialog (default `pageN`, duplicate names disable Create); Create makes the view, binds the entry and defaults the label; Cancel restores the previous selection. Unbound entries render nothing in the viewer drawer.
+- [ ] **U49 (condition property)** — Conditions tab: each row has a *property* field (placeholder `payload`) between subscribe and operator; set `val` against an mqtt-smarthome JSON topic → the condition evaluates the nested value; clearing the field removes the key from the saved row (check via source view); a hand-written `"property"` survives editing other fields.
+- [ ] **E121 (Outlet card)** — palette → Material → Outlet: drop, wire `subscribe-state`/`publish-state` → large power button toggles and publishes; no brightness/mode attributes offered; styling follows the material-light theme tokens.
+- [ ] **E122 (on/off lights)** — material-light: mode *On/Off only (switch)* → the ring disappears, a large centre power button toggles; the custom inspector's Topics tab shows only State; brightness/CT/colour attrs hidden. glass-light: mode `on_off` → the details popup is a pure toggle regardless of configured topics. metro-light: mode `on_off` → the tile back shows only ON/OFF.
+- [ ] **E123 (cover accent)** — material-cover: window frame, dividers and position slider render in the theme's primary colour; a **fully closed** cover fills the panel with that accent (slats stay visible); a newly inserted cover defaults to 180×220 matching material-light; existing covers keep their saved size/colour overrides.
+
 ### Release notes grouping (A22) — verify on the next tag
 
 - [ ] Push the next release tag → the generated GitHub release body groups commits into **Features → Fixes → Docs → Chore** sections (Chore includes test/ci/refactor/build/style/perf; the `chore(release)` commit itself is absent); commits without a conventional prefix appear in a trailing **Other** section; empty sections are omitted; the Full-Changelog compare link and the Docker update instructions are unchanged.
@@ -240,7 +248,8 @@ scaling is asserted for the container-query and ResizeObserver mechanisms
 
 ### Material packages (palette categories: **Simple** widgets + **Material** device cards)
 *(2026-07: palette category rename — the old "Material" category → **Simple** (basic widgets: button, checkbox, gauge, slider…); the old "Device" category → **Material** (device cards: light, climate, cover, contact, wled…). Same `feezal-element-material-*` packages; only the palette grouping/order changed. New palette order: Basic, Layout, System, Material, Glass, Metro, Simple, …)*
-- [ ] alarm-panel · [ ] badge · [ ] button · [ ] camera · [ ] checkbox · [ ] chip · [ ] climate · [ ] clock · [ ] computer-stats · [ ] contact · [ ] countdown-dialog · [ ] cover · [ ] dialog · [ ] door-lock · [ ] energy-flow · [ ] fab · [ ] fan · [ ] gauge · [ ] humidifier · [ ] icon-button · [ ] input · [ ] light · [ ] map · [ ] media-player · [ ] motion · [ ] navbar · [ ] plant · [ ] progress · [ ] radio · [ ] schedule · [ ] select · [ ] slider · [ ] switch · [ ] tank · [ ] time-picker · [ ] vacuum · [ ] wled
+- [ ] alarm-panel · [ ] badge · [ ] button · [ ] camera · [ ] checkbox · [ ] chip · [ ] climate · [ ] clock · [ ] computer-stats · [ ] contact · [ ] countdown-dialog · [ ] cover · [ ] dialog · [ ] door-lock · [ ] energy-flow · [ ] fab · [ ] fan · [ ] gauge · [ ] humidifier · [ ] icon-button · [ ] input · [ ] light · [ ] map · [ ] media-player · [ ] motion · [ ] navbar · [ ] outlet · [ ] plant · [ ] progress · [ ] radio · [ ] schedule · [ ] select · [ ] slider · [ ] switch · [ ] tank · [ ] time-picker · [ ] vacuum · [ ] wled
+  - **outlet (E121):** material-light subclass locked to on_off mode — big power button, no ring; only state/availability/label attributes (generic inspector, no mode select); shares the `--feezal-light-*` theme tokens; no auto-discovery mapping (deliberate — would collide with light/switch discovery).
 
 ### Carbon (E85 — IBM Carbon Design System)
 - [ ] button · [ ] switch · [ ] checkbox · [ ] slider · [ ] select · [ ] input

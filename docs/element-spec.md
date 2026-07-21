@@ -12,7 +12,7 @@ This document is the single reference for building, publishing, and configuring 
 |---|---|
 | npm scope | Must be published under an npm scope, e.g. `@yourscope/feezal-element-mywidget` |
 | Element name | `feezal-element-<category>-<name>`, e.g. `feezal-element-basic-gauge` |
-| Reserved categories | `basic` and `paper` are owned by the feezal project |
+| Reserved categories | `basic` and `system` and `layout` are owned by the feezal project |
 | One element per package | The package name, filename and custom-element tag name must all be identical. **Exception:** multi-element family packages, see §1.1. |
 | Entry point | `package.json` `"main"` must point to the JS file that calls `customElements.define(…)` |
 | Versioning | Bump the **patch** version in `package.json` with every change. Major versions are lockstep across all `@feezal/*` packages; minor/patch are independent. |
@@ -510,6 +510,8 @@ Every element (Lit **and** Polymer base) automatically supports a `conditions` a
 - condition subscriptions follow the same `visible` / `dynamic-subscriptions` gating as regular ones.
 
 Row schema and semantics (operators `=`, `!=`, `>`, `<`, `>=`, `<=`, `matches`; actions `show`/`hide` (AND-combined, optional `keep-layout`), `class`, `style`, `attribute`; unmatched rows revert to the element's pristine value; later matching rows win on conflicts) are documented in the header of `feezal-conditions.js`.
+
+Each row may carry a **`property`** — a dot-path into the message the comparison reads (`val`, `state.temperature`), resolved through the host's `getProperty()`. Default is the whole `payload`; the inspector exposes it as the *property* field (U49) and omits the key when left empty, so saved rows stay lean.
 
 ---
 

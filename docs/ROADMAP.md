@@ -59,9 +59,6 @@ Work in progress — priorities and scope are not final.
 - [E118 — `click-through` on `basic-number`, `basic-icon-value`, `basic-datetime`](#e118--click-through-on-basic-number-basic-icon-value-basic-datetime)
 - [E119 — `basic-number`: configurable placeholder before the first value](#e119--basic-number-configurable-placeholder-before-the-first-value)
 - [E120 — Homematic cover discovery: wire Up/Down to the LEVEL set topic](#e120--homematic-cover-discovery-wire-updown-to-the-level-set-topic)
-- [E121 — New element: outlet / plug card (`feezal-element-material-outlet`)](#e121--new-element-outlet--plug-card-feezal-element-material-outlet)
-- [E122 — Lights: on/off-only mode (no dimming)](#e122--lights-onoff-only-mode-no-dimming)
-- [E123 — material-cover: stronger colour, and size parity with material-light](#e123--material-cover-stronger-colour-and-size-parity-with-material-light)
 - [E124 — Contact elements: dedicated low-battery indicator](#e124--contact-elements-dedicated-low-battery-indicator)
 - [E125 — Homematic battery voltage (`OPERATING_VOLTAGE`)](#e125--homematic-battery-voltage-operating_voltage--future) 💡
 - [E126 — Homematic discovery: switch recognizer with name word-list heuristic (+ light classification)](#e126--homematic-discovery-switch-recognizer-with-name-word-list-heuristic--light-classification)
@@ -78,9 +75,7 @@ Work in progress — priorities and scope are not final.
 - [U44 — Inspector: clear (×) button on fields that have a default](#u44--inspector-clear--button-on-fields-that-have-a-default)
 - [U45 — Element insertion: palette sidebar + full-screen picker](#u45--element-insertion-palette-sidebar--full-screen-picker--to-refine) 💡 *(to refine)*
 - [U46 — Clippy easter egg in the help popup](#u46--clippy-easter-egg-in-the-help-popup--low-priority) 🔽
-- [U47 — layout-app drawer entries: stop auto-creating views, offer "create new view" in the dropdown](#u47--layout-app-drawer-entries-stop-auto-creating-views-offer-create-new-view-in-the-dropdown)
 - [U48 — Make the viewer's `Connected as "…"` toast optional](#u48--make-the-viewers-connected-as--toast-optional)
-- [U49 — Conditions: expose the message property in the inspector](#u49--conditions-expose-the-message-property-in-the-inspector)
 - [U50 — layout-app: expose the content area's inset (padding)](#u50--layout-app-expose-the-content-areas-inset-padding)
 
 **Architecture & Infrastructure**
@@ -960,21 +955,6 @@ Optional, off-by-default **Editor Settings** toggle that adds a paperclip assist
 
 **Relates:** B43 ✅ (help popup bug — was the blocker, fixed 07/2026), **A25** (self-hosted assets), U37 ✅ (welcome wizard — the other "friendly onboarding" surface).
 
-### U47 — layout-app drawer entries: stop auto-creating views, offer "create new view" in the dropdown
-
-Adding a drawer entry in the `layout-app` inspector **always creates a new view** (`page1`, `page2`, …) as a side effect. That is wrong whenever the entry should point at a view that already exists — the common case once a dashboard has a few pages — and it leaves orphan `pageN` views behind that the user then has to hunt down and delete.
-
-**Current behaviour:** `_addEntry()` calls `_uniqueViewName('page')` → `_createView(name)` → appends the entry pre-bound to that fresh view ([feezal-element-layout-app.js:487](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js#L487)); `_createView()` builds the `feezal-view`, copies the current view's inline style, and registers it with the site ([feezal-element-layout-app.js:470-481](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js#L470-L481)).
-
-**Wanted:**
-
-- **"+ add" no longer creates a view.** The new entry starts unbound — its `sl-select` shows a placeholder ("pick a view…") and the entry is simply inert until a view is chosen. `_entries()` already filters out entries without a `view` ([feezal-element-layout-app.js:230-233](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js#L230-L233)), so an unbound entry renders nothing in the viewer — no half-broken drawer.
-- **View creation moves into the dropdown.** The per-entry view `sl-select` ([feezal-element-layout-app.js:530-532](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js#L530-L532)) gets a trailing sentinel option — *"＋ Create new view…"* — visually separated from the real view names. Picking it prompts for a name (default from `_uniqueViewName('page')`), calls the existing `_createView()`, and binds the entry to the result. Cancelling reverts the select to its previous value rather than leaving the sentinel selected.
-
-**Watch out for:** the sentinel value must not collide with a real view name (use a value no view can have, e.g. ` new`, and never write it into `items`); `_setEntry(i, 'view', …)` must be bypassed on the sentinel path; and the select's `.value` needs an explicit reset after a cancel, since Shoelace keeps the picked value otherwise.
-
-**Relates:** E-layout-app (drawer entry inspector), U21 ✅ (view rename/delete dialog — precedent for a themed name prompt rather than `window.prompt`), E9/E45 (the shared synchronous-hide view-creation helper this reuses).
-
 ### U48 — Make the viewer's `Connected as "…"` toast optional
 
 Every viewer load pops a `Connected as "<client-id>"` toast ([feezal-presence.js:215](../www/src/feezal-presence.js#L215)). On a wall-mounted or kiosk dashboard — the case feezal is most often used for — that is noise on every reload, and there is currently no way to silence it short of turning presence **off** entirely (Site Settings → Viewer presence, `presence="off"` — [feezal-sidebar-viewer.js:647-651](../www/src/feezal-sidebar-viewer.js#L647-L651)). That is far too blunt: it also drops the retained status publish and the whole per-client command subtree (`view · reload · theme · playlist · addclass · removeclass · rename`), which users very much want to keep.
@@ -991,23 +971,6 @@ Every viewer load pops a `Connected as "<client-id>"` toast ([feezal-presence.js
 
 **Relates:** N24 ✅ (viewer presence + per-client control topics — the feature these toasts belong to), `docs/presence.md` (documents the `presence` attribute; needs the new one), U-viewer-settings (Site Settings panel this switch lands in).
 
-### U49 — Conditions: expose the message property in the inspector
-
-A condition row can only compare against the message's `payload`. With a JSON payload (`{"val": 21.5, "ts": …}` — mqtt-smarthome, Zigbee2MQTT, most bridges) there is no way to test a nested value, even though every element already offers `message-property` for its primary subscription. The condition either never matches or compares against `[object Object]`.
-
-**This is a UI-only gap — the engine already implements it.** `FeezalConditions.connect()` reads `row.property` and falls back to `'payload'`, resolving it through the host's `getProperty()` (dot-path capable) ([feezal-conditions.js:126-134](../www/packages/@feezal/feezal-element/feezal-conditions.js#L126-L134)), and the row schema documents `property` as "optional dot-path into the message (default `payload`)" ([feezal-conditions.js:15](../www/packages/@feezal/feezal-element/feezal-conditions.js#L15)). `parseConditions()` passes the field through untouched. A hand-written `conditions` attribute with `"property": "val"` works **today**; the conditions inspector simply never renders a control for it, so it is unreachable in the UI and silently dropped whenever a user edits a row that had it.
-
-**Wanted:** a `property` input in the condition row editor ([feezal-sidebar-inspector-conditions.js:393-413](../www/src/feezal-sidebar-inspector-conditions.js#L393-L413)), sitting between `subscribe` and `operator` — placeholder `payload`, matching how `message-property` is presented on the attribute inspector.
-
-**Implementation notes:**
-
-- **Don't write the default.** Leaving the field empty must omit `property` from the row rather than storing `"property": "payload"` — the engine already defaults, and writing it would bloat every saved row and churn diffs for existing dashboards. `_patch` should delete the key on an empty value (the same treatment `_patchStyle` gives keyless style entries — [feezal-sidebar-inspector-conditions.js:169-190](../www/src/feezal-sidebar-inspector-conditions.js#L169-L190)).
-- **Regression risk to fix in passing:** because the inspector doesn't know the field, editing a hand-authored row today may drop an existing `property` — worth a test.
-- Dot-paths must work (`getProperty` handles them), so the placeholder/help should hint at `val` and `state.temperature` style values.
-- `docs/element-spec.md` conditions section and the E50 docs need the field documented as user-facing rather than internal.
-
-**Relates:** E50 ✅ (per-element conditions engine — where `property` was specified but never surfaced), `message-property` (the equivalent knob on element subscriptions this mirrors), E49 (page-local publishes, which also flow through conditions).
-
 ### U50 — layout-app: expose the content area's inset (padding)
 
 The embedded view sits flush against the app bar and drawer — there is no way to give the content area breathing room. `.content` carries no padding and none is configurable ([feezal-element-layout-app.js:155-156](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js#L155-L156)); the only workaround is baking margins into every embedded view, which then differ per view and break when a view is embedded somewhere else.
@@ -1023,6 +986,26 @@ The embedded view sits flush against the app bar and drawer — there is no way 
 - Accept a full CSS shorthand (`8px`, `8px 16px`, …) rather than a number, so per-side insets need no extra knobs.
 
 **Relates:** E-layout-app (the shell), N36 (the `--feezal-app-*` style-var set this extends), E38 (element scaling / responsive sizing — a responsive inset would belong there).
+
+### U51 — Per-view themes
+
+Let each view render in its **own theme** — a dark camera-wall view next to a light living-room view — with the site theme as the default for views that don't set one.
+
+**Mechanism (the cheap part, verified):** feezal themes are already **class-scoped** — every theme package injects `.feezal-theme-<name> { --vars…; font-family… }` into `document.head`. Per-view theming is therefore just **putting the theme class on the `feezal-view` element**: the custom properties cascade within that view only. No `<link>` swapping, no flicker on view switches, and it works identically in the editor canvas.
+
+**Decided (07/2026):**
+- **Setting:** a `theme` attribute on `feezal-view` (empty = site theme), edited as a **dropdown of installed themes in the view inspector** (list from `window.feezal.themes`). Serializes with the view HTML automatically.
+- **Precedence: user choice wins.** When the viewer has an active E91 theme choice (switcher pick / persisted localStorage / future MQTT sync), per-view themes are **suppressed** — the user's theme applies everywhere. Per-view themes act as the *design default* that applies while the user is on "site default". Implementation: `feezal.applyTheme(name)` sets a site-level override state; while it's set, view theme classes are not applied (removed); clearing back to site default re-enables them. **E91's picker needs an explicit "Site default" entry** for exactly this — record that as an E91 spec addition.
+- **Embedded views keep their own theme.** A layout-app / dialog-view clone carries the view's theme class, so an embedded view renders in its assigned theme inside a differently-themed shell — the class-scoped CSS gives this for free; just verify the clone path copies the class (and doesn't fight the shell's background-copy logic, [feezal-element-layout-app.js:342-348](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js#L342-L348)).
+
+**Implementation notes:**
+- **Theme loading:** a per-view theme is only usable if its CSS is present — bundled themes inject on import; **user themes** load via the `/themes/<name>.css` link mechanism. The viewer must load the theme CSS for every theme referenced by *any* view (scan on site load), and the **export** must include those files — same verification E91 already carries; do them together.
+- Editor canvas applies the class live when the attribute changes (instant preview); the views sidebar could later badge themed views (not in scope).
+- Nesting rule: innermost class wins by CSS cascade — exactly the wanted semantics; nothing to implement.
+
+**Ships with:** TESTING.md section (view with own theme vs site theme, switching between differently-themed views, embedded themed view inside a shell, E91 user-choice suppression + return to site default, user-theme loading, export).
+
+**Relates:** E91 (theme switcher — precedence contract + the new "Site default" entry), theme packages (the class-scoped mechanism this rides on), layout-app / dialog-view (clone semantics), A18 (kiosk — per-view dark/light without a global switch), U41 (view-level attribute editing surface).
 
 ### E109 — evcc integration: native discovery + energy/charging elements 💡 to refine
 
@@ -1259,7 +1242,7 @@ It is also **inconsistent**: `prefix` and `suffix` render regardless of whether 
 
 **Relates:** N31 (availability / `unavailable` attribute — the other "this element has no trustworthy value right now" signal; a placeholder and an unavailable state should not contradict each other), E118 (same element family), **E114** (parity contract, if it spreads to siblings).
 
-> **Terminology note for E120/E123:** these were reported as "*-shutter" / "material-shutter". The packages are named **cover** (`feezal-element-material-cover`, `-glass-cover`, `-metro-cover`) — same elements. Whether the user-facing label should become "Shutter" is a separate question for **E113** (taxonomy).
+> **Terminology note for E120:** reported as "*-shutter". The packages are named **cover** (`feezal-element-material-cover`, `-glass-cover`, `-metro-cover`) — same elements. Whether the user-facing label should become "Shutter" is a separate question for **E113** (taxonomy).
 
 ### E120 — Homematic cover discovery: wire Up/Down to the LEVEL set topic
 
@@ -1275,49 +1258,7 @@ A Homematic cover configured through auto-discovery gets position and stop, but 
 
 **Watch out for:** `payload-up`/`payload-down` default to `OPEN`/`CLOSE` ([feezal-element-material-cover.js:80-82](../www/packages/@feezal/feezal-element-material-cover/feezal-element-material-cover.js#L80-L82)) and are *also* used as the **state** payloads (`state_open`/`state_closed` map to the same attributes). Setting them to `1`/`0` for commands must not break state interpretation — check whether these two roles need separating before reusing the attribute pair.
 
-**Relates:** E108 ✅ (native Homematic discovery), **E114** (family parity), E123 (the other cover item).
-
-### E121 — New element: outlet / plug card (`feezal-element-material-outlet`)
-
-A smart plug has no brightness and no position — just on/off — but there is no card-style element for it that sits visually with `material-light` and `material-climate`. The ask: the **same centre circle button, without the ring slider around it**.
-
-**Name collision — `feezal-element-material-switch` is taken.** It is the MD3 *toggle switch* (a small sliding control in the `Simple` palette category), not a card. Pick a distinct name — `material-outlet`, `material-plug` or `material-toggle-card` — rather than overloading the existing one.
-
-**Shape:** reuse `material-light`'s card chrome (icon, label, availability treatment, theme vars) and its centre power zone, dropping the ring track, brightness drag, colour wheel and CT track. Effectively `material-light` with `mode` reduced to power only — which makes **E122** the close sibling: if a light can be configured as on/off-only, this element is that same rendering with a plug-appropriate icon and default topic naming.
-
-**Decide first:** is this a **new element**, or `material-light` with an `on-off` mode plus a different icon (E122)? Building both risks two code paths for one visual. Recommend implementing **E122 first**, then judging whether a separate outlet element still earns its place — a dedicated palette entry has real discoverability value for "smart plug" even if it shares the implementation.
-
-**Relates:** **E122** (on/off-only lights — overlapping scope, settle together), E-material-light (chrome to reuse), **E114** (parity — glass/metro siblings), E113 (where a "plug" belongs in the taxonomy).
-
-### E122 — Lights: on/off-only mode (no dimming)
-
-A lamp on a plain relay can only be switched. Today `material-light`'s `mode` offers `brightness`, `brightness_ct`, `color_temp`, `rgb`, `hs` ([feezal-element-material-light.js:192](../www/packages/@feezal/feezal-element-material-light/feezal-element-material-light.js#L192)) — every one of which renders a brightness ring the device cannot honour.
-
-**Wanted:** an `on-off` (or `switch`) mode that renders the centre power button and card chrome **without** the ring track, brightness drag, colour wheel or CT track.
-
-**Implementation notes:**
-
-- The ring drag is already conditionally gated (`_dragFromOffAllowed()`, `_startBrtDrag` — [feezal-element-material-light.js:643-645](../www/packages/@feezal/feezal-element-material-light/feezal-element-material-light.js#L643-L645)); the new mode should suppress the ring **in `_svgContent()`** as well, not merely ignore drags on an invisible track.
-- Hide brightness/colour attributes in the inspector for this mode via `visibleWhen` (the same mechanism `feezal-view`'s flow knobs use) so the panel doesn't offer settings that do nothing.
-- Apply across the family (`glass-light`, `metro-light`) per **E114**.
-
-**Relates:** **E121** (outlet card — likely the same rendering; settle scope together), E-material-light, **E114** (parity contract).
-
-### E123 — material-cover: stronger colour, and size parity with material-light
-
-The cover card reads as washed-out next to `material-light` and `material-climate`, and it is a different size, so a row of mixed cards doesn't line up.
-
-**Wanted:**
-
-- **Window-image border** in the same colour as `material-light`'s slider track, so the family shares one accent.
-- **Closed state visualised in that colour too** — right now a closed cover carries no colour cue.
-- **Default size matched to `material-light`:** `180px × 220px` ([feezal-element-material-light.js:242](../www/packages/@feezal/feezal-element-material-light/feezal-element-material-light.js#L242)) instead of the current `120px × 160px` ([feezal-element-material-cover.js:118](../www/packages/@feezal/feezal-element-material-cover/feezal-element-material-cover.js#L118)).
-
-**Watch out for:** `defaultStyle` only applies to **newly inserted** elements — existing covers keep their saved inline size, so this does not reflow anyone's dashboard (good), but it does mean old and new covers will differ until manually resized. Worth a line in the release notes.
-
-**Do it via theme vars, not literals** — per the theme-variable discipline, the shared accent should resolve from the canonical set (`--primary-color` and friends) so themes keep control, rather than copying a hex out of `material-light`.
-
-**Relates:** E120 (the other cover item), **E114** (family parity — glass/metro covers should follow), E113 (taxonomy/visual consistency).
+**Relates:** E108 ✅ (native Homematic discovery), **E114** (family parity), E123 ✅ (cover accent/size parity — implemented 07/2026).
 
 ### E124 — Contact elements: dedicated low-battery indicator
 
@@ -1368,7 +1309,7 @@ Add **switch support to the native Homematic discovery** ([native-discovery.js](
 - **Switch/plug words** (→ promoted as `switch` component): `steckdose`, `standby`, `plug` *(core, per request)* — proposed additions: `socket`, `outlet`, `schalter`.
 - **Light words** (→ promoted as **`light`** component instead): `light`, `licht`, `lamp`, `lampe` *(core, per request)* — proposed additions: `leuchte`, `beleuchtung`, `bulb`, `spot`.
 
-**Light classification:** a Homematic switch whose name matches the light list joins the **discovered lights**, and its discovery config assigns **on/off mode** — depends on **E122** (lights: on/off-only mode); the discovery config sets that mode so no brightness ring is offered for a relay. Light words win over switch words when both match.
+**Light classification:** a Homematic switch whose name matches the light list joins the **discovered lights**, and its discovery config assigns **on/off mode** — E122 ✅ shipped that mode (07/2026), so this dependency is satisfied; the discovery config sets `mode: on_off` and no brightness ring is offered for a relay. Light words win over switch words when both match.
 
 **Implementation notes:**
 - New recognizer following the contact/blind pattern: collect channels per device from the CCU metadata, gate on channel type, dedup the virtual-receiver triple, apply the word lists to the channel-name segment, emit `{component: 'switch' | 'light', config}` wiring `STATE` (r/w, `true`/`false` payloads) via the standard `hmSet`/read segments.
@@ -1377,7 +1318,7 @@ Add **switch support to the native Homematic discovery** ([native-discovery.js](
 
 **Ships with:** recognizer unit tests (named/unnamed/triple/light-vs-switch/word-list-override cases), TESTING.md discovery-section update, docs.
 
-**Relates:** E108 ✅ (native discovery framework — contact/blind recognizers as the pattern, incl. the `*_VIRTUAL_RECEIVER` triple dedup), **E122** (on/off light mode — dependency for the light assignment), **E121** (outlet/plug card — the natural element for discovered `plug`/`steckdose` switches once it exists), E120 (sibling discovery item), N31 (availability wiring comes from the same framework).
+**Relates:** E108 ✅ (native discovery framework — contact/blind recognizers as the pattern, incl. the `*_VIRTUAL_RECEIVER` triple dedup), E122 ✅ (on/off light mode — the light-assignment dependency, satisfied), E121 ✅ (outlet/plug card — now exists; the natural element for discovered `plug`/`steckdose` switches, note it has no discovery map yet), E120 (sibling discovery item), N31 (availability wiring comes from the same framework).
 
 ## Architecture & Infrastructure
 
