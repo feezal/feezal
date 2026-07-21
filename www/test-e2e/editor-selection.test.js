@@ -125,3 +125,15 @@ describe('context menu lock', () => {
             .toBeGreaterThan(before);
     });
 });
+
+describe('resize grip affordance (U42)', () => {
+    it('a selected element shows the corner grip on hover; unselected does not', async () => {
+        await btn('A').click();
+        await btn('A').hover();
+        const grip = await btn('A').evaluate(el => getComputedStyle(el, '::before').backgroundImage);
+        expect(grip).toContain('linear-gradient');
+
+        const other = await btn('B').evaluate(el => getComputedStyle(el, '::before').backgroundImage);
+        expect(other).toBe('none');
+    });
+});

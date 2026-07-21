@@ -75,6 +75,7 @@ class FeezalAppEditor extends LitElement {
         _aiPanelWidth:    {state: true},
         _componentEdit:   {state: true},   // U32: {name, viewName, returnView} while editing a component
         _componentDialog: {state: true},   // U32: create-component dialog state {rows, error}
+        _componentMapping: {state: true},  // U52: attribute-mapping dialog state {rows, error} while in edit mode
         _componentDeleteInfo: {state: true} // U32: delete-with-instances dialog {name, count, views}
     };
 
@@ -1055,6 +1056,7 @@ class FeezalAppEditor extends LitElement {
                             <span class="material-icons">widgets</span>
                             <span>Editing component&nbsp;<strong>${this._componentEdit.name}</strong>&nbsp;— changes apply to all instances</span>
                             <span style="flex:1"></span>
+                            <sl-button size="small" @click="${this._openComponentMapping}">Attribute mapping…</sl-button>
                             <sl-button size="small" @click="${this._cancelComponentEdit}">Cancel</sl-button>
                             <sl-button size="small" variant="primary" @click="${this._commitComponentEdit}">Done</sl-button>
                         </div>
@@ -1184,6 +1186,33 @@ class FeezalAppEditor extends LitElement {
                 <div slot="footer" style="display:flex;gap:8px;justify-content:flex-end;width:100%">
                     <sl-button @click="${() => this.shadowRoot.querySelector('#componentdialog').hide()}">Cancel</sl-button>
                     <sl-button variant="primary" @click="${this._createComponentConfirmed}">Create</sl-button>
+                </div>
+            </sl-dialog>
+
+            <sl-dialog id="componentmappingdialog" label="Attribute mapping" style="--width: 660px">
+                <p style="font-size:12px;opacity:0.75;margin:0 0 8px">
+                    Map instance attributes onto inner-element attributes: give an attribute a
+                    parameter name to expose it on every instance (its current value becomes the
+                    default); clear the name to bake the default back in as a fixed value.
+                </p>
+                <div class="dialog-error" style="color:#c62828;font-size:12px;min-height:16px">${this._componentMapping?.error ?? ''}</div>
+                ${this._componentMapping?.rows?.length ? html`
+                    <table class="component-param-table">
+                        <tr><th>Element</th><th>Attribute</th><th>Value</th><th>Parameterize as…</th></tr>
+                        ${this._componentMapping.rows.map(row => html`
+                            <tr>
+                                <td>${row.tag.replace(/^feezal-element-/, '')}</td>
+                                <td>${row.attr}</td>
+                                <td class="component-param-value" title="${row.baseValue}">${row.baseValue}</td>
+                                <td><input .value="${row.param}" placeholder="—" autocomplete="off"
+                                    @input="${e => { row.param = e.target.value; }}"></td>
+                            </tr>
+                        `)}
+                    </table>
+                ` : html`<p style="font-size:12px;opacity:0.7">The component's elements carry no mappable attributes.</p>`}
+                <div slot="footer" style="display:flex;gap:8px;justify-content:flex-end;width:100%">
+                    <sl-button @click="${() => this.shadowRoot.querySelector('#componentmappingdialog').hide()}">Cancel</sl-button>
+                    <sl-button variant="primary" @click="${this._applyComponentMapping}">Apply</sl-button>
                 </div>
             </sl-dialog>
 
@@ -2141,6 +2170,9 @@ class FeezalAppEditor extends LitElement {
             this.changes = false;
             feezal.hasChanges = false;
             this.deploying = false;
+            // U43: the just-deployed connection is the new baseline for the
+            // Apply-connection-settings dirty detection.
+            this.shadowRoot.querySelector('feezal-sidebar-viewer')?.markConnectionDeployed?.();
             // Refresh history panel shortly after deploy so the new commit is visible
             setTimeout(() => {
                 const history = this.shadowRoot.querySelector('feezal-sidebar-history');
@@ -2368,10 +2400,97 @@ class FeezalAppEditor extends LitElement {
         this._setView(viewName);
     }
 
+    /**
+     * U52: "Attribute mapping…" in the edit-mode banner — the same
+     * instance-attribute → inner-element/attribute table the create dialog
+     * shows, for the component being edited. Rows are built from the
+     * pseudo-view's live elements; a `${param}` value pre-fills its param
+     * name and shows the param's default as the value.
+     */
+    _openComponentMapping() {
+        if (!this._componentEdit) return;
+        const view = feezal.getView(this._componentEdit.viewName);
+        const template = this._componentTemplate(this._componentEdit.name);
+        if (!view || !template) return;
+
+        let params = {};
+        try { params = JSON.parse(template.getAttribute('feezal-params') || '{}'); } catch { /* keep {} */ }
+        // A pending, not-yet-committed mapping edit wins over the template.
+        if (this._componentEdit.paramsOverride) params = this._componentEdit.paramsOverride;
+
+        const rows = [];
+        [...view.children].forEach((el, elemIndex) => {
+            if (!el.localName?.includes('-')) return;
+            for (const attr of el.attributes) {
+                if (['class', 'style', 'locked', 'tabindex'].includes(attr.name)) continue;
+                const m = attr.value.match(/^\$\{([a-z][a-z0-9-]*)\}$/);
+                rows.push({
+                    elemIndex,
+                    tag: el.localName,
+                    attr: attr.name,
+                    param: m ? m[1] : '',
+                    baseValue: m ? (params[m[1]]?.default ?? '') : attr.value,
+                    type: this._inferParamType(el, attr.name),
+                });
+            }
+        });
+        this._componentMapping = {rows, error: ''};
+        this.shadowRoot.querySelector('#componentmappingdialog').show();
+    }
+
+    /**
+     * Apply the mapping: placeholder attrs are written onto the PSEUDO-VIEW
+     * (cancel-safe — they die with the discarded view), while the updated
+     * feezal-params is stashed on _componentEdit and only written to the
+     * template at COMMIT, so Cancel discards the whole edit including the
+     * mapping. Params still referenced elsewhere (`${p}` in text/template
+     * content) survive; params no longer referenced anywhere are dropped.
+     */
+    _applyComponentMapping() {
+        if (!this._componentEdit || !this._componentMapping) return;
+        const view = feezal.getView(this._componentEdit.viewName);
+        const template = this._componentTemplate(this._componentEdit.name);
+        if (!view || !template) return;
+
+        let oldParams = {};
+        try { oldParams = JSON.parse(template.getAttribute('feezal-params') || '{}'); } catch { /* keep {} */ }
+        if (this._componentEdit.paramsOverride) oldParams = this._componentEdit.paramsOverride;
+
+        const newParams = {};
+        for (const row of this._componentMapping.rows) {
+            const param = (row.param || '').trim();
+            const el = view.children[row.elemIndex];
+            if (!el) continue;
+            if (param) {
+                if (!/^[a-z][a-z0-9-]*$/.test(param)) {
+                    this._componentMapping = {...this._componentMapping, error: `invalid parameter name "${param}"`};
+                    return;
+                }
+                el.setAttribute(row.attr, '${' + param + '}');
+                if (!newParams[param]) {
+                    newParams[param] = oldParams[param] ?? {type: row.type, default: row.baseValue};
+                }
+            } else if (el.getAttribute(row.attr)?.match(/^\$\{[a-z][a-z0-9-]*\}$/)) {
+                // Un-mapped: bake the default back in as a fixed value.
+                el.setAttribute(row.attr, row.baseValue);
+            }
+        }
+        // Keep params still referenced outside attributes (text nodes,
+        // nested template content) — scan the live markup after the edits.
+        const markup = view.innerHTML;
+        for (const [p, spec] of Object.entries(oldParams)) {
+            if (!newParams[p] && markup.includes('${' + p + '}')) newParams[p] = spec;
+        }
+
+        this._componentEdit = {...this._componentEdit, paramsOverride: newParams};
+        this._componentMapping = null;
+        this.shadowRoot.querySelector('#componentmappingdialog').hide();
+    }
+
     /** Done: write the pseudo-view back into the template, re-stamp instances. */
     _commitComponentEdit() {
         if (!this._componentEdit) return;
-        const {name, viewName, returnView} = this._componentEdit;
+        const {name, viewName, returnView, paramsOverride} = this._componentEdit;
         this._componentEdit = null;
 
         const view = feezal.getView(viewName);
@@ -2381,6 +2500,9 @@ class FeezalAppEditor extends LitElement {
             [...view.children].forEach(child => holder.content.append(child.cloneNode(true)));
             this._clean(holder.content);
             template.innerHTML = holder.innerHTML;
+            // U52: a mapping edit stashed its params — apply with the same
+            // commit (one undo step; Cancel never reaches this).
+            if (paramsOverride) template.setAttribute('feezal-params', JSON.stringify(paramsOverride));
         }
         view?.remove();
         this.views = [...feezal.views];

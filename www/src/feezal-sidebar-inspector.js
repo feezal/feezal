@@ -488,6 +488,9 @@ class FeezalSidebarInspector extends LitElement {
                         if (data.viewer && data.viewer.connection) {
                             viewerSidebar.connection = data.viewer.connection;
                         }
+                        // U43: the loaded config IS the deployed state — arm
+                        // the Apply-connection-settings dirty detection.
+                        viewerSidebar.markConnectionDeployed?.();
                         // A9: restore the PWA opt-in from the persisted config
                         viewerSidebar.pwa = Boolean(viewerConfig && viewerConfig.pwa);
                         // A9 Tier 2a: mobile-app export settings
@@ -822,6 +825,18 @@ class FeezalSidebarInspector extends LitElement {
             const onElem = Boolean(elem) && !this.viewSelected;
             this._showCtxMenu(e.clientX, e.clientY, onElem);
         }, true);
+
+        // U52: double-click on a component INSTANCE enters component edit
+        // mode — the context-menu entry's discoverable sibling. Guarded on
+        // feezal-component, so double-clicks on other element types (and on
+        // plain elements inside edit mode) are untouched.
+        view.addEventListener('dblclick', e => {
+            const elem = e.composedPath().find(el => el.localName === 'feezal-component' && el.feezalEditable);
+            if (!elem) return;
+            e.preventDefault();
+            e.stopPropagation();
+            feezal.app._openComponentEdit(elem.getAttribute('name'));
+        }, true);
     }
 
     /**
@@ -927,6 +942,25 @@ class FeezalSidebarInspector extends LitElement {
         const view = feezal.getView(this.view);
         if (!this.dragselect) {
             this.dragselect = {};
+        }
+
+        // B48: instances are keyed by VIEW NAME, but the view ELEMENT under a
+        // name can be replaced — the component-edit pseudo-view is destroyed
+        // on commit and recreated on the next edit under the same name. A
+        // stale instance is bound to the detached old node (its area, its
+        // click/contextmenu listeners), so re-entering edit mode had no click
+        // selection, no rubber-band and no context menu. Detect and dispose,
+        // then fall through to a fresh wire-up of the new node.
+        const stale = this.dragselect[this.view];
+        if (stale && stale.Area?.HTMLNode !== view) {
+            if (!stale.stopped) {
+                try {
+                    stale.stop();
+                } catch (err) {
+                    console.warn('[feezal] stale DragSelect stop failed:', err);
+                }
+            }
+            delete this.dragselect[this.view];
         }
 
         if (!this.dragselect[this.view]) {
@@ -1527,8 +1561,21 @@ class FeezalSidebarInspector extends LitElement {
         if (element.shadowRoot && !element.shadowRoot.querySelector('.feezal-glass-style')) {
             const glassStyle = document.createElement('style');
             glassStyle.className = 'feezal-glass-style';
+            // U42: corner resize grip — shown when hovering a SELECTED element
+            // (not on every hover: too noisy on a dense canvas), in the
+            // selection-ring colour, exactly where the resize hit-area is.
+            // Suppressed wherever resize is: component instances (fixed-size,
+            // resizable disabled below) and flow children get no grip rule;
+            // :not([locked]) tracks lock toggles live. Purely visual —
+            // pointer-events none, the interact.js edges do the work.
+            const resizableGrip = absolute && element.localName !== 'feezal-component';
             glassStyle.textContent =
-                ':host(.feezal-editable)::after{content:"";position:absolute;inset:0;z-index:5;cursor:inherit;}';
+                ':host(.feezal-editable)::after{content:"";position:absolute;inset:0;z-index:5;cursor:inherit;}' +
+                (resizableGrip ? '\n:host(.feezal-editable.feezal-selected:not([locked]):hover)::before{' +
+                    'content:"";position:absolute;right:0;bottom:0;width:12px;height:12px;z-index:6;' +
+                    'pointer-events:none;' +
+                    'background:linear-gradient(135deg,transparent 50%,rgba(var(--feezal-selection-rgb, 2,132,199),0.9) 50%);' +
+                    '}' : '');
             element.shadowRoot.appendChild(glassStyle);
         }
 

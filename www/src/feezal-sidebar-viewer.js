@@ -466,6 +466,19 @@ class FeezalSidebarViewer extends LitElement {
                         @sl-change="${e => { this.connection = {...this.connection, _password: e.target.value}; this._buildUri(); this._applyConnection(); feezal.app.change(true); }}">
                     </sl-input>
 
+                    <!-- U43: deploy surfaced where the change was made; enabled
+                         only while the broker settings differ from the deployed
+                         ones ("you have unapplied changes here"). -->
+                    <sl-button id="btn-apply-connection" size="small" style="margin-top:8px"
+                        variant="${this._connDirty ? 'primary' : 'default'}"
+                        ?disabled="${!this._connDirty || feezal.app?.deploying}"
+                        @click="${this._applyConnSettings}">
+                        Apply connection settings
+                    </sl-button>
+                    ${this._connDirty ? html`
+                        <div class="pwa-hint">Broker settings changed — apply to deploy them
+                        (same action as Deploy; connected viewers reload).</div>` : ''}
+
                     ${isTls ? html`
                         <div class="section-label">TLS</div>
                         ${hasCa ? html`
@@ -727,6 +740,37 @@ class FeezalSidebarViewer extends LitElement {
         this.connection = {...this.connection, [key]: value};
         this._applyConnection();
         feezal.app.change(true);
+    }
+
+    // ── U43: "Apply connection settings" with dirty detection ───────────────
+
+    /** Comparable snapshot of the deploy-relevant connection fields. */
+    _connSnapshot() {
+        const c = this.connection || {};
+        return JSON.stringify({uri: c.uri || '', protocolVersion: c.protocolVersion || 4});
+    }
+
+    /**
+     * Remember the currently DEPLOYED connection. Called when the site loads
+     * (the persisted config arrives) and after every successful deploy, so
+     * the Apply button reads as "you have unapplied changes here" and goes
+     * quiet the moment they are applied.
+     */
+    markConnectionDeployed() {
+        this._deployedConn = this._connSnapshot();
+        this.requestUpdate();
+    }
+
+    get _connDirty() {
+        // Before the first load snapshot exists, never claim dirtiness.
+        return this._deployedConn !== undefined && this._deployedConn !== this._connSnapshot();
+    }
+
+    /** U43: deploys the whole site (the same action as Deploy, surfaced where
+     * the change was made — one deploy semantics, per the roadmap decision). */
+    _applyConnSettings() {
+        if (!this._connDirty) return;
+        feezal.app._deploy();
     }
 
     _setSite(key, value) {

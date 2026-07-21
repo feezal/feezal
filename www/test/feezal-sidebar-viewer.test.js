@@ -123,3 +123,54 @@ describe('_setSite() / _applySite() — site attribute round-trip', () => {
         expect(feezal.site.getAttribute('playlist-resume')).toBe('120');
     });
 });
+
+// ── U43: "Apply connection settings" dirty detection ────────────────────────
+
+describe('apply-connection-settings dirty detection (U43)', () => {
+    it('is never dirty before the deployed baseline exists', () => {
+        const el = makeSidebar({uri: 'mqtt://a'});
+        expect(el._connDirty).toBe(false);
+    });
+
+    it('editing the connection after the baseline arms the button', () => {
+        const el = makeSidebar({uri: 'mqtt://a', protocolVersion: 4});
+        el.markConnectionDeployed();
+        expect(el._connDirty).toBe(false);
+
+        el.connection = {...el.connection, uri: 'mqtt://b'};
+        expect(el._connDirty).toBe(true);
+    });
+
+    it('a successful deploy re-baselines and quiets the button', () => {
+        const el = makeSidebar({uri: 'mqtt://a'});
+        el.markConnectionDeployed();
+        el.connection = {...el.connection, uri: 'mqtt://b'};
+        expect(el._connDirty).toBe(true);
+
+        el.markConnectionDeployed();   // deploy callback
+        expect(el._connDirty).toBe(false);
+    });
+
+    it('protocolVersion changes count as dirty; unrelated fields do not', () => {
+        const el = makeSidebar({uri: 'mqtt://a', protocolVersion: 4});
+        el.markConnectionDeployed();
+        el.connection = {...el.connection, protocolVersion: 5};
+        expect(el._connDirty).toBe(true);
+
+        el.connection = {...el.connection, protocolVersion: 4, _host: 'display-only'};
+        expect(el._connDirty).toBe(false);   // structured fields feed uri via _buildUri, not the snapshot
+    });
+
+    it('_applyConnSettings deploys only while dirty', () => {
+        feezal.app = {_deploy: vi.fn(), change() {}};
+        const el = makeSidebar({uri: 'mqtt://a'});
+        el.markConnectionDeployed();
+
+        el._applyConnSettings();
+        expect(feezal.app._deploy).not.toHaveBeenCalled();
+
+        el.connection = {...el.connection, uri: 'mqtt://b'};
+        el._applyConnSettings();
+        expect(feezal.app._deploy).toHaveBeenCalledTimes(1);
+    });
+});
