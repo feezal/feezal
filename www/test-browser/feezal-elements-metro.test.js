@@ -423,12 +423,14 @@ describe('metro-light inspector (N6)', () => {
         light.setAttribute('subscribe-brightness', 'stat/bri');
         const inspector = await mountInspector(light);
 
-        // Brightness section enabled (topic present), color temp + color collapsed.
+        // Brightness section enabled (topic present), the rest collapsed.
+        // E127 added the Settling section between Brightness and Color Temp.
         const sections = inspector.shadowRoot.querySelectorAll('sl-tab-panel[name=topics] .section');
-        expect(sections).toHaveLength(4);   // State + Brightness + Color Temperature + Color RGB/HS
+        expect(sections).toHaveLength(5);   // State + Brightness + Settling + Color Temperature + Color RGB/HS
         const switches = inspector.shadowRoot.querySelectorAll('sl-switch');
         expect(switches[0].checked).toBe(true);    // brightness
-        expect(switches[1].checked).toBe(false);   // color temp
+        expect(switches[1].checked).toBe(false);   // settling (E127)
+        expect(switches[2].checked).toBe(false);   // color temp
 
         // Switching brightness off clears its topics on the element.
         switches[0].checked = false;
