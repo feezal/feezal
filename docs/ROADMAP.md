@@ -55,10 +55,8 @@ Work in progress — priorities and scope are not final.
 - [E114 — Family parity contract: material / glass / metro / plain stay in sync](#e114--family-parity-contract-material--glass--metro--plain-stay-in-sync--needs-discussion) ⚠️
 - [E115 — Switch an element to another family (context menu)](#e115--switch-an-element-to-another-family-context-menu--to-refine) 💡 *(to refine)*
 - [E116 — "Plain" element family (`feezal-element-plain-*`) — zero styling](#e116--plain-element-family-feezal-element-plain----zero-styling--to-refine) 💡 *(to refine)*
-- [E117 — `publish-local` on every publishing element (buttons first)](#e117--publish-local-on-every-publishing-element-buttons-first)
-- [E118 — `click-through` on `basic-number`, `basic-icon-value`, `basic-datetime`](#e118--click-through-on-basic-number-basic-icon-value-basic-datetime)
+- [E117 — `publish-local` on every publishing element](#e117--publish-local-on-every-publishing-element-partial--buttons--072026) *(partial — buttons ✅)*
 - [E119 — `basic-number`: configurable placeholder before the first value](#e119--basic-number-configurable-placeholder-before-the-first-value)
-- [E120 — Homematic cover discovery: wire Up/Down to the LEVEL set topic](#e120--homematic-cover-discovery-wire-updown-to-the-level-set-topic)
 - [E124 — Contact elements: dedicated low-battery indicator](#e124--contact-elements-dedicated-low-battery-indicator)
 - [E125 — Homematic battery voltage (`OPERATING_VOLTAGE`)](#e125--homematic-battery-voltage-operating_voltage--future) 💡
 - [E126 — Homematic discovery: switch recognizer with name word-list heuristic (+ light classification)](#e126--homematic-discovery-switch-recognizer-with-name-word-list-heuristic--light-classification)
@@ -72,12 +70,10 @@ Work in progress — priorities and scope are not final.
 - [U38 — Topic browser sidebar panel](#u38--topic-browser-sidebar-panel)
 - [U42 — Resize handle affordance on the selected element](#u42--resize-handle-affordance-on-the-selected-element)
 - [U43 — "Apply connection settings" button with dirty detection](#u43--apply-connection-settings-button-with-dirty-detection)
-- [U44 — Inspector: clear (×) button on fields that have a default](#u44--inspector-clear--button-on-fields-that-have-a-default)
 - [U45 — Element insertion: palette sidebar + full-screen picker](#u45--element-insertion-palette-sidebar--full-screen-picker--to-refine) 💡 *(to refine)*
 - [U46 — Clippy easter egg in the help popup](#u46--clippy-easter-egg-in-the-help-popup--low-priority) 🔽
 - [U48 — Make the viewer's `Connected as "…"` toast optional](#u48--make-the-viewers-connected-as--toast-optional)
 - [U50 — layout-app: expose the content area's inset (padding)](#u50--layout-app-expose-the-content-areas-inset-padding)
-- [U51 — Per-view themes](#u51--per-view-themes)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -707,6 +703,7 @@ feezal ships many themes but has **no in-viewer control to switch them** — the
 - **Switch mechanism:** themes apply via a `<link href="/themes/<name>.css">` swap — the editor already does exactly this ([feezal-app-editor.js:433-439](../www/src/feezal-app-editor.js#L433-L439), `feezal-user-theme-link`). Extract that into a small shared `feezal.applyTheme(name)` helper usable by the viewer, and the element calls it. Verify the theme CSS files are present under the same path in the **static export** (the export must ship all installed themes, or at least the ones the element references — check `createExport()`), else document export limitation.
 - **Attributes:** `mode` (`toggle` | `select` | `auto`, default `toggle`), `theme-light` + `theme-dark` (theme names used by `toggle` and `auto`), `default-theme` (initial theme when nothing persisted; empty = the site's editor-chosen theme), `persist` (boolean, default `true`).
 - **Persistence & precedence:** persisted client choice (`localStorage`, key scoped per site) → `default-theme` attribute → the site's editor-set theme. `auto` mode is a **pure follower** of `prefers-color-scheme` (live via media-query listener) and never persists — keeping the override semantics trivial; users who want manual control use `toggle`.
+- **U51 integration (per-view themes, ✅ shipped 07/2026):** an active user choice must set `feezal.site._themeOverride` (the site's `theme` control command already does this — reuse `applyControlCommand('theme', …)` rather than swapping classes directly) so per-view themes are suppressed while the user's pick is active. The `select` picker **must include a "Site default" entry** that clears the override (`applyControlCommand('theme', 'default')`) — that path restores the baked site theme AND re-enables per-view themes.
 - **Picker source (`select` mode):** the installed-theme list surfaced by the existing theme machinery (`window.feezal.themes`; verify it's populated in the viewer, not only the editor — if not, expose it there).
 - **Rendering:** `toggle` = sun/moon icon button; `select` = a small `sl-select` of theme names; `auto` = renders a passive indicator (or nothing — `display:none` viewer-side, chip in editor). Editor mode: control renders but is **inert** (editor theme is not affected); standard palette element, normal position/size.
 - **Styles (§5.1):** icon/track colours as `--feezal-theme-switch-*` custom properties defaulting to `--primary-text-color` / `--primary-color`.
@@ -925,14 +922,6 @@ Changing the MQTT broker settings and then having to find the global **Deploy** 
 
 **Relates:** N7 ✅ (MQTT connection configuration UI — the form this attaches to), N32 ✅ (deploy auto-reloads connected viewers — so applying settings has an immediate visible effect), **A12** (export/deployment targets — owns the Deploy button and its dropdown; keep the two consistent), U37/U41 ✅ (the wizard already spotlights the Host input — this closes the loop the wizard opens).
 
-### U44 — Inspector: clear (×) button on fields that have a default
-
-Every inspector input **that has a default** should offer a small `×` inside the field to clear it back to that default. Today, reverting an attribute means selecting the text and deleting it, and it's not obvious that an empty field means "use the default" — especially now that **U39** ✅ surfaces defaults as placeholders (so the field *looks* populated when it isn't, and vice-versa).
-
-**Spec sketch:** the `×` appears only when the attribute is explicitly set (i.e. differs from the default), clearing removes the attribute rather than writing an empty string, and it routes through the normal debounced change/undo pipeline (U36 ✅). Applies to text/number/select/color/topic inputs; the existing `feezal-topic-input` (B28 ✅) needs it too.
-
-**Relates:** **U39** ✅ (structured inspector + defaults-as-placeholder — this completes that UX), U36 ✅ (debounced live-apply — reuse its commit path), N1 ✅ (smart attribute controls), B28 ✅ (shared topic input).
-
 ### U45 — Element insertion: palette sidebar + full-screen picker 💡 to refine
 
 The left palette is a poor place to *browse* a catalog that now spans many families and dozens of elements — it's narrow, filtering was weak (**B42** ✅ fixed — name/category/family now all match), and finding the right element requires knowing where it lives. But the sidebar has one irreplaceable strength: **drag-to-canvas**, which places the element exactly where the user wants it.
@@ -987,26 +976,6 @@ The embedded view sits flush against the app bar and drawer — there is no way 
 - Accept a full CSS shorthand (`8px`, `8px 16px`, …) rather than a number, so per-side insets need no extra knobs.
 
 **Relates:** E-layout-app (the shell), N36 (the `--feezal-app-*` style-var set this extends), E38 (element scaling / responsive sizing — a responsive inset would belong there).
-
-### U51 — Per-view themes
-
-Let each view render in its **own theme** — a dark camera-wall view next to a light living-room view — with the site theme as the default for views that don't set one.
-
-**Mechanism (the cheap part, verified):** feezal themes are already **class-scoped** — every theme package injects `.feezal-theme-<name> { --vars…; font-family… }` into `document.head`. Per-view theming is therefore just **putting the theme class on the `feezal-view` element**: the custom properties cascade within that view only. No `<link>` swapping, no flicker on view switches, and it works identically in the editor canvas.
-
-**Decided (07/2026):**
-- **Setting:** a `theme` attribute on `feezal-view` (empty = site theme), edited as a **dropdown of installed themes in the view inspector** (list from `window.feezal.themes`). Serializes with the view HTML automatically.
-- **Precedence: user choice wins.** When the viewer has an active E91 theme choice (switcher pick / persisted localStorage / future MQTT sync), per-view themes are **suppressed** — the user's theme applies everywhere. Per-view themes act as the *design default* that applies while the user is on "site default". Implementation: `feezal.applyTheme(name)` sets a site-level override state; while it's set, view theme classes are not applied (removed); clearing back to site default re-enables them. **E91's picker needs an explicit "Site default" entry** for exactly this — record that as an E91 spec addition.
-- **Embedded views keep their own theme.** A layout-app / dialog-view clone carries the view's theme class, so an embedded view renders in its assigned theme inside a differently-themed shell — the class-scoped CSS gives this for free; just verify the clone path copies the class (and doesn't fight the shell's background-copy logic, [feezal-element-layout-app.js:342-348](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js#L342-L348)).
-
-**Implementation notes:**
-- **Theme loading:** a per-view theme is only usable if its CSS is present — bundled themes inject on import; **user themes** load via the `/themes/<name>.css` link mechanism. The viewer must load the theme CSS for every theme referenced by *any* view (scan on site load), and the **export** must include those files — same verification E91 already carries; do them together.
-- Editor canvas applies the class live when the attribute changes (instant preview); the views sidebar could later badge themed views (not in scope).
-- Nesting rule: innermost class wins by CSS cascade — exactly the wanted semantics; nothing to implement.
-
-**Ships with:** TESTING.md section (view with own theme vs site theme, switching between differently-themed views, embedded themed view inside a shell, E91 user-choice suppression + return to site default, user-theme loading, export).
-
-**Relates:** E91 (theme switcher — precedence contract + the new "Site default" entry), theme packages (the class-scoped mechanism this rides on), layout-app / dialog-view (clone semantics), A18 (kiosk — per-view dark/light without a global switch), U41 (view-level attribute editing surface).
 
 ### E109 — evcc integration: native discovery + energy/charging elements 💡 to refine
 
@@ -1189,42 +1158,15 @@ A fourth device family with **no visual styling at all**: text and values only, 
 
 **Relates:** **E114** (parity contract — plain is its 4th member), **E113** (a style value, not a new kind of element), **E115** (a natural switch target), **E57** (e-ink family — adjacent "constraints are the spec" precedent; plain is *unstyled*, e-ink is *differently* styled), N29 ✅ (bundle packaging — plain should ship as one family bundle).
 
-### E117 — `publish-local` on every publishing element (buttons first)
+### E117 — `publish-local` on every publishing element *(partial — buttons ✅ 07/2026)*
 
-A button that opens a dialog has to publish its trigger to the **broker** and wait for it to come back, because there is no way to say "this publish is page-local". That round-trip is pointless for pure UI wiring (open a dialog, switch a view, drive another element on the same page), it puts UI chatter on the broker, and it fails outright when the connection is down.
+**Shipped 07/2026 (the "buttons first" tranche):** the base package exports the shared descriptor — `publishLocalAttribute` in `@feezal/feezal-element` 3.0.3 (name/help defined ONCE, per the design note below) — and all six button elements carry it, threading `{local: this.publishLocal}` into `pub()`: `material-button` 3.0.1, `material-icon-button` 3.0.1, `material-fab` 3.0.1, `glass-button` 3.0.7, `carbon-button` 3.0.1, `paper-button` 3.0.1 (Polymer — inline descriptor, same wording). Browser tests cover the option threading and the shared descriptor.
 
-**The runtime already supports it — almost nothing exposes it.** `FeezalConnection.pub()` takes `{local: true}` and short-circuits straight into `_spreadMessage()` without touching the backend ([feezal-connection.js:167-178](../www/src/feezal-connection.js#L167-L178)). Of the **66** element packages that call `pub()`, exactly **one** — `feezal-element-paper-tabs`, a legacy Polymer element — declares a `publishLocal` attribute and passes it through ([feezal-element-paper-tabs.js:99](../www/packages/@feezal/feezal-element-paper-tabs/feezal-element-paper-tabs.js#L99)). Every other element hardcodes a broker publish: `feezal.connection.pub(this.publish, this.payload)` ([feezal-element-material-button.js:131](../www/packages/@feezal/feezal-element-material-button/feezal-element-material-button.js#L131), and the same line in glass/carbon/paper/material-icon buttons).
+**Remaining:** switches/checkboxes/sliders/selects, then the device elements — spread `publishLocalAttribute` the same way (Lit: import + property + constructor default + pub options; Polymer: inline copy). The family-parity contract (**E114**) is what should keep this from drifting half-done. `paper-tabs` still has its own legacy `publishLocal` — converge it on the shared descriptor when touched.
 
-**Wanted:** a shared `publish-local` boolean attribute (default `false`, so nothing changes for existing dashboards) on every element that publishes, threaded into the `pub()` call as `{local: this.publishLocal}`.
+Original motivation: a button that opens a dialog had to publish its trigger to the **broker** and wait for it to come back. That round-trip is pointless for pure UI wiring (open a dialog, switch a view, drive another element on the same page), puts UI chatter on the broker, and fails outright when the connection is down — while `FeezalConnection.pub()` supported `{local: true}` all along ([feezal-connection.js:167-178](../www/src/feezal-connection.js#L167-L178)).
 
-**Rollout order** — buttons are the ask and the obvious win: `material-button`, `material-icon-button`, `material-fab`, `glass-button`, `carbon-button`, `paper-button`. Then switches/checkboxes/sliders/selects, then the device elements. Doing all 66 in one pass is a big mechanical change; the family-parity contract (**E114**) is what should keep it from drifting half-done.
-
-**Design notes:**
-
-- **Name it once.** `publishLocal` is currently a bare string entry in paper-tabs' `attributes` list with no central definition — before sprinkling it across 66 packages, give it a shared descriptor (help text included) the way `subscribe`/`publish`/`messageProperty` are handled, so the label and tooltip can't drift per element.
-- **Boolean default `false` is safe** here (unlike `click-through` on `basic-icon`, which needed a select because a default-`true` boolean can't persist `false` through Lit reflection).
-- Document that a local publish is **page-local**: it never reaches the broker, so nothing outside this browser tab sees it, and it is not retained.
-
-**Relates:** E49 ✅ (page-local publish semantics), **E114** (family parity — the mechanism to land this consistently), E118 (the other "attribute missing on elements that need it" gap), N24 (per-client control topics — the deliberately *non*-local counterpart).
-
-### E118 — `click-through` on `basic-number`, `basic-icon-value`, `basic-datetime`
-
-These three display elements sit on top of buttons all the time (a value label over a tile, a clock over a tappable card) and swallow the click, with no way to let it pass. `basic-number`, `basic-icon-value` and `basic-datetime` declare no `click-through` attribute.
-
-**The pattern already exists in five elements** — `basic-icon`, `basic-image`, `basic-template`, `material-camera`, `tui-crt` — but in **two incompatible shapes**:
-
-| Shape | Elements | Default |
-|---|---|---|
-| `type: 'select'`, options `on`/`off` | `basic-icon` ([feezal-element-basic-icon.js:34-35](../www/packages/@feezal/feezal-element-basic-icon/feezal-element-basic-icon.js#L34-L35)) | **`on`** |
-| `type: 'boolean'` | `basic-image`, `basic-template`, `material-camera` | **`false`** |
-
-`basic-icon` uses a select *because* its default is on: a default-`true` boolean cannot persist `false` through Lit reflection (its own comment says so). The other three default to off, so a plain boolean works.
-
-**Use the boolean shape** for these three: default `false` preserves today's behaviour for existing dashboards, and it matches the majority precedent. Implementation is CSS-only — `pointer-events: none` on the host, re-enabled under `:host(.feezal-editable)` so the element stays selectable and draggable on the canvas ([feezal-element-basic-icon.js:66-77](../www/packages/@feezal/feezal-element-basic-icon/feezal-element-basic-icon.js#L66-L77)).
-
-**Worth folding in:** the two-shape split is itself a wart — a follow-up could converge everything on one representation once there's a way to persist a default-`true` boolean. Note it in `docs/element-spec.md` rather than silently adding a third variant.
-
-**Relates:** E117 (same class of gap — a capability that exists but isn't exposed where it's needed), **E114** (parity contract), `docs/element-spec.md` §3.2 (attribute descriptor types).
+**Relates:** E49 ✅ (page-local publish semantics), **E114** (family parity — the mechanism to land the remainder consistently), E118 ✅ (the sibling attribute-gap item, archived), N24 (per-client control topics — the deliberately *non*-local counterpart).
 
 ### E119 — `basic-number`: configurable placeholder before the first value
 
@@ -1244,22 +1186,6 @@ It is also **inconsistent**: `prefix` and `suffix` render regardless of whether 
 **Relates:** N31 (availability / `unavailable` attribute — the other "this element has no trustworthy value right now" signal; a placeholder and an unavailable state should not contradict each other), E118 (same element family), **E114** (parity contract, if it spreads to siblings).
 
 > **Terminology note for E120:** reported as "*-shutter". The packages are named **cover** (`feezal-element-material-cover`, `-glass-cover`, `-metro-cover`) — same elements. Whether the user-facing label should become "Shutter" is a separate question for **E113** (taxonomy).
-
-### E120 — Homematic cover discovery: wire Up/Down to the LEVEL set topic
-
-A Homematic cover configured through auto-discovery gets position and stop, but its **Up and Down buttons do nothing** — the recognizer emits `position_command_topic` and `stop_command_topic` and no open/close command at all ([native-discovery.js:594-607](../server/src/mqtt/native-discovery.js#L594-L607)). The element's `publish-up`/`publish-down` stay empty, so `_cmdUp()`/`_cmdDown()` publish nowhere ([feezal-element-material-cover.js:402-412](../www/packages/@feezal/feezal-element-material-cover/feezal-element-material-cover.js#L402-L412)).
-
-**Wanted:** point Up and Down at the **same LEVEL set topic** the position slider uses, with `payload-up = 1` and `payload-down = 0` (Homematic LEVEL is 0.0–1.0, so full open / full closed).
-
-**What has to change:**
-
-- **Server** — the Homematic cover `_build()` gains open/close command topics both set to `hmSet(p, writeSeg, 'LEVEL')`, plus `payload_open: '1'` / `payload_close: '0'`.
-- **Client map** — `material-cover`'s `discovery.map` currently routes `payload_open`/`payload_close` to `payload-up`/`payload-down` ([feezal-element-material-cover.js:37-38](../www/packages/@feezal/feezal-element-material-cover/feezal-element-material-cover.js#L37-L38)), which is already what we want, but there is **no map entry for a dedicated up/down topic**. Add one (e.g. `open_command_topic`/`close_command_topic` → `publish-up`/`publish-down`), or reuse the existing native keys — decide deliberately rather than overloading `command_topic`, which maps to `publish` (the JSON-mode base).
-- Apply to the whole family (`glass-cover`, `metro-cover`) per **E114**, not just material.
-
-**Watch out for:** `payload-up`/`payload-down` default to `OPEN`/`CLOSE` ([feezal-element-material-cover.js:80-82](../www/packages/@feezal/feezal-element-material-cover/feezal-element-material-cover.js#L80-L82)) and are *also* used as the **state** payloads (`state_open`/`state_closed` map to the same attributes). Setting them to `1`/`0` for commands must not break state interpretation — check whether these two roles need separating before reusing the attribute pair.
-
-**Relates:** E108 ✅ (native Homematic discovery), **E114** (family parity), E123 ✅ (cover accent/size parity — implemented 07/2026).
 
 ### E124 — Contact elements: dedicated low-battery indicator
 
