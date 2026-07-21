@@ -203,8 +203,14 @@ Build output goes to `www/dist/`. The chunk-size warning for chunks >500 kB is e
 ## Roadmap maintenance
 
 - Open items live in `docs/ROADMAP.md`.
-- Completed items live in `docs/ROADMAP-ARCHIVE.md`.
-- **Whenever you mark a roadmap item as done** (add `✅` to its heading), **immediately move the entire section** — from its `### Hx —` heading line down to (but not including) the next `###` heading — to the appropriate section in `docs/ROADMAP-ARCHIVE.md`. Remove it from `docs/ROADMAP.md` entirely.
+- Completed items live in `docs/roadmap-archive/` — **one file per item**, named after its ID (`U39.md`, `B13.md`, …), indexed by `docs/roadmap-archive/README.md`.
+- **Whenever you mark a roadmap item as done** (add `✅` to its heading), **immediately archive it**:
+  1. Take the entire section — from its `### Hx —` heading line down to (but not including) the next `###` heading — and write it to `docs/roadmap-archive/<ID>.md`. Promote the heading to `#` and keep the second line as the context stamp:
+     `*Archived roadmap item — <Section>. Open items: [../ROADMAP.md](../ROADMAP.md) · Index: [README.md](README.md)*`
+     where `<Section>` is the `## ` section it sat under in `docs/ROADMAP.md`.
+  2. Add a line to the matching section of `docs/roadmap-archive/README.md`: `- [<full heading>](<ID>.md)`.
+  3. Remove the section from `docs/ROADMAP.md` entirely.
+- **Never reuse an ID.** If `docs/roadmap-archive/<ID>.md` already exists, the ID is taken — pick the next free number. (Five IDs were reused before this rule existed; those files carry an `<ID>-<slug>.md` name and are listed under *Reused IDs* in the index.)
 - Do not leave `✅ done` / `✅ fixed` / `✅ implemented` sections in `docs/ROADMAP.md`.
 
 ---

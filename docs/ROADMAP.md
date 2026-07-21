@@ -9,6 +9,14 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B33 — Elements sometimes not selectable/draggable](#b33--elements-sometimes-not-selectabledraggable-needs-investigation) ❓
 - [B36 — Snapping sometimes stops working until page reload](#b36--snapping-sometimes-stops-working-until-page-reload-needs-investigation) ❓
+- [B40 — Late subscribers never get a value: elements mounted after connect stay empty](#b40--late-subscribers-never-get-a-value-elements-mounted-after-connect-stay-empty-) ⚡
+- [B41 — Deeplinking to a layout-app sub-view does not work](#b41--deeplinking-to-a-layout-app-sub-view-does-not-work-needs-investigation) ❓
+- [B42 — Palette filter does not match category / family names](#b42--palette-filter-does-not-match-category--family-names)
+- [B43 — Help popup (`?` button) does not open](#b43--help-popup--button-does-not-open-needs-investigation) ❓
+- [B44 — Asset Manager "new folder" dialog ignores dark mode](#b44--asset-manager-new-folder-dialog-ignores-dark-mode)
+- [B45 — "Add CSS property": Enter does not move focus to the new value field](#b45--add-css-property-enter-does-not-move-focus-to-the-new-value-field)
+- [B46 — Component instances: authored width/height is overwritten with the template's px size](#b46--component-instances-authored-widthheight-is-overwritten-with-the-templates-px-size)
+- [B47 — material-light: dragging the brightness ring scrolls the page on mobile](#b47--material-light-dragging-the-brightness-ring-scrolls-the-page-on-mobile-needs-device-repro) ❓
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -47,14 +55,40 @@ Work in progress — priorities and scope are not final.
 - [E95 — Configurable keyboard shortcuts for interactive elements](#e95--configurable-keyboard-shortcuts-for-interactive-elements)
 - [E96 — MIDI input as an element trigger (Web MIDI)](#e96--midi-input-as-an-element-trigger-web-midi-️-questionable-future) ❓
 - [E107 — Thermostat schedule elements (device week programs)](#e107--thermostat-schedule-elements-device-week-programs--blocked-by-upstream-homematic) 🚧 *(blocked by upstream — Homematic)*
+- [E109 — evcc integration: native discovery + energy/charging elements](#e109--evcc-integration-native-discovery--energycharging-elements--to-refine) 💡 *(to refine)*
+- [E110 — Server-side HTTP→MQTT poller (bridge for services with no MQTT)](#e110--server-side-httpmqtt-poller-bridge-for-services-with-no-mqtt--likely-out-of-scope) ❌ *(likely out of scope — breaks export/native apps)*
+- [E111 — Pi-hole integration](#e111--pi-hole-integration--largely-dissolves-needs-a-user-provided-bridge) ❓ *(largely dissolves — needs a user-provided bridge)*
+- [E112 — Scrypted integration: camera snapshot element](#e112--scrypted-integration-camera-snapshot-element-sensors-already-work--to-refine) 💡 *(to refine)*
+- [E113 — Element taxonomy: make "function × style" explicit](#e113--element-taxonomy-make-function--style-explicit--needs-discussion) ⚠️
+- [E114 — Family parity contract: material / glass / metro / plain stay in sync](#e114--family-parity-contract-material--glass--metro--plain-stay-in-sync--needs-discussion) ⚠️
+- [E115 — Switch an element to another family (context menu)](#e115--switch-an-element-to-another-family-context-menu--to-refine) 💡 *(to refine)*
+- [E116 — "Plain" element family (`feezal-element-plain-*`) — zero styling](#e116--plain-element-family-feezal-element-plain----zero-styling--to-refine) 💡 *(to refine)*
+- [E117 — `publish-local` on every publishing element (buttons first)](#e117--publish-local-on-every-publishing-element-buttons-first)
+- [E118 — `click-through` on `basic-number`, `basic-icon-value`, `basic-datetime`](#e118--click-through-on-basic-number-basic-icon-value-basic-datetime)
+- [E119 — `basic-number`: configurable placeholder before the first value](#e119--basic-number-configurable-placeholder-before-the-first-value)
+- [E120 — Homematic cover discovery: wire Up/Down to the LEVEL set topic](#e120--homematic-cover-discovery-wire-updown-to-the-level-set-topic)
+- [E121 — New element: outlet / plug card (`feezal-element-material-outlet`)](#e121--new-element-outlet--plug-card-feezal-element-material-outlet)
+- [E122 — Lights: on/off-only mode (no dimming)](#e122--lights-onoff-only-mode-no-dimming)
+- [E123 — material-cover: stronger colour, and size parity with material-light](#e123--material-cover-stronger-colour-and-size-parity-with-material-light)
+- [E124 — Contact elements: dedicated low-battery indicator](#e124--contact-elements-dedicated-low-battery-indicator)
+- [E125 — Homematic battery voltage (`OPERATING_VOLTAGE`)](#e125--homematic-battery-voltage-operating_voltage--future) 💡
 
 **Editor UX**
 
 - [U3 — Element grouping and locking](#u3--element-grouping-and-locking-partial) *(grouping not yet done)*
 - [U23 — Custom collapsed placeholder text in the source editor](#u23--custom-collapsed-placeholder-text-in-the-source-editor-blocked-by-upstream) 🚧
 - [U30 — Auto-generated starter dashboard from MQTT discovery](#u30--auto-generated-starter-dashboard-from-mqtt-discovery-questionable-low-priority) ❓ 🔽
-- [U31 — Device-first element insertion](#u31--device-first-element-insertion-questionable-low-priority) ❓ 🔽
+- [U31 — Device-first element insertion](#u31--device-first-element-insertion-) ⚡
 - [U38 — Topic browser sidebar panel](#u38--topic-browser-sidebar-panel)
+- [U42 — Resize handle affordance on the selected element](#u42--resize-handle-affordance-on-the-selected-element)
+- [U43 — "Apply connection settings" button with dirty detection](#u43--apply-connection-settings-button-with-dirty-detection)
+- [U44 — Inspector: clear (×) button on fields that have a default](#u44--inspector-clear--button-on-fields-that-have-a-default)
+- [U45 — Element insertion: palette sidebar + full-screen picker](#u45--element-insertion-palette-sidebar--full-screen-picker--to-refine) 💡 *(to refine)*
+- [U46 — Clippy easter egg in the help popup](#u46--clippy-easter-egg-in-the-help-popup--low-priority) 🔽
+- [U47 — layout-app drawer entries: stop auto-creating views, offer "create new view" in the dropdown](#u47--layout-app-drawer-entries-stop-auto-creating-views-offer-create-new-view-in-the-dropdown)
+- [U48 — Make the viewer's `Connected as "…"` toast optional](#u48--make-the-viewers-connected-as--toast-optional)
+- [U49 — Conditions: expose the message property in the inspector](#u49--conditions-expose-the-message-property-in-the-inspector)
+- [U50 — layout-app: expose the content area's inset (padding)](#u50--layout-app-expose-the-content-areas-inset-padding)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -66,6 +100,7 @@ Work in progress — priorities and scope are not final.
 - [A21 — Accessibility: adopt the web-components Gold Standard for feezal elements](#a21--accessibility-adopt-the-web-components-gold-standard-for-feezal-elements)
 - [A23 — Externalize element families: own git repos + npm publish (paper, tui, panel)](#a23--externalize-element-families-own-git-repos--npm-publish-paper-tui-panel)
 - [A24 — Externalize the metro element family](#a24--externalize-the-metro-element-family-future--will-be-done-later) *(future)*
+- [A25 — Privacy: zero telemetry, zero third-party CDN, works offline](#a25--privacy-zero-telemetry-zero-third-party-cdn-works-offline-) ⚡
 
 
 ---
@@ -85,6 +120,123 @@ Snapping occasionally just stops working during drag/resize — no snap lines, n
 **Fix direction (pending confirmation):** don't trust keyup alone — also resync modifier state from `window blur`/`visibilitychange` (clear both flags when focus leaves the window) and from every subsequent `pointerdown`/`mousedown` (read `event.ctrlKey`/`event.shiftKey` opportunistically). Needs a repro to confirm the stuck-modifier theory before implementing.
 
 **Relates:** B32 (snapping helper lines sometimes don't disappear — could be the same stuck-modifier root cause manifesting as lines stuck *visible* instead of snapping stuck *off*; worth investigating together).
+
+### B40 — Late subscribers never get a value: elements mounted after connect stay empty ⚡
+
+**Repro (confirmed, viewer on the bridge backend, dashboard built on `layout-app`):**
+
+1. Open the viewer on view1 → all values present. ✅
+2. Switch to view2 via the drawer menu → view2 is empty. ❌
+3. Switch back to view1 via the drawer → view1 is **now empty too**. ❌
+4. Navigating the same views directly via the URL hash → always works. ✅
+
+The original report ("no values until a reload") was a symptom of this: a reload re-runs the one code path that does work (the bulk subscribe on `connected`), so everything looks fine again until the next drawer switch.
+
+**Why it matters:** this is the worst class of bug for feezal — the dashboard looks broken exactly when a new user judges it, and `layout-app` is the shell we recommend for real dashboards.
+
+**Root cause (confirmed by reading the code, not yet by instrumenting a run): `feezal-connection` has no last-value cache, and its topic dedupe suppresses the only mechanism that would replay one.**
+
+The chain:
+
+1. `feezal-site` keeps **every** view in the DOM — inactive ones are just `display:none`. Elements subscribe in `connectedCallback` regardless of visibility (`this.visible || !this.dynamicSubscriptions`, and `dynamicSubscriptions` defaults to `false` — [feezal-element.js:108-112](../www/packages/@feezal/feezal-element/feezal-element.js#L108-L112)). So **every topic in the site already has a live subscriber from first load**, whichever view is showing.
+2. `layout-app._embed()` does not reveal the real view — it **clones** it: `view.cloneNode(true)` into `#content`, replacing whatever was there ([feezal-element-layout-app.js:324-349](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js#L324-L349)). `cloneNode` copies attributes only, so the clone is a **cold element**: it holds no state and depends entirely on getting a value delivered after it subscribes. (`layout-view` does the same — [feezal-element-layout-view.js:79-99](../www/packages/@feezal/feezal-element-layout-view/feezal-element-layout-view.js#L79-L99).)
+3. `FeezalConnection.sub()` only forwards a subscribe to the backend **if no other subscription for that topic exists**: `if (this.conn && this.connected && !this.subscriptions.some(s => s.topic === topic))` ([feezal-connection.js:137-154](../www/src/feezal-connection.js#L137-L154)). Because of (1) that condition is **always false** for a clone — the hidden original still holds the subscription.
+4. Nothing is sent to the backend → the hub's per-socket retained replay ([hub.js:154-176](../server/src/socket/hub.js#L154-L176)) and `bridge.refreshRetained()` never fire → no message arrives → `_spreadMessage` has nothing to fan out → **the clone renders its default forever**, until some device happens to publish on that topic.
+
+Why the observed steps behave the way they do:
+
+- **Step 1 works** because the *first* embed happens while `connected` is still `false`. The dedupe is bypassed (the `this.connected` guard short-circuits), and the `connected` handler then bulk-subscribes every collected topic at once — `this.conn.subscribe([...new Set(this.subscriptions.map(s => s.topic))])` ([feezal-connection.js:97-99](../www/src/feezal-connection.js#L97-L99)) — so the retained burst reaches the clone via the normal fan-out.
+- **Steps 2 and 3 fail** because every embed after `connected` hits the dedupe. Step 3 is not a regression on top of step 2: the first view1 clone was destroyed on switch-away (`disconnectedCallback` → `_unsubscribe` → [feezal-element.js:310-317](../www/packages/@feezal/feezal-element/feezal-element.js#L310-L317)), and its replacement is just another cold late subscriber.
+- **Step 4 works** because hash navigation never destroys anything — `feezal-site` toggles `display` on the real view elements, which subscribed at connect time and still hold their values.
+
+**Fix direction — add a last-value cache to `feezal-connection` (backend-agnostic, fixes the whole class):**
+
+- Keep a `topic → lastMessage` map, written in the `message` handler before `_spreadMessage` (cache the *live* stream, not only `retain=1`, so it also covers topics the broker never retained).
+- In `sub()`, replay every cached topic matching the new subscription's filter — to **that callback only**, on a microtask so the subscriber has finished mounting. Wildcard subs must replay all matching cached topics, mirroring `topicMatch` in `_spreadMessage`.
+- Keep the cache across `unsubscribe()` — it is a value store, not a subscriber registry.
+- Evict on empty payload (the MQTT retained-clear convention), matching what the hub already does ([hub.js:56-65](../server/src/socket/hub.js#L56-L65)).
+
+Cheaper interim patch: drop the `!this.subscriptions.some(...)` dedupe so a duplicate subscribe is still forwarded, letting the hub/broker replay. It works (the fan-out reaches all subscribers) but re-delivers the value to every existing subscriber of the topic and depends on the backend replaying — the client-side cache is the correct fix and also covers direct-MQTT viewers whose topics were never retained.
+
+**Verify with:** the exact repro above, plus a non-retained topic (publish once, then switch views twice — the value must survive), plus a wildcard `subscribe` (`+`/`#`) to confirm multi-topic replay.
+
+**Relates:** E-layout-app (the app shell), N30 (view routing), B41 (deeplinking into a sub-view — same late-mount window; likely fixed or unmasked by this), B43 (help popup "appears only after switching the view" — different symptom, same clone/remount lifecycle worth checking).
+
+### B41 — Deeplinking to a layout-app sub-view does not work ❓ needs investigation
+
+Opening a URL that targets a specific `layout-app` sub-view does not land on that view. N30 added view-router delegation and hash `#/<view>/<embedded>` parsing, so the routing contract exists — this is either the app shell not consuming the initial hash on first render (only reacting to *subsequent* changes), or a race where the router resolves before the shell's views are registered.
+
+**Relates:** N30 (view-router registry + `viewPathFromHash()`), B40 (same first-load lifecycle window — check together).
+
+### B42 — Palette filter does not match category / family names
+
+Typing a family or category name into the palette filter finds nothing — e.g. `lcars` returns no results even with the LCARS family installed, because the filter matches only element *names*, not their category/family.
+
+**Fix direction:** widen the filter to also match the element's category, family/package name and (optionally) keywords. Note this is a **symptom of the taxonomy problem** in **E113** — once function and style are explicit axes, "lcars" is a first-class facet rather than a string that happens to appear in a package name. Worth fixing standalone first (small), then folding into E113's picker.
+
+**Relates:** E113 (function × style taxonomy — the structural fix), U45 (palette/picker rework), U24 ✅ (collapsible categories).
+
+### B43 — Help popup (`?` button) does not open ❓ needs investigation
+
+The question-mark button does not open the help popup on first use; in one observation it appeared only **after switching the view**. That "appears after a view change" symptom points at a render/attach timing issue (popup mounted into a container that isn't ready yet, or a stale reference held across view switches) rather than a broken click handler.
+
+**Relates:** U7 ✅ (element help panel), U37/U41 ✅ (welcome wizard, re-launchable from Editor Settings → Help), U46 (the Clippy easter egg would sit in this popup — fix this first).
+
+### B44 — Asset Manager "new folder" dialog ignores dark mode
+
+The folder-name input in the Asset Manager's new-folder dialog renders with a white background regardless of the editor theme. Precedent for the fix: **U21 ✅** (view rename/delete dialog made dark-mode-aware) — likely the same missing theme-aware styling on a raw `input`/dialog rather than a themed component.
+
+**Relates:** U21 ✅ (dark-mode-aware dialog precedent), N5 ✅ (Asset Manager), B10 (older, unresolved "Asset Manager not functional" catch-all).
+
+### B45 — "Add CSS property": Enter does not move focus to the new value field
+
+In the style inspector's **Add CSS property** box, typing a property name and pressing Enter adds the row but leaves focus in the add-property input. You have to reach for the mouse to click the value field before typing the value — breaking the obvious keyboard flow (`font-size` ⏎ `14px` ⏎).
+
+**Cause:** `_commitAddProp()` ([feezal-sidebar-inspector-styles.js:775-800](../www/src/feezal-sidebar-inspector-styles.js#L775-L800)) appends the item to `this.items` and clears the add-property state, but never focuses the row it just created. Same on the click path (picking a suggestion from the autocomplete list).
+
+**Fix direction:** after committing, `await this.updateComplete` and focus the new row's editor — the value inputs already carry `data-property` ([feezal-sidebar-inspector-styles.js:328](../www/src/feezal-sidebar-inspector-styles.js#L328)), so `this.renderRoot.querySelector(\`[data-property="${prop}"]\`)?.focus()` finds it. Cover both control shapes: enum properties render an `sl-select` rather than an `sl-input` ([feezal-sidebar-inspector-styles.js:311-330](../www/src/feezal-sidebar-inspector-styles.js#L311-L330)), and the row may be appended below the fold — scroll it into view. Keep the add-property input's own Enter handling intact (`e.preventDefault()` already stops a stray form submit).
+
+**Relates:** U36 (debounced live style commits — the value field's commit path), N34 (custom style-group editors, which render their own controls and have no single value input to focus).
+
+### B46 — Component instances: authored width/height is overwritten with the template's px size
+
+Setting a component instance to `width: 100%` in the editor sticks there, but the viewer renders it at the template's pixel width (e.g. `100px`). The authored size is silently discarded.
+
+**Confirmed: this is not editor-vs-viewer — it is "any fresh load wins over the author".** After a deploy + reload the **editor** snaps from `100%` to `100px` too. The edit only ever survives in the live editor session that made it.
+
+**Cause:** `_updateSize()` computes the bounding box of the template's children from their inline px styles and **assigns it straight onto the instance**: `this.style.width = right + 'px'` ([feezal-component.js:166-179](../www/src/feezal-component.js#L166-L179)). It runs at the end of every `_stamp()` ([feezal-component.js:127](../www/src/feezal-component.js#L127)), and `_stamp()` runs from `connectedCallback` ([feezal-component.js:57-58](../www/src/feezal-component.js#L57-L58)). So on viewer load the saved `style="width:100%"` is parsed onto the element, then immediately clobbered by the template-derived px value.
+
+The editor only *looks* different while you are editing because `style` is in `IGNORED_ATTRS` ([feezal-component.js:26](../www/src/feezal-component.js#L26)) — changing the width doesn't trigger a re-stamp, so the `100%` survives until the next load. That matches the confirmed deploy-and-reload behaviour above exactly: the value is saved correctly, and then thrown away by the next `connectedCallback`.
+
+**Fix direction:** treat the template bounding box as a **default, not an override** — only write `style.width`/`style.height` when the instance has no author-specified value. The authored size arrives as an inline style on the tag, so capture it before the first stamp (or test `this.style.width` before assigning) rather than reading it back after `_stamp()` has already overwritten it. Re-stamps triggered by param changes must not resurrect the px size either.
+
+**Design question to settle first — is `width: 100%` even meaningful here?** The instance's children are absolutely positioned at fixed px offsets (`::slotted(*) { position: absolute }` — [feezal-component.js:44](../www/src/feezal-component.js#L44)), and the code documents instances as fixed-size by design ("Fixed-size instances (MVP) … resize handles are suppressed in the editor"). Honouring `100%` therefore yields a wide box with unchanged px children parked in its top-left — probably not what the user wants. Two coherent outcomes:
+
+- **(a) Honour the authored size** and leave children unscaled — correct per CSS, arguably still surprising.
+- **(b) Honour it *and* scale the content** (`transform: scale()` against the template's natural size, or a container-query/`svg`-style viewBox mapping) — this is the behaviour users actually expect from a "100% wide component", and it belongs with **E38** (element scaling / responsive sizing).
+
+Either way the current behaviour — accept the edit in the inspector, then discard it on load — is wrong. If (b) is deferred, the minimum fix is (a) plus **not offering** a width the runtime intends to override.
+
+**Relates:** U32 ✅ (composed components — the feature), E38 (element scaling / responsive sizing — where content-scaling belongs), U3 (grouping/locking — the other multi-element abstraction with the same sizing question).
+
+### B47 — material-light: dragging the brightness ring scrolls the page on mobile ❓ needs device repro
+
+On a touch device, dragging the circular brightness ring pans the page up/down instead of (or as well as) changing the brightness. The gesture is unusable on exactly the devices the card is designed for.
+
+**What the code already does right — so the obvious cause is ruled out:** the `svg` carries `touch-action: none` and `user-select: none` ([feezal-element-material-light.js:359-366](../www/packages/@feezal/feezal-element-material-light/feezal-element-material-light.js#L359-L366)), which should stop the browser treating a touch that starts there as a pan.
+
+**Two concrete differences from the colour-temperature track, which reportedly does not misbehave:**
+
+1. **No pointer capture.** `_onCtDown` calls `e.currentTarget.setPointerCapture(e.pointerId)` ([feezal-element-material-light.js:776](../www/packages/@feezal/feezal-element-material-light/feezal-element-material-light.js#L776)). The ring drag does not — `_startBrtDrag` instead attaches `pointermove`/`pointerup` listeners to **`document`** ([feezal-element-material-light.js:733-763](../www/packages/@feezal/feezal-element-material-light/feezal-element-material-light.js#L733-L763)). Without capture the gesture is not owned by the SVG, and a circular drag travels well outside it.
+2. **No `preventDefault()`** on the `pointerdown` in either path.
+
+**Suspected aggravator:** the card is typically inside a scrollable ancestor — `layout-app`'s content pane is `overflow: auto` ([feezal-element-layout-app.js:155](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js#L155)) — which is what actually does the scrolling.
+
+**Fix direction:** mirror the CT track — `setPointerCapture` on pointerdown, attach `pointermove`/`pointerup` to the captured element rather than `document`, release on up, and `preventDefault()` the pointerdown. Confirm `touch-action: none` is not being defeated by the SVG's `overflow: visible` (ring geometry painted outside the box may hit-test differently than expected).
+
+**Needs a real device repro** before implementing — the mechanism above is inferred from a code read, and `touch-action: none` being present means the simple explanation is already ruled out. Reproduce on a phone (or DevTools touch emulation, which does honour `touch-action`) and confirm whether the scroll is the page or a `layout-app` content pane.
+
+**Relates:** E-material-light (the element), U-layout-app (the usual scrolling ancestor), E38 (touch/responsive behaviour generally).
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
@@ -624,9 +776,9 @@ A third element **design system** alongside paper (Polymer Paper) and material (
 
 ### E85 — Backlog: additional component-library design systems 💡 idea
 
-Parking lot for further **off-the-shelf web-component UI libraries** that could each back a future `feezal-element-<category>-*` family, evaluated but not prioritised over Spectrum (E83) and Wired (E84 — since shipped, see ROADMAP-ARCHIVE). All are framework-agnostic custom elements wrappable the same way as paper/material; the recurring trade-offs are **bundle cost**, **Lit-nativeness** (cleanest integration), and how well their design tokens map onto feezal themes.
+Parking lot for further **off-the-shelf web-component UI libraries** that could each back a future `feezal-element-<category>-*` family, evaluated but not prioritised over Spectrum (E83) and Wired (E84 — since shipped, see [roadmap-archive/E84.md](roadmap-archive/E84.md)). All are framework-agnostic custom elements wrappable the same way as paper/material; the recurring trade-offs are **bundle cost**, **Lit-nativeness** (cleanest integration), and how well their design tokens map onto feezal themes.
 
-- ~~**IBM Carbon**~~ — ✅ **promoted and implemented (July 2026)** as the built-in `feezal-element-carbon-*` family (button/switch/checkbox/slider/select/input, wrapping `@carbon/web-components`); see ROADMAP-ARCHIVE **E98** for scope, token mapping and the measured bundle cost.
+- ~~**IBM Carbon**~~ — ✅ **promoted and implemented (July 2026)** as the built-in `feezal-element-carbon-*` family (button/switch/checkbox/slider/select/input, wrapping `@carbon/web-components`); see [roadmap-archive/E98.md](roadmap-archive/E98.md) for scope, token mapping and the measured bundle cost.
 - **Shoelace / Web Awesome** (Lit, Shoelace core MIT) — neutral modern web ("Bootstrap for web components"). **Already a dependency** (editor chrome), so the lowest-cost family to add — but it's currently kept *out* of viewer elements on purpose (bundle discipline), and Web Awesome (the successor) has a paid tier. Decide the viewer-bundle trade-off first.
 - **Microsoft Fluent UI** (`@fluentui/web-components`) — Fluent 2 (Windows/Office) design language, distinct look. Watch-out: Microsoft's web-component stack (FAST → Fluent WC) has churned repeatedly — stability risk.
 - **SAP UI5 Web Components** (`@ui5/webcomponents`, Apache-2.0) — SAP Fiori design, very distinct enterprise aesthetic. Heavier; strongly opinionated.
@@ -847,11 +999,21 @@ A "generate views from discovered devices" wizard: walk the discovery registry (
 
 **Why questionable:** skepticism that a generated layout would actually be *good* — feezal's value is the hand-crafted free-form canvas, and a mediocre generated result may hurt more than a blank canvas. The AI assistant (with its existing `search_discovery`/`search_topics` tools) may be the better path to the same goal without any dedicated wizard code. Revisit only if onboarding feedback demands it.
 
-### U31 — Device-first element insertion ❓ questionable 🔽 low priority
+### U31 — Device-first element insertion ⚡
 
-A second palette tab listing discovered devices; dragging a device onto the canvas creates the matching pre-wired element (inverse of today's flow) — inspired by HA 2026.6's entity-first card picker.
+A second palette tab / picker mode listing discovered devices; choosing a device creates the matching pre-wired element (inverse of today's flow) — inspired by HA 2026.6's entity-first card picker.
 
-**Why questionable:** the existing workflow — drag an element, then pick the auto-discovered device in the inspector — is considered good enough. Low value for the palette/DnD complexity it adds. Revisit only with concrete user demand.
+> **Promoted (07/2026) — the "revisit only with concrete user demand" clause has fired.** This entry previously read *"the existing workflow is good enough… low value"*. **User testing showed people actively want device-first insertion**, so the questionable/low-priority markers are dropped. The old objection (palette/DnD complexity) is also much weaker now: **E108** shipped native discovery for whole families of real devices (Homematic climate/contact/cover/light, WLED), so there is now a genuinely populated device list to insert *from* — the feature has content it didn't have when it was first written.
+
+**How it should work (given E113).** With the **function × style** axes made explicit, device-first insertion is simply the two axes *in the other order*: **pick a device → pick a look**. Today's flow is pick-a-look-then-bind; device-first is pick-the-thing-then-style-it. Both should exist and share one picker, rather than device-first being a bolted-on second tab:
+1. User picks a discovered device (grouped by source: Homematic, zigbee2mqtt, WLED, evcc…).
+2. feezal proposes the matching **function** (light / climate / cover / contact / sensor) from the discovery entity's `component`.
+3. User picks the **style family** (material / glass / metro / plain), defaulting to the site's most-used family.
+4. The element is created **pre-wired** — exactly the attribute stamping `_applyDiscovery` already does, just triggered at insert time instead of after.
+
+**Note:** step 4 is essentially free — the discovery→attribute stamping already exists and is well tested; the new work is the picker flow and the function→family resolution, not the wiring.
+
+**Relates:** **E113** (function × style — this is that model applied to insertion), **U45** (the picker this should live inside, not a separate tab), **E108** ✅ (native discovery — supplies the device list), U30 (auto-generated starter dashboard — same onboarding theme, revisit together), E114 (family parity — makes step 3 a safe choice rather than a commitment).
 
 ### U38 — Topic browser sidebar panel
 
@@ -872,6 +1034,454 @@ A new tab in the right sidebar (the icon-tab row in [feezal-app-editor.js](www/s
 **Nice-to-haves:** drag a topic from the tree onto an inspector `mqttTopic` field (or onto a canvas element's primary `subscribe`); double-click to copy; per-node message-rate indicator.
 
 **Relates:** **E62** (topic-tree browser — already decided there as "element + editor panel" with a shared tree component: *this is that editor panel*; the canvas element reuses the component), the `mqttTopic` autocomplete (E62 names the panel as the candidate upgrade path to a browsable picker), B28 (custom-inspector topic fields — the shared picker/autocomplete component serves both), U37 (welcome wizard step 6 — "find a topic" is exactly where a browser beats blind typing).
+
+### U42 — Resize handle affordance on the selected element
+
+Hovering a **currently selected** element should show an explicit **resize handle in its lower-right corner**. Today resizing works but is undiscoverable — the hit area is implicit, so users don't know an element *can* be resized until they stumble into it.
+
+**Spec sketch:** small corner grip, visible on hover of a selected element only (not on every hover — that would be noisy on a dense canvas), matching the selection ring's styling, and suppressed exactly where resize is already suppressed (grouped/locked members per **U3**, component instances per U32, flow-view children where only width/height apply). Cursor already changes on the resize edges — the handle makes that affordance visible rather than changing behaviour.
+
+**Relates:** **U3** (grouping/locking — owns selection affordances and already defines when handles are suppressed), B33 (selection/drag reliability — verify the handle doesn't add another pointer-event surface that can swallow clicks), E38 (element internal scaling — different concern).
+
+### U43 — "Apply connection settings" button with dirty detection
+
+Changing the MQTT broker settings and then having to find the global **Deploy** button is unintuitive — users don't connect "I edited the broker host" with "I must deploy the site". Add a **second, clearly-labelled button next to the broker config inputs** (e.g. *Apply connection settings*) that performs the deploy, so the action is where the change was made.
+
+**Decided:** it must have **dirty detection** — enabled only while there are *undeployed* changes to the broker settings, so it reads as "you have unapplied changes here" rather than as a second permanent Deploy. Disabled/quiet state otherwise.
+
+**Open:** whether it deploys the whole site (same action as Deploy, just surfaced locally — simplest and consistent) or only the connection settings (more precise, but introduces a second deploy semantics users would have to understand). Leaning to the former with local labelling.
+
+**Relates:** N7 ✅ (MQTT connection configuration UI — the form this attaches to), N32 ✅ (deploy auto-reloads connected viewers — so applying settings has an immediate visible effect), **A12** (export/deployment targets — owns the Deploy button and its dropdown; keep the two consistent), U37/U41 ✅ (the wizard already spotlights the Host input — this closes the loop the wizard opens).
+
+### U44 — Inspector: clear (×) button on fields that have a default
+
+Every inspector input **that has a default** should offer a small `×` inside the field to clear it back to that default. Today, reverting an attribute means selecting the text and deleting it, and it's not obvious that an empty field means "use the default" — especially now that **U39** ✅ surfaces defaults as placeholders (so the field *looks* populated when it isn't, and vice-versa).
+
+**Spec sketch:** the `×` appears only when the attribute is explicitly set (i.e. differs from the default), clearing removes the attribute rather than writing an empty string, and it routes through the normal debounced change/undo pipeline (U36 ✅). Applies to text/number/select/color/topic inputs; the existing `feezal-topic-input` (B28 ✅) needs it too.
+
+**Relates:** **U39** ✅ (structured inspector + defaults-as-placeholder — this completes that UX), U36 ✅ (debounced live-apply — reuse its commit path), N1 ✅ (smart attribute controls), B28 ✅ (shared topic input).
+
+### U45 — Element insertion: palette sidebar + full-screen picker 💡 to refine
+
+The left palette is a poor place to *browse* a catalog that now spans many families and dozens of elements — it's narrow, filtering is weak (**B42**), and finding the right element requires knowing where it lives. But the sidebar has one irreplaceable strength: **drag-to-canvas**, which places the element exactly where the user wants it.
+
+**Decided (07/2026): ship both, and make it configurable in Editor Settings.**
+- **Palette sidebar** — keep, and rework: tab switcher at the top, better grouping and tiles, working family/category filter (B42). Retains drag-to-canvas.
+- **Full-screen picker** — an **Add element** button in the top bar (and, suggested, double-click on empty canvas) opening a large, searchable modal with room for previews, descriptions, family switching and **device-first insertion (U31)**. Inserts at a sensible default position (canvas centre / last click point).
+- **Editor Settings** decides which surfaces are active (sidebar only / picker only / both).
+
+> **Trade-off, recorded deliberately:** a user-facing toggle means two insertion surfaces to design, test and document forever, and "which one is on" becomes a support question. Accepted knowingly — the two genuinely serve different needs (precise placement vs. browsing a big catalog) and neither fully replaces the other. If the setting proves unused in practice, collapsing to "both, always" is the natural simplification.
+
+**Depends on E113** for its structure: the picker should filter on **function × style**, which is what makes a large catalog navigable and what fixes B42 properly.
+
+**Relates:** **E113** (taxonomy — the picker's information architecture), **U31** (device-first insertion — a mode *inside* this picker, not a separate tab), **B42** (filter bug — fix standalone, then subsumed), U24 ✅ (collapsible categories), U32 ✅ (site-specific Components category — must appear in both surfaces), B20 ✅ (palette drag → snap machinery to preserve).
+
+### U46 — Clippy easter egg in the help popup 🔽 low priority
+
+Optional, off-by-default **Editor Settings** toggle that adds a paperclip assistant — a deliberate homage to the late-90s Microsoft Office assistant — to the help popup. Purely a joke feature.
+
+**Constraints:** must be **opt-in**, must not interfere with the actual help content, and the artwork must be **self-drawn/self-hosted** (an original paperclip, not Microsoft's asset — trademark/copyright) and bundled locally per **A25** (no CDN). Respect `prefers-reduced-motion` if it animates.
+
+**Blocked on B43** — the help popup doesn't reliably open yet; fix that first.
+
+**Relates:** **B43** (help popup bug — prerequisite), **A25** (self-hosted assets), U37 ✅ (welcome wizard — the other "friendly onboarding" surface).
+
+### U47 — layout-app drawer entries: stop auto-creating views, offer "create new view" in the dropdown
+
+Adding a drawer entry in the `layout-app` inspector **always creates a new view** (`page1`, `page2`, …) as a side effect. That is wrong whenever the entry should point at a view that already exists — the common case once a dashboard has a few pages — and it leaves orphan `pageN` views behind that the user then has to hunt down and delete.
+
+**Current behaviour:** `_addEntry()` calls `_uniqueViewName('page')` → `_createView(name)` → appends the entry pre-bound to that fresh view ([feezal-element-layout-app.js:487](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js#L487)); `_createView()` builds the `feezal-view`, copies the current view's inline style, and registers it with the site ([feezal-element-layout-app.js:470-481](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js#L470-L481)).
+
+**Wanted:**
+
+- **"+ add" no longer creates a view.** The new entry starts unbound — its `sl-select` shows a placeholder ("pick a view…") and the entry is simply inert until a view is chosen. `_entries()` already filters out entries without a `view` ([feezal-element-layout-app.js:230-233](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js#L230-L233)), so an unbound entry renders nothing in the viewer — no half-broken drawer.
+- **View creation moves into the dropdown.** The per-entry view `sl-select` ([feezal-element-layout-app.js:530-532](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js#L530-L532)) gets a trailing sentinel option — *"＋ Create new view…"* — visually separated from the real view names. Picking it prompts for a name (default from `_uniqueViewName('page')`), calls the existing `_createView()`, and binds the entry to the result. Cancelling reverts the select to its previous value rather than leaving the sentinel selected.
+
+**Watch out for:** the sentinel value must not collide with a real view name (use a value no view can have, e.g. ` new`, and never write it into `items`); `_setEntry(i, 'view', …)` must be bypassed on the sentinel path; and the select's `.value` needs an explicit reset after a cancel, since Shoelace keeps the picked value otherwise.
+
+**Relates:** E-layout-app (drawer entry inspector), U21 ✅ (view rename/delete dialog — precedent for a themed name prompt rather than `window.prompt`), E9/E45 (the shared synchronous-hide view-creation helper this reuses).
+
+### U48 — Make the viewer's `Connected as "…"` toast optional
+
+Every viewer load pops a `Connected as "<client-id>"` toast ([feezal-presence.js:215](../www/src/feezal-presence.js#L215)). On a wall-mounted or kiosk dashboard — the case feezal is most often used for — that is noise on every reload, and there is currently no way to silence it short of turning presence **off** entirely (Site Settings → Viewer presence, `presence="off"` — [feezal-sidebar-viewer.js:647-651](../www/src/feezal-sidebar-viewer.js#L647-L651)). That is far too blunt: it also drops the retained status publish and the whole per-client command subtree (`view · reload · theme · playlist · addclass · removeclass · rename`), which users very much want to keep.
+
+**Wanted:** a separate switch in **Site Settings → Viewer presence** — "Show connection toasts" (default on, so existing behaviour is unchanged) — writing a `presence-toasts="off"` attribute on `<feezal-site>` alongside the existing `presence` attribute. Presence keeps working; only the on-screen notifications go quiet.
+
+**Scope decision to make when implementing:** `feezal-presence.js` raises three toasts, and they are not equally noisy —
+
+- `Connected as "<id>"` on every start ([feezal-presence.js:215](../www/src/feezal-presence.js#L215)) — pure noise on a kiosk, definitely gated.
+- `This viewer is now "<id>"` after a rename ([feezal-presence.js:201](../www/src/feezal-presence.js#L201)) — confirms a deliberate editor-initiated action; gating it is reasonable but it is not what the user is complaining about.
+- `"<id>" is already online in another browser` ([feezal-presence.js:153](../www/src/feezal-presence.js#L153)) — a **sticky diagnostic warning** about an ID collision that silently doubles every command. Suppressing this hides a real misconfiguration; recommend it stays on regardless, or gets its own setting.
+
+**Implementation notes:** gate inside `toast()` ([feezal-presence.js:104](../www/src/feezal-presence.js#L104)) rather than at each call site if all three are covered, otherwise gate per call. Read the attribute through a helper next to `presenceEnabled()` ([feezal-presence.js:54-57](../www/src/feezal-presence.js#L54-L57)) so the site-attribute contract stays in one place. The viewer bundle carries no UI library — these toasts are plain DOM, so there is no component-level `open` prop to lean on.
+
+**Relates:** N24 ✅ (viewer presence + per-client control topics — the feature these toasts belong to), `docs/presence.md` (documents the `presence` attribute; needs the new one), U-viewer-settings (Site Settings panel this switch lands in).
+
+### U49 — Conditions: expose the message property in the inspector
+
+A condition row can only compare against the message's `payload`. With a JSON payload (`{"val": 21.5, "ts": …}` — mqtt-smarthome, Zigbee2MQTT, most bridges) there is no way to test a nested value, even though every element already offers `message-property` for its primary subscription. The condition either never matches or compares against `[object Object]`.
+
+**This is a UI-only gap — the engine already implements it.** `FeezalConditions.connect()` reads `row.property` and falls back to `'payload'`, resolving it through the host's `getProperty()` (dot-path capable) ([feezal-conditions.js:126-134](../www/packages/@feezal/feezal-element/feezal-conditions.js#L126-L134)), and the row schema documents `property` as "optional dot-path into the message (default `payload`)" ([feezal-conditions.js:15](../www/packages/@feezal/feezal-element/feezal-conditions.js#L15)). `parseConditions()` passes the field through untouched. A hand-written `conditions` attribute with `"property": "val"` works **today**; the conditions inspector simply never renders a control for it, so it is unreachable in the UI and silently dropped whenever a user edits a row that had it.
+
+**Wanted:** a `property` input in the condition row editor ([feezal-sidebar-inspector-conditions.js:393-413](../www/src/feezal-sidebar-inspector-conditions.js#L393-L413)), sitting between `subscribe` and `operator` — placeholder `payload`, matching how `message-property` is presented on the attribute inspector.
+
+**Implementation notes:**
+
+- **Don't write the default.** Leaving the field empty must omit `property` from the row rather than storing `"property": "payload"` — the engine already defaults, and writing it would bloat every saved row and churn diffs for existing dashboards. `_patch` should delete the key on an empty value (the same treatment `_patchStyle` gives keyless style entries — [feezal-sidebar-inspector-conditions.js:169-190](../www/src/feezal-sidebar-inspector-conditions.js#L169-L190)).
+- **Regression risk to fix in passing:** because the inspector doesn't know the field, editing a hand-authored row today may drop an existing `property` — worth a test.
+- Dot-paths must work (`getProperty` handles them), so the placeholder/help should hint at `val` and `state.temperature` style values.
+- `docs/element-spec.md` conditions section and the E50 docs need the field documented as user-facing rather than internal.
+
+**Relates:** E50 ✅ (per-element conditions engine — where `property` was specified but never surfaced), `message-property` (the equivalent knob on element subscriptions this mirrors), E49 (page-local publishes, which also flow through conditions).
+
+### U50 — layout-app: expose the content area's inset (padding)
+
+The embedded view sits flush against the app bar and drawer — there is no way to give the content area breathing room. `.content` carries no padding and none is configurable ([feezal-element-layout-app.js:155-156](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js#L155-L156)); the only workaround is baking margins into every embedded view, which then differ per view and break when a view is embedded somewhere else.
+
+**Wanted:** a `--feezal-app-content-padding` entry in the element's `styles` descriptor (default `0`), alongside the existing `--feezal-app-*` knobs ([feezal-element-layout-app.js:54-66](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js#L54-L66)), applied to `.content`.
+
+**Padding, not margin.** `.content` is a flex child with `flex: 1`; a margin would shrink the box *and* sit outside the background, leaving an unpainted gutter between the drawer and the view. Padding keeps the inset inside the painted area, which is what "content margin" visually means here.
+
+**Implementation notes:**
+
+- `.content` needs `box-sizing: border-box` — it currently has none, and `#content` inside it is `width: 100%; height: 100%`. Without it the padding adds to the 100 % and `overflow: auto` turns into permanent scrollbars.
+- The embedded view's own background is copied onto `.content` at embed time ([feezal-element-layout-app.js:342-348](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js#L342-L348)), so it will paint under the padding — correct for a bar/drawer-to-content inset, but worth a deliberate look if a per-side value is ever wanted.
+- Accept a full CSS shorthand (`8px`, `8px 16px`, …) rather than a number, so per-side insets need no extra knobs.
+
+**Relates:** E-layout-app (the shell), N36 (the `--feezal-app-*` style-var set this extends), E38 (element scaling / responsive sizing — a responsive inset would belong there).
+
+### E109 — evcc integration: native discovery + energy/charging elements 💡 to refine
+
+**Why.** [evcc](https://evcc.io/) is a self-hosted, open-source (MIT, Go+Vue) EV-charging / energy manager — PV-surplus charging, dynamic-tariff and CO₂-optimised charging, departure planning, home-battery coordination — talking to hundreds of wallboxes, inverters, meters and vehicles. Its users are precisely feezal's audience (self-hosted, MQTT, home automation, PV), it exposes a rich real-time MQTT API… and feezal sees **nothing** of it today.
+
+**Positioning (decided).** evcc ships a good web UI that is explicitly kiosk/iframe-friendly (`?theme=…&lang=…&unit=…`), so **an iframe of evcc's own UI is the baseline to beat**. The goal is therefore *not* to rebuild that UI. feezal's value is **integration**: one wall panel / app where charging sits next to heating, lights and covers, in the site's visual family, exposing only the two or three controls the user actually touches. evcc's UI is charging-only and always shows everything; feezal's job is selective, blended, themed.
+
+#### MQTT facts (confirmed against docs + `evcc-io/evcc@master`)
+
+- **Root prefix is user-configurable** (`mqtt.topic`), default **`evcc`**; empty ⇒ no MQTT API. The recognizer must therefore detect by **structure, not literal prefix** (same as the configurable `hmPrefix`).
+- **Flat scalars — one value per topic, NOT JSON.** `publishComplex()` explodes structs/maps/slices into sub-topics. ⇒ feezal's default `message-property: payload` works as-is — **none** of the `payload.val` plumbing Homematic needed.
+- **Everything is retained** (with a full retained-cleanup of the tree at startup *and* graceful shutdown, so stale keys don't linger) ⇒ **instant discovery on connect**.
+- **`<root>/status`** = LWT, payloads `online` / `offline`, retained, QoS 1 ⇒ **free availability for every evcc entity** (maps straight onto N31: `payload-available: online` / `payload-unavailable: offline`). Plus `<root>/updated` (unix-seconds heartbeat, ≤1/s).
+- **Writes use a `/set` suffix** ⇒ real bidirectional control: `evcc/loadpoints/1/mode/set` ← `pv`, `…/limitSoc/set` ← `80`, `…/minCurrent/set` ← `6`.
+- **Structure:** `<root>/site/<key>`, `<root>/loadpoints/<n>/<key>` (n from **1**), `<root>/vehicles/<name>/<key>`; `<root>/loadpoints` and `<root>/vehicles` carry **counts**.
+- **Encoding:** floats `%.3f` trimmed; bools `true`/`false`; `time.Time` → **unix seconds OUT** but **ISO-8601 UTC IN** (asymmetric); durations in seconds; `nil` ⇒ empty payload (retained delete).
+- **3-element phase arrays** publish `/l1 /l2 /l3` **plus the sum at the parent** (e.g. `chargeCurrents`).
+- ⚠️ **Live vehicle SoC/range/odometer live on the LOADPOINT** (`vehicleSoc`, `vehicleRange`, `vehicleOdometer`), *not* under `<root>/vehicles/<name>/` — that tree carries only static config, limits and plans.
+- Charge modes: **`off | now | minpv | pv`** (UI: Off / Fast / Min+Solar / Solar). Charger status `A` disconnected, `B` connected, `C` charging, `E`/`F` error.
+
+**No Home Assistant MQTT discovery (confirmed).** Zero `homeassistant/` hits in the repo; no discovery path in `server/mqtt.go`. evcc's official HA route is the *marq24* HACS integration over the **REST** API. ⇒ generic HA discovery will never see evcc; a **native recognizer is required** — and slots directly into E108's recognizer framework.
+
+#### Decided scope (07/2026)
+
+Full set; the **energy-flow element stays generic** (serves any PV/battery home, not evcc-branded) with evcc-specific elements added where the domain genuinely warrants it; **control ships in v1 but MVP-scoped**.
+
+**Recognizer** (a new recognizer in `server/src/mqtt/native-discovery.js`, alongside Homematic + WLED):
+- Detect the root by **structure** — match a `…/site/homePower` / `…/loadpoints/<n>/chargePower` signature and derive the prefix.
+- Synthesize **one site entity** (grid/PV/battery/home power, battery SoC, green share, tariffs) and **one entity per loadpoint** (the control surface). **Vehicle entities deferred** — low value, since live SoC is on the loadpoint.
+- Availability for every entity from `<root>/status`; `message-property` stays the default `payload`.
+- ⚠️ The recognizer and at least one matching element must **ship together** — discovery binds an entity to an element declaring the matching `discovery.component`, so a recognizer alone surfaces nothing.
+
+**Elements:**
+1. **Energy-flow diagram — generic, highest value.** Grid ↔ PV ↔ battery ↔ home ↔ car nodes with animated flows sized/directed by power. Deliberately **not** evcc-branded so it serves any PV/battery home; evcc discovery just wires it. Inputs: grid power (± import/export), PV power, battery power (± charge/discharge) + SoC, home power, charge power. Shares the animated-flow technique with **E63**'s schematic pipes — build once.
+2. **evcc loadpoint card — evcc-specific.** The control widget: mode selector (Off/Solar/Min+Solar/Fast), charge power, vehicle SoC bar with draggable limit, session energy, phases, connected/charging state.
+3. **Forecast / price chart.** Dynamic tariff + solar forecast. ⚠️ `<root>/site/forecast` goes through a "sharder" (`BytesMarshaler`) and is likely **chunked JSON**, not exploded scalars — **verify against a live instance before designing**. Relates to the history-in-payload convention (Open Questions).
+4. **Session statistics** (energy, solar %, price/kWh, CO₂) — probably generic value/chart elements rather than a new element.
+
+**MVP control scope:** loadpoint `mode`, `limitSoc` / `limitEnergy`, `minCurrent` / `maxCurrent`, `phasesConfigured`.
+**Deferred:** plans/departure (`planSoc`/`planEnergy` take JSON `{"value":…,"time":"…Z"}`), `repeatingPlans`, smart-cost / feed-in limits, and **`batteryMode`** — an external override **auto-resets after 60 s**, so any control for it needs a keep-alive republish (a real design wrinkle, not v1).
+
+**Verification constraint (important).** No local evcc instance — a friend can test, so the feedback loop is slow and indirect. Design accordingly: put **all topic assembly behind one small helper** (like `hmTopics()`) so a wrong assumption is a one-line fix, and flag every inferred value in code comments. Unverified today: the `forecast` payload shape; whether heating loadpoints expose a temperature key (heating devices are chargers carrying the `Heating` feature, where `minSoc`/`vehicleSoc` semantically become temperatures); the docs' `batteryboost` vs the source's **`batteryBoost`** (trust the source); exact sub-topics under `plan` / `statistics` / `thresholds`.
+
+**Worth remembering:** evcc already works in feezal **today** with manual wiring (predictable topics, flat scalars, retained, `/set` writes). Discovery + elements make it one-click and native-looking — that convenience *is* the deliverable, which should keep the scope honest.
+
+**Relates:** **E108** (the native-recognizer framework this reuses — archived), **E63** (animated-flow technique for the energy diagram), **E62** (topic-tree browser — helps manual wiring in the meantime), **N31** (availability — evcc's LWT maps directly), A18 (kiosk/wall-panel — the prime placement for this).
+
+### E110 — Server-side HTTP→MQTT poller (bridge for services with no MQTT) ❌ likely out of scope
+
+> **Decision (07/2026): most likely NOT doing this.** A server-side poller only runs while the **feezal server** runs — but a **statically exported site (and native app builds) talk directly to the broker with no feezal server present**. Any dashboard built on polled topics would therefore work in the editor/viewer and then silently break on export, splitting the element set into "works everywhere" vs "works only with the server running". That inconsistency is a worse outcome than simply not integrating REST-only services. Secondary objection: it drags credential storage, scheduling and auth-flow handling into the server of an otherwise MQTT-native product.
+>
+> **If a REST-only service is ever wanted, the right answer is external:** the user runs their own bridge (or a Node-RED / `system-script` flow) that publishes to MQTT, and feezal consumes plain topics like any other source — no feezal-side machinery, and exports keep working. The analysis below is kept as the record of why, and the Pi-hole API details in **E111** stay useful if this is ever revisited.
+
+**Why it was considered.** feezal being MQTT-native is a strength — until a service simply *has* no MQTT. Pi-hole (E111) has **none at all**, and its third-party bridge ecosystem is thin and undocumented. The same gap applies to Uptime Kuma, router/NAS APIs, Scrypted's stats, and most self-hosted tools, which expose only REST. Rather than a bespoke integration per service, add **one** server-side capability: **poll an HTTP endpoint on a schedule, extract values, publish them to MQTT** — after which the entire existing pipeline (elements, discovery, topic tree, autocomplete, export) works unchanged.
+
+**Why server-side, not in the browser (decided).** Three independent reasons, all confirmed against Pi-hole as the reference case:
+- **Credentials.** A Pi-hole v5 API token / v6 app password in a browser-delivered dashboard config is effectively **full admin** — it can rewrite config (`PATCH /api/config`), dump the entire query log (who visited which domain), export everything (`/api/teleporter`) and restart DNS; FTL has had RCE advisories through that surface. There is **no read-only scope**. Client-side credentials are a non-starter.
+- **CORS.** FTL ships no `Access-Control-Allow-Origin` in its default headers, upstream evidence about civetweb's default is contradictory, `X-FTL-SID` is a non-simple header (forces preflight), and session cookies are `SameSite=Strict` by design. A server-side fetch sidesteps all of it.
+- **Session economics.** Pi-hole v6 sessions expire (1800 s), are **IP-bound**, rate-limited on login and capped at **16 concurrent**. A dashboard authenticating per panel or per browser tab would exhaust them; one server-side session shared by all viewers will not.
+
+**Shape (to refine).**
+- A **poll job**: URL, method, interval, headers, an optional **auth pre-flight** (login → token/session, cached, re-run on 401), and a set of **extractions** (JSON path → MQTT topic). Publish retained.
+- Auth strategies: none · static header/bearer · query param · **login→session** (the Pi-hole v6 pattern: `POST /api/auth` → `sid`, reused until 401).
+- Lives in `server/src/` beside the MQTT bridge; results land on ordinary topics so elements bind to them with no special support.
+- **Presets/recipes** per service (Pi-hole first) so the user picks "Pi-hole" + host + password instead of hand-writing JSON paths.
+- Open: config surface (editor UI vs config file), extraction syntax (JSON path vs small template), error/backoff/logging semantics, and whether polled services should also synthesize **E108 discovery entities** so they arrive as ready-made devices rather than bare topics.
+
+**Relates:** **E111** (Pi-hole — first consumer and reference implementation), **E108** (native discovery — polled services could register entities the same way), E62 (topic-tree browser — polled topics appear there for free), E49 (script element — the "just poll it yourself" workaround this replaces).
+
+### E111 — Pi-hole integration ❓ largely dissolves (needs a user-provided bridge)
+
+> **Status (07/2026):** this was scoped around **E110**, which is now **out of scope** (it would break static export / native apps). Without it there is **no feezal-side path** to Pi-hole, since Pi-hole has no MQTT of its own. What remains is: *the user runs any Pi-hole→MQTT bridge themselves* (or a Node-RED / `system-script` poll), after which **the existing generic elements already cover it** — stat tiles, a stacked area chart, a doughnut and a top-list table need no new feezal work. So the item largely dissolves into **documentation/a recipe** rather than a feature. The only piece that would need something bespoke is the **enable/disable-blocking control with duration presets**, and that only works if the user's bridge exposes a command topic for it.
+>
+> The API research below is kept as reference for anyone writing such a bridge or revisiting this.
+
+**Confirmed: Pi-hole publishes no MQTT at all** — nothing in `pi-hole/pi-hole`, `pi-hole/FTL` or `pi-hole/web`; the entire v6 API surface has no MQTT endpoint or config key. The official Home Assistant integration polls the **REST** API. Third-party bridges are weak: the one maintained project (`mqtt4pihole`) exposes *adlists/domain-lists/groups as HA switches*, **not** statistics, and no well-documented "Pi-hole stats → MQTT" bridge with a stable topic contract exists. ⇒ **Pi-hole needs E110**, not a recognizer.
+
+**Two API generations are in the wild — support both:**
+- **v5 (legacy, removed in v6):** `GET /admin/api.php?summaryRaw&auth=<token>` etc. Token = hash of `WEBPASSWORD`; static, never expires. Since **5.18** even `summary`/`status` require auth. Flat keys: `dns_queries_today`, `ads_blocked_today`, `ads_percentage_today`, `domains_being_blocked`, `unique_clients`, `status`. (Use `summaryRaw` — plain `?summary` returns comma-formatted **strings**.)
+- **v6 (Feb 2025):** lighttpd+PHP replaced by a civetweb server embedded in `pihole-FTL`; `/admin/api.php` is **404**. Base `/api/…`; auth = `POST /api/auth {"password":…}` → `{"session":{"sid":…,"csrf":…}}`, passed as header **`X-FTL-SID`** (or `?sid=`, URL-encoded — it's base64). *No* `Authorization: Bearer` scheme despite what several blog posts claim. Live per-instance OpenAPI at `/api/docs`.
+
+**Poll targets (v6) — three calls reproduce essentially the whole admin dashboard:**
+- **`GET /api/padd`** — the single best endpoint: the four headline tiles, `blocking` status, top domain/blocked/client, cache stats, plus host name/model, CPU%, mem% and temperature in **one** request.
+- `GET /api/history` — 10-minute buckets, `{timestamp,total,cached,blocked,forwarded}` (the queries-over-24h chart).
+- `GET /api/stats/top_domains[?blocked=true]` / `top_clients[?blocked=true]` — the top-list tables.
+- Key fields: `queries.{total,blocked,percent_blocked,unique_domains,forwarded,cached,frequency}`, `clients.{active,total}`, `gravity.{domains_being_blocked,last_update}`, and v6-only `queries.status.{GRAVITY,REGEX,DENYLIST,CACHE,FORWARDED,…}` (block-reason breakdown).
+
+**Control:** `GET /api/dns/blocking` → `{"blocking":"enabled","timer":null}`; `POST /api/dns/blocking {"blocking":false,"timer":300}` (seconds; enum `enabled|disabled|failed|unknown`). This is the one genuinely bespoke widget — an **enable/disable-blocking control with duration presets** (10 s / 30 s / 5 min / indefinite), mirroring the admin sidebar. Also available: `POST /action/gravity`, `POST /action/restartdns`.
+
+**Elements:** mostly **generic** — four stat tiles, a stacked area chart (blocked/cached/forwarded over time), a query-type doughnut, and top-list tables. Only the blocking control warrants something Pi-hole-specific. So the real work is E110 plus a preset, not a new element family.
+
+⚠️ **Security must be stated in the UI/help, not just here:** the credential is full admin with no read-only scope, so it lives **only** in the server-side poller config and must never reach a dashboard/export payload.
+
+**Relates:** **E110** (the enabler — this is its reference consumer), E62 (topic tree), E75/E32 (table + chart elements the tiles and top-lists reuse).
+
+### E112 — Scrypted integration: camera snapshot element (sensors already work) 💡 to refine
+
+**Surprise finding — half of this already works.** Scrypted's **official `@scrypted/mqtt` plugin publishes Home Assistant MQTT discovery** (`plugins/mqtt/src/autodiscovery.ts`): retained configs at `homeassistant/<component>/scrypted-<mqttId>-<deviceId>/<iface>/config` covering **MotionSensor, BinarySensor (doorbell), OccupancySensor, FloodSensor, AudioSensor, Online** (→ `binary_sensor`), **Thermometer, HumiditySensor** (→ `sensor`) and **OnOff** (→ `switch`). feezal's **existing** HA-discovery path should therefore already see Scrypted sensors — **verify first; do not build a recognizer before checking.** State topics are `scrypted/<deviceId>/<property>`, **retained**, payload = plain `String(value)` (`true`/`false`, `21.5`) — flat scalars, so the default `message-property: payload` works. Commands are `scrypted/<deviceId>/<method>` with a **JSON array of arguments** (`[]`, `[50]`), plus `…/on/set` ← `true|false` for `OnOff`. Note: **no LWT** — liveness is the retained `online` topic; and entity names come out as the *interface* name ("MotionSensor"), so labels may need prettifying.
+
+**The actual gap is cameras.** The MQTT plugin **deliberately excludes** them (`publishable-types.ts` removes `Camera`, `RTCSignalingChannel`, `ObjectDetection`, …) — no images over official MQTT, and object-detection classes (person/vehicle/animal/face) are not broken out into topics.
+
+**What a browser can consume (confirmed):** the **Webhook plugin** exposes a public, token-authed snapshot URL usable directly in an `<img>` tag from any origin (plain GET — no preflight, no cookies):
+```
+https://<host>:10443/endpoint/@scrypted/webhook/public/<deviceId>/<token>/takePicture
+http://<host>:11080/endpoint/@scrypted/webhook/public/<deviceId>/<token>/takePicture
+```
+`/public/` endpoints bypass Scrypted's own auth entirely; the token *is* the only auth and it is **plugin-global** (one token unlocks every webhook-enabled device) — a security caveat worth surfacing in help text. The WebHook mixin must be enabled per device first. **Live video is the wall:** no public WebRTC URL (per koush), no official HLS, RTSP isn't browser-consumable, MJPEG only via a third-party plugin, and the NVR iframe needs an authenticated session plus the paid plugin. ⇒ **snapshot polling is the only officially supported embeddable source.**
+
+**Proposal — a GENERIC camera/snapshot element** (not Scrypted-branded): URL + refresh interval, `<img>`-based with cache-busting, optional MJPEG mode, click-to-enlarge, and an explicit stale/error state. It then serves Scrypted, Frigate, go2rtc, and any IP camera with a snapshot URL. Deployment caveats to document: the **self-signed cert** on :10443 (the browser must have accepted it) and **mixed content** if feezal is served over HTTPS and Scrypted over HTTP:11080.
+
+**Higher-value camera path (third-party):** `@apocaliss92/scrypted-advanced-notifier` publishes far richer MQTT under its own `scrypted-an/<id>/<entity>` prefix **with HA discovery in the newer device-bundle format** (`homeassistant/device/scrypted-an-*/config`, which feezal's `handleDeviceDiscovery` already parses): per-class Person/Animal/Vehicle/Face/Plate entities, object counts, battery, command switches — and **`LastImage` as a base64 JPEG payload**. That last one is precisely **E64**'s (camera image via MQTT) use case, so E64 + this plugin may be the better camera story than snapshot polling for users who install it.
+
+⚠️ Scrypted's MQTT topic layout is **completely undocumented upstream** (everything above was read from `plugins/mqtt/src/`), so treat it as unstable across versions and prefer the HA-discovery contract over hand-parsing `scrypted/<id>/…`.
+
+**Relates:** **E64** (camera image via MQTT — the base64/`LastImage` path), **E108** (native discovery — probably *not* needed here, since HA discovery is already emitted), N31 (availability — Scrypted has no LWT, so `online` is the substitute), A18 (kiosk/wall-panel — camera tiles are a prime use).
+
+### E113 — Element taxonomy: make "function × style" explicit ⚠️ needs discussion
+
+**The problem.** The palette flattens **two orthogonal axes** into a single category list: *what an element **does*** (a light, a readout, a container, an invisible behaviour) and *what it **looks like*** (material, glass, metro, lcars, tui, carbon, wired…). `basic`, `system` and `layout` are **function** categories; `glass`, `metro`, `lcars`, `tui` are **style** categories — and they sit side by side as if they were the same kind of thing. That single conflation is the root of several separate complaints:
+- users can't reason about the categories (the original "components vs widgets?" question);
+- the palette filter can't find `lcars` because family/style isn't a searchable facet (**B42**);
+- switching a `metro-light` to a `glass-light` *feels* like it should be trivial but has no model to hang on (**E115**);
+- "what even is a **plain** family?" (**E116**) — it's a *style*, not a new kind of element;
+- device-first insertion (**U31**) is naturally *pick function → pick style*, which the current model can't express.
+
+**Decided (07/2026): make both axes explicit** rather than renaming categories. Deliberately **not** "components vs widgets" — that's a fuzzy distinction that would still leave style and function mixed in one list.
+
+- **Function** (what it is): `device` (a real thing with an MQTT contract — light, switch, climate, cover, contact, sensor) · `readout` (displays a value — value, gauge, sparkline, table, json) · `control` (input — button, slider, select) · `layout` (app shell, view, group, container) · `system` (invisible behaviour — script, notification, splash, pin) · `decoration` (svg, shapes, schematic symbols).
+- **Style / family** (what it looks like): `material` · `glass` · `metro` · `plain` · `lcars` · `tui` · `carbon` · `wired` · `paper` · `panel` · `rail` · …
+
+**Important nuance — not every family spans every function.** Only **material / glass / metro / plain** aim for full device coverage (that's the parity contract, **E114**). Families like `lcars`, `tui`, `rail` are style families with *partial* coverage, and some carry elements unique to them (rail's model-railroad symbols). So the model is "function × style, sparsely populated" — the picker must show what exists, not a full matrix with holes.
+
+**Implementation sketch:** today `palette.category` carries both meanings. Add explicit descriptor fields (e.g. `palette.function` + `palette.family`, derived from the tag prefix where possible so most elements need no change), keep `category` as a back-compat alias, and make the palette/picker filter on both facets. `docs/element-families.md` §1–2 and `element-spec.md` §1.1 are the naming home and must be updated together.
+
+**Open questions:** the exact function vocabulary (the six above are a starting proposal, not settled — `control` vs `input`, whether `decoration` earns its own bucket); whether `basic` survives as a function or dissolves into `readout`/`control`; and how site-specific **Components** (U32 ✅) fit — they're user-authored composites, arguably a seventh function.
+
+**Relates:** **U45** (picker — the consumer of this model), **U31** (device-first = the axes in reverse order), **B42** (filter bug — symptom), **E114** (parity — only meaningful once style is a real axis), **E115** (family switching — only legal because function is style-independent), **E116** (plain — a style value), E83/E85 (family/category naming conventions), U24 ✅ (collapsible categories).
+
+### E114 — Family parity contract: material / glass / metro / plain stay in sync ⚠️ needs discussion
+
+Device families must offer **the same elements with the same MQTT contracts** — a `metro-light` and a `glass-light` should differ only in appearance. Today parity is maintained by discipline, so families drift: an attribute gets added to one family and not its siblings, and users discover the gap only when a dashboard can't be restyled.
+
+**Decided: enforce parity with a test, not discipline.** The precedent already exists — **E86** ✅ (paper/material dialog parity) asserts parity in unit tests by **comparing descriptor attribute sets between families**. Generalise that into a standing parity test over the parity families.
+
+**Deliverable sketch:**
+- A declared **parity set**: the list of functions every parity family must implement (light, switch, climate, cover, contact, sensor, …).
+- A **parity test** that, for each function, compares across `material` / `glass` / `metro` / `plain`: attribute **names**, **types**, **defaults** and the `discovery.map` keys — failing CI on drift, with an explicit allow-list for genuinely family-specific extras (e.g. glass's `degrade`, metro's `size` grid).
+- Documentation of what is *permitted* to differ (visual/chrome attributes) versus what must not (anything in the MQTT contract).
+
+**Why now:** E108 made this materially more valuable — discovery stamps the *same* config onto whichever family the user picked, so a contract gap between families now shows up as "discovery works on glass but not metro" (exactly the metro-climate `message-property-actual` gap found during E108). Parity is no longer cosmetic; it's a correctness property of discovery.
+
+**Relates:** **E86** ✅ (the unit-asserted parity precedent to generalise), **E106** ✅ (shared base class/code — the mechanism that makes parity cheap), **E103** ✅ (WLED shipped with an identical contract across three families), **E115** (switching — this contract is its precondition), **E116** (plain joins the contract), E108 ✅ (discovery — why gaps now cause bugs).
+
+### E115 — Switch an element to another family (context menu) 💡 to refine
+
+Right-click an element → **Switch family** → `metro-light` becomes `glass-light`, **keeping all configuration** (topics, payloads, limits, label) and its position/size. Today changing your mind about a family means deleting and re-configuring every element.
+
+**Depends on E114** — parity is what makes the attribute set transferable; without it this is a lossy guess.
+
+**Machinery that already exists:** **A23/A24** ship a static **tag-prefix → family-package map** in the editor (for missing-element detection) — exactly the lookup a switcher needs to know which families exist and which are installed. **E87** ✅ established the **deprecated-tag-alias + attribute-remap** pattern for rewriting saved dashboards, which is the same operation applied at author time instead of load time.
+
+**Design points:** carry across every attribute in the shared contract; **warn (don't silently drop)** on family-specific attributes that have no counterpart; preserve position/size and `discovery-id`; route through the normal change/undo pipeline so it's one undoable action. Power feature worth considering: **switch all elements of family X** on a view or site-wide ("restyle this dashboard"), which is the real payoff — though it should probably ship after the single-element case proves the mapping.
+
+**Open:** whether an unavailable target family should offer to install it (A23's missing-element detection already knows the package), and what happens to elements whose target-family twin doesn't exist yet (blocked until E114's parity set is satisfied).
+
+**Relates:** **E114** (parity — precondition), **E113** (function × style — the model that makes this coherent), **E116** (plain — a likely switch target for "strip the styling"), E87 ✅ (attribute-remap precedent), A23/A24 (tag→package map).
+
+### E116 — "Plain" element family (`feezal-element-plain-*`) — zero styling 💡 to refine
+
+A fourth device family with **no visual styling at all**: text and values only, no cards, gradients, shadows, rounded chrome or animation. The constraint set *is* the spec (same philosophy as **E57**'s e-ink family).
+
+**Decided: full parity** with material / glass / metro — plain joins **E114**'s parity contract as its fourth member, so every device function gets a plain twin.
+
+**Why it earns its place (three distinct uses):**
+1. **Information-dense dashboards** — when you want 40 values on a wall panel and every pixel of chrome is wasted space.
+2. **A styling-free baseline** — the honest option for users who find all three existing families too opinionated, and a good base for site CSS to style from scratch.
+3. **A reference implementation** — a plain element is the *simplest possible* expression of each MQTT contract, which makes it the natural thing to point at in docs, and a useful control when debugging whether a problem is contract or chrome.
+
+**Constraint sketch:** semantic markup, colour only from the canonical theme vars (§5.1), no decorative CSS, no transitions, respects `prefers-reduced-motion` trivially (nothing animates), and keeps the same attribute/`discovery.map` surface as its siblings so discovery and **E115** switching work unchanged.
+
+**Relates:** **E114** (parity contract — plain is its 4th member), **E113** (a style value, not a new kind of element), **E115** (a natural switch target), **E57** (e-ink family — adjacent "constraints are the spec" precedent; plain is *unstyled*, e-ink is *differently* styled), N29 ✅ (bundle packaging — plain should ship as one family bundle).
+
+### E117 — `publish-local` on every publishing element (buttons first)
+
+A button that opens a dialog has to publish its trigger to the **broker** and wait for it to come back, because there is no way to say "this publish is page-local". That round-trip is pointless for pure UI wiring (open a dialog, switch a view, drive another element on the same page), it puts UI chatter on the broker, and it fails outright when the connection is down.
+
+**The runtime already supports it — almost nothing exposes it.** `FeezalConnection.pub()` takes `{local: true}` and short-circuits straight into `_spreadMessage()` without touching the backend ([feezal-connection.js:167-178](../www/src/feezal-connection.js#L167-L178)). Of the **66** element packages that call `pub()`, exactly **one** — `feezal-element-paper-tabs`, a legacy Polymer element — declares a `publishLocal` attribute and passes it through ([feezal-element-paper-tabs.js:99](../www/packages/@feezal/feezal-element-paper-tabs/feezal-element-paper-tabs.js#L99)). Every other element hardcodes a broker publish: `feezal.connection.pub(this.publish, this.payload)` ([feezal-element-material-button.js:131](../www/packages/@feezal/feezal-element-material-button/feezal-element-material-button.js#L131), and the same line in glass/carbon/paper/material-icon buttons).
+
+**Wanted:** a shared `publish-local` boolean attribute (default `false`, so nothing changes for existing dashboards) on every element that publishes, threaded into the `pub()` call as `{local: this.publishLocal}`.
+
+**Rollout order** — buttons are the ask and the obvious win: `material-button`, `material-icon-button`, `material-fab`, `glass-button`, `carbon-button`, `paper-button`. Then switches/checkboxes/sliders/selects, then the device elements. Doing all 66 in one pass is a big mechanical change; the family-parity contract (**E114**) is what should keep it from drifting half-done.
+
+**Design notes:**
+
+- **Name it once.** `publishLocal` is currently a bare string entry in paper-tabs' `attributes` list with no central definition — before sprinkling it across 66 packages, give it a shared descriptor (help text included) the way `subscribe`/`publish`/`messageProperty` are handled, so the label and tooltip can't drift per element.
+- **Boolean default `false` is safe** here (unlike `click-through` on `basic-icon`, which needed a select because a default-`true` boolean can't persist `false` through Lit reflection).
+- Document that a local publish is **page-local**: it never reaches the broker, so nothing outside this browser tab sees it, and it is not retained.
+
+**Relates:** E49 ✅ (page-local publish semantics), **E114** (family parity — the mechanism to land this consistently), E118 (the other "attribute missing on elements that need it" gap), N24 (per-client control topics — the deliberately *non*-local counterpart).
+
+### E118 — `click-through` on `basic-number`, `basic-icon-value`, `basic-datetime`
+
+These three display elements sit on top of buttons all the time (a value label over a tile, a clock over a tappable card) and swallow the click, with no way to let it pass. `basic-number`, `basic-icon-value` and `basic-datetime` declare no `click-through` attribute.
+
+**The pattern already exists in five elements** — `basic-icon`, `basic-image`, `basic-template`, `material-camera`, `tui-crt` — but in **two incompatible shapes**:
+
+| Shape | Elements | Default |
+|---|---|---|
+| `type: 'select'`, options `on`/`off` | `basic-icon` ([feezal-element-basic-icon.js:34-35](../www/packages/@feezal/feezal-element-basic-icon/feezal-element-basic-icon.js#L34-L35)) | **`on`** |
+| `type: 'boolean'` | `basic-image`, `basic-template`, `material-camera` | **`false`** |
+
+`basic-icon` uses a select *because* its default is on: a default-`true` boolean cannot persist `false` through Lit reflection (its own comment says so). The other three default to off, so a plain boolean works.
+
+**Use the boolean shape** for these three: default `false` preserves today's behaviour for existing dashboards, and it matches the majority precedent. Implementation is CSS-only — `pointer-events: none` on the host, re-enabled under `:host(.feezal-editable)` so the element stays selectable and draggable on the canvas ([feezal-element-basic-icon.js:66-77](../www/packages/@feezal/feezal-element-basic-icon/feezal-element-basic-icon.js#L66-L77)).
+
+**Worth folding in:** the two-shape split is itself a wart — a follow-up could converge everything on one representation once there's a way to persist a default-`true` boolean. Note it in `docs/element-spec.md` rather than silently adding a third variant.
+
+**Relates:** E117 (same class of gap — a capability that exists but isn't exposed where it's needed), **E114** (parity contract), `docs/element-spec.md` §3.2 (attribute descriptor types).
+
+### E119 — `basic-number`: configurable placeholder before the first value
+
+Until the first MQTT message arrives, `basic-number` renders **nothing** — `_formatedValue` starts as `''` and `_valueChanged()` early-returns while `value == null` ([feezal-element-basic-number.js:70-73](../www/packages/@feezal/feezal-element-basic-number/feezal-element-basic-number.js#L70-L73)). On a fresh dashboard that reads as a broken or empty widget rather than "no data yet".
+
+It is also **inconsistent**: `prefix` and `suffix` render regardless of whether a value exists ([feezal-element-basic-number.js:56](../www/packages/@feezal/feezal-element-basic-number/feezal-element-basic-number.js#L56)), so a number with `suffix: "°C"` currently shows a bare `°C` floating with no number in front of it.
+
+**Wanted:** a `placeholder` attribute, **default `-`**, shown in place of the value while none has been received.
+
+**Details to settle:**
+
+- **Default `-` changes existing dashboards** (empty → `-`). That is the request and almost certainly an improvement, but it is a visible change on every existing `basic-number`; an empty `placeholder` must remain a supported way to get today's blank behaviour back.
+- **Do prefix/suffix show alongside the placeholder?** Recommend **no** — `-` alone reads as "no data", whereas `-°C` reads like a measured value. Suppress both while the placeholder is showing, which also fixes the stray-suffix inconsistency above.
+- Distinguish "no message yet" from "message with a null/unparsable payload" — both should land on the placeholder rather than rendering `NaN`.
+- Consider the same treatment for the sibling display elements (`basic-icon-value`, `basic-datetime`, `basic-text`) so the family behaves alike — but this item is scoped to `basic-number`.
+
+**Relates:** N31 (availability / `unavailable` attribute — the other "this element has no trustworthy value right now" signal; a placeholder and an unavailable state should not contradict each other), E118 (same element family), **E114** (parity contract, if it spreads to siblings).
+
+> **Terminology note for E120/E123:** these were reported as "*-shutter" / "material-shutter". The packages are named **cover** (`feezal-element-material-cover`, `-glass-cover`, `-metro-cover`) — same elements. Whether the user-facing label should become "Shutter" is a separate question for **E113** (taxonomy).
+
+### E120 — Homematic cover discovery: wire Up/Down to the LEVEL set topic
+
+A Homematic cover configured through auto-discovery gets position and stop, but its **Up and Down buttons do nothing** — the recognizer emits `position_command_topic` and `stop_command_topic` and no open/close command at all ([native-discovery.js:594-607](../server/src/mqtt/native-discovery.js#L594-L607)). The element's `publish-up`/`publish-down` stay empty, so `_cmdUp()`/`_cmdDown()` publish nowhere ([feezal-element-material-cover.js:402-412](../www/packages/@feezal/feezal-element-material-cover/feezal-element-material-cover.js#L402-L412)).
+
+**Wanted:** point Up and Down at the **same LEVEL set topic** the position slider uses, with `payload-up = 1` and `payload-down = 0` (Homematic LEVEL is 0.0–1.0, so full open / full closed).
+
+**What has to change:**
+
+- **Server** — the Homematic cover `_build()` gains open/close command topics both set to `hmSet(p, writeSeg, 'LEVEL')`, plus `payload_open: '1'` / `payload_close: '0'`.
+- **Client map** — `material-cover`'s `discovery.map` currently routes `payload_open`/`payload_close` to `payload-up`/`payload-down` ([feezal-element-material-cover.js:37-38](../www/packages/@feezal/feezal-element-material-cover/feezal-element-material-cover.js#L37-L38)), which is already what we want, but there is **no map entry for a dedicated up/down topic**. Add one (e.g. `open_command_topic`/`close_command_topic` → `publish-up`/`publish-down`), or reuse the existing native keys — decide deliberately rather than overloading `command_topic`, which maps to `publish` (the JSON-mode base).
+- Apply to the whole family (`glass-cover`, `metro-cover`) per **E114**, not just material.
+
+**Watch out for:** `payload-up`/`payload-down` default to `OPEN`/`CLOSE` ([feezal-element-material-cover.js:80-82](../www/packages/@feezal/feezal-element-material-cover/feezal-element-material-cover.js#L80-L82)) and are *also* used as the **state** payloads (`state_open`/`state_closed` map to the same attributes). Setting them to `1`/`0` for commands must not break state interpretation — check whether these two roles need separating before reusing the attribute pair.
+
+**Relates:** E108 ✅ (native Homematic discovery), **E114** (family parity), E123 (the other cover item).
+
+### E121 — New element: outlet / plug card (`feezal-element-material-outlet`)
+
+A smart plug has no brightness and no position — just on/off — but there is no card-style element for it that sits visually with `material-light` and `material-climate`. The ask: the **same centre circle button, without the ring slider around it**.
+
+**Name collision — `feezal-element-material-switch` is taken.** It is the MD3 *toggle switch* (a small sliding control in the `Simple` palette category), not a card. Pick a distinct name — `material-outlet`, `material-plug` or `material-toggle-card` — rather than overloading the existing one.
+
+**Shape:** reuse `material-light`'s card chrome (icon, label, availability treatment, theme vars) and its centre power zone, dropping the ring track, brightness drag, colour wheel and CT track. Effectively `material-light` with `mode` reduced to power only — which makes **E122** the close sibling: if a light can be configured as on/off-only, this element is that same rendering with a plug-appropriate icon and default topic naming.
+
+**Decide first:** is this a **new element**, or `material-light` with an `on-off` mode plus a different icon (E122)? Building both risks two code paths for one visual. Recommend implementing **E122 first**, then judging whether a separate outlet element still earns its place — a dedicated palette entry has real discoverability value for "smart plug" even if it shares the implementation.
+
+**Relates:** **E122** (on/off-only lights — overlapping scope, settle together), E-material-light (chrome to reuse), **E114** (parity — glass/metro siblings), E113 (where a "plug" belongs in the taxonomy).
+
+### E122 — Lights: on/off-only mode (no dimming)
+
+A lamp on a plain relay can only be switched. Today `material-light`'s `mode` offers `brightness`, `brightness_ct`, `color_temp`, `rgb`, `hs` ([feezal-element-material-light.js:192](../www/packages/@feezal/feezal-element-material-light/feezal-element-material-light.js#L192)) — every one of which renders a brightness ring the device cannot honour.
+
+**Wanted:** an `on-off` (or `switch`) mode that renders the centre power button and card chrome **without** the ring track, brightness drag, colour wheel or CT track.
+
+**Implementation notes:**
+
+- The ring drag is already conditionally gated (`_dragFromOffAllowed()`, `_startBrtDrag` — [feezal-element-material-light.js:643-645](../www/packages/@feezal/feezal-element-material-light/feezal-element-material-light.js#L643-L645)); the new mode should suppress the ring **in `_svgContent()`** as well, not merely ignore drags on an invisible track.
+- Hide brightness/colour attributes in the inspector for this mode via `visibleWhen` (the same mechanism `feezal-view`'s flow knobs use) so the panel doesn't offer settings that do nothing.
+- Apply across the family (`glass-light`, `metro-light`) per **E114**.
+
+**Relates:** **E121** (outlet card — likely the same rendering; settle scope together), E-material-light, **E114** (parity contract).
+
+### E123 — material-cover: stronger colour, and size parity with material-light
+
+The cover card reads as washed-out next to `material-light` and `material-climate`, and it is a different size, so a row of mixed cards doesn't line up.
+
+**Wanted:**
+
+- **Window-image border** in the same colour as `material-light`'s slider track, so the family shares one accent.
+- **Closed state visualised in that colour too** — right now a closed cover carries no colour cue.
+- **Default size matched to `material-light`:** `180px × 220px` ([feezal-element-material-light.js:242](../www/packages/@feezal/feezal-element-material-light/feezal-element-material-light.js#L242)) instead of the current `120px × 160px` ([feezal-element-material-cover.js:118](../www/packages/@feezal/feezal-element-material-cover/feezal-element-material-cover.js#L118)).
+
+**Watch out for:** `defaultStyle` only applies to **newly inserted** elements — existing covers keep their saved inline size, so this does not reflow anyone's dashboard (good), but it does mean old and new covers will differ until manually resized. Worth a line in the release notes.
+
+**Do it via theme vars, not literals** — per the theme-variable discipline, the shared accent should resolve from the canonical set (`--primary-color` and friends) so themes keep control, rather than copying a hex out of `material-light`.
+
+**Relates:** E120 (the other cover item), **E114** (family parity — glass/metro covers should follow), E113 (taxonomy/visual consistency).
+
+### E124 — Contact elements: dedicated low-battery indicator
+
+A battery-powered door/window contact currently signals a flat battery by going **entirely unavailable** — the Homematic recognizer folds `LOWBAT` into `availability_normalized` alongside `UNREACH` with `mode: 'all'` ([native-discovery.js:463-478](../server/src/mqtt/native-discovery.js#L463-L478)). The code comment states the compromise outright: *"the element shows unavailable when unreachable OR battery low — acceptable since contacts have no dedicated battery attribute of their own."* This item removes that "since".
+
+**Wanted:** a `subscribe-battery-low` attribute on `*-contact` plus a dedicated low-battery **icon** shown alongside the open/closed state — a warning, not a blackout. A contact with a weak battery still reports open/closed correctly and should keep showing it.
+
+**Server side:** move `LOWBAT` out of `availability_normalized` (leaving `UNREACH` as the sole availability source, consistent with the cover and climate recognizers) and map it to the new attribute instead.
+
+**Bug to fix in passing — HmIP low battery is reported but never read.** Both generations expose the datapoint on the device's **`:0` maintenance channel**, under different names:
+
+| Generation | Datapoint on `:0` |
+|---|---|
+| BidCoS | `LOWBAT` |
+| HmIP | `LOW_BAT` |
+
+The recognizer subscribes **only `LOWBAT`** ([native-discovery.js:472](../server/src/mqtt/native-discovery.js#L472)) — `LOW_BAT` appears nowhere in the file. So an HmIP contact broadcasts its low battery on a topic feezal never listens to, and the warning is silently lost. Subscribe **both** names off the `:0` segment the recognizer already derives (`availSeg`, `device:1` → `device:0`) — the plumbing is in place, only the second datapoint name is missing. Treat either firing as low battery.
+
+The same one-name assumption should be checked on the other battery-powered recognizers before it is copied further.
+
+**Apply family-wide** (`material-contact`, `glass-contact`, `metro-contact`) per **E114**.
+
+**Relates:** N31 (availability machinery this deliberately steps back from), E108 ✅ (native Homematic discovery), **E114** (parity contract), E61 (HMI/alarm family — same "degraded but still reporting" distinction), **E125** (battery *voltage* — the richer signal, deferred).
+
+### E125 — Homematic battery voltage (`OPERATING_VOLTAGE`) 💡 future
+
+HmIP battery devices publish **`OPERATING_VOLTAGE`** on the `:0` maintenance channel — an actual voltage, not just the `LOW_BAT` boolean that **E124** wires up. That is strictly more information: it supports a battery-level display, trend charts over time, and warning *before* a device drops out rather than after.
+
+**Deliberately deferred.** E124's boolean is what makes the immediate failure visible and should land first; voltage is an enhancement on top of working low-battery handling. Recorded now so the datapoint isn't rediscovered later.
+
+**When it is picked up, decide:**
+
+- **Where the value surfaces.** A voltage alone is not user-meaningful (is 2.4 V low?) — it needs either a per-device-type mapping to a percentage, or a plain numeric readout the user interprets. A raw volt figure on a contact card is probably noise; a battery *percentage* or a colour-graded icon is not.
+- **Which elements carry it.** Possibly not the contact card at all — this may belong to a generic battery/diagnostics element, or to the device-status surface, rather than being duplicated onto every sensor element.
+- **BidCoS equivalence.** Check whether the older generation exposes a comparable datapoint before designing around an HmIP-only field; if not, the feature must degrade cleanly for BidCoS devices.
+- **Reporting cadence.** Battery voltage updates rarely and drifts with temperature — a chart of it is only useful over days/weeks, which has implications for history retention (see the history/logbook items).
+
+**Relates:** **E124** (low-battery boolean — the prerequisite), E108 ✅ (native Homematic discovery — where the recognizer lives), N31 (availability), E30 (sparkline — the natural place a voltage trend would render).
 
 ## Architecture & Infrastructure
 
@@ -1468,6 +2078,39 @@ Metro **stays bundled with feezal for now** (decided 07/2026) — it moves out *
 **Not before:** A23 complete for all three families and the detection/install flow proven in a release.
 
 **Relates:** A23 (the playbook — do that first), N29, E106 (metro shares the same consolidation considerations glass had).
+
+### A25 — Privacy: zero telemetry, zero third-party CDN, works offline ⚡
+
+**Policy (decided 07/2026): feezal must make no third-party network request the user did not explicitly configure.** Not as a default that can be turned on, but as an invariant — a self-hosted dashboard that silently phones out contradicts the entire point of running it yourself. This is *especially* true for **static exports and mobile builds**, which run in environments the maintainer no longer controls and whose viewers never agreed to anything.
+
+**Audit result (07/2026) — the good news first.** **Monaco is clean**: bundled via `vite-plugin-monaco-editor`, local workers in `dist/monacoeditorwork/`, local codicon font, **no `vs/loader`, no CDN `paths`**, and Monaco has no telemetry of its own. Repo-wide there are also **zero** analytics/telemetry dependencies (no Sentry/PostHog/GA/Matomo/Segment/…) and **no `postinstall` hooks**. The suspicion that "Monaco phones home" is unfounded.
+
+**Confirmed leaks (all runtime, all third-party):**
+
+| # | Leak | Where |
+|---|---|---|
+| 1 | **Google Fonts** (`Roboto` + `Material Icons`) — sends IP/UA/Referer to `fonts.googleapis.com`, then `fonts.gstatic.com` | `www/editor/index.html:20`, `www/viewer-src/viewer.html:24`, **`server/src/app.js:313`** (the live viewer real users hit), **`server/src/build/export.js:383`** (static export — **and reused by the Capacitor mobile build**, `capacitor.js:206`) |
+| 2 | A **second, separate** Google Fonts request inside a Lit shadow root | `www/src/feezal-sidebar-assets.js:1147` |
+| 3 | **Shoelace icons deliberately pointed at jsDelivr** — `setBasePath('https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.1/dist')`; no Shoelace `assets/` are copied into the build | `www/editor/index.html:84-85` (consumer e.g. `feezal-element-basic-qrcode.js:414`) |
+| 4 | **Leaflet marker images from `unpkg.com`**, unconditionally (plus a CSS fallback link, and OSM tiles by default) | `feezal-element-material-map.js:26-28`, `:168`, `:183` |
+| 5 | **npm registry queried at runtime** — `/api/elements` fetches `registry.npmjs.org/<pkg>/latest` for **every installed add-on** just to render an update badge, i.e. it tells npm your installed package list on a routine editor action | `server/src/routes/api.js:591` (and `:610` for package search — explicit user action, lower severity) |
+| 6 | **GitHub raw fetched on dev-server boot** — `fetchMaterialIcons()` downloads Google's icon codepoints and rewrites a source file | `server/src/build/elements.js:283-299`, called from `:188` |
+
+**This is also a functional bug, not only privacy.** **Material Icons is not bundled anywhere** — no `@font-face`, no local `woff2`. The ~150 `font-family: 'Material Icons'` rules across `www/src/*` resolve *only* via leak #1, so **feezal is already broken offline / on a CDN-blocked network**: every icon degrades to raw ligature text ("content_copy", "delete", "settings"). That alone justifies the work independently of privacy.
+
+**Fix plan:**
+1. **Self-host Roboto + Material Icons** — add the `woff2` files plus an `@font-face` block, remove all five `<link>`s, and add the fonts to `planExportAssets()` (`export.js:245-315`) so the **ZIP and the mobile bundle** carry them; otherwise the export keeps leaking even after the editor is fixed.
+2. **Shoelace icons local** — `setBasePath('/shoelace')` + a Vite copy step for `@shoelace-style/shoelace/dist/assets`.
+3. **Vendor Leaflet's marker PNGs + CSS** into the map package; keep the tile server user-configurable but **document** that the default contacts OSM (a map is arguably an intentional exception, but it must be a stated one).
+4. **Gate the outbound server calls** — make the npm update-check explicitly opt-in (or on-demand behind a button) and the same for `fetchMaterialIcons()`; neither should run implicitly.
+5. **Add a CSP** (none exists today, in server or editor) — the structural guarantee that keeps this fixed. A restrictive `default-src 'self'` would have made every leak above fail loudly instead of silently.
+6. **Add a regression test** — grep the build output and the export ZIP for third-party hosts and fail CI. Without it this will regress the first time someone pastes a CDN link.
+
+**Explicitly allowed outbound traffic** (must remain the *only* exceptions, and all user-configured): the MQTT broker; the **AI assistant** provider endpoint (`server/src/ai/providers.js:30,33`, defaults to Anthropic/OpenAI, overridable to a local Ollama); element-authored URLs the dashboard author sets (`basic-svg` `src`, camera URLs); and the package browser when the user actively searches for packages.
+
+**Ships with:** the fixes above, a **documented privacy statement** (what feezal contacts, when, and why — likely in the self-hosting guide, D2 ✅), and the CI check.
+
+**Relates:** A9 (cloud builds — already argued to "contradict feezal's self-hosted, privacy-focused nature"; this codifies that principle), E97/N28 (the existing **no-external-fetch export rule** for theme assets — this generalises it to the whole app), D2 ✅ (self-hosting guide — home for the privacy statement), A18 (kiosk/wall panel — often on isolated VLANs where CDN calls simply fail), N12 (export bundle slimming — same export pipeline).
 
 ## Open Questions
 
