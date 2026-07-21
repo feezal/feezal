@@ -106,6 +106,19 @@ function buildBundleReport(chunk) {
  * @returns {Promise<{code: string, report: object|null}>}
  *          Minified IIFE JS string + U34 per-bucket size report.
  */
+/**
+ * U51 — full theme class names referenced by per-view `theme` attributes in
+ * the site markup (bare suffixes normalized to feezal-theme-<name>).
+ */
+function viewThemeClasses(siteHtml) {
+    const out = new Set();
+    for (const m of String(siteHtml || '').matchAll(/<feezal-view\b[^>]*\btheme\s*=\s*"([^"]+)"/g)) {
+        const cls = m[1].startsWith('feezal-theme-') ? m[1] : 'feezal-theme-' + m[1];
+        if (/^feezal-theme-[\w-]+$/.test(cls)) out.add(cls);
+    }
+    return out;
+}
+
 async function buildFilteredBundle(wwwDir, siteHtml, theme, logger) {
     const nodeModulesDir = path.join(wwwDir, 'node_modules');
 
@@ -119,6 +132,13 @@ async function buildFilteredBundle(wwwDir, siteHtml, theme, logger) {
     const themePackage = theme ? `@feezal/${theme}` : null;
     if (themePackage && !usedPackages.includes(themePackage)) {
         usedPackages.push(themePackage);
+    }
+
+    // U51: per-view themes — every theme a feezal-view references must ship
+    // in the bundle too (bundled theme packages inject their CSS on import).
+    for (const cls of viewThemeClasses(siteHtml)) {
+        const pkg = `@feezal/${cls}`;
+        if (!usedPackages.includes(pkg)) usedPackages.push(pkg);
     }
 
     const {resolvable, missing} = partitionPackages(nodeModulesDir, usedPackages);
@@ -581,12 +601,19 @@ async function buildExportBundle(wwwDir, siteName, {html: siteHtml, config}, log
     const classes = (config && config.viewer && config.viewer.classes) || {};
 
     // Inline user-theme CSS when the active theme is a user-defined one.
+    // U51: per-view `theme` attributes may reference further themes — inline
+    // every referenced user theme's CSS too (bundled themes ride along via
+    // their packages in the filtered bundle).
     let userThemeCss = '';
-    if (theme && storage && storage.dataDir) {
-        const userThemeFile = path.join(storage.dataDir, 'themes', theme + '.css');
-        try {
-            userThemeCss = require('fs').readFileSync(userThemeFile, 'utf8');
-        } catch { /* not a user theme */ }
+    if (storage && storage.dataDir) {
+        const wanted = new Set();
+        if (theme) wanted.add(theme);
+        for (const t of viewThemeClasses(siteHtml)) wanted.add(t);
+        for (const cls of wanted) {
+            try {
+                userThemeCss += require('fs').readFileSync(path.join(storage.dataDir, 'themes', cls + '.css'), 'utf8') + '\n';
+            } catch { /* not a user theme */ }
+        }
     }
 
     // Re-apply the theme class to feezal-site (stripped on deploy, stored in viewer.theme).

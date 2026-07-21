@@ -65,6 +65,56 @@ describe('viewer theme class mirroring', () => {
     });
 });
 
+// U51: theme command override state — an explicit choice suppresses per-view
+// themes; '' / 'default' restores the baked theme and re-enables them.
+describe('theme control command — override state (U51)', () => {
+    function makeThemedSite() {
+        feezal.isEditor = false;
+        feezal.views = makeViews('home');
+        const site = document.createElement('feezal-site');
+        site.classList.add('feezal-theme-baked');
+        document.body.append(site);
+        return site;
+    }
+
+    it('an explicit theme sets the override and re-derives view themes', () => {
+        const site = makeThemedSite();
+        const view = document.createElement('feezal-view');
+        view.setAttribute('theme', 'dark-mint');
+        site.append(view);
+        view._applyThemeClass();
+        expect(view.classList.contains('feezal-theme-dark-mint')).toBe(true);
+
+        feezal.site = site;
+        site.applyControlCommand('theme', 'user-pick');
+
+        expect(site._themeOverride).toBe('feezal-theme-user-pick');
+        expect(site.classList.contains('feezal-theme-user-pick')).toBe(true);
+        expect(site.classList.contains('feezal-theme-baked')).toBe(false);
+        // The per-view theme is suppressed while the override is active.
+        expect(view.classList.contains('feezal-theme-dark-mint')).toBe(false);
+        document.body.className = '';
+    });
+
+    it("'default' clears the override, restores the baked theme and view themes", () => {
+        const site = makeThemedSite();
+        const view = document.createElement('feezal-view');
+        view.setAttribute('theme', 'dark-mint');
+        site.append(view);
+        feezal.site = site;
+
+        site.applyControlCommand('theme', 'user-pick');
+        site.applyControlCommand('theme', 'default');
+
+        expect(site._themeOverride).toBeNull();
+        expect(site.classList.contains('feezal-theme-baked')).toBe(true);
+        expect(site.classList.contains('feezal-theme-user-pick')).toBe(false);
+        expect(document.body.classList.contains('feezal-theme-baked')).toBe(true);
+        expect(view.classList.contains('feezal-theme-dark-mint')).toBe(true);
+        document.body.className = '';
+    });
+});
+
 describe('_syncViewBackground()', () => {
     it('mirrors the active view background into --feezal-canvas-bg', () => {
         const site = document.createElement('feezal-site');

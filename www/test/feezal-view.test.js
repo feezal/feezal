@@ -130,3 +130,66 @@ describe('feezal-view flow layout (U41)', () => {
         }
     });
 });
+
+// ── U51: per-view themes — the theme attribute owns feezal-theme-* classes ──
+
+describe('per-view theme (U51)', () => {
+    async function mountView(attrs = {}) {
+        const view = makeView('themed');
+        for (const [k, v] of Object.entries(attrs)) view.setAttribute(k, v);
+        document.body.append(view);
+        await view.updateComplete;
+        return view;
+    }
+
+    it('applies the theme class for a bare suffix and a full class name', async () => {
+        feezal.site = null;
+        const bare = await mountView({theme: 'dark-mint'});
+        expect(bare.classList.contains('feezal-theme-dark-mint')).toBe(true);
+        const full = await mountView({theme: 'feezal-theme-tui'});
+        expect(full.classList.contains('feezal-theme-tui')).toBe(true);
+        bare.remove(); full.remove();
+    });
+
+    it('changing / clearing the attribute swaps / removes the class', async () => {
+        feezal.site = null;
+        const view = await mountView({theme: 'dark-mint'});
+        view.setAttribute('theme', 'metro');
+        await view.updateComplete;
+        expect([...view.classList].filter(c => c.startsWith('feezal-theme-'))).toEqual(['feezal-theme-metro']);
+        view.setAttribute('theme', '');
+        await view.updateComplete;
+        expect([...view.classList].some(c => c.startsWith('feezal-theme-'))).toBe(false);
+        view.remove();
+    });
+
+    it('strips a stale serialized theme class on mount (attribute owns the class)', async () => {
+        feezal.site = null;
+        const view = makeView('stale');
+        view.className = 'feezal-theme-old-choice something-else';
+        document.body.append(view);
+        await view.updateComplete;
+        expect(view.classList.contains('feezal-theme-old-choice')).toBe(false);
+        expect(view.classList.contains('something-else')).toBe(true);
+        view.remove();
+    });
+
+    it('is suppressed while a site-level theme override is active (user choice wins)', async () => {
+        feezal.site = {_themeOverride: 'feezal-theme-user-pick'};
+        const view = await mountView({theme: 'dark-mint'});
+        expect(view.classList.contains('feezal-theme-dark-mint')).toBe(false);
+
+        // Override cleared → the site calls _applyThemeClass() again.
+        feezal.site = {_themeOverride: null};
+        view._applyThemeClass();
+        expect(view.classList.contains('feezal-theme-dark-mint')).toBe(true);
+        view.remove();
+    });
+
+    it('offers installed themes in the inspector dropdown', () => {
+        window.feezal.themes = ['@feezal/feezal-theme-dark-mint', '@feezal/feezal-theme-tui'];
+        const spec = customElements.get('feezal-view').feezal.attributes.find(a => a?.name === 'theme');
+        expect(spec.dropdown).toEqual(['feezal-theme-dark-mint', 'feezal-theme-tui']);
+        delete window.feezal.themes;
+    });
+});

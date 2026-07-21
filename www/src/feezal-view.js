@@ -12,6 +12,8 @@ class FeezalView extends LitElement {
     static properties = {
         name: {type: String, reflect: true},
         visible: {type: Boolean},
+        // U51 — per-view theme (full class name or bare suffix; empty = site theme)
+        theme: {type: String, reflect: true},
         childPosition: {type: String, attribute: 'child-position', reflect: true},
         // U41 — flow layout knobs (only meaningful when child-position="flow").
         flowGap:       {type: String, attribute: 'flow-gap', reflect: true},
@@ -82,6 +84,19 @@ class FeezalView extends LitElement {
                     name: 'child-position',
                     dropdown: ['absolute', 'flow']
                 },
+                {
+                    // U51 — per-view theme. Themes are class-scoped
+                    // (.feezal-theme-<n> { --vars… }), so putting the class on
+                    // the view scopes the theme to this view only. Options
+                    // resolve at inspector-render time from the installed
+                    // theme packages; × (U44) clears back to the site theme.
+                    name: 'theme',
+                    dropdown: (typeof window !== 'undefined' && window.feezal?.themes)
+                        ? window.feezal.themes.map(p => p.split('/').pop())
+                        : [],
+                    default: '',
+                    help: 'Render this view in its own theme — e.g. a dark camera wall next to a light living room. Empty = the site theme. Suppressed while a user/MQTT theme override is active (the user’s choice wins everywhere).'
+                },
                 // U41 — flow knobs; U39 conditional visibility hides them unless
                 // the view is in flow mode.
                 {name: 'flow-gap', type: 'number', default: 5, section: 'Flow layout',
@@ -116,6 +131,9 @@ class FeezalView extends LitElement {
         if (changed.has('visible')) {
             this._visibleChange(this.visible);
         }
+        if (changed.has('theme')) {
+            this._applyThemeClass();
+        }
         // U41 — the legacy `static` value is aliased to `flow` at load (no file
         // migration; the next save writes `flow`).
         if (changed.has('childPosition') && this.childPosition === 'static') {
@@ -147,8 +165,33 @@ class FeezalView extends LitElement {
         });
     }
 
+    /**
+     * U51 — apply/remove the per-view theme class. Themes are class-scoped
+     * CSS, so the class alone scopes the theme to this view (and to clones of
+     * it: layout-app/dialog-view embeds copy attributes, and their own
+     * lifecycle re-derives the class). The `theme` attribute OWNS the
+     * feezal-theme-* classes on views: stale serialized classes are stripped,
+     * which also self-heals saved markup. Suppressed while a site-level
+     * user/MQTT theme override is active — the user's choice wins everywhere
+     * (see feezal-site's `theme` control command / E91).
+     */
+    _applyThemeClass() {
+        const suppressed = Boolean(window.feezal?.site?._themeOverride);
+        const raw = (this.theme || '').trim();
+        const wanted = !suppressed && raw
+            ? (raw.startsWith('feezal-theme-') ? raw : 'feezal-theme-' + raw)
+            : null;
+        [...this.classList]
+            .filter(c => c.startsWith('feezal-theme-') && c !== wanted)
+            .forEach(c => this.classList.remove(c));
+        if (wanted) this.classList.add(wanted);
+    }
+
     connectedCallback() {
         super.connectedCallback();
+        // U51: strip stale serialized theme classes / apply the attribute on
+        // mount — the updated() hook only fires when the property changes.
+        this._applyThemeClass();
         if (!feezal.isEditor && this.subscribe) {
             feezal.connection.sub(this.subscribe + '/addclass', message => {
                 this.classList.add(message.payload);

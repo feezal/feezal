@@ -134,6 +134,13 @@ class FeezalSite extends LitElement {
         return emb ? `${this.view}/${emb}` : this.view;
     }
 
+    /** U51 — re-derive every view's per-view theme class after the site-level
+     * override state changed (an override suppresses view themes; clearing it
+     * restores them). */
+    _reapplyViewThemes() {
+        this.querySelectorAll('feezal-view').forEach(v => v._applyThemeClass?.());
+    }
+
     /** Route a pending deep-link/inbound embedded view into the visible router (once it exists). */
     _applyPendingEmbedded() {
         if (!this._pendingEmbedded) return;
@@ -190,9 +197,10 @@ class FeezalSite extends LitElement {
         if (!feezal.isEditor) {
             // Mirror the initial theme class (injected by the server into feezal-site)
             // to document.body so that portals appended to body inherit the CSS vars.
-            [...this.classList]
-                .filter(c => c.startsWith('feezal-theme-'))
-                .forEach(c => document.body.classList.add(c));
+            // U51: also remember the baked classes so a theme override can be
+            // cleared back to them ('default' payload / E91 "Site default").
+            this._bakedThemeClasses = [...this.classList].filter(c => c.startsWith('feezal-theme-'));
+            this._bakedThemeClasses.forEach(c => document.body.classList.add(c));
         }
 
         if (!feezal.isEditor && this.subscribe) {
@@ -311,8 +319,24 @@ class FeezalSite extends LitElement {
                 break;
             case 'theme': {
                 const raw = String(payload || '').trim();
+                // U51: '' / 'default' clears the override — back to the baked
+                // site theme, and per-view themes apply again.
+                if (!raw || raw === 'default') {
+                    this._themeOverride = null;
+                    for (const el of [document.body, this]) {
+                        [...el.classList]
+                            .filter(c => c.startsWith('feezal-theme-'))
+                            .forEach(c => el.classList.remove(c));
+                        (this._bakedThemeClasses || []).forEach(c => el.classList.add(c));
+                    }
+                    this._reapplyViewThemes();
+                    break;
+                }
                 // Accept either the full class name (feezal-theme-dark-mint) or just the suffix (dark-mint).
                 const cls = raw.startsWith('feezal-theme-') ? raw : 'feezal-theme-' + raw;
+                // U51: an explicit theme choice is site-wide — per-view themes
+                // are suppressed while it is active (user choice wins).
+                this._themeOverride = cls;
                 // Swap the theme class on the site element too, not just body: the
                 // deployed HTML bakes the active theme class onto <feezal-site>,
                 // and custom properties set directly on it would override the
@@ -323,6 +347,7 @@ class FeezalSite extends LitElement {
                         .forEach(c => el.classList.remove(c));
                     el.classList.add(cls);
                 }
+                this._reapplyViewThemes();
 
                 break;
             }

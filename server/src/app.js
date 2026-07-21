@@ -243,12 +243,23 @@ async function createApp(config) {
             }
 
             // Inject <link> for user-defined themes (CSS files in dataDir/themes/).
+            // U51: besides the active site theme, every theme referenced by a
+            // per-view `theme` attribute must have its CSS present — bundled
+            // themes inject on import, user themes need their link here.
             let userThemeLink = '';
-            if (theme && storage.dataDir) {
-                try {
-                    await fs.access(path.join(storage.dataDir, 'themes', theme + '.css'));
-                    userThemeLink = `\n<link rel="stylesheet" href="/themes/${theme}.css">`;
-                } catch { /* not a user theme */ }
+            if (storage.dataDir) {
+                const wanted = new Set();
+                if (theme) wanted.add(theme);
+                for (const m of themedHtml.matchAll(/<feezal-view\b[^>]*\btheme\s*=\s*"([^"]+)"/g)) {
+                    const cls = m[1].startsWith('feezal-theme-') ? m[1] : 'feezal-theme-' + m[1];
+                    if (/^feezal-theme-[\w-]+$/.test(cls)) wanted.add(cls);
+                }
+                for (const cls of wanted) {
+                    try {
+                        await fs.access(path.join(storage.dataDir, 'themes', cls + '.css'));
+                        userThemeLink += `\n<link rel="stylesheet" href="/themes/${cls}.css">`;
+                    } catch { /* not a user theme */ }
+                }
             }
 
             // Build CSS for defined classes.
