@@ -654,3 +654,83 @@ describe('end-to-end via discovery.handleMessage', () => {
         expect(disc.getDiscoveredEntities()).toHaveLength(0);
     });
 });
+
+// ── Recognizer 6: Homematic switch — name word-list heuristic (E126) ─────────
+
+describe('homematic switch recognizer (E126)', () => {
+    const msg = (seg, hm) => nat.handleNativeMessage(`hm/status/${seg}/STATE`, je(true, hm));
+    const meta = (dev, extra) => ({
+        device: dev, deviceName: extra.deviceName, deviceType: 'HmIP-BSM',
+        channel: extra.channel, channelName: extra.channelName,
+        channelType: extra.channelType ?? 'SWITCH', channelIndex: extra.channelIndex,
+        iface: 'BidCos-RF', datapoint: 'STATE',
+    });
+
+    it('a switch-word channel name promotes a switch with STATE r/w and true/false payloads', () => {
+        const dev = 'SW0001';
+        msg('Steckdose Terrasse:3', meta(dev, {deviceName: 'Steckdose Terrasse', channel: dev + ':3', channelName: 'Steckdose Terrasse:3'}));
+
+        const e = nat.getNativeEntity('hm-switch:' + dev + ':3');
+        expect(e).toBeTruthy();
+        expect(e.component).toBe('switch');
+        const c = e.config;
+        expect(c.state_topic).toBe('hm/status/Steckdose Terrasse:3/STATE');
+        expect(c.command_topic).toBe('hm/set/Steckdose Terrasse:3/STATE');
+        expect(c.payload_on).toBe('true');
+        expect(c.payload_off).toBe('false');
+        expect(c.value_template).toBe('{{ value_json.val }}');
+        expect(c.availability_normalized.entries).toEqual([
+            {topic: 'hm/status/Steckdose Terrasse:0/UNREACH', property: 'payload.val'},
+        ]);
+    });
+
+    it('a light-word channel name promotes an on/off LIGHT instead (E122 mode)', () => {
+        const dev = 'SW0002';
+        msg('Licht Terrasse:3', meta(dev, {deviceName: 'Licht Terrasse', channel: dev + ':3', channelName: 'Licht Terrasse:3'}));
+
+        const e = nat.getNativeEntity('hm-switch:' + dev + ':3');
+        expect(e).toBeTruthy();
+        expect(e.component).toBe('light');
+        const c = e.config;
+        expect(c.payload_mode).toBe('separate');
+        expect(c.state_topic).toBe('hm/status/Licht Terrasse:3/STATE');
+        expect(c.state_command_topic).toBe('hm/set/Licht Terrasse:3/STATE');
+        expect(c.supported_color_modes).toEqual(['onoff']);   // → mode on_off client-side
+        expect(c.message_property_state).toBe('payload.val');
+    });
+
+    it('light words win over switch words when both match', () => {
+        const dev = 'SW0003';
+        msg('Steckdose Lampe Ecke:3', meta(dev, {deviceName: 'X', channel: dev + ':3', channelName: 'Steckdose Lampe Ecke:3'}));
+        expect(nat.getNativeEntity('hm-switch:' + dev + ':3').component).toBe('light');
+    });
+
+    it('an unnamed channel (CCU default segment) is NOT promoted', () => {
+        const dev = '000855699C49CB';
+        msg('HmIP-BSM ' + dev + ':9', meta(dev, {channel: dev + ':9', channelName: 'HmIP-BSM ' + dev + ':9'}));
+        expect(nat.getNativeEntities().filter(e => e.discovery_id.startsWith('hm-switch:'))
+            .filter(e => e.discovery_id.includes(dev))).toHaveLength(0);
+    });
+
+    it('a matching name with absent channelType is NOT promoted (metadata rule)', () => {
+        nat.handleNativeMessage('hm/status/Steckdose Keller:3/STATE', je(true));
+        expect(nat.getNativeEntities().some(e => e.discovery_id === 'hm-switch:Steckdose Keller')).toBe(false);
+    });
+
+    it('HmIP SWITCH_VIRTUAL_RECEIVER triple → ONE entity on the leader channel', () => {
+        const dev = 'HMIPSW01';
+        for (const idx of [4, 5, 6]) {
+            msg(`Standby TV:${idx}`, {
+                device: dev, deviceName: 'Standby TV', deviceType: 'HmIP-PS',
+                channel: `${dev}:${idx}`, channelName: `Standby TV:${idx}`,
+                channelType: 'SWITCH_VIRTUAL_RECEIVER', channelIndex: idx,
+                iface: 'HmIP-RF', datapoint: 'STATE',
+            });
+        }
+        const entities = nat.getNativeEntities().filter(e => e.discovery_id.startsWith('hm-switch:' + dev));
+        expect(entities).toHaveLength(1);
+        expect(entities[0].discovery_id).toBe('hm-switch:' + dev + ':g0');
+        expect(entities[0].component).toBe('switch');
+        expect(entities[0].config.state_topic).toBe('hm/status/Standby TV:4/STATE');
+    });
+});

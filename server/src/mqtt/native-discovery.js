@@ -850,8 +850,186 @@ const hmLightRecognizer = {
     reset() { this.state.devices.clear(); },
 };
 
+// ── Recognizer 6: Homematic switch (name word-list heuristic, E126) ──────────
+// Switch actuators. A Homematic installation exposes tremendous numbers of
+// irrelevant switch datapoints (unused actuator channels, virtual triples) —
+// promoting them all would bury the discovered-device list. Two gates:
+//
+//   1. channelType  — SWITCH (BidCoS; one channel = one output) or
+//                     SWITCH_VIRTUAL_RECEIVER (HmIP; outputs exposed as
+//                     consecutive TRIPLES — reuse hmipVirtualGroup, same
+//                     *_VIRTUAL_RECEIVER convention as blinds/dimmers).
+//                     channelType absent ⇒ no promotion (framework rule).
+//   2. channel name — users leave irrelevant channels UNNAMED (topic segment
+//                     stays the CCU default, model+serial:idx), relevant ones
+//                     get real names. Promote only when the name/segment
+//                     contains a word from the lists below (case-insensitive
+//                     substring). Light words WIN over switch words and
+//                     classify the channel as an on/off LIGHT (E122 mode) —
+//                     "Licht Terrasse" on a switch actuator is a lamp.
+//
+// Word lists are deliberately HARDCODED (decision 07/2026) — extend here.
+const SWITCH_NAME_WORDS = ['steckdose', 'standby', 'plug', 'socket', 'outlet', 'schalter'];
+const LIGHT_NAME_WORDS = ['light', 'licht', 'lamp', 'lampe', 'leuchte', 'beleuchtung', 'bulb', 'spot'];
+const SWITCH_BIDCOS_TYPES = new Set(['SWITCH']);
+const SWITCH_HMIP_TYPES = new Set(['SWITCH_VIRTUAL_RECEIVER']);
+
+/** 'light' | 'switch' | null for a channel's user-visible naming. */
+function switchNameClass(chan) {
+    const hay = ((chan.channelName || '') + ' ' + (chan.seg || '')).toLowerCase();
+    if (LIGHT_NAME_WORDS.some(w => hay.includes(w))) return 'light';
+    if (SWITCH_NAME_WORDS.some(w => hay.includes(w))) return 'switch';
+    return null;
+}
+
+const hmSwitchRecognizer = {
+    id: 'homematic-switch',
+    // deviceId → {deviceId, deviceName, deviceType, channels: Map<seg, chan>}
+    // chan = {seg, channelType, channelIndex, channelAddr, channelName}
+    state: {devices: new Map()},
+
+    match(topic) {
+        // hm/status/<seg>/STATE — STATE only. Contacts also match STATE; each
+        // recognizer independently gates on its own channelType.
+        if (!topic.startsWith(hmPrefix + '/status/')) return null;
+        const parts = topic.split('/');
+        if (parts.length !== 4) return null;            // exactly prefix/status/seg/DP
+        if (parts[3] !== 'STATE') return null;
+        return {seg: parts[2], datapoint: 'STATE'};
+    },
+
+    accumulate(state, parsed, value, payload) {
+        const hm = (payload && typeof payload === 'object' && payload.hm && typeof payload.hm === 'object')
+            ? payload.hm : null;
+
+        // Group by the CCU device id; fall back to the topic segment with its
+        // trailing :<n> stripped when metadata is absent.
+        const deviceId = (hm && hm.device) ? String(hm.device)
+            : parsed.seg.replace(/:\d+$/, '');
+
+        let dev = state.devices.get(deviceId);
+        if (!dev) {
+            dev = {deviceId, deviceName: undefined, deviceType: undefined, channels: new Map()};
+            state.devices.set(deviceId, dev);
+        }
+        if (hm) {
+            if (hm.deviceName != null) dev.deviceName = hm.deviceName;
+            if (hm.deviceType != null) dev.deviceType = hm.deviceType;
+        }
+
+        let chan = dev.channels.get(parsed.seg);
+        if (!chan) {
+            chan = {seg: parsed.seg, channelType: undefined, channelIndex: undefined,
+                channelAddr: undefined, channelName: undefined};
+            dev.channels.set(parsed.seg, chan);
+        }
+        if (hm) {
+            if (hm.channelType != null) chan.channelType = hm.channelType;
+            if (hm.channelIndex != null) chan.channelIndex = hm.channelIndex;
+            if (hm.channel != null) chan.channelAddr = hm.channel;
+            if (hm.channelName != null) chan.channelName = hm.channelName;
+        }
+        // Carry the just-updated channel so promote emits THIS channel's
+        // switch / its HmIP group (a device can hold several outputs).
+        return {dev, chan};
+    },
+
+    _build(dev, chan, discoveryId, name, component) {
+        const p = hmPrefix;
+        const readSeg = chan.seg;
+        // Write topics use the segment when non-empty, else the channel address
+        // (nameless device) — mirrors the other recognizers.
+        const writeSeg = chan.seg !== '' ? chan.seg : (chan.channelAddr || chan.seg);
+
+        // STATE is boolean, read/write. 'true'/'false' payloads: the element's
+        // payload matching handles the BidCoS boolean via string comparison,
+        // and hm2mqtt coerces the published string back to a boolean.
+        const common = {
+            name,
+            payload_on: 'true',
+            payload_off: 'false',
+        };
+
+        const config = component === 'light'
+            ? {
+                ...common,
+                // Relay lamp → light in E122's switch-only mode: no brightness
+                // ring, the centre power button toggles STATE.
+                payload_mode: 'separate',
+                state_topic: hmStatus(p, readSeg, 'STATE'),          // → subscribe (state fallback)
+                state_command_topic: hmSet(p, writeSeg, 'STATE'),    // → publish-state
+                supported_color_modes: ['onoff'],                    // → mode on_off (colorMode map)
+                message_property: 'payload.val',
+                message_property_state: 'payload.val',
+            }
+            : {
+                ...common,
+                state_topic: hmStatus(p, readSeg, 'STATE'),
+                command_topic: hmSet(p, writeSeg, 'STATE'),
+                // → message-property payload.val via valueTemplateToPath
+                value_template: '{{ value_json.val }}',
+            };
+
+        // Availability from the device's :0 maintenance UNREACH datapoint.
+        // Switch actuators are mains-powered — UNREACH only, mirrors cover/light.
+        const availBase = readSeg !== '' ? readSeg : (chan.channelAddr || readSeg);
+        const availSeg = availBase.replace(/:\d+$/, ':0');
+        config.availability_normalized = {
+            entries: [{topic: hmStatus(p, availSeg, 'UNREACH'), property: 'payload.val'}],
+            mode: 'all',
+            payloadAvailable: false,
+            payloadUnavailable: true,
+        };
+
+        return {
+            discovery_id: discoveryId,
+            component,
+            source: 'homematic',
+            sourceLabel: 'hm',
+            name,
+            config,
+        };
+    },
+
+    promote(state) {
+        const {dev, chan} = state;
+        // channelType absent/unlisted ⇒ cannot classify ⇒ no promotion.
+        if (!chan.channelType) return null;
+
+        if (SWITCH_BIDCOS_TYPES.has(chan.channelType)) {
+            const component = switchNameClass(chan);
+            if (!component) return null;                 // unnamed/unmatched — not promoted
+            const id = 'hm-switch:' + (chan.channelAddr || chan.seg);
+            const name = chan.channelName || dev.deviceName
+                || (dev.deviceType ? dev.deviceType + ' ' + dev.deviceId : dev.deviceId);
+            return this._build(dev, chan, id, name, component);
+        }
+
+        if (SWITCH_HMIP_TYPES.has(chan.channelType)) {
+            const grp = hmipVirtualGroup(dev, chan, 'SWITCH_VIRTUAL_RECEIVER');
+            if (!grp) return null;
+            const {leader, groupIndex} = grp;
+            const component = switchNameClass(leader);
+            if (!component) return null;                 // leader unnamed/unmatched
+            // Stable per-group id (…:g0/:g1/…) so the retained burst overwrites
+            // in place as channels arrive out of order.
+            const id = 'hm-switch:' + dev.deviceId + ':g' + groupIndex;
+            const name = (leader.channelName && leader.channelName !== dev.deviceName)
+                ? leader.channelName
+                : ((dev.deviceName
+                    || (dev.deviceType ? dev.deviceType + ' ' + dev.deviceId : dev.deviceId))
+                    + ' ' + (groupIndex + 1));
+            return this._build(dev, leader, id, name, component);
+        }
+
+        return null;
+    },
+
+    reset() { this.state.devices.clear(); },
+};
+
 // ── Framework ─────────────────────────────────────────────────────────────────
-const recognizers = [hmClimateRecognizer, wledRecognizer, hmContactRecognizer, hmCoverRecognizer, hmLightRecognizer];
+const recognizers = [hmClimateRecognizer, wledRecognizer, hmContactRecognizer, hmCoverRecognizer, hmLightRecognizer, hmSwitchRecognizer];
 
 /** @type {Map<string, object>} discovery_id → promoted native entity */
 const nativeEntities = new Map();

@@ -98,6 +98,8 @@ class FeezalElementGlassLight extends FeezalGlassCard {
                 map: {
                     schema:           {attr: 'payload-mode', valueMap: {json: 'json', _default: 'separate'}},
                     state_topic:      'subscribe',
+                    // E126: native Homematic relay-as-light — on/off command topic.
+                    state_command_topic: 'publish-state',
                     command_topic:    {attr: 'publish', onlyWhen: {schema: 'json'}},
                     brightness_state_topic:   'subscribe-brightness',
                     brightness_command_topic: 'publish-brightness',

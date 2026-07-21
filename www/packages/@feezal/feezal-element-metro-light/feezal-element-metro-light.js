@@ -85,6 +85,9 @@ class FeezalElementMetroLight extends MetroTileBase {
                 map: {
                     schema:        {attr: 'payload-mode', valueMap: {json: 'json', _default: 'separate'}},
                     state_topic:   'subscribe',
+                    // E126: native Homematic relay-as-light — on/off command topic
+                    // (separate mode; HA/z2m never emit this key, additive).
+                    state_command_topic: 'publish-state',
                     command_topic: {attr: 'publish', onlyWhen: {schema: 'json'}},
                     brightness_state_topic:   'subscribe-brightness',
                     brightness_command_topic: 'publish-brightness',

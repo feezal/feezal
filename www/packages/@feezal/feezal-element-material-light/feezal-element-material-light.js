@@ -131,6 +131,9 @@ class FeezalElementMaterialLight extends FeezalElement {
                     // wiring — schema decides separate vs json
                     schema:        {attr: 'payload-mode', valueMap: {json: 'json', _default: 'separate'}},
                     state_topic:   'subscribe', // json mode: base topic; separate mode: on/off state topic
+                    // E126: native Homematic relay-as-light — on/off command topic
+                    // (separate mode; HA/z2m never emit this key, additive).
+                    state_command_topic: 'publish-state',
                     command_topic: {attr: 'publish',   onlyWhen: {schema: 'json'}}, // …/set
                     // capability ranges
                     brightness_scale:      {attr: 'brightness-max'},          // e.g. 254 → 0–100 %

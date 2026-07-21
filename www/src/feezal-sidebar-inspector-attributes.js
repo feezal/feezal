@@ -1771,7 +1771,10 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                     const modeMap = {
                         color_temp: 'brightness_ct', xy: 'hs', hs: 'hs',
                         rgb: 'rgb', rgbw: 'rgb', rgbww: 'rgb', white: 'brightness',
-                        brightness: 'brightness', onoff: 'brightness',
+                        // E126/E122: an onoff-only capability IS the switch-only
+                        // mode — a relay lamp must not be offered a brightness
+                        // ring it cannot honour.
+                        brightness: 'brightness', onoff: 'on_off',
                     };
                     const list = Array.isArray(raw) ? raw : [raw];
                     value = list.map(m => modeMap[m]).find(Boolean) || 'brightness';
