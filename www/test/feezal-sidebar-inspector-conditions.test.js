@@ -89,6 +89,47 @@ describe('conditions inspector panel (E50)', () => {
         expect(JSON.parse(target.getAttribute('conditions'))[0].class).toBeUndefined();
     });
 
+    // U49: the engine has supported a per-row message property (dot-path,
+    // default "payload") since E50 — the inspector now exposes it.
+    describe('message property (U49)', () => {
+        it('renders a property input with a "payload" placeholder', async () => {
+            const target = makeTarget([{subscribe: 'a', value: '1', action: 'hide'}]);
+            const panel = await mountPanel(target);
+            const input = [...panel.shadowRoot.querySelectorAll('sl-input')]
+                .find(inp => inp.getAttribute('placeholder') === 'payload');
+            expect(input).toBeTruthy();
+        });
+
+        it('persists a property and omits it again when cleared', async () => {
+            const target = makeTarget([{subscribe: 'a', value: '1', action: 'hide'}]);
+            const panel = await mountPanel(target);
+
+            panel._patch(0, 'property', 'val');
+            expect(JSON.parse(target.getAttribute('conditions'))[0].property).toBe('val');
+            panel._patch(0, 'property', '');
+            // Empty must OMIT the key — the engine defaults to "payload";
+            // writing it out would bloat every saved row.
+            expect('property' in JSON.parse(target.getAttribute('conditions'))[0]).toBe(false);
+        });
+
+        it('a hand-authored property survives an unrelated edit', async () => {
+            const target = makeTarget([{subscribe: 'a', property: 'state.temp', value: '1', action: 'hide'}]);
+            const panel = await mountPanel(target);
+            panel._patch(0, 'value', '2');
+            const row = JSON.parse(target.getAttribute('conditions'))[0];
+            expect(row.property).toBe('state.temp');
+            expect(row.value).toBe('2');
+        });
+
+        it('shows an existing property value in the input', async () => {
+            const target = makeTarget([{subscribe: 'a', property: 'val', value: '1', action: 'hide'}]);
+            const panel = await mountPanel(target);
+            const input = [...panel.shadowRoot.querySelectorAll('sl-input')]
+                .find(inp => inp.getAttribute('placeholder') === 'payload');
+            expect(input.value).toBe('val');
+        });
+    });
+
     // Regression: "+ style property" appended an empty-key entry that
     // _patchStyle immediately filtered out of the persisted object — the new
     // row vanished on re-render and the button appeared to do nothing.

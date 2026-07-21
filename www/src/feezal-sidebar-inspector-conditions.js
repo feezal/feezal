@@ -391,6 +391,13 @@ class FeezalSidebarInspectorConditions extends LitElement {
                             </ul>` : ''}
                     </div>
                     <div class="grid">
+                        <div class="field">
+                            <label>property</label>
+                            <sl-input size="small" autocomplete="off" placeholder="payload"
+                                title="U49: dot-path into the message to compare, e.g. val or state.temperature. Empty = the whole payload."
+                                .value="${row.property || ''}"
+                                @sl-change="${e => this._patch(i, 'property', e.target.value.trim())}"></sl-input>
+                        </div>
                         <div class="field" style="flex:0 0 92px">
                             <label>operator</label>
                             <sl-select size="small" hoist .value="${row.operator || '='}"
@@ -398,6 +405,8 @@ class FeezalSidebarInspectorConditions extends LitElement {
                                 ${OPERATORS.map(op => html`<sl-option value="${op}">${op}</sl-option>`)}
                             </sl-select>
                         </div>
+                    </div>
+                    <div class="grid">
                         <div class="field">
                             <label>value</label>
                             <sl-input size="small" autocomplete="off" .value="${row.value ?? ''}"
