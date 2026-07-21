@@ -564,3 +564,20 @@ docker run -d --name feezal -p 3000:3000 -v feezal-data:/data \
 ```
 
 feezal will read the `X-Auth-User` header and treat its value as the authenticated username. **Only enable this when feezal is not directly reachable from the internet** — the header must always be set by the trusted proxy, never by an end user.
+
+## 14. Privacy: what feezal contacts, and when
+
+**Policy (A25): feezal makes no third-party network request you did not explicitly configure.** All UI assets — fonts (Roboto, Material Icons), Shoelace component icons, Leaflet map images and CSS — are bundled and served by your feezal instance; the editor, the live viewer, static exports and mobile builds all work fully offline. A restrictive `Content-Security-Policy` on every server response enforces this structurally: third-party scripts, styles and fonts are blocked by the browser, and a CI test fails if a CDN reference ever reappears in the code.
+
+The **complete** list of outbound connections, all user-controlled:
+
+| Connection | When | Configured where |
+|---|---|---|
+| Your **MQTT broker** | always (that's the point) | Site Settings → Connection |
+| **AI assistant** provider (`api.anthropic.com` / `api.openai.com` / your own Ollama URL) | only when you use the assistant, only if configured | Editor Settings → AI |
+| `registry.npmjs.org` | package **search** (typing a query) and the **"Check for updates"** button — never automatically | Packages sidebar |
+| `tile.openstreetmap.org` | only if a dashboard contains a **map element** with the default tile server | element's `tile-url` attribute (point it at your own tile server for full offline) |
+| URLs **you put in elements** (camera feeds, `basic-svg`/`basic-image` sources, `basic-iframe` pages) | as your dashboard loads them | the respective element attributes |
+| `raw.githubusercontent.com` | **never at runtime** — only when a maintainer refreshes the Material-Icons codepoint list with `FEEZAL_FETCH_ICON_CODEPOINTS=1` | environment variable, development only |
+
+feezal contains **no telemetry, no analytics, no crash reporting, and no install-time hooks**. There is nothing to opt out of.

@@ -83,7 +83,6 @@ Work in progress — priorities and scope are not final.
 - [A21 — Accessibility: adopt the web-components Gold Standard for feezal elements](#a21--accessibility-adopt-the-web-components-gold-standard-for-feezal-elements)
 - [A23 — Externalize element families: own git repos + npm publish (paper, tui, panel)](#a23--externalize-element-families-own-git-repos--npm-publish-paper-tui-panel)
 - [A24 — Externalize the metro element family](#a24--externalize-the-metro-element-family-future--will-be-done-later) *(future)*
-- [A25 — Privacy: zero telemetry, zero third-party CDN, works offline](#a25--privacy-zero-telemetry-zero-third-party-cdn-works-offline-) ⚡
 - [A26 — Release notes: commit links + roadmap-item links](#a26--release-notes-commit-links--roadmap-item-links)
 
 
@@ -949,9 +948,9 @@ The left palette is a poor place to *browse* a catalog that now spans many famil
 
 Optional, off-by-default **Editor Settings** toggle that adds a paperclip assistant — a deliberate homage to the late-90s Microsoft Office assistant — to the help popup. Purely a joke feature.
 
-**Constraints:** must be **opt-in**, must not interfere with the actual help content, and the artwork must be **self-drawn/self-hosted** (an original paperclip, not Microsoft's asset — trademark/copyright) and bundled locally per **A25** (no CDN). Respect `prefers-reduced-motion` if it animates.
+**Constraints:** must be **opt-in**, must not interfere with the actual help content, and the artwork must be **self-drawn/self-hosted** (an original paperclip, not Microsoft's asset — trademark/copyright) and bundled locally per A25 ✅ (no CDN — implemented 07/2026). Respect `prefers-reduced-motion` if it animates.
 
-**Relates:** B43 ✅ (help popup bug — was the blocker, fixed 07/2026), **A25** (self-hosted assets), U37 ✅ (welcome wizard — the other "friendly onboarding" surface).
+**Relates:** B43 ✅ (help popup bug — was the blocker, fixed 07/2026), A25 ✅ (self-hosted assets — implemented 07/2026), U37 ✅ (welcome wizard — the other "friendly onboarding" surface).
 
 ### U48 — Make the viewer's `Connected as "…"` toast optional
 
@@ -1828,39 +1827,6 @@ Metro **stays bundled with feezal for now** (decided 07/2026) — it moves out *
 **Not before:** A23 complete for all three families and the detection/install flow proven in a release.
 
 **Relates:** A23 (the playbook — do that first), N29, E106 (metro shares the same consolidation considerations glass had).
-
-### A25 — Privacy: zero telemetry, zero third-party CDN, works offline ⚡
-
-**Policy (decided 07/2026): feezal must make no third-party network request the user did not explicitly configure.** Not as a default that can be turned on, but as an invariant — a self-hosted dashboard that silently phones out contradicts the entire point of running it yourself. This is *especially* true for **static exports and mobile builds**, which run in environments the maintainer no longer controls and whose viewers never agreed to anything.
-
-**Audit result (07/2026) — the good news first.** **Monaco is clean**: bundled via `vite-plugin-monaco-editor`, local workers in `dist/monacoeditorwork/`, local codicon font, **no `vs/loader`, no CDN `paths`**, and Monaco has no telemetry of its own. Repo-wide there are also **zero** analytics/telemetry dependencies (no Sentry/PostHog/GA/Matomo/Segment/…) and **no `postinstall` hooks**. The suspicion that "Monaco phones home" is unfounded.
-
-**Confirmed leaks (all runtime, all third-party):**
-
-| # | Leak | Where |
-|---|---|---|
-| 1 | **Google Fonts** (`Roboto` + `Material Icons`) — sends IP/UA/Referer to `fonts.googleapis.com`, then `fonts.gstatic.com` | `www/editor/index.html:20`, `www/viewer-src/viewer.html:24`, **`server/src/app.js:313`** (the live viewer real users hit), **`server/src/build/export.js:383`** (static export — **and reused by the Capacitor mobile build**, `capacitor.js:206`) |
-| 2 | A **second, separate** Google Fonts request inside a Lit shadow root | `www/src/feezal-sidebar-assets.js:1147` |
-| 3 | **Shoelace icons deliberately pointed at jsDelivr** — `setBasePath('https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.1/dist')`; no Shoelace `assets/` are copied into the build | `www/editor/index.html:84-85` (consumer e.g. `feezal-element-basic-qrcode.js:414`) |
-| 4 | **Leaflet marker images from `unpkg.com`**, unconditionally (plus a CSS fallback link, and OSM tiles by default) | `feezal-element-material-map.js:26-28`, `:168`, `:183` |
-| 5 | **npm registry queried at runtime** — `/api/elements` fetches `registry.npmjs.org/<pkg>/latest` for **every installed add-on** just to render an update badge, i.e. it tells npm your installed package list on a routine editor action | `server/src/routes/api.js:591` (and `:610` for package search — explicit user action, lower severity) |
-| 6 | **GitHub raw fetched on dev-server boot** — `fetchMaterialIcons()` downloads Google's icon codepoints and rewrites a source file | `server/src/build/elements.js:283-299`, called from `:188` |
-
-**This is also a functional bug, not only privacy.** **Material Icons is not bundled anywhere** — no `@font-face`, no local `woff2`. The ~150 `font-family: 'Material Icons'` rules across `www/src/*` resolve *only* via leak #1, so **feezal is already broken offline / on a CDN-blocked network**: every icon degrades to raw ligature text ("content_copy", "delete", "settings"). That alone justifies the work independently of privacy.
-
-**Fix plan:**
-1. **Self-host Roboto + Material Icons** — add the `woff2` files plus an `@font-face` block, remove all five `<link>`s, and add the fonts to `planExportAssets()` (`export.js:245-315`) so the **ZIP and the mobile bundle** carry them; otherwise the export keeps leaking even after the editor is fixed.
-2. **Shoelace icons local** — `setBasePath('/shoelace')` + a Vite copy step for `@shoelace-style/shoelace/dist/assets`.
-3. **Vendor Leaflet's marker PNGs + CSS** into the map package; keep the tile server user-configurable but **document** that the default contacts OSM (a map is arguably an intentional exception, but it must be a stated one).
-4. **Gate the outbound server calls** — make the npm update-check explicitly opt-in (or on-demand behind a button) and the same for `fetchMaterialIcons()`; neither should run implicitly.
-5. **Add a CSP** (none exists today, in server or editor) — the structural guarantee that keeps this fixed. A restrictive `default-src 'self'` would have made every leak above fail loudly instead of silently.
-6. **Add a regression test** — grep the build output and the export ZIP for third-party hosts and fail CI. Without it this will regress the first time someone pastes a CDN link.
-
-**Explicitly allowed outbound traffic** (must remain the *only* exceptions, and all user-configured): the MQTT broker; the **AI assistant** provider endpoint (`server/src/ai/providers.js:30,33`, defaults to Anthropic/OpenAI, overridable to a local Ollama); element-authored URLs the dashboard author sets (`basic-svg` `src`, camera URLs); and the package browser when the user actively searches for packages.
-
-**Ships with:** the fixes above, a **documented privacy statement** (what feezal contacts, when, and why — likely in the self-hosting guide, D2 ✅), and the CI check.
-
-**Relates:** A9 (cloud builds — already argued to "contradict feezal's self-hosted, privacy-focused nature"; this codifies that principle), E97/N28 (the existing **no-external-fetch export rule** for theme assets — this generalises it to the whole app), D2 ✅ (self-hosting guide — home for the privacy statement), A18 (kiosk/wall panel — often on isolated VLANs where CDN calls simply fail), N12 (export bundle slimming — same export pipeline).
 
 ### A26 — Release notes: commit links + roadmap-item links
 

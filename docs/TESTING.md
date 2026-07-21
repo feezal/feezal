@@ -93,6 +93,15 @@ These shipped this cycle and were validated by build/unit tests **only** — giv
 - [ ] **U43 (apply connection)** — Site Settings → Connection: the *Apply connection settings* button is disabled/quiet on load; change host/port/credentials → it turns primary with a hint; click → deploys (same as Deploy), button goes quiet; the global Deploy also quiets it.
 - [ ] **E126 (hm switch discovery)** — Homematic switch channels named with a plug word (`steckdose`, `standby`, `plug`, `socket`, `outlet`, `schalter`) appear as discovered **switches** (STATE r/w, `true`/`false`); channels named with a light word (`licht`, `light`, `lampe`, `lamp`, `leuchte`, `beleuchtung`, `bulb`, `spot`) appear as discovered **lights** in on/off mode (no brightness ring — power button only); light wins when both match; unnamed channels (model+serial segments) and HmIP virtual-receiver triple followers do NOT appear; availability follows `:0 UNREACH`.
 
+### A25 — zero third-party traffic / offline
+
+- [ ] **Offline smoke** — open the editor and a viewer with the network tab filtered to *third-party* (or on a machine with no internet, broker on LAN): **zero** requests leave the origin; every icon renders as a glyph (not ligature text like "settings"); Roboto renders (not the system serif); Shoelace controls (select carets, clear ×) show their icons; a map element shows marker pins (tiles need the OSM exception or a local tile server).
+- [ ] **CSP enforces** — paste `<link href="https://fonts.googleapis.com/css?family=Lobster">` into a view via the source editor → the browser console shows a CSP violation and nothing is fetched.
+- [ ] **Static export offline** — export a site, unzip, open `index.html` from `file://` with the network disabled → fonts and icons render (fonts/ dir in the ZIP); a map's markers render.
+- [ ] **Packages** — opening the Packages sidebar fires NO request to `registry.npmjs.org` (network tab); the *Check for updates* button fires exactly one and update badges appear; package search still works.
+- [ ] **Dev boot** — starting the server does NOT contact `raw.githubusercontent.com`; with `FEEZAL_FETCH_ICON_CODEPOINTS=1` it refreshes `material-design-icons.js` once.
+- [ ] *(CI)* `server/test/privacy.test.js` greps sources + build output for forbidden hosts and pins the vendored fonts.
+
 ### Release notes grouping (A22) — verify on the next tag
 
 - [ ] Push the next release tag → the generated GitHub release body groups commits into **Features → Fixes → Docs → Chore** sections (Chore includes test/ci/refactor/build/style/perf; the `chore(release)` commit itself is absent); commits without a conventional prefix appear in a trailing **Other** section; empty sections are omitted; the Full-Changelog compare link and the Docker update instructions are unchanged.

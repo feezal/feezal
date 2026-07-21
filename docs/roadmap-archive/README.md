@@ -3,7 +3,7 @@
 Completed and closed roadmap items — **one file per item**, named after its ID (e.g. `U39.md`).
 Open items live in [../ROADMAP.md](../ROADMAP.md).
 
-**221 items.**
+**222 items.**
 
 ## Bugs
 
@@ -227,6 +227,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [A17 — Comprehensive automated testing (backend · frontend · unit · integration · system) ✅ done](A17.md)
 - [A21 — Licensing model: AGPL-3.0 core, MIT element SDK and viewer runtime ✅ implemented](A21.md)
 - [A22 — Release workflow: changelog grouped by category ✅ implemented](A22.md)
+- [A25 — Privacy: zero telemetry, zero third-party CDN, works offline ✅ implemented](A25.md)
 
 ## Documentation
 
