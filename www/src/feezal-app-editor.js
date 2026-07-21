@@ -173,6 +173,12 @@ class FeezalAppEditor extends LitElement {
             --sl-color-neutral-0:   #3a3a3a;
             --sl-color-neutral-300: #555;
             --sl-color-neutral-700: rgba(255,255,255,0.8);
+            /* B49: default-variant HOVER draws from the primary tokens
+               (primary-50 bg / primary-300 border / primary-700 text) — the
+               light-theme values flash a pale blue on the dark banner. */
+            --sl-color-primary-50:  #2e4d63;
+            --sl-color-primary-300: #4a7aa0;
+            --sl-color-primary-700: rgba(255,255,255,0.92);
         }
         .component-param-table {
             width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px;
@@ -471,16 +477,24 @@ class FeezalAppEditor extends LitElement {
         :host(.dark) #folderdialog,
         :host(.dark) #componentdialog,
         :host(.dark) #componentrenamedialog,
+        :host(.dark) #componentmappingdialog,
         :host(.dark) #componentdeletedialog {
             --sl-panel-background-color: #2e2e2e;
             --sl-panel-border-color: #3d3d3d;
             --sl-color-neutral-0:   #1e1e1e;
             --sl-color-neutral-100: #252525;
             --sl-color-neutral-200: #3d3d3d;
+            --sl-color-neutral-300: #555;
             --sl-color-neutral-600: rgba(255,255,255,0.55);
             --sl-color-neutral-700: rgba(255,255,255,0.75);
             --sl-color-neutral-900: rgba(255,255,255,0.9);
             --sl-color-neutral-1000: rgba(255,255,255,0.95);
+            /* B49: default-variant sl-button HOVER draws from the primary
+               tokens (primary-50 bg / primary-300 border / primary-700 text)
+               — without dark values the hover flashes pale blue. */
+            --sl-color-primary-50:  #2e4d63;
+            --sl-color-primary-300: #4a7aa0;
+            --sl-color-primary-700: rgba(255,255,255,0.92);
         }
         /* Slotted body content is light-DOM and does not inherit the Shoelace token
            overrides above — set color explicitly so it reads well on dark panels. */
@@ -488,6 +502,7 @@ class FeezalAppEditor extends LitElement {
         :host(.dark) #deletedialog p,
         :host(.dark) #exporterrordialog p,
         :host(.dark) #componentdialog p,
+        :host(.dark) #componentmappingdialog p,
         :host(.dark) #componentdeletedialog p { color: rgba(255,255,255,0.85); }
         /* The dialog panel shadow DOM inherits color from the document default (dark text).
            Override via ::part(panel) so title, close button and body all read correctly. */
@@ -497,6 +512,7 @@ class FeezalAppEditor extends LitElement {
         :host(.dark) #folderdialog::part(panel),
         :host(.dark) #componentdialog::part(panel),
         :host(.dark) #componentrenamedialog::part(panel),
+        :host(.dark) #componentmappingdialog::part(panel),
         :host(.dark) #componentdeletedialog::part(panel) { color: rgba(255,255,255,0.88); }
         /* Default (neutral) sl-button inside dark dialogs: subtle dark grey, gentle hover. */
         :host(.dark) #viewdialog sl-button:not([variant])::part(base),
@@ -505,6 +521,7 @@ class FeezalAppEditor extends LitElement {
         :host(.dark) #folderdialog sl-button:not([variant])::part(base),
         :host(.dark) #componentdialog sl-button:not([variant])::part(base),
         :host(.dark) #componentrenamedialog sl-button:not([variant])::part(base),
+        :host(.dark) #componentmappingdialog sl-button:not([variant])::part(base),
         :host(.dark) #componentdeletedialog sl-button:not([variant])::part(base) {
             background-color: #3a3a3a; border-color: #555; color: rgba(255,255,255,0.8);
         }
@@ -514,6 +531,7 @@ class FeezalAppEditor extends LitElement {
         :host(.dark) #folderdialog sl-button:not([variant])::part(base):hover,
         :host(.dark) #componentdialog sl-button:not([variant])::part(base):hover,
         :host(.dark) #componentrenamedialog sl-button:not([variant])::part(base):hover,
+        :host(.dark) #componentmappingdialog sl-button:not([variant])::part(base):hover,
         :host(.dark) #componentdeletedialog sl-button:not([variant])::part(base):hover {
             background-color: #4a4a4a; border-color: #666; color: rgba(255,255,255,0.95);
         }
