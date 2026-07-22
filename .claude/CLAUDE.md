@@ -67,7 +67,15 @@ New elements **must** be created as packages under `www/node_modules/@feezal/`, 
    ```
    Keep all `@feezal/feezal-element-*` entries sorted alphabetically. Without this the package is not bundled by Vite.
 
-5. **Create the element file** `feezal-element-<category>-<name>.js`. Follow the full spec in `docs/element-spec.md` — minimal skeleton:
+5. **Check for a behavior controller first (E137).** If the element implements a device *function* that already has a `@feezal/feezal-controller-*` package (currently: `-sensor`, `-contact`, `-climate`), the element must be a **view over that controller** — never re-implement the function's MQTT wiring/parsing/publishing:
+   - Spread the controller's attribute fragment into `feezal.attributes` (family UI metadata like `section`/`visibleWhen` may be merged per name; capability exclusions must be documented in the parity test).
+   - Use the controller's discovery-map fragment: `discovery: {component: '…', map: <function>DiscoveryMap}`.
+   - Instantiate in the constructor (`this.climate = new ClimateController(this, {flags})`); family quirks are constructor option flags, not forks. Call `this.<fn>.rewireIfChanged()` from `updated()`.
+   - Declare the fragment's attributes as reflected Lit properties (attribute edits must trigger `updated()`).
+   - Register the element in `www/test-browser/feezal-controller-parity.test.js`.
+   - See `docs/element-spec.md` §2b for the full contract. If two-plus families share a *new* function, extract a new controller package instead of duplicating behavior.
+
+6. **Create the element file** `feezal-element-<category>-<name>.js`. Follow the full spec in `docs/element-spec.md` — minimal skeleton:
 
    ```js
    /* global feezal */
@@ -101,20 +109,20 @@ New elements **must** be created as packages under `www/node_modules/@feezal/`, 
    export { FeezalElementCategoryName };
    ```
 
-6. **The server picks it up automatically** at startup by scanning `www/node_modules/@feezal/` — no registration required.
+7. **The server picks it up automatically** at startup by scanning `www/node_modules/@feezal/` — no registration required.
 
-7. **Regenerate the editor/viewer element manifest** — `www/editor/feezal-elements.js` is a *generated, checked-in* file listing every element import; the palette and the viewer bundle only contain what it imports. After adding (or removing) element packages, run `npm install` in `www/` (creates the workspace symlink) and then:
+8. **Regenerate the editor/viewer element manifest** — `www/editor/feezal-elements.js` is a *generated, checked-in* file listing every element import; the palette and the viewer bundle only contain what it imports. After adding (or removing) element packages, run `npm install` in `www/` (creates the workspace symlink) and then:
    ```
    node scripts/generate-elements.js
    ```
    Commit the regenerated manifest together with the new package. Skipping this step means the element builds fine but **never appears in the palette**.
 
-8. After creating or modifying element files, **rebuild**:
+9. After creating or modifying element files, **rebuild**:
    ```
    cd www && npm run build
    ```
 
-9. **Add it to the test checklist** — append the element to the appropriate category list in `docs/TESTING.md §6`, plus an "Element-specific notes" bullet for anything the generic recipe doesn't cover (custom inspector, embedded views, dialogs, per-item MQTT, pseudo-element behaviour, …). See *Test checklist maintenance* below.
+10. **Add it to the test checklist** — append the element to the appropriate category list in `docs/TESTING.md §6`, plus an "Element-specific notes" bullet for anything the generic recipe doesn't cover (custom inspector, embedded views, dialogs, per-item MQTT, pseudo-element behaviour, …). See *Test checklist maintenance* below.
 
 ### Element spec reference
 

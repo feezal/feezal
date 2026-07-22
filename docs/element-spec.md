@@ -76,6 +76,88 @@ Pseudo-elements (navigation, connection status overlays) that don't use MQTT may
 
 ---
 
+## 2b. Behavior controllers (E137) — shared device-function contracts
+
+For device *functions* that exist across multiple style families (sensor, contact, climate — light/cover/wled to follow), the **entire MQTT behavior lives in a shared controller package**, not in the element. The element is a **view**: it renders its family's chrome from the controller's state fields and forwards gestures to the controller's commands. Never re-implement a function's wiring, parsing, or publishing inside an element when a controller for that function exists.
+
+### 2b.1 The packages
+
+One workspace package per function under `www/packages/@feezal/`:
+
+| Package | Controller | Adopted by |
+|---|---|---|
+| `@feezal/feezal-controller-sensor` | `SensorController` | material-motion, glass-occupancy, metro-occupancy |
+| `@feezal/feezal-controller-contact` | `ContactController` | material/glass/metro-contact |
+| `@feezal/feezal-controller-climate` | `ClimateController` | material/glass/metro-climate |
+
+Each package exports **one unit of four parts**:
+
+1. **The controller class** — a Lit Reactive Controller (`host.addController(this)`; wires subscriptions in `hostConnected` via `host.addSubscription`, cleans up timers in `hostDisconnected`).
+2. **The attribute-descriptor fragment** — e.g. `climateAttributes`: the complete shared attribute contract (names, types, defaults, help), spread into the family's `feezal.attributes`.
+3. **The `discovery.map` fragment** — e.g. `climateDiscoveryMap`: used as `discovery: {component: '…', map: climateDiscoveryMap}` by every family.
+4. **The consumed-set declaration** — e.g. `CLIMATE_CONSUMED_ATTRIBUTES` (derived from the fragment). The parity test `www/test-browser/feezal-controller-parity.test.js` checks every adopting element against it (E114 by construction) — register new adopters there.
+
+The server's package scan ignores `feezal-controller-*` (only `feezal-element-*`/`feezal-elements-*`/`feezal-theme-*`/`feezal-icons-*` are elements/themes), but the packages must be registered in `www/package.json` `dependencies` like any workspace package.
+
+### 2b.2 Consuming a controller (writing a new family view)
+
+```js
+import {ClimateController, climateAttributes, climateDiscoveryMap} from '@feezal/feezal-controller-climate';
+
+class FeezalElementMyfamilyClimate extends FeezalElement {
+    static get feezal() {
+        return {
+            palette: {…},
+            discovery: {component: 'climate', map: climateDiscoveryMap},
+            attributes: [
+                ...climateAttributes,          // the shared contract, declared ONCE
+                {name: 'label', type: 'string', help: '…'},   // family extras after it
+            ],
+        };
+    }
+
+    constructor() {
+        super();
+        // The behavior layer — wires/parses/publishes; this view renders.
+        this.climate = new ClimateController(this /*, {family flags} */);
+    }
+
+    _subscribe() { /* device cards manage subscriptions via the controller */ }
+
+    updated(changed) {
+        super.updated(changed);
+        this.climate.rewireIfChanged();   // live-canvas topic edits re-wire
+    }
+
+    render() {
+        // Read plain state fields; call commands on gestures.
+        return html`…${this.climate.setpoint}… @click=${() => this.climate.setMode(m)}…`;
+    }
+}
+```
+
+Rules that make this work:
+
+- **Config is read from host attributes.** The controller reads `host.getAttribute('subscribe-setpoint')` etc. — it does not care what the family's Lit property is called. The element must still **declare the attributes as reflected Lit properties** so attribute edits trigger `updated()` (and thereby `rewireIfChanged()`).
+- **State is plain fields + `host.requestUpdate()`.** Views read `this.climate.mode`, `this.climate.batteryLow`, … directly; no reactive `_state` properties for controller-owned state.
+- **Family quirks are constructor option flags, not forks.** Precedents: `new ClimateController(this, {json: false, actualFromSubscribe: true})` (metro has no json payload mode and reads the actual temperature from `subscribe`), `{humidity: true}` (material renders humidity). If a family needs different behavior, add a flag to the controller — never copy the behavior out.
+- **Per-family inspector structure is merged onto the fragment by name.** The fragment carries no `section`/`visibleWhen`/`advanced` metadata; a family that wants the U39 structured inspector decorates it:
+
+  ```js
+  const MY_UI = {'subscribe-setpoint': {section: 'Connection'}, /* … */};
+  attributes: [...climateAttributes.map(a => ({...a, ...MY_UI[a.name]}))]
+  ```
+
+  A family that legitimately does not support a capability filters the fragment (`.filter(a => !METRO_OMIT.includes(a.name))`) **and documents the exclusion in the parity test**.
+
+### 2b.3 Authoring a new controller
+
+When a *new* device function is shared by two or more families, extract its behavior the same way: create `@feezal/feezal-controller-<function>` exporting the four-part unit, keep the class host-agnostic (everything through `host.addSubscription` / `host.getProperty` / `host.requestUpdate` / attributes), and add the adopters to the parity test. Cross-controller shared machinery — `payloadMatch`, `SettlingController` (E127), `feezal-sensor-types` (`SENSOR_TYPES`, `batteryLowAttributes`, `batteryLowFromValue`), payload/`message-property` extraction — lives in `@feezal/feezal-element`, **not** in a controller package; import it from there.
+
+The E124 battery contract (`subscribe-battery-low` + `message-property-battery-low` + `payload-battery-low` + `battery-low-threshold`, rendered as a warning badge, never an availability blackout) ships inside every battery-relevant fragment via `batteryLowAttributes` — new battery-capable functions include it the same way.
+
+---
+
 ## 3. The `static get feezal()` descriptor
 
 This is the single source of truth the editor uses to render the palette, attribute inspector, and style inspector. It must be a static getter returning a plain object.
@@ -743,6 +825,7 @@ Since **N14 (live elements in editor)**, feezal elements subscribe and render li
 
 A device-control card is an element that represents and controls a physical or virtual device (light, climate, cover, lock, fan, …). Checklist for building one from scratch:
 
+0. **Consume the function's behavior controller if one exists** (§2b) — sensor, contact and climate cards must build on `@feezal/feezal-controller-*`; the steps below then apply to the family *view* only. Only functions without a controller (yet) wire MQTT themselves.
 1. **Category is `Circle`** in `palette.category` (E133), even if the element tag starts with `feezal-element-material-*`.
 2. **Ship a custom inspector from day one** (§8.3). Two tabs, capability-gated collapsible sections. Never retrofit.
 3. **Per-topic `message-property-*`** for every `subscribe-*` attribute (§4.4).
@@ -779,6 +862,7 @@ Before committing or publishing a new or modified element, verify:
 - [ ] No `if (feezal.isEditor)` render branch — single unified template; unconfigured-state hints use null-coalescing (§7).
 - [ ] `discovery` declared if the element can be auto-wired from HA MQTT autodiscovery (§3.7).
 - [ ] `palette.category` is `'Circle'` for device-control cards (§3.1, E133).
+- [ ] **Controller-backed if the function has one** (§2b): behavior via `@feezal/feezal-controller-*`, attributes spread from the fragment, discovery map from the fragment, `rewireIfChanged()` in `updated()`, element registered in `feezal-controller-parity.test.js`.
 - [ ] Patch version bumped in `package.json`.
 
 ---
