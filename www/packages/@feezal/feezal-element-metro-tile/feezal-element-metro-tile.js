@@ -123,39 +123,70 @@ export class MetroTileBase extends FeezalElement {
             position: absolute; top: 6px; right: 8px; font-size: var(--_metro-unit-size); font-weight: 600;
         }
         .flip-btn {
-            position: absolute; right: 2px; bottom: 0; z-index: 2;
+            position: absolute; right: 0; bottom: 0; z-index: 2;
             border: none; background: none; color: var(--feezal-metro-text);
-            font-size: 16px; font-weight: 700; letter-spacing: 1px;
-            cursor: pointer; padding: 2px 6px; line-height: 1; opacity: 0.75;
+            font-size: 18px; font-weight: 700; letter-spacing: 1px;
+            cursor: pointer; padding: 8px 12px; line-height: 1; opacity: 0.75;
         }
         .flip-btn:hover { opacity: 1; }
+        /* ── E136: touch-first Metro backs ─────────────────────────────────
+           Full-width flat segments instead of clusters of small outlined
+           buttons; nothing interactive below ~36 px (half a 70 px grid
+           unit); size-adaptive layout per tile size via container queries
+           (the host is a size container). One accent, values in the E129
+           display type, dividers by spacing — WP7 was touch-first. */
         .back-content {
-            position: absolute; inset: 6px 8px 6px 8px;
-            display: flex; flex-direction: column; gap: 6px; justify-content: center;
-            font-size: 13px;
+            position: absolute; inset: 10px 12px;
+            display: flex; flex-direction: column; gap: 8px; justify-content: center;
+            font-size: var(--_metro-unit-size);
         }
-        /* shared flat controls for tile backs */
+        /* 4x2-and-wider: side-by-side zones instead of one cramped column —
+           each direct child becomes a half-width zone (climate: stepper left,
+           mode segments right); a third zone (valve bar …) wraps below. */
+        @container (min-aspect-ratio: 3/2) and (min-width: 220px) {
+            .back-content {
+                flex-direction: row; flex-wrap: wrap;
+                align-items: center; align-content: center; column-gap: 14px;
+            }
+            .back-content > * { flex: 1 1 40%; min-width: 0; }
+        }
+        /* 4x4: breathing room, not just stretched 2x2 content. */
+        @container (min-width: 260px) and (min-height: 260px) {
+            .back-content { inset: 22px 24px; gap: 14px; }
+        }
+        /* shared flat controls for tile backs — Metro flat segments with a
+           quiet fill, pressed feedback (the classic press/tilt), inverted
+           while active. */
         .mbtn {
-            border: 2px solid var(--feezal-metro-text); background: none;
+            border: none;
+            background: color-mix(in srgb, var(--feezal-metro-text) 14%, transparent);
             color: var(--feezal-metro-text); font: inherit; font-weight: 600;
-            padding: 4px 10px; cursor: pointer;
+            min-height: 36px; padding: 6px 14px; cursor: pointer;
+            transition: transform 0.06s ease;
         }
         .mbtn:hover, .mbtn.active { background: var(--feezal-metro-text); color: var(--feezal-metro-accent); }
+        .mbtn:active { transform: scale(0.95); }
         input[type='range'] {
-            -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
-            background: color-mix(in srgb, var(--feezal-metro-text) 40%, transparent);
-            outline: none;
+            -webkit-appearance: none; appearance: none; width: 100%;
+            height: 32px; background: transparent; outline: none; cursor: pointer;
+        }
+        input[type='range']::-webkit-slider-runnable-track {
+            height: 6px; background: color-mix(in srgb, var(--feezal-metro-text) 40%, transparent);
         }
         input[type='range']::-webkit-slider-thumb {
             -webkit-appearance: none; appearance: none;
-            width: 14px; height: 22px; background: var(--feezal-metro-text); cursor: pointer;
-        }
-        input[type='range']::-moz-range-thumb {
-            width: 14px; height: 22px; border: none; border-radius: 0;
+            width: 18px; height: 28px; margin-top: -11px;
             background: var(--feezal-metro-text); cursor: pointer;
         }
-        .rowline { display: flex; align-items: center; gap: 8px; }
-        .rowline feezal-icon { font-size: 18px; flex: 0 0 auto; }
+        input[type='range']::-moz-range-track {
+            height: 6px; background: color-mix(in srgb, var(--feezal-metro-text) 40%, transparent);
+        }
+        input[type='range']::-moz-range-thumb {
+            width: 18px; height: 28px; border: none; border-radius: 0;
+            background: var(--feezal-metro-text); cursor: pointer;
+        }
+        .rowline { display: flex; align-items: center; gap: 10px; min-height: 36px; }
+        .rowline feezal-icon { font-size: 20px; flex: 0 0 auto; }
     `];
 
     constructor() {

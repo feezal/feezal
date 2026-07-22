@@ -471,7 +471,8 @@ describe('metro-occupancy', () => {
             'subscribe-availability': 'tele/LWT',
         });
         expect(el.shadowRoot.querySelector('.flip-btn')).toBeNull();   // front-only
-        expect(el.shadowRoot.querySelector('feezal-icon').getAttribute('name')).toBe('person');
+        // E132: presence differentiates its clear-state icon (person_outline).
+        expect(el.shadowRoot.querySelector('feezal-icon').getAttribute('name')).toBe('person_outline');
         expect(el.shadowRoot.querySelector('.state').textContent).toBe('frei');
 
         feezal.connection.deliver('stat/pir', {state: 'ON'});   // z2m JSON shape
@@ -555,5 +556,49 @@ describe('E129 — metro size tokens', () => {
         expect(getComputedStyle(el.shadowRoot.querySelector('.badge')).fontSize).toBe('13px');
         el.style.setProperty('--feezal-metro-font-size-label', '17px');
         await until(() => getComputedStyle(el.shadowRoot.querySelector('.tlabel')).fontSize === '17px');
+    });
+});
+
+describe('E136 — touch-first metro backs', () => {
+    const MODES = JSON.stringify([{value: 'auto', label: 'Auto'}, {value: 'heat', label: 'Heat'}]);
+
+    it('climate back: one stacked column at 2x2, side-by-side zones at 4x2', async () => {
+        const el = await mount('feezal-element-metro-climate', {
+            'subscribe-setpoint': 'stat/sp', 'publish-setpoint': 'cmd/sp', modes: MODES,
+        });
+        el.style.width = '150px'; el.style.height = '150px';   // 2x2 mosaic
+        const back = el.shadowRoot.querySelector('.back-content');
+        await until(() => getComputedStyle(back).flexDirection === 'column');
+
+        el.style.width = '310px'; el.style.height = '150px';   // 4x2 — wide
+        await until(() => getComputedStyle(back).flexDirection === 'row');
+
+        el.style.width = '150px'; el.style.height = '150px';   // back to stacked
+        await until(() => getComputedStyle(back).flexDirection === 'column');
+    });
+
+    it('touch targets: stepper halves ≥ 48px, mode segments ≥ 36px, pressed feedback declared', async () => {
+        const el = await mount('feezal-element-metro-climate', {
+            'subscribe-setpoint': 'stat/sp', 'publish-setpoint': 'cmd/sp', modes: MODES,
+        });
+        el.style.width = '150px'; el.style.height = '150px';
+        await el.updateComplete;
+        const step = el.shadowRoot.querySelector('.stepper .mbtn');
+        await until(() => step.getBoundingClientRect().height >= 48);
+        const chip = el.shadowRoot.querySelector('.chips .mbtn');
+        expect(chip.getBoundingClientRect().height).toBeGreaterThanOrEqual(36);
+        // pressed cue: the shared .mbtn declares a transform transition.
+        expect(getComputedStyle(step).transitionProperty).toContain('transform');
+    });
+
+    it('sliders get thumb-sized hit areas (input 32px tall) — metro-light back', async () => {
+        const el = await mount('feezal-element-metro-light', {
+            'payload-mode': 'separate', 'subscribe-brightness': 'stat/bri', 'publish-brightness': 'cmd/bri',
+        });
+        el.style.width = '150px'; el.style.height = '150px';
+        await el.updateComplete;
+        const slider = el.shadowRoot.querySelector('input[type="range"]');
+        expect(slider).not.toBeNull();
+        await until(() => slider.getBoundingClientRect().height >= 32);
     });
 });

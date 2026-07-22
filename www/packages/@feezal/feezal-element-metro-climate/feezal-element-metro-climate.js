@@ -141,10 +141,17 @@ class FeezalElementMetroClimate extends MetroTileBase {
     static styles = [MetroTileBase.styles, css`
         .current { font-size: min(var(--_metro-value-size), 30cqh); font-weight: 300; line-height: 1; }   /* E129 */
         .setpoint { font-size: var(--_metro-unit-size); opacity: 0.85; }   /* E129 */
-        .stepper { display: flex; align-items: center; justify-content: center; gap: 10px; }
-        .stepper .val { font-size: 20px; font-weight: 300; min-width: 4ch; text-align: center; }
-        .chips { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
-        .chips .mbtn { padding: 2px 8px; font-size: 11px; }
+        /* E136: WP7-volume-style stepper — giant flat +/− halves with the
+           setpoint in the E129 display type between them, edge to edge. */
+        .stepper { display: flex; align-items: stretch; justify-content: center; gap: 8px; width: 100%; }
+        .stepper .mbtn { flex: 1 1 0; min-height: 48px; font-size: 24px; font-weight: 300; line-height: 1; }
+        .stepper .val {
+            font-size: min(var(--_metro-value-size), 22cqh);
+            font-weight: 300; min-width: 4ch; text-align: center; align-self: center;
+        }
+        /* E136: mode chips become full-width flat segments sharing the row. */
+        .chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; width: 100%; }
+        .chips .mbtn { flex: 1 1 auto; min-height: 36px; padding: 4px 10px; font-size: var(--_metro-unit-size); }
         /* E102 WP2: mm:ss boost countdown badge on the active momentary chip. */
         .chips .mbtn .boost-badge {
             display: inline-block; margin-left: 4px;

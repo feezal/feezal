@@ -60,7 +60,6 @@ Work in progress — priorities and scope are not final.
 - [E125 — Homematic battery voltage (`OPERATING_VOLTAGE`)](#e125--homematic-battery-voltage-operating_voltage--future) 💡
 - [E128 — Homematic blinds: settling behaviour + `DIRECTION` indicator](#e128--homematic-blinds-settling-behaviour--direction-indicator-later--after-e127) *(later)*
 - [E135 — Homematic maintenance signals: ERROR_CODE + SABOTAGE badges, device-health board](#e135--homematic-maintenance-signals-error_code--sabotage-badges-device-health-board)
-- [E136 — Metro tile backsides: redesign for touch — bigger targets, calmer layout, use the space](#e136--metro-tile-backsides-redesign-for-touch--bigger-targets-calmer-layout-use-the-space)
 - [E137 — Shared MQTT device contracts: extract behavior controllers (climate / light / cover / wled)](#e137--shared-mqtt-device-contracts-extract-behavior-controllers-climate--light--cover--wled)
 
 **Editor UX**
@@ -1278,23 +1277,6 @@ Homematic `:0` maintenance channels carry two under-used, genuinely actionable d
 **Ships with:** recognizer tests (presence-checked emission, both records), applier auto-stamp test, the health-board element (+ TESTING.md §6 entry with element-specific notes per the checklist rule), badge rendering tests incl. the alarm-grade sabotage styling, TESTING.md rows (stuck-valve TRV shows the error badge while the setpoint stays operable; opening a contact's case shows the sabotage badge on the card AND a row on the board).
 
 **Relates:** **E124** (the canonical-record + auto-stamp pattern this extends; battery is the third signal on the board), N31 (availability — the fourth board signal, already normalized), **E131** (motion recognizer — emits sabotage for motion sensors when it lands), E108 ✅ (recognizer framework), E66 💡 (fleet/heartbeat board — the generic sibling idea; this board is its Homematic-first concretization), E61 (HMI/alarm family — same alarm-grade signalling language), material-door-lock (Keymatic consumer).
-
-### E136 — Metro tile backsides: redesign for touch — bigger targets, calmer layout, use the space
-
-The metro tiles' **backsides** (the flip-to detail pages) don't hold up: buttons are too small, the available space is used poorly — **especially 4x2, where most of the tile is wasted** — the controls are bad on touch displays and finicky with the mouse, and the overall look is chaotic. `metro-climate` is the worst offender (tiny setpoint stepper, cramped mode chips); the whole family's backs deserve the same pass.
-
-**Design brief (decided): stay true to Microsoft's Metro language — which is an ally here, not a constraint.** Original WP7/Metro was a *touch-first* language: flat surfaces, generous full-width hit areas, sharp corners, typography-led hierarchy, one accent colour. Small bordered mini-buttons are precisely what Metro *wasn't*. The redesign leans INTO the language:
-
-- **Touch targets ≥ half a grid unit** — the mosaic unit is 70 px + 10 px gutter ([feezal-element-metro-tile.js:21](../www/packages/@feezal/feezal-element-metro-tile/feezal-element-metro-tile.js#L21)); nothing interactive below ~35 px, primary actions a full unit. Metro-style full-width flat rows and edge-to-edge segments instead of clusters of small outlined buttons.
-- **Size-adaptive back layouts** — the back must lay out per tile size, not one stacked column for all: 4x2 goes **side-by-side** (e.g. climate: big setpoint stepper zone left — WP7-volume-style giant +/− halves — mode segments right); 2x2 stacks; 4x4 gets breathing room, not just stretched 2x2 content. Container queries per the E38 machinery.
-- **Calmer hierarchy** — one accent, values in the large Metro display type (E129 ✅ shipped the size tokens — build on them, no new hardcodes), labels in the quiet secondary tier, dividers by spacing rather than borders.
-- **Interaction feedback** — visible pressed states (the classic Metro tilt/press effect fits and already matches the family's flip animation vocabulary); slider thumbs and rails thick enough for thumbs, with the hit area larger than the visual.
-
-**Scope:** audit every metro back — `metro-climate` (primary), `metro-light` (ON/OFF + sliders), `metro-media` (transport + volume), `metro-wled`, `metro-cover`, `metro-sensor`/`number` (trend back is display-only but joins the layout pass). Fronts are fine — this is the backs only. MQTT contracts, attributes and flip machinery untouched (visual/layout only).
-
-**Ships with:** browser tests for the size-adaptive layouts (back renders side-by-side at 4x2, stacked at 2x2), pressed-state and hit-area checks for the primary controls, updated theme-visual screenshots, TESTING.md metro-family row updates (explicit touch checks: setpoint stepper and mode change operable with a thumb on a wall tablet at 2x2 AND 4x2).
-
-**Relates:** E55 ✅ (the metro family + flip machinery), E129 ✅ (metro size tokens — build the layouts on them), A24 (metro externalization — land this before or ship as the family's first external release), E38 (container-query scaling — the size-adaptive mechanism), B53/B54/B55 (climate fix wave — metro-climate's back is touched by both; coordinate), E114 (parity — function set unchanged, looks may differ per family by design).
 
 ### E137 — Shared MQTT device contracts: extract behavior controllers (climate / light / cover / wled)
 

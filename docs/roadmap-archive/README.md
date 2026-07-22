@@ -3,7 +3,7 @@
 Completed and closed roadmap items — **one file per item**, named after its ID (e.g. `U39.md`).
 Open items live in [../ROADMAP.md](../ROADMAP.md).
 
-**247 items.**
+**248 items.**
 
 ## Bugs
 
@@ -120,6 +120,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [E132 — Generalize the boolean-sensor family: *-occupancy → *-sensor, numeric *-sensor → *-number ✅ done](E132.md)
 - [E133 — Palette category rename: "Material" → "Circle", "Simple" → "Material" ✅ done](E133.md)
 - [E134 — Circle design language: align the remaining device cards with light/climate/cover/switch ✅ done](E134.md)
+- [E136 — Metro tile backsides: redesign for touch — bigger targets, calmer layout, use the space ✅ done](E136.md)
 ## Editor UX
 
 - [E1 — Migrate feezal-element-basic-* from Polymer to Lit ✅ implemented](E1.md)

@@ -66,7 +66,7 @@ class FeezalElementMetroMedia extends MetroTileBase {
         .artist { font-size: var(--_metro-unit-size); opacity: 0.85; max-width: 92%;   /* E129 */
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .transport { display: flex; justify-content: center; gap: 8px; }
-        .transport .mbtn { font-size: 15px; padding: 4px 12px; }
+        .transport .mbtn { flex: 1 1 0; font-size: 18px; padding: 4px 12px; }   /* E136: full-width segments */
     `];
 
     constructor() {
