@@ -59,7 +59,6 @@ Work in progress — priorities and scope are not final.
 - [E124 — Battery-powered sensors: dedicated low-battery indicator (contact + motion/occupancy)](#e124--battery-powered-sensors-dedicated-low-battery-indicator-contact--motionoccupancy)
 - [E125 — Homematic battery voltage (`OPERATING_VOLTAGE`)](#e125--homematic-battery-voltage-operating_voltage--future) 💡
 - [E128 — Homematic blinds: settling behaviour + `DIRECTION` indicator](#e128--homematic-blinds-settling-behaviour--direction-indicator-later--after-e127) *(later)*
-- [E131 — Homematic motion detector discovery → *-motion/occupancy elements](#e131--homematic-motion-detector-discovery--motionoccupancy-elements)
 - [E132 — Generalize the boolean-sensor family: *-occupancy → *-sensor, numeric *-sensor → *-number](#e132--generalize-the-boolean-sensor-family--occupancy---sensor-numeric--sensor---number)
 - [E134 — Circle design language: align the remaining device cards with light/climate/cover/switch](#e134--circle-design-language-align-the-remaining-device-cards-with-lightclimatecoverswitch)
 - [E135 — Homematic maintenance signals: ERROR_CODE + SABOTAGE badges, device-health board](#e135--homematic-maintenance-signals-error_code--sabotage-badges-device-health-board)
@@ -1255,21 +1254,6 @@ Blinds/covers have **the same LEVEL ramp problem** as dimmers (position reports 
 **Sequencing vs. E137 (controller extraction):** either order works — if E128 lands before `CoverController`, it wires E127's `SettlingController` directly (as planned above) and migrates into the controller with the rest of the cover behavior; if the extraction lands first, E128's settling + `DIRECTION` wiring is implemented *inside* `CoverController` (and every cover family gets it at once). The settling attributes end up in the controller's declared fragment either way (E137's settling decision).
 
 **Relates:** **E127** (the machinery this reuses — do first), **E137** (controller extraction — cover settling ends up inside `CoverController`; see sequencing note), E108 ✅ (recognizer), E114 (parity), E120 ✅-era cover-discovery work (same recognizer area).
-
-### E131 — Homematic motion detector discovery → *-motion/occupancy elements
-
-The occupancy/motion cards (`material-motion`, `glass-occupancy`, `metro-occupancy`) already carry HA discovery (`component: 'binary_sensor'` with a `device_class` → `type` map, [feezal-element-material-motion.js:92-97](../www/packages/@feezal/feezal-element-material-motion/feezal-element-material-motion.js#L92-L97)), so zigbee2mqtt motion sensors auto-wire today — **Homematic motion detectors don't**: there is no native recognizer for them.
-
-**New recognizer** following the contact pattern ([native-discovery.js](../server/src/mqtt/native-discovery.js)):
-
-- **Match:** `hm/status/<seg>/MOTION` — `MOTION` (bool) is the state datapoint.
-- **Channel-type gate:** **`MOTION_DETECTOR`** (BidCoS, confirmed). ⚠ **HmIP naming unverified** — the datapoint is probably `MOTION` there too, but the channelType may be **`MOTIONDETECTOR_TRANSCEIVER`** (HmIP-SMI/SMO); confirm against a real device's `hm` payload metadata before hardcoding the set. Metadata-less channels are never promoted (framework rule).
-- **Emit** `component: 'binary_sensor'` with `device_class: 'motion'` (routes through the elements' existing `device_class` → `type` map), `state_topic` = the MOTION status topic, payloads `true`/`false`, `value_template '{{ value_json.val }}'` (→ `payload.val`), availability from `:0 UNREACH` — and **`battery_low_normalized` from day one** (motion detectors are battery devices; `LOWBAT`/`LOW_BAT` on `:0`, presence-checked per **E124**).
-- Check whether HmIP exposes `ILLUMINATION` alongside MOTION — out of scope for the card, but don't let it confuse the match (whitelist MOTION only).
-
-**Ships with:** recognizer unit tests (BidCoS + HmIP channel types, unnamed-channel behaviour consistent with the framework, battery record emission), TESTING.md discovery row (discovered Homematic motion sensor offers all three occupancy cards, wired with state + availability + battery).
-
-**Relates:** E108 ✅ (recognizer framework — contact recognizer as the closest pattern), **E124** (battery indicator — this recognizer must emit its record from day one), E126 ✅ (switch recognizer — the most recent recognizer addition to crib from), **E132** (the consuming cards generalize to `*-sensor` — implement the recognizer against the generalized type list), material-motion / glass-occupancy / metro-occupancy (the consuming cards, discovery maps already in place).
 
 ### E132 — Generalize the boolean-sensor family: *-occupancy → *-sensor, numeric *-sensor → *-number
 

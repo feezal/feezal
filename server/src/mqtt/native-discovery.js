@@ -1093,8 +1093,169 @@ const hmSwitchRecognizer = {
     reset() { this.state.devices.clear(); },
 };
 
+// ── Recognizer 7: Homematic boolean sensors (E131 motion; E132 hazard classes) ─
+// Motion / water / smoke detectors — one recognizer, a channelType→class
+// table (the E132 "decide by uniformity" decision: the datapoints ARE uniform
+// enough — one boolean state datapoint per channel). Gated on the CCU
+// channelType metadata like every recognizer (absent ⇒ no promotion).
+//
+// Verification status per entry (allowlist gating is safe-by-construction —
+// an unverified name can only MISS a device, never false-positive):
+//   MOTION_DETECTOR            BidCoS motion (HM-Sec-MDIR) — CONFIRMED (user)
+//   MOTIONDETECTOR_TRANSCEIVER HmIP motion (SMI/SMO) — best-knowledge naming,
+//                              verify against a real device's hm metadata
+//   WATER_DETECTION_TRANSMITTER HmIP water (SWD) — best-knowledge, verify
+//   SMOKE_DETECTOR             BidCoS smoke (HM-Sec-SD, STATE bool) — best-
+//                              knowledge, verify (HmIP SWSD reports an ALARM
+//                              STATUS enum — deliberately NOT wired yet)
+//
+// The state datapoint candidates are listed per class in preference order;
+// the first one actually OBSERVED on the channel is wired. device_class is
+// emitted HA-shaped (motion/moisture/smoke) so the elements' shared
+// device_class→type valueMap treats z2m and Homematic identically (E132).
+const HM_SENSOR_CLASSES = {
+    MOTION_DETECTOR:               {deviceClass: 'motion',   dps: ['MOTION']},
+    MOTIONDETECTOR_TRANSCEIVER:    {deviceClass: 'motion',   dps: ['MOTION']},
+    WATER_DETECTION_TRANSMITTER:   {deviceClass: 'moisture', dps: ['ALARMSTATE', 'WATERLEVEL_DETECTED', 'MOISTURE_DETECTED']},
+    SMOKE_DETECTOR:                {deviceClass: 'smoke',    dps: ['STATE']},
+};
+const HM_SENSOR_DPS = new Set(Object.values(HM_SENSOR_CLASSES).flatMap(c => c.dps));
+// E124: battery datapoints on the :0 maintenance channel — OBSERVED, never
+// constructed (mains devices must not grow a dead battery slot). Both
+// generation names: LOWBAT (BidCoS) and LOW_BAT (HmIP).
+const HM_BATTERY_DPS = new Set(['LOWBAT', 'LOW_BAT']);
+
+const hmSensorRecognizer = {
+    id: 'homematic-sensor',
+    // deviceId → {deviceId, deviceName, deviceType, channels: Map<seg, chan>,
+    //             batteryDp: 'LOWBAT'|'LOW_BAT'|undefined}
+    // chan = {seg, channelType, channelAddr, channelName, dps:Set}
+    state: {devices: new Map()},
+
+    match(topic) {
+        // hm/status/<seg>/<DP> — state datapoints of the class table, plus the
+        // :0 battery datapoints (observed for the E124 presence check). The
+        // whitelist keeps HmIP extras like ILLUMINATION from ever confusing
+        // the match.
+        if (!topic.startsWith(hmPrefix + '/status/')) return null;
+        const parts = topic.split('/');
+        if (parts.length !== 4) return null;            // exactly prefix/status/seg/DP
+        const datapoint = parts[3];
+        if (!HM_SENSOR_DPS.has(datapoint) && !HM_BATTERY_DPS.has(datapoint)) return null;
+        return {seg: parts[2], datapoint};
+    },
+
+    accumulate(state, parsed, value, payload) {
+        const hm = (payload && typeof payload === 'object' && payload.hm && typeof payload.hm === 'object')
+            ? payload.hm : null;
+
+        const deviceId = (hm && hm.device) ? String(hm.device)
+            : parsed.seg.replace(/:\d+$/, '');
+
+        let dev = state.devices.get(deviceId);
+        if (!dev) {
+            dev = {deviceId, deviceName: undefined, deviceType: undefined,
+                channels: new Map(), batteryDp: undefined};
+            state.devices.set(deviceId, dev);
+        }
+        if (hm) {
+            if (hm.deviceName != null) dev.deviceName = hm.deviceName;
+            if (hm.deviceType != null) dev.deviceType = hm.deviceType;
+        }
+
+        // E124 presence check: remember WHICH battery datapoint this device
+        // actually publishes (on its :0 channel) — the promoted entity only
+        // carries a battery record when one was seen.
+        if (HM_BATTERY_DPS.has(parsed.datapoint) && /:0$/.test(parsed.seg)) {
+            dev.batteryDp = parsed.datapoint;
+        }
+
+        let chan = dev.channels.get(parsed.seg);
+        if (!chan) {
+            chan = {seg: parsed.seg, channelType: undefined, channelAddr: undefined,
+                channelName: undefined, dps: new Set()};
+            dev.channels.set(parsed.seg, chan);
+        }
+        if (hm) {
+            if (hm.channelType != null) chan.channelType = hm.channelType;
+            if (hm.channel != null) chan.channelAddr = hm.channel;
+            if (hm.channelName != null) chan.channelName = hm.channelName;
+        }
+        chan.dps.add(parsed.datapoint);
+        return dev;
+    },
+
+    promote(dev) {
+        const channels = [...dev.channels.values()];
+        // The sensor channel: a known channelType from the class table with
+        // its state datapoint actually observed (constructing blind would wire
+        // topics that may not exist on this generation).
+        let sensorChan = null;
+        let cls = null;
+        let stateDp = null;
+        for (const c of channels) {
+            const entry = c.channelType && HM_SENSOR_CLASSES[c.channelType];
+            if (!entry) continue;
+            const dp = entry.dps.find(d => c.dps.has(d));
+            if (!dp) continue;
+            sensorChan = c; cls = entry; stateDp = dp;
+            break;
+        }
+        if (!sensorChan) return null;
+
+        const p = hmPrefix;
+        const seg = sensorChan.seg;
+        const deviceId = dev.deviceId;
+        const name = sensorChan.channelName || dev.deviceName
+            || (dev.deviceType ? dev.deviceType + ' ' + deviceId : deviceId);
+
+        const config = {
+            name,
+            state_topic: hmStatus(p, seg, stateDp),
+            value_template: '{{ value_json.val }}',
+            device_class: cls.deviceClass,
+            // Boolean state — '1'/'0' with the elements' true↔1/false↔0
+            // payload aliases, same convention as the contact recognizer.
+            payload_on: '1',
+            payload_off: '0',
+        };
+
+        // Availability from the :0 maintenance UNREACH datapoint only —
+        // battery is a dedicated record (E124), never folded into availability.
+        const availBase = seg !== '' ? seg : (sensorChan.channelAddr || seg);
+        const availSeg = availBase.replace(/:\d+$/, ':0');
+        config.availability_normalized = {
+            entries: [{topic: hmStatus(p, availSeg, 'UNREACH'), property: 'payload.val'}],
+            mode: 'all',
+            payloadAvailable: false,
+            payloadUnavailable: true,
+        };
+
+        // E124: dedicated low-battery record — only when the device was SEEN
+        // publishing LOWBAT/LOW_BAT on :0 (presence-checked, both generations).
+        if (dev.batteryDp) {
+            config.battery_low_normalized = {
+                topic: hmStatus(p, availSeg, dev.batteryDp),
+                property: 'payload.val',
+                payloadLow: true,
+            };
+        }
+
+        return {
+            discovery_id: 'hm-sensor:' + deviceId,
+            component: 'binary_sensor',
+            source: 'homematic',
+            sourceLabel: 'hm',
+            name,
+            config,
+        };
+    },
+
+    reset() { this.state.devices.clear(); },
+};
+
 // ── Framework ─────────────────────────────────────────────────────────────────
-const recognizers = [hmClimateRecognizer, wledRecognizer, hmContactRecognizer, hmCoverRecognizer, hmLightRecognizer, hmSwitchRecognizer];
+const recognizers = [hmClimateRecognizer, wledRecognizer, hmContactRecognizer, hmCoverRecognizer, hmLightRecognizer, hmSwitchRecognizer, hmSensorRecognizer];
 
 /** @type {Map<string, object>} discovery_id → promoted native entity */
 const nativeEntities = new Map();

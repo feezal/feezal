@@ -824,3 +824,96 @@ describe('homematic switch recognizer (E126)', () => {
         expect(entities[0].config.state_topic).toBe('hm/status/Standby TV:4/STATE');
     });
 });
+
+// ── E131/E132: Homematic boolean-sensor recognizer (motion + hazard classes) ─
+
+describe('homematic sensor recognizer (E131 motion, E132 hazard table)', () => {
+    const dev = 'NEQ0777777';
+    const base = {
+        device: dev, deviceName: 'Bewegungsmelder Flur', deviceType: 'HM-Sec-MDIR-2',
+        channel: dev + ':1', channelName: 'Bewegungsmelder Flur:1',
+        channelType: 'MOTION_DETECTOR', channelIndex: 1, iface: 'BidCos-RF',
+    };
+
+    it('promotes a BidCoS MOTION_DETECTOR to a binary_sensor with device_class motion + :0 UNREACH', () => {
+        nat.handleNativeMessage('hm/status/Bewegungsmelder Flur:1/MOTION',
+            je(true, {...base, datapoint: 'MOTION'}));
+
+        const e = nat.getNativeEntity('hm-sensor:' + dev);
+        expect(e).toBeTruthy();
+        expect(e.component).toBe('binary_sensor');
+        expect(e.name).toBe('Bewegungsmelder Flur:1');
+        const c = e.config;
+        expect(c.state_topic).toBe('hm/status/Bewegungsmelder Flur:1/MOTION');
+        expect(c.device_class).toBe('motion');
+        expect(c.payload_on).toBe('1');
+        expect(c.payload_off).toBe('0');
+        expect(c.value_template).toBe('{{ value_json.val }}');
+        expect(c.availability_normalized).toEqual({
+            entries: [{topic: 'hm/status/Bewegungsmelder Flur:0/UNREACH', property: 'payload.val'}],
+            mode: 'all',
+            payloadAvailable: false,
+            payloadUnavailable: true,
+        });
+        // E124: battery is presence-checked — nothing observed yet, no record.
+        expect(c.battery_low_normalized).toBeUndefined();
+    });
+
+    it('E124: an observed :0 LOWBAT adds the dedicated battery record (never folded into availability)', () => {
+        nat.handleNativeMessage('hm/status/Bewegungsmelder Flur:1/MOTION',
+            je(true, {...base, datapoint: 'MOTION'}));
+        nat.handleNativeMessage('hm/status/Bewegungsmelder Flur:0/LOWBAT',
+            je(false, {device: dev, deviceName: 'Bewegungsmelder Flur', deviceType: 'HM-Sec-MDIR-2',
+                channel: dev + ':0', channelType: 'MAINTENANCE', channelIndex: 0, datapoint: 'LOWBAT'}));
+        // Re-observe the state so the entity re-promotes with the battery info.
+        nat.handleNativeMessage('hm/status/Bewegungsmelder Flur:1/MOTION',
+            je(false, {...base, datapoint: 'MOTION'}));
+
+        const c = nat.getNativeEntity('hm-sensor:' + dev).config;
+        expect(c.battery_low_normalized).toEqual({
+            topic: 'hm/status/Bewegungsmelder Flur:0/LOWBAT',
+            property: 'payload.val',
+            payloadLow: true,
+        });
+        expect(c.availability_normalized.entries).toHaveLength(1);   // UNREACH only
+    });
+
+    it('HmIP LOW_BAT is honoured too (the other generation name)', () => {
+        const hdev = '00099ABCDEF012';
+        const hbase = {
+            device: hdev, deviceName: 'Melder Garten', deviceType: 'HmIP-SMO',
+            channel: hdev + ':1', channelName: 'Melder Garten:1',
+            channelType: 'MOTIONDETECTOR_TRANSCEIVER', channelIndex: 1, iface: 'HmIP-RF',
+        };
+        nat.handleNativeMessage('hm/status/Melder Garten:0/LOW_BAT',
+            je(true, {device: hdev, channel: hdev + ':0', channelType: 'MAINTENANCE', datapoint: 'LOW_BAT'}));
+        nat.handleNativeMessage('hm/status/Melder Garten:1/MOTION',
+            je(true, {...hbase, datapoint: 'MOTION'}));
+
+        const c = nat.getNativeEntity('hm-sensor:' + hdev).config;
+        expect(c.device_class).toBe('motion');
+        expect(c.battery_low_normalized.topic).toBe('hm/status/Melder Garten:0/LOW_BAT');
+    });
+
+    it('water + smoke classes map to HA-shaped device_class values', () => {
+        nat.handleNativeMessage('hm/status/Wassermelder Keller:1/WATERLEVEL_DETECTED',
+            je(false, {device: 'W1', deviceName: 'Wassermelder Keller', deviceType: 'HmIP-SWD',
+                channel: 'W1:1', channelType: 'WATER_DETECTION_TRANSMITTER', channelIndex: 1,
+                datapoint: 'WATERLEVEL_DETECTED'}));
+        expect(nat.getNativeEntity('hm-sensor:W1').config.device_class).toBe('moisture');
+
+        nat.handleNativeMessage('hm/status/Rauchmelder:1/STATE',
+            je(false, {device: 'S1', deviceName: 'Rauchmelder', deviceType: 'HM-Sec-SD',
+                channel: 'S1:1', channelType: 'SMOKE_DETECTOR', channelIndex: 1, datapoint: 'STATE'}));
+        expect(nat.getNativeEntity('hm-sensor:S1').config.device_class).toBe('smoke');
+    });
+
+    it('does NOT promote without channelType metadata, and a contact/switch STATE never lands here', () => {
+        nat.handleNativeMessage('hm/status/Anon:1/MOTION', jePlain(true));
+        expect(nat.getNativeEntity('hm-sensor:Anon')).toBe(null);
+
+        nat.handleNativeMessage('hm/status/Fenster Bad:1/STATE',
+            je(false, {device: 'C1', channel: 'C1:1', channelType: 'SHUTTER_CONTACT', datapoint: 'STATE'}));
+        expect(nat.getNativeEntity('hm-sensor:C1')).toBe(null);
+    });
+});
