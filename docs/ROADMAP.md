@@ -55,7 +55,6 @@ Work in progress — priorities and scope are not final.
 - [E114 — Family parity contract: material/circle / glass / metro stay in sync](#e114--family-parity-contract-materialcircle--glass--metro-stay-in-sync--needs-discussion) ⚠️
 - [E115 — Switch an element to another family (context menu)](#e115--switch-an-element-to-another-family-context-menu--to-refine) 💡 *(to refine)*
 - [E119 — `basic-number`: configurable placeholder before the first value](#e119--basic-number-configurable-placeholder-before-the-first-value)
-- [E124 — Battery-powered sensors: dedicated low-battery indicator (contact + motion/occupancy)](#e124--battery-powered-sensors-dedicated-low-battery-indicator-contact--motionoccupancy)
 - [E125 — Homematic battery voltage (`OPERATING_VOLTAGE`)](#e125--homematic-battery-voltage-operating_voltage--future) 💡
 - [E128 — Homematic blinds: settling behaviour + `DIRECTION` indicator](#e128--homematic-blinds-settling-behaviour--direction-indicator-later--after-e127) *(later)*
 - [E135 — Homematic maintenance signals: ERROR_CODE + SABOTAGE badges, device-health board](#e135--homematic-maintenance-signals-error_code--sabotage-badges-device-health-board)
@@ -1145,47 +1144,6 @@ It is also **inconsistent**: `prefix` and `suffix` render regardless of whether 
 
 > **Terminology note for E120:** reported as "*-shutter". The packages are named **cover** (`feezal-element-material-cover`, `-glass-cover`, `-metro-cover`) — same elements. Whether the user-facing label should become "Shutter" is a separate question for **E113** (taxonomy).
 
-### E124 — Battery-powered sensors: dedicated low-battery indicator (contact + motion/occupancy)
-
-A battery-powered door/window contact currently signals a flat battery by going **entirely unavailable** — the Homematic recognizer folds `LOWBAT` into `availability_normalized` alongside `UNREACH` with `mode: 'all'` ([native-discovery.js:463-478](../server/src/mqtt/native-discovery.js#L463-L478)). The code comment states the compromise outright: *"the element shows unavailable when unreachable OR battery low — acceptable since contacts have no dedicated battery attribute of their own."* This item removes that "since".
-
-**Scope (expanded 07/2026): all battery-powered sensor elements, not just contacts.** Motion / presence / radar / occupancy sensors are battery devices exactly as often as contacts, and their elements (`material-motion`, `glass-occupancy`, `metro-occupancy`) currently have **no battery support of any kind** — not even the folded-into-availability compromise. Same attribute contract, same icon treatment, across both element groups.
-
-**Wanted:** a `subscribe-battery-low` attribute (plus its `message-property-battery-low` twin, default `payload`, and a `payload-battery-low` compare value, default `true`) on `*-contact` AND `*-motion`/`*-occupancy`, with a dedicated low-battery **icon** shown alongside the open/closed resp. motion/clear state — a warning, not a blackout. A sensor with a weak battery still reports its state correctly and should keep showing it. **Auto-discovery must stamp this for BOTH ecosystems** — Homematic (native recognizers) and Zigbee (zigbee2mqtt via HA discovery) — through the normal discovery-apply mechanism, no hand-wiring.
-
-**Zigbee2mqtt facts (researched 07/2026, verified against the z2m HA-extension source):**
-
-- The device **state JSON** on the base topic carries `battery` (0–100 %) for battery devices, and for devices that expose it, `battery_low` (boolean). Both live in the SAME payload as `contact`/`occupancy`.
-- z2m's HA discovery announces them as **separate sibling entities of the same device** (linked via the shared `device.identifiers`), both on the device's **base state topic**:
-  - `battery_low` → **`binary_sensor` with `device_class: "battery"`** (⚠ not "battery_low" — HA semantics: *on = low*), `entity_category: diagnostic`, `value_template: {{ value_json["battery_low"] }}`;
-  - `battery` → **`sensor` with `device_class: "battery"`**, `value_template: {{ value_json["battery"] }}`.
-- **Not every battery device exposes `battery_low`** — many modern ones expose only the percentage; a `battery`-only fallback path is therefore required, not optional.
-- ⚠ **Parser gotcha:** z2m emits the **bracket form** `{{ value_json["battery_low"] }}` — feezal's template→property parsers (`templateToProperty` in [discovery.js](../server/src/mqtt/discovery.js), the client's `valueTemplateToPath` transform) currently match only the dot form `value_json.x` and would silently yield no property path. Extend them to accept both forms as part of this item.
-
-**Stamping design — one canonical record, two producers (the N31 pattern):** normalize battery-low **server-side** into the entity record as `battery_low_normalized = {topic, property?, payloadLow?}`, exactly like `availability_normalized` ([discovery.js:234](../server/src/mqtt/discovery.js#L234)); the client's `_applyDiscovery` then stamps `subscribe-battery-low`/`message-property-battery-low`/`payload-battery-low` automatically for any element whose class declares the attributes — element `discovery.map`s stay untouched, exactly how availability already works.
-
-- **Zigbee/HA producer:** when a contact/occupancy `binary_sensor` entity is normalized, look up its **device-group siblings** (the machinery exists: `getDeviceGroups()` groups by `device.identifiers[0]`, [discovery.js:377](../server/src/mqtt/discovery.js#L377), and the plant `elementHint` at [discovery.js:399](../server/src/mqtt/discovery.js#L399) is the exact sibling-lookup precedent). Prefer the `binary_sensor`/`device_class: battery` sibling (boolean, payloads from its config); fall back to the `sensor`/`device_class: battery` sibling with a **threshold** — decide the shape: either the server compares nothing and the element gains an optional `battery-low-threshold` (number, default ~15 %) used when the subscribed value is numeric, or the %-fallback is skipped in v1. Leaning to the element-side threshold: it also serves hand-wired setups.
-- **Homematic producer:** the recognizers emit the same `battery_low_normalized` from the `:0` maintenance channel — `LOWBAT` (BidCoS) **and** `LOW_BAT` (HmIP), moved **out of** `availability_normalized` (leaving `UNREACH` as the sole availability source, consistent with cover/climate). Applies to the **contact recognizer today** and to the **motion recognizer (E131)** from day one — never repeat the fold-into-availability compromise. Homematic motion device facts for E131: channelType **`MOTION_DETECTOR`**, datapoint **`MOTION`** (bool) — confirmed for BidCoS (per user); ⚠ **verify the HmIP naming before implementing** (probably the same datapoint `MOTION`, but the channelType may be `MOTIONDETECTOR_TRANSCEIVER` on HmIP-SMI/SMO — check a real device's `hm` metadata, don't assume).
-
-**Climate / TRV expansion (07/2026):** radiator thermostats are battery-driven in most cases too — the `*-climate` elements (`material-climate`, `glass-climate`, `metro-climate`) get the same `subscribe-battery-low` contract and icon. **But: mains-powered TRVs and wall thermostats exist**, so the Homematic climate producer must stamp **presence-checked**, not constructed blindly: only emit `battery_low_normalized` when a `LOWBAT`/`LOW_BAT` datapoint has actually been **observed** on the device's `:0` channel (the climate recognizer must start watching those two datapoints in its accumulate step — today it only tracks the thermostat whitelist). The availability topics may stay constructed as today (UNREACH exists on everything); battery must not, or every mains device shows a dead battery slot. Zigbee TRVs (Danfoss Ally, TS0601, …) need nothing special — the device-group sibling lookup above covers them exactly like contacts.
-
-**Bug to fix in passing — HmIP low battery is reported but never read.** Both generations expose the datapoint on the device's **`:0` maintenance channel**, under different names:
-
-| Generation | Datapoint on `:0` |
-|---|---|
-| BidCoS | `LOWBAT` |
-| HmIP | `LOW_BAT` |
-
-The recognizer subscribes **only `LOWBAT`** ([native-discovery.js:472](../server/src/mqtt/native-discovery.js#L472)) — `LOW_BAT` appears nowhere in the file. So an HmIP contact broadcasts its low battery on a topic feezal never listens to, and the warning is silently lost. Subscribe **both** names off the `:0` segment the recognizer already derives (`availSeg`, `device:1` → `device:0`) — the plumbing is in place, only the second datapoint name is missing. Treat either firing as low battery.
-
-The same one-name assumption should be checked on the other battery-powered recognizers before it is copied further.
-
-**Apply family-wide** per **E114**: contacts (`material-contact`, `glass-contact`, `metro-contact`), motion/occupancy (`material-motion`, `glass-occupancy`, `metro-occupancy`) and climate (`material-climate`, `glass-climate`, `metro-climate`) — nine elements, one shared attribute contract and icon treatment (define the descriptor once, the way E117 handled `publish-local`).
-
-**Ships with:** unit tests for both producers (z2m sibling lookup incl. the bracket-form template, `battery`-only fallback, hm LOWBAT/LOW_BAT emission and its removal from availability), a client test that `_applyDiscovery` auto-stamps the three attributes from `battery_low_normalized`, and TESTING.md rows for a discovered z2m contact + occupancy sensor and a Homematic contact showing the icon while state keeps updating.
-
-**Relates:** N31 (availability machinery this deliberately steps back from), E108 ✅ (native Homematic discovery), **E131** (Homematic motion recognizer — must emit the battery record from day one), **E114** (parity contract), E117 ✅ (shared-descriptor precedent), E61 (HMI/alarm family — same "degraded but still reporting" distinction), **E125** (battery *voltage* — the richer signal, deferred; its OPERATING_VOLTAGE datapoint exists on HmIP motion sensors too).
-
 ### E125 — Homematic battery voltage (`OPERATING_VOLTAGE`) 💡 future
 
 HmIP battery devices publish **`OPERATING_VOLTAGE`** on the `:0` maintenance channel — an actual voltage, not just the `LOW_BAT` boolean that **E124** wires up. That is strictly more information: it supports a battery-level display, trend charts over time, and warning *before* a device drops out rather than after.
@@ -1242,6 +1200,8 @@ Homematic `:0` maintenance channels carry two under-used, genuinely actionable d
 **Relates:** **E124** (the canonical-record + auto-stamp pattern this extends; battery is the third signal on the board), N31 (availability — the fourth board signal, already normalized), **E131** (motion recognizer — emits sabotage for motion sensors when it lands), E108 ✅ (recognizer framework), E66 💡 (fleet/heartbeat board — the generic sibling idea; this board is its Homematic-first concretization), E61 (HMI/alarm family — same alarm-grade signalling language), material-door-lock (Keymatic consumer).
 
 ### E137 — Shared MQTT device contracts: extract behavior controllers (climate / light / cover / wled)
+
+**Progress (07/2026 — sensor / contact / climate shipped):** the pattern is live. Workspace packages `@feezal/feezal-controller-sensor` / `-contact` / `-climate` each export controller class + attribute fragment + `discovery.map` fragment + `*_CONSUMED_ATTRIBUTES` as one unit, and all nine adopting elements are migrated (sensor: material-motion / glass-occupancy / metro-occupancy; contact + climate: all three families). E124's battery quartet shipped inside the fragments; family quirks are constructor flags as decided (metro-climate `{json:false, actualFromSubscribe:true}`, material-climate `{humidity:true}`); per-family inspector metadata (U39 sections/`visibleWhen`) is merged onto the shared fragment by attribute name. The **derived parity test** exists: `www/test-browser/feezal-controller-parity.test.js` checks every adopting element against the consumed-set declarations (metro-climate's json-only exclusions documented in the test). Unification side effects: string `modes` entries render capitalized labels in every family; live-canvas rewire works in all three climate cards. **Remaining: light / cover / wled** (order: light next — settling folds into `LightController` —, then cover with E128, then wled).
 
 **Problem — the contract is triplicated.** For the complex device functions, the *entire MQTT behavior* — subscriptions, payload modes, scaling, mode machinery, command publishing — is implemented three times over in material / glass / metro, held in sync only by discipline and literal `duplicated, keep in sync` comments (`pctToRaw`, `hsvToRgb`/`rgbToHsv`/`parseRgb`/`xyToRgb`, the `$setpoint` substitution helper). The 07/2026 climate bug wave is the receipts:
 
