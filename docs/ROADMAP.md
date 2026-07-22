@@ -58,6 +58,7 @@ Work in progress — priorities and scope are not final.
 - [E128 — Homematic blinds: settling behaviour + `DIRECTION` indicator](#e128--homematic-blinds-settling-behaviour--direction-indicator-later--after-e127) *(later)*
 - [E135 — Homematic maintenance signals: ERROR_CODE + SABOTAGE badges, device-health board](#e135--homematic-maintenance-signals-error_code--sabotage-badges-device-health-board)
 - [E137 — Shared MQTT device contracts: extract behavior controllers (climate / light / cover / wled)](#e137--shared-mqtt-device-contracts-extract-behavior-controllers-climate--light--cover--wled)
+- [E138 — Contact / sensor / motion / value: untangle the boolean-card taxonomy](#e138--contact--sensor--motion--value-untangle-the-boolean-card-taxonomy)
 
 **Editor UX**
 
@@ -1266,6 +1267,35 @@ The family element becomes a **view**: it reads controller state, renders its ch
 - **`feezal-controller-core`?** — if the cross-controller machinery kept in `@feezal/feezal-element` (payload modes, `message-property` extraction, shared scaling/color) grows enough to churn the base package anyway, split it into a `@feezal/feezal-controller-core` that only controller packages depend on. Default **no** — don't add the layer until the churn is demonstrated.
 
 **Relates:** **E114** (parity contract — this is the structural answer to it; its test lands first as the migration net), E106 ✅ (shared base class/code — this continues that line), E127 ✅ (`SettlingController` — the controller precedent and first tenant of the pattern), E117 ✅ (shared descriptor precedent), **B53–B58** (the motivating bug wave; fixed pre-extraction, then regression fixtures), E122 ✅ (one feature, three implementations — the cost this removes), **E115** (family switching — an identical behavior layer makes switching lossless by construction), E132/E133/E134/E136 (renames + redesigns — coordinate sequencing), A23/A24 (externalization — version-coupling caveat), E86 ✅ (descriptor-parity test precedent).
+
+### E138 — Contact / sensor / motion / value: untangle the boolean-card taxonomy
+
+**Problem — we created chaos.** "Sensor" means two different things depending on the family, and the boolean card carries a different name in every family:
+
+| today | material | glass | metro | eink |
+|---|---|---|---|---|
+| boolean card (SensorController) | `material-motion` | `glass-occupancy` | `metro-occupancy` | `eink-sensor` |
+| numeric card (value/unit/trend) | — | `glass-sensor` | `metro-sensor` | — |
+| openings card (ContactController) | `material-contact` | `glass-contact` | `metro-contact` | `eink-contact` |
+
+The boolean card's scope also sprawls: `material-motion` describes itself as "motion, presence, water leak, smoke, gas, …" — motion and alarm sensors have different UX expectations (expected activity vs. exceptional alarm) and different colour semantics.
+
+**Decided taxonomy (07/2026)** — four elements per family, all on the E137 shared contracts:
+
+- **`*-contact`** — door/window contacts, garage doors, incl. the Homematic **3-state window (tilt)**. `ContactController`, unchanged in scope.
+- **`*-sensor`** — **alarm-character, normally boolean** sensors: fire/smoke, water/leak, CO, CO2/gas, vibration, … `SensorController` with the alarm slice of the E132 type vocabulary.
+- **`*-motion`** *(new name)* — motion / occupancy / presence / radar. Also `SensorController` (motion slice of the type vocabulary); separate element because defaults, iconography and colour semantics differ from alarms.
+- **`*-value`** *(new name, decided)* — today's **numeric** readout cards (big numeral + unit + trend): `glass-sensor`/`metro-sensor` renamed.
+
+**Rename matrix (hard rename + release note — decided; no tag aliasing):** `glass-occupancy → glass-motion`, `metro-occupancy → metro-motion` (`material-motion` keeps its name, scope narrows to motion types); `glass-sensor → glass-value`, `metro-sensor → metro-value`; **new** `material-sensor`, `glass-sensor`, `metro-sensor` (alarm card — note glass/metro reuse the freed name with a *different meaning*: call this out loudly in the release note), `eink-sensor` narrows to alarms + **new** `eink-motion`. Family gaps (e.g. material has no numeric card, eink has no motion card yet) verified and filled or documented at implementation. Saved dashboards using renamed tags break — **release-note migration table** (old tag → new tag) is mandatory, and the reused `glass-sensor`/`metro-sensor` names mean an *old* dashboard's numeric sensor silently becomes an alarm card: consider having the release note recommend a search-replace in source view before upgrading.
+
+- **Low-bat + sabotage on contact, sensor and motion:** low-bat is already in both controllers (E124). **Sabotage** rides on **E135**'s SABOTAGE badge machinery — the controllers gain the sabotage subscription/badge as part of E135's canonical-record auto-stamp; this item just requires it on all three boolean cards.
+- **Active-state default colours from the canonical theme vars** (§5.1): **motion → `--accent-color`**, **alarm sensors (smoke/water/CO/…) → `--error-color`**, **contact open/tilted → `--primary-color`** — defaults only, per-element overrides stay via the existing `--feezal-*` style props. One definition in the shared fragments, not per family.
+- **Discovery split by `device_class`:** `binary_sensor` configs route to the right card — `motion`/`occupancy`/`presence` → `*-motion`; `smoke`/`moisture`/`gas`/`carbon_monoxide`/`vibration`/… → `*-sensor`; `door`/`window`/`garage_door` → `*-contact`. Update the HA/z2m mapping and the native recognizers (E131 motion recognizer included) accordingly.
+
+**Ships with:** controller/fragment updates, package renames + new packages + `generate-elements`, parity-test registrations (`feezal-controller-parity.test.js`), palette/description updates, discovery routing, TESTING.md §6 restructure for the four-way split, release note with the migration table, version bumps per policy.
+
+**Relates:** **E137** (the contract layer — sensor/contact controllers shipped, this reorganizes their consumers), E132 (type vocabulary — split into motion/alarm slices), E135 (SABOTAGE badges — sabotage support lands there, required here), E124 ✅ (low-bat, already in the controllers), E113 (function×style taxonomy discussion — this is its concrete first act), E114 (parity — the four-way split must hold in every family), E130 (outlet rename — bundle into the same breaking-rename release note), E131 (motion recognizer — routes to `*-motion`).
 
 ## Architecture & Infrastructure
 
