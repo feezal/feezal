@@ -359,3 +359,39 @@ describe('_revealActiveViewLine() — U54', () => {
         expect(drive('home', doc).revealed).toBe(2);
     });
 });
+
+describe('_applyDrop() — U55 self-drop + unresolved-target hardening', () => {
+    function drive(tree, dragData, target, position) {
+        const self = Object.create(FeezalAppEditor.prototype);
+        self._dragData = dragData;
+        self._cloneTree = () => JSON.parse(JSON.stringify(tree));
+        self.committed = null;
+        self._commitFolders = next => { self.committed = next; };
+        self._applyDrop(target, position);
+        return self.committed;   // null = no reorder applied
+    }
+
+    const THREE = [{view: 'view1'}, {view: 'view2'}, {view: 'view3'}];
+
+    it('a micro-drag released over the dragged tab itself is a NO-OP (was: moved to the end)', () => {
+        // The bundled-bug repro: drag view1 a few px right, drop line between
+        // view1 and view2 → target IS view1 → must not commit anything.
+        expect(drive(THREE, {kind: 'view', name: 'view1'}, {kind: 'view', name: 'view1'}, 'after')).toBeNull();
+        expect(drive(THREE, {kind: 'view', name: 'view1'}, {kind: 'view', name: 'view1'}, 'before')).toBeNull();
+        expect(drive(THREE, {kind: 'folder', id: 'f1'}, {kind: 'folder', id: 'f1'}, 'after')).toBeNull();
+    });
+
+    it('an unresolved drop target aborts instead of relocating to the end', () => {
+        expect(drive(THREE, {kind: 'view', name: 'view1'}, {kind: 'view', name: 'ghost'}, 'after')).toBeNull();
+    });
+
+    it('a genuine reorder still works (view1 after view2)', () => {
+        const committed = drive(THREE, {kind: 'view', name: 'view1'}, {kind: 'view', name: 'view2'}, 'after');
+        expect(committed).toEqual([{view: 'view2'}, {view: 'view1'}, {view: 'view3'}]);
+    });
+
+    it('drop on the bar end still appends', () => {
+        const committed = drive(THREE, {kind: 'view', name: 'view1'}, {kind: 'bar'});
+        expect(committed).toEqual([{view: 'view2'}, {view: 'view3'}, {view: 'view1'}]);
+    });
+});

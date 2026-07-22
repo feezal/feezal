@@ -68,6 +68,7 @@ class FeezalAppEditor extends LitElement {
         _folders:         {state: true},
         _collapsed:       {state: true},
         _dropHint:        {state: true},
+        _dragArmed:       {state: true},
         _editFolderId:    {state: true},
         _folderMenu:      {state: true},
         _aiConfigured:    {state: true},
@@ -221,6 +222,14 @@ class FeezalAppEditor extends LitElement {
             border-bottom: 2px solid transparent;
             background-clip: padding-box;
             position: relative; user-select: none;
+        }
+        /* U55: hold-to-drag armed — visible "lift" cue so the user knows the
+           tab is now draggable (a quick click never arms). */
+        .ftab.drag-armed {
+            transform: scale(1.04);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+            z-index: 3;
+            cursor: grab;
         }
         .ftab:hover { background: #e9e9e9; }
         /* --tab-active-color: set by the inspector while the view itself is
@@ -745,6 +754,11 @@ class FeezalAppEditor extends LitElement {
         this._folders       = [];        // ordered tree: {id,name,children:[]} | {view:name}
         this._collapsed     = new Set(); // folder ids that are collapsed (default expanded)
         this._dropHint      = null;      // {kind:'view'|'folder'|'bar', id, position}
+        // U55: hold-to-drag — tabs render draggable=false until the pointer has
+        // been held down ~300 ms on the same tab (a sloppy click stays a click;
+        // the browser's native drag threshold is a few px with no delay option).
+        this._dragArmed     = null;      // armed tab key (view name / folder id)
+        this.__dragArmTimer = null;      // non-reactive setTimeout handle
         this._editFolderId  = null;      // folder being renamed
         this._foldersSig    = '';        // last reconciled signature to avoid update loops
         this._folderMenu    = null;      // open folder popup: {id, x, y}
@@ -994,9 +1008,13 @@ class FeezalAppEditor extends LitElement {
                             @drop="${this._onBarDrop}">
                             ${this._tabItems().map(item => item.type === 'folder'
                                 ? html`
-                                    <div class="ftab folder ${this._folderMenu?.id === item.id ? 'open' : ''} ${item.containsActive ? 'contains-active' : ''} ${this._dropClass(item)}"
-                                        draggable="true"
+                                    <div class="ftab folder ${this._folderMenu?.id === item.id ? 'open' : ''} ${item.containsActive ? 'contains-active' : ''} ${this._dropClass(item)} ${this._dragArmed === item.id ? 'drag-armed' : ''}"
+                                        draggable="${this._dragArmed === item.id ? 'true' : 'false'}"
                                         title="${item.name}"
+                                        @pointerdown="${e => this._armDrag(e, item.id)}"
+                                        @pointerup="${this._disarmDrag}"
+                                        @pointerleave="${this._disarmDrag}"
+                                        @pointercancel="${this._disarmDrag}"
                                         @click="${e => this._openFolderMenu(e, item.id)}"
                                         @dblclick="${() => this._beginRenameFolder(item.id)}"
                                         @contextmenu="${e => { e.preventDefault(); e.stopPropagation(); this._showFolderCtxMenu(e.clientX, e.clientY, item.id); }}"
@@ -1011,9 +1029,13 @@ class FeezalAppEditor extends LitElement {
                                         ${item.count > 0 ? html`<span class="material-icons ftab-caret">arrow_drop_down</span>` : ''}
                                     </div>`
                                 : html`
-                                    <div class="ftab view ${this._navView === item.name ? 'active' : ''} ${this._dropClass(item)}"
+                                    <div class="ftab view ${this._navView === item.name ? 'active' : ''} ${this._dropClass(item)} ${this._dragArmed === item.name ? 'drag-armed' : ''}"
                                         data-view="${item.name}"
-                                        draggable="true"
+                                        draggable="${this._dragArmed === item.name ? 'true' : 'false'}"
+                                        @pointerdown="${e => this._armDrag(e, item.name)}"
+                                        @pointerup="${this._disarmDrag}"
+                                        @pointerleave="${this._disarmDrag}"
+                                        @pointercancel="${this._disarmDrag}"
                                         @click="${() => this._tabClick(item.name)}"
                                         @dblclick="${e => this._editView(e, item.name)}"
                                         @contextmenu="${e => { e.preventDefault(); e.stopPropagation(); this._showViewCtxMenu(e.clientX, e.clientY, item.name); }}"
@@ -3300,6 +3322,25 @@ class FeezalAppEditor extends LitElement {
 
     // ---- Drag & drop ----------------------------------------------------
 
+    // ---- U55: hold-to-drag arming ---------------------------------------
+    // HTML5 drag has no delay option, so arming is manual: pointerdown starts
+    // a timer; only when it fires (button still down on the same tab) does the
+    // tab become draggable (+ a visual lift cue). A quick click — even a
+    // slightly moving one — never arms and therefore never reorders.
+
+    _armDrag(e, key) {
+        if (e.button !== 0) return;              // primary button / touch only
+        clearTimeout(this.__dragArmTimer);
+        this.__dragArmTimer = setTimeout(() => { this._dragArmed = key; }, 300);
+    }
+
+    _disarmDrag() {
+        clearTimeout(this.__dragArmTimer);
+        this.__dragArmTimer = null;
+        // Keep the armed state while a native drag is in flight — dragend resets.
+        if (!this._dragData) this._dragArmed = null;
+    }
+
     _onItemDragStart(e, drag) {
         this._dragData = drag;
         e.dataTransfer.effectAllowed = 'move';
@@ -3360,11 +3401,23 @@ class FeezalAppEditor extends LitElement {
     _onItemDragEnd() {
         this._dragData = null;
         this._dropHint = null;
+        // U55: back to click-safe — the next drag needs a fresh hold.
+        clearTimeout(this.__dragArmTimer);
+        this.__dragArmTimer = null;
+        this._dragArmed = null;
     }
 
     _applyDrop(target, position) {
         const drag = this._dragData;
         if (!drag) return;
+        // U55: dropping an item onto ITSELF (before/after itself — the pointer
+        // never left the tab) is order-preserving by definition — bail BEFORE
+        // detaching. Without this, the detach-then-locate sequence could not
+        // find the just-detached target and the fallback appended the dragged
+        // item to the END (view1,view2,view3 → view2,view3,view1 on a micro-drag).
+        const isSelf = drag.kind === target.kind
+            && (drag.kind === 'view' ? target.name === drag.name : target.id === drag.id);
+        if (isSelf) return;
         const tree = this._cloneTree();
         const dragged = drag.kind === 'view'
             ? this._detach(tree, n => n.view === drag.name)
@@ -3383,8 +3436,12 @@ class FeezalAppEditor extends LitElement {
                 ? n => n.id === target.id
                 : n => n.view === target.name;
             const loc = this._locate(tree, pred);
-            if (!loc) { tree.push(dragged); }
-            else loc.arr.splice(loc.idx + (position === 'after' ? 1 : 0), 0, dragged);
+            // U55: an unresolved target must ABORT, not relocate — the old
+            // `push(dragged)` fallback turned every lookup miss into a silent
+            // "move to end" (matches the existing silent abort for a folder
+            // dropped into its own subtree).
+            if (!loc) return;
+            loc.arr.splice(loc.idx + (position === 'after' ? 1 : 0), 0, dragged);
         }
 
         // Reject moves that would exceed the 3-level nesting limit.
