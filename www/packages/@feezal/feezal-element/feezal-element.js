@@ -106,6 +106,14 @@ export class FeezalElement extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         this.classList.add('feezal-element');
+        // N37: an element stamped into an ALREADY-PAUSED view must not
+        // subscribe — pause state is a precondition, not only an event. The
+        // visibility controller resumes it via a reconnect cycle later.
+        if (window.feezal?.visibility?.isPaused?.(this)) {
+            this.__n37Paused = true;
+            return;
+        }
+        this.__n37Paused = false;
         if (this.visible || !this.dynamicSubscriptions) {
             this._subscribe();
             this._conditions.connect();
@@ -115,6 +123,37 @@ export class FeezalElement extends LitElement {
         // get it) and not editor-gated — it only feeds internal state, never
         // writes serializable attributes in the editor.
         this._subscribeAvailability();
+    }
+
+    /**
+     * N37 — pause this element's MQTT traffic while its view is hidden.
+     * Teardown is uniform for EVERY element: all primary subscriptions live
+     * in `_subscriptions` (addSubscription), availability in the N31 arrays,
+     * conditions in the engine — regardless of how the element wired them.
+     */
+    pauseSubscriptions() {
+        if (this.__n37Paused) return;
+        this.__n37Paused = true;
+        this._unsubscribe();
+        this._unsubscribeAvailability();
+        this._conditions.disconnect();
+    }
+
+    /**
+     * N37 — resume by re-running the element's OWN wiring exactly as a fresh
+     * mount would: a detach/re-attach cycle runs disconnected/connectedCallback,
+     * the one path every element (including manual wirers like the device
+     * cards) implements correctly. Retained values repaint instantly from the
+     * B40 cache replay.
+     */
+    resumeSubscriptions() {
+        if (!this.__n37Paused) return;
+        this.__n37Paused = false;
+        const parent = this.parentNode;
+        if (!parent) return;
+        const next = this.nextSibling;
+        this.remove();
+        parent.insertBefore(this, next);
     }
 
     disconnectedCallback() {
@@ -239,6 +278,11 @@ export class FeezalElement extends LitElement {
 
     /** Subscribe to a single topic — convenience wrapper for subclasses. */
     addSubscription(topic, callback) {
+        // N37: wiring attempted while the element's view is paused is dropped
+        // — device cards wire in their own connectedCallback AFTER the base
+        // guard returned, so the gate must live here to be universal. The
+        // resume reconnect cycle re-runs the wiring when the view returns.
+        if (this.__n37Paused) return;
         this._subscriptions.push(feezal.connection.sub(topic, callback));
     }
 

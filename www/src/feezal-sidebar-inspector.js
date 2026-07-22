@@ -511,7 +511,10 @@ class FeezalSidebarInspector extends LitElement {
                                 playlistResume: attr('playlist-resume'),
                                 playlistTransition: attr('playlist-transition'),
                                 presence: attr('presence'),                      // N24: '' = on (default), 'off' = disabled
-                                autoReload: attr('auto-reload')                  // N32: '' = on (default), 'off' = disabled
+                                autoReload: attr('auto-reload'),                 // N32: '' = on (default), 'off' = disabled
+                                // N37: pause hidden views' subscriptions (viewer bandwidth)
+                                pauseHiddenSubscriptions: feezal.site.hasAttribute('pause-hidden-subscriptions'),
+                                pauseGraceSeconds: attr('pause-grace-seconds')
                             };
                         }
                     }

@@ -657,6 +657,25 @@ class FeezalSidebarViewer extends LitElement {
                         control topic when wired. The editor never reloads.
                     </div>
 
+                    <div class="section-label">Bandwidth</div>
+                    <sl-switch id="pause-switch" size="small" ?checked="${s.pauseHiddenSubscriptions === true}"
+                        @sl-change="${e => this._setSite('pauseHiddenSubscriptions', e.target.checked)}">
+                        Pause hidden views' subscriptions
+                    </sl-switch>
+                    <div class="pwa-hint">
+                        N37: hidden views unsubscribe their MQTT topics after the
+                        grace period below and rewire instantly when shown again
+                        (retained values repaint from the cache). Per-view
+                        override: the view's <code>pause-subscriptions</code>
+                        attribute (<code>inherit · always · never</code> —
+                        <code>never</code> for views with non-retained data).
+                        Viewer only; the editor stays fully subscribed.
+                    </div>
+                    <sl-input id="pause-grace" size="small" type="number" min="0" autocomplete="off"
+                        label="Pause grace period (seconds)" placeholder="30"
+                        value="${s.pauseGraceSeconds || ''}"
+                        @sl-change="${e => this._setSite('pauseGraceSeconds', e.target.value)}"></sl-input>
+
                     <div class="section-label">Viewer presence</div>
                     <sl-switch id="presence-switch" size="small" ?checked="${s.presence !== 'off'}"
                         @sl-change="${e => this._setSite('presence', e.target.checked ? '' : 'off')}">

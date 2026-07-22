@@ -139,6 +139,13 @@ the live path needs a real feezal container with the socket mounted:
 - [ ] **Update…** pulls the image via a one-shot watchtower, recreates the container with identical config, editor comes back on the new container.
 - [ ] Bare metal with `FEEZAL_ALLOW_RESTART=1` under a supervisor (systemd/pm2): Restart exits the process and the supervisor brings it back.
 
+### Hidden-view subscription pausing (N37)
+- [ ] Site Settings → Viewer → **Bandwidth**: enable *Pause hidden views' subscriptions* (grace default 30 s) → deploy. In the **viewer** with an MQTT client watching `$SYS`/broker logs (or the feezal server log): after the grace period, topics used only by hidden views are unsubscribed; switching to such a view **re-subscribes immediately** and retained values repaint instantly (cache replay — no blank flash); switching away and back **within** the grace period never churns subscriptions.
+- [ ] Per-view override: a view with `pause-subscriptions="never"` keeps receiving while hidden (non-retained data survives; a layout-app/dialog clone of it stamped later starts with the last-seen retained-origin values — warm cache); `always` pauses the view even when the site default is off.
+- [ ] The **editor** is unaffected — all views stay subscribed there regardless of the settings.
+- [ ] Availability badges (N31) pause/resume together with the element's data subscriptions.
+*(Controller + element pause/resume machinery, grace, `never`/`always`, and the stamped-into-paused precondition are browser-tested: `test-browser/feezal-visibility.test.js`.)*
+
 ### PWA (A9 Tier 1) — real-device installs
 The toggle, manifest/service-worker routes, icon pipeline (crop, maskable,
 uploads via both entry points) and export bundle are automated — what's left

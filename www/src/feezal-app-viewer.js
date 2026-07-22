@@ -5,6 +5,7 @@ import {LitElement, html, css} from 'lit';
 import './feezal-site.js';
 import './feezal-view.js';
 import {viewFromHash, viewPathFromHash} from './hash-view.js';
+import {FeezalVisibility} from './feezal-visibility.js';
 
 class FeezalAppViewer extends LitElement {
     static styles = css`
@@ -41,12 +42,19 @@ class FeezalAppViewer extends LitElement {
             } else {
                 this._onHashChange();
             }
+            // N37: pause hidden views' subscriptions (viewer only — the
+            // editor keeps everything live). Site/view attributes decide.
+            if (feezal.site && !feezal.visibility) {
+                feezal.visibility = new FeezalVisibility(feezal.site);
+            }
         });
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         window.removeEventListener('hashchange', this._onHashChange);
+        feezal.visibility?.dispose?.();
+        feezal.visibility = null;
     }
 
     render() {

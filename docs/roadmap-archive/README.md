@@ -3,7 +3,7 @@
 Completed and closed roadmap items — **one file per item**, named after its ID (e.g. `U39.md`).
 Open items live in [../ROADMAP.md](../ROADMAP.md).
 
-**248 items.**
+**249 items.**
 
 ## Bugs
 
@@ -95,6 +95,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [N34 — Custom CSS/style editors (N6-analog) + rich view Background editor ✅ implemented](N34.md)
 - [N35 — basic-template: `${msg.payload}` renders `[object Object]` for JSON payloads ✅ fixed](N35.md)
 - [N36 — layout-app improvements ✅ implemented](N36.md)
+- [N37 — Pause subscriptions of hidden views (bandwidth saver) ✅ done](N37.md)
 
 ## Element Ecosystem
 
