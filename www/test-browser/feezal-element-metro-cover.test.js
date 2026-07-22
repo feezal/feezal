@@ -1,8 +1,8 @@
 /**
  * E104 metro-cover behaviour tests — the Metro cover/shutter tile, driven
- * for real: material-cover's MQTT contract (payload modes, B26 min/max
- * scaling + dedicated up/stop/down topics, tilt), the Metro front/back flip
- * machinery and the N31 base-class availability badge.
+ * for real: the shared E137 CoverController contract (payload modes, B26
+ * min/max scaling + dedicated up/stop/down topics, tilt), the Metro
+ * front/back flip machinery and the N31 base-class availability badge.
  */
 import {describe, it, expect, beforeEach} from 'vitest';
 import '../packages/@feezal/feezal-element-metro-cover/feezal-element-metro-cover.js';
@@ -26,7 +26,7 @@ describe('metro-cover position binding (separate mode, B26 min/max scaling)', ()
 
         feezal.connection.deliver('hm/cover/level', '0.5');
         await el.updateComplete;
-        expect(el._position).toBe(50);
+        expect(el.cover.position).toBe(50);
         expect(el.shadowRoot.querySelector('.value').textContent).toBe('50%');
 
         feezal.connection.deliver('hm/cover/level', '1');
@@ -44,7 +44,7 @@ describe('metro-cover position binding (separate mode, B26 min/max scaling)', ()
         slider.value = '50';
         slider.dispatchEvent(new Event('change'));
         expect(feezal.connection.published).toContainEqual({topic: 'hm/cover/level/set', payload: '0.5'});
-        expect(el._position).toBe(50);
+        expect(el.cover.position).toBe(50);
     });
 });
 
@@ -100,7 +100,7 @@ describe('metro-cover tilt / slat angle', () => {
         });
         feezal.connection.deliver('stat/tilt', '100');
         await el.updateComplete;
-        expect(el._tilt).toBe(50);
+        expect(el.cover.tilt).toBe(50);
         const slider = el.shadowRoot.querySelector('input[type=range].tilt');
         expect(slider.value).toBe('50');
 
@@ -133,7 +133,7 @@ describe('metro-cover json payload mode (zigbee2mqtt shape, default)', () => {
         const el = await mount('feezal-element-metro-cover', {subscribe: 'z2m/cover'});
         feezal.connection.deliver('z2m/cover', {state: 'CLOSE'});
         await el.updateComplete;
-        expect(el._position).toBe(0);
+        expect(el.cover.position).toBe(0);
         expect(el.shadowRoot.querySelector('.value').textContent).toBe('0%');
     });
 });

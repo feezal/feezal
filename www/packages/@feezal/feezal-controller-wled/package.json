@@ -1,0 +1,7 @@
+{
+    "name": "@feezal/feezal-controller-wled",
+    "version": "3.0.0",
+    "main": "feezal-controller-wled.js",
+    "license": "MIT",
+    "description": "E137 WLED behavior controller: class + attribute fragment + discovery-map fragment + bundled effect/palette tables."
+}

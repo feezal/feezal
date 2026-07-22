@@ -1,5 +1,8 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+// E137: the cover behavior lives in the shared controller — this element is a
+// VIEW (window SVG, drag-to-position, up/stop/down buttons, sliders).
+import {CoverController, coverAttributes, coverDiscoveryMap} from '@feezal/feezal-controller-cover';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {svg, LitElement} from 'lit';
 import '@material/web/iconbutton/icon-button.js';
@@ -22,78 +25,13 @@ class FeezalElementMaterialCover extends FeezalElement {
             // defaults payload-mode to 'json' so auto-configured covers work
             // out of the box; hand-wired separate-topic setups switch to
             // 'separate' in the inspector.
-            discovery: {
-                component: 'cover',
-                map: {
-                    // JSON wiring — base topic publishes {position, state, …};
-                    // set_position_topic / command_topic both point at /set.
-                    position_topic:     {attr: 'subscribe'},
-                    set_position_topic: {attr: 'publish'},
-                    command_topic:      {attr: 'publish'},
-                    // State/payload values from discovery
-                    state_open:    {attr: 'payload-up'},
-                    state_closed:  {attr: 'payload-down'},
-                    state_stopped: {attr: 'payload-stop'},
-                    payload_open:  {attr: 'payload-up'},
-                    payload_close: {attr: 'payload-down'},
-                    payload_stop:  {attr: 'payload-stop'},
-                    // tilt / slat angle support
-                    tilt_status_topic:  {attr: 'slat-angle'},
-                    tilt_command_topic: {attr: 'publish-slat-angle'},
-                    // ── E108: native Homematic (separate-mode) keys ───────────
-                    // Native-only (HA/z2m absent → skipped, additive). Homematic
-                    // covers are SEPARATE mode: LEVEL position goes to the
-                    // separate-mode attrs, not the json base. LEVEL is 0.0–1.0 →
-                    // position_max 1 sets max=1 so the element scales to 0–100 %.
-                    payload_mode:             {attr: 'payload-mode'},
-                    position_state_topic:     {attr: 'subscribe-position'},
-                    position_command_topic:   {attr: 'publish-position'},
-                    stop_command_topic:       {attr: 'publish-stop'},
-                    // E120: native Homematic — Up/Down buttons drive the LEVEL set
-                    // topic (payload_open/close 1/0 arrive via the payload map above).
-                    open_command_topic:       {attr: 'publish-up'},
-                    close_command_topic:      {attr: 'publish-down'},
-                    position_min:             {attr: 'min'},
-                    position_max:             {attr: 'max'},
-                    message_property:          {attr: 'message-property'},
-                    message_property_position: {attr: 'message-property-position'},
-                    // N31: availability is mapped automatically from the canonical discovery record.
-                    // device name → label
-                    name: 'label',
-                },
-            },
+            // E137: the discovery map is the controller package's fragment.
+            discovery: {component: 'cover', map: coverDiscoveryMap},
             attributes: [
-                // ── Wiring mode ───────────────────────────────────────────────
-                {name: 'payload-mode', type: 'select', options: ['json', 'separate'], default: 'json',
-                    help: 'json = single topic carrying a JSON object (default, matches zigbee2mqtt); separate = one topic per property.'},
-                {name: 'subscribe', type: 'mqttTopic', help: 'json mode: base topic carrying the cover state (position, state, …).'},
-                {name: 'publish',   type: 'mqttTopic', help: 'json mode: command/set topic (accepts {position:50} or {state:"OPEN"}).'},
-                {name: 'json-map',  type: 'string', default: '', help: 'json mode: optional JSON string overriding the default key map.'},
-                {name: 'message-property', type: 'string', default: 'payload',
-                    help: 'json mode: dot-notation path to the JSON state object within the MQTT message. Default "payload" reads msg.payload directly.'},
-                // ── Separate-mode per-property topics ─────────────────────────
-                {name: 'subscribe-position', type: 'mqttTopic', help: 'separate mode: current position (0=closed, 100=open).'},
-                {name: 'message-property-position', type: 'string', default: 'payload',
-                    help: 'Dot-notation path within the position message. Blank = fall back to element-level message-property.'},
-                {name: 'publish-position',   type: 'mqttTopic', help: 'separate mode: target position topic.'},
-                {name: 'publish-command',    type: 'mqttTopic', help: 'separate mode: up/stop/down command topic.'},
-                {name: 'publish-up',   type: 'mqttTopic', help: 'Optional dedicated topic for the Up button. Takes precedence over publish-command.'},
-                {name: 'publish-stop', type: 'mqttTopic', help: 'Optional dedicated topic for the Stop button. Takes precedence over publish-command.'},
-                {name: 'publish-down', type: 'mqttTopic', help: 'Optional dedicated topic for the Down button. Takes precedence over publish-command.'},
-                // ── Command payloads ──────────────────────────────────────────
-                {name: 'payload-up',   type: 'string', default: 'OPEN',  help: 'Payload sent by the Up button.'},
-                {name: 'payload-stop', type: 'string', default: 'STOP',  help: 'Payload sent by the Stop button.'},
-                {name: 'payload-down', type: 'string', default: 'CLOSE', help: 'Payload sent by the Down button.'},
-                // ── Position range ────────────────────────────────────────────
-                {name: 'min', type: 'number', default: 0,   help: 'Device position range minimum. Incoming positions are scaled from min…max to 0–100 %, published targets scaled back (Homematic reports 0…1: set max to 1).'},
-                {name: 'max', type: 'number', default: 100, help: 'Device position range maximum. Incoming positions are scaled from min…max to 0–100 %, published targets scaled back (Homematic reports 0…1: set max to 1).'},
-                // ── Tilt / slat angle ─────────────────────────────────────────
-                {name: 'slat-angle',         type: 'mqttTopic', help: 'Subscribe: venetian-blind tilt/slat angle (0–100). Slat lines rotate in the SVG.'},
-                {name: 'message-property-tilt', type: 'string', default: 'payload',
-                    help: 'Dot-notation path within the slat-angle message. Blank = fall back to element-level message-property.'},
-                {name: 'publish-slat-angle', type: 'mqttTopic', help: 'Publish: topic to publish new slat angle to (0–100).'},
-                {name: 'slat-min', type: 'number', default: 0,   help: 'Device slat-angle range minimum. Incoming angles are scaled from slat-min…slat-max to 0–100 %, published angles scaled back.'},
-                {name: 'slat-max', type: 'number', default: 100, help: 'Device slat-angle range maximum. Incoming angles are scaled from slat-min…slat-max to 0–100 %, published angles scaled back.'},
+                // E137: the shared cover contract (both payload modes, B26
+                // min/max scaling, dedicated per-direction command topics,
+                // slat/tilt angle) — declared ONCE by the controller package.
+                ...coverAttributes,
                 // ── Display ───────────────────────────────────────────────────
                 {name: 'invert',        type: 'boolean', default: false, help: 'Invert position scale: 0=open, 100=closed.'},
                 {name: 'show-position', type: 'boolean', default: true,  help: 'Show the numeric position label below the window.'},
@@ -154,9 +92,9 @@ class FeezalElementMaterialCover extends FeezalElement {
         discoveryId:           {type: String,  reflect: true, attribute: 'discovery-id'},
         msgPropPosition:       {type: String,  reflect: true, attribute: 'message-property-position'},
         msgPropTilt:           {type: String,  reflect: true, attribute: 'message-property-tilt'},
-        // Internal state — never as class fields (Lit 3 rule)
-        _position:    {state: true},   // 0–100, null = unknown
-        _tilt:        {state: true},   // 0–100 slat tilt, null = not configured
+        // Internal state — never as class fields (Lit 3 rule).
+        // E137: position/tilt live on the CoverController (plain fields +
+        // host.requestUpdate) — only the view-local bits stay here.
         _dragPos:     {state: true},   // live position during SVG drag
         _showSlider:  {state: true},   // toggle inline position slider
     };
@@ -288,153 +226,27 @@ class FeezalElementMaterialCover extends FeezalElement {
         this.discoveryId           = '';
         this.msgPropPosition       = '';
         this.msgPropTilt           = '';
-        this._position             = null;
-        this._tilt                 = null;
         this._dragPos              = null;
         this._showSlider           = false;
+        // E137: the behavior layer — wires/parses/publishes; this view renders.
+        this.cover = new CoverController(this);
     }
 
-    // The cover manages all subscriptions itself; suppress the base class path.
+    // The cover controller manages all subscriptions; suppress the base class path.
     _subscribe() { /* intentionally empty */ }
 
-    connectedCallback() {
-        super.connectedCallback();
+    // E137: the CoverController wires everything in hostConnected.
 
-        // N31: availability subscription handled by the FeezalElement base.
-
-        if (this.payloadMode === 'json') {
-            if (this.subscribe) {
-                this.addSubscription(this.subscribe, msg => {
-                    let obj = this.getProperty(msg, this.messageProperty);
-                    if (typeof obj === 'string') {
-                        try { obj = JSON.parse(obj); } catch { return; }
-                    }
-                    if (obj && typeof obj === 'object') this._applyJsonState(obj);
-                });
-            }
-            return;
-        }
-
-        // ── Separate (per-topic) mode ──────────────────────────────────────
-        if (this.subscribePosition) {
-            this.addSubscription(this.subscribePosition, msg => {
-                const v = Number(this.getProperty(msg, this.msgPropPosition || this.messageProperty));
-                if (!isNaN(v)) this._position = Math.max(0, Math.min(100, this._posIn(v)));
-            });
-        }
-        if (this.slatAngle) {
-            this.addSubscription(this.slatAngle, msg => {
-                const v = Number(this.getProperty(msg, this.msgPropTilt || this.messageProperty));
-                if (!isNaN(v)) this._tilt = Math.max(0, Math.min(100, this._tiltIn(v)));
-            });
-        }
+    updated(changed) {
+        super.updated(changed);
+        // Live-canvas topic edits re-wire through the controller.
+        this.cover.rewireIfChanged();
     }
 
-    // ─── Value ranges — device scale (min/max, slat-min/slat-max) <-> 0–100 % ─
-    static _rangeOf(minValue, maxValue) {
-        let min = Number(minValue);
-        let max = Number(maxValue);
-        if (isNaN(min)) min = 0;
-        if (isNaN(max)) max = 100;
-        if (max === min) { min = 0; max = 100; }
-        return {min, max};
-    }
-
-    static _scaleIn(v, {min, max}) {
-        return ((v - min) / (max - min)) * 100;
-    }
-
-    static _scaleOut(pct, {min, max}) {
-        return Math.round((min + (pct / 100) * (max - min)) * 10000) / 10000;
-    }
-
-    get _range()     { return this.constructor._rangeOf(this.min, this.max); }
-    get _slatRange() { return this.constructor._rangeOf(this.slatMin, this.slatMax); }
-
-    _posIn(v)     { return this.constructor._scaleIn(v, this._range); }
-    _posOut(pct)  { return this.constructor._scaleOut(pct, this._range); }
-    _tiltIn(v)    { return this.constructor._scaleIn(v, this._slatRange); }
-    _tiltOut(pct) { return this.constructor._scaleOut(pct, this._slatRange); }
-
-    // ─── JSON payload mode ────────────────────────────────────────────────────
-    get _jsonMap() {
-        const defaults = {state: 'state', position: 'position', tilt: 'tilt'};
-        if (this.jsonMap) {
-            try { return {...defaults, ...JSON.parse(this.jsonMap)}; } catch { /* fall through */ }
-        }
-        return defaults;
-    }
-
-    _applyJsonState(obj) {
-        const map = this._jsonMap;
-        const get = key => this.getProperty(obj, key);
-
-        // Position from numeric field (primary)
-        const pos = get(map.position);
-        if (pos !== null && pos !== undefined) {
-            const n = Number(pos);
-            if (!isNaN(n)) this._position = Math.max(0, Math.min(100, this._posIn(n)));
-        }
-
-        // State field: infer position when numeric position is absent
-        // e.g. zigbee2mqtt cover reports state:"CLOSE" before position:0 arrives
-        if (this._position === null) {
-            const state = get(map.state);
-            if (state !== null && state !== undefined) {
-                const s = String(state).toUpperCase();
-                if (s === this.payloadDown.toUpperCase() || s === 'CLOSE' || s === 'CLOSED') {
-                    this._position = 0;
-                } else if (s === this.payloadUp.toUpperCase() || s === 'OPEN' || s === 'OPENED') {
-                    this._position = 100;
-                }
-            }
-        }
-
-        const tilt = get(map.tilt);
-        if (tilt !== null && tilt !== undefined) {
-            const n = Number(tilt);
-            if (!isNaN(n)) this._tilt = Math.max(0, Math.min(100, this._tiltIn(n)));
-        }
-    }
-
-    // Unified publish: json mode → JSON object on `publish`;
-    // separate mode → raw string on `topic`.
-    _pub(topic, value, jsonObj) {
-        if (this.payloadMode === 'json') {
-            if (this.publish) feezal.connection.pub(this.publish, JSON.stringify(jsonObj));
-        } else if (topic) {
-            feezal.connection.pub(topic, String(value));
-        }
-    }
-
-    // ─── Controls ─────────────────────────────────────────────────────────────
-    // Dedicated per-direction topic (publish-up/-stop/-down) wins over the
-    // single publish-command topic / json publish topic.
-    _cmd(dedicatedTopic, payload) {
-        if (dedicatedTopic) {
-            feezal.connection.pub(dedicatedTopic, String(payload));
-            return;
-        }
-        this._pub(this.publishCommand, payload, {[this._jsonMap.state]: payload});
-    }
-
-    _cmdUp()   { this._cmd(this.publishUp,   this.payloadUp); }
-    _cmdStop() { this._cmd(this.publishStop, this.payloadStop); }
-    _cmdDown() { this._cmd(this.publishDown, this.payloadDown); }
-
-    _setPosition(pos) {
-        const clamped = Math.max(0, Math.min(100, Math.round(Number(pos))));
-        this._position   = clamped;
+    // View-side commit: close the inline slider, then delegate to the controller.
+    _commitPosition(pos) {
         this._showSlider = false;
-        const raw = this._posOut(clamped);
-        this._pub(this.publishPosition, raw, {[this._jsonMap.position]: raw});
-    }
-
-    _setTilt(tilt) {
-        const clamped = Math.max(0, Math.min(100, Math.round(Number(tilt))));
-        this._tilt = clamped;
-        const raw = this._tiltOut(clamped);
-        this._pub(this.publishSlatAngle, raw, {[this._jsonMap.tilt]: raw});
+        this.cover.setPosition(pos);
     }
 
     // ─── SVG drag — dragging the cover panel sets a new position ─────────────
@@ -443,7 +255,7 @@ class FeezalElementMaterialCover extends FeezalElement {
         const svgEl = e.currentTarget;
         svgEl.setPointerCapture(e.pointerId);
         const startY   = e.clientY;
-        const startPos = this._position ?? 50;
+        const startPos = this.cover.position ?? 50;
         const rect     = svgEl.getBoundingClientRect();
         const heightPx = rect.height || 1;
 
@@ -460,7 +272,7 @@ class FeezalElementMaterialCover extends FeezalElement {
             if (this._dragPos !== null) {
                 const final = this._dragPos;
                 this._dragPos = null;
-                this._setPosition(final);
+                this._commitPosition(final);
             }
         };
         svgEl.addEventListener('pointermove', onMove);
@@ -469,12 +281,12 @@ class FeezalElementMaterialCover extends FeezalElement {
 
     // ─── SVG rendering ────────────────────────────────────────────────────────
     _renderWindow() {
-        const displayPos   = this._dragPos ?? this._position ?? 0;
+        const displayPos   = this._dragPos ?? this.cover.position ?? 0;
         const effectivePos = this.invert ? (100 - displayPos) : displayPos;
         // coverH: 0 = fully open (position 100), FH = fully closed (position 0)
         const coverH    = Math.max(0, Math.round(FH * (1 - effectivePos / 100)));
         const slatCount = Math.max(1, this.slatCount || 6);
-        const tiltDeg   = ((this._tilt ?? 0) / 100) * 70; // 0–70° visual tilt
+        const tiltDeg   = ((this.cover.tilt ?? 0) / 100) * 70; // 0–70° visual tilt
         const slats     = [];
 
         if (coverH > 0) {
@@ -525,7 +337,7 @@ class FeezalElementMaterialCover extends FeezalElement {
     // ─── Render ───────────────────────────────────────────────────────────────
     render() {
         const showUnavail = this.subscribeAvailability && !this._available;
-        const displayPos  = this._dragPos ?? this._position;
+        const displayPos  = this._dragPos ?? this.cover.position;
         const hasTilt     = !!(this.slatAngle || this.publishSlatAngle);
 
         return html`
@@ -546,13 +358,13 @@ class FeezalElementMaterialCover extends FeezalElement {
             </div>
 
             <div class="btn-row">
-                <md-icon-button @click="${this._cmdUp}">
+                <md-icon-button @click="${() => this.cover.up()}">
                     <span class="mi">keyboard_arrow_up</span>
                 </md-icon-button>
-                <md-icon-button @click="${this._cmdStop}">
+                <md-icon-button @click="${() => this.cover.stop()}">
                     <span class="mi">stop</span>
                 </md-icon-button>
-                <md-icon-button @click="${this._cmdDown}">
+                <md-icon-button @click="${() => this.cover.down()}">
                     <span class="mi">keyboard_arrow_down</span>
                 </md-icon-button>
             </div>
@@ -565,7 +377,7 @@ class FeezalElementMaterialCover extends FeezalElement {
                     </span>
                     ${this._showSlider && !feezal.isEditor ? html`
                         <md-slider min="0" max="100" value="${displayPos ?? 50}"
-                            @change="${e => this._setPosition(e.target.value)}">
+                            @change="${e => this._commitPosition(e.target.value)}">
                         </md-slider>
                     ` : ''}
                 </div>
@@ -574,8 +386,8 @@ class FeezalElementMaterialCover extends FeezalElement {
             ${hasTilt ? html`
                 <div class="tilt-wrap">
                     <span class="tilt-label">Tilt</span>
-                    <md-slider min="0" max="100" value="${this._tilt ?? 0}"
-                        @change="${e => this._setTilt(e.target.value)}">
+                    <md-slider min="0" max="100" value="${this.cover.tilt ?? 0}"
+                        @change="${e => this.cover.setTilt(e.target.value)}">
                     </md-slider>
                 </div>
             ` : ''}

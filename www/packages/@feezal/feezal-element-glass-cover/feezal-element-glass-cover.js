@@ -1,5 +1,9 @@
 /* global feezal */
 import {feezalBaseStyles, html, css} from '@feezal/feezal-element';
+// E137: the cover behavior lives in the shared controller — this element
+// is a VIEW (Glass chrome: frost tile, details popup: position pill,
+// up/stop/down buttons, tilt slider).
+import {CoverController, coverAttributes, coverDiscoveryMap} from '@feezal/feezal-controller-cover';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
 import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard} from '@feezal/feezal-glass';
@@ -7,13 +11,20 @@ import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard} fro
 /**
  * feezal-element-glass-cover (E58)
  *
- * Frosted-glass shutter/cover card. Same MQTT capability contract as
- * feezal-element-material-cover — attribute names, json/separate payload
- * modes, up/stop/down command payloads, position, optional tilt topics,
- * availability, invert, HA discovery — restyled as a plain glass tile
- * (icon, state, label). Tap (or the ⋯ button) opens the Apple-Home-style
- * details popup: a big vertical position pill (drag to set, fill = open
- * portion), up/stop/down buttons beneath, tilt slider when configured.
+ * Frosted-glass shutter/cover card. Tap (or the ⋯ button) opens the
+ * Apple-Home-style details popup: a big vertical position pill (drag to
+ * set, fill = open portion), up/stop/down buttons beneath, tilt slider
+ * when configured.
+ *
+ * E137: the MQTT contract (json/separate payload modes, up/stop/down
+ * command payloads + dedicated per-direction topics, B26 position/tilt
+ * device-range scaling, HA discovery) is the shared
+ * @feezal/feezal-controller-cover — identical to material-cover. This
+ * view reads `cover.position`/`cover.tilt` and forwards gestures to
+ * `up()/stop()/down()/setPosition(pct)/setTilt(pct)`; `invert` and the
+ * drag preview stay display-only, element-local state.
+ *
+ * Family conventions (frost vars, degrade, squircle): see glass-button.
  */
 
 class FeezalElementGlassCover extends FeezalGlassCard {
@@ -24,68 +35,15 @@ class FeezalElementGlassCover extends FeezalGlassCard {
                 'slider, up/stop/down buttons and (when configured) a tilt slider. Same wiring contract as the ' +
                 'material cover card.',
             inspector: 'feezal-element-glass-cover-inspector',
-            discovery: {
-                component: 'cover',
-                map: {
-                    position_topic:     {attr: 'subscribe'},
-                    set_position_topic: {attr: 'publish'},
-                    command_topic:      {attr: 'publish'},
-                    state_open:    {attr: 'payload-up'},
-                    state_closed:  {attr: 'payload-down'},
-                    state_stopped: {attr: 'payload-stop'},
-                    payload_open:  {attr: 'payload-up'},
-                    payload_close: {attr: 'payload-down'},
-                    payload_stop:  {attr: 'payload-stop'},
-                    tilt_status_topic:  {attr: 'slat-angle'},
-                    tilt_command_topic: {attr: 'publish-slat-angle'},
-                    // ── E108: native Homematic (separate-mode) keys ───────────
-                    // Native-only (HA/z2m absent → skipped, additive). Homematic
-                    // covers are SEPARATE mode: LEVEL position goes to the
-                    // separate-mode attrs, not the json base. LEVEL is 0.0–1.0 →
-                    // position_max 1 sets max=1 so the element scales to 0–100 %.
-                    payload_mode:             {attr: 'payload-mode'},
-                    position_state_topic:     {attr: 'subscribe-position'},
-                    position_command_topic:   {attr: 'publish-position'},
-                    stop_command_topic:       {attr: 'publish-stop'},
-                    // E120: native Homematic — Up/Down buttons drive the LEVEL set
-                    // topic (payload_open/close 1/0 arrive via the payload map above).
-                    open_command_topic:       {attr: 'publish-up'},
-                    close_command_topic:      {attr: 'publish-down'},
-                    position_min:             {attr: 'min'},
-                    position_max:             {attr: 'max'},
-                    message_property:          {attr: 'message-property'},
-                    message_property_position: {attr: 'message-property-position'},
-                    // N31: availability is mapped automatically from the canonical discovery record.
-                    name: 'label',
-                },
-            },
+            // E137: the discovery map is the controller package's fragment.
+            discovery: {component: 'cover', map: coverDiscoveryMap},
             attributes: [
                 {name: 'size', type: 'select', options: ['', '2x2', '2x1'], default: '',
                     help: 'Preset size: 2x2 = square (150×150), 2x1 = wide (150×75). Empty keeps the current/manual size.'},
-                {name: 'payload-mode', type: 'select', options: ['json', 'separate'], default: 'json',
-                    help: 'json = single topic carrying a JSON object (default, matches zigbee2mqtt); separate = one topic per property.'},
-                {name: 'subscribe', type: 'mqttTopic', help: 'json mode: base topic carrying the cover state (position, state, …).'},
-                {name: 'publish',   type: 'mqttTopic', help: 'json mode: command/set topic (accepts {position:50} or {state:"OPEN"}).'},
-                {name: 'json-map',  type: 'string', default: '', help: 'json mode: optional JSON string overriding the default {state, position, tilt} key map.'},
-                {name: 'message-property', type: 'string', default: 'payload',
-                    help: 'json mode: dot-notation path to the JSON state object within the MQTT message. Default: payload'},
-                {name: 'subscribe-position', type: 'mqttTopic', help: 'separate mode: current position (0=closed, 100=open).'},
-                {name: 'message-property-position', type: 'string', default: 'payload', help: 'Property path within position messages. Defaults to message-property.'},
-                {name: 'publish-position', type: 'mqttTopic', help: 'separate mode: target position topic.'},
-                {name: 'publish-command',  type: 'mqttTopic', help: 'separate mode: up/stop/down command topic.'},
-                {name: 'publish-up',   type: 'mqttTopic', help: 'Optional dedicated topic for the Up button. Takes precedence over publish-command.'},
-                {name: 'publish-stop', type: 'mqttTopic', help: 'Optional dedicated topic for the Stop button. Takes precedence over publish-command.'},
-                {name: 'publish-down', type: 'mqttTopic', help: 'Optional dedicated topic for the Down button. Takes precedence over publish-command.'},
-                {name: 'payload-up',   type: 'string', default: 'OPEN',  help: 'Payload sent by the Up button.'},
-                {name: 'payload-stop', type: 'string', default: 'STOP',  help: 'Payload sent by the Stop button.'},
-                {name: 'payload-down', type: 'string', default: 'CLOSE', help: 'Payload sent by the Down button.'},
-                {name: 'min', type: 'number', default: 0,   help: 'Device position range minimum. Incoming positions are scaled from min…max to 0–100 %, published targets scaled back (Homematic reports 0…1: set max to 1).'},
-                {name: 'max', type: 'number', default: 100, help: 'Device position range maximum. Incoming positions are scaled from min…max to 0–100 %, published targets scaled back (Homematic reports 0…1: set max to 1).'},
-                {name: 'slat-angle',   type: 'mqttTopic', help: 'Subscribe: venetian-blind tilt/slat angle (0–100).'},
-                {name: 'message-property-tilt', type: 'string', default: 'payload', help: 'Property path within slat-angle messages. Defaults to message-property.'},
-                {name: 'publish-slat-angle', type: 'mqttTopic', help: 'Publish: new slat angle (0–100).'},
-                {name: 'slat-min', type: 'number', default: 0,   help: 'Device slat-angle range minimum. Incoming angles are scaled from slat-min…slat-max to 0–100 %, published angles scaled back.'},
-                {name: 'slat-max', type: 'number', default: 100, help: 'Device slat-angle range maximum. Incoming angles are scaled from slat-min…slat-max to 0–100 %, published angles scaled back.'},
+                // E137: the shared cover contract (both payload modes,
+                // up/stop/down + dedicated per-direction topics, B26 position/
+                // tilt scaling) — declared ONCE by the controller package.
+                ...coverAttributes,
                 {name: 'invert',        type: 'boolean', default: false, help: 'Invert position scale: 0=open, 100=closed.'},
                 {name: 'show-position', type: 'boolean', default: true,  help: 'Show the numeric position in the state line.'},
                 {name: 'label', type: 'string', help: 'Card label.'},
@@ -141,9 +99,9 @@ class FeezalElementGlassCover extends FeezalGlassCard {
         // N31: availability inherited from FeezalElement.
         degrade:           {type: Boolean, reflect: true},
         discoveryId:       {type: String,  reflect: true, attribute: 'discovery-id'},
-        _position:  {state: true},   // 0–100, null = unknown
-        _tilt:      {state: true},
-        _dragPos:   {state: true},
+        // E137: position/tilt live on the CoverController (plain fields +
+        // host.requestUpdate) — only the pill drag preview stays element-local.
+        _dragPos:   {state: true},   // live % while the position pill drags (null = not dragging)
     };
 
     static styles = [feezalBaseStyles, glassCardStyles, glassPopupStyles, css`
@@ -246,65 +204,21 @@ class FeezalElementGlassCover extends FeezalGlassCard {
         this.icon = 'blinds';
         this.degrade = false;
         this.discoveryId = '';
-        this._position = null;
-        this._tilt = null;
         this._dragPos = null;
+        // E137: the behavior layer — wires/parses/publishes; this view renders.
+        this.cover = new CoverController(this);
     }
 
-    // Device cards manage subscriptions manually; suppress the base class path.
+    // Device cards manage subscriptions manually (via the controller);
+    // suppress the base class path.
     _subscribe() { /* intentionally empty */ }
 
-    get _map() {
-        const defaults = {state: 'state', position: 'position', tilt: 'tilt'};
-        if (this.jsonMap) {
-            try { return {...defaults, ...JSON.parse(this.jsonMap)}; } catch { /* defaults */ }
-        }
-        return defaults;
-    }
-
-    // Device value range (min/max, slat-min/slat-max attributes) <-> displayed 0–100 %.
-    static _rangeOf(minValue, maxValue) {
-        let min = Number(minValue);
-        let max = Number(maxValue);
-        if (isNaN(min)) min = 0;
-        if (isNaN(max)) max = 100;
-        if (max === min) { min = 0; max = 100; }
-        return {min, max};
-    }
-
-    static _scaleIn(v, {min, max}) {
-        return ((v - min) / (max - min)) * 100;
-    }
-
-    static _scaleOut(pct, {min, max}) {
-        return Math.round((min + (pct / 100) * (max - min)) * 10000) / 10000;
-    }
-
-    get _range()     { return this.constructor._rangeOf(this.min, this.max); }
-    get _slatRange() { return this.constructor._rangeOf(this.slatMin, this.slatMax); }
-
-    _posIn(v)    { return this.constructor._scaleIn(v, this._range); }
-    _posOut(pct) { return this.constructor._scaleOut(pct, this._range); }
-    _tiltIn(v)   { return this.constructor._scaleIn(v, this._slatRange); }
-    _tiltOut(pct){ return this.constructor._scaleOut(pct, this._slatRange); }
-
-    connectedCallback() {
-        super.connectedCallback();
-        this._wireSubscriptions();
-    }
-
-    /** Topic attributes changed at runtime (inspector edits on the live
-     * canvas) → updated() rewires instead of keeping the stale topics. */
-    _wireSignature() {
-        return [this.payloadMode, this.subscribe, this.subscribePosition, this.slatAngle].join('|');
-    }
+    // E137: the CoverController wires everything in hostConnected.
 
     updated(changed) {
         super.updated(changed);
-        if (this.isConnected && this.__wireSig !== undefined && this._wireSignature() !== this.__wireSig) {
-            this._unsubscribe();
-            this._wireSubscriptions();
-        }
+        // Live-canvas topic edits re-wire through the controller.
+        this.cover.rewireIfChanged();
         // The size grid writes the element's inline geometry (editor keeps
         // full manual control afterwards).
         if (changed.has('size')) applySizePreset(this);
@@ -316,104 +230,6 @@ class FeezalElementGlassCover extends FeezalGlassCard {
             }
             this._positionDetails();
         }
-    }
-
-    _wireSubscriptions() {
-        this.__wireSig = this._wireSignature();
-
-        if (this.payloadMode === 'json') {
-            if (this.subscribe) {
-                this.addSubscription(this.subscribe, msg => {
-                    let obj = this.getProperty(msg, this.messageProperty);
-                    if (typeof obj === 'string') {
-                        try { obj = JSON.parse(obj); } catch { return; }
-                    }
-                    if (obj && typeof obj === 'object') this._applyJsonState(obj);
-                });
-            }
-            return;
-        }
-
-        if (this.subscribePosition) {
-            this.addSubscription(this.subscribePosition, msg => {
-                const v = Number(this.getProperty(msg, this.msgPropPosition || this.messageProperty));
-                if (!isNaN(v)) this._position = Math.max(0, Math.min(100, this._posIn(v)));
-            });
-        }
-        if (this.slatAngle) {
-            this.addSubscription(this.slatAngle, msg => {
-                const v = Number(this.getProperty(msg, this.msgPropTilt || this.messageProperty));
-                if (!isNaN(v)) this._tilt = Math.max(0, Math.min(100, this._tiltIn(v)));
-            });
-        }
-    }
-
-    // Identical inference to material-cover: numeric position primary, state
-    // string fallback when no position arrived yet.
-    _applyJsonState(obj) {
-        const map = this._map;
-        const get = key => this.getProperty(obj, key);
-
-        const pos = get(map.position);
-        if (pos !== null && pos !== undefined) {
-            const n = Number(pos);
-            if (!isNaN(n)) this._position = Math.max(0, Math.min(100, this._posIn(n)));
-        }
-
-        if (this._position === null) {
-            const state = get(map.state);
-            if (state !== null && state !== undefined) {
-                const s = String(state).toUpperCase();
-                if (s === this.payloadDown.toUpperCase() || s === 'CLOSE' || s === 'CLOSED') {
-                    this._position = 0;
-                } else if (s === this.payloadUp.toUpperCase() || s === 'OPEN' || s === 'OPENED') {
-                    this._position = 100;
-                }
-            }
-        }
-
-        const tilt = get(map.tilt);
-        if (tilt !== null && tilt !== undefined) {
-            const n = Number(tilt);
-            if (!isNaN(n)) this._tilt = Math.max(0, Math.min(100, this._tiltIn(n)));
-        }
-    }
-
-    _pub(topic, value, jsonObj) {
-        if (feezal.isEditor) return;
-        if (this.payloadMode === 'json') {
-            if (this.publish) feezal.connection.pub(this.publish, JSON.stringify(jsonObj));
-        } else if (topic) {
-            feezal.connection.pub(topic, String(value));
-        }
-    }
-
-    // Dedicated per-direction topic (publish-up/-stop/-down) wins over the
-    // single publish-command topic / json publish topic.
-    _cmd(dedicatedTopic, payload) {
-        if (dedicatedTopic) {
-            if (!feezal.isEditor) feezal.connection.pub(dedicatedTopic, String(payload));
-            return;
-        }
-        this._pub(this.publishCommand, payload, {[this._map.state]: payload});
-    }
-
-    cmdUp()   { this._cmd(this.publishUp,   this.payloadUp); }
-    cmdStop() { this._cmd(this.publishStop, this.payloadStop); }
-    cmdDown() { this._cmd(this.publishDown, this.payloadDown); }
-
-    setPosition(pos) {
-        const clamped = Math.max(0, Math.min(100, Math.round(Number(pos))));
-        this._position = clamped;
-        const raw = this._posOut(clamped);
-        this._pub(this.publishPosition, raw, {[this._map.position]: raw});
-    }
-
-    setTilt(tilt) {
-        const clamped = Math.max(0, Math.min(100, Math.round(Number(tilt))));
-        this._tilt = clamped;
-        const raw = this._tiltOut(clamped);
-        this._pub(this.publishSlatAngle, raw, {[this._map.tilt]: raw});
     }
 
     // ── details popup (glass-light pattern) ──────────────────────────────────
@@ -444,8 +260,9 @@ class FeezalElementGlassCover extends FeezalGlassCard {
         this._vsliderApply(e);
         const eff = this._dragPos;
         this._dragPos = null;
-        // The pill shows the EFFECTIVE open % — convert back for inverted scales.
-        this.setPosition(this.invert ? 100 - eff : eff);
+        // The pill shows the EFFECTIVE open % — convert back for inverted
+        // scales. E137: clamp/scale/publish live behind the controller command.
+        this.cover.setPosition(this.invert ? 100 - eff : eff);
     }
 
     _vsliderApply(e) {
@@ -457,7 +274,7 @@ class FeezalElementGlassCover extends FeezalGlassCard {
     /** Effective open % (0 = closed): pill drag preview wins, else state. */
     _effPos() {
         if (this._dragPos !== null) return this._dragPos;
-        const pos = this._position ?? (feezal.isEditor ? 60 : null);
+        const pos = this.cover.position ?? (feezal.isEditor ? 60 : null);
         if (pos === null) return null;
         return this.invert ? 100 - pos : pos;
     }
@@ -485,15 +302,15 @@ class FeezalElementGlassCover extends FeezalGlassCard {
                     <div class="pct">${eff} %</div>
                 </div>
                 <div class="buttons">
-                    <button title="Up" @click="${this.cmdUp}">keyboard_arrow_up</button>
-                    <button title="Stop" @click="${this.cmdStop}">stop</button>
-                    <button title="Down" @click="${this.cmdDown}">keyboard_arrow_down</button>
+                    <button title="Up" @click="${() => this.cover.up()}">keyboard_arrow_up</button>
+                    <button title="Stop" @click="${() => this.cover.stop()}">stop</button>
+                    <button title="Down" @click="${() => this.cover.down()}">keyboard_arrow_down</button>
                 </div>
                 ${hasTilt ? html`
                     <div class="tilt">
                         <span>Tilt</span>
-                        <input type="range" min="0" max="100" .value="${String(this._tilt ?? 0)}"
-                            @change="${e => this.setTilt(e.target.value)}">
+                        <input type="range" min="0" max="100" .value="${String(this.cover.tilt ?? 0)}"
+                            @change="${e => this.cover.setTilt(e.target.value)}">
                     </div>` : ''}
             </div>`;
     }

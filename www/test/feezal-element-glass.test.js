@@ -217,10 +217,10 @@ describe('glass-cover', () => {
         const el = await mount('feezal-element-glass-cover', {subscribe: 'cover/state', publish: 'cover/set'});
         deliver('cover/state', {state: 'CLOSE'});
         await el.updateComplete;
-        expect(el._position).toBe(0);
+        expect(el.cover.position).toBe(0);
         deliver('cover/state', {position: 60});
         await el.updateComplete;
-        expect(el._position).toBe(60);
+        expect(el.cover.position).toBe(60);
         expect(el.renderRoot.querySelector('.state').textContent).toBe('Open • 60 %');
         // details popup: the position pill's fill shows the effective open %
         el.openDetails();
@@ -230,13 +230,13 @@ describe('glass-cover', () => {
 
     it('up/stop/down publish JSON state commands in json mode', async () => {
         const el = await mount('feezal-element-glass-cover', {subscribe: 'cover/state', publish: 'cover/set'});
-        el.cmdUp();
-        el.cmdStop();
-        el.cmdDown();
+        el.cover.up();
+        el.cover.stop();
+        el.cover.down();
         expect(published.map(p => JSON.parse(p.payload))).toEqual([
             {state: 'OPEN'}, {state: 'STOP'}, {state: 'CLOSE'},
         ]);
-        el.setPosition(30);
+        el.cover.setPosition(30);
         expect(JSON.parse(published.at(-1).payload)).toEqual({position: 30});
     });
 
@@ -248,11 +248,11 @@ describe('glass-cover', () => {
         });
         deliver('cover/pos', '25');
         await el.updateComplete;
-        expect(el._position).toBe(25);
+        expect(el.cover.position).toBe(25);
 
-        el.cmdUp();
+        el.cover.up();
         expect(published.at(-1)).toEqual({topic: 'cover/cmd', payload: 'UP'});
-        el.setPosition(80);
+        el.cover.setPosition(80);
         expect(published.at(-1)).toEqual({topic: 'cover/pos/set', payload: '80'});
     });
 
@@ -275,8 +275,8 @@ describe('glass-cover', () => {
     it('commands never publish in the editor', async () => {
         feezal.isEditor = true;
         const el = await mount('feezal-element-glass-cover', {subscribe: 'cover/state', publish: 'cover/set'});
-        el.cmdUp();
-        el.setPosition(10);
+        el.cover.up();
+        el.cover.setPosition(10);
         expect(published).toEqual([]);
     });
 });

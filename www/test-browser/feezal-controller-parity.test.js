@@ -16,7 +16,9 @@ import {SENSOR_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-sensor';
 import {CONTACT_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-contact';
 import {CLIMATE_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-climate';
 import {LIGHT_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-light';
+import {COVER_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-cover';
 import '../packages/@feezal/feezal-element-material-light/feezal-element-material-light.js';
+import '../packages/@feezal/feezal-element-material-cover/feezal-element-material-cover.js';
 import '../packages/@feezal/feezal-element-glass-light/feezal-element-glass-light.js';
 import '../packages/@feezal/feezal-element-metro-light/feezal-element-metro-light.js';
 import '../packages/@feezal/feezal-element-eink-light/feezal-element-eink-light.js';
@@ -32,6 +34,9 @@ import '../packages/@feezal/feezal-element-metro-climate/feezal-element-metro-cl
 import '../packages/@feezal/feezal-element-eink-sensor/feezal-element-eink-sensor.js';
 import '../packages/@feezal/feezal-element-eink-contact/feezal-element-eink-contact.js';
 import '../packages/@feezal/feezal-element-eink-climate/feezal-element-eink-climate.js';
+import '../packages/@feezal/feezal-element-metro-cover/feezal-element-metro-cover.js';
+import '../packages/@feezal/feezal-element-glass-cover/feezal-element-glass-cover.js';
+import '../packages/@feezal/feezal-element-eink-cover/feezal-element-eink-cover.js';
 
 const CASES = [
     {tag: 'feezal-element-material-motion',  consumed: SENSOR_CONSUMED_ATTRIBUTES},
@@ -57,6 +62,12 @@ const CASES = [
     {tag: 'feezal-element-glass-light',      consumed: LIGHT_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-metro-light',      consumed: LIGHT_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-eink-light',       consumed: LIGHT_CONSUMED_ATTRIBUTES},
+    // E137 cover slice — the adopters spread the controller fragment, no
+    // exclusions.
+    {tag: 'feezal-element-material-cover',   consumed: COVER_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-glass-cover',      consumed: COVER_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-metro-cover',      consumed: COVER_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-eink-cover',       consumed: COVER_CONSUMED_ATTRIBUTES},
 ];
 
 describe('E137 — adopting elements declare the full controller contract', () => {
