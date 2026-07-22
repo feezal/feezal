@@ -70,6 +70,7 @@ Work in progress — priorities and scope are not final.
 - [U46 — Clippy easter egg in the help popup](#u46--clippy-easter-egg-in-the-help-popup--low-priority) 🔽
 - [U48 — Make the viewer's `Connected as "…"` toast optional](#u48--make-the-viewers-connected-as--toast-optional)
 - [U50 — layout-app: expose the content area's inset (padding)](#u50--layout-app-expose-the-content-areas-inset-padding)
+- [U56 — Discovery picker: zigbee2mqtt multi-attribute entities are indistinguishable — append the attribute to the label](#u56--discovery-picker-zigbee2mqtt-multi-attribute-entities-are-indistinguishable--append-the-attribute-to-the-label)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -936,6 +937,24 @@ The embedded view sits flush against the app bar and drawer — there is no way 
 - Accept a full CSS shorthand (`8px`, `8px 16px`, …) rather than a number, so per-side insets need no extra knobs.
 
 **Relates:** E-layout-app (the shell), N36 (the `--feezal-app-*` style-var set this extends), E38 (element scaling / responsive sizing — a responsive inset would belong there).
+
+### U56 — Discovery picker: zigbee2mqtt multi-attribute entities are indistinguishable — append the attribute to the label
+
+A zigbee2mqtt sensor with several attributes (temperature, humidity, pressure, …) publishes **one HA discovery entity per attribute** — so it correctly appears multiple times in the ⚡ discovery picker. But all of those entries render the **same label**: `_discoveryOptionLabel()` ([feezal-sidebar-inspector-attributes.js:1696-1706](../www/src/feezal-sidebar-inspector-attributes.js#L1696-L1706)) labels HA/z2m entities by `state_topic` (fallbacks: other topics, `name`), and the per-attribute entities of one device **share the same state topic** (`zigbee2mqtt/sensor_1`). You cannot see which attribute you're picking — before *or after* selection (the closed select shows the same string).
+
+**Wanted:** append the attribute, space-separated — e.g. `zigbee2mqtt/sensor_1 temperature`.
+
+**Implementation — attribute extraction, first hit wins:**
+1. **`value_template`** — z2m per-attribute configs carry `{{ value_json.temperature }}`; extract the leaf with the same parsing the `valueTemplateToPath` discovery transform already uses (reuse, don't re-implement a Jinja mini-parser).
+2. **`object_id` / `unique_id` suffix** — HA configs suffix the attribute (`sensor_1_temperature`); strip the device prefix.
+3. **`device_class`** — coarse but better than nothing (`temperature`, `humidity`).
+4. **Entity `name`** when it differs from the device/topic label.
+
+Nothing found → label unchanged (single-attribute entities must not grow noise). Apply the same suffix in the **filter** matching (it already matches on the label via `_discoveryOptionLabel`, so that comes for free) and verify the closed select's display text shows the full label. Native-recognizer entities (`sourceLabel` branch — hm/WLED) are already distinct per entity and stay untouched.
+
+**Ships with:** TESTING.md discovery-section note (multi-attribute z2m sensor → picker shows one entry per attribute with the attribute appended; selected value readable after choosing; single-attribute devices unchanged).
+
+**Relates:** N12 ✅ (discovery + the picker), E126 ✅-era recognizer work (the `sourceLabel` branch that already solved this for native entities), `valueTemplateToPath` (the existing template→path parser to reuse).
 
 ### E109 — evcc integration: native discovery + energy/charging elements 💡 to refine
 
