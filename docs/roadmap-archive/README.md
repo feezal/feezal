@@ -3,7 +3,7 @@
 Completed and closed roadmap items — **one file per item**, named after its ID (e.g. `U39.md`).
 Open items live in [../ROADMAP.md](../ROADMAP.md).
 
-**238 items.**
+**239 items.**
 
 ## Bugs
 
@@ -114,6 +114,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 
 - [E116 — "Plain" element family (`feezal-element-plain-*`) — zero styling ❌ dropped](E116.md)
 - [E117 — `publish-local` on every publishing element ✅ done](E117.md)
+- [E129 — metro-* family: expose font/icon sizes as CSS vars, larger icon defaults ✅ done](E129.md)
 ## Editor UX
 
 - [E1 — Migrate feezal-element-basic-* from Polymer to Lit ✅ implemented](E1.md)

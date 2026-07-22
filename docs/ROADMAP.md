@@ -59,7 +59,6 @@ Work in progress — priorities and scope are not final.
 - [E124 — Battery-powered sensors: dedicated low-battery indicator (contact + motion/occupancy)](#e124--battery-powered-sensors-dedicated-low-battery-indicator-contact--motionoccupancy)
 - [E125 — Homematic battery voltage (`OPERATING_VOLTAGE`)](#e125--homematic-battery-voltage-operating_voltage--future) 💡
 - [E128 — Homematic blinds: settling behaviour + `DIRECTION` indicator](#e128--homematic-blinds-settling-behaviour--direction-indicator-later--after-e127) *(later)*
-- [E129 — metro-* family: expose font/icon sizes as CSS vars, larger icon defaults](#e129--metro--family-expose-fonticon-sizes-as-css-vars-larger-icon-defaults)
 - [E130 — material-outlet: auto-discovery + rename to "Switch" (family consistency)](#e130--material-outlet-auto-discovery--rename-to-switch-family-consistency)
 - [E131 — Homematic motion detector discovery → *-motion/occupancy elements](#e131--homematic-motion-detector-discovery--motionoccupancy-elements)
 - [E132 — Generalize the boolean-sensor family: *-occupancy → *-sensor, numeric *-sensor → *-number](#e132--generalize-the-boolean-sensor-family--occupancy---sensor-numeric--sensor---number)
@@ -1313,18 +1312,6 @@ Blinds/covers have **the same LEVEL ramp problem** as dimmers (position reports 
 
 **Relates:** **E127** (the machinery this reuses — do first), **E137** (controller extraction — cover settling ends up inside `CoverController`; see sequencing note), E108 ✅ (recognizer), E114 (parity), E120 ✅-era cover-discovery work (same recognizer area).
 
-### E129 — metro-* family: expose font/icon sizes as CSS vars, larger icon defaults
-
-The metro tiles hardcode their typography and icon sizing (labels 12–13 px, values 16–18 px, tile icon `min(42px, 40cqh)`) — the family exposes **colour** vars (`--feezal-metro-text`/`-accent`/`-off-color`/`-unit`) but **no size vars**, so neither themes nor the style inspector can adjust text or icon sizes. Same move as the glass family's E106 typography decision, applied to metro:
-
-- **Expose sizes as `--feezal-metro-*` custom properties**, defaulted once (shared metro styles / `MetroTileBase` where the family already shares chrome): e.g. `--feezal-metro-icon-size`, `--feezal-metro-font-size-label`, `--feezal-metro-font-size-value`, `--feezal-metro-font-size-unit` — plain px fallbacks (sizes, not colours — §5.1 canonical-var rule doesn't apply). List them in each element's `styles` descriptors so they're settable per element in the style inspector and overridable by `feezal-theme-metro`.
-- **Defaults get bigger — icons in particular:** nudge the defaults up, with the **icon size getting the larger increase** (the current 42 px cap reads small on the flat tiles); exact values tuned visually at implementation across all tile sizes (1x1/2x2/4x2/4x4 mosaic) and both front/back faces.
-- Apply family-wide (tile, switch, light, climate, contact, sensor, occupancy, media, cover, wled) — one shared definition, per-element descriptor listing (E106 lesson: no ten hand-rolled copies).
-
-**Ships with:** patch bumps across the family, TESTING.md metro-family note (size vars visible in the style inspector, theme override works, new defaults look right on every tile size), and — since metro is A24's future externalization candidate — the shared definition placed where the family bundle can take it along.
-
-**Relates:** E106 ✅ (the glass typography precedent — same pattern), E114 (family parity — glass has vars, metro gets them now, material worth checking after), A24 (metro externalization — shared styles must move with the family), feezal-theme-metro (gains override examples), E38 (element scaling — cq-based icon cap interacts with tile size).
-
 ### E130 — material-outlet: auto-discovery + rename to "Switch" (family consistency)
 
 Two gaps in the E121 ✅ outlet card:
@@ -1466,14 +1453,14 @@ The metro tiles' **backsides** (the flip-to detail pages) don't hold up: buttons
 
 - **Touch targets ≥ half a grid unit** — the mosaic unit is 70 px + 10 px gutter ([feezal-element-metro-tile.js:21](../www/packages/@feezal/feezal-element-metro-tile/feezal-element-metro-tile.js#L21)); nothing interactive below ~35 px, primary actions a full unit. Metro-style full-width flat rows and edge-to-edge segments instead of clusters of small outlined buttons.
 - **Size-adaptive back layouts** — the back must lay out per tile size, not one stacked column for all: 4x2 goes **side-by-side** (e.g. climate: big setpoint stepper zone left — WP7-volume-style giant +/− halves — mode segments right); 2x2 stacks; 4x4 gets breathing room, not just stretched 2x2 content. Container queries per the E38 machinery.
-- **Calmer hierarchy** — one accent, values in the large Metro display type (coordinate with **E129**'s font/icon CSS vars — do E129 first or together so sizes are tokens, not new hardcodes), labels in the quiet secondary tier, dividers by spacing rather than borders.
+- **Calmer hierarchy** — one accent, values in the large Metro display type (E129 ✅ shipped the size tokens — build on them, no new hardcodes), labels in the quiet secondary tier, dividers by spacing rather than borders.
 - **Interaction feedback** — visible pressed states (the classic Metro tilt/press effect fits and already matches the family's flip animation vocabulary); slider thumbs and rails thick enough for thumbs, with the hit area larger than the visual.
 
 **Scope:** audit every metro back — `metro-climate` (primary), `metro-light` (ON/OFF + sliders), `metro-media` (transport + volume), `metro-wled`, `metro-cover`, `metro-sensor`/`number` (trend back is display-only but joins the layout pass). Fronts are fine — this is the backs only. MQTT contracts, attributes and flip machinery untouched (visual/layout only).
 
 **Ships with:** browser tests for the size-adaptive layouts (back renders side-by-side at 4x2, stacked at 2x2), pressed-state and hit-area checks for the primary controls, updated theme-visual screenshots, TESTING.md metro-family row updates (explicit touch checks: setpoint stepper and mode change operable with a thumb on a wall tablet at 2x2 AND 4x2).
 
-**Relates:** E55 ✅ (the metro family + flip machinery), **E129** (metro font/icon size CSS vars — the tokens this layout pass should build on; sequence together), A24 (metro externalization — land this before or ship as the family's first external release), E38 (container-query scaling — the size-adaptive mechanism), B53/B54/B55 (climate fix wave — metro-climate's back is touched by both; coordinate), E114 (parity — function set unchanged, looks may differ per family by design).
+**Relates:** E55 ✅ (the metro family + flip machinery), E129 ✅ (metro size tokens — build the layouts on them), A24 (metro externalization — land this before or ship as the family's first external release), E38 (container-query scaling — the size-adaptive mechanism), B53/B54/B55 (climate fix wave — metro-climate's back is touched by both; coordinate), E114 (parity — function set unchanged, looks may differ per family by design).
 
 ### E137 — Shared MQTT device contracts: extract behavior controllers (climate / light / cover / wled)
 

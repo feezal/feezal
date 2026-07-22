@@ -201,7 +201,7 @@ class FeezalElementMetroContact extends MetroTileBase {
         :host([data-state='open'])   .face { background: var(--feezal-metro-open-color); }
         :host([data-state='tilted']) .face { background: var(--feezal-metro-tilt-color); }
         .front { cursor: default; }
-        .state { font-size: 12px; text-transform: lowercase; opacity: 0.85; }
+        .state { font-size: var(--_metro-unit-size); text-transform: lowercase; opacity: 0.85; }   /* E129 */
         svg.contact { height: min(42px, 45cqh); aspect-ratio: 1; overflow: visible; }
     `];
 

@@ -26,6 +26,14 @@ styleElement.innerHTML = `.feezal-theme-metro {
 
     --feezal-metro-accent: #1ba1e2;
 
+    /* E129: family size tokens — the tiles default these themselves
+       (icon 56px, label 13px, value 38px, unit 13px); uncomment to
+       override family-wide, or set per element in the style inspector:
+    --feezal-metro-icon-size: 64px;
+    --feezal-metro-font-size-label: 14px;
+    --feezal-metro-font-size-value: 42px;
+    --feezal-metro-font-size-unit: 14px; */
+
     font-family: 'Segoe UI', system-ui, sans-serif;
 }`;
 

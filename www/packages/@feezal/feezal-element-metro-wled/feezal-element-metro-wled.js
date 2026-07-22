@@ -104,7 +104,7 @@ class FeezalElementMetroWled extends MetroTileBase {
         :host { --feezal-metro-off-color: #333; }
         .face { transition: background 0.15s; }
         :host(:not([data-on])) .face { background: var(--feezal-metro-off-color); }
-        .state { font-size: 12px; text-transform: lowercase; opacity: 0.85; }
+        .state { font-size: var(--_metro-unit-size); text-transform: lowercase; opacity: 0.85; }   /* E129 */
         .fxname {
             font-size: 11px; opacity: 0.7;
             max-width: 90%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

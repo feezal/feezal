@@ -46,8 +46,8 @@ class FeezalElementMetroSensor extends MetroTileBase {
     };
 
     static styles = [MetroTileBase.styles, css`
-        .value { font-size: min(34px, 30cqh); font-weight: 300; line-height: 1; }
-        .unit { font-size: 12px; opacity: 0.85; }
+        .value { font-size: min(var(--_metro-value-size), 30cqh); font-weight: 300; line-height: 1; }   /* E129 */
+        .unit { font-size: var(--_metro-unit-size); opacity: 0.85; }   /* E129 */
         .trend svg { width: 100%; height: 48px; display: block; }
         .minmax { display: flex; justify-content: space-between; font-size: 11px; opacity: 0.85; }
     `];

@@ -87,7 +87,7 @@ class FeezalElementMetroOccupancy extends MetroTileBase {
         .face { transition: background 0.15s; }
         :host([data-active]) .face { background: var(--feezal-metro-active-color); }
         .front { cursor: default; }
-        .state { font-size: 12px; text-transform: lowercase; opacity: 0.85; }
+        .state { font-size: var(--_metro-unit-size); text-transform: lowercase; opacity: 0.85; }   /* E129 */
     `];
 
     constructor() {

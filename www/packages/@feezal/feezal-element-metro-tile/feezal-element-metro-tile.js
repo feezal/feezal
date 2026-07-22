@@ -53,6 +53,16 @@ export class MetroTileBase extends FeezalElement {
                 default: 'var(--primary-color, var(--sl-color-primary-600, #1ba1e2))',
                 help: 'Tile colour (theme accent by default — WP7 cyan with feezal-theme-metro).'},
             {property: '--feezal-metro-text', type: 'color', default: '#ffffff', help: 'Tile text/icon colour.'},
+            // E129: size tokens — settable per element here, or family-wide by
+            // a theme (plain px; §5.1's canonical-var rule is colours only).
+            {property: '--feezal-metro-icon-size', default: '56px',
+                help: 'E129: centre icon size. Capped by the tile height on small tiles (48cqh).'},
+            {property: '--feezal-metro-font-size-label', default: '13px',
+                help: 'E129: tile label font size (bottom-left).'},
+            {property: '--feezal-metro-font-size-value', default: '38px',
+                help: 'E129: primary value font size (temperature, sensor value, position). Capped by the tile height on small tiles.'},
+            {property: '--feezal-metro-font-size-unit', default: '13px',
+                help: 'E129: secondary text size (unit, state line, badge).'},
         ];
     }
 
@@ -69,6 +79,15 @@ export class MetroTileBase extends FeezalElement {
             container-type: size;
             --feezal-metro-accent: var(--primary-color, var(--sl-color-primary-600, #1ba1e2));
             --feezal-metro-text: #fff;
+            /* E129: size tokens, defaulted ONCE for the family. Private
+               intermediates resolve the PUBLIC var first (theme/ancestor/style
+               inspector override) and fall back to the family default — a
+               plain :host declaration of the public name would shadow
+               inherited theme values. */
+            --_metro-icon-size:  var(--feezal-metro-icon-size, 56px);
+            --_metro-label-size: var(--feezal-metro-font-size-label, 13px);
+            --_metro-value-size: var(--feezal-metro-font-size-value, 38px);
+            --_metro-unit-size:  var(--feezal-metro-font-size-unit, 13px);
             font-family: 'Segoe UI', system-ui, sans-serif;
             perspective: 600px;
             user-select: none; -webkit-tap-highlight-color: transparent;
@@ -93,14 +112,15 @@ export class MetroTileBase extends FeezalElement {
             position: absolute; inset: 0 0 18px 0;
             display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
         }
-        .center feezal-icon { font-size: min(42px, 40cqh); color: var(--feezal-metro-text); }
+        /* E129: bigger icon default (was min(42px, 40cqh)), tokenised sizes. */
+        .center feezal-icon { font-size: min(var(--_metro-icon-size), 48cqh); color: var(--feezal-metro-text); }
         .tlabel {
             position: absolute; left: 8px; right: 24px; bottom: 4px;
-            font-size: 12px; font-weight: 400;
+            font-size: var(--_metro-label-size); font-weight: 400;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
         .badge {
-            position: absolute; top: 6px; right: 8px; font-size: 13px; font-weight: 600;
+            position: absolute; top: 6px; right: 8px; font-size: var(--_metro-unit-size); font-weight: 600;
         }
         .flip-btn {
             position: absolute; right: 2px; bottom: 0; z-index: 2;

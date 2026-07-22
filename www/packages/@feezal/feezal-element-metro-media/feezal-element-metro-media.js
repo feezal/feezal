@@ -63,7 +63,7 @@ class FeezalElementMetroMedia extends MetroTileBase {
     static styles = [MetroTileBase.styles, css`
         .track { font-size: 16px; font-weight: 600; max-width: 92%; text-align: center;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .artist { font-size: 12px; opacity: 0.85; max-width: 92%;
+        .artist { font-size: var(--_metro-unit-size); opacity: 0.85; max-width: 92%;   /* E129 */
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .transport { display: flex; justify-content: center; gap: 8px; }
         .transport .mbtn { font-size: 15px; padding: 4px 12px; }

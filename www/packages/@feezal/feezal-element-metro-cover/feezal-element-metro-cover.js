@@ -161,7 +161,7 @@ class FeezalElementMetroCover extends MetroTileBase {
            top via position:relative + DOM order. */
         .center > * { position: relative; }
         .fill { position: absolute; inset: 0 0 -18px 0; pointer-events: none; }
-        .value { font-size: min(26px, 28cqh); font-weight: 300; }
+        .value { font-size: min(var(--_metro-value-size), 28cqh); font-weight: 300; }   /* E129 */
         .cmds { display: flex; justify-content: center; gap: 8px; }
         .cmds .mbtn { padding: 2px 8px; }
         .cmds feezal-icon { font-size: 18px; vertical-align: middle; }

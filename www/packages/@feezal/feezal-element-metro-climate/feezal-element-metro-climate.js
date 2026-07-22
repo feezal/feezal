@@ -139,8 +139,8 @@ class FeezalElementMetroClimate extends MetroTileBase {
     };
 
     static styles = [MetroTileBase.styles, css`
-        .current { font-size: min(34px, 30cqh); font-weight: 300; line-height: 1; }
-        .setpoint { font-size: 12px; opacity: 0.85; }
+        .current { font-size: min(var(--_metro-value-size), 30cqh); font-weight: 300; line-height: 1; }   /* E129 */
+        .setpoint { font-size: var(--_metro-unit-size); opacity: 0.85; }   /* E129 */
         .stepper { display: flex; align-items: center; justify-content: center; gap: 10px; }
         .stepper .val { font-size: 20px; font-weight: 300; min-width: 4ch; text-align: center; }
         .chips { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }

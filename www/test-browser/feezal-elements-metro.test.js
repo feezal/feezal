@@ -21,7 +21,7 @@ import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/select/select.js';
 import '@shoelace-style/shoelace/dist/components/option/option.js';
 import '@shoelace-style/shoelace/dist/components/switch/switch.js';
-import {setupFeezal, mount} from './helpers.js';
+import {setupFeezal, mount, until} from './helpers.js';
 
 let feezal;
 
@@ -512,5 +512,48 @@ describe('metro-media', () => {
         slider.value = '30';
         slider.dispatchEvent(new Event('change'));
         expect(feezal.connection.published).toContainEqual({topic: 'cmnd/vol', payload: '30'});
+    });
+});
+
+describe('E129 — metro size tokens', () => {
+    const FAMILY = [
+        'feezal-element-metro-tile', 'feezal-element-metro-switch', 'feezal-element-metro-light',
+        'feezal-element-metro-climate', 'feezal-element-metro-sensor', 'feezal-element-metro-media',
+        'feezal-element-metro-contact', 'feezal-element-metro-occupancy', 'feezal-element-metro-cover',
+        'feezal-element-metro-wled',
+    ];
+    const SIZE_VARS = ['--feezal-metro-icon-size', '--feezal-metro-font-size-label',
+        '--feezal-metro-font-size-value', '--feezal-metro-font-size-unit'];
+
+    it('every family member lists the four size vars in its styles descriptors (shared tileStyles)', () => {
+        for (const tag of FAMILY) {
+            const cls = customElements.get(tag);
+            if (!cls) continue;   // not imported in this suite — the shared source still covers it
+            const props = cls.feezal.styles.filter(s => typeof s === 'object').map(s => s.property);
+            for (const v of SIZE_VARS) expect(props, `${tag} missing ${v}`).toContain(v);
+        }
+    });
+
+    it('the centre icon uses the token: default 56px, override wins', async () => {
+        const el = await mount('feezal-element-metro-tile', {icon: 'grid_view'});
+        el.style.width = '150px';
+        el.style.height = '150px';   // 48cqh = 72px → the 56px default wins the min()
+        await el.updateComplete;
+        const icon = el.shadowRoot.querySelector('.center feezal-icon');
+        await until(() => getComputedStyle(icon).fontSize === '56px');
+
+        el.style.setProperty('--feezal-metro-icon-size', '20px');   // style-inspector path
+        await until(() => getComputedStyle(icon).fontSize === '20px');
+    });
+
+    it('label + unit tokens drive the tile label and badge', async () => {
+        const el = await mount('feezal-element-metro-tile', {label: 'Tile', subscribe: 'stat/badge'});
+        el.style.width = '150px'; el.style.height = '150px';
+        feezal.connection.deliver('stat/badge', '3');
+        await el.updateComplete;
+        expect(getComputedStyle(el.shadowRoot.querySelector('.tlabel')).fontSize).toBe('13px');
+        expect(getComputedStyle(el.shadowRoot.querySelector('.badge')).fontSize).toBe('13px');
+        el.style.setProperty('--feezal-metro-font-size-label', '17px');
+        await until(() => getComputedStyle(el.shadowRoot.querySelector('.tlabel')).fontSize === '17px');
     });
 });

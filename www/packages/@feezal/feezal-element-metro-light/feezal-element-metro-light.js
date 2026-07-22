@@ -231,7 +231,7 @@ class FeezalElementMetroLight extends MetroTileBase {
         :host { --feezal-metro-off-color: #333; }
         .face { transition: background 0.15s; }
         :host(:not([data-on])) .face { background: var(--feezal-metro-off-color); }
-        .state { font-size: 12px; text-transform: lowercase; opacity: 0.85; }
+        .state { font-size: var(--_metro-unit-size); text-transform: lowercase; opacity: 0.85; }   /* E129 */
         .onoff { display: flex; justify-content: center; gap: 8px; }
         input[type='range'].hue {
             background: linear-gradient(to right,
