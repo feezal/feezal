@@ -310,3 +310,52 @@ describe('_view() — opened viewer URL (B39)', () => {
         expect(openedUrlFor('Rooms')).toBe('/viewer/Rooms/');
     });
 });
+
+describe('_revealActiveViewLine() — U54', () => {
+    const DOC = [
+        '<feezal-site>',
+        '    <feezal-view child-position="absolute" name="home">',
+        '    </feezal-view>',
+        '    <feezal-view name="kitchen">',
+        '    </feezal-view>',
+        '</feezal-site>',
+    ].join('\n');
+
+    function drive(viewName, text = DOC) {
+        const calls = {revealed: null, cursor: null};
+        const model = {
+            getValue: () => text,
+            getPositionAt(index) {
+                const upto = text.slice(0, index).split('\n');
+                return {lineNumber: upto.length, column: upto[upto.length - 1].length + 1};
+            },
+        };
+        const self = {
+            _sourceEditor: {
+                getModel: () => model,
+                revealLineNearTop: n => { calls.revealed = n; },
+                setPosition: p => { calls.cursor = p; },
+            },
+        };
+        feezal.site = {view: viewName};
+        FeezalAppEditor.prototype._revealActiveViewLine.call(self);
+        return calls;
+    }
+
+    it('reveals the active view line — attribute order not assumed', () => {
+        expect(drive('home').revealed).toBe(2);      // name= comes after child-position=
+        expect(drive('kitchen').revealed).toBe(4);
+        expect(drive('kitchen').cursor).toEqual({lineNumber: 4, column: 5});
+    });
+
+    it('unknown or empty view name stays at the top (silent no-op)', () => {
+        expect(drive('nope').revealed).toBeNull();
+        expect(drive('').revealed).toBeNull();
+    });
+
+    it('exact name match only — no prefix false-positives', () => {
+        const doc = DOC.replace('name="kitchen"', 'name="home2"');
+        expect(drive('home2', doc).revealed).toBe(4);
+        expect(drive('home', doc).revealed).toBe(2);
+    });
+});

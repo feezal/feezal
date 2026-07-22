@@ -1812,6 +1812,35 @@ class FeezalAppEditor extends LitElement {
             this._updateSourceMarkers(monaco);
             feezal.app.change?.(true);   // mark unsaved (no canvas history entry)
         });
+
+        // U54: open at the current view's line instead of the document top.
+        this._revealActiveViewLine();
+    }
+
+    /**
+     * U54 — scroll the freshly-opened source editor to the ACTIVE view's
+     * `<feezal-view>` opening tag and place the cursor there. Attribute order
+     * is not assumed: every `<feezal-view …>` tag is scanned and its `name`
+     * attribute checked per hit (view names are unique). Not found (fresh
+     * unsaved view, malformed doc) → stays at the top silently.
+     */
+    _revealActiveViewLine() {
+        const editor = this._sourceEditor;
+        const name = feezal.site?.view;
+        if (!editor || !name) return;
+        const model = editor.getModel();
+        const text = model.getValue();
+        const tagRe = /<feezal-view\b[^>]*>/g;
+        let m;
+        while ((m = tagRe.exec(text)) !== null) {
+            const nameMatch = /\bname\s*=\s*"([^"]*)"/.exec(m[0]);
+            if (nameMatch && nameMatch[1] === name) {
+                const pos = model.getPositionAt(m.index);
+                editor.revealLineNearTop(pos.lineNumber);
+                editor.setPosition({lineNumber: pos.lineNumber, column: pos.column});
+                return;
+            }
+        }
     }
 
     _leaveSourceMode() {
