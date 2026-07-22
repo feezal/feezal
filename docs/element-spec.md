@@ -109,17 +109,18 @@ palette: {
 }
 ```
 
-**Palette categories** render in this fixed order in the sidebar: **Basic → Device → System → Material → Paper**.
+**Palette categories** render in this fixed order in the sidebar: **Basic → Layout → System → Circle → Glass → Metro → Material → Carbon → Paper → Panel → TUI** (E133).
 
 | Category | Use for |
 |---|---|
 | `Basic` | General-purpose display and input widgets |
-| `Device` | Device-control cards (light, climate, cover, lock, fan, …) |
+| `Layout` | View/layout containers (app shell, flex, responsive, repeater) |
 | `System` | Infrastructure: connection status, navigation, availability |
-| `Material` | MD3-themed display/input widgets that are not device-control cards |
-| `Paper` | Paper-themed layout elements |
+| `Circle` | Device-control cards (light, climate, cover, lock, fan, …) — the circular-slider design language; tags carry the historical `material-*` prefix |
+| `Glass` / `Metro` / `Carbon` / `Paper` / `Panel` / `TUI` | The styled element families |
+| `Material` | MD3 display/input widgets that are not device-control cards (button, checkbox, gauge, slider, …) |
 
-> The palette category is a plain string — it only controls grouping. The element tag may start with `feezal-element-material-*` while its `palette.category` is `'Device'`. Use `'Device'` for anything that represents and controls a physical device.
+> The palette category is a plain string — it only controls grouping. The element tag may start with `feezal-element-material-*` while its `palette.category` is `'Circle'`. Use `'Circle'` for anything that represents and controls a physical device (E133 — formerly `'Device'`, then `'Material'`).
 
 ### 3.2 `attributes`
 
@@ -730,7 +731,7 @@ Since **N14 (live elements in editor)**, feezal elements subscribe and render li
 
 A device-control card is an element that represents and controls a physical or virtual device (light, climate, cover, lock, fan, …). Checklist for building one from scratch:
 
-1. **Category is `Device`** in `palette.category`, even if the element tag starts with `feezal-element-material-*`.
+1. **Category is `Circle`** in `palette.category` (E133), even if the element tag starts with `feezal-element-material-*`.
 2. **Ship a custom inspector from day one** (§8.3). Two tabs, capability-gated collapsible sections. Never retrofit.
 3. **Per-topic `message-property-*`** for every `subscribe-*` attribute (§4.4).
 4. **Declare `discovery`** for the relevant HA MQTT component so auto-wiring works without user friction (§3.7).
@@ -765,7 +766,7 @@ Before committing or publishing a new or modified element, verify:
 - [ ] `--feezal-*` CSS custom properties declared in `styles` array and initialised in `:host` (§5.2).
 - [ ] No `if (feezal.isEditor)` render branch — single unified template; unconfigured-state hints use null-coalescing (§7).
 - [ ] `discovery` declared if the element can be auto-wired from HA MQTT autodiscovery (§3.7).
-- [ ] `palette.category` is `'Device'` for device-control cards (§3.1).
+- [ ] `palette.category` is `'Circle'` for device-control cards (§3.1, E133).
 - [ ] Patch version bumped in `package.json`.
 
 ---

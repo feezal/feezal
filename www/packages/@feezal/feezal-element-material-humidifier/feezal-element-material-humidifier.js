@@ -58,7 +58,7 @@ function fmtHum(val, unit) {
 class FeezalElementMaterialHumidifier extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Humidifier', category: 'Material', color: '#1565c0', icon: 'water_drop'},
+            palette: {name: 'Humidifier', category: 'Circle', color: '#1565c0', icon: 'water_drop'},
             description: 'Humidifier / dehumidifier control card — circular arc target-humidity slider, current humidity read-out, on/off toggle (tap centre), and optional mode chips.',
             // ── Follow-up: a custom N6 two-tab inspector (Topics + Config) should
             //    replace this flat attribute form once the attribute list grows.

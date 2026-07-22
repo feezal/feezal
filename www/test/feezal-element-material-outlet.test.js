@@ -53,7 +53,7 @@ describe('feezal-element-material-outlet (E121)', () => {
     it('declares its own palette identity and no mode/brightness attributes', () => {
         const cls = customElements.get('feezal-element-material-outlet');
         // E130: palette name aligned with glass-switch/metro-switch; the tag stays material-outlet.
-        expect(cls.feezal.palette).toMatchObject({name: 'Switch', category: 'Material'});
+        expect(cls.feezal.palette).toMatchObject({name: 'Switch', category: 'Circle'});   // E133
         const names = cls.feezal.attributes.map(a => a.name);
         expect(names).not.toContain('mode');
         expect(names).not.toContain('subscribe-brightness');

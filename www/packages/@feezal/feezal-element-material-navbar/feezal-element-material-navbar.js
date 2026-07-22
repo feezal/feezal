@@ -22,7 +22,7 @@ import '@shoelace-style/shoelace/dist/components/option/option.js';
 class FeezalElementMaterialNavbar extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Navbar', category: 'Simple', color: '#4a6080', icon: 'bottom_navigation'},
+            palette: {name: 'Navbar', category: 'Material', color: '#4a6080', icon: 'bottom_navigation'},
             description: 'A navigation bar/rail that switches between views. Items are view names or ' +
                 '{label, view, icon, subscribe-badge} objects; empty auto-fills from all views. Active item ' +
                 'follows the current view from any source.',

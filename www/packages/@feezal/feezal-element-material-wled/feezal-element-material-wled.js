@@ -83,7 +83,7 @@ function angleToPct(deg) {
 class FeezalElementMaterialWled extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'WLED', category: 'Material', color: '#1565c0', icon: 'wb_iridescent'},
+            palette: {name: 'WLED', category: 'Circle', color: '#1565c0', icon: 'wb_iridescent'},
             description: 'WLED strip control (single segment / whole strip): on/off, brightness (circular ring), colour, ' +
                 'effect/palette with speed & intensity, and optional preset recall over WLED\'s MQTT API ' +
                 '(<topic>/g, <topic>/c in, <topic>/api JSON out).',

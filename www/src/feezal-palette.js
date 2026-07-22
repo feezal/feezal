@@ -244,7 +244,10 @@ class FeezalPalette extends LitElement {
         this.categories = Object.entries(categories)
             .map(([name, elements]) => ({name, elements}))
             .sort((a, b) => {
-                const ORDER = ['Components', 'Basic', 'Layout', 'System', 'Material', 'Glass', 'Metro', 'Simple', 'Carbon', 'Paper', 'Panel', 'TUI'];
+                // E133: the device cards are "Circle" (their circular-slider
+                // design language), the MD3 widgets are "Material" (they
+                // literally are Material Design 3 controls).
+                const ORDER = ['Components', 'Basic', 'Layout', 'System', 'Circle', 'Glass', 'Metro', 'Material', 'Carbon', 'Paper', 'Panel', 'TUI'];
                 const ai = ORDER.indexOf(a.name);
                 const bi = ORDER.indexOf(b.name);
                 if (ai === -1 && bi === -1) return a.name.localeCompare(b.name);

@@ -5,7 +5,7 @@ import '@material/web/fab/fab.js';
 class FeezalElementMaterialFab extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'FAB', category: 'Simple', color: '#4a6080', icon: 'add_circle'},
+            palette: {name: 'FAB', category: 'Material', color: '#4a6080', icon: 'add_circle'},
             description: 'MD3 Floating Action Button — publishes a payload on click.',
             attributes: [
                 {name: 'icon',     type: 'string',    help: 'Material icon name inside the FAB (e.g. "add", "edit").'},

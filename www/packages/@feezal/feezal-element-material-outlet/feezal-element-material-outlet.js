@@ -26,7 +26,7 @@ class FeezalElementMaterialOutlet extends FeezalElementMaterialLight {
             // E130: palette name aligned with glass-switch/metro-switch — the
             // tag stays feezal-element-material-outlet (the material-switch
             // tag belongs to the MD3 toggle control; zero dashboard breakage).
-            palette: {name: 'Switch', category: 'Material', color: '#1565c0', icon: 'power'},
+            palette: {name: 'Switch', category: 'Circle', color: '#1565c0', icon: 'power'},
             description: 'Switch / smart-plug card — a large round power button that subscribes to an ' +
                 'on/off state topic and publishes on tap. Same look and theme tokens as the Material ' +
                 'light card, without any dimming controls.',

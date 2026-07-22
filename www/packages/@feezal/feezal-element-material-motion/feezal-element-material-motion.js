@@ -86,7 +86,7 @@ function zoneSvg(isActive) {
 class FeezalElementMaterialMotion extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Occupancy', category: 'Material', color: '#1565c0', icon: 'motion_sensor_active'},
+            palette: {name: 'Occupancy', category: 'Circle', color: '#1565c0', icon: 'motion_sensor_active'},
             description: 'Motion and presence detector card. Supports PIR (motion), person-in-zone (presence), mmWave radar arcs (radar), and room-zone highlight (zone) visual styles.',
             discovery: {
                 component: 'binary_sensor',

@@ -18,7 +18,7 @@ const LOAD_COLOR    = '#90a4ae';
 class FeezalElementMaterialEnergyFlow extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Energy', category: 'Simple', color: '#4a6080', icon: 'electric_bolt'},
+            palette: {name: 'Energy', category: 'Material', color: '#4a6080', icon: 'electric_bolt'},
             description: 'Animated energy-flow diagram: Solar → House ← Grid, House ↔ Battery.',
             attributes: [
                 {name: 'subscribe-solar',             type: 'mqttTopic', help: 'Topic for solar generation (W, always positive).'},

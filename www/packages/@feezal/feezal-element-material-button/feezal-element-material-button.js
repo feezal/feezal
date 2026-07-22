@@ -11,7 +11,7 @@ class FeezalElementMaterialButton extends FeezalElement {
         return {
             palette: {
                 name: 'Button',
-                category: 'Simple',
+                category: 'Material',
                 color: '#4a6080'
             },
             description: 'Material Design 3 button. Publishes a configurable payload to an MQTT topic on click; ' +

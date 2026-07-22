@@ -61,7 +61,6 @@ Work in progress — priorities and scope are not final.
 - [E128 — Homematic blinds: settling behaviour + `DIRECTION` indicator](#e128--homematic-blinds-settling-behaviour--direction-indicator-later--after-e127) *(later)*
 - [E131 — Homematic motion detector discovery → *-motion/occupancy elements](#e131--homematic-motion-detector-discovery--motionoccupancy-elements)
 - [E132 — Generalize the boolean-sensor family: *-occupancy → *-sensor, numeric *-sensor → *-number](#e132--generalize-the-boolean-sensor-family--occupancy---sensor-numeric--sensor---number)
-- [E133 — Palette category rename: "Material" → "Circle", "Simple" → "Material"](#e133--palette-category-rename-material--circle-simple--material)
 - [E134 — Circle design language: align the remaining device cards with light/climate/cover/switch](#e134--circle-design-language-align-the-remaining-device-cards-with-lightclimatecoverswitch)
 - [E135 — Homematic maintenance signals: ERROR_CODE + SABOTAGE badges, device-health board](#e135--homematic-maintenance-signals-error_code--sabotage-badges-device-health-board)
 - [E136 — Metro tile backsides: redesign for touch — bigger targets, calmer layout, use the space](#e136--metro-tile-backsides-redesign-for-touch--bigger-targets-calmer-layout-use-the-space)
@@ -1364,29 +1363,6 @@ Alarm-class types (water/smoke/gas) should default the *active* state to the err
 **Ships with:** type/default/icon tables in the three elements (+ the two numeric renames' palette entries), discovery valueMap extension + recognizer tests, TESTING.md rows per hazard class (discovered z2m water-leak sensor lands on a `*-sensor` card with water icons + battery indicator), and the E124/E131 entries' element names updated when the renames land.
 
 **Relates:** **E124** (battery indicator — the generalized card is its main consumer), **E131** (motion recognizer — implement against the generalized type list), E130 (the sibling rename blocked on the same tag-alias mechanism), **E115** (family switching — natural home of the alias map), E114 (parity — all renames land family-wide or not at all), E113 (taxonomy — "sensor means boolean, number means numeric" is exactly the naming discipline it wants).
-
-### E133 — Palette category rename: "Material" → "Circle", "Simple" → "Material"
-
-The 07/2026 category split left a naming mismatch: the **device cards** (light, climate, cover, contact, wled, …) sit in a category called *Material*, while the actual **MD3 widgets** (button, checkbox, gauge, slider, …) sit in *Simple*. Rename both so the labels say what they mean:
-
-| Category today | Becomes | Content | Why the name |
-|---|---|---|---|
-| `Material` (~15 elements) | **`Circle`** | device cards | the circular-slider design language of light/climate/cover (see E134) |
-| `Simple` (~24 elements) | **`Material`** | MD3 widgets | they literally are Material Design 3 controls |
-
-**Cheap by construction — but wide:** the palette category is a **display string only** (never serialized into dashboards, no tag/package involvement — unlike E130/E132's tag renames, nothing can break in saved sites). The touch points:
-
-- `palette.category` in every affected element file (~39 packages → ~39 patch bumps; a scripted sweep, one commit).
-- The palette's fixed `ORDER` array ([feezal-palette.js:241](../www/src/feezal-palette.js#L241)) — swap `Material`/`Simple` positions for `Circle`/`Material` deliberately (decide where Circle sorts; suggestion: `Basic, Layout, System, Circle, Glass, Metro, Material, …`).
-- The default-collapse and collapse-state localStorage keys hold old category names — harmless staleness (self-heals; first run after rename re-derives).
-- Docs: TESTING.md §6 headings, element-spec.md's category table, the AI assistant prompt if it names categories (check `server/src/ai/prompt.js`).
-- B42's filter matches category names — "circle" and "material" become search terms; no code change, but the TESTING row for the filter needs updating.
-
-**Naming tension, accepted deliberately:** the Circle-category cards keep their `feezal-element-material-*` tags (tag prefix ≠ category label — already true today for the Simple category, whose widgets also carry `material-*` tags). The full prefix cleanup is E113/E115/A23 territory, not this item.
-
-**Coordinate with the rename wave:** E130 (outlet→Switch palette name), E132 (occupancy→sensor) and this should land in the **same release** so users re-learn the palette once, not three times.
-
-**Relates:** **E113** (taxonomy — this bakes "category = style family" one step further), **E134** (the Circle name's design commitment), E130/E132 (the concurrent renames), U45 (picker rework — builds on these category names), B42 ✅ (category filter).
 
 ### E134 — Circle design language: align the remaining device cards with light/climate/cover/switch
 

@@ -17,7 +17,7 @@ import {unsafeHTML} from 'lit/directives/unsafe-html.js';
 class FeezalElementMaterialDialog extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Dialog', category: 'Simple', color: '#4a6080'},
+            palette: {name: 'Dialog', category: 'Material', color: '#4a6080'},
             description: 'Opens a modal dialog when an MQTT message is received. ' +
                 'Supports ok/cancel buttons that each publish a configurable payload.',
             attributes: [

@@ -5,7 +5,7 @@ import '@material/web/textfield/outlined-text-field.js';
 class FeezalElementMaterialInput extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Input', category: 'Simple', color: '#4a6080', icon: 'text_fields'},
+            palette: {name: 'Input', category: 'Material', color: '#4a6080', icon: 'text_fields'},
             description: 'MD3 outlined text field — subscribes to a text topic and publishes on Enter or blur.',
             attributes: [
                 {name: 'label',            type: 'string',    help: 'Floating label above the input.'},

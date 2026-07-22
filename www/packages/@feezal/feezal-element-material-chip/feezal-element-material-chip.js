@@ -5,7 +5,7 @@ import '@material/web/chips/filter-chip.js';
 class FeezalElementMaterialChip extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Chip', category: 'Simple', color: '#4a6080', icon: 'label'},
+            palette: {name: 'Chip', category: 'Material', color: '#4a6080', icon: 'label'},
             description: 'MD3 filter chip — subscribes to a boolean topic and publishes selected state.',
             discovery: {
                 component: 'switch',

@@ -7,7 +7,7 @@ let _uid = 0;
 class FeezalElementMaterialRadio extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Radio', category: 'Simple', color: '#4a6080', icon: 'radio_button_checked'},
+            palette: {name: 'Radio', category: 'Material', color: '#4a6080', icon: 'radio_button_checked'},
             description: 'MD3 radio button group — subscribes to current value and publishes the selected option.',
             attributes: [
                 {name: 'subscribe',   type: 'mqttTopic', help: 'Topic to read the current selected value from.'},

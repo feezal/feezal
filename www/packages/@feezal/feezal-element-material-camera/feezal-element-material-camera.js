@@ -5,7 +5,7 @@ import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element
 class FeezalElementMaterialCamera extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Camera', category: 'Material', color: '#1565c0', icon: 'videocam'},
+            palette: {name: 'Camera', category: 'Circle', color: '#1565c0', icon: 'videocam'},
             description: 'Camera feed element — embeds an MJPEG stream, HLS video, low-latency WebRTC (WHEP), or periodically-refreshed image. Subscribe to an MQTT topic to switch the source URL dynamically. Optional click action: open the feed in a near-fullscreen popup or publish a payload. Note: browsers cannot play rtsp:// URLs directly — for RTSP cameras run a gateway like go2rtc or MediaMTX next to them and use its webrtc (WHEP), HLS or MJPEG output here.',
             links: [
                 {label: 'go2rtc (RTSP → WebRTC/HLS/MJPEG gateway)', url: 'https://github.com/AlexxIT/go2rtc'},
