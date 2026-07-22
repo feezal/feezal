@@ -1,6 +1,7 @@
 /* global feezal */
 import {html, css} from '@feezal/feezal-element';
 import {svg} from 'lit';
+import {ContactController, contactAttributes, contactDiscoveryMap} from '@feezal/feezal-controller-contact';
 import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
 
 /**
@@ -22,12 +23,8 @@ import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
 
 // Compare a received MQTT value (may be JS number/bool after JSON parsing)
 // against a user-configured payload string.
-function payloadMatch(value, configured) {
-    if (String(value) === String(configured)) return true;
-    if (value === true  && /^(on|true|1|yes)$/i.test(String(configured)))  return true;
-    if (value === false && /^(off|false|0|no)$/i.test(String(configured))) return true;
-    return false;
-}
+// E137: payloadMatch lives in @feezal/feezal-element (shared machinery).
+
 
 function windowSvg(state, mirrorHandle) {
     const isOpen   = state === 'open';
@@ -128,12 +125,9 @@ class FeezalElementMetroContact extends MetroTileBase {
             description: 'Metro contact tile (window/door/leak/fire/garage): stylised state visual or configurable per-state icons; accent while closed, alarm colour while open, tilt state supported. Display-only.',
             attributes: [
                 ...MetroTileBase.tileAttributes,
-                'subscribe',
-                {name: 'message-property', type: 'string', default: 'payload',
-                    help: 'Dot-notation path to the value within the MQTT message. Default: payload'},
-                {name: 'payload-open',   type: 'string', default: 'ON',  help: 'Payload meaning the contact is open.'},
-                {name: 'payload-closed', type: 'string', default: 'OFF', help: 'Payload meaning the contact is closed.'},
-                {name: 'payload-tilted', type: 'string', default: '',    help: 'Payload meaning the window is tilted/vented (e.g. Homematic: 2). Leave blank to disable tilt state. Window type only.'},
+                // E137: the shared contact contract — declared ONCE by the
+                // controller package (incl. the E124 battery trio).
+                ...contactAttributes.filter(a => a.name !== 'type'),
                 {name: 'type', type: 'select', options: ['window', 'door', 'generic', 'waterleak', 'firealarm', 'garagedoor'], default: 'window',
                     help: 'Visual style — window frame (with tilt), door, generic circle, water droplet (leak), flame (fire/smoke alarm), or garage door. Overridden by icon-open/icon-closed when set.'},
                 {name: 'mirror', type: 'boolean', default: false, help: 'Show the window handle on the left side instead of the right. Window type only.'},
@@ -158,21 +152,8 @@ class FeezalElementMetroContact extends MetroTileBase {
             ],
             restrict: {minWidth: 40, minHeight: 40},
             defaultStyle: {width: '150px', height: '150px'},
-            discovery: {
-                component: 'binary_sensor',
-                map: {
-                    state_topic:  'subscribe',
-                    payload_on:   'payload-open',
-                    payload_off:  'payload-closed',
-                    // Set by the native Homematic ROTARY_HANDLE recognizer; HA/z2m
-                    // binary_sensor entities lack it → skipped (undefined config key).
-                    payload_tilted: 'payload-tilted',
-                    device_class: {attr: 'type', valueMap: {window: 'window', door: 'door', moisture: 'waterleak', smoke: 'firealarm', garage_door: 'garagedoor', _default: 'window'}},
-                    // N31: availability is mapped automatically from the canonical discovery record.
-                    name:           'label',
-                    value_template: {attr: 'message-property', transform: 'valueTemplateToPath'},
-                },
-            },
+// E137: the discovery map is the controller package's fragment.
+            discovery: {component: 'binary_sensor', map: contactDiscoveryMap},
         };
     }
 
@@ -189,7 +170,6 @@ class FeezalElementMetroContact extends MetroTileBase {
         textClosed:    {type: String,  reflect: true, attribute: 'text-closed'},
         // N31: availability inherited from FeezalElement.
         discoveryId:   {type: String,  reflect: true, attribute: 'discovery-id'},
-        _state:     {state: true},   // 'closed' | 'open' | 'tilted'
     };
 
     static styles = [MetroTileBase.styles, css`
@@ -203,6 +183,11 @@ class FeezalElementMetroContact extends MetroTileBase {
         .front { cursor: default; }
         .state { font-size: var(--_metro-unit-size); text-transform: lowercase; opacity: 0.85; }   /* E129 */
         svg.contact { height: min(42px, 45cqh); aspect-ratio: 1; overflow: visible; }
+        /* E124: low-battery warning, top-left (the ! badge owns top-right). */
+        .batt {
+            position: absolute; top: 4px; left: 6px;
+            font-size: 15px; color: var(--feezal-metro-text, #fff); opacity: 0.9;
+        }
     `];
 
     constructor() {
@@ -218,28 +203,16 @@ class FeezalElementMetroContact extends MetroTileBase {
         this.textTilted = 'tilted';
         this.textClosed = 'closed';
         this.discoveryId = '';
-        this._state = 'closed';
+        // E137: the behavior layer — wires/parses/matches; this view renders.
+        this.contact = new ContactController(this);
     }
 
-    connectedCallback() {
-        super.connectedCallback();
-        if (this.subscribe) {
-            this.addSubscription(this.subscribe, msg => {
-                const v = this.getProperty(msg, this.messageProperty);
-                if (this.payloadTilted && payloadMatch(v, this.payloadTilted)) {
-                    this._state = 'tilted';
-                } else if (payloadMatch(v, this.payloadOpen)) {
-                    this._state = 'open';
-                } else {
-                    this._state = 'closed';
-                }
-            });
-        }
-    }
+    // E137: the ContactController wires everything in hostConnected.
 
     updated(changed) {
         super.updated(changed);
-        if (changed.has('_state')) this.setAttribute('data-state', this._state);
+        this.contact.rewireIfChanged();
+        this.setAttribute('data-state', this.contact.state);
     }
 
     _shapeSvg(state) {
@@ -253,8 +226,8 @@ class FeezalElementMetroContact extends MetroTileBase {
     }
 
     _stateText() {
-        if (this._state === 'open') return this.textOpen || 'open';
-        if (this._state === 'tilted') return this.textTilted || 'tilted';
+        if (this.contact.state === 'open') return this.textOpen || 'open';
+        if (this.contact.state === 'tilted') return this.textTilted || 'tilted';
         return this.textClosed || 'closed';
     }
 
@@ -265,11 +238,12 @@ class FeezalElementMetroContact extends MetroTileBase {
     renderFront() {
         // Configured per-state icons override the type visual (tilted uses
         // the open icon — it is a "not closed" state).
-        const stateIcon = this._state === 'closed' ? this.iconClosed : this.iconOpen;
+        const stateIcon = this.contact.state === 'closed' ? this.iconClosed : this.iconOpen;
         const visual = stateIcon
             ? html`<feezal-icon name="${stateIcon}"></feezal-icon>`
-            : html`<svg class="contact" viewBox="0 0 60 60">${this._shapeSvg(this._state)}</svg>`;
+            : html`<svg class="contact" viewBox="0 0 60 60">${this._shapeSvg(this.contact.state)}</svg>`;
         return html`
+            ${this.contact.batteryLow ? html`<feezal-icon class="batt" name="battery_alert" title="Battery low"></feezal-icon>` : ''}
             ${visual}
             <div class="state">${this._stateText()}</div>`;
     }

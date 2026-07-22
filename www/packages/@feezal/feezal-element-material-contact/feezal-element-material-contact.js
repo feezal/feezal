@@ -1,5 +1,8 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+// E137: the contact behavior lives in the shared controller — this element
+// is a VIEW (Circle chrome: the type SVG visuals).
+import {ContactController, contactAttributes, contactDiscoveryMap} from '@feezal/feezal-controller-contact';
 import {svg} from 'lit';
 
 // ── Unavailability badge ─────────────────────────────────────────────────────
@@ -13,12 +16,8 @@ const UNAVAIL = html`<svg viewBox="0 0 24 24"><path fill="currentColor"
 // - String equality after coercion handles numbers: Number 1 → "1" === "1"
 // - Boolean true  matches "ON"/"TRUE"/"1"/"YES" (HA/z2m convention)
 // - Boolean false matches "OFF"/"FALSE"/"0"/"NO"
-function payloadMatch(value, configured) {
-    if (String(value) === String(configured)) return true;
-    if (value === true  && /^(on|true|1|yes)$/i.test(String(configured)))  return true;
-    if (value === false && /^(off|false|0|no)$/i.test(String(configured))) return true;
-    return false;
-}
+// E137: payloadMatch lives in @feezal/feezal-element (shared machinery).
+
 
 function windowSvg(state, mirrorHandle) {
     // state: 'closed' | 'open' | 'tilted'
@@ -134,27 +133,12 @@ class FeezalElementMaterialContact extends FeezalElement {
         return {
             palette: {name: 'Contact', category: 'Circle', color: '#1565c0', icon: 'sensor_window'},
             description: 'Window / door contact sensor. Shows open or closed state as a stylised SVG. For room overviews compose multiple contact elements (U32 component or repeater).',
-            discovery: {
-                component: 'binary_sensor',
-                map: {
-                    state_topic:           {attr: 'subscribe'},
-                    payload_on:            {attr: 'payload-open'},
-                    payload_off:           {attr: 'payload-closed'},
-                    // Set by the native Homematic ROTARY_HANDLE recognizer; HA/z2m
-                    // binary_sensor entities lack it → skipped (undefined config key).
-                    payload_tilted:        {attr: 'payload-tilted'},
-                    device_class:          {attr: 'type', valueMap: {window: 'window', door: 'door', moisture: 'waterleak', smoke: 'firealarm', garage_door: 'garagedoor', _default: 'window'}},
-                    // N31: availability is mapped automatically from the
-                    // canonical discovery record — no per-element lines needed.
-                    value_template:        {attr: 'message-property', transform: 'valueTemplateToPath'},
-                    name:                  'label',
-                },
-            },
+// E137: the discovery map is the controller package's fragment.
+            discovery: {component: 'binary_sensor', map: contactDiscoveryMap},
             attributes: [
-                {name: 'subscribe',              type: 'mqttTopic', help: 'Contact state topic.'},
-                {name: 'message-property',       type: 'string',    default: 'payload', help: 'Property path within the message payload (dot-notation). Blank = top-level payload.'},
-                {name: 'payload-open',           type: 'string',    default: 'ON',    help: 'Payload value meaning the contact is open.'},
-                {name: 'payload-closed',         type: 'string',    default: 'OFF',   help: 'Payload value meaning the contact is closed.'},
+                // E137: the shared contact contract — declared ONCE by the
+                // controller package (incl. the E124 battery trio).
+                ...contactAttributes.filter(a => a.name !== 'type'),
                 {name: 'type',                   type: 'select',    options: ['window', 'door', 'generic', 'waterleak', 'firealarm', 'garagedoor'], default: 'window',
                     help: 'Visual style — window frame, door, generic circle, water droplet (leak), flame (fire/smoke alarm), or garage door.'},
                 {name: 'label',                  type: 'string',    default: '',      help: 'Optional card label shown below the visual.'},
@@ -162,7 +146,6 @@ class FeezalElementMaterialContact extends FeezalElement {
                 {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
                 {name: 'payload-available',      type: 'string',    default: 'online',  help: 'Payload meaning available.'},
                 {name: 'payload-unavailable',    type: 'string',    default: 'offline', help: 'Payload meaning unavailable.'},
-                {name: 'payload-tilted',         type: 'string',    default: '',        help: 'Payload meaning the window is tilted/vented (e.g. Homematic: 2). Leave blank to disable tilt state. Window type only.'},
                 {name: 'mirror',                 type: 'boolean',   default: false,     help: 'Show the window handle on the left side instead of the right. Window type only.'},
             ],
             styles: [
@@ -210,6 +193,12 @@ class FeezalElementMaterialContact extends FeezalElement {
             --feezal-contact-error-color:  var(--error-color, #b00020);
             color: var(--feezal-contact-closed-color);
         }
+        /* E124: low-battery warning, top-left (unavail owns top-right). */
+        .batt {
+            position: absolute; top: 4px; left: 4px;
+            font-size: 15px; color: var(--warning-color, #ff9800);
+            opacity: 0.9; pointer-events: none; z-index: 2;
+        }
         .unavail {
             position: absolute; top: 4px; right: 4px;
             width: 18px; height: 18px;
@@ -236,52 +225,18 @@ class FeezalElementMaterialContact extends FeezalElement {
         this.payloadTilted         = '';
         this.mirror                = false;
         this.discoveryId           = '';
-        this._contactState = 'closed';
+        // E137: the behavior layer — wires/parses/matches; this view renders.
+        this.contact = new ContactController(this);
     }
 
     // Device cards manage subscriptions manually; suppress the base class path.
     _subscribe() { /* intentionally empty */ }
 
-    connectedCallback() {
-        super.connectedCallback();
-        this._wireSubscriptions();
-    }
-
-    /** Topic attributes changed at runtime (inspector edits on the live
-     * canvas) → updated() rewires instead of keeping the stale topics.
-     * (Availability rewires itself in the FeezalElement base — N31.) */
-    _wireSignature() {
-        return String(this.subscribe);
-    }
+    // E137: the ContactController wires everything in hostConnected.
 
     updated(changed) {
         super.updated(changed);
-        if (this.isConnected && this.__wireSig !== undefined && this._wireSignature() !== this.__wireSig) {
-            this._unsubscribe();
-            this._wireSubscriptions();
-        }
-    }
-
-    _wireSubscriptions() {
-        this.__wireSig = this._wireSignature();
-
-        // E78: multi-contact mode removed — the element is single-contact
-        // only; compose multiple contact elements (U32 component / repeater)
-        // for room overviews. Saved views still carrying a `contacts`
-        // attribute fall back to this single-contact path (empty subscribe →
-        // editor placeholder).
-        if (this.subscribe) {
-            this.addSubscription(this.subscribe, msg => {
-                const v = this.getProperty(msg, this.messageProperty);
-                if (this.payloadTilted && payloadMatch(v, this.payloadTilted)) {
-                    this._contactState = 'tilted';
-                } else if (payloadMatch(v, this.payloadOpen)) {
-                    this._contactState = 'open';
-                } else {
-                    this._contactState = 'closed';
-                }
-            });
-        }
+        this.contact.rewireIfChanged();
     }
 
     _shapeSvg(state) {
@@ -297,9 +252,10 @@ class FeezalElementMaterialContact extends FeezalElement {
     render() {
         return html`
             ${!this._available ? html`<div class="unavail">${UNAVAIL}</div>` : ''}
+            ${this.contact.batteryLow ? html`<feezal-icon class="batt" name="battery_alert" title="Battery low"></feezal-icon>` : ''}
             <div class="svg-wrap">
                 <svg class="contact" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-                    ${this._shapeSvg(this._contactState)}
+                    ${this._shapeSvg(this.contact.state)}
                 </svg>
             </div>
             ${this.label ? html`<div class="label">${this.label}</div>` : ''}`;

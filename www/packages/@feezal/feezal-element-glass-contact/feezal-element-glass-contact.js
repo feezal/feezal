@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {ContactController, contactAttributes, contactDiscoveryMap} from '@feezal/feezal-controller-contact';
 import {applySizePreset, glassCardStyles} from '@feezal/feezal-glass';
 
 /**
@@ -13,14 +14,9 @@ import {applySizePreset, glassCardStyles} from '@feezal/feezal-glass';
  * inspector — the flat attribute form fits the contract.
  */
 
-// Payload comparison identical to material-contact: string coercion plus
-// boolean true/false matching the HA/z2m ON/OFF conventions.
-export function payloadMatch(value, configured) {
-    if (String(value) === String(configured)) return true;
-    if (value === true && /^(on|true|1|yes)$/i.test(String(configured))) return true;
-    if (value === false && /^(off|false|0|no)$/i.test(String(configured))) return true;
-    return false;
-}
+// E137: payloadMatch is cross-controller shared machinery now — re-exported
+// here for back-compat with prior importers.
+export {payloadMatch} from '@feezal/feezal-element';
 
 const TYPE_ICONS = {
     window: 'sensor_window',
@@ -37,29 +33,14 @@ class FeezalElementGlassContact extends FeezalElement {
             palette: {name: 'Contact', category: 'Glass', color: '#7aa5c9', icon: 'sensor_window'},
             description: 'Frosted-glass contact card — highlights while the window/door is open or tilted. ' +
                 'Same MQTT contract as the material contact card.',
-            discovery: {
-                component: 'binary_sensor',
-                map: {
-                    state_topic:           {attr: 'subscribe'},
-                    payload_on:            {attr: 'payload-open'},
-                    payload_off:           {attr: 'payload-closed'},
-                    // Set by the native Homematic ROTARY_HANDLE recognizer; HA/z2m
-                    // binary_sensor entities lack it → skipped (undefined config key).
-                    payload_tilted:        {attr: 'payload-tilted'},
-                    device_class:          {attr: 'type', valueMap: {window: 'window', door: 'door', moisture: 'waterleak', smoke: 'firealarm', garage_door: 'garagedoor', _default: 'window'}},
-                    // N31: availability is mapped automatically from the canonical discovery record.
-                    value_template:        {attr: 'message-property', transform: 'valueTemplateToPath'},
-                    name:                  'label',
-                },
-            },
+            // E137: the discovery map is the controller package's fragment.
+            discovery: {component: 'binary_sensor', map: contactDiscoveryMap},
             attributes: [
                 {name: 'size', type: 'select', options: ['', '2x2', '2x1'], default: '',
                     help: 'Preset size: 2x2 = square (150×150), 2x1 = wide (150×75). Empty keeps the current/manual size.'},
-                {name: 'subscribe',        type: 'mqttTopic', help: 'Contact state topic.'},
-                {name: 'message-property', type: 'string', default: 'payload', help: 'Property path within the message payload (dot-notation). Default: payload'},
-                {name: 'payload-open',     type: 'string', default: 'ON',  help: 'Payload value meaning the contact is open.'},
-                {name: 'payload-closed',   type: 'string', default: 'OFF', help: 'Payload value meaning the contact is closed.'},
-                {name: 'payload-tilted',   type: 'string', default: '', help: 'Payload meaning tilted/vented (e.g. Homematic: 2). Blank = no tilt state.'},
+                // E137: the shared contact contract (subscribe/payloads/type +
+                // the E124 battery trio) — declared ONCE by the controller.
+                ...contactAttributes.filter(a => a.name !== 'type'),
                 {name: 'type', type: 'select', options: ['window', 'door', 'generic', 'waterleak', 'firealarm', 'garagedoor'], default: 'window',
                     help: 'Default icon: window, door, generic, water droplet (leak), flame (fire/smoke), garage door.'},
                 {name: 'icon',  type: 'string', help: 'Explicit icon name — overrides the type default.'},
@@ -120,6 +101,11 @@ class FeezalElementGlassContact extends FeezalElement {
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
+        /* E124: low-battery warning, bottom-left (⚠ unavail owns top-right). */
+        .batt {
+            position: absolute; bottom: 8px; left: 10px;
+            font-size: 14px; color: var(--warning-color, #ff9800); opacity: 0.9;
+        }
         .unavail {
             position: absolute; top: 8px; right: 10px;
             font-size: 12px; color: var(--error-color, #d32f2f); opacity: 0.85;
@@ -154,6 +140,8 @@ class FeezalElementGlassContact extends FeezalElement {
         this.textTilted = 'Tilted';
         this.label = '';
         this.discoveryId = '';
+        // E137: the behavior layer — wires/parses/matches; this view renders.
+        this.contact = new ContactController(this);
         this.degrade = false;
         this._state = 'closed';
     }
@@ -161,55 +149,26 @@ class FeezalElementGlassContact extends FeezalElement {
     // Device cards manage subscriptions manually; suppress the base class path.
     _subscribe() { /* intentionally empty */ }
 
-    connectedCallback() {
-        super.connectedCallback();
-        this._wireSubscriptions();
-    }
-
-    /** Topic attributes changed at runtime (inspector edits on the live
-     * canvas) → updated() rewires instead of keeping the stale topics. */
-    _wireSignature() {
-        return String(this.subscribe);
-    }
-
     updated(changed) {
         super.updated(changed);
-        if (this.isConnected && this.__wireSig !== undefined && this._wireSignature() !== this.__wireSig) {
-            this._unsubscribe();
-            this._wireSubscriptions();
-        }
+        // E137: live-canvas topic edits re-wire through the controller.
+        this.contact.rewireIfChanged();
         // The size grid writes the element's inline geometry (editor keeps
         // full manual control afterwards).
         if (changed.has('size')) applySizePreset(this);
     }
 
-    _wireSubscriptions() {
-        this.__wireSig = this._wireSignature();
-
-        if (this.subscribe) {
-            this.addSubscription(this.subscribe, msg => {
-                const v = this.getProperty(msg, this.messageProperty);
-                if (this.payloadTilted && payloadMatch(v, this.payloadTilted)) {
-                    this._state = 'tilted';
-                } else if (payloadMatch(v, this.payloadOpen)) {
-                    this._state = 'open';
-                } else {
-                    this._state = 'closed';
-                }
-            });
-        }
-    }
-
     _stateText() {
-        if (this._state === 'open') return this.textOpen || 'Open';
-        if (this._state === 'tilted') return this.textTilted || 'Tilted';
+        if (this.contact.state === 'open') return this.textOpen || 'Open';
+        if (this.contact.state === 'tilted') return this.textTilted || 'Tilted';
         return this.textClosed || 'Closed';
     }
 
     render() {
         return html`
-            <div class="card ${this._state}">
+            <div class="card ${this.contact.state}">
                 ${!this._available ? html`<span class="unavail" title="Device unavailable">⚠</span>` : ''}
+                ${this.contact.batteryLow ? html`<feezal-icon class="batt" name="battery_alert" title="Battery low"></feezal-icon>` : ''}
                 <feezal-icon name="${this.icon || TYPE_ICONS[this.type] || TYPE_ICONS.window}"></feezal-icon>
                 <span class="state">${this._stateText()}</span>
                 <span class="label">${this.label || (feezal.isEditor ? 'Contact' : '')}</span>

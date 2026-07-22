@@ -373,15 +373,30 @@ describe('Homematic contact recognizer', () => {
         expect(c.payload_off).toBe('0');   // BidCoS bool false / HmIP numeric 0 (closed)
         expect(c.payload_tilted).toBeUndefined();   // no tilt for a shutter contact
 
-        // TWO :0 maintenance entries — UNREACH + LOWBAT (inside config).
+        // E124: UNREACH is the SOLE availability source now — LOWBAT moved to
+        // the dedicated battery record (presence-checked below).
         expect(c.availability_normalized).toEqual({
-            entries: [
-                {topic: 'hm/status/Fenster Kueche:0/UNREACH', property: 'payload.val'},
-                {topic: 'hm/status/Fenster Kueche:0/LOWBAT', property: 'payload.val'},
-            ],
+            entries: [{topic: 'hm/status/Fenster Kueche:0/UNREACH', property: 'payload.val'}],
             mode: 'all',
             payloadAvailable: false,
             payloadUnavailable: true,
+        });
+        expect(c.battery_low_normalized).toBeUndefined();   // nothing observed yet
+
+        // Observe the HmIP LOW_BAT (the name that was silently lost pre-E124),
+        // re-observe the state → the record appears with the observed name.
+        nat.handleNativeMessage('hm/status/Fenster Kueche:0/LOW_BAT', je(false, {
+            device: dev, channel: dev + ':0', channelType: 'MAINTENANCE', datapoint: 'LOW_BAT',
+        }));
+        nat.handleNativeMessage('hm/status/Fenster Kueche:1/STATE', je(false, {
+            device: dev, deviceName: 'Fenster Kueche', deviceType: 'HmIP-SWDO',
+            channel: dev + ':1', channelName: 'Fenster Kueche:1',
+            channelType: 'SHUTTER_CONTACT', channelIndex: 1, iface: 'HmIP-RF', datapoint: 'STATE',
+        }));
+        expect(nat.getNativeEntity('hm-contact:' + dev).config.battery_low_normalized).toEqual({
+            topic: 'hm/status/Fenster Kueche:0/LOW_BAT',
+            property: 'payload.val',
+            payloadLow: true,
         });
     });
 
@@ -403,8 +418,7 @@ describe('Homematic contact recognizer', () => {
         expect(c.payload_on).toBe('2');
         expect(c.availability_normalized.entries).toEqual([
             {topic: 'hm/status/Fenstergriff Bad:0/UNREACH', property: 'payload.val'},
-            {topic: 'hm/status/Fenstergriff Bad:0/LOWBAT', property: 'payload.val'},
-        ]);
+        ]);   // E124: LOWBAT no longer folded into availability
     });
 
     it('does NOT promote a STATE whose channelType is not a contact type (e.g. a switch)', () => {
@@ -915,5 +929,32 @@ describe('homematic sensor recognizer (E131 motion, E132 hazard table)', () => {
         nat.handleNativeMessage('hm/status/Fenster Bad:1/STATE',
             je(false, {device: 'C1', channel: 'C1:1', channelType: 'SHUTTER_CONTACT', datapoint: 'STATE'}));
         expect(nat.getNativeEntity('hm-sensor:C1')).toBe(null);
+    });
+});
+
+describe('E124 — climate battery is presence-checked (mains TRVs stay badge-free)', () => {
+    it('emits battery_low_normalized only after an observed :0 LOWBAT/LOW_BAT', () => {
+        const dev = '000BATT111111';
+        const base = {
+            device: dev, deviceName: 'Heizung Kind', deviceType: 'HmIP-eTRV-2',
+            channel: dev + ':1', channelName: 'Heizung Kind:1',
+            channelType: 'HEATING_CLIMATECONTROL_TRANSCEIVER', channelIndex: 1, iface: 'HmIP-RF',
+        };
+        nat.handleNativeMessage('hm/status/Heizung Kind:1/SET_POINT_TEMPERATURE',
+            je(21, {...base, datapoint: 'SET_POINT_TEMPERATURE'}));
+        expect(nat.getNativeEntity('hm-climate:' + dev).config.battery_low_normalized).toBeUndefined();
+
+        nat.handleNativeMessage('hm/status/Heizung Kind:0/LOW_BAT',
+            je(false, {device: dev, channel: dev + ':0', channelType: 'MAINTENANCE', datapoint: 'LOW_BAT'}));
+        nat.handleNativeMessage('hm/status/Heizung Kind:1/SET_POINT_TEMPERATURE',
+            je(21.5, {...base, datapoint: 'SET_POINT_TEMPERATURE'}));
+
+        const c = nat.getNativeEntity('hm-climate:' + dev).config;
+        expect(c.battery_low_normalized).toEqual({
+            topic: 'hm/status/Heizung Kind:0/LOW_BAT',
+            property: 'payload.val',
+            payloadLow: true,
+        });
+        expect(c.availability_normalized.entries).toHaveLength(1);   // UNREACH only, unchanged
     });
 });

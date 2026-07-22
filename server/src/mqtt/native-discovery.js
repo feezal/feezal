@@ -136,7 +136,9 @@ const hmClimateRecognizer = {
         const parts = topic.split('/');
         if (parts.length !== 4) return null;            // exactly prefix/status/seg/DP
         const datapoint = parts[3];
-        if (!HM_THERMOSTAT_DPS.has(datapoint)) return null;
+        // E124: also observe the :0 battery datapoints for the presence check
+        // (mains-powered TRVs/wall thermostats must not grow a battery slot).
+        if (!HM_THERMOSTAT_DPS.has(datapoint) && !HM_BATTERY_DPS.has(datapoint)) return null;
         return {seg: parts[2], datapoint};
     },
 
@@ -152,8 +154,12 @@ const hmClimateRecognizer = {
         let dev = state.devices.get(deviceId);
         if (!dev) {
             dev = {deviceId, deviceName: undefined, deviceType: undefined,
-                iface: undefined, channels: new Map(), lastTs: 0};
+                iface: undefined, channels: new Map(), lastTs: 0, batteryDp: undefined};
             state.devices.set(deviceId, dev);
+        }
+        // E124: presence-checked battery — remember the observed :0 name.
+        if (HM_BATTERY_DPS.has(parsed.datapoint) && /:0$/.test(parsed.seg)) {
+            dev.batteryDp = parsed.datapoint;
         }
         // Newest datapoint timestamp across the device — the liveness signal for
         // the climate staleness filter (a live thermostat updates constantly).
@@ -341,6 +347,17 @@ const hmClimateRecognizer = {
             payloadUnavailable: true,
         };
 
+        // E124: dedicated low-battery record — ONLY when a LOWBAT/LOW_BAT
+        // datapoint was actually observed on :0 (presence-checked; mains
+        // devices never grow a dead battery slot).
+        if (dev.batteryDp) {
+            config.battery_low_normalized = {
+                topic: hmStatus(p, availSeg, dev.batteryDp),
+                property: 'payload.val',
+                payloadLow: true,
+            };
+        }
+
         // Device-level discovery_id → one entry per physical device; re-promotes
         // (updates) as more datapoints arrive.
         return {
@@ -421,12 +438,13 @@ const hmContactRecognizer = {
     state: {devices: new Map()},
 
     match(topic) {
-        // hm/status/<seg>/STATE — STATE only (whitelisted datapoint).
+        // hm/status/<seg>/STATE — the state datapoint; plus the :0 battery
+        // datapoints (E124 presence check: LOWBAT BidCoS / LOW_BAT HmIP).
         if (!topic.startsWith(hmPrefix + '/status/')) return null;
         const parts = topic.split('/');
         if (parts.length !== 4) return null;            // exactly prefix/status/seg/DP
-        if (parts[3] !== 'STATE') return null;
-        return {seg: parts[2], datapoint: 'STATE'};
+        if (parts[3] !== 'STATE' && !HM_BATTERY_DPS.has(parts[3])) return null;
+        return {seg: parts[2], datapoint: parts[3]};
     },
 
     accumulate(state, parsed, value, payload) {
@@ -440,13 +458,21 @@ const hmContactRecognizer = {
 
         let dev = state.devices.get(deviceId);
         if (!dev) {
-            dev = {deviceId, deviceName: undefined, deviceType: undefined, channels: new Map()};
+            dev = {deviceId, deviceName: undefined, deviceType: undefined,
+                channels: new Map(), batteryDp: undefined};
             state.devices.set(deviceId, dev);
         }
         if (hm) {
             if (hm.deviceName != null) dev.deviceName = hm.deviceName;
             if (hm.deviceType != null) dev.deviceType = hm.deviceType;
         }
+
+        // E124: remember WHICH battery datapoint this device publishes on :0
+        // (fixes the HmIP LOW_BAT-never-read bug — only LOWBAT was known).
+        if (HM_BATTERY_DPS.has(parsed.datapoint) && /:0$/.test(parsed.seg)) {
+            dev.batteryDp = parsed.datapoint;
+        }
+        if (parsed.datapoint !== 'STATE') return dev;
 
         let chan = dev.channels.get(parsed.seg);
         if (!chan) {
@@ -503,22 +529,28 @@ const hmContactRecognizer = {
         // Availability from the device's :0 maintenance channel — derive the :0
         // segment from the contact channel's name-based segment (device:1 →
         // device:0), or its channel address for a nameless device.
+        // E124: UNREACH is the SOLE availability source now — the old
+        // "LOWBAT folded into availability" compromise is gone; a weak
+        // battery is a dedicated warning, not a blackout.
         const availBase = seg !== '' ? seg : (contact.channelAddr || seg);
         const availSeg = availBase.replace(/:\d+$/, ':0');
-        // availability_normalized lives INSIDE config (HA convention — the client's
-        // _applyDiscovery reads cfg.availability_normalized). TWO entries: UNREACH +
-        // LOWBAT (both JSON-Extended .val). mode 'all' ⇒ the element shows
-        // unavailable when unreachable OR battery low — acceptable since contacts
-        // have no dedicated battery attribute of their own.
         config.availability_normalized = {
-            entries: [
-                {topic: hmStatus(p, availSeg, 'UNREACH'), property: 'payload.val'},
-                {topic: hmStatus(p, availSeg, 'LOWBAT'), property: 'payload.val'},
-            ],
+            entries: [{topic: hmStatus(p, availSeg, 'UNREACH'), property: 'payload.val'}],
             mode: 'all',
             payloadAvailable: false,
             payloadUnavailable: true,
         };
+
+        // E124: dedicated low-battery record — presence-checked (the observed
+        // generation name: LOWBAT BidCoS / LOW_BAT HmIP — the latter was
+        // silently lost before).
+        if (dev.batteryDp) {
+            config.battery_low_normalized = {
+                topic: hmStatus(p, availSeg, dev.batteryDp),
+                property: 'payload.val',
+                payloadLow: true,
+            };
+        }
 
         return {
             discovery_id: 'hm-contact:' + deviceId,
