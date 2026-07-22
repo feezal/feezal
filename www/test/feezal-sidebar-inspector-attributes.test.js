@@ -901,7 +901,14 @@ describe('E124 — _applyDiscovery stamps battery_low_normalized for declaring e
         expect(el.getAttribute('payload-battery-low')).toBe('true');
     });
 
-    it('does NOT stamp on an element without the attribute (contacts join with E124)', async () => {
+    it('does NOT stamp on an element without the attribute', async () => {
+        // E137: contacts and climate DO declare the battery quartet now (via
+        // their controller fragments) — use a stub element without it to keep
+        // exercising the declaration guard.
+        class NoBatteryTarget extends HTMLElement {
+            static feezal = {attributes: [{name: 'subscribe', type: 'mqttTopic'}], styles: []};
+        }
+        customElements.define('feezal-element-no-battery-target', NoBatteryTarget);
         const entity = {
             discovery_id: 'binary_sensor/c1/door',
             component: 'binary_sensor',
@@ -911,7 +918,7 @@ describe('E124 — _applyDiscovery stamps battery_low_normalized for declaring e
                 battery_low_normalized: {topic: 'z/c1', property: 'payload.battery_low', payloadLow: true},
             },
         };
-        const el = document.createElement('feezal-element-material-contact');
+        const el = document.createElement('feezal-element-no-battery-target');
         globalThis.feezal.app = {change: vi.fn()};
         const ins = document.createElement('feezal-sidebar-inspector-attributes');
         ins.selectedElems = [el];

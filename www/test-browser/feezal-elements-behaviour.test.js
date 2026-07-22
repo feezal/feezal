@@ -134,13 +134,13 @@ describe('contact', () => {
         });
 
         feezal.connection.deliver('stat/window', 'ON');       // default payload-open
-        expect(el._contactState).toBe('open');
+        expect(el.contact.state).toBe('open');
 
         feezal.connection.deliver('stat/window', 'OFF');
-        expect(el._contactState).toBe('closed');
+        expect(el.contact.state).toBe('closed');
 
         feezal.connection.deliver('stat/window', 'TILTED');
-        expect(el._contactState).toBe('tilted');
+        expect(el.contact.state).toBe('tilted');
     });
 
     it('B27: Homematic numeric payloads (0/1/2) drive the tristate incl. tilt handle', async () => {
@@ -151,15 +151,15 @@ describe('contact', () => {
 
         feezal.connection.deliver('hm/window/STATE', 2);
         await el.updateComplete;
-        expect(el._contactState).toBe('tilted');
+        expect(el.contact.state).toBe('tilted');
         // Handle lever drawn pointing up (pivot y=30 → endpoint y=16)
         const lever = [...el.shadowRoot.querySelectorAll('svg.contact line')].pop();
         expect(lever.getAttribute('y2')).toBe('16');
 
         feezal.connection.deliver('hm/window/STATE', 1);
-        expect(el._contactState).toBe('open');
+        expect(el.contact.state).toBe('open');
         feezal.connection.deliver('hm/window/STATE', 0);
-        expect(el._contactState).toBe('closed');
+        expect(el.contact.state).toBe('closed');
     });
 
     it('B27: rewires subscriptions when the topic changes on the live canvas', async () => {
@@ -171,11 +171,11 @@ describe('contact', () => {
         await el.updateComplete;
 
         feezal.connection.deliver('stat/new', '2');
-        expect(el._contactState).toBe('tilted');
+        expect(el.contact.state).toBe('tilted');
 
         // The stale topic no longer reaches the element
         feezal.connection.deliver('stat/old', 'ON');
-        expect(el._contactState).toBe('tilted');
+        expect(el.contact.state).toBe('tilted');
     });
 
     it('E78: a legacy contacts attribute falls back to single-contact mode (multi-contact removed)', async () => {
@@ -213,13 +213,13 @@ describe('motion', () => {
         const el = await mount('feezal-element-material-motion', {subscribe: 'stat/pir'});
 
         feezal.connection.deliver('stat/pir', 'ON');
-        expect(el._active).toBe(true);
+        expect(el.sensor.active).toBe(true);
 
         feezal.connection.deliver('stat/pir', 'OFF');
-        expect(el._active).toBe(false);
+        expect(el.sensor.active).toBe(false);
 
         feezal.connection.deliver('stat/pir', {state: 'ON'});   // zigbee2mqtt-style
-        expect(el._active).toBe(true);
+        expect(el.sensor.active).toBe(true);
     });
 });
 

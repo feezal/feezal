@@ -89,6 +89,7 @@ export const climateDiscoveryMap = {
     mode_command_topic:        {attr: 'publish-mode'},
     action_topic:              {attr: 'subscribe-valve'},
     message_property:          {attr: 'message-property'},
+    value_template:            {attr: 'message-property', transform: 'valueTemplateToPath'},
     message_property_setpoint:        {attr: 'message-property-setpoint'},
     message_property_actual:          {attr: 'message-property-actual'},
     message_property_mode:            {attr: 'message-property-mode'},
@@ -242,27 +243,12 @@ export class ClimateController {
 
         sub(this._attr('subscribe-boost-remaining'), msg => {
             const v = Number(this._prop(msg, 'message-property-boost-remaining'));
-            if (!Number.isNaN(v)) {
-                const secs = this._attr('boost-remaining-unit', 'minutes') === 'seconds'
-                    ? Math.round(v) : Math.round(v * 60);
-                this.boostRemaining = Math.max(0, secs);
-                update();
-            }
+            if (!Number.isNaN(v)) { this.applyBoostRemaining(v); update(); }
         });
 
         // B54: device-reported boost active state.
         sub(this._attr('subscribe-boost-state'), msg => {
-            const raw = this._prop(msg, 'message-property-boost-state');
-            const active = raw === true || raw === 1
-                || String(raw).toLowerCase() === 'true' || String(raw) === '1';
-            if (active && !this.boostForced) {
-                this.boostForced = true;
-                if (this.boostRemaining === null) this._startBoostCountdown();
-            } else if (!active && this.boostForced) {
-                this.boostForced = false;
-                this.momentaryActive = null;
-                this._clearBoost();
-            }
+            this.applyBoostState(this._prop(msg, 'message-property-boost-state'));
             update();
         });
 
@@ -429,6 +415,31 @@ export class ClimateController {
             this._startBoostCountdown();
         }
         this.host.requestUpdate();
+    }
+
+    /**
+     * B54 — device-reported boost active state (hm BOOST_MODE true/false).
+     * Truthy forces the momentary entry active regardless of the mode
+     * read-back and starts the countdown; falsy returns to mode-derived state.
+     */
+    applyBoostState(raw) {
+        const active = raw === true || raw === 1
+            || String(raw).toLowerCase() === 'true' || String(raw) === '1';
+        if (active && !this.boostForced) {
+            this.boostForced = true;
+            if (this.boostRemaining === null) this._startBoostCountdown();
+        } else if (!active && this.boostForced) {
+            this.boostForced = false;
+            this.momentaryActive = null;
+            this._clearBoost();
+        }
+    }
+
+    /** Device-reported remaining time → seconds (via boost-remaining-unit). */
+    applyBoostRemaining(v) {
+        const secs = this._attr('boost-remaining-unit', 'minutes') === 'seconds'
+            ? Math.round(v) : Math.round(v * 60);
+        this.boostRemaining = Math.max(0, secs);
     }
 
     /** Mode read-back routing (B54: never clears a device-forced boost). */

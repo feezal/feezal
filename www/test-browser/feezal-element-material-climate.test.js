@@ -16,7 +16,7 @@ describe('material-climate valve scaling (E102)', () => {
         });
         feezal.connection.deliver('stat/valve', '73');
         await el.updateComplete;
-        expect(el._valve).toBe(73);
+        expect(el.climate.valve).toBe(73);
     });
 
     it('scales HmIP LEVEL 0…1 to 0–100 % when valve-max=1', async () => {
@@ -26,10 +26,10 @@ describe('material-climate valve scaling (E102)', () => {
         });
         feezal.connection.deliver('stat/level', '0.5');
         await el.updateComplete;
-        expect(el._valve).toBe(50);
+        expect(el.climate.valve).toBe(50);
         feezal.connection.deliver('stat/level', '1');
         await el.updateComplete;
-        expect(el._valve).toBe(100);
+        expect(el.climate.valve).toBe(100);
     });
 
     it('clamps out-of-range values and survives a zero span', async () => {
@@ -39,12 +39,12 @@ describe('material-climate valve scaling (E102)', () => {
         });
         feezal.connection.deliver('stat/v', '2');       // > max
         await el.updateComplete;
-        expect(el._valve).toBe(100);
+        expect(el.climate.valve).toBe(100);
 
-        el.valveMax = 0;                                // degenerate span → passthrough+clamp
+        el.setAttribute('valve-max', '0');                                // degenerate span → passthrough+clamp
         feezal.connection.deliver('stat/v', '42');
         await el.updateComplete;
-        expect(el._valve).toBe(42);
+        expect(el.climate.valve).toBe(42);
     });
 
     it('scales the valve read from a JSON payload too', async () => {
@@ -54,7 +54,7 @@ describe('material-climate valve scaling (E102)', () => {
         });
         feezal.connection.deliver('stat/t', {level: 0.25});
         await el.updateComplete;
-        expect(el._valve).toBe(25);
+        expect(el.climate.valve).toBe(25);
     });
 });
 
@@ -66,7 +66,7 @@ describe('material-climate per-entry mode descriptors (E102)', () => {
         });
         const published = [];
         feezal.connection.pub = (t, p) => published.push({t, p});
-        el._setMode({value: 'heat'});
+        el.climate.setMode({value: 'heat'});
         expect(published).toContainEqual({t: 'cmd/mode', p: 'heat'});
     });
 
@@ -79,7 +79,7 @@ describe('material-climate per-entry mode descriptors (E102)', () => {
         await el.updateComplete;
         const published = [];
         feezal.connection.pub = (t, p) => published.push({t, p});
-        el._setMode(el._parsedModes()[0]);
+        el.climate.setMode(el.climate.parsedModes()[0]);
         expect(published).toContainEqual({t: 'hm/set/TRV/4/MANU_MODE', p: '21.5'});
     });
 
@@ -93,7 +93,7 @@ describe('material-climate per-entry mode descriptors (E102)', () => {
         await el.updateComplete;
         const published = [];
         feezal.connection.pub = (t, p) => published.push({t, p});
-        el._setMode(el._parsedModes()[0]);
+        el.climate.setMode(el.climate.parsedModes()[0]);
         expect(published[0].t).toBe('hm/paramset/WTH:1/VALUES');
         expect(JSON.parse(published[0].p)).toEqual({CONTROL_MODE: 1, SET_POINT_TEMPERATURE: 4.5});
     });
@@ -106,18 +106,18 @@ describe('material-climate per-entry mode descriptors (E102)', () => {
                 {value: 'boost', label: 'Boost', momentary: true, publish: 'hm/set/TRV/4/BOOST_MODE', payload: 'true', off: 'restore'},
             ]),
         });
-        el._mode = 'auto';                       // pre-boost read-back
+        el.climate.mode = 'auto';                       // pre-boost read-back
         const published = [];
         feezal.connection.pub = (t, p) => published.push({t, p});
-        const boost = el._parsedModes().find(m => m.momentary);
+        const boost = el.climate.parsedModes().find(m => m.momentary);
 
-        el._setMode(boost);                      // activate
-        expect(el._momentaryActive).toBe('boost');
+        el.climate.setMode(boost);                      // activate
+        expect(el.climate.momentaryActive).toBe('boost');
         expect(published).toContainEqual({t: 'hm/set/TRV/4/BOOST_MODE', p: 'true'});
 
         published.length = 0;
-        el._setMode(boost);                      // deactivate → restore 'auto' on publish-mode
-        expect(el._momentaryActive).toBeNull();
+        el.climate.setMode(boost);                      // deactivate → restore 'auto' on publish-mode
+        expect(el.climate.momentaryActive).toBeNull();
         expect(published).toContainEqual({t: 'cmd/mode', p: 'auto'});
     });
 
@@ -130,9 +130,9 @@ describe('material-climate per-entry mode descriptors (E102)', () => {
         });
         const published = [];
         feezal.connection.pub = (t, p) => published.push({t, p});
-        const boost = el._parsedModes()[0];
-        el._setMode(boost);
-        el._setMode(boost);
+        const boost = el.climate.parsedModes()[0];
+        el.climate.setMode(boost);
+        el.climate.setMode(boost);
         expect(published).toContainEqual({t: 'hm/set/eTRV/1/BOOST_MODE', p: 'true'});
         expect(published).toContainEqual({t: 'hm/set/eTRV/1/BOOST_MODE', p: 'false'});
     });
@@ -149,11 +149,11 @@ describe('material-climate boost countdown badge (E102 WP2)', () => {
         });
         vi.useFakeTimers();
         try {
-            el._setMode(el._parsedModes()[0]);          // activate
-            expect(el._boostRemaining).toBe(300);       // 5 min → 300 s
+            el.climate.setMode(el.climate.parsedModes()[0]);          // activate
+            expect(el.climate.boostRemaining).toBe(300);       // 5 min → 300 s
             vi.advanceTimersByTime(3000);
-            expect(el._boostRemaining).toBe(297);
-            expect(el._boostBadge()).toBe('04:57');
+            expect(el.climate.boostRemaining).toBe(297);
+            expect(el.climate.boostBadge()).toBe('04:57');
             await el.updateComplete;
             const label = el.renderRoot.querySelector('md-filter-chip[selected]')?.getAttribute('label') || '';
             expect(label).toContain('04:57');
@@ -165,18 +165,18 @@ describe('material-climate boost countdown badge (E102 WP2)', () => {
             'payload-mode': 'separate', subscribe: 'stat/t',
             'subscribe-boost-remaining': 'stat/boost', 'boost-remaining-unit': 'minutes', modes: boostModes,
         });
-        el._setMode(el._parsedModes()[0]);              // activate — device topic wired → no client timer
-        expect(el._boostTimer).toBeNull();
+        el.climate.setMode(el.climate.parsedModes()[0]);              // activate — device topic wired → no client timer
+        expect(el.climate._boostTimer).toBeNull();
         feezal.connection.deliver('stat/boost', '3');   // 3 minutes → 180 s
         await el.updateComplete;
-        expect(el._boostRemaining).toBe(180);
-        expect(el._boostBadge()).toBe('03:00');
+        expect(el.climate.boostRemaining).toBe(180);
+        expect(el.climate.boostBadge()).toBe('03:00');
 
-        el.boostRemainingUnit = 'seconds';
+        el.setAttribute('boost-remaining-unit', 'seconds');
         feezal.connection.deliver('stat/boost', '90');  // 90 seconds as-is
         await el.updateComplete;
-        expect(el._boostRemaining).toBe(90);
-        expect(el._boostBadge()).toBe('01:30');
+        expect(el.climate.boostRemaining).toBe(90);
+        expect(el.climate.boostBadge()).toBe('01:30');
     });
 
     it('deactivation clears the badge/timer', async () => {
@@ -185,12 +185,12 @@ describe('material-climate boost countdown badge (E102 WP2)', () => {
         });
         vi.useFakeTimers();
         try {
-            const boost = el._parsedModes()[0];
-            el._setMode(boost);                         // activate
-            expect(el._boostRemaining).toBe(300);
-            el._setMode(boost);                         // deactivate
-            expect(el._boostRemaining).toBeNull();
-            expect(el._boostTimer).toBeNull();
+            const boost = el.climate.parsedModes()[0];
+            el.climate.setMode(boost);                         // activate
+            expect(el.climate.boostRemaining).toBe(300);
+            el.climate.setMode(boost);                         // deactivate
+            expect(el.climate.boostRemaining).toBeNull();
+            expect(el.climate._boostTimer).toBeNull();
         } finally { vi.useRealTimers(); }
     });
 
@@ -200,10 +200,10 @@ describe('material-climate boost countdown badge (E102 WP2)', () => {
         });
         vi.useFakeTimers();
         try {
-            el._setMode(el._parsedModes()[0]);          // activate → interval running
-            expect(el._boostTimer).not.toBeNull();
+            el.climate.setMode(el.climate.parsedModes()[0]);          // activate → interval running
+            expect(el.climate._boostTimer).not.toBeNull();
             el.remove();                                // disconnectedCallback
-            expect(el._boostTimer).toBeNull();
+            expect(el.climate._boostTimer).toBeNull();
         } finally { vi.useRealTimers(); }
     });
 });
@@ -282,7 +282,7 @@ describe('material-climate mode list sanitizing (B55)', () => {
             'payload-mode': 'separate', subscribe: 'stat/t', 'subscribe-mode': 'stat/mode',
             modes: JSON.stringify([{value: 0, label: 'Auto'}, {value: 1, label: 'Manu'}, {label: 'broken'}]),
         });
-        expect(el._parsedModes().map(m => m.label)).toEqual(['Auto', 'Manu']);
+        expect(el.climate.parsedModes().map(m => m.label)).toEqual(['Auto', 'Manu']);
         feezal.connection.deliver('stat/mode', '0');
         await el.updateComplete;
         const selected = [...el.renderRoot.querySelectorAll('md-filter-chip[selected]')];
@@ -301,7 +301,7 @@ describe('material-climate $setpoint type preservation (B58)', () => {
         await el.updateComplete;
         const published = [];
         feezal.connection.pub = (t, p) => published.push({t, p});
-        el._setMode(el._parsedModes()[0]);
+        el.climate.setMode(el.climate.parsedModes()[0]);
         const obj = JSON.parse(published[0].p);
         // hm2mqtt silently drops FLOAT params typed as strings — must be a number.
         expect(obj.SET_POINT_TEMPERATURE).toBe(17);
@@ -318,7 +318,7 @@ describe('material-climate $setpoint type preservation (B58)', () => {
         await el.updateComplete;
         const published = [];
         feezal.connection.pub = (t, p) => published.push({t, p});
-        el._setMode(el._parsedModes()[0]);
+        el.climate.setMode(el.climate.parsedModes()[0]);
         expect(published[0].p).toBe('temp=17');
     });
 });
@@ -337,8 +337,8 @@ describe('material-climate device-reported boost state (B54)', () => {
         });
         feezal.connection.deliver('stat/boost', 'true');
         await el.updateComplete;
-        expect(el._boostForced).toBe(true);
-        expect(el._boostRemaining).not.toBeNull();      // countdown keys off the device transition
+        expect(el.climate.boostForced).toBe(true);
+        expect(el.climate.boostRemaining).not.toBeNull();      // countdown keys off the device transition
         // The selected chip label carries the countdown badge ("Boost 05:00").
         const boostSelected = () => [...el.renderRoot.querySelectorAll('md-filter-chip[selected]')]
             .some(c => (c.getAttribute('label') || '').startsWith('Boost'));
@@ -347,13 +347,13 @@ describe('material-climate device-reported boost state (B54)', () => {
         // HmIP SET_POINT_MODE keeps reporting Manu (1) during boost — must NOT flip.
         feezal.connection.deliver('stat/mode', '1');
         await el.updateComplete;
-        expect(el._boostForced).toBe(true);
+        expect(el.climate.boostForced).toBe(true);
         expect(boostSelected()).toBe(true);
 
         feezal.connection.deliver('stat/boost', 'false');
         await el.updateComplete;
-        expect(el._boostForced).toBe(false);
-        expect(el._boostRemaining).toBeNull();
+        expect(el.climate.boostForced).toBe(false);
+        expect(el.climate.boostRemaining).toBeNull();
         expect(boostSelected()).toBe(false);
     });
 
@@ -365,8 +365,8 @@ describe('material-climate device-reported boost state (B54)', () => {
         await el.updateComplete;
         const published = [];
         feezal.connection.pub = (t, p) => published.push({t, p});
-        el._setMode(el._parsedModes().find(m => m.momentary));
+        el.climate.setMode(el.climate.parsedModes().find(m => m.momentary));
         expect(published).toContainEqual({t: 'hm/set/x/BOOST_MODE', p: 'false'});
-        expect(el._boostForced).toBe(false);
+        expect(el.climate.boostForced).toBe(false);
     });
 });

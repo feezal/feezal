@@ -17,7 +17,7 @@ describe('glass-climate valve scaling (E102 WP1)', () => {
         });
         feezal.connection.deliver('stat/level', '0.5');
         await el.updateComplete;
-        expect(el._valve).toBe(50);
+        expect(el.climate.valve).toBe(50);
         el.openDetails();
         await el.updateComplete;
         const txt = el.renderRoot.textContent;
@@ -31,7 +31,7 @@ describe('glass-climate valve scaling (E102 WP1)', () => {
         });
         feezal.connection.deliver('stat/v', '73');
         await el.updateComplete;
-        expect(el._valve).toBe(73);
+        expect(el.climate.valve).toBe(73);
     });
 
     it('scales the valve read from a JSON payload too (position key)', async () => {
@@ -41,12 +41,12 @@ describe('glass-climate valve scaling (E102 WP1)', () => {
         });
         feezal.connection.deliver('stat/t', {level: 0.25});
         await el.updateComplete;
-        expect(el._valve).toBe(25);
+        expect(el.climate.valve).toBe(25);
     });
 
     it('nothing valve-related renders while subscribe-valve is unset', async () => {
         const el = await mount('feezal-element-glass-climate', {'payload-mode': 'separate'});
-        expect(el._valve).toBeNull();
+        expect(el.climate.valve).toBeNull();
         el.openDetails();
         await el.updateComplete;
         expect(el.renderRoot.textContent).not.toContain('Valve');
@@ -61,7 +61,7 @@ describe('glass-climate per-entry mode descriptors (E102)', () => {
         });
         const published = [];
         feezal.connection.pub = (t, p) => published.push({t, p});
-        el._setMode({value: 'heat'});
+        el.climate.setMode({value: 'heat'});
         expect(published).toContainEqual({t: 'cmd/mode', p: 'heat'});
     });
 
@@ -74,7 +74,7 @@ describe('glass-climate per-entry mode descriptors (E102)', () => {
         await el.updateComplete;
         const published = [];
         feezal.connection.pub = (t, p) => published.push({t, p});
-        el._setMode(el._parsedModes()[0]);
+        el.climate.setMode(el.climate.parsedModes()[0]);
         expect(published).toContainEqual({t: 'hm/set/TRV/4/MANU_MODE', p: '21.5'});
     });
 
@@ -88,7 +88,7 @@ describe('glass-climate per-entry mode descriptors (E102)', () => {
         await el.updateComplete;
         const published = [];
         feezal.connection.pub = (t, p) => published.push({t, p});
-        el._setMode(el._parsedModes()[0]);
+        el.climate.setMode(el.climate.parsedModes()[0]);
         expect(published[0].t).toBe('hm/paramset/WTH:1/VALUES');
         expect(JSON.parse(published[0].p)).toEqual({CONTROL_MODE: 1, SET_POINT_TEMPERATURE: 4.5});
     });
@@ -101,18 +101,18 @@ describe('glass-climate per-entry mode descriptors (E102)', () => {
                 {value: 'boost', label: 'Boost', momentary: true, publish: 'hm/set/TRV/4/BOOST_MODE', payload: 'true', off: 'restore'},
             ]),
         });
-        el._mode = 'auto';                       // pre-boost read-back
+        el.climate.mode = 'auto';                       // pre-boost read-back
         const published = [];
         feezal.connection.pub = (t, p) => published.push({t, p});
-        const boost = el._parsedModes().find(m => m.momentary);
+        const boost = el.climate.parsedModes().find(m => m.momentary);
 
-        el._setMode(boost);                      // activate
-        expect(el._momentaryActive).toBe('boost');
+        el.climate.setMode(boost);                      // activate
+        expect(el.climate.momentaryActive).toBe('boost');
         expect(published).toContainEqual({t: 'hm/set/TRV/4/BOOST_MODE', p: 'true'});
 
         published.length = 0;
-        el._setMode(boost);                      // deactivate → restore 'auto' on publish-mode
-        expect(el._momentaryActive).toBeNull();
+        el.climate.setMode(boost);                      // deactivate → restore 'auto' on publish-mode
+        expect(el.climate.momentaryActive).toBeNull();
         expect(published).toContainEqual({t: 'cmd/mode', p: 'auto'});
     });
 
@@ -125,9 +125,9 @@ describe('glass-climate per-entry mode descriptors (E102)', () => {
         });
         const published = [];
         feezal.connection.pub = (t, p) => published.push({t, p});
-        const boost = el._parsedModes()[0];
-        el._setMode(boost);
-        el._setMode(boost);
+        const boost = el.climate.parsedModes()[0];
+        el.climate.setMode(boost);
+        el.climate.setMode(boost);
         expect(published).toContainEqual({t: 'hm/set/eTRV/1/BOOST_MODE', p: 'true'});
         expect(published).toContainEqual({t: 'hm/set/eTRV/1/BOOST_MODE', p: 'false'});
     });
@@ -144,11 +144,11 @@ describe('glass-climate boost countdown badge (E102 WP2)', () => {
         });
         vi.useFakeTimers();
         try {
-            el._setMode(el._parsedModes()[0]);          // activate
-            expect(el._boostRemaining).toBe(300);       // 5 min → 300 s
+            el.climate.setMode(el.climate.parsedModes()[0]);          // activate
+            expect(el.climate.boostRemaining).toBe(300);       // 5 min → 300 s
             vi.advanceTimersByTime(3000);
-            expect(el._boostRemaining).toBe(297);
-            expect(el._boostBadge()).toBe('04:57');
+            expect(el.climate.boostRemaining).toBe(297);
+            expect(el.climate.boostBadge()).toBe('04:57');
             el.openDetails();
             await el.updateComplete;
             expect(el.renderRoot.querySelector('.modes button.active .boost-badge')?.textContent).toBe('04:57');
@@ -160,18 +160,18 @@ describe('glass-climate boost countdown badge (E102 WP2)', () => {
             'payload-mode': 'separate',
             'subscribe-boost-remaining': 'stat/boost', 'boost-remaining-unit': 'minutes', modes: boostModes,
         });
-        el._setMode(el._parsedModes()[0]);              // activate — device topic wired → no client timer
-        expect(el._boostTimer).toBeNull();
+        el.climate.setMode(el.climate.parsedModes()[0]);              // activate — device topic wired → no client timer
+        expect(el.climate._boostTimer).toBeNull();
         feezal.connection.deliver('stat/boost', '3');   // 3 minutes → 180 s
         await el.updateComplete;
-        expect(el._boostRemaining).toBe(180);
-        expect(el._boostBadge()).toBe('03:00');
+        expect(el.climate.boostRemaining).toBe(180);
+        expect(el.climate.boostBadge()).toBe('03:00');
 
-        el.boostRemainingUnit = 'seconds';
+        el.setAttribute('boost-remaining-unit', 'seconds');
         feezal.connection.deliver('stat/boost', '90');  // 90 seconds as-is
         await el.updateComplete;
-        expect(el._boostRemaining).toBe(90);
-        expect(el._boostBadge()).toBe('01:30');
+        expect(el.climate.boostRemaining).toBe(90);
+        expect(el.climate.boostBadge()).toBe('01:30');
     });
 
     it('deactivation clears the badge/timer', async () => {
@@ -180,12 +180,12 @@ describe('glass-climate boost countdown badge (E102 WP2)', () => {
         });
         vi.useFakeTimers();
         try {
-            const boost = el._parsedModes()[0];
-            el._setMode(boost);                         // activate
-            expect(el._boostRemaining).toBe(300);
-            el._setMode(boost);                         // deactivate
-            expect(el._boostRemaining).toBeNull();
-            expect(el._boostTimer).toBeNull();
+            const boost = el.climate.parsedModes()[0];
+            el.climate.setMode(boost);                         // activate
+            expect(el.climate.boostRemaining).toBe(300);
+            el.climate.setMode(boost);                         // deactivate
+            expect(el.climate.boostRemaining).toBeNull();
+            expect(el.climate._boostTimer).toBeNull();
         } finally { vi.useRealTimers(); }
     });
 
@@ -195,10 +195,10 @@ describe('glass-climate boost countdown badge (E102 WP2)', () => {
         });
         vi.useFakeTimers();
         try {
-            el._setMode(el._parsedModes()[0]);          // activate → interval running
-            expect(el._boostTimer).not.toBeNull();
+            el.climate.setMode(el.climate.parsedModes()[0]);          // activate → interval running
+            expect(el.climate._boostTimer).not.toBeNull();
             el.remove();                                // disconnectedCallback
-            expect(el._boostTimer).toBeNull();
+            expect(el.climate._boostTimer).toBeNull();
         } finally { vi.useRealTimers(); }
     });
 });
@@ -278,7 +278,7 @@ describe('glass-climate Off sentinel (B53) + value-0 sanitizing (B55)', () => {
         const el = await mount('feezal-element-glass-climate', {
             'payload-mode': 'separate', 'subscribe-mode': 'stat/mode', modes,
         });
-        expect(el._parsedModes().map(m => m.label)).toEqual(['Auto', 'Manu', 'Off']);
+        expect(el.climate.parsedModes().map(m => m.label)).toEqual(['Auto', 'Manu', 'Off']);
         el.openDetails();
         await el.updateComplete;
         const labels = [...el.renderRoot.querySelectorAll('.modes button')].map(b => b.textContent.trim());
@@ -317,7 +317,7 @@ describe('glass-climate $setpoint type preservation (B58)', () => {
         await el.updateComplete;
         const published = [];
         feezal.connection.pub = (t, p) => published.push({t, p});
-        el._setMode(el._parsedModes()[0]);
+        el.climate.setMode(el.climate.parsedModes()[0]);
         const obj = JSON.parse(published[0].p);
         expect(obj.SET_POINT_TEMPERATURE).toBe(17);
         expect(typeof obj.SET_POINT_TEMPERATURE).toBe('number');
@@ -340,13 +340,13 @@ describe('glass-climate device-reported boost state (B54)', () => {
         feezal.connection.deliver('stat/mode', '1');    // HmIP keeps reporting Manu during boost
         el.openDetails();
         await el.updateComplete;
-        expect(el._boostForced).toBe(true);
+        expect(el.climate.boostForced).toBe(true);
         const active = [...el.renderRoot.querySelectorAll('.modes button.active')];
         expect(active.some(b => b.textContent.includes('Boost'))).toBe(true);
 
         feezal.connection.deliver('stat/boost', 'false');
         await el.updateComplete;
-        expect(el._boostForced).toBe(false);
-        expect(el._boostRemaining).toBeNull();
+        expect(el.climate.boostForced).toBe(false);
+        expect(el.climate.boostRemaining).toBeNull();
     });
 });

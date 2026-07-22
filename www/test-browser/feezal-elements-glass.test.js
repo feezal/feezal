@@ -304,7 +304,9 @@ describe('glass-climate', () => {
         await el.updateComplete;
         expect(el.shadowRoot.querySelector('.actual').textContent).toBe('21.5°C');
         expect(el.shadowRoot.querySelector('.state').textContent).toContain('22°C');
-        expect(el.shadowRoot.querySelector('.state').textContent).toContain('heat');
+        // E137: string mode entries render capitalized labels in every family
+        // (the controller unifies on material-climate's coercion).
+        expect(el.shadowRoot.querySelector('.state').textContent).toContain('Heat');
 
         el.shadowRoot.querySelector('.card').click();
         await el.updateComplete;

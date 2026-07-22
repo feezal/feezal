@@ -1,5 +1,8 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+// E137: the thermostat behavior lives in the shared controller — this element
+// is a VIEW (Circle chrome: the arc setpoint slider + chips/valve/humidity).
+import {ClimateController, climateAttributes, climateDiscoveryMap} from '@feezal/feezal-controller-climate';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {svg, LitElement} from 'lit';
 import '@material/web/icon/icon.js';
@@ -71,123 +74,18 @@ class FeezalElementMaterialClimate extends FeezalElement {
             // ── N6 custom inspector ───────────────────────────────────────────
             inspector: 'feezal-element-material-climate-inspector',
             // ── N12 Auto-Discovery descriptor ─────────────────────────────────
-            // N12 Auto-Discovery descriptor for HA MQTT climate devices.
-            // zigbee2mqtt TRVs (and similar) publish a schema:json discovery config
-            // where all state topics point to the same base topic (a JSON object)
-            // and all command topics point to the /set endpoint.
-            // ESPHome uses separate topics (no schema key); discovery still maps
-            // temperature range, unit, modes, and name automatically.
-            discovery: {
-                component: 'climate',
-                map: {
-                    // Schema → payload mode (json = zigbee2mqtt; absent = separate)
-                    schema: {attr: 'payload-mode', valueMap: {json: 'json', _default: 'separate'}},
-                    // Base-topic wiring — used by JSON-schema devices (zigbee2mqtt);
-                    // harmless to set for separate-mode devices since subscribe/publish
-                    // are not consumed in separate mode.
-                    temperature_state_topic:   {attr: 'subscribe-setpoint'},
-                    temperature_command_topic: {attr: 'publish-setpoint'},
-                    // Separate-mode per-property topic mappings (ESPHome, HA MQTT)
-                    current_temperature_topic: {attr: 'subscribe-actual'},
-                    mode_state_topic:          {attr: 'subscribe-mode'},
-                    mode_command_topic:        {attr: 'publish-mode'},
-                    action_topic:              {attr: 'subscribe-valve'},
-                    // E108: native-discovery-only keys (HA/z2m entities lack them
-                    // and simply skip these — additive, backwards compatible).
-                    // Homematic synthesised entities carry message_property:'val'
-                    // and the valve device range (BidCoS 0–100, HmIP 0–1).
-                    message_property: {attr: 'message-property'},
-                    // Per-topic message-property twins — native reads use these
-                    // per-topic (their 'payload' default never falls back), so the
-                    // recognizer stamps each to payload.val too. HA/z2m absent → skipped.
-                    message_property_setpoint:        {attr: 'message-property-setpoint'},
-                    message_property_actual:          {attr: 'message-property-actual'},
-                    message_property_mode:            {attr: 'message-property-mode'},
-                    message_property_valve:           {attr: 'message-property-valve'},
-                    message_property_boost_remaining: {attr: 'message-property-boost-remaining'},
-                    // B54: device-reported boost active state (hm BOOST_MODE).
-                    boost_state_topic:            {attr: 'subscribe-boost-state'},
-                    message_property_boost_state: {attr: 'message-property-boost-state'},
-                    valve_min:        {attr: 'valve-min'},
-                    valve_max:        {attr: 'valve-max'},
-                    // Range + step (apply in both modes)
-                    min_temp:         {attr: 'min'},
-                    max_temp:         {attr: 'max'},
-                    temp_step:        {attr: 'step'},
-                    temperature_unit: {attr: 'unit', valueMap: {C: '°C', F: '°F', _default: '°C'}},
-                    // Modes: HA gives ["heat","cool","off"]; _parsedModes() coerces to [{value,label}].
-                    modes: {attr: 'modes', transform: 'jsonStringify'},
-                    // N31: availability is mapped automatically from the canonical discovery record.
-                    // Label
-                    name: 'label',
-                },
-            },
+            // E137: the discovery map is the controller package's fragment.
+            discovery: {component: 'climate', map: climateDiscoveryMap},
             attributes: [
-                // ── Wiring mode ────────────────────────────────────────────────
-                {name: 'payload-mode', type: 'select', options: ['separate', 'json'], default: 'separate',
-                    help: 'separate = one topic per property (default, hand-wiring); json = single topic carrying the full climate JSON object.'},
-                // ── JSON mode ──────────────────────────────────────────────────
-                {name: 'subscribe', type: 'mqttTopic', help: 'json mode: base topic carrying the climate state JSON object.'},
-                {name: 'publish',   type: 'mqttTopic', help: 'json mode: command/set topic (e.g. zigbee2mqtt/TRV/set).'},
-                {name: 'json-map',  type: 'string', default: '',
-                    help: 'json mode: optional JSON map overriding default keys. E.g. {"setpoint":"target_temp","actual":"temperature"}.'},                {name: 'message-property', type: 'string', default: 'payload',
-                    help: 'json mode: dot-notation path to the state JSON object within the MQTT message. Default "payload" reads msg.payload directly.'},                // ── Separate mode — setpoint ───────────────────────────────────
-                {name: 'subscribe-setpoint', type: 'mqttTopic', help: 'separate: topic publishing the current setpoint.'},
-                {name: 'message-property-setpoint', type: 'string', default: 'payload',
-                    help: 'Dot-notation path within the setpoint message. Blank = fall back to element-level message-property.'},
-                {name: 'publish-setpoint',   type: 'mqttTopic', help: 'separate: topic to publish a new setpoint to.'},
-                // ── Separate mode — actual ─────────────────────────────────────
-                {name: 'subscribe-actual', type: 'mqttTopic', help: 'Topic for the actual measured temperature.'},
-                {name: 'message-property-actual', type: 'string', default: 'payload',
-                    help: 'Dot-notation path within the actual temperature message. Blank = fall back to element-level message-property.'},
-                // ── Separate mode — mode ──────────────────────────────────────
-                {name: 'subscribe-mode', type: 'mqttTopic', help: 'separate: topic publishing the current operating mode.'},
-                {name: 'message-property-mode', type: 'string', default: 'payload',
-                    help: 'Dot-notation path within the mode message. Blank = fall back to element-level message-property.'},
-                {name: 'publish-mode',   type: 'mqttTopic', help: 'separate: topic to publish the selected mode to.'},
-                // ── Separate mode — valve / humidity ──────────────────────────
-                {name: 'subscribe-valve',    type: 'mqttTopic', help: 'Optional: valve/position level. Scaled from valve-min…valve-max to 0–100 %. ' +
-                    'Wall thermostats and heating groups have no valve of their own — point this at a member TRV or a pre-aggregated topic, and scale it via valve-min/valve-max.'},
-                {name: 'message-property-valve', type: 'string', default: 'payload',
-                    help: 'Dot-notation path within the valve message. Blank = fall back to element-level message-property.'},
-                {name: 'valve-min', type: 'number', default: 0,
-                    help: 'E102: valve device range minimum. Homematic BidCoS reports VALVE_STATE 0–100 (leave default); HmIP reports LEVEL 0…1 → set valve-max to 1. Incoming values scale from valve-min…valve-max to 0–100 %.'},
-                {name: 'valve-max', type: 'number', default: 100,
-                    help: 'E102: valve device range maximum. 100 for BidCoS VALVE_STATE (default), 1 for HmIP LEVEL.'},
+                // E137: the shared climate contract (both payload modes,
+                // setpoint/mode/valve/boost + the E124 battery quartet) —
+                // declared ONCE by the controller package. The N6 custom
+                // inspector renders its own structure on top.
+                ...climateAttributes,
+                // ── Material-only extras: humidity ────────────────────────────
                 {name: 'subscribe-humidity', type: 'mqttTopic', help: 'Optional: relative humidity percentage (0–100).'},
                 {name: 'message-property-humidity', type: 'string', default: 'payload',
                     help: 'Dot-notation path within the humidity message. Blank = fall back to element-level message-property.'},
-                // ── Range / unit ──────────────────────────────────────────────
-                {name: 'min',  type: 'number', default: 5,    help: 'Minimum setpoint value.'},
-                {name: 'max',  type: 'number', default: 30,   help: 'Maximum setpoint value.'},
-                {name: 'step', type: 'number', default: 0.5,  help: 'Setpoint snap increment.'},
-                {name: 'unit', type: 'string', default: '°C', help: 'Temperature unit label shown on the card.'},
-                // ── Mode chips ────────────────────────────────────────────────
-                {name: 'modes', type: 'string', default: '',
-                    help: 'JSON array of mode entries. Simple: [{"value":"heat","label":"Heat"},…] publishes the value on publish-mode. ' +
-                        'E102 per-entry overrides: add "publish"+"payload" to write a specific datapoint — payload is a string OR a JSON ' +
-                        'object (published as-is, e.g. to a putParamset topic hm/paramset/<channel>/VALUES with {"CONTROL_MODE":1,"SET_POINT_TEMPERATURE":4.5}). ' +
-                        '"$setpoint" in a payload resolves to the last real setpoint (Homematic MANU_MODE=$setpoint; "off" = manual + 4.5). ' +
-                        'A "momentary":true entry (boost) is a push button — activate publishes it; deactivate runs "off": {"publish","payload"} ' +
-                        '(HmIP BOOST_MODE=false) or "off":"restore" (BidCoS — re-apply the pre-boost mode). ' +
-                        'The paramset segment is VALUES, not MASTER — MASTER is device configuration such as week programs, never needed for mode/setpoint control. ' +
-                        'Boost is per-generation: HmIP is a BOOST_MODE true/false toggle; BidCoS is a trigger whose deactivate restores the previous mode. ' +
-                        'An "off" entry may carry "match-setpoint-max" (e.g. 4.5): when several entries share the same mode read-back value, the entry with match-setpoint-max shows active only while the effective setpoint is <= that number (so "Off" wins over "Manu" at <= 4.5, "Manu" above). ' +
-                        'Virtual heating groups need no special setup — HM-CC-VG-1 behaves like a BidCoS TRV and HmIP-HEATING like a wall thermostat: pick the matching generation profile and use the group :1 channel address.'},
-                // ── Boost countdown (E102 WP2) ────────────────────────────────
-                {name: 'boost-duration', type: 'number', default: 5,
-                    help: 'E102 boost countdown: duration in minutes (Homematic default 5). When a momentary (boost) mode goes active and no subscribe-boost-remaining topic is wired, a client-side mm:ss countdown starts from this value. A page reload while boost is active (without the device topic) restarts the client timer from full — accepted degradation.'},
-                {name: 'subscribe-boost-remaining', type: 'mqttTopic',
-                    help: 'E102 boost countdown: optional device-reported remaining time. When wired, the active boost badge shows this live value (converted to seconds via boost-remaining-unit) instead of the client timer.'},
-                {name: 'message-property-boost-remaining', type: 'string', default: 'payload',
-                    help: 'Dot-notation path within the boost-remaining message. Blank = fall back to element-level message-property.'},
-                {name: 'boost-remaining-unit', type: 'select', options: ['minutes', 'seconds'], default: 'minutes',
-                    help: 'E102 boost countdown: unit of the subscribe-boost-remaining value. BidCoS BOOST_STATE reports minutes; HmIP unit is device-dependent and verify-gated.'},
-                // ── Boost active state (B54) ──────────────────────────────────
-                {name: 'subscribe-boost-state', type: 'mqttTopic',
-                    help: 'B54: optional device-reported boost active state (Homematic BOOST_MODE, true/false). While truthy, the momentary (boost) mode entry is shown active regardless of the mode read-back — HmIP SET_POINT_MODE keeps reporting Manu during boost. Also makes boost started at the wall dial visible.'},
-                {name: 'message-property-boost-state', type: 'string', default: 'payload',
-                    help: 'Dot-notation path within the boost-state message. Blank = fall back to element-level message-property.'},
                 // ── Display ───────────────────────────────────────────────────
                 {name: 'label', type: 'string', default: '', help: 'Optional card title shown at the bottom.'},
                 // ── Availability ──────────────────────────────────────────────
@@ -248,6 +146,11 @@ class FeezalElementMaterialClimate extends FeezalElement {
         boostRemainingUnit:      {type: String, reflect: true, attribute: 'boost-remaining-unit'},
         subscribeBoostState:     {type: String, reflect: true, attribute: 'subscribe-boost-state'},
         msgPropBoostState:       {type: String, reflect: true, attribute: 'message-property-boost-state'},
+        // E124 — dedicated low-battery warning
+        subscribeBatteryLow: {type: String, reflect: true, attribute: 'subscribe-battery-low'},
+        msgPropBatteryLow:   {type: String, reflect: true, attribute: 'message-property-battery-low'},
+        payloadBatteryLow:   {type: String, reflect: true, attribute: 'payload-battery-low'},
+        batteryLowThreshold: {type: Number, reflect: true, attribute: 'battery-low-threshold'},
         subscribeHumidity:     {type: String,  reflect: true, attribute: 'subscribe-humidity'},
         // N31: availability inherited from FeezalElement.
         min:                   {type: Number,  reflect: true},
@@ -262,16 +165,9 @@ class FeezalElementMaterialClimate extends FeezalElement {
         msgPropMode:           {type: String,  reflect: true, attribute: 'message-property-mode'},
         msgPropValve:          {type: String,  reflect: true, attribute: 'message-property-valve'},
         msgPropHumidity:       {type: String,  reflect: true, attribute: 'message-property-humidity'},
-        // Internal state — never as class fields (Lit 3 rule)
-        _setpoint:   {state: true},   // null | number
-        _actual:     {state: true},   // null | number
-        _mode:       {state: true},   // null | string
-        _valve:      {state: true},   // null | number (0–100)
-        _humidity:   {state: true},   // null | number
+        // E137: climate state lives on the ClimateController (plain fields +
+        // host.requestUpdate) — only the drag preview stays element-local.
         _dragSpan:   {state: true},   // null | number — live arc span during drag
-        _momentaryActive: {state: true},   // E102: active momentary (boost) entry value
-        _boostRemaining:  {state: true},   // E102 WP2: boost remaining seconds (null when inactive)
-        _boostForced:     {state: true},   // B54: device-reported boost state overrides the mode read-back
     };
 
     static styles = [feezalBaseStyles, css`
@@ -400,6 +296,10 @@ class FeezalElementMaterialClimate extends FeezalElement {
         this.boostRemainingUnit      = 'minutes';
         this.subscribeBoostState     = '';
         this.msgPropBoostState       = '';
+        this.subscribeBatteryLow     = '';
+        this.msgPropBatteryLow       = '';
+        this.payloadBatteryLow       = 'true';
+        this.batteryLowThreshold     = 15;
         this.subscribeHumidity     = '';
         this.min                   = 5;
         this.max                   = 30;
@@ -413,316 +313,28 @@ class FeezalElementMaterialClimate extends FeezalElement {
         this.msgPropMode           = '';
         this.msgPropValve          = '';
         this.msgPropHumidity       = '';
-        this._setpoint             = null;
-        this._actual               = null;
-        this._mode                 = null;
-        this._valve                = null;
-        this._humidity             = null;
         this._dragSpan             = null;
-        // E102 — mode-entry machinery
-        this._lastRealSetpoint     = null;   // remembered setpoint > off sentinel (for $setpoint)
-        this._preBoostMode         = null;   // mode before a momentary/boost entry (for off:"restore")
-        this._momentaryActive      = null;   // value of the currently-active momentary entry
-        // E102 WP2 — boost countdown
-        this._boostRemaining       = null;   // remaining seconds while boost active (null = inactive)
-        this._boostTimer           = null;   // non-reactive setInterval handle
-        // B54 — device-reported boost state
-        this._boostForced          = false;  // subscribe-boost-state read truthy
+        // E137: the behavior layer — wires/parses/publishes; this view renders.
+        // Material quirk as a flag: humidity display.
+        this.climate = new ClimateController(this, {humidity: true});
     }
 
     // The thermostat manages all subscriptions itself.
     _subscribe() { /* intentionally empty */ }
 
-    disconnectedCallback() {
-        super.disconnectedCallback();
-        this._stopBoostCountdown();   // E102 WP2: never leak the interval
+    // E137: the ClimateController wires everything in hostConnected and
+    // clears the boost interval in hostDisconnected.
+
+    updated(changed) {
+        super.updated(changed);
+        // Live-canvas topic edits re-wire through the controller.
+        this.climate.rewireIfChanged();
     }
 
-    connectedCallback() {
-        super.connectedCallback();
-
-        // N31: availability subscription handled by the FeezalElement base.
-
-        // E102 WP2: device-reported boost remaining time (both payload modes).
-        if (this.subscribeBoostRemaining) {
-            this.addSubscription(this.subscribeBoostRemaining, msg => {
-                const v = Number(this.getProperty(msg, this.msgPropBoostRemaining || this.messageProperty));
-                if (!isNaN(v)) this._applyBoostRemaining(v);
-            });
-        }
-        // B54: device-reported boost active state (both payload modes).
-        if (this.subscribeBoostState) {
-            this.addSubscription(this.subscribeBoostState, msg => {
-                this._applyBoostState(this.getProperty(msg, this.msgPropBoostState || this.messageProperty));
-            });
-        }
-
-        if (this.payloadMode === 'json') {
-            if (this.subscribe) {
-                this.addSubscription(this.subscribe, msg => {
-                    let obj = this.getProperty(msg, this.messageProperty);
-                    if (typeof obj === 'string') {
-                        try { obj = JSON.parse(obj); } catch { return; }
-                    }
-                    if (obj && typeof obj === 'object') this._applyJsonState(obj);
-                });
-            }
-            return;
-        }
-
-        // ── Separate mode ──────────────────────────────────────────────────────
-        if (this.subscribeSetpoint) {
-            this.addSubscription(this.subscribeSetpoint, msg => {
-                const v = Number(this.getProperty(msg, this.msgPropSetpoint || this.messageProperty));
-                if (!isNaN(v)) { this._setpoint = v; if (v > 4.5) this._lastRealSetpoint = v; }   // E102: remember real setpoint for $setpoint
-            });
-        }
-        if (this.subscribeActual) {
-            this.addSubscription(this.subscribeActual, msg => {
-                const v = Number(this.getProperty(msg, this.msgPropActual || this.messageProperty));
-                if (!isNaN(v)) this._actual = v;
-            });
-        }
-        if (this.subscribeMode) {
-            this.addSubscription(this.subscribeMode, msg => {
-                this._applyModeReadback(String(this.getProperty(msg, this.msgPropMode || this.messageProperty)));
-            });
-        }
-        if (this.subscribeValve) {
-            this.addSubscription(this.subscribeValve, msg => {
-                const v = Number(this.getProperty(msg, this.msgPropValve || this.messageProperty));
-                if (!isNaN(v)) this._valve = this._scaleValve(v);
-            });
-        }
-        if (this.subscribeHumidity) {
-            this.addSubscription(this.subscribeHumidity, msg => {
-                const v = Number(this.getProperty(msg, this.msgPropHumidity || this.messageProperty));
-                if (!isNaN(v)) this._humidity = Math.max(0, Math.min(100, v));
-            });
-        }
-    }
-
-    /**
-     * E102: scale an incoming valve value from the device range
-     * [valve-min, valve-max] to 0–100 %. Defaults 0/100 → unchanged (BidCoS
-     * VALVE_STATE); set valve-max=1 for HmIP LEVEL (0…1). Guards a zero span.
-     */
-    _scaleValve(v) {
-        const lo = Number(this.valveMin), hi = Number(this.valveMax);
-        const pct = (hi === lo) ? v : ((v - lo) / (hi - lo)) * 100;
-        return Math.max(0, Math.min(100, pct));
-    }
-
-    // ─── JSON payload mode ────────────────────────────────────────────────────
-    get _jsonMap() {
-        const defaults = {
-            setpoint: 'current_heating_setpoint',
-            actual:   'local_temperature',
-            mode:     'system_mode',
-            valve:    'position',
-            humidity: 'humidity',
-        };
-        if (this.jsonMap) {
-            try { return {...defaults, ...JSON.parse(this.jsonMap)}; } catch { /* fall through */ }
-        }
-        return defaults;
-    }
-
-    _applyJsonState(obj) {
-        const map = this._jsonMap;
-        const get = key => this.getProperty(obj, key);
-        const sp = Number(get(map.setpoint));
-        if (!isNaN(sp)) { this._setpoint = sp; if (sp > 4.5) this._lastRealSetpoint = sp; }   // E102
-        const ac = Number(get(map.actual));
-        if (!isNaN(ac)) this._actual = ac;
-        const mode = get(map.mode);
-        if (mode !== null && mode !== undefined) this._applyModeReadback(String(mode));
-        const valve = Number(get(map.valve));
-        if (!isNaN(valve)) this._valve = this._scaleValve(valve);
-        const hum = Number(get(map.humidity));
-        if (!isNaN(hum)) this._humidity = Math.max(0, Math.min(100, hum));
-    }
-
-    // ─── Publish helpers ──────────────────────────────────────────────────────
-    _pub(topic, value, jsonObj) {
-        if (this.payloadMode === 'json') {
-            if (this.publish) feezal.connection.pub(this.publish, JSON.stringify(jsonObj));
-        } else if (topic) {
-            feezal.connection.pub(topic, String(value));
-        }
-    }
-
-    /**
-     * E102 — publish a per-mode-entry override to an explicit topic. `payload`
-     * may be a string OR a JSON object (published as-is → the bridge's
-     * putParamset topic, e.g. hm/paramset/<channel>/VALUES with
-     * {CONTROL_MODE:1, SET_POINT_TEMPERATURE:4.5}). String values (also inside
-     * object values) support the `$setpoint` placeholder → the remembered last
-     * real setpoint (covers Homematic MANU_MODE=<temp>).
-     */
-    _pubEntry(topic, payload) {
-        if (feezal.isEditor || !topic) return;
-        const resolved = this._resolveModePayload(payload);
-        feezal.connection.pub(topic,
-            (resolved !== null && typeof resolved === 'object') ? JSON.stringify(resolved) : String(resolved ?? ''));
-    }
-
-    /** E102 — recursively substitute `$setpoint` in a string / object payload.
-     * B58: type-preserving — a value that IS the bare sentinel becomes the
-     * numeric setpoint (hm2mqtt putParamset silently drops FLOAT params sent as
-     * JSON strings); the string replace only serves embedded occurrences. */
-    _resolveModePayload(payload) {
-        const sp = Number(this._lastRealSetpoint ?? this._setpoint ?? this.min);
-        const sub = v => v === '$setpoint' ? sp
-            : (typeof v === 'string' ? v.replace(/\$setpoint/g, String(sp)) : v);
-        if (payload !== null && typeof payload === 'object') {
-            const out = Array.isArray(payload) ? [] : {};
-            for (const [k, val] of Object.entries(payload)) {
-                out[k] = (val !== null && typeof val === 'object') ? this._resolveModePayload(val) : sub(val);
-            }
-            return out;
-        }
-        return sub(payload);
-    }
-
+    /** Arc release → controller (clamp + snap + publish); drops the preview. */
     _setSetpoint(temp) {
-        const clamped = +(Math.min(this.max, Math.max(this.min, Math.round(temp / this.step) * this.step))).toFixed(2);
-        this._setpoint  = clamped;
-        if (clamped > 4.5) this._lastRealSetpoint = clamped;   // E102: $setpoint memory
-        this._dragSpan  = null;
-        this._pub(this.publishSetpoint, clamped, {[this._jsonMap.setpoint]: clamped});
-    }
-
-    /**
-     * E102 — apply a mode entry. Plain entries publish the mode value (default
-     * publish-mode / json write, unchanged). Entries with a per-entry `publish`
-     * write their `payload` (string or object, `$setpoint`-resolved) to that
-     * topic instead — covers Homematic's per-mode action datapoints
-     * (AUTO_MODE=true, MANU_MODE=$setpoint) and the HmIP combined putParamset
-     * write. A `momentary` entry (boost) toggles with its own off-strategy.
-     */
-    _setMode(entry) {
-        if (feezal.isEditor) return;
-        // Back-compat: callers may still pass a bare string value.
-        if (typeof entry === 'string') entry = {value: entry};
-
-        if (entry.momentary) { this._toggleMomentary(entry); return; }
-
-        this._mode = entry.value;
-        if (entry.publish) {
-            this._pubEntry(entry.publish, entry.payload ?? entry.value);
-        } else {
-            this._pub(this.publishMode, entry.value, {[this._jsonMap.mode]: entry.value});
-        }
-    }
-
-    /**
-     * E102 — momentary mode (boost). Activate publishes the entry; deactivate
-     * runs its off-strategy: `off: {publish, payload}` (HmIP BOOST_MODE=false)
-     * or `off: "restore"` (BidCoS — re-apply the pre-boost mode via the same
-     * per-entry machinery; the pre-boost mode is client-remembered, so a reload
-     * during boost degrades gracefully to "restore = the current read-back").
-     */
-    _toggleMomentary(entry) {
-        const active = this._boostForced || this._momentaryActive === entry.value || this._mode === entry.value;
-        if (active) {
-            this._momentaryActive = null;
-            this._boostForced = false;   // B54: tap-off — the device read-back will confirm
-            this._clearBoost();   // E102 WP2: tap-off clears the badge/timer
-            if (entry.off === 'restore') {
-                const prev = this._preBoostMode;
-                const prevEntry = this._parsedModes().find(m => m.value === prev && !m.momentary);
-                if (prevEntry) this._setMode(prevEntry);
-                else if (prev != null) this._pub(this.publishMode, prev, {[this._jsonMap.mode]: prev});
-            } else if (entry.off && entry.off.publish) {
-                this._pubEntry(entry.off.publish, entry.off.payload);
-            }
-        } else {
-            this._preBoostMode = this._mode;
-            this._momentaryActive = entry.value;
-            if (entry.publish) this._pubEntry(entry.publish, entry.payload ?? entry.value);
-            else this._pub(this.publishMode, entry.value, {[this._jsonMap.mode]: entry.value});
-            this._startBoostCountdown();   // E102 WP2
-        }
-    }
-
-    // ─── E102 WP2 — boost countdown badge ─────────────────────────────────────
-    /**
-     * Route a mode read-back: update _mode and, if the read-back no longer
-     * matches the active boost value, clear the boost badge/timer (deactivation
-     * via read-back change, as opposed to an explicit tap-off).
-     */
-    _applyModeReadback(v) {
-        this._mode = v;
-        // B54: while the device reports boost active, the mode read-back must
-        // not clear it — HmIP SET_POINT_MODE keeps reporting Manu during boost.
-        if (!this._boostForced && this._momentaryActive !== null && String(v) !== String(this._momentaryActive)) {
-            this._momentaryActive = null;
-            this._clearBoost();
-        }
-    }
-
-    /**
-     * B54 — device-reported boost active state (hm BOOST_MODE true/false).
-     * Truthy forces the momentary entry active regardless of the mode read-back
-     * and starts the countdown (covers boost begun at the wall dial and a page
-     * reload mid-boost); falsy returns the display to the mode-derived state.
-     */
-    _applyBoostState(raw) {
-        const active = raw === true || raw === 1
-            || String(raw).toLowerCase() === 'true' || String(raw) === '1';
-        if (active && !this._boostForced) {
-            this._boostForced = true;
-            if (this._boostRemaining === null) this._startBoostCountdown();
-        } else if (!active && this._boostForced) {
-            this._boostForced = false;
-            this._momentaryActive = null;
-            this._clearBoost();
-        }
-    }
-
-    /** Device-reported remaining time → seconds (via boost-remaining-unit). */
-    _applyBoostRemaining(v) {
-        const secs = this.boostRemainingUnit === 'seconds' ? Math.round(v) : Math.round(v * 60);
-        this._boostRemaining = Math.max(0, secs);
-    }
-
-    /**
-     * Start the boost badge. When a subscribe-boost-remaining topic is wired the
-     * device drives the value (leave it alone); otherwise run a client-side
-     * per-second countdown from boost-duration (minutes → seconds).
-     */
-    _startBoostCountdown() {
-        this._stopBoostCountdown();
-        if (this.subscribeBoostRemaining) return;   // device topic drives the badge
-        const mins = Number(this.boostDuration);
-        const secs = (isNaN(mins) ? 0 : mins) * 60;
-        if (secs <= 0) { this._boostRemaining = null; return; }
-        this._boostRemaining = secs;
-        this._boostTimer = setInterval(() => {
-            const next = (this._boostRemaining ?? 0) - 1;
-            if (next <= 0) { this._boostRemaining = 0; this._stopBoostCountdown(); }
-            else this._boostRemaining = next;
-        }, 1000);
-    }
-
-    _stopBoostCountdown() {
-        if (this._boostTimer) { clearInterval(this._boostTimer); this._boostTimer = null; }
-    }
-
-    /** Clear the badge + timer (deactivation / read-back change). */
-    _clearBoost() {
-        this._stopBoostCountdown();
-        this._boostRemaining = null;
-    }
-
-    /** Format the remaining seconds as an mm:ss badge ('' when inactive). */
-    _boostBadge() {
-        const s = this._boostRemaining;
-        if (s === null || s === undefined || s < 0) return '';
-        const mm = Math.floor(s / 60);
-        const ss = s % 60;
-        return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+        this._dragSpan = null;
+        this.climate.setSetpoint(temp);
     }
 
     // ─── Arc interaction ──────────────────────────────────────────────────────
@@ -759,7 +371,7 @@ class FeezalElementMaterialClimate extends FeezalElement {
 
     // ─── Arc fill color based on mode ─────────────────────────────────────────
     get _arcFillColor() {
-        const mode = this._mode;
+        const mode = this.climate.mode;
         if (!mode || mode === 'heat' || mode === 'emergency_heat') return 'var(--feezal-climate-heat-color)';
         if (mode === 'cool') return 'var(--feezal-climate-cool-color)';
         if (mode === 'off') return 'var(--feezal-climate-idle-color)';
@@ -769,12 +381,12 @@ class FeezalElementMaterialClimate extends FeezalElement {
     // ─── SVG rendering ────────────────────────────────────────────────────────
     _renderArc() {
         const editorSetpoint = (this.min + this.max) / 2 + this.step * 3; // e.g. 17.5 + 1.5 = 19
-        const setpoint  = this._setpoint ?? null;
-        const actual    = this._actual;
+        const setpoint  = this.climate.setpoint ?? null;
+        const actual    = this.climate.actual;
         const fillColor = this._arcFillColor;
         // B53: off-by-setpoint sentinel active (and not mid-drag) → park the
         // arc and show the mode label instead of the 4.5° target.
-        const offEntry  = this._dragSpan === null ? this._offSentinelEntry() : null;
+        const offEntry  = this._dragSpan === null ? this.climate.offSentinelEntry() : null;
 
         // Current arc span (drag preview or committed)
         const spanDeg   = this._dragSpan ??
@@ -806,8 +418,8 @@ class FeezalElementMaterialClimate extends FeezalElement {
 
         // Valve inner arc
         let valveArc = null;
-        if (this._valve !== null) {
-            const vSpan    = (this._valve / 100) * ARC_SPAN;
+        if (this.climate.valve !== null) {
+            const vSpan    = (this.climate.valve / 100) * ARC_SPAN;
             const valvePath = tArcPath(ARC_START, vSpan, VALVE_R);
             valveArc = svg`
                 <path d="${tArcPath(ARC_START, ARC_SPAN, VALVE_R)}" fill="none"
@@ -871,69 +483,13 @@ class FeezalElementMaterialClimate extends FeezalElement {
     }
 
     // ─── Render ───────────────────────────────────────────────────────────────
-    _parsedModes() {
-        if (!this.modes) return [];
-        let arr;
-        try { arr = JSON.parse(this.modes); } catch { return []; }
-        if (!Array.isArray(arr)) return [];
-        // Support both [{value,label},...] objects (hand-wired) and plain
-        // string arrays emitted by HA/zigbee2mqtt discovery.
-        // B55: drop empty/invalid entries WITHOUT a truthiness test — Homematic
-        // Auto is {value: 0} and must survive (same filter in glass/metro).
-        return arr.map(m => typeof m === 'string'
-            ? {value: m, label: m.charAt(0).toUpperCase() + m.slice(1).replace(/_/g, ' ')}
-            : m)
-            .filter(m => m && m.value !== null && m.value !== undefined && m.value !== '');
-    }
-
-    /**
-     * E102 — pick the single active (non-momentary) mode entry for the current
-     * mode read-back and effective setpoint. An entry is a candidate when its
-     * value matches the read-back AND (its `match-setpoint-max` is undefined, or
-     * the effective setpoint <= that max). A candidate carrying match-setpoint-max
-     * wins over one without (more specific — so an "Off" entry sharing its value
-     * with "Manu" shows active only while sp <= its max); otherwise the first
-     * match wins (today's order). Returns null when nothing matches. Backwards
-     * compatible: entries without match-setpoint-max behave exactly as before.
-     */
-    _activeModeEntry(list) {
-        const v = this._mode;
-        if (v === null || v === undefined || v === '') return null;
-        // B53: compare against the CURRENT setpoint — preferring the remembered
-        // real one meant a device switched Off (read-back 4.5) after running at
-        // 21° never matched the Off sentinel (21 <= 4.5 is false).
-        const sp = this._setpoint ?? this._lastRealSetpoint;
-        const capOk = m => {
-            const cap = m['match-setpoint-max'];
-            if (cap === null || cap === undefined) return true;
-            return sp !== null && sp !== undefined && Number(sp) <= Number(cap);
-        };
-        const candidates = list.filter(m => !m.momentary && String(m.value) === String(v) && capOk(m));
-        if (candidates.length === 0) return null;
-        return candidates.find(m => {
-            const cap = m['match-setpoint-max'];
-            return cap !== null && cap !== undefined;
-        }) ?? candidates[0];
-    }
-
-    /**
-     * B53 — the active entry when it is an off-by-setpoint sentinel (carries
-     * `match-setpoint-max`, e.g. Homematic "Off" = Manu @ 4.5°); null otherwise.
-     * While active, the target-temperature display is suppressed (mode label
-     * instead of "→ 4.5°", parked arc) — the actual temperature stays visible.
-     */
-    _offSentinelEntry() {
-        const e = this._activeModeEntry(this._parsedModes());
-        return (e && e['match-setpoint-max'] !== null && e['match-setpoint-max'] !== undefined) ? e : null;
-    }
-
     render() {
         const showUnavail = this.subscribeAvailability && !this._available;
-        const modeList    = this._parsedModes();
+        const modeList    = this.climate.parsedModes();
         const showModes   = modeList.length > 0;
-        const showValve   = this._valve !== null;
-        const showHum     = this._humidity !== null;
-        const activeMode  = this._activeModeEntry(modeList);   // E102: match-setpoint-max-aware active chip
+        const showValve   = this.climate.valve !== null;
+        const showHum     = this.climate.humidity !== null;
+        const activeMode  = this.climate.activeModeEntry(modeList);   // E102: match-setpoint-max-aware active chip
 
         return html`
             ${showUnavail ? html`
@@ -954,14 +510,14 @@ class FeezalElementMaterialClimate extends FeezalElement {
             ${showModes ? html`
                 <div class="mode-row">
                     ${modeList.map(m => {
-                        // B54: _boostForced (device-reported BOOST_MODE) wins over the mode read-back.
-                        const boostActive = m.momentary && (this._boostForced || this._momentaryActive === m.value || this._mode === m.value);
-                        const badge = boostActive ? this._boostBadge() : '';
+                        // B54: device-reported BOOST_MODE wins over the mode read-back.
+                        const boostActive = this.climate.momentaryEntryActive(m);
+                        const badge = boostActive ? this.climate.boostBadge() : '';
                         return html`
                             <md-filter-chip
                                 label="${(m.label ?? m.value)}${badge ? ' ' + badge : ''}"
                                 ?selected="${m.momentary ? boostActive : m === activeMode}"
-                                @click="${() => this._setMode(m)}">
+                                @click="${() => this.climate.setMode(m)}">
                             </md-filter-chip>`;
                     })}
                 </div>
@@ -971,14 +527,14 @@ class FeezalElementMaterialClimate extends FeezalElement {
                 <div class="valve-row">
                     <span class="valve-label">Valve</span>
                     <div class="valve-bar">
-                        <div class="valve-fill" style="width:${this._valve}%"></div>
+                        <div class="valve-fill" style="width:${this.climate.valve}%"></div>
                     </div>
-                    <span class="valve-label">${Math.round(this._valve)}&nbsp;%</span>
+                    <span class="valve-label">${Math.round(this.climate.valve)}&nbsp;%</span>
                 </div>
             ` : ''}
 
             ${showHum ? html`
-                <div class="hum-row">&#x1F4A7;&nbsp;${Math.round(this._humidity)}&nbsp;%</div>
+                <div class="hum-row">&#x1F4A7;&nbsp;${Math.round(this.climate.humidity)}&nbsp;%</div>
             ` : ''}
 
             ${this.label ? html`<div class="label">${this.label}</div>` : ''}
