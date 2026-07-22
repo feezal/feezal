@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, publishLocalAttribute} from '@feezal/feezal-element';
 import '@material/web/chips/filter-chip.js';
 
 class FeezalElementMaterialChip extends FeezalElement {
@@ -25,6 +25,8 @@ class FeezalElementMaterialChip extends FeezalElement {
                 {name: 'publish',     type: 'mqttTopic', help: 'Topic to publish state changes to.'},
                 {name: 'payload-on',  type: 'string',    help: 'Payload for selected state. Default: ON'},
                 {name: 'payload-off', type: 'string',    help: 'Payload for deselected state. Default: OFF'},
+                // E117: button-shaped — the tap publish may stay page-local.
+                publishLocalAttribute,
                 {name: 'icon',        type: 'string',    help: 'Material icon name shown in the chip.'},
                 {name: 'disabled',    type: 'boolean',   help: 'Disable user interaction.'},
             ],
@@ -48,6 +50,7 @@ class FeezalElementMaterialChip extends FeezalElement {
         label:      {type: String,  reflect: true},
         icon:       {type: String,  reflect: true},
         disabled:   {type: Boolean, reflect: true},
+        publishLocal: {type: Boolean, reflect: true, attribute: 'publish-local'},
         _selected:  {state: true},
     };
 
@@ -94,6 +97,7 @@ class FeezalElementMaterialChip extends FeezalElement {
         this.label      = 'Chip';
         this.icon       = '';
         this.disabled   = false;
+        this.publishLocal = false;
         this._selected  = false;
     }
 
@@ -110,7 +114,7 @@ class FeezalElementMaterialChip extends FeezalElement {
     _onChange(e) {
         if (!this.publish) return;
         this._selected = e.target.selected;
-        feezal.connection.pub(this.publish, this._selected ? this.payloadOn : this.payloadOff);
+        feezal.connection.pub(this.publish, this._selected ? this.payloadOn : this.payloadOff, {local: this.publishLocal});   // E117
     }
 
     render() {

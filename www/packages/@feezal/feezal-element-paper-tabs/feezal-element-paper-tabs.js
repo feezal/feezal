@@ -36,6 +36,7 @@ class FeezalElementPaperTabs extends FeezalPolymerElement {
             },
             publishLocal: {
                 type: Boolean,
+                value: false,
                 reflectToAttribute: true
             },
             items: {
@@ -70,7 +71,10 @@ class FeezalElementPaperTabs extends FeezalPolymerElement {
                 'subscribe',
                 'messageProperty',
                 'publish',
-                'publishLocal',
+                // E117: converged on the shared publish-local descriptor
+                // (Polymer — inline copy, same wording as @feezal/feezal-element).
+                {name: 'publish-local', type: 'boolean', default: false,
+                    help: 'Publish page-locally instead of to the broker: the payload reaches only subscribers in THIS browser tab (dialog triggers, view switches, wiring elements together). Nothing is sent over MQTT, nothing is retained, and it works while disconnected.'},
                 {name: 'items', type: 'objectList', itemFields: [{key: '', placeholder: 'tab name'}],
                     help: 'Tab names — one per row. Stored as a JSON array; legacy slash-separated strings keep working.'},
                 {name: 'refresh', type: 'number', label: 'Refresh interval (s)'}

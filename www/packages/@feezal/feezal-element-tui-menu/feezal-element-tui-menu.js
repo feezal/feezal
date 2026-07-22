@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, publishLocalAttribute} from '@feezal/feezal-element';
 
 /**
  * feezal-element-tui-menu (E59)
@@ -23,6 +23,9 @@ class FeezalElementTuiMenu extends FeezalElement {
                     help: 'Menu entries — hotkeys are assigned 1…9 in order. Each click/keypress publishes the entry’s payload to its topic.'},
                 {name: 'orientation', type: 'select', options: ['vertical', 'horizontal'], default: 'vertical',
                     help: 'Stack entries vertically (default) or lay them out in a row.'},
+                // E117: a menu pick is a navigation/selection act — it may stay
+                // page-local instead of round-tripping the broker.
+                publishLocalAttribute,
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'font-size',
@@ -38,6 +41,7 @@ class FeezalElementTuiMenu extends FeezalElement {
     static properties = {
         items:       {type: String, reflect: true},
         orientation: {type: String, reflect: true},
+        publishLocal: {type: Boolean, reflect: true, attribute: 'publish-local'},
         _flash:      {state: true},
     };
 
@@ -66,6 +70,7 @@ class FeezalElementTuiMenu extends FeezalElement {
         super();
         this.items = '[]';
         this.orientation = 'vertical';
+        this.publishLocal = false;
         this._flash = -1;
         this.__flashTimer = null;
         this.__onKey = e => {
@@ -111,7 +116,7 @@ class FeezalElementTuiMenu extends FeezalElement {
         clearTimeout(this.__flashTimer);
         this.__flashTimer = setTimeout(() => { this._flash = -1; }, 250);
         if (entry.publish) {
-            feezal.connection.pub(entry.publish, entry.payload ?? '');
+            feezal.connection.pub(entry.publish, entry.payload ?? '', {local: this.publishLocal});   // E117
         }
     }
 

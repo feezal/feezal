@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, publishLocalAttribute} from '@feezal/feezal-element';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
 import '@shoelace-style/shoelace/dist/components/input/input.js';
@@ -36,6 +36,9 @@ class FeezalElementMaterialNavbar extends FeezalElement {
                 {name: 'item-width', type: 'string', default: '', help: 'E81: item size along the bar — empty = auto (content-sized, today\'s behaviour), a CSS length (e.g. "72px") = fixed size, "equal" = all items share the bar evenly. Applies to the height in vertical orientation.'},
                 'subscribe',
                 'publish',
+                // E117: navigation is page-local UI wiring — the published view
+                // pick may stay in this tab instead of round-tripping the broker.
+                publishLocalAttribute,
             ],
             styles: ['top', 'left', 'width', 'height', 'background', 'border', 'border-radius', 'padding'],
             restrict: {minWidth: 60, minHeight: 40},
@@ -50,6 +53,10 @@ class FeezalElementMaterialNavbar extends FeezalElement {
         showIcons:   {type: Boolean, reflect: true, attribute: 'show-icons'},
         align:       {type: String,  reflect: true},
         itemWidth:   {type: String,  reflect: true, attribute: 'item-width'},
+        // E117: `publish` was never a declared property — the attribute from
+        // saved markup silently never reached _navigate() in the viewer.
+        publish:     {type: String,  reflect: true},
+        publishLocal: {type: Boolean, reflect: true, attribute: 'publish-local'},
         _active:     {state: true},
         _external:   {state: true},
         _badges:     {state: true},
@@ -97,6 +104,8 @@ class FeezalElementMaterialNavbar extends FeezalElement {
         this.showIcons = true;
         this.align = 'space-between';
         this.itemWidth = '';
+        this.publish = '';
+        this.publishLocal = false;
         this._active = '';
         this._external = null;
         this._badges = {};
@@ -161,7 +170,7 @@ class FeezalElementMaterialNavbar extends FeezalElement {
     _navigate(view) {
         if (feezal.isEditor) return;                 // taps inert in the editor
         if (feezal.site) feezal.site.view = view;    // drives updateVisibility + hash sync
-        if (this.publish) feezal.connection?.pub?.(this.publish, view);
+        if (this.publish) feezal.connection?.pub?.(this.publish, view, {local: this.publishLocal});   // E117
     }
 
     render() {

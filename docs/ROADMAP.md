@@ -55,7 +55,6 @@ Work in progress — priorities and scope are not final.
 - [E113 — Element taxonomy: make "function × style" explicit](#e113--element-taxonomy-make-function--style-explicit--needs-discussion) ⚠️
 - [E114 — Family parity contract: material/circle / glass / metro stay in sync](#e114--family-parity-contract-materialcircle--glass--metro-stay-in-sync--needs-discussion) ⚠️
 - [E115 — Switch an element to another family (context menu)](#e115--switch-an-element-to-another-family-context-menu--to-refine) 💡 *(to refine)*
-- [E117 — `publish-local` on every publishing element](#e117--publish-local-on-every-publishing-element-partial--buttons--072026) *(partial — buttons ✅)*
 - [E119 — `basic-number`: configurable placeholder before the first value](#e119--basic-number-configurable-placeholder-before-the-first-value)
 - [E124 — Battery-powered sensors: dedicated low-battery indicator (contact + motion/occupancy)](#e124--battery-powered-sensors-dedicated-low-battery-indicator-contact--motionoccupancy)
 - [E125 — Homematic battery voltage (`OPERATING_VOLTAGE`)](#e125--homematic-battery-voltage-operating_voltage--future) 💡
@@ -1225,26 +1224,6 @@ Right-click an element → **Switch family** → `metro-light` becomes `glass-li
 
 **Relates:** **E114** (parity — precondition), **E113** (function × style — the model that makes this coherent), E87 ✅ (attribute-remap precedent), A23/A24 (tag→package map). *(E115's "strip the styling" switch target is the **Basic** family where a functional twin exists — E116 ❌ dropped.)*
 
-### E117 — `publish-local` on every publishing element *(partial — buttons ✅ 07/2026)*
-
-**Shipped 07/2026 (the "buttons first" tranche):** the base package exports the shared descriptor — `publishLocalAttribute` in `@feezal/feezal-element` 3.0.3 (name/help defined ONCE, per the design note below) — and all six button elements carry it, threading `{local: this.publishLocal}` into `pub()`: `material-button` 3.0.1, `material-icon-button` 3.0.1, `material-fab` 3.0.1, `glass-button` 3.0.7, `carbon-button` 3.0.1, `paper-button` 3.0.1 (Polymer — inline descriptor, same wording). Browser tests cover the option threading and the shared descriptor.
-
-**Scope refined (07/2026): navigation and dialog-opening only — NOT a blanket rollout.** `publish-local` exists for page-local UI wiring (open a dialog, drive a view/tab switch); sliders, checkboxes, selects and the complex device elements publish *device state* that belongs on the broker — they explicitly do **not** get the attribute.
-
-**Remaining (the navigation/tab-bar tranche):** spread `publishLocalAttribute` the same way as the buttons (Lit: import + property + constructor default + pub options; Polymer: inline copy) to every element that publishes as a navigation/selection act:
-- `material-navbar` (publishes the picked view, [feezal-element-material-navbar.js:164](../www/packages/@feezal/feezal-element-material-navbar/feezal-element-material-navbar.js#L164))
-- `paper-tabs` — has its own legacy `publishLocal`; converge it on the shared descriptor
-- `tui-menu` (publishes the picked entry)
-- `metro-tile` (tap publish — its navigate-to-view action is already local)
-- `material-chip` (tap publish — button-shaped)
-- `basic-navigation` needs **checking, likely nothing**: it switches views locally already and no `pub()` call was found — confirm and skip.
-
-**Relates addition:** the dialog elements' *openers* are the consumers — a `publish-local` button/navbar entry triggering a `*-dialog`'s subscribe topic is the canonical use (E49 ✅ semantics).
-
-Original motivation: a button that opens a dialog had to publish its trigger to the **broker** and wait for it to come back. That round-trip is pointless for pure UI wiring (open a dialog, switch a view, drive another element on the same page), puts UI chatter on the broker, and fails outright when the connection is down — while `FeezalConnection.pub()` supported `{local: true}` all along ([feezal-connection.js:167-178](../www/src/feezal-connection.js#L167-L178)).
-
-**Relates:** E49 ✅ (page-local publish semantics), **E114** (family parity — the mechanism to land the remainder consistently), E118 ✅ (the sibling attribute-gap item, archived), N24 (per-client control topics — the deliberately *non*-local counterpart).
-
 ### E119 — `basic-number`: configurable placeholder before the first value
 
 Until the first MQTT message arrives, `basic-number` renders **nothing** — `_formatedValue` starts as `''` and `_valueChanged()` early-returns while `value == null` ([feezal-element-basic-number.js:70-73](../www/packages/@feezal/feezal-element-basic-number/feezal-element-basic-number.js#L70-L73)). On a fresh dashboard that reads as a broken or empty widget rather than "no data yet".
@@ -1303,7 +1282,7 @@ The same one-name assumption should be checked on the other battery-powered reco
 
 **Ships with:** unit tests for both producers (z2m sibling lookup incl. the bracket-form template, `battery`-only fallback, hm LOWBAT/LOW_BAT emission and its removal from availability), a client test that `_applyDiscovery` auto-stamps the three attributes from `battery_low_normalized`, and TESTING.md rows for a discovered z2m contact + occupancy sensor and a Homematic contact showing the icon while state keeps updating.
 
-**Relates:** N31 (availability machinery this deliberately steps back from), E108 ✅ (native Homematic discovery), **E131** (Homematic motion recognizer — must emit the battery record from day one), **E114** (parity contract), E117 ✅ *(partial)* (shared-descriptor precedent), E61 (HMI/alarm family — same "degraded but still reporting" distinction), **E125** (battery *voltage* — the richer signal, deferred; its OPERATING_VOLTAGE datapoint exists on HmIP motion sensors too).
+**Relates:** N31 (availability machinery this deliberately steps back from), E108 ✅ (native Homematic discovery), **E131** (Homematic motion recognizer — must emit the battery record from day one), **E114** (parity contract), E117 ✅ (shared-descriptor precedent), E61 (HMI/alarm family — same "degraded but still reporting" distinction), **E125** (battery *voltage* — the richer signal, deferred; its OPERATING_VOLTAGE datapoint exists on HmIP motion sensors too).
 
 ### E125 — Homematic battery voltage (`OPERATING_VOLTAGE`) 💡 future
 
@@ -1559,7 +1538,7 @@ The family element becomes a **view**: it reads controller state, renders its ch
 - **Allow-list mechanics** — how the derived parity set expresses *permitted* family-specific extras (glass `degrade`, metro `size`): per-family allow-list in the test, or a `familyExtras` declaration next to the shared fragment?
 - **`feezal-controller-core`?** — if the cross-controller machinery kept in `@feezal/feezal-element` (payload modes, `message-property` extraction, shared scaling/color) grows enough to churn the base package anyway, split it into a `@feezal/feezal-controller-core` that only controller packages depend on. Default **no** — don't add the layer until the churn is demonstrated.
 
-**Relates:** **E114** (parity contract — this is the structural answer to it; its test lands first as the migration net), E106 ✅ (shared base class/code — this continues that line), E127 ✅ (`SettlingController` — the controller precedent and first tenant of the pattern), **E117** (shared descriptor precedent; its remaining rollout becomes one-line adoption), **B53–B58** (the motivating bug wave; fixed pre-extraction, then regression fixtures), E122 ✅ (one feature, three implementations — the cost this removes), **E115** (family switching — an identical behavior layer makes switching lossless by construction), E132/E133/E134/E136 (renames + redesigns — coordinate sequencing), A23/A24 (externalization — version-coupling caveat), E86 ✅ (descriptor-parity test precedent).
+**Relates:** **E114** (parity contract — this is the structural answer to it; its test lands first as the migration net), E106 ✅ (shared base class/code — this continues that line), E127 ✅ (`SettlingController` — the controller precedent and first tenant of the pattern), E117 ✅ (shared descriptor precedent), **B53–B58** (the motivating bug wave; fixed pre-extraction, then regression fixtures), E122 ✅ (one feature, three implementations — the cost this removes), **E115** (family switching — an identical behavior layer makes switching lossless by construction), E132/E133/E134/E136 (renames + redesigns — coordinate sequencing), A23/A24 (externalization — version-coupling caveat), E86 ✅ (descriptor-parity test precedent).
 
 ## Architecture & Infrastructure
 
