@@ -1009,7 +1009,7 @@ class FeezalAppEditor extends LitElement {
                             ${this._tabItems().map(item => item.type === 'folder'
                                 ? html`
                                     <div class="ftab folder ${this._folderMenu?.id === item.id ? 'open' : ''} ${item.containsActive ? 'contains-active' : ''} ${this._dropClass(item)} ${this._dragArmed === item.id ? 'drag-armed' : ''}"
-                                        draggable="${this._dragArmed === item.id ? 'true' : 'false'}"
+                                        draggable="true"
                                         title="${item.name}"
                                         @pointerdown="${e => this._armDrag(e, item.id)}"
                                         @pointerup="${this._disarmDrag}"
@@ -1031,7 +1031,7 @@ class FeezalAppEditor extends LitElement {
                                 : html`
                                     <div class="ftab view ${this._navView === item.name ? 'active' : ''} ${this._dropClass(item)} ${this._dragArmed === item.name ? 'drag-armed' : ''}"
                                         data-view="${item.name}"
-                                        draggable="${this._dragArmed === item.name ? 'true' : 'false'}"
+                                        draggable="true"
                                         @pointerdown="${e => this._armDrag(e, item.name)}"
                                         @pointerup="${this._disarmDrag}"
                                         @pointerleave="${this._disarmDrag}"
@@ -3326,9 +3326,14 @@ class FeezalAppEditor extends LitElement {
 
     // ---- U55: hold-to-drag arming ---------------------------------------
     // HTML5 drag has no delay option, so arming is manual: pointerdown starts
-    // a timer; only when it fires (button still down on the same tab) does the
-    // tab become draggable (+ a visual lift cue). A quick click — even a
-    // slightly moving one — never arms and therefore never reorders.
+    // a timer; only when it fires (button still down on the same tab) is the
+    // tab ARMED (visual lift cue). The tabs are always `draggable` — Chrome
+    // samples draggability at mousedown, so flipping the attribute mid-press
+    // (the first U55 implementation) only started a drag when a re-render
+    // happened to win the race, i.e. almost never. Instead the native drag is
+    // allowed to begin and `dragstart` vetoes it while unarmed: a quick click
+    // — even a slightly moving one — never reorders, and once the lift cue
+    // shows, moving the mouse reliably drags.
 
     _armDrag(e, key) {
         if (e.button !== 0) return;              // primary button / touch only
@@ -3344,6 +3349,15 @@ class FeezalAppEditor extends LitElement {
     }
 
     _onItemDragStart(e, drag) {
+        // U55: unarmed press (moved before the hold elapsed) → veto the native
+        // drag AND disarm — the browser attempts only one drag per press, so a
+        // later-firing arm timer could no longer start one; leaving the lift
+        // cue up would promise a drag that cannot happen.
+        if (this._dragArmed !== (drag.id ?? drag.name)) {
+            e.preventDefault();
+            this._disarmDrag();
+            return;
+        }
         this._dragData = drag;
         e.dataTransfer.effectAllowed = 'move';
         try { e.dataTransfer.setData('text/plain', drag.name || drag.id); } catch { /* noop */ }

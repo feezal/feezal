@@ -213,16 +213,26 @@ describe('view management', () => {
         await page.locator('.ftab.view[data-view="main"]').click();   // restore for later tests
     });
 
-    it('U55: holding arms the tab (lift cue + draggable=true); release disarms', async () => {
+    it('U55: holding arms the tab (lift cue); release disarms; dragstart is vetoed while unarmed', async () => {
         const tab = page.locator('.ftab.view[data-view="garden"]');
         const box = await tab.boundingBox();
-        expect(await tab.getAttribute('draggable')).toBe('false');   // click-safe by default
+        // Tabs are ALWAYS draggable (Chrome samples draggability at mousedown —
+        // flipping the attribute mid-press never worked); arming gates dragstart.
+        expect(await tab.getAttribute('draggable')).toBe('true');
+        expect(await tab.evaluate(el => el.classList.contains('drag-armed'))).toBe(false);
         await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
         await page.mouse.down();
-        await expect.poll(() => tab.getAttribute('draggable'), {timeout: 5000}).toBe('true');
-        expect(await tab.evaluate(el => el.classList.contains('drag-armed'))).toBe(true);
+        await expect.poll(() => tab.evaluate(el => el.classList.contains('drag-armed')), {timeout: 5000}).toBe(true);
         await page.mouse.up();
-        await expect.poll(() => tab.getAttribute('draggable')).toBe('false');
+        await expect.poll(() => tab.evaluate(el => el.classList.contains('drag-armed'))).toBe(false);
+        // Unarmed dragstart is vetoed (defaultPrevented) and never sets _dragData.
+        const vetoed = await tab.evaluate(el => {
+            const e = new DragEvent('dragstart', {bubbles: true, cancelable: true, dataTransfer: new DataTransfer()});
+            el.dispatchEvent(e);
+            return e.defaultPrevented;
+        });
+        expect(vetoed).toBe(true);
+        expect(await page.locator('feezal-app-editor').evaluate(app => app._dragData)).toBeFalsy();
         await page.locator('.ftab.view[data-view="main"]').click();   // the arming click selected garden
     });
 
