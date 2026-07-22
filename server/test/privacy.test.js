@@ -73,11 +73,13 @@ function scanTree(dirs, hosts) {
 }
 
 describe('A25 — no third-party hosts in shipped code', () => {
-    it('source trees are free of CDN/font hosts', () => {
+    // The tree scan walks a few thousand files — takes ~2.5 s alone and can
+    // exceed the 5 s default under parallel-suite / CI disk contention.
+    it('source trees are free of CDN/font hosts', {timeout: 30_000}, () => {
         expect(scanTree(SCAN_DIRS, FORBIDDEN)).toEqual([]);
     });
 
-    it('outbound hosts appear ONLY in their sanctioned files', () => {
+    it('outbound hosts appear ONLY in their sanctioned files', {timeout: 30_000}, () => {
         const outbound = ['registry.npmjs.org', 'raw.githubusercontent.com', 'api.anthropic.com', 'api.openai.com'];
         expect(scanTree(SCAN_DIRS, outbound)).toEqual([]);
     });
