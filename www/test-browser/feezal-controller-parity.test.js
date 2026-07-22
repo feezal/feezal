@@ -15,6 +15,11 @@ import {describe, it, expect} from 'vitest';
 import {SENSOR_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-sensor';
 import {CONTACT_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-contact';
 import {CLIMATE_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-climate';
+import {LIGHT_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-light';
+import '../packages/@feezal/feezal-element-material-light/feezal-element-material-light.js';
+import '../packages/@feezal/feezal-element-glass-light/feezal-element-glass-light.js';
+import '../packages/@feezal/feezal-element-metro-light/feezal-element-metro-light.js';
+import '../packages/@feezal/feezal-element-eink-light/feezal-element-eink-light.js';
 import '../packages/@feezal/feezal-element-material-motion/feezal-element-material-motion.js';
 import '../packages/@feezal/feezal-element-glass-occupancy/feezal-element-glass-occupancy.js';
 import '../packages/@feezal/feezal-element-metro-occupancy/feezal-element-metro-occupancy.js';
@@ -45,6 +50,13 @@ const CASES = [
     {tag: 'feezal-element-eink-sensor',      consumed: SENSOR_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-eink-contact',     consumed: CONTACT_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-eink-climate',     consumed: CLIMATE_CONSUMED_ATTRIBUTES},
+    // E137 light slice. material-outlet is deliberately NOT listed: it is the
+    // capability-reduced on_off subset of material-light (E121/E122), not a
+    // full light adopter.
+    {tag: 'feezal-element-material-light',   consumed: LIGHT_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-glass-light',      consumed: LIGHT_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-metro-light',      consumed: LIGHT_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-eink-light',       consumed: LIGHT_CONSUMED_ATTRIBUTES},
 ];
 
 describe('E137 — adopting elements declare the full controller contract', () => {

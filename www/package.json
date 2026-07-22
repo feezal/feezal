@@ -153,6 +153,7 @@
         "@feezal/feezal-element-tui-value": "*",
         "@feezal/feezal-controller-climate": "*",
         "@feezal/feezal-controller-contact": "*",
+        "@feezal/feezal-controller-light": "*",
         "@feezal/feezal-controller-sensor": "*",
         "@feezal/feezal-eink": "*",
         "@feezal/feezal-glass": "*",

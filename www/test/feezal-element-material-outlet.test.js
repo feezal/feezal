@@ -35,7 +35,7 @@ describe('feezal-element-material-outlet (E121)', () => {
 
     it('renders the power button without any ring track', async () => {
         const el = await mountOutlet();
-        el._on = true;
+        el.light.on = true;
         await el.updateComplete;
         expect(el.shadowRoot.querySelector('svg path')).toBeNull();
         expect([...el.shadowRoot.querySelectorAll('svg text')].some(t => t.textContent.includes('⏻'))).toBe(true);
@@ -43,10 +43,10 @@ describe('feezal-element-material-outlet (E121)', () => {
 
     it('tap toggles and publishes the state payload', async () => {
         const el = await mountOutlet({'payload-on': 'ON', 'payload-off': 'OFF'});
-        el._on = false;
+        el.light.on = false;
         el._toSvgCoords = () => ({sx: 50, sy: 20});
         el._onSvgPointerDown({preventDefault() {}, currentTarget: null});
-        expect(el._on).toBe(true);
+        expect(el.light.on).toBe(true);
         expect(feezal.connection.pub).toHaveBeenCalledWith('plug/set', 'ON');
     });
 

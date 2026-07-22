@@ -3,7 +3,7 @@ import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import '../packages/@feezal/feezal-element-glass-button/feezal-element-glass-button.js';
 import '../packages/@feezal/feezal-element-glass-sensor/feezal-element-glass-sensor.js';
 import {payloadMatch as contactMatch} from '../packages/@feezal/feezal-element-glass-contact/feezal-element-glass-contact.js';
-import {pctToRaw, rawToPct} from '../packages/@feezal/feezal-element-glass-light/feezal-element-glass-light.js';
+import {pctToRaw} from '../packages/@feezal/feezal-element-glass-light/feezal-element-glass-light.js';
 import '../packages/@feezal/feezal-element-glass-cover/feezal-element-glass-cover.js';
 
 let subs;
@@ -120,13 +120,15 @@ describe('glass-contact', () => {
 // ── glass-light ───────────────────────────────────────────────────────────────
 
 describe('glass-light', () => {
-    it('pctToRaw / rawToPct keep material-light range semantics (incl. sub-integer)', () => {
+    it('pctToRaw / rawToPct keep material-light range semantics (incl. sub-integer)', async () => {
         expect(pctToRaw(49, 0, 100)).toBe(49);
         expect(pctToRaw(50, 0, 254)).toBe(127);
         expect(pctToRaw(49, 0, 1)).toBe(0.49);
-        expect(rawToPct(127, 0, 254)).toBe(50);
-        expect(rawToPct(0.5, 0, 1)).toBe(50);
-        expect(rawToPct('nope', 0, 100)).toBeNull();
+        // E137: raw→% lives on the controller now (reads brightness-min/max).
+        const el = await mount('feezal-element-glass-light', {'brightness-min': '0', 'brightness-max': '254'});
+        expect(el.light.rawToPct(127)).toBe(50);
+        el.setAttribute('brightness-max', '1');
+        expect(el.light.rawToPct(0.5)).toBe(50);
     });
 
     it('separate mode: state + brightness topics drive the tile; toggle publishes payload-on/off', async () => {
@@ -140,10 +142,10 @@ describe('glass-light', () => {
         await el.updateComplete;
         expect(el.renderRoot.querySelector('.state').textContent).toBe('On • 50 %');
 
-        el.toggle();
+        el.light.toggle();
         expect(published).toEqual([{topic: 'lamp/state/set', payload: 'OFF'}]);
-        el.setBrightness(75);
-        expect(published.at(-1)).toEqual({topic: 'lamp/bri/set', payload: 191});
+        el.light.setBrightnessPct(75);
+        expect(published.at(-1)).toEqual({topic: 'lamp/bri/set', payload: '191'});
     });
 
     it('json mode: parses {state, brightness}; toggle/brightness publish partial JSON to …/set', async () => {
@@ -153,12 +155,12 @@ describe('glass-light', () => {
         });
         deliver('z2m/lamp', {state: 'ON', brightness: 254});
         await el.updateComplete;
-        expect(el._on).toBe(true);
-        expect(el._brt).toBe(100);
+        expect(el.light.on).toBe(true);
+        expect(el.light.brt).toBe(100);
 
-        el.toggle();
+        el.light.toggle();
         expect(JSON.parse(published.at(-1).payload)).toEqual({state: 'OFF'});
-        el.setBrightness(50);
+        el.light.setBrightnessPct(50);
         expect(JSON.parse(published.at(-1).payload)).toEqual({brightness: 127});
         expect(published.every(p => p.topic === 'z2m/lamp/set')).toBe(true);
     });
@@ -172,16 +174,16 @@ describe('glass-light', () => {
         });
         deliver('dimmer/level', 0.5);
         await el.updateComplete;
-        expect(el._on).toBe(true);
-        expect(el._brt).toBe(50);
+        expect(el.light.on).toBe(true);
+        expect(el.light.brt).toBe(50);
 
         deliver('dimmer/level', 0);
         await el.updateComplete;
-        expect(el._on).toBe(false);
+        expect(el.light.on).toBe(false);
 
-        el.toggle();   // on → publishes payload-on (OLD_LEVEL restore)
+        el.light.toggle();   // on → publishes payload-on (OLD_LEVEL restore)
         expect(published.at(-1)).toEqual({topic: 'dimmer/level/set', payload: '1.005'});
-        el.toggle();   // off → publishes payload-off
+        el.light.toggle();   // off → publishes payload-off
         expect(published.at(-1)).toEqual({topic: 'dimmer/level/set', payload: '0'});
     });
 
@@ -195,15 +197,15 @@ describe('glass-light', () => {
         expect(el.renderRoot.querySelector('.details .vslider')).toBeTruthy();
         expect(el.renderRoot.querySelector('.details .ct')).toBeNull();
         expect(el.renderRoot.querySelector('.details .wheel')).toBeNull();
-        el.setBrightness(25);   // pill release calls this with the dragged %
-        expect(published.at(-1)).toEqual({topic: 'lamp/bri/set', payload: 64});
+        el.light.setBrightnessPct(25);   // pill release calls this with the dragged %
+        expect(published.at(-1)).toEqual({topic: 'lamp/bri/set', payload: '64'});
     });
 
     it('never publishes in the editor', async () => {
         feezal.isEditor = true;
         const el = await mount('feezal-element-glass-light', {'publish-state': 'lamp/set'});
-        el.toggle();
-        el.setBrightness(10);
+        el.light.toggle();
+        el.light.setBrightnessPct(10);
         expect(published).toEqual([]);
     });
 });

@@ -195,7 +195,7 @@ describe('metro-light', () => {
         await el.updateComplete;
         expect(el.hasAttribute('data-on')).toBe(true);
         expect(el.shadowRoot.querySelector('.state').textContent).toBe('on 50%');
-        expect(el._colorTemp).toBe(4000);   // 250 mired → 4000 K
+        expect(el.light.colorTemp).toBe(4000);   // 250 mired → 4000 K
 
         el.shadowRoot.querySelector('.onoff .mbtn:last-child').click();   // OFF
         expect(feezal.connection.published).toContainEqual({topic: 'z2m/lamp/set', payload: '{"state":"off"}'});
@@ -241,24 +241,14 @@ describe('metro-light', () => {
         expect(el.shadowRoot.querySelector('.front feezal-icon').getAttribute('name')).toBe('lightbulb');
     });
 
-    it('tolerates a JSON object on a separate-mode state topic (stale pre-json wiring)', async () => {
-        // A z2m base topic wired without payload-mode=json (old discovery
-        // shape) — the state/brightness keys must still be read.
-        const el = await mount('feezal-element-metro-light', {
-            subscribe: 'z2m/stale', 'brightness-max': '254',
-        });
-        feezal.connection.deliver('z2m/stale', {state: 'ON', brightness: 127});
-        await el.updateComplete;
-        expect(el.hasAttribute('data-on')).toBe(true);
-        expect(el.shadowRoot.querySelector('.state').textContent).toBe('on 50%');
-    });
-
-    it('json mode with a leaf message-property (payload.state) still reads the state object', async () => {
-        // Real-life zigbee2mqtt Hue payload; message-property misconfigured
-        // to a leaf — the element must fall back to the payload object.
+    it('json mode reads a real zigbee2mqtt Hue payload (default message-property)', async () => {
+        // E137: the shared LightController expects message-property to yield
+        // the whole state OBJECT in json mode (the default, 'payload'). The
+        // pre-controller metro-only tolerances (leaf message-property fallback,
+        // JSON object on a separate-mode state topic) are gone — the contract
+        // is material-light's.
         const el = await mount('feezal-element-metro-light', {
             'payload-mode': 'json', subscribe: 'z2m/hue', publish: 'z2m/hue/set',
-            'message-property': 'payload.state',
             'brightness-max': '254', mode: 'brightness_ct',
             'color-temp-unit': 'mired', 'color-temp-min': '2203', 'color-temp-max': '6536',
         });
@@ -273,8 +263,8 @@ describe('metro-light', () => {
         await el.updateComplete;
         expect(el.hasAttribute('data-on')).toBe(true);
         expect(el.shadowRoot.querySelector('.state').textContent).toBe('on 100%');
-        expect(el._colorTemp).toBe(3690);          // 271 mired → 3690 K
-        expect(el._hs).toEqual([38, 58]);          // from the color object
+        expect(el.light.colorTemp).toBe(3690);     // 271 mired → 3690 K
+        expect(el.light.hs).toEqual([38, 58]);     // from the color object
     });
 
     it('autodiscovery: a z2m json-schema light maps payload-mode/scales/kelvin range/mode', async () => {

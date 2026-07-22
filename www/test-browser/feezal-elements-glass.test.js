@@ -32,10 +32,10 @@ describe('glass-light colour/CT', () => {
             color: {h: 38, hue: 38, s: 58, saturation: 58, x: 0.3951, y: 0.3854},
         });
         await el.updateComplete;
-        expect(el._on).toBe(true);
-        expect(el._brt).toBe(50);
-        expect(el._colorTemp).toBe(3690);   // 271 mired → 3690 K
-        expect(el._hs).toEqual([38, 58]);
+        expect(el.light.on).toBe(true);
+        expect(el.light.brt).toBe(50);
+        expect(el.light.colorTemp).toBe(3690);   // 271 mired → 3690 K
+        expect(el.light.hs).toEqual([38, 58]);
 
         // Details popup: brightness pill + CT slider present (json = dimmable,
         // mode declares ct); CT release publishes a merged JSON object in mireds.
@@ -56,7 +56,7 @@ describe('glass-light colour/CT', () => {
         });
         feezal.connection.deliver('stat/ct', '4000');
         await el.updateComplete;
-        expect(el._colorTemp).toBe(4000);
+        expect(el.light.colorTemp).toBe(4000);
         // no brightness topics → no brightness pill, but the CT slider exists
         el._details = true;
         await el.updateComplete;
@@ -96,8 +96,9 @@ describe('glass-light colour/CT', () => {
         // Pointer at 25 % from the top = 75 % brightness.
         pill.dispatchEvent(new PointerEvent('pointerdown', {clientY: 42.5}));
         pill.dispatchEvent(new PointerEvent('pointerup', {clientY: 42.5}));
-        expect(el._brt).toBe(75);
-        expect(feezal.connection.published).toContainEqual({topic: 'cmnd/bri', payload: 75});
+        expect(el.light.brt).toBe(75);
+        // E137: the controller publishes the raw value as a string.
+        expect(feezal.connection.published).toContainEqual({topic: 'cmnd/bri', payload: '75'});
     });
 });
 
@@ -376,7 +377,7 @@ describe('glass live-canvas rewire (editor-state bug)', () => {
         await el.updateComplete;
         feezal.connection.deliver('stat/late', 'on');
         await el.updateComplete;
-        expect(el._on).toBe(true);
+        expect(el.light.on).toBe(true);
     });
 
     it('glass-contact: topic set after mount starts flowing; old topic dies on change', async () => {

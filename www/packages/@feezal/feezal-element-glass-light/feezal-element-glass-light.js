@@ -1,9 +1,12 @@
 /* global feezal */
 import {feezalBaseStyles, html, css} from '@feezal/feezal-element';
-import {SettlingController} from '@feezal/feezal-element/feezal-settling.js';
+// E137: the light behavior lives in the shared controller — this element
+// is a VIEW (Glass chrome: frost tile, long-press details popup: brightness
+// pill, CT slider, hue/saturation wheel).
+import {LightController, lightAttributes, lightDiscoveryMap, pctToRaw, hsvToRgb, rgbToHsv} from '@feezal/feezal-controller-light';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
-import {applySizePreset, payloadMatch, glassCardStyles, glassPopupStyles, FeezalGlassCard} from '@feezal/feezal-glass';
+import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-light (E58)
@@ -13,76 +16,19 @@ import {applySizePreset, payloadMatch, glassCardStyles, glassPopupStyles, Feezal
  * big vertical brightness slider, colour-temperature slider, round
  * hue/saturation wheel — sections appear per capability.
  *
- * MQTT capability contract mirrors feezal-element-material-light — SAME
- * attribute names, both payload modes (json / separate), the E77
- * brightness-derived on/off (Homematic dimmers), brightness-min/max range
- * scaling, colour temperature (kelvin locally, kelvin|mired on the wire),
- * RGB / hue-saturation and HA discovery (schema → payload-mode, capability
- * ranges, supported_color_modes → mode). Effects/white channels remain
- * material-light's domain. The `mode` attribute picks the back-side detail
- * sliders: brightness / brightness_ct / color_temp / rgb / hs.
+ * E137: the MQTT contract (both payload modes, E77 brightness-derived
+ * on/off, E127 ramp settling, brightness scaling, CT kelvin|mired,
+ * RGB / hue-saturation, effects/white channels, HA discovery) is the
+ * shared @feezal/feezal-controller-light — identical to material-light.
+ * The `mode` attribute picks the popup detail sliders:
+ * brightness / brightness_ct / color_temp / rgb / hs.
  *
  * Family conventions (frost vars, degrade, squircle): see glass-button.
  */
 
-/** Ring % → raw MQTT value — identical semantics to material-light's export:
- * integer ranges publish whole numbers, sub-integer ranges (Homematic LEVEL
- * 0–1) keep the needed decimals. */
-export function pctToRaw(pct, min, max) {
-    const value = min + (pct / 100) * (max - min);
-    const step = Math.abs(max - min) / 100;
-    if (step >= 1 || step === 0) return Math.round(value);
-    const decimals = Math.min(6, Math.ceil(-Math.log10(step)));
-    return Number(value.toFixed(decimals));
-}
-
-/** Raw MQTT value → 0–100 %, clamped. */
-export function rawToPct(raw, min, max) {
-    const n = Number(raw);
-    if (!Number.isFinite(n) || max === min) return null;
-    return Math.max(0, Math.min(100, Math.round(((n - min) / (max - min)) * 100)));
-}
-
-// ── Colour helpers (private in material-light — duplicated, keep in sync) ──
-function hsvToRgb(h, s, v) {
-    const f = (n, k = (n + h / 60) % 6) => v - v * s * Math.max(Math.min(k, 4 - k, 1), 0);
-    return [f(5), f(3), f(1)].map(x => Math.round(x * 255));
-}
-
-function rgbToHsv(r, g, b) {
-    r /= 255; g /= 255; b /= 255;
-    const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
-    let h = 0;
-    if (d !== 0) {
-        if (max === r) h = ((g - b) / d) % 6;
-        else if (max === g) h = (b - r) / d + 2;
-        else h = (r - g) / d + 4;
-        h = (h * 60 + 360) % 360;
-    }
-    return [h, max === 0 ? 0 : d / max, max];
-}
-
-function parseRgb(raw) {
-    try {
-        const arr = typeof raw === 'string' && raw.trim().startsWith('[') ? JSON.parse(raw)
-            : typeof raw === 'string' ? raw.split(',').map(Number) : raw;
-        if (Array.isArray(arr) && arr.length >= 3 && arr.slice(0, 3).every(n => !isNaN(Number(n)))) {
-            return arr.slice(0, 3).map(Number);
-        }
-    } catch { /* unparseable */ }
-    return null;
-}
-
-function xyToRgb(x, y, bri = 1) {
-    const z = 1 - x - y;
-    const Y = bri, X = (Y / y) * x, Z = (Y / y) * z;
-    let r = X * 1.612 - Y * 0.203 - Z * 0.302;
-    let g = -X * 0.509 + Y * 1.412 + Z * 0.066;
-    let b = X * 0.026 - Y * 0.072 + Z * 0.962;
-    [r, g, b] = [r, g, b].map(c => c <= 0.0031308 ? 12.92 * c : 1.055 * (c ** (1 / 2.4)) - 0.055);
-    const max = Math.max(r, g, b, 1);
-    return [r, g, b].map(c => Math.round(Math.max(0, c / max) * 255));
-}
+// E137: pctToRaw lives in @feezal/feezal-element/feezal-color.js now —
+// re-exported here for back-compat with prior importers (tests).
+export {pctToRaw};
 
 const LONG_PRESS_MS = 450;
 
@@ -94,86 +40,16 @@ class FeezalElementGlassLight extends FeezalGlassCard {
                 'vertical brightness slider, colour-temperature slider and hue/saturation wheel (per capability). ' +
                 'Same wiring contract as the material light card.',
             inspector: 'feezal-element-glass-light-inspector',
-            discovery: {
-                component: 'light',
-                map: {
-                    schema:           {attr: 'payload-mode', valueMap: {json: 'json', _default: 'separate'}},
-                    state_topic:      'subscribe',
-                    // E126: native Homematic relay-as-light — on/off command topic.
-                    state_command_topic: 'publish-state',
-                    command_topic:    {attr: 'publish', onlyWhen: {schema: 'json'}},
-                    brightness_state_topic:   'subscribe-brightness',
-                    brightness_command_topic: 'publish-brightness',
-                    brightness_scale: {attr: 'brightness-max'},
-                    color_temp_state_topic:   'subscribe-color-temp',
-                    color_temp_command_topic: 'publish-color-temp',
-                    supported_color_modes:    {attr: 'mode', transform: 'colorMode'},
-                    min_mireds: {attr: 'color-temp-max', unit: 'mired→kelvin', alsoSet: {'color-temp-unit': 'mired'}},
-                    max_mireds: {attr: 'color-temp-min', unit: 'mired→kelvin'},
-                    // E108 native Homematic (separate-mode dimmer) — HA-absent keys,
-                    // additive (brightness_state/command_topic already mapped above).
-                    payload_mode:             'payload-mode',
-                    brightness_min:           {attr: 'brightness-min'},
-                    on_off_source:            'on-off-source',
-                    payload_off:              'payload-off',
-                    payload_on:               'payload-on',
-                    message_property:             'message-property',
-                    message_property_brightness:  'message-property-brightness',
-                    message_property_state:       'message-property-state',
-                    // E127: ramp settling — emitted only when the recognizer has
-                    // observed the topics (WORKING / RedMatic LEVEL_NOTWORKING).
-                    working_topic:            'subscribe-working',
-                    message_property_working: 'message-property-working',
-                    settled_topic:            'subscribe-settled',
-                    message_property_settled: 'message-property-settled',
-                    // N31: availability is mapped automatically from the canonical discovery record.
-                    name: 'label',
-                },
-            },
+            // E137: the discovery map is the controller package's fragment.
+            discovery: {component: 'light', map: lightDiscoveryMap},
             attributes: [
                 {name: 'size', type: 'select', options: ['', '2x2', '2x1'], default: '',
                     help: 'Preset size: 2x2 = square (150×150), 2x1 = wide (150×75). Empty keeps the current/manual size.'},
-                {name: 'payload-mode', type: 'select', options: ['separate', 'json'], default: 'separate',
-                    help: 'separate = one topic per property; json = single topic carrying a JSON object.'},
-                {name: 'subscribe', type: 'mqttTopic', help: 'JSON mode: base topic carrying the state JSON. Separate mode: on/off state topic.'},
-                {name: 'publish',   type: 'mqttTopic', help: 'json mode: command topic (usually …/set) accepting a partial JSON object.'},
-                {name: 'json-map',  type: 'string', default: '', help: 'json mode: optional JSON string overriding the default {state, brightness} key map.'},
-                {name: 'message-property', type: 'string', default: 'payload',
-                    help: 'Property path within message payloads (dot-notation). json mode: extracts the state object; separate mode: global fallback.'},
-                {name: 'on-off-source', type: 'select', options: ['topic', 'brightness'], default: 'topic',
-                    help: 'topic = dedicated on/off state topic; brightness = derive on/off from the brightness value (Homematic dimmers, LEVEL 0–1).'},
-                {name: 'subscribe-state', type: 'mqttTopic', help: 'Separate mode: on/off state topic. Falls back to subscribe when empty.'},
-                {name: 'message-property-state', type: 'string', default: 'payload', help: 'Property path for the on/off topic. Defaults to message-property.'},
-                {name: 'publish-state', type: 'mqttTopic', help: 'Topic to publish on/off.'},
-                {name: 'payload-on',  type: 'string', default: 'on',  help: 'Payload representing "on". on-off-source=brightness: published to the brightness topic on toggle-on (Homematic: 1.005 restores the last level).'},
-                {name: 'payload-off', type: 'string', default: 'off', help: 'Payload representing "off". on-off-source=brightness: numeric value meaning off (non-numeric falls back to brightness-min).'},
-                {name: 'subscribe-brightness', type: 'mqttTopic', help: 'Current brightness topic.'},
-                {name: 'message-property-brightness', type: 'string', default: 'payload', help: 'Property path for the brightness topic. Defaults to message-property.'},
-                {name: 'publish-brightness', type: 'mqttTopic', help: 'Publish brightness on slider release.'},
-                {name: 'brightness-min', type: 'number', default: 0,   help: 'Minimum brightness value on the MQTT topic.'},
-                {name: 'brightness-max', type: 'number', default: 100, help: 'Maximum brightness value on the MQTT topic (z2m: 254, Homematic: 1).'},
-                // E127: ramp settling (Homematic dimmers report every intermediate
-                // level while ramping — these keep the slider from jumping).
-                {name: 'subscribe-working', type: 'mqttTopic', help: 'WORKING datapoint topic (true while the level ramps, e.g. hm/status/<dimmer>/WORKING). While true, brightness reports are suppressed instead of making the slider jump; false applies the final value.'},
-                {name: 'message-property-working', type: 'string', default: 'payload.val', help: 'Property path for the WORKING topic (mqtt-smarthome publishes {"val": true} → payload.val).'},
-                {name: 'subscribe-settled', type: 'mqttTopic', help: 'Settled-values topic carrying only final levels (RedMatic: …/LEVEL_NOTWORKING). When set, the slider follows THIS topic; subscribe-brightness keeps the % state text live during ramps.'},
-                {name: 'message-property-settled', type: 'string', default: 'payload.val', help: 'Property path for the settled topic (mqtt-smarthome: payload.val).'},
-                {name: 'settle-timeout', type: 'number', default: 5, help: 'Seconds after a command before the slider reconciles to the last reported value (covers interrupted ramps and sentinel commands like 1.005).'},
-                {name: 'report-delay-ms', type: 'number', default: 100, help: 'Only with subscribe-working: delay before showing an incoming brightness report — a WORKING=true within the window suppresses ramp jitter from changes made elsewhere. 0 disables.'},
-                {name: 'mode', type: 'select', options: ['on_off', 'brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs'], default: 'brightness',
-                    help: 'Capability declaration for json mode (which popup sections exist): brightness, brightness + colour temperature, colour temperature, RGB or hue/saturation. Separate mode derives sections from the configured topics. on_off (E122) = switch-only lamp — the popup is a pure on/off toggle regardless of topics.'},
-                {name: 'subscribe-color-temp', type: 'mqttTopic', help: 'Current colour temperature.'},
-                {name: 'message-property-color-temp', type: 'string', default: 'payload', help: 'Property path for the colour-temperature topic. Defaults to message-property.'},
-                {name: 'publish-color-temp', type: 'mqttTopic', help: 'Publish colour temperature.'},
-                {name: 'color-temp-unit', type: 'select', options: ['kelvin', 'mired'], default: 'kelvin', help: 'Unit used on colour-temp topics.'},
-                {name: 'color-temp-min', type: 'number', default: 2700, help: 'Minimum colour temperature (K).'},
-                {name: 'color-temp-max', type: 'number', default: 6500, help: 'Maximum colour temperature (K).'},
-                {name: 'subscribe-rgb', type: 'mqttTopic', help: 'Current RGB value (JSON [r,g,b] or "r,g,b").'},
-                {name: 'message-property-rgb', type: 'string', default: 'payload', help: 'Property path for the RGB topic. Defaults to message-property.'},
-                {name: 'publish-rgb', type: 'mqttTopic', help: 'Publish RGB value as JSON [r,g,b].'},
-                {name: 'subscribe-hs', type: 'mqttTopic', help: 'Current hue/saturation (JSON [h,s]).'},
-                {name: 'message-property-hs', type: 'string', default: 'payload', help: 'Property path for the hue/saturation topic. Defaults to message-property.'},
-                {name: 'publish-hs', type: 'mqttTopic', help: 'Publish hue/saturation as JSON [h,s].'},
+                // E137: the shared light contract (both payload modes, E77
+                // on/off-from-brightness, E127 settling, CT/RGB/HS/effects/
+                // white channels) — declared ONCE by the controller package.
+                ...lightAttributes,
+                // Availability
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability — a badge appears when unavailable, the tile stays usable.'},
                 {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path for the availability topic. Defaults to message-property.'},
                 {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
@@ -235,6 +111,19 @@ class FeezalElementGlassLight extends FeezalGlassCard {
         subscribeHs:         {type: String, reflect: true, attribute: 'subscribe-hs'},
         msgPropHs:           {type: String, reflect: true, attribute: 'message-property-hs'},
         publishHs:           {type: String, reflect: true, attribute: 'publish-hs'},
+        subscribeEffect:     {type: String, reflect: true, attribute: 'subscribe-effect'},
+        publishEffect:       {type: String, reflect: true, attribute: 'publish-effect'},
+        effects:             {type: String, reflect: true},
+        msgPropEffect:       {type: String, reflect: true, attribute: 'message-property-effect'},
+        subscribeWhite:      {type: String, reflect: true, attribute: 'subscribe-white'},
+        publishWhite:        {type: String, reflect: true, attribute: 'publish-white'},
+        msgPropWhite:        {type: String, reflect: true, attribute: 'message-property-white'},
+        subscribeWarmWhite:  {type: String, reflect: true, attribute: 'subscribe-warm-white'},
+        publishWarmWhite:    {type: String, reflect: true, attribute: 'publish-warm-white'},
+        msgPropWarmWhite:    {type: String, reflect: true, attribute: 'message-property-warm-white'},
+        subscribeColdWhite:  {type: String, reflect: true, attribute: 'subscribe-cold-white'},
+        publishColdWhite:    {type: String, reflect: true, attribute: 'publish-cold-white'},
+        msgPropColdWhite:    {type: String, reflect: true, attribute: 'message-property-cold-white'},
         // N31: availability inherited from FeezalElement.
         label:               {type: String, reflect: true},
         labelOn:             {type: String, reflect: true, attribute: 'label-on'},
@@ -242,12 +131,9 @@ class FeezalElementGlassLight extends FeezalGlassCard {
         icon:                {type: String, reflect: true},
         degrade:             {type: Boolean, reflect: true},
         discoveryId:         {type: String, reflect: true, attribute: 'discovery-id'},
-        _on:        {state: true},
-        _brt:       {state: true},   // 0–100 % (null = unknown)
-        _brtLive:   {state: true},   // E127 dual-topic mode: live % readout while the slider holds
-        _colorTemp: {state: true},   // Kelvin (null = unknown)
-        _rgb:       {state: true},   // [r, g, b]
-        _hs:        {state: true},   // [h 0–360, s 0–100]
+        // E137: light state lives on the LightController (plain fields +
+        // host.requestUpdate) — only the drag preview stays element-local.
+        _dragBrt:   {state: true},   // live % while the brightness pill drags (null = not dragging)
     };
 
     static styles = [feezalBaseStyles, glassCardStyles, glassPopupStyles, css`
@@ -381,179 +267,43 @@ class FeezalElementGlassLight extends FeezalGlassCard {
         this.subscribeHs = '';
         this.msgPropHs = '';
         this.publishHs = '';
+        this.subscribeEffect = '';
+        this.publishEffect = '';
+        this.effects = '';
+        this.msgPropEffect = '';
+        this.subscribeWhite = '';
+        this.publishWhite = '';
+        this.msgPropWhite = '';
+        this.subscribeWarmWhite = '';
+        this.publishWarmWhite = '';
+        this.msgPropWarmWhite = '';
+        this.subscribeColdWhite = '';
+        this.publishColdWhite = '';
+        this.msgPropColdWhite = '';
         this.label = '';
         this.labelOn = 'On';
         this.labelOff = 'Off';
         this.icon = 'lightbulb';
         this.degrade = false;
         this.discoveryId = '';
-        this._on = false;
-        this._brt = null;
-        this._brtLive = null;
-        this._colorTemp = null;
-        this._rgb = null;
-        this._hs = null;
+        this._dragBrt = null;
         this._pressTimer = null;
         this._longPressed = false;
+        // E137: the behavior layer — wires/parses/publishes; this view renders.
+        this.light = new LightController(this);
     }
 
-    // Device cards manage subscriptions manually; suppress the base class path.
+    // The light fully manages its own subscriptions (via the controller);
+    // suppress the generic base subscription path.
     _subscribe() { /* intentionally empty */ }
 
-    get _map() {
-        const defaults = {state: 'state', brightness: 'brightness', color_temp: 'color_temp', color: 'color'};
-        if (this.jsonMap) {
-            try { return {...defaults, ...JSON.parse(this.jsonMap)}; } catch { /* defaults */ }
-        }
-        return defaults;
-    }
-
-    /** The numeric raw value meaning "off" in brightness-derived mode. */
-    get _offRaw() {
-        const n = Number(this.payloadOff);
-        return Number.isFinite(n) ? n : Number(this.brightnessMin) || 0;
-    }
-
-    connectedCallback() {
-        super.connectedCallback();
-        this._wireSubscriptions();
-    }
-
-    /** Everything that identifies the subscription wiring — when it changes
-     * at runtime (inspector edits on the live canvas, MQTT setattribute),
-     * updated() rewires instead of silently keeping the stale topics. */
-    _wireSignature() {
-        return [this.payloadMode, this.onOffSource, this.subscribe, this.subscribeState,
-            this.subscribeBrightness, this.subscribeColorTemp, this.subscribeRgb, this.subscribeHs,
-            // E127
-            this.subscribeWorking, this.subscribeSettled, this.settleTimeout, this.reportDelayMs].join('|');
-    }
-
-    _wireSubscriptions() {
-        this.__wireSig = this._wireSignature();
-
-        if (this.payloadMode === 'json') {
-            if (this.subscribe) {
-                this.addSubscription(this.subscribe, msg => {
-                    let obj = this.getProperty(msg, this.messageProperty);
-                    if (typeof obj === 'string') {
-                        try { obj = JSON.parse(obj); } catch { obj = null; }
-                    }
-                    // Tolerance: message-property pointing at a leaf — the
-                    // state object is the payload itself.
-                    if ((obj === null || typeof obj !== 'object') && msg.payload && typeof msg.payload === 'object') {
-                        obj = msg.payload;
-                    }
-                    if (!obj || typeof obj !== 'object') return;
-                    const map = this._map;
-                    const state = this.getProperty(obj, map.state);
-                    if (state !== undefined && state !== null) {
-                        this._on = payloadMatch(state, this.payloadOn);
-                    }
-                    const raw = this.getProperty(obj, map.brightness);
-                    if (raw !== undefined && raw !== null) {
-                        this._applyBrightness(raw);
-                    }
-                    let ct = Number(this.getProperty(obj, map.color_temp));
-                    if (!isNaN(ct) && ct > 0) {
-                        if (this.colorTempUnit === 'mired') ct = Math.round(1_000_000 / ct);
-                        this._colorTemp = ct;
-                    }
-                    const color = this.getProperty(obj, map.color);
-                    if (color && typeof color === 'object') {
-                        if (color.hue !== undefined || color.h !== undefined) {
-                            this._hs = [Number(color.hue ?? color.h), Number(color.saturation ?? color.s ?? 100)];
-                        } else if (color.r !== undefined) {
-                            this._rgb = [Number(color.r), Number(color.g), Number(color.b)];
-                        } else if (color.x !== undefined && color.y !== undefined) {
-                            this._rgb = xyToRgb(Number(color.x), Number(color.y));
-                        }
-                    }
-                });
-            }
-            return;
-        }
-
-        // ── separate mode ────────────────────────────────────────────────────
-        const stateTopic = this.subscribeState || (this.onOffSource !== 'brightness' ? this.subscribe : '');
-        if (this.onOffSource !== 'brightness' && stateTopic) {
-            this.addSubscription(stateTopic, msg => {
-                const v = this.getProperty(msg, this.msgPropState || this.messageProperty);
-                this._on = payloadMatch(v, this.payloadOn);
-            });
-        }
-        if (this.subscribeBrightness) {
-            // E127: brightness reports run through the SettlingController — it
-            // decides which ones may reach the slider (hold-at-target after own
-            // commands, WORKING-gated suppression, optional settled topic).
-            this._settling?.dispose();
-            this._settling = new SettlingController({
-                apply: raw => this._applyBrightness(raw),
-                timeoutMs: (Math.max(0, Number(this.settleTimeout)) || 5) * 1000,
-                reportDelayMs: Math.max(0, Number(this.reportDelayMs ?? 100) || 0),
-                workingWired: Boolean(this.subscribeWorking),
-                settledWired: Boolean(this.subscribeSettled),
-            });
-            this.addSubscription(this.subscribeBrightness, msg => {
-                const raw = this.getProperty(msg, this.msgPropBrightness || this.messageProperty);
-                const v = Number(raw);
-                if (isNaN(v)) return;
-                if (this.subscribeSettled) {
-                    // Dual-topic mode (RedMatic): live topic keeps the % state
-                    // text updating; the slider follows the settled topic.
-                    this._brtLive = rawToPct(raw, Number(this.brightnessMin) || 0, Number(this.brightnessMax) ?? 100);
-                }
-                this._settling.live(v);
-            });
-            if (this.subscribeWorking) {
-                this.addSubscription(this.subscribeWorking, msg => {
-                    const v = this.getProperty(msg, this.msgPropWorking || 'payload.val');
-                    this._settling.working(v === true || v === 'true' || v === 1 || v === '1');
-                });
-            }
-            if (this.subscribeSettled) {
-                this.addSubscription(this.subscribeSettled, msg => {
-                    const v = Number(this.getProperty(msg, this.msgPropSettled || 'payload.val'));
-                    if (!isNaN(v)) this._settling.settled(v);
-                });
-            }
-        }
-        if (this.subscribeColorTemp) {
-            this.addSubscription(this.subscribeColorTemp, msg => {
-                let v = Number(this.getProperty(msg, this.msgPropColorTemp || this.messageProperty));
-                if (!isNaN(v) && v > 0) {
-                    if (this.colorTempUnit === 'mired') v = Math.round(1_000_000 / v);
-                    this._colorTemp = v;
-                }
-            });
-        }
-        if (this.subscribeRgb) {
-            this.addSubscription(this.subscribeRgb, msg => {
-                const rgb = parseRgb(this.getProperty(msg, this.msgPropRgb || this.messageProperty));
-                if (rgb) this._rgb = rgb;
-            });
-        }
-        if (this.subscribeHs) {
-            this.addSubscription(this.subscribeHs, msg => {
-                try {
-                    const raw = this.getProperty(msg, this.msgPropHs || this.messageProperty);
-                    const arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
-                    if (Array.isArray(arr) && arr.length >= 2) this._hs = arr.slice(0, 2).map(Number);
-                } catch { /* unparseable */ }
-            });
-        }
-    }
+    // E137: the LightController wires everything in hostConnected and
+    // disposes the settling machinery in hostDisconnected.
 
     updated(changed) {
         super.updated(changed);
-        // Topic/mode attributes changed at runtime → drop the old
-        // subscriptions and wire the new ones (a fresh subscription also
-        // triggers the broker's retained replay — this is what makes topics
-        // configured through the inspector show state on the live canvas).
-        if (this.isConnected && this.__wireSig !== undefined && this._wireSignature() !== this.__wireSig) {
-            this._unsubscribe();
-            this._wireSubscriptions();
-        }
+        // Live-canvas topic edits re-wire through the controller.
+        this.light.rewireIfChanged();
         // The size grid writes the element's inline geometry (editor keeps
         // full manual control afterwards).
         if (changed.has('size')) applySizePreset(this);
@@ -568,116 +318,21 @@ class FeezalElementGlassLight extends FeezalGlassCard {
         }
     }
 
-    /** Store brightness %, deriving on/off when on-off-source=brightness (E77). */
-    _applyBrightness(raw) {
-        const pct = rawToPct(raw, Number(this.brightnessMin) || 0, Number(this.brightnessMax) ?? 100);
-        if (pct !== null) {
-            this._brt = pct;
-            this._brtLive = null;   // E127: settled — live readout re-syncs
-        }
-        if (this.onOffSource === 'brightness') {
-            const n = Number(raw);
-            this._on = Number.isFinite(n) ? n !== this._offRaw : false;
-        }
+    // ── view state ────────────────────────────────────────────────────────────
+
+    /** Brightness % to display — drag preview wins over the controller state. */
+    get _dispBrt() {
+        return this._dragBrt !== null ? this._dragBrt : (this.light.brt ?? null);
     }
 
-    // ── publishing ────────────────────────────────────────────────────────────
-
-    _pubJson(obj) {
-        if (this.publish) feezal.connection.pub(this.publish, JSON.stringify(obj));
-    }
-
-    toggle() {
-        if (feezal.isEditor) return;
-        const next = !this._on;
-        this._on = next;
-        if (this.payloadMode === 'json') {
-            this._pubJson({[this._map.state]: next ? this.payloadOn : this.payloadOff});
-            return;
-        }
-        if (this.onOffSource === 'brightness') {
-            // E77: on/off travels over the brightness topic (Homematic:
-            // payload-on 1.005 restores the previous level, payload-off 0).
-            if (this.publishBrightness) {
-                const payload = next ? this.payloadOn : this.payloadOff;
-                feezal.connection.pub(this.publishBrightness, payload);
-                // E127: sentinel targets (1.005 OLD_LEVEL) are never echoed
-                // verbatim, so they hold ONLY when a WORKING/settled signal can
-                // end the hold — otherwise ramp reports keep flowing as before.
-                const n = Number(payload);
-                const min = Number(this.brightnessMin) || 0;
-                const max = Number(this.brightnessMax) ?? 100;
-                const inRange = Number.isFinite(n) && n >= Math.min(min, max) && n <= Math.max(min, max);
-                if (inRange || this.subscribeWorking || this.subscribeSettled) this._settling?.command(n);
-            }
-            return;
-        }
-        if (this.publishState) {
-            feezal.connection.pub(this.publishState, next ? this.payloadOn : this.payloadOff);
-        }
-    }
-
-    setBrightness(pct) {
-        if (feezal.isEditor) return;
-        const clamped = Math.max(0, Math.min(100, Math.round(Number(pct))));
-        this._brt = clamped;
-        const raw = pctToRaw(clamped, Number(this.brightnessMin) || 0, Number(this.brightnessMax) ?? 100);
-        if (this.payloadMode === 'json') {
-            this._pubJson({[this._map.brightness]: raw});
-            return;
-        }
-        if (this.publishBrightness) {
-            feezal.connection.pub(this.publishBrightness, raw);
-            this._settling?.command(Number(raw));
-        }
-        if (this.onOffSource === 'brightness') {
-            this._on = raw !== this._offRaw;
-        }
-    }
-
-    setColorTemp(kelvin) {
-        if (feezal.isEditor) return;
-        const ct = Math.round(Number(kelvin));
-        this._colorTemp = ct;
-        const v = this.colorTempUnit === 'mired' ? Math.round(1_000_000 / ct) : ct;
-        if (this.payloadMode === 'json') {
-            this._pubJson({[this._map.color_temp]: v});
-            return;
-        }
-        if (this.publishColorTemp) {
-            feezal.connection.pub(this.publishColorTemp, String(v));
-        }
-    }
-
-    setHueSat(hue, sat) {
-        if (feezal.isEditor) return;
-        if (this.mode === 'rgb') {
-            const rgb = hsvToRgb(hue, sat / 100, 1);
-            this._rgb = rgb;
-            if (this.payloadMode === 'json') {
-                this._pubJson({[this._map.color]: {r: rgb[0], g: rgb[1], b: rgb[2]}});
-            } else if (this.publishRgb) {
-                feezal.connection.pub(this.publishRgb, JSON.stringify(rgb));
-            }
-        } else {
-            const hs = [Math.round(hue), Math.round(sat)];
-            this._hs = hs;
-            if (this.payloadMode === 'json') {
-                this._pubJson({[this._map.color]: {hue: hs[0], saturation: hs[1]}});
-            } else if (this.publishHs) {
-                feezal.connection.pub(this.publishHs, JSON.stringify(hs));
-            }
-        }
-    }
-
-    /** Current [hue, sat%] for the colour sliders, from _hs or _rgb. */
+    /** Current [hue, sat%] for the colour wheel, from the controller's hs/rgb. */
     _hueSat() {
-        if (this.mode === 'hs' && this._hs) return this._hs;
-        if (this._rgb) {
-            const [h, s] = rgbToHsv(...this._rgb);
+        if (this.mode === 'hs' && this.light.hs) return this.light.hs;
+        if (this.light.rgb) {
+            const {h, s} = rgbToHsv(...this.light.rgb);
             return [h, s * 100];
         }
-        return this._hs ?? [0, 100];
+        return this.light.hs ?? [0, 100];
     }
 
     // ── interaction: tap toggles, long-press (or ⋯) opens the details popup ──
@@ -698,8 +353,8 @@ class FeezalElementGlassLight extends FeezalGlassCard {
             this._suppressTap = false;
             return;
         }
-        if (!this._longPressed && !this._details) {
-            this.toggle();
+        if (!this._longPressed && !this._details && !feezal.isEditor) {
+            this.light.toggle();
         }
     }
 
@@ -710,9 +365,8 @@ class FeezalElementGlassLight extends FeezalGlassCard {
     disconnectedCallback() {
         super.disconnectedCallback();
         clearTimeout(this._pressTimer);
-        // E127: clear pending hold/buffer timers with the subscriptions.
-        this._settling?.dispose();
-        this._settling = null;
+        // E127: the controller disposes the settling machinery in
+        // hostDisconnected.
     }
 
     // ── details popup controls ────────────────────────────────────────────────
@@ -733,13 +387,29 @@ class FeezalElementGlassLight extends FeezalGlassCard {
         if (!this.__vsliderDragging) return;
         this.__vsliderDragging = false;
         this._vsliderApply(e);
-        this.setBrightness(this._brt ?? 0);
+        const final = this._dragBrt ?? 0;
+        this._dragBrt = null;
+        // E137: clamp/scale/publish + settling + E77 on/off derivation
+        // all live behind the controller command.
+        this.light.setBrightnessPct(final);
     }
 
     _vsliderApply(e) {
         const rect = e.currentTarget.getBoundingClientRect();
         const pct = Math.round((1 - (e.clientY - rect.top) / rect.height) * 100);
-        this._brt = Math.max(0, Math.min(100, pct));
+        this._dragBrt = Math.max(0, Math.min(100, pct));
+    }
+
+    /** Colour-temperature slider: live preview while dragging (@input),
+     * kelvin publish on release (@change). */
+    _onCtInput(e) {
+        this.light.colorTemp = Math.round(Number(e.target.value));
+        this.requestUpdate();
+    }
+
+    _onCtChange(e) {
+        if (feezal.isEditor) return;
+        this.light.setColorTempK(Math.round(Number(e.target.value)));
     }
 
     /** Round hue/saturation wheel: angle → hue (0 = top, clockwise),
@@ -768,11 +438,16 @@ class FeezalElementGlassLight extends FeezalGlassCard {
         const dx = e.clientX - cx;
         const dy = e.clientY - cy;
         const hue = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
-        const sat = Math.min(1, Math.sqrt(dx * dx + dy * dy) / (rect.width / 2)) * 100;
-        // Live preview via the local state; the wire publish happens on release.
-        if (this.mode === 'rgb') this._rgb = hsvToRgb(hue, sat / 100, 1);
-        else this._hs = [Math.round(hue), Math.round(sat)];
-        if (publish) this.setHueSat(hue, sat);
+        const sat = Math.min(1, Math.sqrt(dx * dx + dy * dy) / (rect.width / 2));
+        if (publish) {
+            // E137: mode-aware RGB/HS scaling + publish live behind the command.
+            this.light.pickColor(hue, sat);
+            return;
+        }
+        // Live preview on the controller state; the wire publish is on release.
+        if (this.mode === 'rgb') this.light.rgb = hsvToRgb(hue, sat, 1);
+        else this.light.hs = [Math.round(hue), Math.round(sat * 100)];
+        this.requestUpdate();
     }
 
     /** Knob position (CSS %) for the current hue/sat. */
@@ -784,11 +459,12 @@ class FeezalElementGlassLight extends FeezalGlassCard {
     }
 
     _stateText() {
-        if (!this._on) return this.labelOff || 'Off';
+        if (!this.light.on) return this.labelOff || 'Off';
         const on = this.labelOn || 'On';
-        // E127 dual-topic mode: the % text follows the live topic during ramps.
-        const brt = this._brtLive ?? this._brt;
-        return brt !== null ? `${on} • ${Math.round(brt)} %` : on;
+        // E127 dual-topic mode: the % text follows the live topic during ramps;
+        // an active pill drag previews its value.
+        const brt = this._dragBrt ?? this.light.brtLive ?? this.light.brt;
+        return brt !== null && brt !== undefined ? `${on} • ${Math.round(brt)} %` : on;
     }
 
     /** Capabilities decide which popup sections exist — NOT the mode alone:
@@ -822,15 +498,16 @@ class FeezalElementGlassLight extends FeezalGlassCard {
                         @pointerdown="${this._vsliderDown}"
                         @pointermove="${this._vsliderMove}"
                         @pointerup="${this._vsliderUp}">
-                        <div class="fill" style="height:${this._brt ?? 0}%"></div>
+                        <div class="fill" style="height:${this._dispBrt ?? 0}%"></div>
                         <feezal-icon name="${this.icon || 'lightbulb'}"></feezal-icon>
-                        <div class="pct">${this._brt ?? 0} %</div>
+                        <div class="pct">${this._dispBrt ?? 0} %</div>
                     </div>` : ''}
                 ${caps.ct ? html`
                     <input type="range" class="ct" title="Colour temperature"
                         min="${this.colorTempMin || 2700}" max="${this.colorTempMax || 6500}" step="1"
-                        .value="${String(this._colorTemp ?? this.colorTempMin ?? 2700)}"
-                        @change="${e => this.setColorTemp(e.target.value)}">` : ''}
+                        .value="${String(this.light.colorTemp ?? this.colorTempMin ?? 2700)}"
+                        @input="${this._onCtInput}"
+                        @change="${this._onCtChange}">` : ''}
                 ${caps.color ? html`
                     <div class="wheel"
                         @pointerdown="${this._wheelDown}"
@@ -846,11 +523,11 @@ class FeezalElementGlassLight extends FeezalGlassCard {
         const hasDetail = caps.brightness || caps.ct || caps.color;
 
         return html`
-            <div class="card ${this._on ? 'on' : ''}" role="button" tabindex="0"
+            <div class="card ${this.light.on ? 'on' : ''}" role="button" tabindex="0"
                 @pointerdown="${this._onPointerDown}"
                 @pointerup="${this._onPointerUp}"
                 @pointerleave="${this._onPointerLeave}"
-                @keydown="${e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.toggle(); } }}">
+                @keydown="${e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!feezal.isEditor) this.light.toggle(); } }}">
                 ${hasDetail ? html`
                     <button class="flip-btn" title="Details"
                         @pointerdown="${e => e.stopPropagation()}"

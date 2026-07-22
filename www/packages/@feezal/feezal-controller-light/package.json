@@ -1,0 +1,7 @@
+{
+    "name": "@feezal/feezal-controller-light",
+    "version": "3.0.0",
+    "main": "feezal-controller-light.js",
+    "license": "MIT",
+    "description": "E137 light behavior controller: class + attribute fragment + discovery-map fragment (settling folded in)."
+}

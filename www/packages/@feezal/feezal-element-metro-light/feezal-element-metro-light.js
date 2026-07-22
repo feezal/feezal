@@ -1,9 +1,11 @@
 /* global feezal */
 import {html, css} from '@feezal/feezal-element';
-import {SettlingController} from '@feezal/feezal-element/feezal-settling.js';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
 import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
+// E137: the light behavior lives in the shared controller — this element
+// is a VIEW (Metro tile chrome: flip faces, back-face sliders, state icons).
+import {LightController, lightAttributes, lightDiscoveryMap, pctToRaw, rgbToHsv} from '@feezal/feezal-controller-light';
 
 /**
  * feezal-element-metro-light (E55)
@@ -12,65 +14,16 @@ import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
  * the detail controls per `mode` — brightness / brightness+ct / colour
  * temperature / RGB / hue-saturation sliders.
  *
- * The MQTT wiring contract deliberately mirrors material-light:
- *  - payload-mode separate (one topic per property, subscribe-state/
- *    publish-state + per-capability topics) or json (single base topic +
- *    …/set command topic carrying a JSON object — the zigbee2mqtt shape).
- *  - on-off-source topic|brightness — E77 Homematic/HmIP dimmers have no
- *    separate on/off datapoint: off is LEVEL = payload-off, toggle-on
- *    restores the last level (numeric payload-on like 1.005 = OLD_LEVEL is
- *    published verbatim).
- *  - colour temperature in Kelvin locally, kelvin|mired on the wire.
- *  - the discovery descriptor is material-light's (schema → payload-mode,
- *    capability ranges, supported_color_modes → mode), so auto-wiring a
- *    zigbee2mqtt light fills brightness/ct/colour exactly like the card.
- * Not carried over (tile scope): effects, white channels, availability.
+ * E137: the MQTT contract (both payload modes, E77 brightness-derived
+ * on/off incl. OLD_LEVEL, E127 ramp settling, CT kelvin/mired, RGB/HS,
+ * effects and white channels) is the shared LightController's — declared
+ * once, identical to material-light. The tile back renders no effect/white
+ * chrome (tile scope), but the attributes are part of the shared contract.
  */
 
-// ── Helpers (private in material-light — duplicated, keep in sync) ──────────
-export function pctToRaw(pct, min, max) {
-    return Math.round((min + (pct / 100) * (max - min)) * 100) / 100;
-}
-
-function hsvToRgb(h, s, v) {
-    const f = (n, k = (n + h / 60) % 6) => v - v * s * Math.max(Math.min(k, 4 - k, 1), 0);
-    return [f(5), f(3), f(1)].map(x => Math.round(x * 255));
-}
-
-function rgbToHsv(r, g, b) {
-    r /= 255; g /= 255; b /= 255;
-    const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
-    let h = 0;
-    if (d !== 0) {
-        if (max === r) h = ((g - b) / d) % 6;
-        else if (max === g) h = (b - r) / d + 2;
-        else h = (r - g) / d + 4;
-        h = (h * 60 + 360) % 360;
-    }
-    return [h, max === 0 ? 0 : d / max, max];
-}
-
-function parseRgb(raw) {
-    try {
-        const arr = typeof raw === 'string' && raw.trim().startsWith('[') ? JSON.parse(raw)
-            : typeof raw === 'string' ? raw.split(',').map(Number) : raw;
-        if (Array.isArray(arr) && arr.length >= 3 && arr.slice(0, 3).every(n => !isNaN(Number(n)))) {
-            return arr.slice(0, 3).map(Number);
-        }
-    } catch { /* unparseable */ }
-    return null;
-}
-
-function xyToRgb(x, y, bri = 1) {
-    const z = 1 - x - y;
-    const Y = bri, X = (Y / y) * x, Z = (Y / y) * z;
-    let r = X * 1.612 - Y * 0.203 - Z * 0.302;
-    let g = -X * 0.509 + Y * 1.412 + Z * 0.066;
-    let b = X * 0.026 - Y * 0.072 + Z * 0.962;
-    [r, g, b] = [r, g, b].map(c => c <= 0.0031308 ? 12.92 * c : 1.055 * (c ** (1 / 2.4)) - 0.055);
-    const max = Math.max(r, g, b, 1);
-    return [r, g, b].map(c => Math.round(Math.max(0, c / max) * 255));
-}
+// E137: pctToRaw lives in @feezal/feezal-element/feezal-color.js now —
+// re-exported here for back-compat with prior importers (tests).
+export {pctToRaw};
 
 class FeezalElementMetroLight extends MetroTileBase {
     static get feezal() {
@@ -78,97 +31,19 @@ class FeezalElementMetroLight extends MetroTileBase {
             palette: {name: 'Light', category: 'Metro', color: '#1ba1e2', icon: 'lightbulb'},
             description: 'Metro light tile: tap toggles; the back holds the mode\'s detail sliders (brightness / colour temperature / RGB / hue-saturation). Wiring contract identical to material-light incl. json payload mode and brightness-derived on/off (HmIP/Homematic dimmers).',
             inspector: 'feezal-element-metro-light-inspector',
-            // material-light's discovery descriptor (minus effects/availability):
+            // E137: the discovery map is the controller package's fragment —
             // zigbee2mqtt / HA discovery emits the JSON schema → payload-mode
             // json with base topic + …/set, capability ranges + active mode.
-            discovery: {
-                component: 'light',
-                map: {
-                    schema:        {attr: 'payload-mode', valueMap: {json: 'json', _default: 'separate'}},
-                    state_topic:   'subscribe',
-                    // E126: native Homematic relay-as-light — on/off command topic
-                    // (separate mode; HA/z2m never emit this key, additive).
-                    state_command_topic: 'publish-state',
-                    command_topic: {attr: 'publish', onlyWhen: {schema: 'json'}},
-                    brightness_state_topic:   'subscribe-brightness',
-                    brightness_command_topic: 'publish-brightness',
-                    brightness_scale:         {attr: 'brightness-max'},
-                    color_temp_state_topic:   'subscribe-color-temp',
-                    color_temp_command_topic: 'publish-color-temp',
-                    supported_color_modes:    {attr: 'mode', transform: 'colorMode'},
-                    min_mireds: {attr: 'color-temp-max', unit: 'mired→kelvin', alsoSet: {'color-temp-unit': 'mired'}},
-                    max_mireds: {attr: 'color-temp-min', unit: 'mired→kelvin'},
-                    // E108 native Homematic (separate-mode dimmer) — HA-absent keys,
-                    // additive (brightness_state/command_topic already mapped above).
-                    // NOTE: metro-light has no availability attributes (tile scope),
-                    // so availability_normalized is stamped but harmlessly ignored.
-                    payload_mode:             'payload-mode',
-                    brightness_min:           {attr: 'brightness-min'},
-                    on_off_source:            'on-off-source',
-                    payload_off:              'payload-off',
-                    payload_on:               'payload-on',
-                    message_property:             'message-property',
-                    message_property_brightness:  'message-property-brightness',
-                    message_property_state:       'message-property-state',
-                    // E127: ramp settling — emitted only when the recognizer has
-                    // observed the topics (WORKING / RedMatic LEVEL_NOTWORKING).
-                    working_topic:            'subscribe-working',
-                    message_property_working: 'message-property-working',
-                    settled_topic:            'subscribe-settled',
-                    message_property_settled: 'message-property-settled',
-                    name: 'label',
-                    // NO value_template mapping (matches material-light): in
-                    // json mode message-property must stay 'payload' — the
-                    // whole state object, not a leaf like payload.state.
-                },
-            },
+            // NOTE: metro-light has no availability attributes (tile scope),
+            // so availability keys are stamped but harmlessly ignored.
+            discovery: {component: 'light', map: lightDiscoveryMap},
             attributes: [
                 ...MetroTileBase.tileAttributes,
-                // Wiring mode (material-light contract)
-                {name: 'payload-mode', type: 'select', options: ['separate', 'json'], default: 'separate', help: 'separate = one topic per property; json = single topic carrying a JSON object.'},
-                {name: 'subscribe', type: 'mqttTopic', help: 'JSON mode: base topic carrying the whole state JSON object. Separate mode: on/off state topic (subscribe-state takes precedence).'},
-                {name: 'publish',   type: 'mqttTopic', help: 'json mode: command topic (usually …/set) that accepts a partial JSON object.'},
-                {name: 'json-map',  type: 'string', default: '', help: 'json mode: optional JSON string overriding the default property→key map.'},
-                {name: 'message-property', type: 'string', default: 'payload', help: 'Property path within message payloads (dot-notation). json mode: extracts the JSON state object; separate mode: global fallback for all topics.'},
-                // On/off
-                {name: 'on-off-source', type: 'select', options: ['topic', 'brightness'], default: 'topic',
-                    help: 'topic = dedicated on/off state topic; brightness = derive on/off from the brightness value (off when it equals payload-off — e.g. Homematic/HmIP dimmers, LEVEL 0–1).'},
-                {name: 'subscribe-state', type: 'mqttTopic', help: 'Separate mode: on/off state topic. Falls back to `subscribe` when empty.'},
-                {name: 'message-property-state', type: 'string', default: 'payload', help: 'Property path for the on/off state topic. Defaults to message-property.'},
-                {name: 'publish-state', type: 'mqttTopic', help: 'Topic to publish on/off.'},
-                {name: 'payload-on',  type: 'string', default: 'on',  help: 'Payload representing "on". on-off-source=brightness: compared against / published to the brightness topic; Homematic: 1.005 restores the last brightness (OLD_LEVEL).'},
-                {name: 'payload-off', type: 'string', default: 'off', help: 'Payload representing "off". on-off-source=brightness: numeric value compared against the brightness topic (non-numeric falls back to brightness-min).'},
-                // Brightness
-                {name: 'subscribe-brightness', type: 'mqttTopic', help: 'Current brightness topic.'},
-                {name: 'message-property-brightness', type: 'string', default: 'payload', help: 'Property path for brightness topic. Defaults to message-property.'},
-                {name: 'publish-brightness', type: 'mqttTopic', help: 'Publish brightness on slider release.'},
-                {name: 'brightness-min', type: 'number', default: 0,   help: 'Minimum brightness value on the MQTT topic.'},
-                {name: 'brightness-max', type: 'number', default: 100, help: 'Maximum brightness value on the MQTT topic (255 for zigbee2mqtt, 1 for HmIP LEVEL).'},
-                // E127: ramp settling (Homematic dimmers report every intermediate
-                // level while ramping — these keep the slider from jumping).
-                {name: 'subscribe-working', type: 'mqttTopic', help: 'WORKING datapoint topic (true while the level ramps, e.g. hm/status/<dimmer>/WORKING). While true, brightness reports are suppressed instead of making the slider jump; false applies the final value.'},
-                {name: 'message-property-working', type: 'string', default: 'payload.val', help: 'Property path for the WORKING topic (mqtt-smarthome publishes {"val": true} → payload.val).'},
-                {name: 'subscribe-settled', type: 'mqttTopic', help: 'Settled-values topic carrying only final levels (RedMatic: …/LEVEL_NOTWORKING). When set, the slider follows THIS topic; subscribe-brightness keeps the front-tile % readout live during ramps.'},
-                {name: 'message-property-settled', type: 'string', default: 'payload.val', help: 'Property path for the settled topic (mqtt-smarthome: payload.val).'},
-                {name: 'settle-timeout', type: 'number', default: 5, help: 'Seconds after a command before the slider reconciles to the last reported value (covers interrupted ramps and sentinel commands like 1.005).'},
-                {name: 'report-delay-ms', type: 'number', default: 100, help: 'Only with subscribe-working: delay before showing an incoming brightness report — a WORKING=true within the window suppresses ramp jitter from changes made elsewhere. 0 disables.'},
-                // Colour temperature
-                {name: 'subscribe-color-temp', type: 'mqttTopic', help: 'Current colour temperature.'},
-                {name: 'message-property-color-temp', type: 'string', default: 'payload', help: 'Property path for colour-temperature topic. Defaults to message-property.'},
-                {name: 'publish-color-temp', type: 'mqttTopic', help: 'Publish colour temperature.'},
-                {name: 'color-temp-unit', type: 'select', options: ['kelvin', 'mired'], default: 'kelvin', help: 'Unit used on colour-temp topics.'},
-                {name: 'color-temp-min', type: 'number', default: 2700, help: 'Minimum colour temperature (K).'},
-                {name: 'color-temp-max', type: 'number', default: 6500, help: 'Maximum colour temperature (K).'},
-                // RGB / HS
-                {name: 'subscribe-rgb', type: 'mqttTopic', help: 'Current RGB value (JSON [r,g,b] or "r,g,b").'},
-                {name: 'message-property-rgb', type: 'string', default: 'payload', help: 'Property path for RGB topic. Defaults to message-property.'},
-                {name: 'publish-rgb', type: 'mqttTopic', help: 'Publish RGB value as JSON [r,g,b].'},
-                {name: 'subscribe-hs', type: 'mqttTopic', help: 'Current hue/saturation (JSON [h,s]).'},
-                {name: 'message-property-hs', type: 'string', default: 'payload', help: 'Property path for hue/saturation topic. Defaults to message-property.'},
-                {name: 'publish-hs', type: 'mqttTopic', help: 'Publish hue/saturation as JSON [h,s].'},
-                // Mode
-                {name: 'mode', type: 'select', options: ['on_off', 'brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs'], default: 'brightness', help: 'Detail controls shown on the tile back. on_off (E122) = switch-only lamp — the back shows just the ON/OFF buttons.'},
-                // State icons
+                // E137: the shared light contract (both payload modes, E77
+                // on/off-from-brightness, E127 settling, CT/RGB/HS/effects/
+                // white channels) — declared ONCE by the controller package.
+                ...lightAttributes,
+                // State icons (tile chrome)
                 {name: 'icon-on',  type: 'icon', help: 'Icon shown while ON (empty = the base icon).'},
                 {name: 'icon-off', type: 'icon', help: 'Icon shown while OFF (empty = the base icon).'},
             ],
@@ -199,7 +74,6 @@ class FeezalElementMetroLight extends MetroTileBase {
         msgPropSettled:      {type: String, reflect: true, attribute: 'message-property-settled'},
         settleTimeout:       {type: Number, reflect: true, attribute: 'settle-timeout'},
         reportDelayMs:       {type: Number, reflect: true, attribute: 'report-delay-ms'},
-        _brtLive:            {state: true},   // E127 dual-topic mode: live % readout while the slider holds
         msgPropBrightness:   {type: String, reflect: true, attribute: 'message-property-brightness'},
         publishBrightness:   {type: String, reflect: true, attribute: 'publish-brightness'},
         brightnessMin: {type: Number, reflect: true, attribute: 'brightness-min'},
@@ -217,14 +91,26 @@ class FeezalElementMetroLight extends MetroTileBase {
         msgPropHs:    {type: String, reflect: true, attribute: 'message-property-hs'},
         publishHs:    {type: String, reflect: true, attribute: 'publish-hs'},
         mode:         {type: String, reflect: true},
+        // E137: contract completeness — effects + white channels (no tile
+        // chrome renders them, but attribute edits must trigger updated()).
+        subscribeEffect:    {type: String, reflect: true, attribute: 'subscribe-effect'},
+        publishEffect:      {type: String, reflect: true, attribute: 'publish-effect'},
+        effects:            {type: String, reflect: true},
+        msgPropEffect:      {type: String, reflect: true, attribute: 'message-property-effect'},
+        subscribeWhite:     {type: String, reflect: true, attribute: 'subscribe-white'},
+        publishWhite:       {type: String, reflect: true, attribute: 'publish-white'},
+        msgPropWhite:       {type: String, reflect: true, attribute: 'message-property-white'},
+        subscribeWarmWhite: {type: String, reflect: true, attribute: 'subscribe-warm-white'},
+        publishWarmWhite:   {type: String, reflect: true, attribute: 'publish-warm-white'},
+        msgPropWarmWhite:   {type: String, reflect: true, attribute: 'message-property-warm-white'},
+        subscribeColdWhite: {type: String, reflect: true, attribute: 'subscribe-cold-white'},
+        publishColdWhite:   {type: String, reflect: true, attribute: 'publish-cold-white'},
+        msgPropColdWhite:   {type: String, reflect: true, attribute: 'message-property-cold-white'},
         iconOn:       {type: String, reflect: true, attribute: 'icon-on'},
         iconOff:      {type: String, reflect: true, attribute: 'icon-off'},
         discoveryId:  {type: String, reflect: true, attribute: 'discovery-id'},
-        _on:        {state: true},
-        _brt:       {state: true},   // brightness 0–100 %
-        _colorTemp: {state: true},   // Kelvin
-        _rgb:       {state: true},   // [r, g, b]
-        _hs:        {state: true},   // [h 0–360, s 0–100]
+        // E137: light state lives on the LightController (plain fields +
+        // host.requestUpdate) — no reactive state properties needed.
     };
 
     static styles = [MetroTileBase.styles, css`
@@ -263,7 +149,6 @@ class FeezalElementMetroLight extends MetroTileBase {
         this.msgPropSettled = 'payload.val';
         this.settleTimeout = 5;
         this.reportDelayMs = 100;
-        this._brtLive = null;
         this.msgPropBrightness = '';
         this.publishBrightness = '';
         this.brightnessMin = 0;
@@ -281,348 +166,92 @@ class FeezalElementMetroLight extends MetroTileBase {
         this.msgPropHs = '';
         this.publishHs = '';
         this.mode = 'brightness';
+        this.subscribeEffect = '';
+        this.publishEffect = '';
+        this.effects = '';
+        this.msgPropEffect = '';
+        this.subscribeWhite = '';
+        this.publishWhite = '';
+        this.msgPropWhite = '';
+        this.subscribeWarmWhite = '';
+        this.publishWarmWhite = '';
+        this.msgPropWarmWhite = '';
+        this.subscribeColdWhite = '';
+        this.publishColdWhite = '';
+        this.msgPropColdWhite = '';
         this.iconOn = '';
         this.iconOff = '';
         this.discoveryId = '';
-        this._on = false;
-        this._brt = null;
-        this._colorTemp = null;
-        this._rgb = null;
-        this._hs = null;
-        // E77: widget-remembered last non-off brightness % for toggle-on restore
-        this._lastBrt = null;
+        // E137: the behavior layer — wires/parses/publishes; this view renders.
+        this.light = new LightController(this);
     }
 
-    // Fully self-managed subscriptions (like material-light) — suppress the
-    // generic base path, which would treat the json base topic as a control
-    // channel.
-    _subscribe() { /* intentionally empty — see connectedCallback */ }
+    // Fully self-managed subscriptions (via the LightController) — suppress
+    // the generic base path, which would treat the json base topic as a
+    // control channel.
+    _subscribe() { /* intentionally empty — the LightController wires everything */ }
 
-    connectedCallback() {
-        super.connectedCallback();
-        this._wireSubscriptions();
+    // E137: the LightController wires everything in hostConnected and
+    // disposes the settling machinery in hostDisconnected.
+
+    updated(changed) {
+        super.updated(changed);
+        // Tile chrome: the OFF colour keys off the data-on host attribute.
+        this.toggleAttribute('data-on', Boolean(this.light.on));
+        // Live-canvas topic edits re-wire through the controller.
+        this.light.rewireIfChanged();
     }
 
-    disconnectedCallback() {
-        super.disconnectedCallback();
-        // E127: clear pending hold/buffer timers with the subscriptions.
-        this._settling?.dispose();
-        this._settling = null;
-    }
-
-    /** Everything that identifies the subscription wiring — when it changes
-     * at runtime (inspector edits on the live canvas, MQTT setattribute),
-     * updated() rewires instead of silently keeping the stale topics. */
-    _wireSignature() {
-        return [this.payloadMode, this.onOffSource, this.subscribe, this.subscribeState,
-            this.subscribeBrightness, this.subscribeColorTemp, this.subscribeRgb, this.subscribeHs,
-            // E127
-            this.subscribeWorking, this.subscribeSettled, this.settleTimeout, this.reportDelayMs].join('|');
-    }
-
-    _wireSubscriptions() {
-        this.__wireSig = this._wireSignature();
-
-        if (this.payloadMode === 'json') {
-            if (this.subscribe) {
-                this.addSubscription(this.subscribe, msg => {
-                    let obj = this.getProperty(msg, this.messageProperty);
-                    if (typeof obj === 'string') {
-                        try { obj = JSON.parse(obj); } catch { obj = null; }
-                    }
-                    // Tolerance: message-property pointing at a leaf (e.g.
-                    // payload.state) — in json mode the extractor must yield
-                    // the whole state OBJECT; fall back to the payload itself
-                    // instead of silently ignoring every message.
-                    if ((obj === null || typeof obj !== 'object') && msg.payload && typeof msg.payload === 'object') {
-                        obj = msg.payload;
-                    }
-                    if (obj && typeof obj === 'object') this._applyJsonState(obj);
-                });
-            }
-            return;
-        }
-
-        // Separate (per-topic) mode — state topic skipped in E77 brightness
-        // mode (the brightness value is the single source of truth there).
-        const stateTopic = this.subscribeState || this.subscribe;
-        if (stateTopic && this.onOffSource !== 'brightness') {
-            this.addSubscription(stateTopic, msg => {
-                let v = this.getProperty(msg, this.msgPropState || this.messageProperty);
-                // Tolerance: a JSON object on the state topic (zigbee2mqtt
-                // base topic wired in separate mode — e.g. stale pre-json
-                // discovery wiring). Read its state/brightness keys instead
-                // of silently matching nothing.
-                if (v && typeof v === 'object') {
-                    const map = this._jsonMap;
-                    const bri = Number(this.getProperty(v, map.brightness));
-                    if (!isNaN(bri)) this._brt = Math.max(0, Math.min(100, (bri / (this.brightnessMax || 100)) * 100));
-                    v = this.getProperty(v, map.state);
-                }
-                this._on = v === this.payloadOn || v === true || v === 1 || v === '1' ||
-                           (typeof v === 'string' && v.toLowerCase() === 'on');
-            });
-        }
-        if (this.subscribeBrightness) {
-            // E127: raw brightness reports run through the SettlingController —
-            // it decides which ones may reach the slider (hold-at-target after an
-            // own command, WORKING-gated suppression, optional settled topic).
-            const rawToPct = v => {
-                const min = this.brightnessMin ?? 0;
-                const max = this.brightnessMax ?? 100;
-                return max === min ? 0 : Math.max(0, Math.min(100, (v - min) / (max - min) * 100));
-            };
-            const applyBrt = v => {
-                this._brt = rawToPct(v);
-                this._brtLive = null;
-                if (this.onOffSource === 'brightness') {
-                    this._on = v !== this._effOffRaw();
-                    if (this._on) this._lastBrt = this._brt;
-                }
-            };
-            this._settling?.dispose();
-            this._settling = new SettlingController({
-                apply: applyBrt,
-                timeoutMs: (Math.max(0, Number(this.settleTimeout)) || 5) * 1000,
-                reportDelayMs: Math.max(0, Number(this.reportDelayMs ?? 100) || 0),
-                workingWired: Boolean(this.subscribeWorking),
-                settledWired: Boolean(this.subscribeSettled),
-            });
-            this.addSubscription(this.subscribeBrightness, msg => {
-                const v = Number(this.getProperty(msg, this.msgPropBrightness || this.messageProperty));
-                if (isNaN(v)) return;
-                if (this.subscribeSettled) {
-                    // Dual-topic mode (RedMatic): live topic keeps the front-tile
-                    // % readout updating; the slider follows the settled topic.
-                    this._brtLive = rawToPct(v);
-                }
-                this._settling.live(v);
-            });
-            if (this.subscribeWorking) {
-                this.addSubscription(this.subscribeWorking, msg => {
-                    const v = this.getProperty(msg, this.msgPropWorking || 'payload.val');
-                    this._settling.working(v === true || v === 'true' || v === 1 || v === '1');
-                });
-            }
-            if (this.subscribeSettled) {
-                this.addSubscription(this.subscribeSettled, msg => {
-                    const v = Number(this.getProperty(msg, this.msgPropSettled || 'payload.val'));
-                    if (!isNaN(v)) this._settling.settled(v);
-                });
-            }
-        }
-        if (this.subscribeColorTemp) {
-            this.addSubscription(this.subscribeColorTemp, msg => {
-                let v = Number(this.getProperty(msg, this.msgPropColorTemp || this.messageProperty));
-                if (!isNaN(v)) {
-                    if (this.colorTempUnit === 'mired') v = Math.round(1_000_000 / v);
-                    this._colorTemp = v;
-                }
-            });
-        }
-        if (this.subscribeRgb) {
-            this.addSubscription(this.subscribeRgb, msg => {
-                const rgb = parseRgb(this.getProperty(msg, this.msgPropRgb || this.messageProperty));
-                if (rgb) this._rgb = rgb;
-            });
-        }
-        if (this.subscribeHs) {
-            this.addSubscription(this.subscribeHs, msg => {
-                try {
-                    const raw = this.getProperty(msg, this.msgPropHs || this.messageProperty);
-                    const arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
-                    if (Array.isArray(arr) && arr.length >= 2) this._hs = arr.slice(0, 2).map(Number);
-                } catch { /* unparseable */ }
-            });
-        }
-    }
-
-    // ── JSON payload mode (material-light contract) ───────────────────────────
-
-    get _jsonMap() {
-        const defaults = {
-            state: 'state', brightness: 'brightness',
-            color_mode: 'color_mode', color_temp: 'color_temp', color: 'color',
-        };
-        if (this.jsonMap) {
-            try { return {...defaults, ...JSON.parse(this.jsonMap)}; } catch { /* fall through */ }
-        }
-        return defaults;
-    }
-
-    _applyJsonState(obj) {
-        const map = this._jsonMap;
-        const get = key => this.getProperty(obj, key);
-
-        const state = get(map.state);
-        if (state !== undefined && state !== null) {
-            const s = String(state).toLowerCase();
-            this._on = state === this.payloadOn || state === true || state === 1 ||
-                       s === 'on' || s === 'true' || s === '1';
-        }
-
-        const bri = Number(get(map.brightness));
-        if (!isNaN(bri)) {
-            const max = this.brightnessMax || 100;
-            this._brt = Math.max(0, Math.min(100, (bri / max) * 100));
-            if (state === undefined || state === null) this._on = bri > 0;
-        }
-
-        let ct = Number(get(map.color_temp));
-        if (!isNaN(ct)) {
-            if (this.colorTempUnit === 'mired') ct = Math.round(1_000_000 / ct);
-            this._colorTemp = ct;
-        }
-
-        const color = get(map.color);
-        if (color && typeof color === 'object') {
-            if (color.hue !== undefined || color.h !== undefined) {
-                this._hs = [Number(color.hue ?? color.h), Number(color.saturation ?? color.s ?? 100)];
-            } else if (color.r !== undefined) {
-                this._rgb = [Number(color.r), Number(color.g), Number(color.b)];
-            } else if (color.x !== undefined && color.y !== undefined) {
-                this._rgb = xyToRgb(Number(color.x), Number(color.y));
-            }
-        }
-    }
-
-    /** json mode: merged object to `publish`; separate mode: value to topic. */
-    _pub(topic, value, jsonObj) {
-        if (this.payloadMode === 'json') {
-            if (this.publish) feezal.connection.pub(this.publish, JSON.stringify(jsonObj));
-        } else if (topic) {
-            feezal.connection.pub(topic, value);
-        }
-    }
-
-    // ── On/off (incl. E77 brightness-derived) ─────────────────────────────────
-
-    _effOffRaw() {
-        const n = Number(this.payloadOff);
-        return (this.payloadOff !== '' && this.payloadOff !== null && !isNaN(n))
-            ? n
-            : (this.brightnessMin ?? 0);
-    }
+    // ── Front tap / back-face ON-OFF buttons ─────────────────────────────────
 
     baseAction() {
         if (feezal.isEditor) return;   // also reachable from the back-face buttons
-        if (this.payloadMode !== 'json' && this.onOffSource === 'brightness') {
-            this._toggleViaBrightness();
-            return;
-        }
-        this._on = !this._on;
-        const payload = this._on ? this.payloadOn : this.payloadOff;
-        this._pub(this.publishState || this.publish, payload, {[this._jsonMap.state]: payload});
-    }
-
-    _toggleViaBrightness() {
-        const min = this.brightnessMin ?? 0;
-        const max = this.brightnessMax ?? 100;
-        if (this._on) {
-            this._on = false;
-            this._brt = 0;
-            const offNum = Number(this.payloadOff);
-            const raw = (this.payloadOff !== '' && !isNaN(offNum)) ? String(this.payloadOff) : String(min);
-            this._pub(this.publishBrightness, raw, {[this._jsonMap.brightness]: raw});
-            this._settling?.command(Number(raw));
-            return;
-        }
-
-        this._on = true;
-        const onNum = Number(this.payloadOn);
-        if (this.payloadOn !== '' && !isNaN(onNum)) {
-            // Numeric payload-on published verbatim (Homematic OLD_LEVEL 1.005
-            // = "restore last level"); in-range values predict the local %.
-            this._pub(this.publishBrightness, String(this.payloadOn), {[this._jsonMap.brightness]: onNum});
-            // E127: sentinel targets (1.005 OLD_LEVEL) are never echoed verbatim,
-            // so they hold ONLY when a WORKING/settled signal can end the hold —
-            // otherwise the restore-ramp reports keep flowing as before.
-            const onInRange = onNum >= Math.min(min, max) && onNum <= Math.max(min, max);
-            if (onInRange || this.subscribeWorking || this.subscribeSettled) this._settling?.command(onNum);
-            if (onInRange) {
-                this._brt = max === min ? 0 : Math.max(0, Math.min(100, (onNum - min) / (max - min) * 100));
-            }
-        } else {
-            const pct = this._lastBrt ?? 100;
-            this._brt = pct;
-            const raw = pctToRaw(pct, min, max);
-            this._pub(this.publishBrightness, String(raw), {[this._jsonMap.brightness]: raw});
-            this._settling?.command(Number(raw));
-        }
+        // E137: E77 brightness-derived toggling (OLD_LEVEL restore) included.
+        this.light.toggle();
     }
 
     // ── Back-face slider handlers ─────────────────────────────────────────────
 
     _onBrt(e) {
         if (feezal.isEditor) return;
-        const pct = Number(e.target.value);
-        this._brt = pct;
-        // E77: in brightness mode the level IS the on/off state.
-        if (this.payloadMode !== 'json' && this.onOffSource === 'brightness') {
-            this._on = pct > 0;
-            if (pct > 0) this._lastBrt = pct;
-        }
-        const raw = pctToRaw(pct, this.brightnessMin ?? 0, this.brightnessMax ?? 100);
-        const jsonRaw = pctToRaw(pct, 0, this.brightnessMax || 100);
-        this._pub(this.publishBrightness, String(raw), {[this._jsonMap.brightness]: jsonRaw});
-        this._settling?.command(Number(raw));
+        // E137: clamp/scale/publish + settling + E77 on/off derivation all
+        // live behind the controller command.
+        this.light.setBrightnessPct(Number(e.target.value));
     }
 
     _onCt(e) {
         if (feezal.isEditor) return;
-        const ct = Number(e.target.value);
-        this._colorTemp = ct;
-        const v = this.colorTempUnit === 'mired' ? Math.round(1_000_000 / ct) : ct;
-        this._pub(this.publishColorTemp, String(v), {[this._jsonMap.color_temp]: v});
+        this.light.setColorTempK(Number(e.target.value));
     }
 
     _onHueSat(hue, sat) {
         if (feezal.isEditor) return;
-        if (this.mode === 'rgb') {
-            const rgb = hsvToRgb(hue, sat / 100, 1);
-            this._rgb = rgb;
-            this._pub(this.publishRgb, JSON.stringify(rgb),
-                {[this._jsonMap.color]: {r: rgb[0], g: rgb[1], b: rgb[2]}});
-        } else {
-            const hs = [Math.round(hue), Math.round(sat)];
-            this._hs = hs;
-            this._pub(this.publishHs, JSON.stringify(hs),
-                {[this._jsonMap.color]: {hue: hs[0], saturation: hs[1]}});
-        }
+        // sat arrives 0–100 from the slider; the controller command takes 0–1
+        // and publishes RGB or HS per the active mode.
+        this.light.pickColor(hue, sat / 100);
     }
 
-    /** Current [hue, sat%] for the colour sliders, from _hs or _rgb. */
+    /** Current [hue, sat%] for the colour sliders, from the controller state. */
     _hueSat() {
-        if (this.mode === 'hs' && this._hs) return this._hs;
-        if (this._rgb) {
-            const [h, s] = rgbToHsv(...this._rgb);
+        if (this.mode === 'hs' && this.light.hs) return this.light.hs;
+        if (this.light.rgb) {
+            const {h, s} = rgbToHsv(...this.light.rgb);
             return [h, s * 100];
         }
-        return this._hs ?? [0, 100];
-    }
-
-    updated(changed) {
-        super.updated(changed);
-        if (changed.has('_on')) this.toggleAttribute('data-on', this._on);
-        // Topic/mode attributes changed at runtime → drop the old
-        // subscriptions and wire the new ones (fresh subscriptions also
-        // trigger the broker's retained replay for the new topics).
-        if (this.isConnected && this.__wireSig !== undefined && this._wireSignature() !== this.__wireSig) {
-            this._unsubscribe();
-            this._wireSubscriptions();
-        }
+        return this.light.hs ?? [0, 100];
     }
 
     // ── Faces ─────────────────────────────────────────────────────────────────
 
     renderFront() {
+        const on = this.light.on;
         // E127 dual-topic mode: the % readout follows the live topic during ramps.
-        const brtDisp = this._brtLive ?? this._brt;
-        const pct = brtDisp !== null && this._on ? ` ${Math.round(brtDisp)}%` : '';
-        const icon = (this._on ? this.iconOn : this.iconOff) || this.icon;
+        const brtDisp = this.light.brtLive ?? this.light.brt;
+        const pct = brtDisp !== null && on ? ` ${Math.round(brtDisp)}%` : '';
+        const icon = (on ? this.iconOn : this.iconOff) || this.icon;
         return html`
             ${icon ? html`<feezal-icon name="${icon}"></feezal-icon>` : ''}
-            <div class="state">${this._on ? `on${pct}` : 'off'}</div>`;
+            <div class="state">${on ? `on${pct}` : 'off'}</div>`;
     }
 
     renderBack() {
@@ -633,20 +262,20 @@ class FeezalElementMetroLight extends MetroTileBase {
         const [hue, sat] = this._hueSat();
         return html`
             <div class="onoff">
-                <button class="mbtn ${this._on ? 'active' : ''}" @click="${() => { if (!this._on) this.baseAction(); }}">ON</button>
-                <button class="mbtn ${this._on ? '' : 'active'}" @click="${() => { if (this._on) this.baseAction(); }}">OFF</button>
+                <button class="mbtn ${this.light.on ? 'active' : ''}" @click="${() => { if (!this.light.on) this.baseAction(); }}">ON</button>
+                <button class="mbtn ${this.light.on ? '' : 'active'}" @click="${() => { if (this.light.on) this.baseAction(); }}">OFF</button>
             </div>
             ${showBrt ? html`
                 <div class="rowline">
                     <feezal-icon name="brightness_6"></feezal-icon>
                     <input type="range" min="0" max="100" step="1"
-                        .value="${String(this._brt ?? 0)}" @change="${this._onBrt}">
+                        .value="${String(this.light.brt ?? 0)}" @change="${this._onBrt}">
                 </div>` : ''}
             ${showCt ? html`
                 <div class="rowline">
                     <feezal-icon name="thermostat"></feezal-icon>
                     <input type="range" class="ct" min="${this.colorTempMin || 2700}" max="${this.colorTempMax || 6500}" step="1"
-                        .value="${String(this._colorTemp ?? this.colorTempMin ?? 2700)}" @change="${this._onCt}">
+                        .value="${String(this.light.colorTemp ?? this.colorTempMin ?? 2700)}" @change="${this._onCt}">
                 </div>` : ''}
             ${showColor ? html`
                 <div class="rowline">
@@ -835,7 +464,7 @@ class FeezalElementMetroLightInspector extends LitElement {
 
     _renderConfig() {
         const isJson = this._val('payload-mode') === 'json';
-        const ctEnabled = isJson || this._sectionEnabled(METRO_LIGHT_SECTIONS[1]);
+        const ctEnabled = isJson || this._sectionEnabled(METRO_LIGHT_SECTIONS[2]);
         const brEnabled = isJson || this._sectionEnabled(METRO_LIGHT_SECTIONS[0]);
         return html`
             <div class="section">
