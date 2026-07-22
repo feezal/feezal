@@ -1,6 +1,8 @@
 /* global feezal */
 import {html, css} from '@feezal/feezal-element';
-import {SENSOR_TYPE_OPTIONS, SENSOR_DEVICE_CLASS_MAP, sensorType, batteryLowAttributes, batteryLowFromValue} from '@feezal/feezal-element/feezal-sensor-types.js';
+// E137: the boolean-sensor behavior lives in the shared controller — this
+// element is a VIEW (metro chrome) over SensorController state.
+import {SensorController, sensorAttributes, sensorDiscoveryMap} from '@feezal/feezal-controller-sensor';
 import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
 
 /**
@@ -27,19 +29,10 @@ class FeezalElementMetroOccupancy extends MetroTileBase {
             description: 'Metro boolean-sensor tile (motion, presence, water leak, smoke, gas, …): accent while clear, active/alarm colour while triggered. Display-only. Same MQTT contract as the Circle sensor card.',
             attributes: [
                 ...MetroTileBase.tileAttributes,
-                'subscribe',
-                {name: 'message-property', type: 'string', default: 'payload',
-                    help: 'Dot-notation path to the value within the MQTT message. Default: payload'},
-                {name: 'payload-active', type: 'string', default: 'ON',  help: 'Payload meaning motion detected / zone occupied.'},
-                {name: 'payload-clear',  type: 'string', default: 'OFF', help: 'Payload meaning no motion / zone vacant.'},
-                {name: 'type', type: 'select', options: SENSOR_TYPE_OPTIONS, default: 'motion',
-                    help: 'E132: sensor class — picks the default per-state icons, texts and (for alarm classes like water-leak/smoke) the error-coloured active state. Overridden by icon-active/icon-clear when set.'},
-                {name: 'icon-active', type: 'icon', help: 'Icon shown while triggered — overrides the type default (empty = type default).'},
-                {name: 'icon-clear',  type: 'icon', help: 'Icon shown while clear — overrides the type default (empty = type default).'},
-                {name: 'text-active', type: 'string', default: '', help: 'State text while triggered. Empty = the type default (e.g. "Leak!" for water-leak).'},
-                {name: 'text-clear',  type: 'string', default: '', help: 'State text while clear. Empty = the type default.'},
-                // E124: dedicated low-battery warning (shared descriptor trio).
-                ...batteryLowAttributes,
+                // E137: the shared sensor contract (subscribe/payloads/type/
+                // icons/texts + the E124 battery trio) — declared ONCE by the
+                // controller package, spread by every family.
+                ...sensorAttributes,
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability — a ! badge appears while unavailable.'},
                 {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
                 {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
@@ -53,18 +46,8 @@ class FeezalElementMetroOccupancy extends MetroTileBase {
             ],
             restrict: {minWidth: 40, minHeight: 40},
             defaultStyle: {width: '150px', height: '150px'},
-            discovery: {
-                component: 'binary_sensor',
-                map: {
-                    state_topic:  'subscribe',
-                    payload_on:   'payload-active',
-                    payload_off:  'payload-clear',
-                    device_class: {attr: 'type', valueMap: SENSOR_DEVICE_CLASS_MAP},   // E132: shared hazard-aware map
-                    // N31: availability is mapped automatically from the canonical discovery record.
-                    name:           'label',
-                    value_template: {attr: 'message-property', transform: 'valueTemplateToPath'},
-                },
-            },
+            // E137: the discovery map is the controller package's fragment.
+            discovery: {component: 'binary_sensor', map: sensorDiscoveryMap},
         };
     }
 
@@ -82,9 +65,9 @@ class FeezalElementMetroOccupancy extends MetroTileBase {
         payloadBatteryLow:   {type: String, reflect: true, attribute: 'payload-battery-low'},
         batteryLowThreshold: {type: Number, reflect: true, attribute: 'battery-low-threshold'},
         // N31: availability inherited from FeezalElement.
+        // E137: sensor state lives on the SensorController (plain fields +
+        // host.requestUpdate) — no reactive state properties needed.
         discoveryId:   {type: String, reflect: true, attribute: 'discovery-id'},
-        _active:     {state: true},
-        _batteryLow: {state: true},
     };
 
     static styles = [MetroTileBase.styles, css`
@@ -117,38 +100,18 @@ class FeezalElementMetroOccupancy extends MetroTileBase {
         this.payloadBatteryLow = 'true';
         this.batteryLowThreshold = 15;
         this.discoveryId = '';
-        this._active = false;
-        this._batteryLow = false;
         this._available = true;
+        // E137: the behavior layer — wires/parses/matches; this view renders.
+        this.sensor = new SensorController(this);
     }
 
-    connectedCallback() {
-        super.connectedCallback();
-        if (this.subscribe) {
-            this.addSubscription(this.subscribe, msg => {
-                // material-motion coercion: JSON {state} payloads + booleans.
-                let v = this.getProperty(msg, this.messageProperty);
-                if (typeof v === 'string') {
-                    try { const p = JSON.parse(v); if (p && 'state' in p) v = p.state; } catch { /* not JSON */ }
-                } else if (v && typeof v === 'object' && 'state' in v) { v = v.state; }
-                this._active = String(v) === String(this.payloadActive) ||
-                    v === true || v === 1 || v === '1';
-            });
-        }
-        // E124: dedicated low-battery warning — a weak battery is a badge,
-        // never a blackout (the state above keeps updating).
-        if (this.subscribeBatteryLow) {
-            this.addSubscription(this.subscribeBatteryLow, msg => {
-                const v = this.getProperty(msg, this.msgPropBatteryLow || this.messageProperty);
-                this._batteryLow = batteryLowFromValue(v, this.payloadBatteryLow, this.batteryLowThreshold);
-            });
-        }
-    }
+    // The controller wires everything in hostConnected — no override needed.
 
     updated(changed) {
         super.updated(changed);
-        if (changed.has('_active')) this.toggleAttribute('data-active', this._active);
-        if (changed.has('type')) this.toggleAttribute('data-alarm', Boolean(sensorType(this.type).alarm));
+        this.sensor.rewireIfChanged();
+        this.toggleAttribute('data-active', this.sensor.active);
+        this.toggleAttribute('data-alarm', this.sensor.alarm);
     }
 
     renderBadge() {
@@ -156,14 +119,10 @@ class FeezalElementMetroOccupancy extends MetroTileBase {
     }
 
     renderFront() {
-        const t = sensorType(this.type);
-        const icon = (this._active ? this.iconActive : this.iconClear)
-            || (this._active ? t.icon : t.iconClear);
-        const text = this._active ? (this.textActive || t.textActive) : (this.textClear || t.textClear);
         return html`
-            ${this._batteryLow ? html`<feezal-icon class="batt" name="battery_alert" title="Battery low"></feezal-icon>` : ''}
-            <feezal-icon name="${icon}"></feezal-icon>
-            <div class="state">${text}</div>`;
+            ${this.sensor.batteryLow ? html`<feezal-icon class="batt" name="battery_alert" title="Battery low"></feezal-icon>` : ''}
+            <feezal-icon name="${this.sensor.icon()}"></feezal-icon>
+            <div class="state">${this.sensor.text()}</div>`;
     }
 }
 

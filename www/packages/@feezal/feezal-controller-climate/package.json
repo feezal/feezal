@@ -1,0 +1,5 @@
+{
+  "name": "@feezal/feezal-controller-climate",
+  "version": "3.0.0",
+  "main": "feezal-controller-climate.js"
+}

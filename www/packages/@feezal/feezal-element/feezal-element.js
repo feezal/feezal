@@ -474,5 +474,18 @@ export const publishLocalAttribute = {
     help: 'Publish page-locally instead of to the broker: the payload reaches only subscribers in THIS browser tab (dialog triggers, view switches, wiring elements together). Nothing is sent over MQTT, nothing is retained, and it works while disconnected.'
 };
 
+/**
+ * E137 — payload comparison, cross-controller shared machinery: string
+ * coercion (case-insensitive) plus boolean true/false matching the HA/z2m
+ * ON/OFF conventions. Single source — the copies in feezal-glass and the
+ * contact card consolidated here (feezal-glass re-exports for back-compat).
+ */
+export function payloadMatch(value, configured) {
+    if (String(value).toLowerCase() === String(configured).toLowerCase()) return true;
+    if (value === true && /^(on|true|1|yes)$/i.test(String(configured))) return true;
+    if (value === false && /^(off|false|0|no)$/i.test(String(configured))) return true;
+    return false;
+}
+
 // Re-export so element files can do a single import.
 export {html, css};
