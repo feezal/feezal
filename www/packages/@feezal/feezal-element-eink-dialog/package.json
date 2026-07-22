@@ -1,0 +1,6 @@
+{
+    "name": "@feezal/feezal-element-eink-dialog",
+    "version": "3.0.0",
+    "main": "feezal-element-eink-dialog.js",
+    "license": "MIT"
+}

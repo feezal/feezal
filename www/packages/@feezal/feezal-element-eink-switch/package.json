@@ -1,0 +1,6 @@
+{
+    "name": "@feezal/feezal-element-eink-switch",
+    "version": "3.0.0",
+    "main": "feezal-element-eink-switch.js",
+    "license": "MIT"
+}

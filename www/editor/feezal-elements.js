@@ -19,6 +19,19 @@ import '@feezal/feezal-element-carbon-input';
 import '@feezal/feezal-element-carbon-select';
 import '@feezal/feezal-element-carbon-slider';
 import '@feezal/feezal-element-carbon-switch';
+import '@feezal/feezal-element-eink-button';
+import '@feezal/feezal-element-eink-climate';
+import '@feezal/feezal-element-eink-contact';
+import '@feezal/feezal-element-eink-countdown-dialog';
+import '@feezal/feezal-element-eink-cover';
+import '@feezal/feezal-element-eink-dialog';
+import '@feezal/feezal-element-eink-dialog-view';
+import '@feezal/feezal-element-eink-fan';
+import '@feezal/feezal-element-eink-light';
+import '@feezal/feezal-element-eink-number';
+import '@feezal/feezal-element-eink-sensor';
+import '@feezal/feezal-element-eink-switch';
+import '@feezal/feezal-element-eink-wled';
 import '@feezal/feezal-element-glass-button';
 import '@feezal/feezal-element-glass-climate';
 import '@feezal/feezal-element-glass-contact';
@@ -118,6 +131,7 @@ import '@feezal/feezal-element-tui-value';
 import '@feezal/feezal-theme-blue-night';
 import '@feezal/feezal-theme-dark-mint';
 import '@feezal/feezal-theme-dark-orange';
+import '@feezal/feezal-theme-eink';
 import '@feezal/feezal-theme-glass';
 import '@feezal/feezal-theme-gruvbox-dark';
 import '@feezal/feezal-theme-gruvbox-light';
@@ -150,6 +164,19 @@ window.feezal.elements = [
   "feezal-element-carbon-select",
   "feezal-element-carbon-slider",
   "feezal-element-carbon-switch",
+  "feezal-element-eink-button",
+  "feezal-element-eink-climate",
+  "feezal-element-eink-contact",
+  "feezal-element-eink-countdown-dialog",
+  "feezal-element-eink-cover",
+  "feezal-element-eink-dialog",
+  "feezal-element-eink-dialog-view",
+  "feezal-element-eink-fan",
+  "feezal-element-eink-light",
+  "feezal-element-eink-number",
+  "feezal-element-eink-sensor",
+  "feezal-element-eink-switch",
+  "feezal-element-eink-wled",
   "feezal-element-glass-button",
   "feezal-element-glass-climate",
   "feezal-element-glass-contact",
@@ -252,6 +279,7 @@ window.feezal.themes = [
   "@feezal/feezal-theme-blue-night",
   "@feezal/feezal-theme-dark-mint",
   "@feezal/feezal-theme-dark-orange",
+  "@feezal/feezal-theme-eink",
   "@feezal/feezal-theme-glass",
   "@feezal/feezal-theme-gruvbox-dark",
   "@feezal/feezal-theme-gruvbox-light",

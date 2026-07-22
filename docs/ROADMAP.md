@@ -25,7 +25,6 @@ Work in progress — priorities and scope are not final.
 - [E34 — Countdown / timer element (`feezal-element-basic-countdown`)](#e34--countdown--timer-element-feezal-element-basic-countdown)
 - [E38 — Element scaling / responsive sizing](#e38--element-scaling--responsive-sizing-️-tbd--needs-element-audit) ⚠️
 - [E54 — Markdown element (`feezal-element-basic-markdown`)](#e54--markdown-element-feezal-element-basic-markdown)
-- [E57 — E-ink / mono element family (`feezal-element-eink-*`)](#e57--e-ink--mono-element-family-feezal-element-eink-) 💡
 - [E61 — HMI / alarm element family (`feezal-element-hmi-*`)](#e61--hmi--alarm-element-family-feezal-element-hmi--️-reviewrefinement-needed) ⚠️
 - [E62 — MQTT broker introspection family (`feezal-element-mqtt-*`)](#e62--mqtt-broker-introspection-family-feezal-element-mqtt-)
 - [E63 — Plant-schematic symbol family (`feezal-elements-schematic`)](#e63--plant-schematic-symbol-family-feezal-elements-schematic)
@@ -487,23 +486,6 @@ Render Markdown from a subscribed payload or an asset file (`src`) — notes, do
 **Relates:** U9/AI assistant (shared renderer), E49 (generated content), A16 (asset refs), E32/basic-template (adjacent display elements).
 
 **Relates:** U9/AI assistant (shared renderer), E49 (generated content), A16 (asset refs), E32/basic-template (adjacent display elements).
-
-### E57 — E-ink / mono element family (`feezal-element-eink-*`) 💡 idea
-
-Less a styling exercise than a **deployment niche**: pure black-and-white, huge type, thick rules, zero animation — designed for the very popular **wall-mounted e-paper dashboards** and repurposed Kindle/old-tablet kiosks where normal themes are unreadable and animation causes ghosting. Nobody in the MQTT dashboard space serves this well.
-
-**The constraint set is the spec:**
-
-- **1-bit contrast discipline:** black on white only (optional inverted), no greys as information carriers (dithered fills allowed as texture), ≥2px rules, oversized numerals for glanceability across a room.
-- **No animation, no transitions, no hover** — state changes swap content instantly; e-paper refresh does the rest.
-- **Redraw discipline:** value updates must change the DOM *only when the rendered text/state actually differs* (e-ink partial refresh is expensive; a per-second re-render of an unchanged value ghosts the panel). A shared base class throttles/dedups updates — this is the real engineering content of the family.
-- **Battery-friendly:** works with N24-style per-client controls (a display topic can blank/sleep the panel).
-
-**Family (first cut):** big-numeral sensor tile (value + unit + label + optional min/max footer), on/off state tile (inverted block when active — also the *control*, full-tile tap target), weather summary, clock/date, and a mono icon set (N23 with a stroke-only style). Charts (E-chart family) get a mono sparkline variant later.
-
-**Notes:** ships with a **`feezal-theme-eink`** (white, mono type stack) but the elements enforce their own contrast rules so they survive any theme; pairs with A18 (kiosk mode: hide chrome, wake-lock, fullscreen) — an e-ink profile there (no cursor, no focus rings) would complete the story; test target: a browser at 8-bit greyscale forced-colors emulation.
-
-**Relates:** A18 (kiosk / wall-panel mode), N24 (per-client sleep/wake), N23 (icons), E38 (type scales to the box), A16/export (these panels often run the static export from a local file).
 
 ### E61 — HMI / alarm element family (`feezal-element-hmi-*`) ⚠️ review/refinement needed
 

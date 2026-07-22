@@ -1,0 +1,10 @@
+{
+    "name": "@feezal/feezal-theme-eink",
+    "version": "3.0.0",
+    "main": "feezal-theme-eink.js",
+    "license": "MIT",
+    "description": "E-ink / 1-bit wall-panel theme (E57): white canvas, black mono type, zero animation — companion to feezal-element-eink-*.",
+    "feezal": {
+        "type": "theme"
+    }
+}

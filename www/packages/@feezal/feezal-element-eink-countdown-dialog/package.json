@@ -1,0 +1,6 @@
+{
+    "name": "@feezal/feezal-element-eink-countdown-dialog",
+    "version": "3.0.0",
+    "main": "feezal-element-eink-countdown-dialog.js",
+    "license": "MIT"
+}

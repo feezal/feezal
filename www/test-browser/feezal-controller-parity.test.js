@@ -24,6 +24,9 @@ import '../packages/@feezal/feezal-element-metro-contact/feezal-element-metro-co
 import '../packages/@feezal/feezal-element-material-climate/feezal-element-material-climate.js';
 import '../packages/@feezal/feezal-element-glass-climate/feezal-element-glass-climate.js';
 import '../packages/@feezal/feezal-element-metro-climate/feezal-element-metro-climate.js';
+import '../packages/@feezal/feezal-element-eink-sensor/feezal-element-eink-sensor.js';
+import '../packages/@feezal/feezal-element-eink-contact/feezal-element-eink-contact.js';
+import '../packages/@feezal/feezal-element-eink-climate/feezal-element-eink-climate.js';
 
 const CASES = [
     {tag: 'feezal-element-material-motion',  consumed: SENSOR_CONSUMED_ATTRIBUTES},
@@ -38,6 +41,10 @@ const CASES = [
     // json-only attributes are deliberately not part of its contract.
     {tag: 'feezal-element-metro-climate',    consumed: CLIMATE_CONSUMED_ATTRIBUTES,
         except: ['payload-mode', 'publish', 'json-map']},
+    // E57: the eink family consumes the controllers like every other family.
+    {tag: 'feezal-element-eink-sensor',      consumed: SENSOR_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-eink-contact',     consumed: CONTACT_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-eink-climate',     consumed: CLIMATE_CONSUMED_ATTRIBUTES},
 ];
 
 describe('E137 — adopting elements declare the full controller contract', () => {

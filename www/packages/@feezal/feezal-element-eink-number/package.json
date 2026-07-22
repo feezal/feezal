@@ -1,0 +1,6 @@
+{
+    "name": "@feezal/feezal-element-eink-number",
+    "version": "3.0.0",
+    "main": "feezal-element-eink-number.js",
+    "license": "MIT"
+}

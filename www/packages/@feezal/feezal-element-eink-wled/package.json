@@ -1,0 +1,6 @@
+{
+    "name": "@feezal/feezal-element-eink-wled",
+    "version": "3.0.0",
+    "main": "feezal-element-eink-wled.js",
+    "license": "MIT"
+}

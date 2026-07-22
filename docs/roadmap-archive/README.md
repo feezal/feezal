@@ -3,7 +3,7 @@
 Completed and closed roadmap items — **one file per item**, named after its ID (e.g. `U39.md`).
 Open items live in [../ROADMAP.md](../ROADMAP.md).
 
-**251 items.**
+**252 items.**
 
 ## Bugs
 
@@ -109,6 +109,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [E122 — Lights: on/off-only mode (no dimming) ✅ implemented](E122.md)
 - [E123 — material-cover: stronger colour, and size parity with material-light ✅ implemented](E123.md)
 - [E124 — Battery-powered sensors: dedicated low-battery indicator (contact + motion/occupancy + climate) ✅ done](E124.md)
+- [E57 — E-ink / mono element family (`feezal-element-eink-*`) ✅ implemented](E57.md)
 - [E118 — `click-through` on `basic-number`, `basic-icon-value`, `basic-datetime` ✅ implemented](E118.md)
 - [E120 — Homematic cover discovery: wire Up/Down to the LEVEL set topic ✅ implemented](E120.md)
 - [E126 — Homematic discovery: switch recognizer with name word-list heuristic (+ light classification) ✅ implemented](E126.md)

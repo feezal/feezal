@@ -1,0 +1,6 @@
+{
+    "name": "@feezal/feezal-element-eink-fan",
+    "version": "3.0.0",
+    "main": "feezal-element-eink-fan.js",
+    "license": "MIT"
+}
