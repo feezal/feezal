@@ -59,7 +59,6 @@ Work in progress — priorities and scope are not final.
 - [E124 — Battery-powered sensors: dedicated low-battery indicator (contact + motion/occupancy)](#e124--battery-powered-sensors-dedicated-low-battery-indicator-contact--motionoccupancy)
 - [E125 — Homematic battery voltage (`OPERATING_VOLTAGE`)](#e125--homematic-battery-voltage-operating_voltage--future) 💡
 - [E128 — Homematic blinds: settling behaviour + `DIRECTION` indicator](#e128--homematic-blinds-settling-behaviour--direction-indicator-later--after-e127) *(later)*
-- [E132 — Generalize the boolean-sensor family: *-occupancy → *-sensor, numeric *-sensor → *-number](#e132--generalize-the-boolean-sensor-family--occupancy---sensor-numeric--sensor---number)
 - [E134 — Circle design language: align the remaining device cards with light/climate/cover/switch](#e134--circle-design-language-align-the-remaining-device-cards-with-lightclimatecoverswitch)
 - [E135 — Homematic maintenance signals: ERROR_CODE + SABOTAGE badges, device-health board](#e135--homematic-maintenance-signals-error_code--sabotage-badges-device-health-board)
 - [E136 — Metro tile backsides: redesign for touch — bigger targets, calmer layout, use the space](#e136--metro-tile-backsides-redesign-for-touch--bigger-targets-calmer-layout-use-the-space)
@@ -1254,45 +1253,6 @@ Blinds/covers have **the same LEVEL ramp problem** as dimmers (position reports 
 **Sequencing vs. E137 (controller extraction):** either order works — if E128 lands before `CoverController`, it wires E127's `SettlingController` directly (as planned above) and migrates into the controller with the rest of the cover behavior; if the extraction lands first, E128's settling + `DIRECTION` wiring is implemented *inside* `CoverController` (and every cover family gets it at once). The settling attributes end up in the controller's declared fragment either way (E137's settling decision).
 
 **Relates:** **E127** (the machinery this reuses — do first), **E137** (controller extraction — cover settling ends up inside `CoverController`; see sequencing note), E108 ✅ (recognizer), E114 (parity), E120 ✅-era cover-discovery work (same recognizer area).
-
-### E132 — Generalize the boolean-sensor family: *-occupancy → *-sensor, numeric *-sensor → *-number
-
-Water alarms, fire/smoke alarms and motion sensors all behave the same way: **one boolean state**, an icon that flips, a text per state, battery-driven hardware. The occupancy cards already ARE that element in all but name and type list — generalize them instead of growing per-hazard siblings.
-
-**Rename plan — with a collision the request needs to know about:** "sensor" is currently taken by the **numeric** value cards in two families (`glass-sensor` — value/unit/decimals card; `metro-sensor` — value tile with trend polyline). So the rename is two-step and must cover glass too, or the family ends up inconsistent:
-
-| Today | Becomes | Note |
-|---|---|---|
-| `metro-sensor` (numeric) | `metro-number` | as requested |
-| `glass-sensor` (numeric) | `glass-number` | ⚠ not in the request, but required — otherwise "sensor" means *numeric* in glass and *boolean* everywhere else |
-| `material-motion` (bool) | `material-sensor` | name free in material |
-| `glass-occupancy` (bool) | `glass-sensor` | after glass-sensor → glass-number |
-| `metro-occupancy` (bool) | `metro-sensor` | after metro-sensor → metro-number |
-
-**Tag-migration constraint (same wall as E130):** these are TAG/package renames of shipped elements — saved dashboards carry the old tags. Palette *display names* can change freely, but the tag renames need a migration story first: a **load-time tag-alias map** (old → new rewritten when the site loads, persisted on next save) is the pragmatic mechanism, and E130/E115 already want the same thing. Decide once, build it once, then execute both items' renames through it. Until the alias mechanism exists, this item can pre-stage everything except the actual tag swap (palette names, types, icons, discovery).
-
-**Generalized `type` list + per-type defaults (incl. state icons):** extend the existing `type` select (today `motion | presence | radar | zone`, [feezal-element-material-motion.js:108-110](../www/packages/@feezal/feezal-element-material-motion/feezal-element-material-motion.js#L108-L110)) to cover the hazard classes, each with suitable default `icon-active`/`icon-clear` and `text-active`/`text-clear` so a dropped element looks right without configuration:
-
-| type | icon-active (suggestion) | icon-clear | texts |
-|---|---|---|---|
-| `motion` / `presence` / `radar` | `directions_run` / `sensor_occupied` | `sensor_occupied`-off style / `check_circle` | Motion / Clear |
-| `water-leak` | `water_damage` | `water_drop` (muted) | Leak! / Dry |
-| `smoke` / `fire` | `local_fire_department` | `detector_smoke` | Smoke! / Clear |
-| `gas` / `co` | `warning` (gas variant) | `co2`-style | Gas! / Clear |
-| `vibration` / `tamper` | `vibration` / `lock_open` | `check_circle` | Triggered / OK |
-| `generic` (new `_default`?) | `sensors` | `sensors_off` | Active / Inactive |
-
-Alarm-class types (water/smoke/gas) should default the *active* state to the error colour — an active fire alarm is not a neutral state chip. Exact icon names to be settled against the bundled Material Icons list at implementation time; the table is the intent, not the spec.
-
-**Auto-discovery adaptation (both ecosystems):**
-- **Zigbee/HA:** extend the cards' `device_class` → `type` valueMap (today `{motion, occupancy, presence, _default: 'motion'}`) with `moisture → water-leak`, `smoke → smoke`, `gas → gas`, `carbon_monoxide → co`, `vibration → vibration`, `tamper → tamper`; `_default` becomes `generic`. z2m announces all of these as `binary_sensor` with the respective `device_class` — the existing map machinery covers it, only the table grows.
-- **Homematic:** per-class recognizer coverage beyond E131's motion: water (HM-Sec-WDS / HmIP-SWD) and smoke (HM-Sec-SD / HmIP-SWSD) detectors — ⚠ **channel types and alarm datapoints unverified** (BidCoS smoke is roughly `SMOKE_DETECTOR`/`STATE`, HmIP water reports distinct `ALARMSTATE`/`WATERLEVEL_DETECTED`-style datapoints; confirm against real `hm` metadata like E131's caveat). Either one recognizer with a channelType→type table or per-class siblings — decide by how uniform the datapoints turn out to be.
-
-**Battery (E124) is part of the contract:** these are battery devices almost without exception — the generalized `*-sensor` carries E124's `subscribe-battery-low` trio and icon from day one, and both discovery producers stamp it (sibling lookup for z2m, `:0` LOWBAT/LOW_BAT presence-checked for Homematic).
-
-**Ships with:** type/default/icon tables in the three elements (+ the two numeric renames' palette entries), discovery valueMap extension + recognizer tests, TESTING.md rows per hazard class (discovered z2m water-leak sensor lands on a `*-sensor` card with water icons + battery indicator), and the E124/E131 entries' element names updated when the renames land.
-
-**Relates:** **E124** (battery indicator — the generalized card is its main consumer), **E131** (motion recognizer — implement against the generalized type list), E130 (the sibling rename blocked on the same tag-alias mechanism), **E115** (family switching — natural home of the alias map), E114 (parity — all renames land family-wide or not at all), E113 (taxonomy — "sensor means boolean, number means numeric" is exactly the naming discipline it wants).
 
 ### E134 — Circle design language: align the remaining device cards with light/climate/cover/switch
 

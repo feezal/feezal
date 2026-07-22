@@ -1802,9 +1802,10 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                 } else if (spec.transform === 'valueTemplateToPath') {
                     // Convert a HA value_template like "{{ value_json.state }}" to
                     // a feezal message-property path like "payload.state".
-                    const m = /\{\{\s*value_json\.(\w+)\s*\}\}/.exec(String(raw));
+                    // E124: z2m also emits the bracket form ({{ value_json["x"] }}).
+                    const m = /\{\{\s*value_json(?:\.(\w+)|\[\s*["'](\w+)["']\s*\])\s*\}\}/.exec(String(raw));
                     if (!m) continue; // complex/unsupported template — leave attribute at default
-                    value = 'payload.' + m[1];
+                    value = 'payload.' + (m[1] || m[2]);
                 }
             }
             el.setAttribute(attrName, String(value));
@@ -1831,6 +1832,17 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             if (avail.mode && avail.mode !== 'all') el.setAttribute('availability-mode', avail.mode);
             if (avail.payloadAvailable !== undefined) el.setAttribute('payload-available', String(avail.payloadAvailable));
             if (avail.payloadUnavailable !== undefined) el.setAttribute('payload-unavailable', String(avail.payloadUnavailable));
+        }
+
+        // E124/E132: canonical low-battery record — auto-stamped like
+        // availability, but ONLY for elements that declare the attribute
+        // (contacts/climate join with E124; the sensor cards carry it now).
+        const batt = cfg.battery_low_normalized;
+        const declaresBattery = cls.feezal.attributes?.some(a => a?.name === 'subscribe-battery-low');
+        if (batt?.topic && declaresBattery) {
+            el.setAttribute('subscribe-battery-low', batt.topic);
+            if (batt.property) el.setAttribute('message-property-battery-low', batt.property);
+            if (batt.payloadLow !== undefined) el.setAttribute('payload-battery-low', String(batt.payloadLow));
         }
 
         // Store the discovery-id for future re-sync (N12 MVP)

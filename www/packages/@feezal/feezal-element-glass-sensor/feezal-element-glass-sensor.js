@@ -13,7 +13,8 @@ import {applySizePreset, glassCardStyles} from '@feezal/feezal-glass';
 class FeezalElementGlassSensor extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Sensor', category: 'Glass', color: '#7aa5c9', icon: 'thermostat'},
+            // E132: numeric value card — "sensor" now means boolean family-wide.
+            palette: {name: 'Number', category: 'Glass', color: '#7aa5c9', icon: 'thermostat'},
             description: 'Frosted-glass sensor card — big numeral value with unit and label.',
             baseAttribute: 'value',
             discovery: {

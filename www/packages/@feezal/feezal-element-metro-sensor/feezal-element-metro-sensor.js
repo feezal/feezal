@@ -12,7 +12,8 @@ import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
 class FeezalElementMetroSensor extends MetroTileBase {
     static get feezal() {
         return {
-            palette: {name: 'Sensor', category: 'Metro', color: '#1ba1e2', icon: 'monitoring'},
+            // E132: numeric value card — "sensor" now means boolean family-wide.
+            palette: {name: 'Number', category: 'Metro', color: '#1ba1e2', icon: 'monitoring'},
             description: 'Metro sensor tile: big value on the front, recent trend (min/max + polyline) on the back.',
             attributes: [
                 ...MetroTileBase.tileAttributes,

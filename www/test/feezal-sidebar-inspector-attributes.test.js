@@ -873,3 +873,49 @@ describe('B50 — dropdown emptyOption renders and clears like the × ', () => {
         expect(feezal.app.change).toHaveBeenCalledTimes(1);
     });
 });
+
+// ── E124/E132: battery_low_normalized auto-stamp (guarded on declaration) ───
+
+describe('E124 — _applyDiscovery stamps battery_low_normalized for declaring elements', () => {
+    it('stamps the trio on the sensor card (declares the attrs)', async () => {
+        await import('../packages/@feezal/feezal-element-material-motion/feezal-element-material-motion.js');
+        const entity = {
+            discovery_id: 'binary_sensor/ws1/water',
+            component: 'binary_sensor',
+            name: 'Leak',
+            config: {
+                name: 'Leak', state_topic: 'zigbee2mqtt/ws1', device_class: 'moisture',
+                payload_on: 'ON', payload_off: 'OFF',
+                battery_low_normalized: {topic: 'zigbee2mqtt/ws1', property: 'payload.battery_low', payloadLow: true},
+            },
+        };
+        const el = document.createElement('feezal-element-material-motion');
+        globalThis.feezal.app = {change: vi.fn()};
+        const ins = document.createElement('feezal-sidebar-inspector-attributes');
+        ins.selectedElems = [el];
+        ins._applyDiscovery(entity);
+
+        expect(el.getAttribute('type')).toBe('water-leak');   // shared hazard map
+        expect(el.getAttribute('subscribe-battery-low')).toBe('zigbee2mqtt/ws1');
+        expect(el.getAttribute('message-property-battery-low')).toBe('payload.battery_low');
+        expect(el.getAttribute('payload-battery-low')).toBe('true');
+    });
+
+    it('does NOT stamp on an element without the attribute (contacts join with E124)', async () => {
+        const entity = {
+            discovery_id: 'binary_sensor/c1/door',
+            component: 'binary_sensor',
+            name: 'Door',
+            config: {
+                name: 'Door', state_topic: 'z/c1', device_class: 'door',
+                battery_low_normalized: {topic: 'z/c1', property: 'payload.battery_low', payloadLow: true},
+            },
+        };
+        const el = document.createElement('feezal-element-material-contact');
+        globalThis.feezal.app = {change: vi.fn()};
+        const ins = document.createElement('feezal-sidebar-inspector-attributes');
+        ins.selectedElems = [el];
+        ins._applyDiscovery(entity);
+        expect(el.hasAttribute('subscribe-battery-low')).toBe(false);
+    });
+});

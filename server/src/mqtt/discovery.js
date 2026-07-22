@@ -195,12 +195,16 @@ function normalizePayload(raw) {
 // value_templates of the simple "{{ value_json.X }}" form map to a feezal
 // message-property path ("payload.X"); payload overrides are taken from the
 // scalar form or the first array entry (feezal applies them globally).
+// Simple "{{ value_json.X }}" templates → feezal message-property path
+// ("payload.X"). E124: z2m emits the BRACKET form for some entities
+// ({{ value_json["battery_low"] }}) — both forms are accepted.
+function templateToProperty(tpl) {
+    const m = /\{\{\s*value_json(?:\.(\w+)|\[\s*["'](\w+)["']\s*\])\s*\}\}/.exec(String(tpl || ''));
+    return m ? 'payload.' + (m[1] || m[2]) : undefined;
+}
+
 function normalizeAvailability(config, base) {
     const entryAbbrevs = {t: 'topic', pl_avail: 'payload_available', pl_not_avail: 'payload_not_available', val_tpl: 'value_template'};
-    const templateToProperty = tpl => {
-        const m = /\{\{\s*value_json\.(\w+)\s*\}\}/.exec(String(tpl || ''));
-        return m ? 'payload.' + m[1] : undefined;
-    };
 
     const entries = [];
     let payloadAvailable;
@@ -354,13 +358,55 @@ function handleHaMessage(topic, payloadBuf, p) {
 }
 
 /** Return all currently known entities as an array (HA + native recognizers). */
+/**
+ * E124/E132 — canonical low-battery record for HA/z2m entities, computed at
+ * READ time (a battery sibling may be discovered after the state entity, so
+ * normalize-time stamping would race the retained burst). z2m announces the
+ * battery as SEPARATE sibling entities of the same device (shared
+ * device.identifiers): `binary_sensor`/`device_class: battery` (boolean —
+ * HA semantics: on = low) preferred, `sensor`/`device_class: battery`
+ * (percentage) as the fallback — many modern devices expose ONLY the
+ * percentage, so the fallback carries no payloadLow and the element compares
+ * against its battery-low-threshold. Native (Homematic) entities carry the
+ * record straight from their recognizer — untouched here.
+ */
+function decorateBatteryLow(entity) {
+    if (!entity || entity.source) return entity;                       // native → recognizer-provided
+    if (entity.config?.battery_low_normalized) return entity;
+    if (entity.config?.device_class === 'battery') return entity;      // the battery entity itself
+    if (!['binary_sensor', 'climate'].includes(entity.component)) return entity;
+    const devId = entity.config?.device?.identifiers?.[0];
+    if (!devId) return entity;
+
+    let bool = null;
+    let pct = null;
+    for (const e of entities.values()) {
+        if (e === entity) continue;
+        if (e.config?.device?.identifiers?.[0] !== devId) continue;
+        if (e.config?.device_class !== 'battery') continue;
+        if (e.component === 'binary_sensor' && !bool) bool = e;
+        if (e.component === 'sensor' && !pct) pct = e;
+    }
+    const src = bool || pct;
+    if (!src || !src.config.state_topic) return entity;
+
+    const record = {topic: src.config.state_topic};
+    const property = templateToProperty(src.config.value_template);
+    if (property) record.property = property;
+    if (bool) record.payloadLow = src.config.payload_on ?? true;       // percentage source: element threshold
+    entity.config.battery_low_normalized = record;
+    return entity;
+}
+
 function getDiscoveredEntities() {
-    return [...entities.values(), ...native.getNativeEntities()];
+    return [...[...entities.values()].map(decorateBatteryLow), ...native.getNativeEntities()];
 }
 
 /** Return a single entity by discovery_id, or null if not found. */
 function getDiscoveredEntity(id) {
-    return entities.get(id) ?? native.getNativeEntity(id) ?? null;
+    const e = entities.get(id);
+    if (e) return decorateBatteryLow(e);
+    return native.getNativeEntity(id) ?? null;
 }
 
 /** Clear all entities (call on broker disconnect / reconnect to different broker). */

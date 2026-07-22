@@ -174,3 +174,77 @@ describe('N31 — canonical availability normalization', () => {
         expect(disc.getDiscoveredEntity('switch/av4').config.availability_normalized).toBeUndefined();
     });
 });
+
+// ── E124/E132: canonical low-battery record from z2m battery siblings ───────
+
+describe('E124 — battery_low_normalized (z2m sibling lookup, read-time)', () => {
+    const DEV = {identifiers: ['0x00158d0001aabbcc'], name: 'Water sensor cellar'};
+
+    it('prefers the binary_sensor battery sibling (boolean, bracket-form template)', () => {
+        disc.handleMessage('homeassistant/binary_sensor/ws1/water/config', buf({
+            name: 'Leak', state_topic: 'zigbee2mqtt/ws1', device_class: 'moisture',
+            payload_on: true, payload_off: false,
+            value_template: '{{ value_json.water_leak }}', device: DEV,
+        }));
+        disc.handleMessage('homeassistant/binary_sensor/ws1/battlow/config', buf({
+            name: 'Battery low', state_topic: 'zigbee2mqtt/ws1', device_class: 'battery',
+            payload_on: true, payload_off: false, entity_category: 'diagnostic',
+            value_template: '{{ value_json["battery_low"] }}', device: DEV,
+        }));
+        disc.handleMessage('homeassistant/sensor/ws1/batt/config', buf({
+            name: 'Battery', state_topic: 'zigbee2mqtt/ws1', device_class: 'battery',
+            value_template: '{{ value_json.battery }}', device: DEV,
+        }));
+
+        const leak = disc.getDiscoveredEntities().find(e => e.config.device_class === 'moisture');
+        expect(leak.config.battery_low_normalized).toEqual({
+            topic: 'zigbee2mqtt/ws1',
+            property: 'payload.battery_low',   // bracket-form template parsed
+            payloadLow: true,
+        });
+        // The battery entities themselves are never decorated.
+        const batt = disc.getDiscoveredEntities().find(e => e.component === 'binary_sensor' && e.config.device_class === 'battery');
+        expect(batt.config.battery_low_normalized).toBeUndefined();
+    });
+
+    it('falls back to the percentage sensor sibling WITHOUT payloadLow (element threshold decides)', () => {
+        disc.handleMessage('homeassistant/binary_sensor/oc1/occ/config', buf({
+            name: 'Occupancy', state_topic: 'zigbee2mqtt/oc1', device_class: 'occupancy',
+            value_template: '{{ value_json.occupancy }}', device: {identifiers: ['0xdead'], name: 'PIR'},
+        }));
+        disc.handleMessage('homeassistant/sensor/oc1/batt/config', buf({
+            name: 'Battery', state_topic: 'zigbee2mqtt/oc1', device_class: 'battery',
+            value_template: '{{ value_json.battery }}', device: {identifiers: ['0xdead'], name: 'PIR'},
+        }));
+
+        const occ = disc.getDiscoveredEntity('binary_sensor/oc1/occ');
+        expect(occ.config.battery_low_normalized).toEqual({
+            topic: 'zigbee2mqtt/oc1',
+            property: 'payload.battery',
+        });
+    });
+
+    it('no battery sibling → no record; devices without identifiers are skipped', () => {
+        disc.handleMessage('homeassistant/binary_sensor/solo/x/config', buf({
+            name: 'Contact', state_topic: 'z/solo', device_class: 'door',
+            device: {identifiers: ['0xsolo']},
+        }));
+        expect(disc.getDiscoveredEntity('binary_sensor/solo/x').config.battery_low_normalized).toBeUndefined();
+
+        disc.handleMessage('homeassistant/binary_sensor/nodev/x/config', buf({
+            name: 'NoDev', state_topic: 'z/nodev', device_class: 'motion',
+        }));
+        expect(disc.getDiscoveredEntity('binary_sensor/nodev/x').config.battery_low_normalized).toBeUndefined();
+    });
+
+    it('availability templates accept the bracket form too (shared parser)', () => {
+        disc.handleMessage('homeassistant/binary_sensor/av1/x/config', buf({
+            name: 'X', state_topic: 'z/av1', device_class: 'motion',
+            availability: [{topic: 'z/av1/avail', value_template: '{{ value_json["state"] }}'}],
+        }));
+        const e = disc.getDiscoveredEntity('binary_sensor/av1/x');
+        expect(e.config.availability_normalized.entries).toEqual([
+            {topic: 'z/av1/avail', property: 'payload.state'},
+        ]);
+    });
+});
