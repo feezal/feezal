@@ -7,7 +7,7 @@ Work in progress — priorities and scope are not final.
 ## Table of Contents
 
 **Bugs**
-- [B52 — Stale caches after a feezal update: broken viewer chunk (hard refresh needed), iOS PWA bricked](#b52--stale-caches-after-a-feezal-update-broken-viewer-chunk-hard-refresh-needed-ios-pwa-bricked)
+- *(none open — all reported bugs are fixed or closed; see the [archive](roadmap-archive/README.md))*
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -104,32 +104,7 @@ Work in progress — priorities and scope are not final.
 
 ## Bugs
 
-### B52 — Stale caches after a feezal update: broken viewer chunk (hard refresh needed), iOS PWA bricked ⚡
-
-Two symptoms of one problem — **nothing in the serving stack is update-aware**:
-
-- **Browser viewer:** after a feezal update the viewer fails loading `assets/feezal-elements-<hash>.js` (404) until a **hard refresh**.
-- **iOS home-screen PWA:** stops working entirely after an update, with no in-app way to recover.
-
-**Cause 1 — no cache headers on a stable-name entry that references hashed chunks.** `express.static(distDir)` is mounted with **no `Cache-Control` at all** ([app.js:106](../server/src/app.js#L106)), so browsers heuristically cache `/viewer-bundle.js` (stable name). That bundle code-splits and imports the **content-hashed** `assets/feezal-elements-<hash>.js` (Vite `chunkFileNames`). An update rebuilds dist → new hash, old chunk deleted → the *stale cached* bundle requests the *old* chunk → 404. The generated viewer/editor HTML pages are equally header-less.
-
-**Cause 2 — the PWA service worker can never update itself.** Three compounding defects in `buildServiceWorker` ([pwa.js:134-157](../server/src/build/pwa.js#L134-L157)):
-1. `cacheName` is `feezal-pwa-<site>` — **constant across updates**, so the activate-time purge (which correctly deletes *other* names) never has anything to delete;
-2. non-navigation GETs are **cache-first** — `/viewer-bundle.js` is in the install-time SHELL and is served from cache *forever*;
-3. the generated `sw.js` bytes only change when the site name or icon list changes — **no version/build stamp**, so the browser's SW update check sees identical bytes and never reinstalls. iOS re-checks sw.js on launch, but identical bytes = no-op → the stale shell is permanent.
-
-**Recovery today (what the user can do right now, iOS):** there is no in-app path — either delete the home-screen app and re-add it, or Settings → Safari → Advanced → Website Data → delete the feezal host entry, then reopen. For the plain-browser symptom, a hard refresh (or DevTools → Network → Disable cache → reload) re-fetches `viewer-bundle.js`.
-
-**Fix plan:**
-1. **Correct cache headers** (`express.static` `setHeaders` + the dynamic HTML routes): content-hashed `/assets/*` → `Cache-Control: public, max-age=31536000, immutable`; everything with a stable name (`/viewer-bundle.js`, `/editor/…`, generated viewer HTML, `/editor/feezal-elements.js`, manifest, sw.js) → `no-cache` so the browser revalidates each load — express already emits `ETag`/`Last-Modified`, so revalidation is a cheap 304, not a re-download. This alone fixes the hard-refresh symptom.
-2. **Version the service worker:** embed a build id (server package version + a dist fingerprint, e.g. viewer-bundle mtime/hash) into the generated `sw.js` → `cacheName: feezal-pwa-<site>-<buildId>`. Changed bytes trigger the SW update cycle; `skipWaiting`/`clients.claim` already exist, and the existing activate-purge then actually deletes the old cache.
-3. **Soften the asset strategy:** keep offline capability but let updates through — stale-while-revalidate for shell assets (serve cache, refresh in background, optionally notify), or network-first with cache fallback for `/viewer-bundle.js` specifically (it's the one stable-name entry whose staleness breaks everything).
-4. **Optional, nice UX:** a tiny `/api/version` + viewer check on visibilitychange → "feezal was updated — reload" toast; complements N32 ✅, which only covers *deploys* while the server is running, not server updates/restarts.
-5. **Export PWA:** the same SW builder serves the static-export sw.js — versioning must key off the export content there (no server version at file:// runtime); verify the export path when touching the builder.
-
-**Ships with:** TESTING.md — update feezal (or fake it: touch dist, restart) with an open viewer tab + an installed iOS PWA → plain reload recovers both without a hard refresh; hashed assets served with `immutable`, stable names with `no-cache` (check response headers); SW cache name carries the build id and old caches are purged on activate.
-
-**Relates:** A9 ✅ (PWA machinery — where the SW builder lives), N32 ✅ (deploy-reload — the sibling freshness mechanism for deploys), A25 ✅ (offline-first made caching *more* load-bearing — this makes it update-safe), B39 ✅ (viewer URL hygiene).
+*(none open — all reported bugs are fixed or closed; see the [archive](roadmap-archive/README.md).)*
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 

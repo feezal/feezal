@@ -225,3 +225,40 @@ describe('pwa-icons API', () => {
         expect(icon.body.toString()).toBe('DEFAULT:web-app-manifest-192x192.png');
     });
 });
+
+// ── B52: update-aware caching — versioned SW cache + strategies ─────────────
+
+describe('B52 — service worker updates reach installed PWAs', () => {
+    it('the generated worker is network-first for stable names and cache-first ONLY for hashed /assets/*', () => {
+        const sw = pwa.buildServiceWorker({cacheName: 'c', shell: ['./']});
+        expect(sw).toContain('const HASHED =');
+        // stable names fall back to cache only on network failure
+        expect(sw).toContain('.catch(() => caches.match(e.request))');
+        // hashed assets are cache-first with a network fill
+        expect(sw).toContain('caches.match(e.request).then(hit => hit || fetch(e.request)');
+    });
+
+    it('distBuildId() fingerprints the built viewer bundle and reacts to a rebuild', async () => {
+        expect(pwa.distBuildId(wwwDir)).toBe('dev');   // no bundle in the fixture yet
+        await mkdir(join(wwwDir, 'dist'), {recursive: true});
+        await writeFile(join(wwwDir, 'dist', 'viewer-bundle.js'), 'one');
+        const first = pwa.distBuildId(wwwDir);
+        expect(first).not.toBe('dev');
+        await new Promise(resolve => setTimeout(resolve, 15));
+        await writeFile(join(wwwDir, 'dist', 'viewer-bundle.js'), 'twoo');   // size + mtime change
+        expect(pwa.distBuildId(wwwDir)).not.toBe(first);
+    });
+
+    it('the served sw.js carries the versioned cache name and a no-cache header', async () => {
+        const res = await request(app).get('/viewer/pwasite/sw.js');
+        expect(res.status).toBe(200);
+        expect(res.headers['cache-control']).toBe('no-cache');
+        const version = require('../package.json').version;
+        expect(res.text).toContain(`feezal-pwa-pwasite-v${version}-`);
+    });
+
+    it('the manifest responds no-cache too', async () => {
+        const res = await request(app).get('/viewer/pwasite/manifest.webmanifest');
+        expect(res.headers['cache-control']).toBe('no-cache');
+    });
+});

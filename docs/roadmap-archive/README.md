@@ -3,7 +3,7 @@
 Completed and closed roadmap items — **one file per item**, named after its ID (e.g. `U39.md`).
 Open items live in [../ROADMAP.md](../ROADMAP.md).
 
-**236 items.**
+**237 items.**
 
 ## Bugs
 
@@ -55,6 +55,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [B49 — Attribute-mapping button + dialog ignore editor dark mode ✅ fixed](B49.md)
 - [B50 — Per-view themes: no way to clear, and not applied in the viewer (layout-app) ✅ fixed](B50.md)
 - [B51 — Inspector clear (×) button works but is invisible ✅ fixed](B51.md)
+- [B52 — Stale caches after a feezal update: broken viewer chunk (hard refresh needed), iOS PWA bricked ✅ fixed](B52.md)
 - [B53 — *-climate: Homematic "Off" state shows as "Manu 4.5°" instead of "Off" without a setpoint ✅ fixed](B53.md)
 - [B54 — *-climate: active boost is not detected from the device — UI falls back to "Manu" moments after activation ✅ fixed](B54.md)
 - [B55 — glass/metro-climate: no "Auto" button for Homematic thermostats (falsy-zero mode filter) ✅ fixed](B55.md)

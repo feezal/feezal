@@ -127,14 +127,21 @@ function buildManifest({siteName, startUrl, scope, iconBase, icons, meta}) {
 }
 
 /**
- * Minimal cache-first app-shell service worker.
- * Navigations go network-first with a cache fallback so updates arrive while
- * offline loads still work. Non-GET (incl. WebSocket upgrades) pass through.
+ * App-shell service worker.
+ * B52 strategy: navigations AND stable-name assets (viewer-bundle.js, …) go
+ * network-first with the cache as the offline fallback — so an updated
+ * server is picked up on a plain reload; content-hashed /assets/* files are
+ * immutable and stay cache-first (cached at first use for offline).
+ * Non-GET (incl. WebSocket upgrades) pass through.
+ * The cacheName carries a build id (see registerPwaRoutes / the export) —
+ * changed sw.js bytes trigger the browser's SW update cycle, and the
+ * activate-time purge then actually deletes the previous cache.
  */
 function buildServiceWorker({cacheName, shell}) {
     return `'use strict';
 const CACHE = ${JSON.stringify(cacheName)};
 const SHELL = ${JSON.stringify(shell)};
+const HASHED = /\\/assets\\/[^/]+-[\\w-]{8,}\\.\\w+$/;
 self.addEventListener('install', e => {
     e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
 });
@@ -145,15 +152,39 @@ self.addEventListener('activate', e => {
 });
 self.addEventListener('fetch', e => {
     if (e.request.method !== 'GET') return;
+    const networkFirst = () => fetch(e.request)
+        .then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); return res; })
+        .catch(() => caches.match(e.request));
     if (e.request.mode === 'navigate') {
-        e.respondWith(fetch(e.request)
-            .then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); return res; })
-            .catch(() => caches.match(e.request).then(hit => hit || caches.match(SHELL[0]))));
+        e.respondWith(networkFirst().then(hit => hit || caches.match(SHELL[0])));
         return;
     }
-    e.respondWith(caches.match(e.request).then(hit => hit || fetch(e.request)));
+    if (HASHED.test(new URL(e.request.url).pathname)) {
+        // Content-hashed → immutable: cache-first, cache on first fetch.
+        e.respondWith(caches.match(e.request).then(hit => hit || fetch(e.request)
+            .then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); return res; })));
+        return;
+    }
+    // Stable names: network-first so updates arrive without a hard refresh.
+    e.respondWith(networkFirst());
 });
 `;
+}
+
+/**
+ * B52 — a build id for the served viewer: server package version + a dist
+ * fingerprint (viewer-bundle size+mtime). Baked into the sw.js cacheName so
+ * a feezal update changes the sw.js bytes → the browser reinstalls the SW
+ * and the activate purge drops the stale shell cache.
+ */
+function distBuildId(wwwDir) {
+    for (const p of [path.join(wwwDir, 'dist', 'viewer-bundle.js'), path.join(wwwDir, 'viewer-bundle.js')]) {
+        try {
+            const st = fs.statSync(p);
+            return st.size.toString(36) + '-' + Math.round(st.mtimeMs).toString(36);
+        } catch { /* try next */ }
+    }
+    return 'dev';
 }
 
 /**
@@ -221,6 +252,7 @@ function registerPwaRoutes(app, {storage, wwwDir}) {
             icons: availableIcons(opts),
             meta: storage.dataDir ? readPwaMeta(storage.dataDir, site) : null,
         });
+        res.set('Cache-Control', 'no-cache');   // B52
         res.type('application/manifest+json').json(manifest);
     });
 
@@ -232,8 +264,16 @@ function registerPwaRoutes(app, {storage, wwwDir}) {
         const shell = [base, '/viewer-bundle.js',
             ...availableIcons(opts).map(icon => `${base}/icons/${icon.name}`)];
         res.set('Service-Worker-Allowed', base);
+        res.set('Cache-Control', 'no-cache');   // B52: the update check must see fresh bytes
+        // B52: versioned cache name — a feezal update (new package version or
+        // rebuilt dist) changes the sw.js bytes, triggering the SW update
+        // cycle; skipWaiting/clients.claim + the activate purge do the rest.
+        const version = require('../../package.json').version;
         res.type('text/javascript')
-            .send(buildServiceWorker({cacheName: `feezal-pwa-${site}`, shell}));
+            .send(buildServiceWorker({
+                cacheName: `feezal-pwa-${site}-v${version}-${distBuildId(wwwDir)}`,
+                shell,
+            }));
     });
 
     // Icons are served regardless of the pwa flag (not sensitive, and the
@@ -260,6 +300,7 @@ module.exports = {
     availableIcons,
     buildManifest,
     buildServiceWorker,
+    distBuildId,
     injectPwaTags,
     registerPwaRoutes,
 };

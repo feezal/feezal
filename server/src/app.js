@@ -137,29 +137,47 @@ async function createApp(config) {
     const distDir = require('fs').existsSync(path.join(wwwDir, 'dist'))
         ? path.join(wwwDir, 'dist')
         : wwwDir;
-    app.use('/', express.static(distDir));
+
+    // --- B52: update-aware caching ------------------------------------
+    // Content-hashed Vite output under /assets/ is immutable and may cache
+    // forever; EVERYTHING with a stable name (viewer-bundle.js, editor/*,
+    // the element manifest, fonts, user content) must revalidate on each
+    // load — express already emits ETag/Last-Modified, so revalidation is a
+    // cheap 304, not a re-download. Without this, browsers heuristically
+    // cached the stable-name bundle, which after an update requested a
+    // DELETED old hashed chunk → 404 until a hard refresh.
+    const HASHED_ASSET = /[/\\]assets[/\\][^/\\]+-[\w-]{8,}\.\w+$/;
+    const staticCacheHeaders = {
+        setHeaders(res, filePath) {
+            res.setHeader('Cache-Control', HASHED_ASSET.test(filePath)
+                ? 'public, max-age=31536000, immutable'
+                : 'no-cache');
+        },
+    };
+    app.use('/', express.static(distDir, staticCacheHeaders));
 
     // Element packages: in production they live in packages/ (renamed from node_modules/
     // so npm publish doesn't strip them). In dev (monorepo) fall back to node_modules/.
     const elementPackagesDir = require('fs').existsSync(path.join(wwwDir, 'packages'))
         ? path.join(wwwDir, 'packages')
         : path.join(wwwDir, 'node_modules');
-    app.use('/node_modules', express.static(elementPackagesDir));
+    app.use('/node_modules', express.static(elementPackagesDir, staticCacheHeaders));
 
     // --- Asset static files --- (A14 layout)
     // Global assets: /assets/global/<path>  →  <dataDir>/global/assets/<path>
     // Site assets:   /assets/<site>/<path>  →  <dataDir>/sites/<site>/assets/<path>
     // User themes:   /themes/<slug>.css     →  <dataDir>/themes/<slug>.css
     if (storage.dataDir) {
-        app.use('/assets/global', express.static(path.join(storage.dataDir, 'global', 'assets')));
+        app.use('/assets/global', express.static(path.join(storage.dataDir, 'global', 'assets'), staticCacheHeaders));
         app.get('/assets/:site/*', (req, res, next) => {
             const file = path.join(storage.dataDir, 'sites', req.params.site, 'assets', req.params[0]);
+            res.setHeader('Cache-Control', 'no-cache');   // B52: user content revalidates
             res.sendFile(file, err => { if (err) next(); });
         });
-        app.use('/themes', express.static(path.join(storage.dataDir, 'themes')));
+        app.use('/themes', express.static(path.join(storage.dataDir, 'themes'), staticCacheHeaders));
 
         // User-installed element packages (drop-in; no rebuild required)
-        app.use('/user-elements', express.static(path.join(storage.dataDir, 'elements')));
+        app.use('/user-elements', express.static(path.join(storage.dataDir, 'elements'), staticCacheHeaders));
     }
 
     // --- Socket.IO hub ---
@@ -179,6 +197,7 @@ async function createApp(config) {
     // The editor SPA is served from dist/editor/index.html.
     // The site name is passed as the URL query: /editor/?/<siteName>/
     app.get('/editor/', editorAuth, (_req, res) => {
+        res.setHeader('Cache-Control', 'no-cache');   // B52: revalidate each load
         res.sendFile(path.join(distDir, 'editor', 'index.html'));
     });
 
@@ -426,6 +445,7 @@ ${iconScripts}${userPkgScripts}
             }
 
             res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.setHeader('Cache-Control', 'no-cache');   // B52: generated HTML revalidates
             res.send(page);
         } catch (err) {
             next(err);
@@ -458,6 +478,7 @@ ${iconScripts}${userPkgScripts}
     const quietLogger = {info() {}, debug() {}};
     app.get('/editor/feezal-elements.js', (_req, res) => {
         const discovered = discoverElements(wwwDir, userElementsDir, quietLogger);
+        res.setHeader('Cache-Control', 'no-cache');   // B52: stable name, generated content
         res.type('text/javascript').send(generateElementsModule(discovered));
     });
 

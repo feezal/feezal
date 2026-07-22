@@ -770,8 +770,12 @@ async function buildExportBundle(wwwDir, siteName, {html: siteHtml, config}, log
             meta,
         });
         pwaFiles.push({name: 'manifest.webmanifest', content: JSON.stringify(manifest, null, 2)});
+        // B52: key the cache name off the export CONTENT (there is no server
+        // version at runtime) — re-exporting after a change yields a new
+        // sw.js, so a hosted export updates installed PWAs on plain reload.
+        const contentId = require('crypto').createHash('sha1').update(indexHtml).digest('hex').slice(0, 10);
         pwaFiles.push({name: 'sw.js', content: pwa.buildServiceWorker({
-            cacheName: `feezal-pwa-${siteName}`,
+            cacheName: `feezal-pwa-${siteName}-${contentId}`,
             shell: ['./', ...icons.map(icon => 'icons/' + icon.name)],
         })});
         for (const icon of icons) {
