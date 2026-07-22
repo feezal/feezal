@@ -77,7 +77,6 @@ Work in progress — priorities and scope are not final.
 - [U46 — Clippy easter egg in the help popup](#u46--clippy-easter-egg-in-the-help-popup--low-priority) 🔽
 - [U48 — Make the viewer's `Connected as "…"` toast optional](#u48--make-the-viewers-connected-as--toast-optional)
 - [U50 — layout-app: expose the content area's inset (padding)](#u50--layout-app-expose-the-content-areas-inset-padding)
-- [U54 — Source editor opens at the current view's line](#u54--source-editor-opens-at-the-current-views-line)
 - [U55 — View tab bar: hold-to-drag so clicks stop reordering views](#u55--view-tab-bar-hold-to-drag-so-clicks-stop-reordering-views)
 
 **Architecture & Infrastructure**
@@ -998,16 +997,6 @@ The embedded view sits flush against the app bar and drawer — there is no way 
 - Accept a full CSS shorthand (`8px`, `8px 16px`, …) rather than a number, so per-side insets need no extra knobs.
 
 **Relates:** E-layout-app (the shell), N36 (the `--feezal-app-*` style-var set this extends), E38 (element scaling / responsive sizing — a responsive inset would belong there).
-
-### U54 — Source editor opens at the current view's line
-
-Switching to the source editor always starts at the top of the document — on a site with many views, finding the view you were just editing means scrolling/searching. **Wanted:** on entering source mode, the editor jumps to the line of the **currently active view**.
-
-**Implementation:** the source editor is Monaco ([feezal-app-editor.js](../www/src/feezal-app-editor.js), `_sourceMode` / `loadMonaco`). After the model is set on entry, locate the active view's opening tag in the serialized HTML — match `<feezal-view` whose `name="<this.view>"` attribute follows within the same tag (don't assume attribute order; a simple regex over the model text, or `model.findMatches('<feezal-view', …)` + name check per hit, covers it since view names are unique) — then `editor.revealLineNearTop(line)` (or `revealLineInCenter`) and place the cursor on that line. If the view isn't found (fresh unsaved view, malformed doc), fall back silently to the top. Also apply when the active view is *changed while source mode is open* only if that flow exists — otherwise entry-time only.
-
-**Ships with:** TESTING.md source-editor section update (open source view with a non-first view active → editor is scrolled to its `<feezal-view>` line, cursor there; first view / not-found falls back to top).
-
-**Relates:** U23 (source editor, the other Monaco item), source-mode machinery in feezal-app-editor.js.
 
 ### U55 — View tab bar: hold-to-drag so clicks stop reordering views
 
