@@ -109,7 +109,11 @@ async function createApp(config) {
         "font-src 'self' data:",
         "img-src * data: blob:",
         "media-src * data: blob:",
-        'connect-src *',
+        // B51: '*' does NOT match the data: scheme — Shoelace SYSTEM icons
+        // (select carets, checkbox check, the U44 clear ×, dialog close) are
+        // data:image/svg+xml URIs loaded via fetch(), so without data: here
+        // they all render empty. Scheme-local, no egress hole.
+        'connect-src * data:',
         'frame-src *',
         "worker-src 'self' blob:",
         "object-src 'none'",

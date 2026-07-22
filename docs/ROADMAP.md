@@ -7,7 +7,6 @@ Work in progress — priorities and scope are not final.
 ## Table of Contents
 
 **Bugs**
-- [B51 — Inspector clear (×) button works but is invisible](#b51--inspector-clear--button-works-but-is-invisible)
 - [B52 — Stale caches after a feezal update: broken viewer chunk (hard refresh needed), iOS PWA bricked](#b52--stale-caches-after-a-feezal-update-broken-viewer-chunk-hard-refresh-needed-ios-pwa-bricked)
 
 **Near-term Improvements**
@@ -104,19 +103,6 @@ Work in progress — priorities and scope are not final.
 ---
 
 ## Bugs
-
-### B51 — Inspector clear (×) button works but is invisible
-
-The U44 ✅ clear button on inspector fields is functional — the hit area is there and clicking it removes the attribute — but **no × glyph renders**, so the affordance U44 was built for is lost: you have to know the invisible button exists.
-
-**Prime suspect — the A25 CSP eats Shoelace's system icons.** The clear button is `<sl-icon library="system" name="x-circle-fill">`; Shoelace's *system* library resolves to **`data:image/svg+xml` URIs which `sl-icon` loads via `fetch()`** — and A25's CSP sends `connect-src *`, where `*` does **not** match the `data:` scheme. The fetch is refused, the icon renders empty, the button keeps its size and click handler → exactly "there and works, but invisible". Verify first: open DevTools on the editor and look for `Refused to connect … data:` CSP violations when a populated input renders.
-
-- **If confirmed, the fix is one token:** `connect-src * data:` in the CSP ([app.js](../server/src/app.js), the A25 block). **Check the blast radius while at it** — every Shoelace *system* icon rides the same path (select carets, checkbox check, `sl-dialog` close ×, spinner). If those render today, the theory needs revising; if they are subtly broken too, this one-token fix repairs all of them at once.
-- **Fallback suspect (if no CSP violation shows):** icon colour. No `::part(clear-button)` styling exists anywhere; the glyph colour comes from `--sl-input-icon-color`, which the editor's dark-mode block sets to `rgba(255,255,255,0.4)` but light mode leaves at the Shoelace default — check whether either resolves against the forced `sl-input::part(base)` backgrounds in the panels ([feezal-sidebar-inspector-attributes.js:344](../www/src/feezal-sidebar-inspector-attributes.js#L344)) to a no-contrast result.
-
-**Acceptance:** the × is visibly rendered on populated text/number/topic/colour inputs and on explicitly-set selects, in light AND dark editor mode, including inside `feezal-topic-input` (custom inspectors); no CSP violations in the console; a browser test asserts the rendered icon (e.g. the system icon's SVG present in the clear button's shadow DOM) so an invisible-but-clickable regression can't ship again.
-
-**Relates:** U44 ✅ (the feature this un-breaks), **A25 ✅** (the CSP that likely broke it — the fix must not reopen an egress hole: `data:` on connect-src is scheme-local and harmless), B44 ✅ (previous "verify with computed styles, not presence" precedent).
 
 ### B52 — Stale caches after a feezal update: broken viewer chunk (hard refresh needed), iOS PWA bricked ⚡
 

@@ -97,6 +97,12 @@ describe('A25 — no third-party hosts in shipped code', () => {
         expect(hits).toEqual([]);
     });
 
+    it("B51 — the CSP grants data: on connect-src (Shoelace SYSTEM icons are fetch()'d data: URIs; '*' does not match schemes)", () => {
+        const src = readFileSync(join(ROOT, 'server', 'src', 'app.js'), 'utf8');
+        expect(src).toContain("'connect-src * data:'");
+        expect(src).toContain("font-src 'self' data:");
+    });
+
     it('the vendored fonts are present (self-hosting is not aspirational)', () => {
         const fonts = join(ROOT, 'www', 'public', 'fonts');
         const files = readdirSync(fonts);
