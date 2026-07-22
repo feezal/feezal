@@ -196,6 +196,65 @@ describe('view management', () => {
         expect(await page.locator('feezal-site > feezal-view[name="garden"]')
             .evaluate(v => getComputedStyle(v).display)).toBe('none');
     });
+
+    // U55: hold-to-drag — a quick click (even a slightly moving one) must
+    // switch the view and never reorder; only a ~300 ms hold arms dragging.
+    it('U55: a jittery click switches the view and does NOT reorder', async () => {
+        const order = () => page.locator('.ftab.view').evaluateAll(els => els.map(el => el.dataset.view));
+        const before = await order();
+        const box = await page.locator('.ftab.view[data-view="garden"]').boundingBox();
+        await page.mouse.move(box.x + 10, box.y + 10);
+        await page.mouse.down();
+        await page.mouse.move(box.x + 14, box.y + 13);   // a few px of jitter
+        await page.mouse.up();
+        await expect.poll(() => page.locator('feezal-site > feezal-view[name="garden"]')
+            .evaluate(v => getComputedStyle(v).display)).not.toBe('none');
+        expect(await order()).toEqual(before);
+        await page.locator('.ftab.view[data-view="main"]').click();   // restore for later tests
+    });
+
+    it('U55: holding arms the tab (lift cue + draggable=true); release disarms', async () => {
+        const tab = page.locator('.ftab.view[data-view="garden"]');
+        const box = await tab.boundingBox();
+        expect(await tab.getAttribute('draggable')).toBe('false');   // click-safe by default
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await page.mouse.down();
+        await expect.poll(() => tab.getAttribute('draggable'), {timeout: 5000}).toBe('true');
+        expect(await tab.evaluate(el => el.classList.contains('drag-armed'))).toBe(true);
+        await page.mouse.up();
+        await expect.poll(() => tab.getAttribute('draggable')).toBe('false');
+        await page.locator('.ftab.view[data-view="main"]').click();   // the arming click selected garden
+    });
+
+    it('U55: a press-hold-micro-drag released over the dragged tab itself leaves the order unchanged', async () => {
+        const order = () => page.locator('.ftab.view').evaluateAll(els => els.map(el => el.dataset.view));
+        const before = await order();
+        // Drive the drop machinery exactly as a self-target release does —
+        // deterministic (synthetic HTML5 drag events are unreliable in CDP).
+        await page.locator('feezal-app-editor').evaluate(app => {
+            app._dragData = {kind: 'view', name: 'garden'};
+            app._applyDrop({kind: 'view', name: 'garden'}, 'after');
+            app._onItemDragEnd();
+        });
+        expect(await order()).toEqual(before);
+    });
+
+    it('U55: a genuine reorder still works', async () => {
+        const order = () => page.locator('.ftab.view').evaluateAll(els => els.map(el => el.dataset.view));
+        await page.locator('feezal-app-editor').evaluate(app => {
+            app._dragData = {kind: 'view', name: 'garden'};
+            app._applyDrop({kind: 'view', name: 'main'}, 'before');
+            app._onItemDragEnd();
+        });
+        await expect.poll(order).toEqual(['garden', 'main']);
+        // restore the original order for the tests that follow
+        await page.locator('feezal-app-editor').evaluate(app => {
+            app._dragData = {kind: 'view', name: 'garden'};
+            app._applyDrop({kind: 'view', name: 'main'}, 'after');
+            app._onItemDragEnd();
+        });
+        await expect.poll(order).toEqual(['main', 'garden']);
+    });
 });
 
 describe('copy-on-use of a global asset (B15)', () => {

@@ -77,7 +77,6 @@ Work in progress — priorities and scope are not final.
 - [U46 — Clippy easter egg in the help popup](#u46--clippy-easter-egg-in-the-help-popup--low-priority) 🔽
 - [U48 — Make the viewer's `Connected as "…"` toast optional](#u48--make-the-viewers-connected-as--toast-optional)
 - [U50 — layout-app: expose the content area's inset (padding)](#u50--layout-app-expose-the-content-areas-inset-padding)
-- [U55 — View tab bar: hold-to-drag so clicks stop reordering views](#u55--view-tab-bar-hold-to-drag-so-clicks-stop-reordering-views)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -997,33 +996,6 @@ The embedded view sits flush against the app bar and drawer — there is no way 
 - Accept a full CSS shorthand (`8px`, `8px 16px`, …) rather than a number, so per-side insets need no extra knobs.
 
 **Relates:** E-layout-app (the shell), N36 (the `--feezal-app-*` style-var set this extends), E38 (element scaling / responsive sizing — a responsive inset would belong there).
-
-### U55 — View tab bar: hold-to-drag so clicks stop reordering views
-
-Reordering views by accident happens far too often: a click on a view tab that moves a few pixels turns into a drag, and the view (or folder) lands somewhere else in the tab order. The user only wanted to switch views.
-
-**Why it happens:** the tab bar uses **native HTML5 drag** — `.ftab` elements carry `draggable="true"` with `dragstart`/`dragover`/`drop` handlers ([feezal-app-editor.js:1014-1023](../www/src/feezal-app-editor.js#L1014-L1023), same for folder tabs) — and the browser's built-in drag threshold is only a few pixels with **no configurable delay**. Any slightly sloppy click qualifies.
-
-**Wanted: hold-to-drag.** Dragging only arms after the mouse button has been held down for a moment (~250–300 ms) on the tab; a quick click — even a slightly moving one — always stays a click.
-
-**Implementation direction (HTML5 drag has no delay option, so arm it manually):**
-- Render the tabs with `draggable="false"` by default. On `pointerdown`, start a timer; when it fires with the button still down on the same tab, set `draggable = true` (plus a visual "lift" cue — slight scale/shadow — so the user knows drag mode engaged). On `pointerup`/`pointerleave`/`dragend`, clear the timer and reset `draggable = false`.
-- Keep the existing `dragstart`/`dragover`/`drop`/`dragend` machinery unchanged — only the *arming* changes. Apply identically to **view tabs and folder tabs** (both reorder the same way).
-- Watch the interactions on the same elements: `click` (switch view), `dblclick` (rename/edit — must still work, the hold timer must not swallow the second click), `contextmenu`, and the folder-menu open. Touch: `pointerdown` covers it, and a long-press-to-drag is actually the *expected* touch idiom.
-
-**Bundled bug — a self-drop reorders to the END instead of no-op (fix with this item).** Repro: views `view1, view2, view3`; drag `view1` a few px right — the blue drop line sits between view1 and view2 (a no-op position) — release: the order becomes `view2, view3, view1`. This is what makes the accidental drags above so destructive: the most common accident (a micro-drag released over the dragged tab itself) is exactly the case that misfires.
-
-**Cause (confirmed by code read, [feezal-app-editor.js `_applyDrop`](../www/src/feezal-app-editor.js)):** when the drop target IS the dragged tab (`before`/`after` itself — the pointer never left the tab), `_applyDrop` first **detaches the dragged node from the tree**, then tries to `_locate` the target — which is that same, just-detached node. The lookup fails, and the `if (!loc) { tree.push(dragged); }` fallback **appends to the end**. (Dropping on the *neighbour's* half works correctly — only the self-target path misfires.)
-
-**Fix direction:** two independent hardenings —
-1. **Self-drop = no-op:** bail out of `_applyDrop` before detaching when the target is the dragged item (same kind + same `name`/`id`) — `before`/`after` self are both order-preserving by definition.
-2. **Fallback must not relocate:** `!loc → push(dragged)` turns *any* unresolved target into "move to end" — change it to abort without applying (restore semantics), matching the existing silent-abort for a folder dropped into its own subtree.
-
-**Explicitly out of scope (decided):** canvas element dragging stays exactly as it is — it uses interact.js, a completely separate path, and its immediate drag is correct there. Only the tab bar changes.
-
-**Ships with:** e2e coverage — a click with a small jitter (a few px of mouse movement between down and up) switches the view and does NOT reorder; a press-hold-move-release **over the dragged tab itself** leaves the order unchanged (the bundled bug's repro); a genuine reorder still works; dblclick rename still works.
-
-**Relates:** U8 ✅ (view folders — the second draggable tab kind, same `_applyDrop` path), U33 (drag/reorder conventions), B33 (the other "pointer gesture misfires" family — different surface, keep separate).
 
 ### E109 — evcc integration: native discovery + energy/charging elements 💡 to refine
 
