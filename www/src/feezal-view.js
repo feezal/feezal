@@ -95,6 +95,9 @@ class FeezalView extends LitElement {
                         ? window.feezal.themes.map(p => p.split('/').pop())
                         : [],
                     default: '',
+                    // B50: explicit way back to the site theme (the × clear
+                    // works too, but a select always shows a value).
+                    emptyOption: 'Site theme (default)',
                     help: 'Render this view in its own theme — e.g. a dark camera wall next to a light living room. Empty = the site theme. Suppressed while a user/MQTT theme override is active (the user’s choice wins everywhere).'
                 },
                 // U41 — flow knobs; U39 conditional visibility hides them unless

@@ -5,6 +5,7 @@
  */
 import {describe, it, expect, beforeEach} from 'vitest';
 import '../packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js';
+import '../src/feezal-view.js';
 import {setupFeezal, mount, until} from './helpers.js';
 
 let feezal;
@@ -226,5 +227,46 @@ describe('embedded view background (N36)', () => {
         expect(box.style.backgroundColor).toBe('rgb(10, 20, 30)');
         // and the clone is a block so it lays out with its own size/background
         expect(el.shadowRoot.querySelector('#content feezal-view').style.display).toBe('block');
+    });
+});
+
+describe('embedded per-view theme (B50)', () => {
+    const withThemedView = theme => {
+        const site = document.createElement('div');
+        const view = document.createElement('feezal-view');
+        view.setAttribute('name', 'page1');
+        if (theme) view.setAttribute('theme', theme);
+        site.append(view);
+        document.body.append(site);
+        feezal.site = site;
+        return view;
+    };
+
+    it('mirrors the view theme CSS into the shadow root so the embedded clone renders themed', async () => {
+        // Document-level theme CSS, exactly as a theme package injects it —
+        // it can never match the clone inside layout-app's shadow root.
+        const style = document.createElement('style');
+        style.textContent = '.feezal-theme-b50test { --primary-background-color: rgb(1, 2, 3); }';
+        document.head.append(style);
+        try {
+            withThemedView('b50test');
+            const el = await mount('feezal-element-layout-app', {items: ITEMS});
+            const clone = await until(() => el.shadowRoot.querySelector('#content feezal-view'));
+            expect(clone.classList.contains('feezal-theme-b50test')).toBe(true);
+            const mirrored = el.shadowRoot.querySelector('#embedded-theme-css');
+            expect(mirrored?.textContent).toContain('.feezal-theme-b50test');
+            await until(() => getComputedStyle(clone).getPropertyValue('--primary-background-color').trim() === 'rgb(1, 2, 3)');
+        } finally {
+            style.remove();
+        }
+    });
+
+    it('a view without a theme mirrors nothing into the shadow root', async () => {
+        withThemedView(null);
+        const el = await mount('feezal-element-layout-app', {items: ITEMS});
+        const clone = await until(() => el.shadowRoot.querySelector('#content feezal-view'));
+        expect([...clone.classList].some(c => c.startsWith('feezal-theme-'))).toBe(false);
+        const mirrored = el.shadowRoot.querySelector('#embedded-theme-css');
+        expect(mirrored?.textContent || '').toBe('');
     });
 });

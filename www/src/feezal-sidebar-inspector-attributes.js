@@ -798,12 +798,26 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             // U44: × only while the attribute is EXPLICITLY set — the select
             // always displays an effective value, so Shoelace's own "when
             // non-empty" rule would show × permanently.
+            // B50: a descriptor with `emptyOption` gets an explicit "(default)"
+            // entry (Shoelace options need a non-empty value → sentinel) —
+            // picking it removes the attribute like the × clear, and it shows
+            // as selected while the attribute is unset.
+            const EMPTY = '__feezal-empty__';
+            const hasEmpty = item.emptyOption != null;
+            const selValue = mixed ? '' : (value || (hasEmpty ? EMPTY : (item.default ?? '')));
             return html`
-                <sl-select .label="${labelAttr}" size="small" .value="${mixed ? '' : (value || (item.default ?? ''))}"
+                <sl-select .label="${labelAttr}" size="small" .value="${selValue}"
                     ?clearable="${!mixed && value != null && value !== ''}"
                     @sl-clear="${() => this._clearAttr(idx)}"
-                    @sl-change="${e => this._change(e.target.value, idx, true)}">
+                    @sl-change="${e => {
+                        if (hasEmpty && e.target.value === EMPTY) {
+                            if (value != null && value !== '') this._clearAttr(idx);
+                        } else {
+                            this._change(e.target.value, idx, true);
+                        }
+                    }}">
                     ${labelSlot}
+                    ${hasEmpty ? html`<sl-option value="${EMPTY}">${item.emptyOption}</sl-option>` : ''}
                     ${(elem.options || []).map(opt => html`
                         <sl-option value="${opt}">${opt}</sl-option>
                     `)}
@@ -1363,6 +1377,10 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                 advanced: Boolean(attrSpec.advanced),
                 visibleWhen: attrSpec.visibleWhen || null,
                 default: attrSpec.default,
+                // B50: dropdowns may declare an explicit "unset" entry (e.g. the
+                // view theme's "Site theme (default)") — selecting it removes
+                // the attribute, exactly like the × clear.
+                emptyOption: attrSpec.emptyOption,
                 elem: {
                     input: !options && !attrSpec.textarea && !isBool && !isList && !isColor && !isTopic && !isIcon,
                     inputType,

@@ -342,6 +342,12 @@ class FeezalElementLayoutApp extends FeezalElement {
         // an inline feezal-view would collapse and swallow its background).
         clone.style.display = 'block';
         content.replaceChildren(clone);
+        // B50: per-view theme CSS lives in DOCUMENT stylesheets
+        // (.feezal-theme-x { --vars… }) which cannot match the clone inside our
+        // shadow root — mirror the matching rules in so the view's own theme
+        // renders when embedded (in the editor/standalone viewer the view is
+        // light DOM and needs nothing).
+        this._syncEmbeddedThemeCss(clone);
         // N36: fill the content area with the embedded view's OWN background so
         // it shows even where the view is smaller than the shell — the same
         // contract feezal-site applies via --feezal-canvas-bg for top-level views.
@@ -350,6 +356,53 @@ class FeezalElementLayoutApp extends FeezalElement {
             for (const p of ['background', 'background-color', 'background-image', 'background-size', 'background-position', 'background-repeat']) {
                 box.style.setProperty(p, view.style.getPropertyValue(p) || '');
             }
+        }
+    }
+
+    /**
+     * B50 — copy every document CSS rule that targets the embedded clone's
+     * `feezal-theme-*` class into a <style> inside this shadow root. Document
+     * stylesheets never match elements in a shadow tree, so without this the
+     * embedded view silently renders in the shell's theme. Covers plain rules
+     * and @media-wrapped ones (prefers-color-scheme); user-theme <link>s that
+     * finish loading after embed re-sync once via their load event.
+     */
+    _syncEmbeddedThemeCss(clone) {
+        const cls = clone ? [...clone.classList].find(c => c.startsWith('feezal-theme-')) : null;
+        let styleEl = this.renderRoot.querySelector('#embedded-theme-css');
+        if (!cls) { if (styleEl) styleEl.textContent = ''; return; }
+        const needle = '.' + cls;
+        let css = '';
+        for (const sheet of document.styleSheets) {
+            let rules;
+            try { rules = sheet.cssRules; } catch { continue; }   // cross-origin
+            for (const rule of rules) {
+                if (rule.selectorText) {
+                    if (rule.selectorText.includes(needle)) css += rule.cssText + '\n';
+                } else if (rule.cssRules) {   // @media / @supports wrapper
+                    for (const inner of rule.cssRules) {
+                        if (inner.selectorText && inner.selectorText.includes(needle)) {
+                            css += rule.cssText + '\n';
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if (!styleEl) {
+            styleEl = document.createElement('style');
+            styleEl.id = 'embedded-theme-css';
+            this.renderRoot.append(styleEl);
+        }
+        styleEl.textContent = css;
+        // A user theme's <link> may not have loaded yet — re-sync once it does.
+        if (!css) {
+            document.querySelectorAll('link[rel="stylesheet"]').forEach(l => {
+                if (l.__feezalThemeResync) return;
+                l.__feezalThemeResync = true;
+                l.addEventListener('load', () => this._syncEmbeddedThemeCss(
+                    this.renderRoot.querySelector('#content feezal-view')), {once: true});
+            });
         }
     }
 

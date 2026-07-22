@@ -829,3 +829,47 @@ describe('U44 — _clearAttr() removes the attribute through the dirty pipeline'
         vi.useRealTimers();
     });
 });
+
+// ── B50: dropdown emptyOption — explicit "(default)" entry clears the attr ──
+
+describe('B50 — dropdown emptyOption renders and clears like the × ', () => {
+    function makePanel(target) {
+        const panel = document.createElement('feezal-sidebar-inspector-attributes');
+        panel.selectedElems = [target];
+        feezal.app = {change: vi.fn()};
+        feezal.editor = {selectedElems: [target]};
+        return panel;
+    }
+
+    it('threads emptyOption from the descriptor into the item', () => {
+        class ThemedView extends HTMLElement {
+            static feezal = {attributes: [
+                {name: 'theme', dropdown: ['a', 'b'], default: '', emptyOption: 'Site theme (default)'},
+            ], styles: []};
+        }
+        customElements.define('feezal-element-empty-option-target', ThemedView);
+        const target = document.createElement('feezal-element-empty-option-target');
+        target.setAttribute('theme', 'a');
+        const panel = makePanel(target);
+        panel._rebuildItems();
+        const item = panel.items.find(i => i.attrName === 'theme');
+        expect(item).toBeTruthy();
+        expect(item.emptyOption).toBe('Site theme (default)');
+        expect(item.elem.dropdown).toBe(true);
+        expect(item.value).toBe('a');
+    });
+
+    it('selecting the empty sentinel removes the attribute (via _clearAttr)', () => {
+        const target = makeTarget();
+        target.setAttribute('label-off', 'aus');
+        const panel = makePanel(target);
+        panel.items = [{label: 'label-off', attrName: 'label-off', value: 'aus', default: '',
+            emptyOption: '(default)', mixed: false, invalid: false, elem: {dropdown: true, options: ['aus', 'an']}}];
+
+        panel._clearAttr(0);   // what the sentinel branch calls
+
+        expect(target.hasAttribute('label-off')).toBe(false);
+        expect(panel.items[0].value).toBe('');
+        expect(feezal.app.change).toHaveBeenCalledTimes(1);
+    });
+});

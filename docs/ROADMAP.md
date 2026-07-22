@@ -7,7 +7,6 @@ Work in progress — priorities and scope are not final.
 ## Table of Contents
 
 **Bugs**
-- [B50 — Per-view themes: no way to clear, and not applied in the viewer (layout-app)](#b50--per-view-themes-no-way-to-clear-and-not-applied-in-the-viewer-layout-app--fix-together-with-u53)
 - [B51 — Inspector clear (×) button works but is invisible](#b51--inspector-clear--button-works-but-is-invisible)
 - [B52 — Stale caches after a feezal update: broken viewer chunk (hard refresh needed), iOS PWA bricked](#b52--stale-caches-after-a-feezal-update-broken-viewer-chunk-hard-refresh-needed-ios-pwa-bricked)
 
@@ -105,22 +104,6 @@ Work in progress — priorities and scope are not final.
 ---
 
 ## Bugs
-
-### B50 — Per-view themes: no way to clear, and not applied in the viewer (layout-app) — fix together with U53
-
-Two bugs in the U51 ✅ per-view theme feature (fix in the same pass as the **U53** selector rework — same code, one QA round):
-
-1. **A view theme cannot be removed.** Once a `theme` is picked in the view inspector there is no way back to "site theme" — the U51 design called for a × clear (U44 affordance) resolving to the empty value, but it's missing or non-functional. U53's shared selector must ship the explicit **"Site theme (default)"** empty option *and* a working × clear.
-2. **Per-view theme not rendered in the viewer — at least with layout-app.** In the **editor** the theme visibly applies to the view; in the **viewer**, a layout-app-embedded view renders the **site-wide theme (or the shell view's theme)** instead of its own. Candidate causes, in checking order:
-   - the **clone path drops the theme class** — U51's archive explicitly flagged "verify the clone carries the class / doesn't fight the shell's background-copy logic" ([feezal-element-layout-app.js:342-348](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js#L342-L348)); embedded clones re-parent into the shell's content pane, and any re-stamping/attribute copy that whitelists attributes would lose `class`/`theme`;
-   - the theme class is applied by **editor-side machinery only** (inspector/preview path) and the **viewer never maps `theme="…"` → `feezal-theme-…` class** on the view at all — check where U51 stamps the class and whether that code runs in the viewer bundle;
-   - the **theme's CSS isn't present in the viewer** (bundled themes inject on import into whichever bundle imports them; user themes need the `/themes/<name>.css` link) — U51 listed "viewer must load every theme referenced by any view" as a verification item;
-   - serialization: `_clean()` or the viewer route stripping the class attribute (like `data-group` handling) while the `theme` attribute survives but is never re-resolved.
-3. Also verify the **plain (non-embedded) case in the viewer** — the user report is layout-app-centric, but if cause 2 or 3 is it, standalone views are broken in the viewer too and the editor was the only place it ever worked.
-
-**Acceptance:** view with own theme renders themed in editor **and** viewer, standalone **and** embedded in a differently-themed layout-app shell; clearing the theme returns the view to the site theme everywhere; U51's original TESTING.md checklist actually passes end-to-end.
-
-**Relates:** **U53** (selector rework — implement together), U51 ✅ (the feature + its unverified items, which this bug list matches almost 1:1), layout-app (clone/embed path), U44 (× clear affordance).
 
 ### B51 — Inspector clear (×) button works but is invisible
 
@@ -1072,7 +1055,7 @@ The U51 ✅ per-view `theme` attribute renders as a **plain generic dropdown** (
 
 **Ships with:** TESTING.md update in the per-view-theme section (swatches + shortened names in the view inspector, selection still round-trips incl. × clear, sidebar unchanged visually).
 
-**Relates:** **B50** (per-view theme bugs — clear affordance + viewer/layout-app rendering; implement together, one QA round), U51 ✅ (the per-view theme feature this polishes), U44 (× clear affordance — keep it working on the new control), E102-WP3 (the `type: 'custom'` inspector hook — preferred mount if available), feezal-sidebar-themes.js (donor of label/swatch logic).
+**Relates:** **B50 ✅** (per-view theme bugs — fixed separately: the dropdown's `emptyOption` "Site theme (default)" entry + × clear and the layout-app shadow-root CSS mirroring are in place; the new control must preserve both), U51 ✅ (the per-view theme feature this polishes), U44 (× clear affordance — keep it working on the new control), E102-WP3 (the `type: 'custom'` inspector hook — preferred mount if available), feezal-sidebar-themes.js (donor of label/swatch logic).
 
 ### U54 — Source editor opens at the current view's line
 
