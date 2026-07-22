@@ -599,6 +599,18 @@ styles: [
 
 Keep the set **minimal and state-aware** — 2–5 vars per element is typically enough. Don't create a var for every visual detail.
 
+### 5.2b The Circle card canon (E134)
+
+The **Circle** category's design language, pinned by the B29/B37 parity work and E123's cover alignment — new device cards start from this instead of rediscovering it:
+
+- **Geometry:** the card's primary visual is a **width-sized circle anchored at the top** of the card (light ring / climate arc / cover ring / the E122 power disc / the E134 sensor state disc). Radius ≈ 80 % of the half-width; track width and knob size are the unitless viewBox-percent tokens `--feezal-*-track-width` (default **7**) and `--feezal-*-knob-size` (default **10**) — identical numbers on two cards must look identical side by side.
+- **Stacking:** secondary rows (mode chips, valve bar, humidity, state text, label) stack **below** the circle and clip on too-short cards — the circle never shrinks to make room.
+- **Proportions:** `defaultStyle` **180×220** for full device cards (`restrict` minimums around 160×200); saved dashboards keep their sizes — defaultStyle changes affect new drops only (the E123 precedent).
+- **State discs** (non-slider cards: sensor, outlet/switch, contact candidates): a circular disc in the circle position — centred type icon, accent ring/fill while active, **error colour for alarm classes**, muted while clear. Size interactive/iconic content with **container-query units** (`cqi` against the card width) so the disc scales with the card (E38).
+- **Colour:** only the §5.1 canonical theme vars; active = `--primary-color`/`--accent-color` family, alarm = `--error-color`, chrome text = `--primary-text-color`/`--secondary-text-color`.
+- **Chrome placement:** unavailability badge top-right, low-battery badge (E124) top-left, label bottom, ellipsized.
+- **Not everything is a circle:** camera, media-player, energy-flow, plant, tank, schedule are legitimately non-circular — for those, "alignment" means the shared spacing/typography/theme tokens and 180×220-compatible proportions, not a forced circle motif (the E134 audit records the per-element decision).
+
 ### 5.3 Editor placeholder colours
 
 Editor render-branch placeholders must use feezal vars rather than hardcoded hex values:

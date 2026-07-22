@@ -116,20 +116,20 @@ describe('E132 — material sensor card', () => {
     it('legacy motion types keep the SVG visual', async () => {
         const el = await mount('feezal-element-material-motion', {subscribe: 'stat/m', type: 'motion'});
         expect(el.shadowRoot.querySelector('svg.motion')).not.toBeNull();
-        expect(el.shadowRoot.querySelector('.hazard')).toBeNull();
+        expect(el.shadowRoot.querySelector('.disc')).toBeNull();
     });
 
-    it('hazard types render the icon + state text (E134 disc precursor), alarm colours on trigger', async () => {
+    it('hazard types render the E134 circle state disc, alarm colours on trigger', async () => {
         const el = await mount('feezal-element-material-motion', {subscribe: 'stat/leak', type: 'water-leak'});
         expect(el.shadowRoot.querySelector('svg.motion')).toBeNull();
-        const hazard = el.shadowRoot.querySelector('.hazard');
+        const hazard = el.shadowRoot.querySelector('.disc');
         expect(hazard).not.toBeNull();
         expect(hazard.querySelector('.htext').textContent).toBe('Dry');
 
         feezal.connection.deliver('stat/leak', 'ON');
         await el.updateComplete;
-        expect(el.shadowRoot.querySelector('.hazard').classList.contains('active')).toBe(true);
-        expect(el.shadowRoot.querySelector('.hazard').classList.contains('alarm')).toBe(true);
+        expect(el.shadowRoot.querySelector('.disc').classList.contains('active')).toBe(true);
+        expect(el.shadowRoot.querySelector('.disc').classList.contains('alarm')).toBe(true);
         expect(el.shadowRoot.querySelector('.htext').textContent).toBe('Leak!');
     });
 

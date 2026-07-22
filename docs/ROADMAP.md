@@ -59,7 +59,6 @@ Work in progress — priorities and scope are not final.
 - [E124 — Battery-powered sensors: dedicated low-battery indicator (contact + motion/occupancy)](#e124--battery-powered-sensors-dedicated-low-battery-indicator-contact--motionoccupancy)
 - [E125 — Homematic battery voltage (`OPERATING_VOLTAGE`)](#e125--homematic-battery-voltage-operating_voltage--future) 💡
 - [E128 — Homematic blinds: settling behaviour + `DIRECTION` indicator](#e128--homematic-blinds-settling-behaviour--direction-indicator-later--after-e127) *(later)*
-- [E134 — Circle design language: align the remaining device cards with light/climate/cover/switch](#e134--circle-design-language-align-the-remaining-device-cards-with-lightclimatecoverswitch)
 - [E135 — Homematic maintenance signals: ERROR_CODE + SABOTAGE badges, device-health board](#e135--homematic-maintenance-signals-error_code--sabotage-badges-device-health-board)
 - [E136 — Metro tile backsides: redesign for touch — bigger targets, calmer layout, use the space](#e136--metro-tile-backsides-redesign-for-touch--bigger-targets-calmer-layout-use-the-space)
 - [E137 — Shared MQTT device contracts: extract behavior controllers (climate / light / cover / wled)](#e137--shared-mqtt-device-contracts-extract-behavior-controllers-climate--light--cover--wled)
@@ -1253,22 +1252,6 @@ Blinds/covers have **the same LEVEL ramp problem** as dimmers (position reports 
 **Sequencing vs. E137 (controller extraction):** either order works — if E128 lands before `CoverController`, it wires E127's `SettlingController` directly (as planned above) and migrates into the controller with the rest of the cover behavior; if the extraction lands first, E128's settling + `DIRECTION` wiring is implemented *inside* `CoverController` (and every cover family gets it at once). The settling attributes end up in the controller's declared fragment either way (E137's settling decision).
 
 **Relates:** **E127** (the machinery this reuses — do first), **E137** (controller extraction — cover settling ends up inside `CoverController`; see sequencing note), E108 ✅ (recognizer), E114 (parity), E120 ✅-era cover-discovery work (same recognizer area).
-
-### E134 — Circle design language: align the remaining device cards with light/climate/cover/switch
-
-The **Circle** category name (E133) is inspired by the circular sliders of the light/climate cards — but not everything in the category speaks that language. The E132 `*-sensor` card (formerly occupancy), for one, is a plain icon+text card; dropped next to a light and a climate card it visibly belongs to a different family.
-
-**Define the circle-card canon first** (mostly exists, scattered): the B29 ✅/B37 ✅ parity work already pinned the geometry — width-sized circle anchored at the top of the card, identical centre/radius/track-width/knob-size vars (`--feezal-*-track-width` 7, `--feezal-*-knob-size` 10), controls/rows stacking below, 180×220 default (E123 ✅ extended this to cover), canonical theme tokens. Write it down as a short section in `docs/element-spec.md` so new cards start from the canon instead of rediscovering it.
-
-**Primary redesign: `*-sensor` (E132).** A large circular **state disc** in the card's circle position — centred type icon, accent ring/fill while active (error colour for alarm classes per E132's table), muted while clear — visually the sibling of material-light's on/off power disc (E122) and the outlet card (E121). Battery badge (E124) and label placed like the light card's chrome.
-
-**Audit the rest of the category** rather than forcing circles everywhere: contact and door-lock are natural state-disc candidates; camera, media-player, energy-flow, plant, tank, schedule are legitimately non-circular — for those, "align" means the shared geometry/spacing/typography/theme tokens and the 180×220-compatible proportions, not a circle motif. The audit produces a per-element decision list (disc / keep-but-align / exempt) before any pixels move.
-
-**Constraints:** visual only — MQTT contracts, attributes and discovery maps untouched; existing dashboards keep their saved sizes (defaultStyle changes affect new drops only, the E123 precedent); glass/metro families are NOT in scope (they have their own languages — E114 parity applies within each family, not across).
-
-**Ships with:** the element-spec canon section, the audit table in this item (filled during implementation), redesigned `*-sensor` (+ contact/door-lock if the audit confirms), swatch/screenshot updates in the theme visual tests, TESTING.md rows.
-
-**Relates:** **E133** (the name this design earns), **E132** (the sensor card being redesigned), B29 ✅/B37 ✅ (the geometry parity that IS the canon), E123 ✅ (cover's alignment — the precedent), E121 ✅/E122 ✅ (power-disc rendering to reuse), E113 (taxonomy: category = coherent design language), E38 (scaling — the canon should note cq behaviour).
 
 ### E135 — Homematic maintenance signals: ERROR_CODE + SABOTAGE badges, device-health board
 

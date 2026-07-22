@@ -169,6 +169,8 @@ class FeezalElementMaterialMotion extends FeezalElement {
             overflow: hidden;
             gap: 4px;
             position: relative;
+            /* E134: the state disc sizes its content in cqi (card width). */
+            container-type: inline-size;
             --feezal-motion-active-color: var(--warning-color, var(--feezal-warning, #ff9800));
             --feezal-motion-text-color:   var(--primary-text-color, var(--feezal-color, #333));
             --feezal-motion-error-color:  var(--error-color, #b00020);
@@ -189,17 +191,31 @@ class FeezalElementMaterialMotion extends FeezalElement {
         }
         .svg-wrap { flex: 1; width: 100%; min-height: 0; }
         svg.motion { width: 100%; height: 100%; display: block; overflow: visible; }
-        /* E132: hazard-class rendering (icon + state text; E134 turns this
-           into the circle state disc). Alarm classes flag error colour. */
-        .hazard {
-            height: 100%; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; gap: 4px;
+        /* E134: the circle state disc for hazard/generic classes — the
+           card's circle position (width-sized, top-anchored per the canon),
+           centred type icon, accent ring/fill while active, ERROR colour for
+           alarm classes, muted while clear. cqi units scale with the card. */
+        .disc {
+            width: 78%; max-width: 100%; aspect-ratio: 1;
+            margin: 2% auto 0; box-sizing: border-box; border-radius: 50%;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 1cqi;
+            border: 0.9cqi solid color-mix(in srgb, currentColor 25%, transparent);
+            transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
         }
-        .hazard feezal-icon { font-size: 34px; opacity: 0.5; }
-        .hazard.active feezal-icon { opacity: 1; color: var(--feezal-motion-active-color); }
-        .hazard.alarm.active feezal-icon,
-        .hazard.alarm.active .htext { color: var(--feezal-motion-error-color); }
-        .htext { font-size: 12px; font-weight: 600; }
+        .disc feezal-icon { font-size: 26cqi; line-height: 1; opacity: 0.55; }
+        .disc .htext { font-size: 8cqi; font-weight: 600; opacity: 0.75; }
+        .disc.active {
+            color: var(--feezal-motion-active-color);
+            border-color: var(--feezal-motion-active-color);
+            background: color-mix(in srgb, var(--feezal-motion-active-color) 16%, transparent);
+        }
+        .disc.active feezal-icon { opacity: 1; }
+        .disc.alarm.active {
+            color: var(--feezal-motion-error-color);
+            border-color: var(--feezal-motion-error-color);
+            background: color-mix(in srgb, var(--feezal-motion-error-color) 16%, transparent);
+        }
         .label {
             font-size: 11px; opacity: 0.65; text-align: center;
             color: var(--feezal-motion-text-color);
@@ -277,7 +293,7 @@ class FeezalElementMaterialMotion extends FeezalElement {
                     <svg class="motion" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
                         ${this._shapeSvg(this._active)}
                     </svg>` : html`
-                    <div class="hazard ${this._active ? 'active' : ''} ${t.alarm ? 'alarm' : ''}">
+                    <div class="disc ${this._active ? 'active' : ''} ${t.alarm ? 'alarm' : ''}">
                         <feezal-icon name="${(this._active ? this.iconActive : this.iconClear)
                             || (this._active ? t.icon : t.iconClear)}"></feezal-icon>
                         <span class="htext">${this._active
