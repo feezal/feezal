@@ -582,3 +582,5 @@ The **complete** list of outbound connections, all user-controlled:
 | `raw.githubusercontent.com` | **never at runtime** — only when a maintainer refreshes the Material-Icons codepoint list with `FEEZAL_FETCH_ICON_CODEPOINTS=1` | environment variable, development only |
 
 feezal contains **no telemetry, no analytics, no crash reporting, and no install-time hooks**. There is nothing to opt out of.
+
+**Per-site CSP configuration (A28):** Site Settings → **Security** lets you tune the viewer's Content-Security-Policy per site — tighten the open content directives (images/cameras, iframes, network connections) down to exactly the hosts your dashboard uses, or (with a prominent warning) allow additional script/style/font origins. feezal's own baseline tokens and your broker origin can never be removed — the header builder enforces the invariants, not the UI. The viewer page reports blocked requests to a **same-origin endpoint on your feezal server** (`/api/csp-report/<site>`); these reports stay in a small local in-memory buffer to power the tab's one-click "allow" suggestions — nothing leaves your instance.

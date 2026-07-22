@@ -84,7 +84,6 @@ Work in progress — priorities and scope are not final.
 - [A23 — Externalize element families: own git repos + npm publish (paper, tui, panel)](#a23--externalize-element-families-own-git-repos--npm-publish-paper-tui-panel)
 - [A24 — Externalize the metro element family](#a24--externalize-the-metro-element-family-future--will-be-done-later) *(future)*
 - [A27 — i18n: editor localization + language-aware element defaults](#a27--i18n-editor-localization--language-aware-element-defaults--to-refine--needs-discussion) 💡 *(to refine)*
-- [A28 — Configurable per-site CSP: "Security" tab in Site Settings](#a28--configurable-per-site-csp-security-tab-in-site-settings)
 - [A29 — RTL layout support (Arabic, Hebrew)](#a29--rtl-layout-support-arabic-hebrew--future) 💡 *(future)*
 
 
@@ -1954,34 +1953,6 @@ Right-to-left support is **a layout mode, not a translation** — which is exact
 **Explicitly future:** nothing here blocks or complicates A27's en+de work; the only present-day requirement (A27's dictionary format must not preclude RTL locales) is already met.
 
 **Relates:** **A27** (the language machinery this rides on — split out from its language list 07/2026), A25 ✅ (font self-hosting constraint), N38 (site locale — supplies the locale that flips `dir`), layout-app / tab bars / sliders (the element-internal audit surface), E38 (element scaling — the other cross-cutting element-CSS audit; coordinate if both run).
-
-### A28 — Configurable per-site CSP: "Security" tab in Site Settings
-
-A25 ✅ shipped a **fixed** CSP: code directives (`script/style/font-src`) hard-locked to `'self'`, content directives (`img/media/connect/frame-src`) wide open for user-configured dashboard content. Both halves deserve configuration: a corporate font host or a trusted script origin can't be allowed today, and conversely a locked-down kiosk can't *tighten* images/iframes/connections to exactly the hosts its dashboard uses.
-
-**Decided (07/2026, discussed):**
-- **Fully configurable, every directive, all three states** — `Open (any host)` / `feezal only ('self')` / `Selected hosts` + origin list — *including* the code directives up to `Open`. Loosening `script-src` beyond `'self'` **must carry a prominent warning** ("reverts feezal's no-third-party guarantee for this site — scripts from these origins can read your dashboard and broker traffic"), but the choice is the user's.
-- **Violation-driven suggestions ship in v1** (not deferred): the CSP carries a same-origin `report-uri` (`/api/csp-report/<site>`; note `report-uri` is deprecated-but-universal vs. the Reporting-API `report-to` — pick pragmatically, possibly both), the server keeps a small per-site ring buffer (no persistence beyond a cap, stays fully local per A25), and the Security tab lists recent violations as one-click *"blocked: xyz.com (image) — allow?"* chips. This is the actual UX for building an allowlist.
-- **Editor CSP stays fixed** at the A25 baseline — no per-site plumbing on the editor route; the canvas renders user content fine because the baseline's content directives are open.
-- **Exports: out of scope** (A25 already recorded the `file://` `'self'` unreliability); revisit if demand appears.
-
-**Storage & enforcement:** `viewer.security.csp` in the site config — per aspect `{mode: 'all'|'self'|'hosts', hosts: []}`, defaults = the A25 baseline (fully backwards compatible, absent config → today's header). The **viewerHandler builds the per-site header for the HTML document** (CSP is a document-level policy — shared assets keep the global baseline header). Origins validated as `scheme://host[:port]` (no paths, no wildcards beyond `*.example.com`).
-
-**Non-negotiable header invariants (the builder enforces, not the UI):**
-- `script-src`/`style-src` always retain `'unsafe-inline'` (+ `'unsafe-eval'` on script) — feezal's own bootstrap/template machinery needs them; allowlisting *adds* origins, never strips the baseline tokens.
-- `font-src` keeps `data:`, `img/media` keep `data: blob:`, worker/base/object stay at baseline.
-- `connect-src` **always includes `'self'` + the MQTT broker origin** (auto-derived from Connection settings) — shown in the UI as a locked, labeled chip ("your broker"), not removable; without it every tightened site instantly breaks.
-
-**Security tab UX** (new tab in `feezal-sidebar-viewer` beside Connection/Site/Viewer/Clients):
-- Human labels, not directive names: *Images & cameras* (`img-src` + `media-src`), *Embedded pages (iframes)* (`frame-src`), *Network connections* (`connect-src`), and an **Advanced** disclosure for *Scripts / Styles / Fonts* with the loosening warning.
-- Per row: the 3-state select + origin chips with an add-input; invalid origins rejected inline.
-- **Locked auto-chips:** broker origin (connect), `tile.openstreetmap.org` when a map element runs on default tiles.
-- **Content-scan suggestions:** scan the site markup for external hosts in element attributes (`basic-iframe` src, image/camera URLs, …) → one-click "found in your dashboard — allow" chips, so tightening starts from reality instead of an empty list.
-- **Violations list:** recent blocked requests (host, directive, count, last seen) with one-click allow; a "changes apply on deploy" hint (N32 ✅ reloads viewers, so the new policy lands immediately after deploy).
-
-**Ships with:** header-builder unit tests (modes, invariants, broker auto-include, origin validation), report-endpoint tests (cap, per-site isolation), e2e (tighten `img-src` → external image blocked + violation row appears → one-click allow + deploy → image loads), TESTING.md section, and a user-guide §14 addendum (the privacy statement gains "per-site CSP configuration" and documents the report endpoint as same-origin/local-only).
-
-**Relates:** A25 ✅ (the fixed policy this makes configurable — its invariants become the floor), **B51** (the `data:`/system-icon fix must survive the configurable builder), B52 (cache headers — same middleware neighbourhood), N32 ✅ (deploy-reload delivers policy changes), U39 ✅ (structured inspector patterns for the tab), A18 (kiosk — the tighten-everything consumer).
 
 ## Open Questions
 

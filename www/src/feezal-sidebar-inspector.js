@@ -493,6 +493,7 @@ class FeezalSidebarInspector extends LitElement {
                         viewerSidebar.markConnectionDeployed?.();
                         // A9: restore the PWA opt-in from the persisted config
                         viewerSidebar.pwa = Boolean(viewerConfig && viewerConfig.pwa);
+                        viewerSidebar.security = (viewerConfig && viewerConfig.security) || {};   // A28
                         // A9 Tier 2a: mobile-app export settings
                         viewerSidebar.app = (viewerConfig && viewerConfig.app) || {};
                         // Seed the Site tab from the loaded <feezal-site>

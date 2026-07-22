@@ -11,6 +11,7 @@ const createExport = require('../build/export.js');
 const bridge = require('../mqtt/bridge.js');
 const pkgManager = require('../build/install.js');
 const pwa = require('../build/pwa.js');
+const csp = require('../csp.js');
 const capacitor = require('../build/capacitor.js');
 const docker = require('../docker.js');
 const apkBuild = require('../build/apk.js');
@@ -688,6 +689,12 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
     const siteRepoDir = name => storage.dataDir ? path.join(storage.dataDir, 'sites', name) : null;
 
     // List commits (most recent first)
+    // A28: recent CSP violations for the Security tab's one-click allow chips
+    // (per-site ring buffer, local only). Editor-protected like the router.
+    router.get('/sites/:name/csp-violations', (req, res) => {
+        res.json(csp.getViolations(req.params.name));
+    });
+
     router.get('/sites/:name/history', async (req, res) => {
         const {listCommits} = require('../build/git.js');
         const dir = siteRepoDir(req.params.name);

@@ -2207,7 +2207,7 @@ class FeezalAppEditor extends LitElement {
         deployTpl.content.querySelector('feezal-site').removeAttribute('tabindex');
         this._clean(deployTpl.content);
 
-        const {connection, site, pwa, app} = this.shadowRoot.querySelector('feezal-sidebar-viewer');
+        const {connection, site, pwa, app, security} = this.shadowRoot.querySelector('feezal-sidebar-viewer');
         const themesSidebar = this.shadowRoot.querySelector('feezal-sidebar-themes');
         const viewer = {
             theme: themesSidebar ? themesSidebar.theme : null,
@@ -2217,6 +2217,8 @@ class FeezalAppEditor extends LitElement {
             pwa: pwa === true,
             // A9 Tier 2a: mobile-app name/id for the Capacitor export
             ...(app && (app.name || app.id) ? {app} : {}),
+            // A28: per-site CSP config (Security tab) — absent = A25 baseline
+            ...(security && Object.keys(security).length ? {security} : {}),
             // U25: custom class definitions are no longer stored here — they live
             // in a <style id="feezal-classes"> block inside <feezal-site> and so
             // travel with the serialized site HTML below.

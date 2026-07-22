@@ -13,6 +13,7 @@ const createApiRouter = require('./routes/api.js');
 const mqttBridge = require('./mqtt/bridge.js');
 const createHub = require('./socket/hub.js');
 const pwa = require('./build/pwa.js');
+const csp = require('./csp.js');
 const {discoverElements, generateElementsModule, usedUserPackages} = require('./build/elements.js');
 const {siteIconArtifacts} = require('./build/icons.js');
 
@@ -123,6 +124,19 @@ async function createApp(config) {
         res.setHeader('Content-Security-Policy', CSP);
         next();
     });
+
+    // --- A28: CSP violation reports (public — viewer pages post here) -----
+    // Browsers send application/csp-report; a small per-site ring buffer
+    // (local only, capped) feeds the Security tab's suggestion chips.
+    app.post('/api/csp-report/:site',
+        express.json({type: ['application/csp-report', 'application/json'], limit: '10kb'}),
+        (req, res) => {
+            const site = req.params.site;
+            if (typeof site === 'string' && site.length <= 128 && !/[\\/]/.test(site)) {
+                try { csp.recordViolation(site, req.body); } catch { /* malformed report */ }
+            }
+            res.status(204).end();
+        });
 
     // --- Login routes (public) ---
     app.use('/login', loginRouter);
@@ -446,6 +460,15 @@ ${iconScripts}${userPkgScripts}
 
             res.setHeader('Content-Type', 'text/html; charset=utf-8');
             res.setHeader('Cache-Control', 'no-cache');   // B52: generated HTML revalidates
+            // A28: per-site CSP for the viewer DOCUMENT (assets keep the
+            // global baseline header). The builder enforces the invariants
+            // ('unsafe-inline'/eval retention, data:, broker auto-include)
+            // and appends the same-origin report-uri; absent config → the
+            // A25 baseline, fully backwards compatible.
+            res.setHeader('Content-Security-Policy', csp.buildCsp(
+                config?.viewer?.security?.csp,
+                {siteName, brokerOrigin: csp.brokerOriginFromUri(connectionUri)}
+            ));
             res.send(page);
         } catch (err) {
             next(err);

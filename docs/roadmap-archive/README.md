@@ -3,7 +3,7 @@
 Completed and closed roadmap items — **one file per item**, named after its ID (e.g. `U39.md`).
 Open items live in [../ROADMAP.md](../ROADMAP.md).
 
-**249 items.**
+**250 items.**
 
 ## Bugs
 
@@ -255,6 +255,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [A22 — Release workflow: changelog grouped by category ✅ implemented](A22.md)
 - [A25 — Privacy: zero telemetry, zero third-party CDN, works offline ✅ implemented](A25.md)
 - [A26 — Release notes: commit links + roadmap-item links ✅ implemented](A26.md)
+- [A28 — Configurable per-site CSP: "Security" tab in Site Settings ✅ done](A28.md)
 
 ## Documentation
 

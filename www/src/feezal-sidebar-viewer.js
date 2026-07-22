@@ -26,6 +26,9 @@ class FeezalSidebarViewer extends LitElement {
         site:         {type: Object},
         pwa:          {type: Boolean},
         app:          {type: Object},   // A9 Tier 2a: {name, id} for the mobile-app export
+        security:     {type: Object},   // A28: {csp: {aspect: {mode, hosts}}}
+        _violations:  {state: true},    // A28: recent CSP violations for the chips
+        _secAdvanced: {state: true},    // A28: scripts/styles/fonts disclosure
         _certStatus:  {state: true},
         _pasteFor:    {state: true},   // null | 'ca' | 'cert' | 'key' — open paste area
         _pemText:     {state: true},
@@ -119,6 +122,25 @@ class FeezalSidebarViewer extends LitElement {
         sl-switch { margin-top: 8px; --sl-input-label-color: var(--feezal-color, #333); }
         sl-switch::part(label) { font-size: 13px; color: var(--feezal-color, #333); }
         .pwa-hint { font-size: 11px; color: var(--feezal-color, #888); margin-top: 4px; line-height: 1.4; }
+        /* A28 — Security tab */
+        .sec-row { margin: 10px 0; display: flex; flex-direction: column; gap: 4px; }
+        .sec-row-head { display: flex; align-items: baseline; gap: 6px; }
+        .sec-label { font-weight: 600; font-size: 12px; }
+        .sec-hint { font-size: 10px; opacity: 0.55; }
+        .sec-warning { font-size: 11px; color: var(--warning-color, #b45309); line-height: 1.4; }
+        .sec-chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 2px; }
+        .sec-chip {
+            display: inline-flex; align-items: center; gap: 3px;
+            font-size: 11px; padding: 2px 6px; border-radius: 10px;
+            background: var(--feezal-bg-sub, #eee); border: 1px solid var(--feezal-border, #ddd);
+        }
+        .sec-chip.locked { opacity: 0.75; }
+        .sec-chip.suggest { cursor: pointer; }
+        .sec-chip-x { border: none; background: none; cursor: pointer; padding: 0 1px; color: inherit; }
+        .sec-add { min-width: 170px; flex: 1; }
+        .sec-violation { display: flex; align-items: center; gap: 8px; font-size: 11px; margin: 4px 0; }
+        .sec-vhost { font-weight: 600; }
+        details > summary { cursor: pointer; margin: 8px 0 4px; }
         .pwa-icon-row { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
         .pwa-icon-preview {
             width: 48px; height: 48px; border-radius: 8px; flex: 0 0 auto;
@@ -153,6 +175,9 @@ class FeezalSidebarViewer extends LitElement {
         this.site        = {name: feezal.siteName};
         this.pwa         = false;
         this.app         = {};
+        this.security    = {};      // A28
+        this._violations = [];      // A28
+        this._secAdvanced = false;  // A28
         this._certStatus = null;
         this._pasteFor   = null;
         this._pemText    = '';
@@ -414,10 +439,13 @@ class FeezalSidebarViewer extends LitElement {
                 if (e.detail.name === 'clients') {
                     this.renderRoot.querySelector('feezal-sidebar-clients')?.activate?.();
                 }
+                // A28: opening the Security tab refreshes the violation list.
+                if (e.detail.name === 'security') this._loadViolations();
             }}">
                 <sl-tab slot="nav" panel="connection">Connection</sl-tab>
                 <sl-tab slot="nav" panel="site">Site</sl-tab>
                 <sl-tab slot="nav" panel="viewer">Viewer</sl-tab>
+                <sl-tab slot="nav" panel="security">Security</sl-tab>
                 <sl-tab slot="nav" panel="clients">Clients</sl-tab>
 
                 <sl-tab-panel name="connection">
@@ -730,6 +758,10 @@ class FeezalSidebarViewer extends LitElement {
                     </sl-select>
                 </sl-tab-panel>
 
+                <sl-tab-panel name="security">
+                    ${this._renderSecurity()}
+                </sl-tab-panel>
+
                 <sl-tab-panel name="clients">
                     <feezal-sidebar-clients></feezal-sidebar-clients>
                 </sl-tab-panel>
@@ -796,6 +828,181 @@ class FeezalSidebarViewer extends LitElement {
         this.site = {...this.site, [key]: value};
         this._applySite();
         feezal.app.change(true);
+    }
+
+    // ── A28: per-site CSP (Security tab) ─────────────────────────────────────
+
+    static get CSP_ASPECTS() {
+        return [
+            {key: 'images',  label: 'Images & cameras',        hint: 'img-src + media-src'},
+            {key: 'frames',  label: 'Embedded pages (iframes)', hint: 'frame-src'},
+            {key: 'connect', label: 'Network connections',      hint: "connect-src — always includes feezal + your broker"},
+        ];
+    }
+
+    static get CSP_ADVANCED() {
+        return [
+            {key: 'scripts', label: 'Scripts', hint: 'script-src'},
+            {key: 'styles',  label: 'Styles',  hint: 'style-src'},
+            {key: 'fonts',   label: 'Fonts',   hint: 'font-src'},
+        ];
+    }
+
+    /** directive (from a violation report) → aspect key */
+    static cspAspectForDirective(directive) {
+        return {
+            'img-src': 'images', 'media-src': 'images', 'frame-src': 'frames',
+            'connect-src': 'connect', 'script-src': 'scripts',
+            'style-src': 'styles', 'font-src': 'fonts',
+        }[directive] || null;
+    }
+
+    _cspAspect(key) {
+        return this.security?.csp?.[key] || {mode: null, hosts: []};
+    }
+
+    _setCspAspect(key, patch) {
+        const cur = this._cspAspect(key);
+        const next = {...cur, ...patch};
+        if (!next.mode) return;
+        this.security = {
+            ...this.security,
+            csp: {...(this.security?.csp || {}), [key]: {mode: next.mode, hosts: next.hosts || []}},
+        };
+        feezal.app.change(true);
+    }
+
+    /** Origin validation mirroring the server builder (paths rejected). */
+    _validOrigin(v) {
+        return /^(?:(?:https?|wss?):\/\/)?(?:\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*(?::\d{1,5})?$/i.test((v || '').trim());
+    }
+
+    _addCspHost(key, input) {
+        const v = (input.value || '').trim();
+        if (!v) return;
+        if (!this._validOrigin(v)) {
+            input.setCustomValidity?.('scheme://host[:port] or *.example.com — no paths');
+            input.reportValidity?.();
+            return;
+        }
+        const cur = this._cspAspect(key);
+        if (!cur.hosts.includes(v)) {
+            this._setCspAspect(key, {mode: 'hosts', hosts: [...cur.hosts, v]});
+        }
+        input.value = '';
+    }
+
+    _removeCspHost(key, host) {
+        const cur = this._cspAspect(key);
+        this._setCspAspect(key, {hosts: cur.hosts.filter(h => h !== host)});
+    }
+
+    async _loadViolations() {
+        try {
+            const res = await fetch(`/api/sites/${encodeURIComponent(feezal.siteName)}/csp-violations`);
+            this._violations = res.ok ? await res.json() : [];
+        } catch {
+            this._violations = [];
+        }
+    }
+
+    /** A28: external hosts already used in the site markup → suggestion chips. */
+    _scanSiteHosts() {
+        if (!feezal.site) return [];
+        const found = new Map();   // host → aspect guess
+        for (const el of feezal.site.querySelectorAll('*')) {
+            for (const attr of el.attributes || []) {
+                const m = /^https?:\/\/([^/:?#]+(?::\d+)?)/i.exec(attr.value);
+                if (!m) continue;
+                const aspect = el.localName.includes('iframe') ? 'frames' : 'images';
+                if (!found.has(m[1])) found.set(m[1], aspect);
+            }
+        }
+        return [...found.entries()].map(([host, aspect]) => ({host, aspect}));
+    }
+
+    _renderCspRow({key, label, hint}, warning = false) {
+        const a = this._cspAspect(key);
+        const mode = a.mode || 'all';
+        const brokerChip = key === 'connect' && this.connection?.uri && /^wss?:/.test(this.connection.uri)
+            ? this.connection.uri.replace(/^(wss?:\/\/[^/:?#]+(?::\d+)?).*$/i, '$1') : null;
+        return html`
+            <div class="sec-row">
+                <div class="sec-row-head">
+                    <span class="sec-label">${label}</span>
+                    <span class="sec-hint">${hint}</span>
+                </div>
+                <sl-select size="small" value="${mode}"
+                    @sl-change="${e => this._setCspAspect(key, {mode: e.target.value})}">
+                    <sl-option value="all">Open (any host)</sl-option>
+                    <sl-option value="self">feezal only ('self')</sl-option>
+                    <sl-option value="hosts">Selected hosts</sl-option>
+                </sl-select>
+                ${warning && mode !== 'self' && (key === 'scripts' || key === 'styles') ? html`
+                    <div class="sec-warning">⚠ Loosening ${label.toLowerCase()} beyond feezal reverts the
+                    no-third-party guarantee for this site — scripts from these origins can read your
+                    dashboard and broker traffic.</div>` : ''}
+                ${mode === 'hosts' ? html`
+                    <div class="sec-chips">
+                        ${brokerChip ? html`<span class="sec-chip locked" title="Your broker — always allowed">🔒 ${brokerChip}</span>` : ''}
+                        ${a.hosts.map(h => html`
+                            <span class="sec-chip">${h}
+                                <button class="sec-chip-x" @click="${() => this._removeCspHost(key, h)}">×</button>
+                            </span>`)}
+                        <sl-input size="small" class="sec-add" placeholder="host, *.example.com or https://host"
+                            @keydown="${e => { if (e.key === 'Enter') this._addCspHost(key, e.target); }}"
+                            @sl-change="${e => this._addCspHost(key, e.target)}"></sl-input>
+                    </div>` : ''}
+            </div>`;
+    }
+
+    _renderSecurity() {
+        const violations = this._violations || [];
+        const scanned = this._scanSiteHosts()
+            .filter(s => !this._cspAspect(s.aspect).hosts?.includes(s.host));
+        return html`
+            <div class="section">
+                <div class="section-label">Content-Security-Policy (per site)</div>
+                <div class="pwa-hint">
+                    A28: controls which hosts this site's <b>viewer</b> may load
+                    content from. Defaults keep today's behaviour (code locked to
+                    feezal, content open). Changes apply on deploy. The editor's
+                    policy stays fixed.
+                </div>
+                ${FeezalSidebarViewer.CSP_ASPECTS.map(a => this._renderCspRow(a))}
+                <details ?open="${this._secAdvanced}" @toggle="${e => { this._secAdvanced = e.target.open; }}">
+                    <summary class="sec-label">Advanced — Scripts / Styles / Fonts</summary>
+                    ${FeezalSidebarViewer.CSP_ADVANCED.map(a => this._renderCspRow(a, true))}
+                </details>
+
+                ${scanned.length ? html`
+                    <div class="section-label">Found in your dashboard</div>
+                    <div class="sec-chips">
+                        ${scanned.map(s => html`
+                            <button class="sec-chip suggest"
+                                title="Used by an element on this site — allow for ${s.aspect}"
+                                @click="${() => this._setCspAspect(s.aspect, {mode: 'hosts',
+                                    hosts: [...this._cspAspect(s.aspect).hosts, s.host]})}">
+                                + ${s.host}</button>`)}
+                    </div>` : ''}
+
+                <div class="section-label">Recent violations
+                    <sl-button size="small" @click="${this._loadViolations}">Refresh</sl-button>
+                </div>
+                ${violations.length === 0 ? html`<div class="pwa-hint">No blocked requests reported.</div>` : ''}
+                ${violations.map(v => {
+                    const aspect = FeezalSidebarViewer.cspAspectForDirective(v.directive);
+                    return html`
+                        <div class="sec-violation">
+                            <span class="sec-vhost">blocked: ${v.host}</span>
+                            <span class="sec-hint">${v.directive} · ×${v.count}</span>
+                            ${aspect && this._validOrigin(v.host) ? html`
+                                <sl-button size="small" @click="${() => this._setCspAspect(aspect, {mode: 'hosts',
+                                    hosts: [...this._cspAspect(aspect).hosts, v.host]})}">Allow</sl-button>` : ''}
+                        </div>`;
+                })}
+                <div class="pwa-hint">Changes apply on the next deploy (connected viewers reload automatically).</div>
+            </div>`;
     }
 
     _applyConnection() {
