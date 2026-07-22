@@ -186,10 +186,10 @@ describe('per-view theme (U51)', () => {
         view.remove();
     });
 
-    it('offers installed themes in the inspector dropdown', () => {
-        window.feezal.themes = ['@feezal/feezal-theme-dark-mint', '@feezal/feezal-theme-tui'];
+    it('U53: the theme attribute mounts the shared styled picker (custom hook)', () => {
+        // The picker itself derives its options from feezal.themes at render
+        // time (browser-tested in test-browser/feezal-theme-select.test.js).
         const spec = customElements.get('feezal-view').feezal.attributes.find(a => a?.name === 'theme');
-        expect(spec.dropdown).toEqual(['feezal-theme-dark-mint', 'feezal-theme-tui']);
-        delete window.feezal.themes;
+        expect(spec).toMatchObject({type: 'custom', component: 'feezal-theme-select'});
     });
 });

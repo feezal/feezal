@@ -11,6 +11,9 @@ import '@shoelace-style/shoelace/dist/components/select/select.js';
 import '@shoelace-style/shoelace/dist/components/option/option.js';
 import '@shoelace-style/shoelace/dist/components/checkbox/checkbox.js';
 import './feezal-template-editor.js';
+// U53: the shared styled theme picker — mounted via the N6 custom hook for
+// feezal-view's `theme` attribute (and by the themes sidebar for the site).
+import './feezal-theme-select.js';
 import MATERIAL_ICONS from './material-design-icons.js';
 import {iconSets} from './feezal-icon.js';
 
