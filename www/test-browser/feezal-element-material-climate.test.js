@@ -232,3 +232,141 @@ describe('material-climate match-setpoint-max mode display (E102)', () => {
         expect(selected.map(c => c.getAttribute('label'))).toEqual(['Manu']);
     });
 });
+
+describe('material-climate Off sentinel (B53)', () => {
+    const modes = JSON.stringify([
+        {value: 1, label: 'Manu'},
+        {value: 1, label: 'Off', 'match-setpoint-max': 4.5},
+    ]);
+
+    it('a previously-remembered real setpoint no longer masks the Off match', async () => {
+        const el = await mount('feezal-element-material-climate', {
+            'payload-mode': 'separate', subscribe: 'stat/t',
+            'subscribe-mode': 'stat/mode', 'subscribe-setpoint': 'stat/sp', modes,
+        });
+        feezal.connection.deliver('stat/sp', '21');     // running at 21° → remembered
+        feezal.connection.deliver('stat/mode', '1');
+        await el.updateComplete;
+        let selected = [...el.renderRoot.querySelectorAll('md-filter-chip[selected]')];
+        expect(selected.map(c => c.getAttribute('label'))).toEqual(['Manu']);
+
+        feezal.connection.deliver('stat/sp', '4.5');    // wall dial → Off
+        await el.updateComplete;
+        selected = [...el.renderRoot.querySelectorAll('md-filter-chip[selected]')];
+        expect(selected.map(c => c.getAttribute('label'))).toEqual(['Off']);
+    });
+
+    it('while Off is active the centre shows the mode label instead of the 4.5° target', async () => {
+        const el = await mount('feezal-element-material-climate', {
+            'payload-mode': 'separate', subscribe: 'stat/t',
+            'subscribe-mode': 'stat/mode', 'subscribe-setpoint': 'stat/sp', modes,
+        });
+        feezal.connection.deliver('stat/mode', '1');
+        feezal.connection.deliver('stat/sp', '4.5');
+        await el.updateComplete;
+        const svgText = el.renderRoot.querySelector('svg.arc').textContent;
+        expect(svgText).toContain('Off');
+        expect(svgText).not.toContain('→');
+
+        feezal.connection.deliver('stat/sp', '20');     // back to a real target
+        await el.updateComplete;
+        const after = el.renderRoot.querySelector('svg.arc').textContent;
+        expect(after).toContain('→');
+        expect(after).not.toContain('Off');
+    });
+});
+
+describe('material-climate mode list sanitizing (B55)', () => {
+    it('keeps a {value: 0} entry (Homematic Auto) and drops only empty/invalid ones', async () => {
+        const el = await mount('feezal-element-material-climate', {
+            'payload-mode': 'separate', subscribe: 'stat/t', 'subscribe-mode': 'stat/mode',
+            modes: JSON.stringify([{value: 0, label: 'Auto'}, {value: 1, label: 'Manu'}, {label: 'broken'}]),
+        });
+        expect(el._parsedModes().map(m => m.label)).toEqual(['Auto', 'Manu']);
+        feezal.connection.deliver('stat/mode', '0');
+        await el.updateComplete;
+        const selected = [...el.renderRoot.querySelectorAll('md-filter-chip[selected]')];
+        expect(selected.map(c => c.getAttribute('label'))).toEqual(['Auto']);
+    });
+});
+
+describe('material-climate $setpoint type preservation (B58)', () => {
+    it('a bare $setpoint inside an object payload substitutes as a JSON NUMBER (HmIP putParamset)', async () => {
+        const el = await mount('feezal-element-material-climate', {
+            'payload-mode': 'separate', subscribe: 'stat/t', 'subscribe-setpoint': 'stat/sp',
+            modes: JSON.stringify([{value: 1, label: 'Manu',
+                publish: 'hm/paramset/WTH:1/VALUES', payload: {CONTROL_MODE: 1, SET_POINT_TEMPERATURE: '$setpoint'}}]),
+        });
+        feezal.connection.deliver('stat/sp', '17');
+        await el.updateComplete;
+        const published = [];
+        feezal.connection.pub = (t, p) => published.push({t, p});
+        el._setMode(el._parsedModes()[0]);
+        const obj = JSON.parse(published[0].p);
+        // hm2mqtt silently drops FLOAT params typed as strings — must be a number.
+        expect(obj.SET_POINT_TEMPERATURE).toBe(17);
+        expect(typeof obj.SET_POINT_TEMPERATURE).toBe('number');
+        expect(published[0].p).toContain(':17');
+    });
+
+    it('an embedded $setpoint inside a longer string still substitutes textually', async () => {
+        const el = await mount('feezal-element-material-climate', {
+            'payload-mode': 'separate', subscribe: 'stat/t', 'subscribe-setpoint': 'stat/sp',
+            modes: JSON.stringify([{value: 1, label: 'Manu', publish: 'cmd/x', payload: 'temp=$setpoint'}]),
+        });
+        feezal.connection.deliver('stat/sp', '17');
+        await el.updateComplete;
+        const published = [];
+        feezal.connection.pub = (t, p) => published.push({t, p});
+        el._setMode(el._parsedModes()[0]);
+        expect(published[0].p).toBe('temp=17');
+    });
+});
+
+describe('material-climate device-reported boost state (B54)', () => {
+    const modes = JSON.stringify([
+        {value: 0, label: 'Auto'},
+        {value: 3, label: 'Boost', momentary: true, publish: 'hm/set/x/BOOST_MODE', payload: 'true',
+            off: {publish: 'hm/set/x/BOOST_MODE', payload: 'false'}},
+    ]);
+
+    it('BOOST_MODE true forces the boost chip active; a Manu mode read-back does not clear it', async () => {
+        const el = await mount('feezal-element-material-climate', {
+            'payload-mode': 'separate', subscribe: 'stat/t',
+            'subscribe-mode': 'stat/mode', 'subscribe-boost-state': 'stat/boost', modes,
+        });
+        feezal.connection.deliver('stat/boost', 'true');
+        await el.updateComplete;
+        expect(el._boostForced).toBe(true);
+        expect(el._boostRemaining).not.toBeNull();      // countdown keys off the device transition
+        // The selected chip label carries the countdown badge ("Boost 05:00").
+        const boostSelected = () => [...el.renderRoot.querySelectorAll('md-filter-chip[selected]')]
+            .some(c => (c.getAttribute('label') || '').startsWith('Boost'));
+        expect(boostSelected()).toBe(true);
+
+        // HmIP SET_POINT_MODE keeps reporting Manu (1) during boost — must NOT flip.
+        feezal.connection.deliver('stat/mode', '1');
+        await el.updateComplete;
+        expect(el._boostForced).toBe(true);
+        expect(boostSelected()).toBe(true);
+
+        feezal.connection.deliver('stat/boost', 'false');
+        await el.updateComplete;
+        expect(el._boostForced).toBe(false);
+        expect(el._boostRemaining).toBeNull();
+        expect(boostSelected()).toBe(false);
+    });
+
+    it('tap-off while forced publishes the off strategy and clears the forced state', async () => {
+        const el = await mount('feezal-element-material-climate', {
+            'payload-mode': 'separate', subscribe: 'stat/t', 'subscribe-boost-state': 'stat/boost', modes,
+        });
+        feezal.connection.deliver('stat/boost', 'true');
+        await el.updateComplete;
+        const published = [];
+        feezal.connection.pub = (t, p) => published.push({t, p});
+        el._setMode(el._parsedModes().find(m => m.momentary));
+        expect(published).toContainEqual({t: 'hm/set/x/BOOST_MODE', p: 'false'});
+        expect(el._boostForced).toBe(false);
+    });
+});

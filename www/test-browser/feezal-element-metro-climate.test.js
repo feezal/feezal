@@ -214,3 +214,83 @@ describe('metro-climate match-setpoint-max mode display (E102)', () => {
         expect(active.map(b => b.textContent.trim())).toEqual(['Manu']);
     });
 });
+
+describe('metro-climate Off sentinel (B53) + value-0 sanitizing (B55)', () => {
+    const modes = JSON.stringify([
+        {value: 0, label: 'Auto'},
+        {value: 1, label: 'Manu'},
+        {value: 1, label: 'Off', 'match-setpoint-max': 4.5},
+    ]);
+
+    it('keeps the {value: 0} Auto entry (B55) and marks it active on a 0 read-back', async () => {
+        const el = await mount('feezal-element-metro-climate', {
+            'subscribe-mode': 'stat/mode', modes,
+        });
+        expect(el._parsedModes().map(m => m.label)).toEqual(['Auto', 'Manu', 'Off']);
+        feezal.connection.deliver('stat/mode', '0');
+        await el.updateComplete;
+        const active = [...el.renderRoot.querySelectorAll('.chips .mbtn.active')];
+        expect(active.map(b => b.textContent.trim())).toEqual(['Auto']);
+    });
+
+    it('while Off is active the front and the stepper show the label, not 4.5°', async () => {
+        const el = await mount('feezal-element-metro-climate', {
+            'subscribe-mode': 'stat/mode', 'subscribe-setpoint': 'stat/sp', modes,
+        });
+        feezal.connection.deliver('stat/sp', '21');     // remembered real setpoint
+        feezal.connection.deliver('stat/mode', '1');
+        feezal.connection.deliver('stat/sp', '4.5');    // wall dial → Off
+        await el.updateComplete;
+        expect(el.renderRoot.querySelector('.setpoint').textContent).toContain('Off');
+        expect(el.renderRoot.querySelector('.setpoint').textContent).not.toContain('4.5');
+        expect(el.renderRoot.querySelector('.stepper .val').textContent.trim()).toBe('Off');
+
+        feezal.connection.deliver('stat/sp', '20');     // back to a real target
+        await el.updateComplete;
+        expect(el.renderRoot.querySelector('.setpoint').textContent).toContain('20');
+        expect(el.renderRoot.querySelector('.stepper .val').textContent).toContain('20');
+    });
+});
+
+describe('metro-climate $setpoint type preservation (B58)', () => {
+    it('a bare $setpoint inside an object payload substitutes as a JSON NUMBER (HmIP putParamset)', async () => {
+        const el = await mount('feezal-element-metro-climate', {
+            'subscribe-setpoint': 'stat/sp',
+            modes: JSON.stringify([{value: 1, label: 'Manu',
+                publish: 'hm/paramset/WTH:1/VALUES', payload: {CONTROL_MODE: 1, SET_POINT_TEMPERATURE: '$setpoint'}}]),
+        });
+        feezal.connection.deliver('stat/sp', '17');
+        await el.updateComplete;
+        const published = [];
+        feezal.connection.pub = (t, p) => published.push({t, p});
+        el._setMode(el._parsedModes()[0]);
+        const obj = JSON.parse(published[0].p);
+        expect(obj.SET_POINT_TEMPERATURE).toBe(17);
+        expect(typeof obj.SET_POINT_TEMPERATURE).toBe('number');
+    });
+});
+
+describe('metro-climate device-reported boost state (B54)', () => {
+    const modes = JSON.stringify([
+        {value: 0, label: 'Auto'},
+        {value: 3, label: 'Boost', momentary: true, publish: 'hm/set/x/BOOST_MODE', payload: 'true',
+            off: {publish: 'hm/set/x/BOOST_MODE', payload: 'false'}},
+    ]);
+
+    it('BOOST_MODE true forces the boost chip active; a Manu read-back does not clear it', async () => {
+        const el = await mount('feezal-element-metro-climate', {
+            'subscribe-mode': 'stat/mode', 'subscribe-boost-state': 'stat/boost', modes,
+        });
+        feezal.connection.deliver('stat/boost', 'true');
+        feezal.connection.deliver('stat/mode', '1');    // HmIP keeps reporting Manu during boost
+        await el.updateComplete;
+        expect(el._boostForced).toBe(true);
+        const active = [...el.renderRoot.querySelectorAll('.chips .mbtn.active')];
+        expect(active.some(b => b.textContent.includes('Boost'))).toBe(true);
+
+        feezal.connection.deliver('stat/boost', 'false');
+        await el.updateComplete;
+        expect(el._boostForced).toBe(false);
+        expect(el._boostRemaining).toBeNull();
+    });
+});

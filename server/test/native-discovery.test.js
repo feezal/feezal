@@ -81,6 +81,9 @@ describe('Homematic climate recognizer — HmIP wall thermostat (WTH-2)', () => 
         expect(c.message_property_mode).toBe('payload.val');
         expect(c.message_property_valve).toBe('payload.val');
         expect(c.message_property_boost_remaining).toBe('payload.val');
+        // B54: boost active-state topic stamped for both generations.
+        expect(c.boost_state_topic).toBe('hm/status/Thermostat Hobbyraum:1/BOOST_MODE');
+        expect(c.message_property_boost_state).toBe('payload.val');
         expect(c.min_temp).toBe(4.5);
         expect(c.max_temp).toBe(30.5);
         expect(c.temp_step).toBe(0.5);
@@ -179,7 +182,7 @@ describe('Homematic climate recognizer — BidCoS classic (CLIMATECONTROL_RT_TRA
         expect(c.temperature_command_topic).toBe('hm/set/Wohnzimmer:4/SET_TEMPERATURE');
         expect(c.mode_state_topic).toBe('hm/status/Wohnzimmer:4/CONTROL_MODE');
         expect(c.action_topic).toBe('hm/status/Wohnzimmer:4/VALVE_STATE');
-        expect(c.valve_max).toBe(100);                     // BidCoS VALVE_STATE
+        expect(c.valve_max).toBe(99);                      // B56: stamped from datapointMax, not the name-based guess
 
         // BidCoS modes (per-mode action datapoints).
         expect(c.modes).toEqual([
@@ -188,6 +191,62 @@ describe('Homematic climate recognizer — BidCoS classic (CLIMATECONTROL_RT_TRA
             {value: 1, label: 'Off', 'match-setpoint-max': 4.5, publish: 'hm/set/Wohnzimmer:4/MANU_MODE', payload: '4.5'},
             {value: 3, label: 'Boost', momentary: true, publish: 'hm/set/Wohnzimmer:4/BOOST_MODE', payload: 'true', off: 'restore'},
         ]);
+    });
+});
+
+describe('Homematic climate recognizer — valve datapoint gating (B56)', () => {
+    const dev = '00AB12CD34EF56';
+    const base = {
+        device: dev, deviceName: 'Heizung Buero', deviceType: 'HmIP-eTRV-E',
+        channel: dev + ':1', channelName: 'Heizung Buero:1',
+        channelType: 'HEATING_CLIMATECONTROL_TRANSCEIVER', channelIndex: 1, iface: 'HmIP-RF',
+    };
+    const setpoint = () => nat.handleNativeMessage('hm/status/Heizung Buero:1/SET_POINT_TEMPERATURE',
+        je(21, {...base, datapoint: 'SET_POINT_TEMPERATURE', datapointMin: 4.5, datapointMax: 30.5}));
+
+    it('prefers a percentage VALVE over the HmIP VALVE_STATE adaptation ENUM', () => {
+        setpoint();
+        // VALVE_STATE on HmIP is an enum (max ~8) — must NOT become the percentage.
+        nat.handleNativeMessage('hm/status/Heizung Buero:1/VALVE_STATE',
+            je(4, {...base, datapoint: 'VALVE_STATE', datapointMin: 0, datapointMax: 8}));
+        nat.handleNativeMessage('hm/status/Heizung Buero:1/VALVE',
+            je(37, {...base, datapoint: 'VALVE', datapointMin: 0, datapointMax: 100}));
+
+        const c = nat.getNativeEntity('hm-climate:' + dev).config;
+        expect(c.action_topic).toBe('hm/status/Heizung Buero:1/VALVE');
+        expect(c.valve_min).toBe(0);
+        expect(c.valve_max).toBe(100);
+    });
+
+    it('falls back to LEVEL when VALVE_STATE is enum-shaped and no VALVE exists', () => {
+        setpoint();
+        nat.handleNativeMessage('hm/status/Heizung Buero:1/VALVE_STATE',
+            je(4, {...base, datapoint: 'VALVE_STATE', datapointMin: 0, datapointMax: 8}));
+        nat.handleNativeMessage('hm/status/Heizung Buero:1/LEVEL',
+            je(0.4, {...base, datapoint: 'LEVEL', datapointMin: 0, datapointMax: 1}));
+
+        const c = nat.getNativeEntity('hm-climate:' + dev).config;
+        expect(c.action_topic).toBe('hm/status/Heizung Buero:1/LEVEL');
+        expect(c.valve_max).toBe(1);
+    });
+
+    it('an enum-shaped VALVE_STATE alone wires NO valve at all', () => {
+        setpoint();
+        nat.handleNativeMessage('hm/status/Heizung Buero:1/VALVE_STATE',
+            je(4, {...base, datapoint: 'VALVE_STATE', datapointMin: 0, datapointMax: 8}));
+
+        const c = nat.getNativeEntity('hm-climate:' + dev).config;
+        expect(c.action_topic).toBeUndefined();
+    });
+
+    it('metadata-less BidCoS VALVE_STATE stays wired (fallback path unchanged)', () => {
+        nat.handleNativeMessage('hm/status/Wohnzimmer alt:4/SET_TEMPERATURE', jePlain(21));
+        nat.handleNativeMessage('hm/status/Wohnzimmer alt:4/CONTROL_MODE', jePlain(1));
+        nat.handleNativeMessage('hm/status/Wohnzimmer alt:4/VALVE_STATE', jePlain(42));
+
+        const c = nat.getNativeEntity('hm-climate:Wohnzimmer alt').config;
+        expect(c.action_topic).toBe('hm/status/Wohnzimmer alt:4/VALVE_STATE');
+        expect(c.valve_max).toBe(100);
     });
 });
 

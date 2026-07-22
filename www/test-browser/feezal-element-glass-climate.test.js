@@ -228,3 +228,125 @@ describe('glass-climate match-setpoint-max mode display (E102)', () => {
         expect(active.map(b => b.textContent.trim())).toEqual(['Manu']);
     });
 });
+
+describe('glass-climate state line renders the mode LABEL (B57)', () => {
+    const modes = JSON.stringify([{value: 0, label: 'Auto'}, {value: 1, label: 'Manu'}]);
+
+    it('a numeric Homematic mode read-back shows its label, not the raw number', async () => {
+        const el = await mount('feezal-element-glass-climate', {
+            'payload-mode': 'separate',
+            'subscribe-mode': 'stat/mode', 'subscribe-setpoint': 'stat/sp', modes,
+        });
+        feezal.connection.deliver('stat/sp', '21.5');
+        feezal.connection.deliver('stat/mode', '1');
+        await el.updateComplete;
+        const state = el.renderRoot.querySelector('.state').textContent;
+        expect(state).toContain('• Manu');
+        expect(state).not.toContain('• 1');
+    });
+
+    it('mode 0 (Auto) is not hidden by a truthiness guard', async () => {
+        const el = await mount('feezal-element-glass-climate', {
+            'payload-mode': 'separate',
+            'subscribe-mode': 'stat/mode', 'subscribe-setpoint': 'stat/sp', modes,
+        });
+        feezal.connection.deliver('stat/sp', '21.5');
+        feezal.connection.deliver('stat/mode', '0');
+        await el.updateComplete;
+        expect(el.renderRoot.querySelector('.state').textContent).toContain('• Auto');
+    });
+
+    it('an unknown mode read-back still shows the raw value', async () => {
+        const el = await mount('feezal-element-glass-climate', {
+            'payload-mode': 'separate',
+            'subscribe-mode': 'stat/mode', 'subscribe-setpoint': 'stat/sp', modes,
+        });
+        feezal.connection.deliver('stat/mode', 'eco');
+        await el.updateComplete;
+        expect(el.renderRoot.querySelector('.state').textContent).toContain('• eco');
+    });
+});
+
+describe('glass-climate Off sentinel (B53) + value-0 sanitizing (B55)', () => {
+    const modes = JSON.stringify([
+        {value: 0, label: 'Auto'},
+        {value: 1, label: 'Manu'},
+        {value: 1, label: 'Off', 'match-setpoint-max': 4.5},
+    ]);
+
+    it('keeps the {value: 0} Auto entry (B55) and renders its popup button', async () => {
+        const el = await mount('feezal-element-glass-climate', {
+            'payload-mode': 'separate', 'subscribe-mode': 'stat/mode', modes,
+        });
+        expect(el._parsedModes().map(m => m.label)).toEqual(['Auto', 'Manu', 'Off']);
+        el.openDetails();
+        await el.updateComplete;
+        const labels = [...el.renderRoot.querySelectorAll('.modes button')].map(b => b.textContent.trim());
+        expect(labels).toContain('Auto');
+    });
+
+    it('while Off is active the state line shows the label and no target temperature', async () => {
+        const el = await mount('feezal-element-glass-climate', {
+            'payload-mode': 'separate',
+            'subscribe-mode': 'stat/mode', 'subscribe-setpoint': 'stat/sp', modes,
+        });
+        feezal.connection.deliver('stat/sp', '21');     // remembered real setpoint
+        feezal.connection.deliver('stat/mode', '1');
+        feezal.connection.deliver('stat/sp', '4.5');    // wall dial → Off
+        await el.updateComplete;
+        const state = el.renderRoot.querySelector('.state').textContent;
+        expect(state).toContain('Off');
+        expect(state).not.toContain('→');
+        expect(state).not.toContain('4.5');
+
+        // The popup pill shows the label instead of 4.5° too.
+        el.openDetails();
+        await el.updateComplete;
+        expect(el.renderRoot.querySelector('.vslider .sp').textContent.trim()).toBe('Off');
+    });
+});
+
+describe('glass-climate $setpoint type preservation (B58)', () => {
+    it('a bare $setpoint inside an object payload substitutes as a JSON NUMBER (HmIP putParamset)', async () => {
+        const el = await mount('feezal-element-glass-climate', {
+            'payload-mode': 'separate', 'subscribe-setpoint': 'stat/sp',
+            modes: JSON.stringify([{value: 1, label: 'Manu',
+                publish: 'hm/paramset/WTH:1/VALUES', payload: {CONTROL_MODE: 1, SET_POINT_TEMPERATURE: '$setpoint'}}]),
+        });
+        feezal.connection.deliver('stat/sp', '17');
+        await el.updateComplete;
+        const published = [];
+        feezal.connection.pub = (t, p) => published.push({t, p});
+        el._setMode(el._parsedModes()[0]);
+        const obj = JSON.parse(published[0].p);
+        expect(obj.SET_POINT_TEMPERATURE).toBe(17);
+        expect(typeof obj.SET_POINT_TEMPERATURE).toBe('number');
+    });
+});
+
+describe('glass-climate device-reported boost state (B54)', () => {
+    const modes = JSON.stringify([
+        {value: 0, label: 'Auto'},
+        {value: 3, label: 'Boost', momentary: true, publish: 'hm/set/x/BOOST_MODE', payload: 'true',
+            off: {publish: 'hm/set/x/BOOST_MODE', payload: 'false'}},
+    ]);
+
+    it('BOOST_MODE true forces the boost button active; a Manu read-back does not clear it', async () => {
+        const el = await mount('feezal-element-glass-climate', {
+            'payload-mode': 'separate',
+            'subscribe-mode': 'stat/mode', 'subscribe-boost-state': 'stat/boost', modes,
+        });
+        feezal.connection.deliver('stat/boost', 'true');
+        feezal.connection.deliver('stat/mode', '1');    // HmIP keeps reporting Manu during boost
+        el.openDetails();
+        await el.updateComplete;
+        expect(el._boostForced).toBe(true);
+        const active = [...el.renderRoot.querySelectorAll('.modes button.active')];
+        expect(active.some(b => b.textContent.includes('Boost'))).toBe(true);
+
+        feezal.connection.deliver('stat/boost', 'false');
+        await el.updateComplete;
+        expect(el._boostForced).toBe(false);
+        expect(el._boostRemaining).toBeNull();
+    });
+});

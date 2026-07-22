@@ -56,6 +56,9 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
                     message_property_mode:            {attr: 'message-property-mode'},
                     message_property_valve:           {attr: 'message-property-valve'},
                     message_property_boost_remaining: {attr: 'message-property-boost-remaining'},
+                    // B54: device-reported boost active state (hm BOOST_MODE).
+                    boost_state_topic:            {attr: 'subscribe-boost-state'},
+                    message_property_boost_state: {attr: 'message-property-boost-state'},
                     valve_min:        {attr: 'valve-min'},
                     valve_max:        {attr: 'valve-max'},
                     min_temp:         {attr: 'min'},
@@ -130,6 +133,10 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
                     help: 'Dot-notation path within the boost-remaining message. Blank = fall back to element-level message-property.'},
                 {name: 'boost-remaining-unit', type: 'select', options: ['minutes', 'seconds'], default: 'minutes', section: 'Display',
                     help: 'E102 boost countdown: unit of the subscribe-boost-remaining value. BidCoS BOOST_STATE reports minutes; HmIP unit is device-dependent and verify-gated.'},
+                {name: 'subscribe-boost-state', type: 'mqttTopic', section: 'Display',
+                    help: 'B54: optional device-reported boost active state (Homematic BOOST_MODE, true/false). While truthy, the momentary (boost) mode entry is shown active regardless of the mode read-back — HmIP SET_POINT_MODE keeps reporting Manu during boost. Also makes boost started at the wall dial visible.'},
+                {name: 'message-property-boost-state', type: 'string', default: 'payload', section: 'Display', advanced: true,
+                    help: 'Dot-notation path within the boost-state message. Blank = fall back to element-level message-property.'},
                 {name: 'label', type: 'string', section: 'Display', help: 'Card label.'},
                 {name: 'icon',  type: 'string', default: 'thermostat', section: 'Display', help: 'Icon name.'},
                 {name: 'degrade', type: 'boolean', default: false, section: 'Display', advanced: true,
@@ -176,6 +183,8 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         subscribeBoostRemaining: {type: String, reflect: true, attribute: 'subscribe-boost-remaining'},
         msgPropBoostRemaining:   {type: String, reflect: true, attribute: 'message-property-boost-remaining'},
         boostRemainingUnit:      {type: String, reflect: true, attribute: 'boost-remaining-unit'},
+        subscribeBoostState:     {type: String, reflect: true, attribute: 'subscribe-boost-state'},
+        msgPropBoostState:       {type: String, reflect: true, attribute: 'message-property-boost-state'},
         min:  {type: Number, reflect: true},
         max:  {type: Number, reflect: true},
         step: {type: Number, reflect: true},
@@ -193,6 +202,7 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         _dragSp:    {state: true},   // live setpoint while dragging the pill
         _momentaryActive: {state: true},   // E102: value of the currently-active momentary (boost) entry
         _boostRemaining:  {state: true},   // E102 WP2: boost remaining seconds (null when inactive)
+        _boostForced:     {state: true},   // B54: device-reported boost state overrides the mode read-back
     };
 
     static styles = [feezalBaseStyles, glassCardStyles, glassPopupStyles, css`
@@ -313,6 +323,8 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         this.subscribeBoostRemaining = '';
         this.msgPropBoostRemaining = '';
         this.boostRemainingUnit = 'minutes';
+        this.subscribeBoostState = '';
+        this.msgPropBoostState = '';
         this.min = 5;
         this.max = 30;
         this.step = 0.5;
@@ -334,6 +346,8 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         // E102 WP2 — boost countdown
         this._boostRemaining   = null;   // remaining seconds while boost active (null = inactive)
         this._boostTimer       = null;   // non-reactive setInterval handle
+        // B54 — device-reported boost state
+        this._boostForced      = false;  // subscribe-boost-state read truthy
     }
 
     // Device cards manage subscriptions manually; suppress the base class path.
@@ -366,7 +380,8 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
 
     _wireSignature() {
         return [this.payloadMode, this.subscribe, this.subscribeSetpoint, this.subscribeActual,
-            this.subscribeMode, this.subscribeValve, this.subscribeBoostRemaining].join('|');
+            this.subscribeMode, this.subscribeValve, this.subscribeBoostRemaining,
+            this.subscribeBoostState].join('|');
     }
 
     updated(changed) {
@@ -459,6 +474,12 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
                 if (!isNaN(v)) this._applyBoostRemaining(v);
             });
         }
+        // B54: device-reported boost active state (both payload modes).
+        if (this.subscribeBoostState) {
+            this.addSubscription(this.subscribeBoostState, msg => {
+                this._applyBoostState(this.getProperty(msg, this.msgPropBoostState || this.messageProperty));
+            });
+        }
     }
 
     // ── publishing (material-climate semantics) ───────────────────────────────
@@ -495,10 +516,14 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
             (resolved !== null && typeof resolved === 'object') ? JSON.stringify(resolved) : String(resolved ?? ''));
     }
 
-    /** E102 — recursively substitute `$setpoint` in a string / object payload. */
+    /** E102 — recursively substitute `$setpoint` in a string / object payload.
+     * B58: type-preserving — a value that IS the bare sentinel becomes the
+     * numeric setpoint (hm2mqtt putParamset silently drops FLOAT params sent as
+     * JSON strings); the string replace only serves embedded occurrences. */
     _resolveModePayload(payload) {
-        const sp = this._lastRealSetpoint ?? this._setpoint ?? this.min;
-        const sub = v => typeof v === 'string' ? v.replace(/\$setpoint/g, String(sp)) : v;
+        const sp = Number(this._lastRealSetpoint ?? this._setpoint ?? this.min);
+        const sub = v => v === '$setpoint' ? sp
+            : (typeof v === 'string' ? v.replace(/\$setpoint/g, String(sp)) : v);
         if (payload !== null && typeof payload === 'object') {
             const out = Array.isArray(payload) ? [] : {};
             for (const [k, val] of Object.entries(payload)) {
@@ -540,9 +565,10 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
      * during boost degrades gracefully to "restore = the current read-back").
      */
     _toggleMomentary(entry) {
-        const active = this._momentaryActive === entry.value || this._mode === entry.value;
+        const active = this._boostForced || this._momentaryActive === entry.value || this._mode === entry.value;
         if (active) {
             this._momentaryActive = null;
+            this._boostForced = false;   // B54: tap-off — the device read-back will confirm
             this._clearBoost();   // E102 WP2: tap-off clears the badge/timer
             if (entry.off === 'restore') {
                 const prev = this._preBoostMode;
@@ -569,7 +595,28 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
      */
     _applyModeReadback(v) {
         this._mode = v;
-        if (this._momentaryActive !== null && String(v) !== String(this._momentaryActive)) {
+        // B54: while the device reports boost active, the mode read-back must
+        // not clear it — HmIP SET_POINT_MODE keeps reporting Manu during boost.
+        if (!this._boostForced && this._momentaryActive !== null && String(v) !== String(this._momentaryActive)) {
+            this._momentaryActive = null;
+            this._clearBoost();
+        }
+    }
+
+    /**
+     * B54 — device-reported boost active state (hm BOOST_MODE true/false).
+     * Truthy forces the momentary entry active regardless of the mode read-back
+     * and starts the countdown (covers boost begun at the wall dial and a page
+     * reload mid-boost); falsy returns the display to the mode-derived state.
+     */
+    _applyBoostState(raw) {
+        const active = raw === true || raw === 1
+            || String(raw).toLowerCase() === 'true' || String(raw) === '1';
+        if (active && !this._boostForced) {
+            this._boostForced = true;
+            if (this._boostRemaining === null) this._startBoostCountdown();
+        } else if (!active && this._boostForced) {
+            this._boostForced = false;
             this._momentaryActive = null;
             this._clearBoost();
         }
@@ -624,9 +671,12 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
     _parsedModes() {
         try {
             const raw = JSON.parse(this.modes || '[]');
+            // B55: drop empty/invalid entries WITHOUT a truthiness test —
+            // Homematic Auto is {value: 0} and must survive (same filter in
+            // material/metro).
             return (Array.isArray(raw) ? raw : []).map(m =>
-                typeof m === 'string' ? {value: m, label: m} : {...m, label: m.label || m.value})
-                .filter(m => m.value);
+                typeof m === 'string' ? {value: m, label: m} : {...m, label: m.label ?? m.value})
+                .filter(m => m && m.value !== null && m.value !== undefined && m.value !== '');
         } catch {
             return [];
         }
@@ -645,7 +695,10 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
     _activeModeEntry(list) {
         const v = this._mode;
         if (v === null || v === undefined || v === '') return null;
-        const sp = this._lastRealSetpoint ?? this._setpoint;
+        // B53: compare against the CURRENT setpoint — preferring the remembered
+        // real one meant a device switched Off (read-back 4.5) after running at
+        // 21° never matched the Off sentinel (21 <= 4.5 is false).
+        const sp = this._setpoint ?? this._lastRealSetpoint;
         const capOk = m => {
             const cap = m['match-setpoint-max'];
             if (cap === null || cap === undefined) return true;
@@ -657,6 +710,17 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
             const cap = m['match-setpoint-max'];
             return cap !== null && cap !== undefined;
         }) ?? candidates[0];
+    }
+
+    /**
+     * B53 — the active entry when it is an off-by-setpoint sentinel (carries
+     * `match-setpoint-max`, e.g. Homematic "Off" = Manu @ 4.5°); null otherwise.
+     * While active, the target-temperature display is suppressed (mode label
+     * instead of "→ 4.5°") — the actual temperature stays visible.
+     */
+    _offSentinelEntry() {
+        const e = this._activeModeEntry(this._parsedModes());
+        return (e && e['match-setpoint-max'] !== null && e['match-setpoint-max'] !== undefined) ? e : null;
     }
 
     // ── details popup ─────────────────────────────────────────────────────────
@@ -708,6 +772,9 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         const fill = Math.max(0, Math.min(100, ((sp - this.min) / ((this.max - this.min) || 1)) * 100));
         const modes = this._parsedModes();
         const active = this._activeModeEntry(modes);   // E102: match-setpoint-max-aware active button
+        // B53: off sentinel (and not mid-drag) → mode label instead of 4.5° in the pill.
+        const offEntry = (this._dragSp === null && active
+            && active['match-setpoint-max'] !== null && active['match-setpoint-max'] !== undefined) ? active : null;
         const valve = this._valve;
         return html`
             <div class="details" popover="manual">
@@ -719,13 +786,14 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
                     <div class="fill" style="height:${fill}%"></div>
                     ${valve !== null ? html`<div class="valve-mark" style="bottom:${valve}%"></div>` : ''}
                     <div class="cur">${this._fmt(this._actual)}</div>
-                    <div class="sp">${this._fmt(sp)}</div>
+                    <div class="sp">${offEntry ? offEntry.label : this._fmt(sp)}</div>
                 </div>
                 ${valve !== null ? html`<div class="valve-line">Valve ${Math.round(valve)}&nbsp;%</div>` : ''}
                 ${modes.length > 0 ? html`
                     <div class="modes">
                         ${modes.map(m => {
-                            const boostActive = m.momentary && (this._momentaryActive === m.value || this._mode === m.value);
+                            // B54: _boostForced (device-reported BOOST_MODE) wins over the mode read-back.
+                            const boostActive = m.momentary && (this._boostForced || this._momentaryActive === m.value || this._mode === m.value);
                             const badge = boostActive ? this._boostBadge() : '';
                             return html`
                                 <button class="${MODE_ICONS[m.value] ? '' : 'text'} ${boostActive || m === active ? 'active' : ''}"
@@ -738,6 +806,15 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
 
     render() {
         const actual = this._actual ?? (feezal.isEditor && !this.subscribeActual && !this.subscribe ? 21.5 : null);
+        // B57: resolve the mode read-back to its entry and render the LABEL —
+        // Homematic modes are numeric ("• 1" is meaningless) — guarding WITHOUT
+        // truthiness (Auto is mode 0). Unknown read-backs still show raw.
+        // B53: while the off sentinel is active, suppress the "→ 4.5°" target.
+        const activeEntry = this._activeModeEntry(this._parsedModes());
+        const offEntry = (activeEntry && activeEntry['match-setpoint-max'] !== null
+            && activeEntry['match-setpoint-max'] !== undefined) ? activeEntry : null;
+        const hasMode = this._mode !== '' && this._mode !== null && this._mode !== undefined;
+        const modeText = activeEntry ? activeEntry.label : (hasMode ? String(this._mode) : '');
         return html`
             <div class="card" role="button" tabindex="0"
                 @click="${this._onCardClick}"
@@ -749,7 +826,9 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
                     <feezal-icon name="${this.icon || 'thermostat'}"></feezal-icon>
                     <span class="actual">${this._fmt(actual)}</span>
                 </div>
-                <span class="state">→ <b>${this._fmt(this._setpoint)}</b>${this._mode ? ` • ${this._mode}` : ''}</span>
+                ${offEntry
+                    ? html`<span class="state"><b>${offEntry.label}</b></span>`
+                    : html`<span class="state">→ <b>${this._fmt(this._setpoint)}</b>${modeText ? ` • ${modeText}` : ''}</span>`}
                 <span class="label">${this.label || (feezal.isEditor ? 'Climate' : '')}</span>
             </div>
             ${this._details ? this._renderDetails() : ''}

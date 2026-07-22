@@ -52,11 +52,17 @@ const HM_THERMOSTAT_DPS = new Set([
     'CONTROL_MODE',
     'SET_POINT_MODE',
     'ACTUAL_TEMPERATURE',
+    'VALVE',          // B56: newer HmIP TRVs report the percentage here
     'VALVE_STATE',
     'LEVEL',
     'BOOST_MODE',
     'HUMIDITY',
 ]);
+
+// B56: valve candidates — their payload metadata (datapointMin/Max) is captured
+// per datapoint so promote() can range-gate instead of trusting names. On HmIP,
+// VALVE_STATE is an adaptation-status ENUM (max ~8), not a percentage.
+const HM_VALVE_DPS = new Set(['VALVE', 'VALVE_STATE', 'LEVEL']);
 
 // ── Homematic topic + mode builder (ported from www/src/climate-profiles.js) ──
 function hmSet(p, ch, dp) { return `${p}/set/${ch}/${dp}`; }
@@ -165,7 +171,7 @@ const hmClimateRecognizer = {
         let chan = dev.channels.get(parsed.seg);
         if (!chan) {
             chan = {seg: parsed.seg, channelType: undefined, channelAddr: undefined,
-                dps: new Set(), min: undefined, max: undefined};
+                dps: new Set(), min: undefined, max: undefined, dpMeta: {}};
             dev.channels.set(parsed.seg, chan);
         }
         if (hm) {
@@ -178,6 +184,13 @@ const hmClimateRecognizer = {
         if (hm && HM_SETPOINT_DPS.has(parsed.datapoint)) {
             if (hm.datapointMin != null) chan.min = hm.datapointMin;
             if (hm.datapointMax != null) chan.max = hm.datapointMax;
+        }
+        // B56: capture valve-candidate metadata per datapoint — promote()
+        // range-gates on datapointMax (percent vs adaptation enum).
+        if (hm && HM_VALVE_DPS.has(parsed.datapoint)) {
+            const meta = chan.dpMeta[parsed.datapoint] || (chan.dpMeta[parsed.datapoint] = {});
+            if (hm.datapointMin != null) meta.min = hm.datapointMin;
+            if (hm.datapointMax != null) meta.max = hm.datapointMax;
         }
         return dev;
     },
@@ -224,15 +237,40 @@ const hmClimateRecognizer = {
         if (!gen) return null;   // wait for the setpoint
         const {generation, setpointDp, modeDp} = gen;
 
-        // Valve: wire only if a VALVE_STATE (BidCoS 0–100) or LEVEL (HmIP 0.0–1.0)
-        // datapoint was observed on ANY channel of the device; use that channel.
+        // B56: valve wiring — trust the metadata, not the datapoint name.
+        // Preference: VALVE (newer HmIP TRVs, range-validated) → VALVE_STATE
+        // (only when its metadata says percentage, or metadata-less BidCoS —
+        // on HmIP it is an adaptation-status ENUM, max ~8) → LEVEL (HmIP 0…1).
+        // valve_min/max are stamped from the actual datapointMin/Max when
+        // present instead of the old name-based 1/100 guess.
+        const meta = (c, dp) => c.dpMeta ? c.dpMeta[dp] : undefined;
+        // Enum-like: a max well below any percentage scale but above the 0…1
+        // float range (HmIP VALVE_STATE enum max ~8).
+        const enumLike = m => m && m.max != null && m.max > 1.5 && m.max < 10;
         let valveChan = null, valveDp = null;
         for (const c of channels) {
-            if (c.dps.has('VALVE_STATE')) { valveChan = c; valveDp = 'VALVE_STATE'; break; }
-            if (c.dps.has('LEVEL')) { valveChan = c; valveDp = 'LEVEL'; }
+            if (c.dps.has('VALVE') && !enumLike(meta(c, 'VALVE'))) { valveChan = c; valveDp = 'VALVE'; break; }
+        }
+        if (!valveDp) {
+            for (const c of channels) {
+                const m = meta(c, 'VALVE_STATE');
+                const percentByMeta = m && m.max != null && m.max >= 10;
+                const metadataLess = !m || m.max == null;
+                if (c.dps.has('VALVE_STATE') && (percentByMeta || (metadataLess && generation === 'bidcos'))) {
+                    valveChan = c; valveDp = 'VALVE_STATE'; break;
+                }
+            }
+        }
+        if (!valveDp) {
+            for (const c of channels) {
+                if (c.dps.has('LEVEL')) { valveChan = c; valveDp = 'LEVEL'; }
+            }
         }
         const isTRV = valveDp !== null;
-        const valveMax = valveDp === 'LEVEL' ? 1 : 100;
+        const valveMeta = isTRV ? meta(valveChan, valveDp) : undefined;
+        const valveMax = (valveMeta && valveMeta.max != null) ? valveMeta.max
+            : (valveDp === 'LEVEL' ? 1 : 100);
+        const valveMin = (valveMeta && valveMeta.min != null) ? valveMeta.min : 0;
 
         // Read topics use the topic segment; write/paramset topics use the segment
         // when non-empty, else the channel address (nameless device).
@@ -271,7 +309,13 @@ const hmClimateRecognizer = {
             message_property_mode: 'payload.val',
             message_property_valve: 'payload.val',
             message_property_boost_remaining: 'payload.val',
-            valve_min: 0,
+            // B54: device-reported boost active state — stamped for BOTH
+            // generations (BidCoS CONTROL_MODE=3 also detects boost; the state
+            // topic is harmless redundancy there, decisive on HmIP where
+            // SET_POINT_MODE keeps reporting Manu during boost).
+            boost_state_topic: hmStatus(p, readSeg, 'BOOST_MODE'),
+            message_property_boost_state: 'payload.val',
+            valve_min: valveMin,
             valve_max: valveMax,
         };
         if (isTRV) config.action_topic = hmStatus(p, valveChan.seg, valveDp);

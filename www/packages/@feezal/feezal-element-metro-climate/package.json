@@ -1,6 +1,6 @@
 {
   "name": "@feezal/feezal-element-metro-climate",
-  "version": "3.0.8",
+  "version": "3.0.9",
   "license": "MIT",
   "main": "feezal-element-metro-climate.js",
   "dependencies": {

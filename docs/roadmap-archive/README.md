@@ -3,7 +3,7 @@
 Completed and closed roadmap items — **one file per item**, named after its ID (e.g. `U39.md`).
 Open items live in [../ROADMAP.md](../ROADMAP.md).
 
-**225 items.**
+**234 items.**
 
 ## Bugs
 
@@ -36,8 +36,10 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [B30 — View names with umlauts (e.g. "Küche") cannot be opened ✅ fixed](B30.md)
 - [B31 — basic-template: template content lost on copy/cut/paste and duplicate ✅ fixed](B31.md)
 - [B32 — Snapping helper lines sometimes don't disappear ✅ fixed](B32.md)
+- [B33 — Elements sometimes not selectable and/or draggable ❌ can not reproduce](B33.md)
 - [B34 — Stray orange dot left over from rubber-band selection during element drag ✅ fixed](B34.md)
 - [B35 — Rubber-band select breaks after view switches ✅ fixed](B35.md)
+- [B36 — Snapping sometimes stops working until page reload ❌ can not reproduce](B36.md)
 - [B37 — material-climate arc vertically centred — misaligned with material-light's top-anchored ring ✅ fixed](B37.md)
 - [B38 — glass-wled: details dropdowns ignore theme colours ✅ fixed](B38.md)
 - [B39 — Missing slash in the viewer URL for non-default sites ✅ fixed](B39.md)
@@ -51,6 +53,12 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [B47 — material-light: dragging the brightness ring scrolls the page on mobile ✅ fixed](B47.md)
 - [B48 — Component edit mode: click-selection and context menu don't work ✅ fixed](B48.md)
 - [B49 — Attribute-mapping button + dialog ignore editor dark mode ✅ fixed](B49.md)
+- [B53 — *-climate: Homematic "Off" state shows as "Manu 4.5°" instead of "Off" without a setpoint ✅ fixed](B53.md)
+- [B54 — *-climate: active boost is not detected from the device — UI falls back to "Manu" moments after activation ✅ fixed](B54.md)
+- [B55 — glass/metro-climate: no "Auto" button for Homematic thermostats (falsy-zero mode filter) ✅ fixed](B55.md)
+- [B56 — *-climate: valve percentage stamped from the wrong datapoint (VALVE_STATE instead of VALVE) ✅ fixed](B56.md)
+- [B57 — glass-climate: Homematic mode shown as a raw number (and Auto's mode text hidden entirely) ✅ fixed](B57.md)
+- [B58 — *-climate: HmIP Manu mode ignored — `$setpoint` substitutes as a STRING in the putParamset payload ✅ fixed](B58.md)
 
 ## Near-term Improvements
 
@@ -101,6 +109,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [E126 — Homematic discovery: switch recognizer with name word-list heuristic (+ light classification) ✅ implemented](E126.md)
 - [E127 — Homematic dimmers: settling behaviour (`WORKING` / `_NOTWORKING`) — no slider jumping ✅ implemented](E127.md)
 
+- [E116 — "Plain" element family (`feezal-element-plain-*`) — zero styling ❌ dropped](E116.md)
 ## Editor UX
 
 - [E1 — Migrate feezal-element-basic-* from Polymer to Lit ✅ implemented](E1.md)
