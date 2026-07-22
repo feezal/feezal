@@ -3,7 +3,7 @@
 Completed and closed roadmap items — **one file per item**, named after its ID (e.g. `U39.md`).
 Open items live in [../ROADMAP.md](../ROADMAP.md).
 
-**241 items.**
+**242 items.**
 
 ## Bugs
 
@@ -229,6 +229,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [U42 — Resize handle affordance on the selected element ✅ implemented](U42.md)
 - [U43 — "Apply connection settings" button with dirty detection ✅ implemented](U43.md)
 - [U52 — Component edit mode: double-click to enter, attribute-mapping editor in the banner ✅ implemented](U52.md)
+- [U53 — View theme selector: same styled control as the site theme selector ✅ done](U53.md)
 
 ## Architecture & Infrastructure
 

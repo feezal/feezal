@@ -77,7 +77,6 @@ Work in progress — priorities and scope are not final.
 - [U46 — Clippy easter egg in the help popup](#u46--clippy-easter-egg-in-the-help-popup--low-priority) 🔽
 - [U48 — Make the viewer's `Connected as "…"` toast optional](#u48--make-the-viewers-connected-as--toast-optional)
 - [U50 — layout-app: expose the content area's inset (padding)](#u50--layout-app-expose-the-content-areas-inset-padding)
-- [U53 — View theme selector: same styled control as the site theme selector](#u53--view-theme-selector-same-styled-control-as-the-site-theme-selector)
 - [U54 — Source editor opens at the current view's line](#u54--source-editor-opens-at-the-current-views-line)
 - [U55 — View tab bar: hold-to-drag so clicks stop reordering views](#u55--view-tab-bar-hold-to-drag-so-clicks-stop-reordering-views)
 
@@ -999,20 +998,6 @@ The embedded view sits flush against the app bar and drawer — there is no way 
 - Accept a full CSS shorthand (`8px`, `8px 16px`, …) rather than a number, so per-side insets need no extra knobs.
 
 **Relates:** E-layout-app (the shell), N36 (the `--feezal-app-*` style-var set this extends), E38 (element scaling / responsive sizing — a responsive inset would belong there).
-
-### U53 — View theme selector: same styled control as the site theme selector
-
-The U51 ✅ per-view `theme` attribute renders as a **plain generic dropdown** (full class names like `feezal-theme-solarized-dark`) in the view inspector, while the **site** theme selector in the themes sidebar ([feezal-sidebar-themes.js](../www/src/feezal-sidebar-themes.js)) is the nice one: **shortened names** (`pkgToLabel` strips the `feezal-theme-` prefix) plus **three colour swatches per theme** (base colours read from the theme's CSS custom properties, `DEFAULT_SWATCHES` for the built-in default). The two should be **exactly the same control**.
-
-**Implementation:**
-- **Extract the themes sidebar's option rendering into a reusable component** (e.g. `<feezal-theme-select>`): shortened label + swatch row per option, the swatch-extraction/caching logic (the sidebar already reads each theme's custom properties by temporarily applying it — reuse, don't duplicate), an empty option for "site theme" (view case) with neutral styling, and a `value`/`change` contract compatible with the inspector pipeline.
-- **Themes sidebar** switches to the shared component (visual no-op there — it's the donor).
-- **View inspector**: the generic attribute inspector currently renders the `theme` descriptor as a plain `dropdown` ([feezal-view.js:88-94](../www/src/feezal-view.js#L88-L94)). Render the shared component instead — via the E102-WP3 `type: 'custom', component:` descriptor hook if that has landed, else a small special-case (`type: 'theme'`) in [feezal-sidebar-inspector-attributes.js](../www/src/feezal-sidebar-inspector-attributes.js). Emits through the normal change pipeline (dirty + undo) exactly like the dropdown did.
-- Both places must stay in sync by construction afterwards — one component, two mounts (the E106 shared-building-block lesson applied to editor UI).
-
-**Ships with:** TESTING.md update in the per-view-theme section (swatches + shortened names in the view inspector, selection still round-trips incl. × clear, sidebar unchanged visually).
-
-**Relates:** **B50 ✅** (per-view theme bugs — fixed separately: the dropdown's `emptyOption` "Site theme (default)" entry + × clear and the layout-app shadow-root CSS mirroring are in place; the new control must preserve both), U51 ✅ (the per-view theme feature this polishes), U44 (× clear affordance — keep it working on the new control), E102-WP3 (the `type: 'custom'` inspector hook — preferred mount if available), feezal-sidebar-themes.js (donor of label/swatch logic).
 
 ### U54 — Source editor opens at the current view's line
 

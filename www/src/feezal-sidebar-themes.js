@@ -6,18 +6,10 @@ import '@shoelace-style/shoelace/dist/components/tab-group/tab-group.js';
 import '@shoelace-style/shoelace/dist/components/tab/tab.js';
 import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
 
-// '@feezal/feezal-theme-blue-night' → 'feezal-theme-blue-night'
-function pkgToClass(pkg) {
-    return pkg.split('/').pop();
-}
-
-// '@feezal/feezal-theme-blue-night' → 'blue-night'
-function pkgToLabel(pkg) {
-    return pkgToClass(pkg).replace(/^feezal-theme-/, '');
-}
-
-// 3 neutral swatches shown for the built-in default theme.
-const DEFAULT_SWATCHES = ['#ffffff', '#eeeeee', '#333333'];
+// U53: label/class helpers, swatch sampling and the styled picker itself now
+// live in the shared feezal-theme-select component (also mounted by the view
+// inspector for the per-view `theme` attribute — one control, two mounts).
+import {pkgToClass, pkgToLabel, DEFAULT_SWATCHES, sampleThemeColors} from './feezal-theme-select.js';
 
 /** Common CSS property names for autocomplete in the class prop editor. */
 const CSS_PROP_NAMES = [
@@ -362,44 +354,17 @@ class FeezalSidebarThemes extends LitElement {
 
     _sampleColors() {
         if (!feezal.site || this.themes.length === 0) return;
-        const site    = feezal.site;
-        const saved   = site.getAttribute('class') || '';
-        const base    = saved.split(' ').filter(c => !c.startsWith('feezal-theme-'));
-
-        // Temporarily lift any active overrides so we read pure theme values.
+        // Temporarily lift any active overrides so we read pure theme values;
+        // the shared sampler (U53) does the class juggling.
+        const site = feezal.site;
         const activeOverrides = Object.entries(this._overrides || {});
         for (const [k] of activeOverrides) site.style.removeProperty(k);
 
-        const colorCache = {};
-        const varCache   = {};
+        const {colors, vars} = sampleThemeColors(this.themes.map(pkgToClass), OVERRIDE_VARS);
 
-        for (const pkg of this.themes) {
-            const cls = pkgToClass(pkg);
-            site.className = [cls, ...base].join(' ').trim();
-            const cs  = getComputedStyle(site);
-            const get = prop => cs.getPropertyValue(prop).trim();
-            const colors = [
-                get('--primary-background-color'),
-                get('--primary-text-color'),
-                get('--secondary-text-color') || get('--divider-color')
-            ].filter(v => v && v !== 'initial' && v !== 'inherit' && v !== '');
-            colorCache[cls] = colors;
-
-            const vars = {};
-            for (const v of OVERRIDE_VARS) {
-                const val = get(v);
-                if (val && val !== 'initial' && val !== 'inherit') vars[v] = val;
-            }
-            varCache[cls] = vars;
-        }
-
-        // Restore original class attribute
-        saved ? site.setAttribute('class', saved) : site.removeAttribute('class');
-        // Restore active overrides
         for (const [k, v] of activeOverrides) { if (v) site.style.setProperty(k, v); }
-
-        this._colors    = colorCache;
-        this._themeVars = varCache;
+        this._colors    = colors;
+        this._themeVars = vars;
     }
 
     // ── Theme selection ───────────────────────────────────────────────────────
@@ -868,26 +833,6 @@ class FeezalSidebarThemes extends LitElement {
 
     // ── Render helpers ────────────────────────────────────────────────────────
 
-    _renderSwatches(cls) {
-        const palette = cls === 'default'
-            ? DEFAULT_SWATCHES
-            : (this._colors[cls] || []);   // empty → placeholder
-
-        if (palette.length === 0) {
-            // Not yet sampled — show neutral placeholders
-            return html`<div class="swatches">
-                <div class="swatch" style="background:#e0e0e0"></div>
-                <div class="swatch" style="background:#bdbdbd"></div>
-                <div class="swatch" style="background:#757575"></div>
-            </div>`;
-        }
-
-        return html`<div class="swatches">
-            ${palette.slice(0, 3).map(c => html`
-                <div class="swatch" style="background:${c}"></div>`)}
-        </div>`;
-    }
-
     render() {
         const npmThemes = this.themes.map(t => ({cls: pkgToClass(t), label: pkgToLabel(t), user: false}));
         const userOpts  = this._userThemes.map(t => ({cls: t.slug, label: t.label, user: true}));
@@ -896,7 +841,6 @@ class FeezalSidebarThemes extends LitElement {
             ...npmThemes,
             ...userOpts
         ];
-        const current      = all.find(t => t.cls === this.currentTheme) || all[0];
         const isDefault    = this.currentTheme === 'default';
         const activeCount  = Object.values(this._overrides).filter(v => v).length;
         const themeVars    = this._themeVars[this.currentTheme] || {};
@@ -910,37 +854,16 @@ class FeezalSidebarThemes extends LitElement {
                 <sl-tab-panel name="theme">
             <div class="section">
                 <div class="section-label">Theme</div>
-                <div class="picker">
-                    <button class="trigger"
-                        @click="${() => {
-                            if (!this._open && Object.keys(this._colors).length === 0) {
-                                this._sampleColors();
-                            }
-                            this._open = !this._open;
-                        }}">
-                        ${this._renderSwatches(current.cls)}
-                        <span class="trigger-name">${current.label}</span>
-                        <span class="trigger-arrow">${this._open ? '▴' : '▾'}</span>
-                    </button>
-
-                    ${this._open ? html`
-                        <div class="dropdown">
-                            ${all.map(t => html`
-                                <div class="option ${t.cls === this.currentTheme ? 'active' : ''}"
-                                    @click="${() => this._selectTheme(t.cls)}">
-                                    ${this._renderSwatches(t.cls)}
-                                    <span class="option-name">${t.label}</span>
-                                    ${t.user ? html`<span class="option-user">✏</span>` : ''}
-                                    ${t.cls === this.currentTheme
-                                        ? html`<span class="option-check">✓</span>`
-                                        : html``}
-                                    ${t.user ? html`
-                                        <button class="option-del" title="Delete theme"
-                                            @click="${e => this._deleteUserTheme(t.cls, e)}">×</button>
-                                    ` : ''}
-                                </div>`)}
-                        </div>` : html``}
-                </div>
+                <!-- U53: the shared styled picker (same control as the view
+                     inspector's per-view theme). Colours are sampled here so
+                     the override placeholders stay in sync. -->
+                <feezal-theme-select
+                    .options="${all}"
+                    .colors="${Object.keys(this._colors).length ? {default: DEFAULT_SWATCHES, ...this._colors} : null}"
+                    .value="${this.currentTheme}"
+                    @change="${e => this._selectTheme(e.detail.value)}"
+                    @delete-theme="${e => this._deleteUserTheme(e.detail.cls, e)}">
+                </feezal-theme-select>
             </div>
 
             <div class="overrides-section">

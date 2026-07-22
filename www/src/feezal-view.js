@@ -87,18 +87,16 @@ class FeezalView extends LitElement {
                 {
                     // U51 — per-view theme. Themes are class-scoped
                     // (.feezal-theme-<n> { --vars… }), so putting the class on
-                    // the view scopes the theme to this view only. Options
-                    // resolve at inspector-render time from the installed
-                    // theme packages; × (U44) clears back to the site theme.
+                    // the view scopes the theme to this view only.
+                    // U53: rendered by the SHARED styled picker (shortened
+                    // names + colour swatches — the same control as the site
+                    // theme selector). Its element mount keeps the B50
+                    // contract: a leading "Site theme (default)" entry and a
+                    // × clear, both REMOVING the attribute.
                     name: 'theme',
-                    dropdown: (typeof window !== 'undefined' && window.feezal?.themes)
-                        ? window.feezal.themes.map(p => p.split('/').pop())
-                        : [],
+                    type: 'custom',
+                    component: 'feezal-theme-select',
                     default: '',
-                    // B50: explicit way back to the site theme (the × clear
-                    // works too, but a select always shows a value).
-                    emptyOption: 'Site theme (default)',
-                    help: 'Render this view in its own theme — e.g. a dark camera wall next to a light living room. Empty = the site theme. Suppressed while a user/MQTT theme override is active (the user’s choice wins everywhere).'
                 },
                 // U41 — flow knobs; U39 conditional visibility hides them unless
                 // the view is in flow mode.
