@@ -59,7 +59,6 @@ Work in progress — priorities and scope are not final.
 - [E124 — Battery-powered sensors: dedicated low-battery indicator (contact + motion/occupancy)](#e124--battery-powered-sensors-dedicated-low-battery-indicator-contact--motionoccupancy)
 - [E125 — Homematic battery voltage (`OPERATING_VOLTAGE`)](#e125--homematic-battery-voltage-operating_voltage--future) 💡
 - [E128 — Homematic blinds: settling behaviour + `DIRECTION` indicator](#e128--homematic-blinds-settling-behaviour--direction-indicator-later--after-e127) *(later)*
-- [E130 — material-outlet: auto-discovery + rename to "Switch" (family consistency)](#e130--material-outlet-auto-discovery--rename-to-switch-family-consistency)
 - [E131 — Homematic motion detector discovery → *-motion/occupancy elements](#e131--homematic-motion-detector-discovery--motionoccupancy-elements)
 - [E132 — Generalize the boolean-sensor family: *-occupancy → *-sensor, numeric *-sensor → *-number](#e132--generalize-the-boolean-sensor-family--occupancy---sensor-numeric--sensor---number)
 - [E133 — Palette category rename: "Material" → "Circle", "Simple" → "Material"](#e133--palette-category-rename-material--circle-simple--material)
@@ -1311,20 +1310,6 @@ Blinds/covers have **the same LEVEL ramp problem** as dimmers (position reports 
 **Sequencing vs. E137 (controller extraction):** either order works — if E128 lands before `CoverController`, it wires E127's `SettlingController` directly (as planned above) and migrates into the controller with the rest of the cover behavior; if the extraction lands first, E128's settling + `DIRECTION` wiring is implemented *inside* `CoverController` (and every cover family gets it at once). The settling attributes end up in the controller's declared fragment either way (E137's settling decision).
 
 **Relates:** **E127** (the machinery this reuses — do first), **E137** (controller extraction — cover settling ends up inside `CoverController`; see sequencing note), E108 ✅ (recognizer), E114 (parity), E120 ✅-era cover-discovery work (same recognizer area).
-
-### E130 — material-outlet: auto-discovery + rename to "Switch" (family consistency)
-
-Two gaps in the E121 ✅ outlet card:
-
-**1. No auto-discovery.** E121 deliberately shipped without a discovery descriptor ("would collide with light/switch discovery") — but glass-switch and metro-switch both carry `discovery: {component: 'switch', …}`, so the Material family's card is the odd one out: a discovered switch (zigbee2mqtt, and E126's Homematic word-list switches once they land) can be assigned to the glass or metro card but not to the material one. **Add the same `discovery` descriptor** (component `switch`, mapping `state_topic`/`command_topic`/`payload_on`/`payload_off`/`value_template`/`name` exactly like glass-switch, availability via N31's canonical record). Verify the original collision concern against today's assignment flow: the discovery sidebar offers *all* elements whose `discovery.component` matches — multiple candidates are a user choice, not a conflict (that's exactly how glass-switch and metro-switch already coexist for the same discovered device).
-
-**2. Rename to "Switch" — with a constraint the request needs to know about:** glass and metro call their card **"Switch"**; material calls it **"Outlet"**. But the tag/package `feezal-element-material-switch` is **already taken** — by the *Simple*-category toggle control (palette 'Switch', category 'Simple'), whose MQTT contract the family cards mirror. Decided approach, staged:
-   - **Now: palette-name rename only** — `material-outlet`'s palette entry becomes `name: 'Switch'` (category Material/Device, icon can stay `power` or align to `power_settings_new` like the siblings). User-visible consistency across all three families, **zero dashboard breakage** (the tag stays `feezal-element-material-outlet`); description updated ("switch / smart-plug card").
-   - **Later (blocked): tag/package alignment** — a true rename to `feezal-element-material-switch` requires first renaming the Simple toggle control's package *and* a saved-dashboard migration story (tag aliasing at load, or A23's unknown-tag detection extended into a rename map). Not worth breaking saved views for; park it until a tag-alias mechanism exists (E115's family-switching machinery is the natural home for one).
-
-**Ships with:** discovery descriptor + palette rename in one patch bump, TESTING.md updates (discovered z2m switch offers all three family cards incl. material; palette shows "Switch" in all three families; existing dashboards with `material-outlet` tags unaffected).
-
-**Relates:** E121 ✅ (the outlet card), E126 (Homematic switch discovery — its discovered plugs/switches should offer this card), glass-switch / metro-switch (discovery descriptor + naming to mirror), E114 (family parity contract), E115 (element family switching — future home of a tag-alias mechanism for the full rename), material-switch (the Simple toggle that owns the tag).
 
 ### E131 — Homematic motion detector discovery → *-motion/occupancy elements
 

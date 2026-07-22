@@ -52,13 +52,28 @@ describe('feezal-element-material-outlet (E121)', () => {
 
     it('declares its own palette identity and no mode/brightness attributes', () => {
         const cls = customElements.get('feezal-element-material-outlet');
-        expect(cls.feezal.palette).toMatchObject({name: 'Outlet', category: 'Material'});
+        // E130: palette name aligned with glass-switch/metro-switch; the tag stays material-outlet.
+        expect(cls.feezal.palette).toMatchObject({name: 'Switch', category: 'Material'});
         const names = cls.feezal.attributes.map(a => a.name);
         expect(names).not.toContain('mode');
         expect(names).not.toContain('subscribe-brightness');
         expect(names).toContain('subscribe-state');
         // no custom inspector inherited — the reduced attribute list uses the generic panel
         expect(cls.feezal.inspector).toBeUndefined();
+    });
+
+    it('E130: carries the family switch discovery contract (glass/metro parity)', () => {
+        const cls = customElements.get('feezal-element-material-outlet');
+        expect(cls.feezal.discovery.component).toBe('switch');
+        expect(cls.feezal.discovery.map).toMatchObject({
+            state_topic:   'subscribe-state',
+            command_topic: 'publish-state',
+            payload_on:    'payload-on',
+            payload_off:   'payload-off',
+            name:          'label',
+        });
+        expect(cls.feezal.discovery.map.value_template)
+            .toEqual({attr: 'message-property', transform: 'valueTemplateToPath'});
     });
 
     it('shares the light theme tokens for styling', () => {

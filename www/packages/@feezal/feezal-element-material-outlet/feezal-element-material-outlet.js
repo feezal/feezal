@@ -23,10 +23,28 @@ import {FeezalElementMaterialLight} from '@feezal/feezal-element-material-light'
 class FeezalElementMaterialOutlet extends FeezalElementMaterialLight {
     static get feezal() {
         return {
-            palette: {name: 'Outlet', category: 'Material', color: '#1565c0', icon: 'power'},
-            description: 'Smart plug / outlet card — a large round power button that subscribes to an ' +
+            // E130: palette name aligned with glass-switch/metro-switch — the
+            // tag stays feezal-element-material-outlet (the material-switch
+            // tag belongs to the MD3 toggle control; zero dashboard breakage).
+            palette: {name: 'Switch', category: 'Material', color: '#1565c0', icon: 'power'},
+            description: 'Switch / smart-plug card — a large round power button that subscribes to an ' +
                 'on/off state topic and publishes on tap. Same look and theme tokens as the Material ' +
                 'light card, without any dimming controls.',
+            // E130: same discovery contract as glass-switch/metro-switch —
+            // wired to this card's separate-mode attrs (subscribe-state /
+            // publish-state; the state read falls back to message-property).
+            // N31 maps availability automatically from the canonical record.
+            discovery: {
+                component: 'switch',
+                map: {
+                    state_topic:    'subscribe-state',
+                    command_topic:  'publish-state',
+                    payload_on:     'payload-on',
+                    payload_off:    'payload-off',
+                    value_template: {attr: 'message-property', transform: 'valueTemplateToPath'},
+                    name:           'label',
+                },
+            },
             attributes: [
                 {name: 'payload-mode', type: 'select', options: ['separate', 'json'], default: 'separate', help: 'separate = dedicated on/off state topic; json = single topic carrying a JSON object.'},
                 {name: 'subscribe', type: 'mqttTopic', help: 'JSON mode: base topic carrying the state JSON object. Separate mode: on/off state topic (fallback for subscribe-state). Also serves as base for dynamic attribute overrides via `<subscribe>/#`.'},
