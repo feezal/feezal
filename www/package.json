@@ -12,7 +12,7 @@
         "test:coverage": "vitest run --coverage",
         "test:browser": "vitest run --config vitest.browser.config.mjs",
         "test:e2e": "vitest run --config vitest.e2e.config.mjs",
-        "coverage:e2e-report": "node scripts/e2e-coverage-report.mjs"
+        "coverage:e2e-report": "node --max-old-space-size=8192 scripts/e2e-coverage-report.mjs"
     },
     "author": "Sebastian Raff <hobbyquaker@gmail.com>",
     "license": "AGPL-3.0-only",
