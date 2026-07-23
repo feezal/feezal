@@ -64,7 +64,7 @@ describe('ai/tools — matchElements (only real tags)', () => {
     const catalogue = [
         {tag: 'feezal-element-material-switch', name: 'Switch', category: 'material', attributes: ['subscribe', 'publish', 'payload-on', 'payload-off']},
         {tag: 'feezal-element-paper-switch',    name: 'Switch', category: 'paper',    attributes: ['subscribe', 'publish']},
-        {tag: 'feezal-element-material-light',  name: 'Light',  category: 'material', attributes: ['subscribe', 'publish']},
+        {tag: 'feezal-element-circle-light',  name: 'Light',  category: 'material', attributes: ['subscribe', 'publish']},
         {tag: 'feezal-element-basic-gauge',     name: 'Gauge',  category: 'basic',    attributes: ['subscribe']},
     ];
     it('"switch" returns the real switch tags (never the invented feezal-element-switch)', () => {
@@ -75,7 +75,7 @@ describe('ai/tools — matchElements (only real tags)', () => {
     });
     it('"light" returns the light element with its attributes', () => {
         const r = tools.matchElements(catalogue, 'light');
-        expect(r[0].tag).toBe('feezal-element-material-light');
+        expect(r[0].tag).toBe('feezal-element-circle-light');
         expect(r[0].attributes).toContain('publish');
     });
 });

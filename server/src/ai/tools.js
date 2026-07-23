@@ -214,7 +214,7 @@ const TOOL_SPECS = [
             'real element {tag, name, category, attributes}. You MUST pick element ' +
             'tags ONLY from results of this tool (or the catalogue) — never invent a ' +
             'tag. E.g. "switch" → feezal-element-material-switch / ' +
-            'feezal-element-paper-switch; "light" → feezal-element-material-light.',
+            'feezal-element-paper-switch; "light" → feezal-element-circle-light.',
         parameters: {
             type: 'object',
             properties: {

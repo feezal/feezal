@@ -42,6 +42,33 @@ function _fmtCommitLabel(msg) {
  * @param {object}         [config.logger]          Logger with debug/info/warn/error methods.
  * @returns {Promise<{app: express.Application, server: http.Server, io: SocketIO}>}
  */
+
+/**
+ * Register the body parsers in the correct order. Shared by createApp and the
+ * API integration tests so both see the same parsing behaviour.
+ *
+ * The critical ordering: the global JSON parser must NOT consume a raw asset
+ * upload (POST /api/assets/:site), whose body is the file's bytes for ANY
+ * content-type — including a Lottie `.json` that the browser sends as
+ * `application/json`. If the JSON parser objectified it first, express.raw in
+ * the assets route would skip (body-parsers set req._body) and the write would
+ * fail with "data must be a string/Buffer/… — received an Object". The
+ * PATCH/mkdir/transfer siblings on the same path still get JSON.
+ * @param {express.Application} app
+ */
+function configureBodyParsers(app) {
+    // A9: PWA icon uploads carry a base64-encoded icon set + source image —
+    // larger limit, parsed before the default parser (which skips bodies that
+    // are already parsed).
+    app.use('/api/sites/:name/pwa-icons', express.json({limit: '25mb'}));
+    const jsonParser = express.json();
+    app.use((req, res, next) => {
+        if (req.method === 'POST' && /^\/api\/assets\/[^/]+\/?$/.test(req.path)) return next();
+        return jsonParser(req, res, next);
+    });
+    app.use(express.urlencoded({extended: false}));
+}
+
 async function createApp(config) {
     const {
         wwwDir,
@@ -82,14 +109,9 @@ async function createApp(config) {
         path: '/socket.io'
     });
 
-    // --- Body parsing ---
-    // A9: PWA icon uploads carry a base64-encoded icon set + source image —
-    // they need a larger limit and must be parsed BEFORE the default parser,
-    // which would reject them with 413 at its 100kb default. The default
-    // parser skips bodies that are already parsed.
-    app.use('/api/sites/:name/pwa-icons', express.json({limit: '25mb'}));
-    app.use(express.json());
-    app.use(express.urlencoded({extended: false}));
+    // --- Body parsing (extracted so the API integration tests exercise the
+    // exact same parser ordering, incl. the raw-asset upload carve-out) ---
+    configureBodyParsers(app);
 
     // --- A25: Content-Security-Policy ------------------------------------
     // The structural no-third-party guarantee: scripts, styles and fonts may
@@ -204,6 +226,7 @@ async function createApp(config) {
         getDiscoveredEntities: mqttBridge.getDiscoveredEntities,
         getDiscoveredEntity:   mqttBridge.getDiscoveredEntity,
         getDeviceGroups:       mqttBridge.getDeviceGroups,
+        setDiscoveryStale:     mqttBridge.setDiscoveryStale,
         emitElementsChanged:   () => io.emit('elementsChanged'),
     }));
 
@@ -509,3 +532,4 @@ ${iconScripts}${userPkgScripts}
 }
 
 module.exports = createApp;
+module.exports.configureBodyParsers = configureBodyParsers;

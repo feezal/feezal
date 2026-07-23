@@ -32,10 +32,10 @@ describe('extractUsedElements', () => {
     });
 
     it('picks up the repeater child-element attribute (no matching tag in markup)', () => {
-        const html = `<feezal-element-layout-repeater child-element="feezal-element-material-light"></feezal-element-layout-repeater>`;
+        const html = `<feezal-element-layout-repeater child-element="feezal-element-circle-light"></feezal-element-layout-repeater>`;
         expect(extractUsedElements(html)).toEqual([
+            'feezal-element-circle-light',
             'feezal-element-layout-repeater',
-            'feezal-element-material-light',
         ]);
     });
 

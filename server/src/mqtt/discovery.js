@@ -450,4 +450,4 @@ function getDeviceGroups() {
     return [...groups.values()];
 }
 
-module.exports = { handleMessage, getDiscoveredEntities, getDiscoveredEntity, clearEntities, getDeviceGroups };
+module.exports = { handleMessage, getDiscoveredEntities, getDiscoveredEntity, clearEntities, getDeviceGroups, setHomematicClimateStale: native.setHomematicClimateStale };

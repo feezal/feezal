@@ -5,7 +5,7 @@
  */
 import {describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {createRequire} from 'module';
-import {mkdtemp, rm} from 'fs/promises';
+import {mkdtemp, rm, readFile} from 'fs/promises';
 import {tmpdir} from 'os';
 import {join} from 'path';
 import request from 'supertest';
@@ -13,6 +13,7 @@ import request from 'supertest';
 const require = createRequire(import.meta.url);
 const FilesystemStorage = require('../src/storage/filesystem.js');
 const createApiRouter = require('../src/routes/api.js');
+const {configureBodyParsers} = require('../src/app.js');
 const express = require('express');
 
 const silent = {debug() {}, info() {}, warn() {}, error() {}};
@@ -23,7 +24,9 @@ beforeEach(async () => {
     storage = new FilesystemStorage(dataDir);
     storage._logger = silent;
     app = express();
-    app.use(express.json());
+    // Use the production body-parser ordering (incl. the raw-asset upload
+    // carve-out) so uploads behave exactly as they do in the real server.
+    configureBodyParsers(app);
     app.use('/api', createApiRouter(storage, '/dev/null', silent));
 });
 afterEach(async () => { await rm(dataDir, {recursive: true, force: true}); });
@@ -62,6 +65,25 @@ describe('upload + list', () => {
     it('rejects a traversal path with 400', async () => {
         const res = await upload('s', '../evil.png', 'site', Buffer.from('x'));
         expect(res.status).toBe(400);
+    });
+
+    it('stores a JSON asset sent as application/json byte-exact (Lottie regression)', async () => {
+        // A Lottie animation is uploaded with Content-Type: application/json.
+        // The global JSON parser must NOT objectify it — the raw bytes have to
+        // reach express.raw and disk. Previously this failed with "data ...
+        // received an instance of Object" (only JSON uploads broke; images/PDFs
+        // carry a non-JSON content-type and were unaffected).
+        const lottie = JSON.stringify({v: '5.7.4', fr: 30, layers: [{ty: 4, nm: 'shape'}]});
+        const res = await request(app)
+            .post('/api/assets/s?path=Success.json&category=site')
+            .set('Content-Type', 'application/json')
+            .send(lottie);
+        expect(res.status).toBe(201);
+        // Stored byte-exact (not re-serialised / objectified).
+        const stored = await readFile(join(storage._assetBase('site', 's'), 'Success.json'), 'utf8');
+        expect(stored).toBe(lottie);
+        const list = await request(app).get('/api/assets/s');
+        expect(list.body.site.map(f => f.path)).toContain('Success.json');
     });
 });
 

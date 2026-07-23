@@ -35,15 +35,22 @@
 let hmPrefix = 'hm';
 function setHomematicPrefix(p) { hmPrefix = String(p || 'hm').replace(/\/+$/, ''); }
 
-// Staleness filter for CLIMATE ONLY. A thermostat publishes ACTUAL_TEMPERATURE
-// every few minutes, so a live device's newest datapoint timestamp is always
-// recent; a device whose newest `ts` is older than this is treated as a stale
-// "ghost" (old RETAINED topics left behind by a replaced device that shared the
-// name) and skipped. 7 days is far below any real ghost (months/years old) yet
-// far above any live thermostat's reporting gap. NOT applied to contact/cover/
-// light — those are event-driven and can be legitimately quiet. 0 disables it.
-let hmClimateStaleMs = 7 * 24 * 60 * 60 * 1000;
+// Staleness ("grace period") filter for CLIMATE ONLY. Premise: a live thermostat
+// publishes ACTUAL_TEMPERATURE periodically, so a heating device whose newest
+// `ts` is older than the window is a likely "ghost" — old RETAINED topics from a
+// replaced device. The window must be generous, because a stable HEATING GROUP
+// (or a thermostat whose setpoint hasn't changed and whose room is quiet) can
+// legitimately go a while without a fresh ts. Configurable from Editor Settings →
+// Autodiscovery (persisted in editor.json, applied via setHomematicClimateStale);
+// default ON with a 30-day grace. NOT applied to contact/cover/light — those are
+// event-driven and legitimately quiet, so a stale ts there means nothing.
+const DAY_MS = 24 * 60 * 60 * 1000;
+let hmClimateStaleMs = 30 * DAY_MS;
 function setHomematicClimateStaleMs(ms) { hmClimateStaleMs = Number(ms) || 0; }
+// {enabled, days} form used by the editor-prefs plumbing (enabled:false → off).
+function setHomematicClimateStale({enabled, days} = {}) {
+    hmClimateStaleMs = enabled ? Math.max(0, Number(days) || 0) * DAY_MS : 0;
+}
 
 // Thermostat datapoint whitelist — only these are worth tracking off the firehose.
 const HM_THERMOSTAT_DPS = new Set([
@@ -221,12 +228,10 @@ const hmClimateRecognizer = {
     },
 
     promote(dev) {
-        // Staleness filter: skip a "ghost" device (stale retained topics left by a
-        // replaced device that shared the name). A live thermostat's newest ts is
-        // always recent; only genuinely dead devices exceed hmClimateStaleMs.
-        if (hmClimateStaleMs > 0 && dev.lastTs && (Date.now() - dev.lastTs) > hmClimateStaleMs) {
-            return null;
-        }
+        // Staleness ghost-filter is applied at read time in getNativeEntities()
+        // (keyed on the entity's newest `ts`), so a config change from Editor
+        // Settings → Autodiscovery takes effect immediately without waiting for a
+        // fresh message to re-promote each device.
         const channels = [...dev.channels.values()];
 
         // Pick the control channel: prefer the CCU-declared climate-control
@@ -1292,6 +1297,10 @@ const recognizers = [hmClimateRecognizer, wledRecognizer, hmContactRecognizer, h
 /** @type {Map<string, object>} discovery_id → promoted native entity */
 const nativeEntities = new Map();
 
+/** @type {Map<string, number>} discovery_id → newest datapoint ts (liveness),
+ *  used by the read-time climate staleness filter in getNativeEntities(). */
+const nativeEntityTs = new Map();
+
 /**
  * Extract a value from a raw MQTT payload. MQTT-Smarthome "JSON Extended"
  * ({"val":…}) → `.val`; other JSON → the parsed object; otherwise the string.
@@ -1358,13 +1367,28 @@ function handleNativeMessage(topic, payloadOrBuf) {
 
         let entity;
         try { entity = rec.promote(channelState); } catch { continue; }
-        if (entity && entity.discovery_id) nativeEntities.set(entity.discovery_id, entity);
+        if (entity && entity.discovery_id) {
+            nativeEntities.set(entity.discovery_id, entity);
+            // Stamp the device's newest ts for the read-time staleness filter.
+            if (channelState && typeof channelState.lastTs === 'number') {
+                nativeEntityTs.set(entity.discovery_id, channelState.lastTs);
+            }
+        }
     }
 }
 
-/** All promoted native entities, same shape as discovery.js entities. */
+/** All promoted native entities, same shape as discovery.js entities. Climate
+ *  entities older than the configured grace window are filtered out here (the
+ *  ghost-topic filter); event-driven types are always kept. */
 function getNativeEntities() {
-    return [...nativeEntities.values()];
+    const all = [...nativeEntities.values()];
+    if (!hmClimateStaleMs) return all;
+    const now = Date.now();
+    return all.filter(e => {
+        if (e.component !== 'climate') return true;
+        const ts = nativeEntityTs.get(e.discovery_id);
+        return !ts || (now - ts) <= hmClimateStaleMs;
+    });
 }
 
 /** One promoted native entity by discovery_id, or null. */
@@ -1375,6 +1399,7 @@ function getNativeEntity(id) {
 /** Clear promoted entities AND every recognizer's accumulator. */
 function clearNativeEntities() {
     nativeEntities.clear();
+    nativeEntityTs.clear();
     for (const rec of recognizers) {
         try { rec.reset(); } catch { /* ignore */ }
     }
@@ -1387,6 +1412,7 @@ module.exports = {
     clearNativeEntities,
     setHomematicPrefix,
     setHomematicClimateStaleMs,
+    setHomematicClimateStale,
     // exported for tests / reuse
     extractValue,
     parsePayload,

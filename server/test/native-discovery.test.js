@@ -9,7 +9,7 @@
  * datapoint signatures. These tests therefore feed REAL-shaped payloads with the
  * `hm` metadata, plus a metadata-less path exercising the datapoint fallback.
  */
-import {describe, it, expect, beforeEach} from 'vitest';
+import {describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {createRequire} from 'module';
 
 const require = createRequire(import.meta.url);
@@ -111,27 +111,71 @@ describe('Homematic climate recognizer — HmIP wall thermostat (WTH-2)', () => 
     });
 });
 
-describe('Homematic climate recognizer — staleness filter (ghost devices)', () => {
-    it('skips a device whose newest datapoint is older than the stale window', () => {
+describe('Homematic climate recognizer — staleness ghost filter (grace period)', () => {
+    // Default is ON at 30 days (configurable from Editor Settings → Autodiscovery).
+    // The filter applies at read time in getNativeEntities() — the discovery-picker
+    // list — while getNativeEntity() (single-id re-sync of an already-placed
+    // element) always resolves, stale or not.
+    afterEach(() => nat.setHomematicClimateStale({enabled: true, days: 30}));   // restore default
+
+    const staleThermostat = (ageDays = 40) => {
         const dev = 'KEQ1035974';
         const hm = {
             device: dev, deviceName: 'Thermostat Hobbyraum', deviceType: 'HM-TC-IT-WM-W-EU',
             channel: dev + ':2', channelName: 'Thermostat Hobbyraum:2',
             channelType: 'THERMALCONTROL_TRANSMIT', channelIndex: 2, iface: 'BidCos-RF',
         };
-        const old = Date.now() - 30 * 24 * 60 * 60 * 1000;   // 30 days ago (window is 7d)
+        const old = Date.now() - ageDays * 24 * 60 * 60 * 1000;
         nat.handleNativeMessage('hm/status/Thermostat Hobbyraum:2/SET_TEMPERATURE',
             je(12, {...hm, datapoint: 'SET_TEMPERATURE'}, old));
         nat.handleNativeMessage('hm/status/Thermostat Hobbyraum:2/CONTROL_MODE',
             je(1, {...hm, datapoint: 'CONTROL_MODE'}, old));
+        return {id: 'hm-climate:KEQ1035974', hm};
+    };
 
-        // Stale → filtered out entirely.
-        expect(nat.getNativeEntity('hm-climate:KEQ1035974')).toBe(null);
+    it('default ON (30d): hides a climate device older than the grace period from the list', () => {
+        const {id} = staleThermostat(40);   // 40 days old > 30d grace
+        expect(byId(nat.getNativeEntities(), id)).toBe(null);
+        // ...but a direct re-sync lookup still resolves it (an already-placed element).
+        expect(nat.getNativeEntity(id)).toBeTruthy();
+    });
 
-        // A subsequent FRESH message on the same device revives it.
+    it('a fresh message revives a previously-stale device', () => {
+        const {id, hm} = staleThermostat(40);
+        expect(byId(nat.getNativeEntities(), id)).toBe(null);
         nat.handleNativeMessage('hm/status/Thermostat Hobbyraum:2/ACTUAL_TEMPERATURE',
             je(19.7, {...hm, datapoint: 'ACTUAL_TEMPERATURE'}));   // fresh ts (now)
-        expect(nat.getNativeEntity('hm-climate:KEQ1035974')).toBeTruthy();
+        expect(byId(nat.getNativeEntities(), id)).toBeTruthy();
+    });
+
+    it('disabled: every device shows regardless of age', () => {
+        nat.setHomematicClimateStale({enabled: false});
+        const {id} = staleThermostat(400);
+        expect(byId(nat.getNativeEntities(), id)).toBeTruthy();
+    });
+
+    it('a stable heating group within the grace window still appears (heating-group fix)', () => {
+        // 20 days old, < 30d grace → kept: a live heating group whose setpoint has
+        // not changed must not be treated as a ghost.
+        const dev = 'INT0000012';
+        const hm = {
+            device: dev, deviceName: 'Heizungsgruppe Wohnzimmer INT0000012', deviceType: 'HmIP-HEATING',
+            channel: dev + ':1', channelName: 'Heizungsgruppe Wohnzimmer:1',
+            channelType: 'HEATING_CLIMATECONTROL_TRANSCEIVER', channelIndex: 1, iface: 'HmIP-RF',
+        };
+        const old = Date.now() - 20 * 24 * 60 * 60 * 1000;
+        nat.handleNativeMessage('hm/status/Heizungsgruppe Wohnzimmer INT0000012:1/SET_POINT_TEMPERATURE',
+            je(21, {...hm, datapoint: 'SET_POINT_TEMPERATURE', datapointMin: 4.5, datapointMax: 30.5}, old));
+
+        expect(byId(nat.getNativeEntities(), 'hm-climate:INT0000012')).toBeTruthy();
+    });
+
+    it('{enabled, days} config maps to the read-time window', () => {
+        nat.setHomematicClimateStale({enabled: true, days: 7});
+        const {id} = staleThermostat(10);   // 10 days old > 7d window
+        expect(byId(nat.getNativeEntities(), id)).toBe(null);
+        nat.setHomematicClimateStale({enabled: true, days: 30});
+        expect(byId(nat.getNativeEntities(), id)).toBeTruthy();   // 10 days < 30d → back
     });
 });
 

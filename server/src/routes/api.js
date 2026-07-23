@@ -68,7 +68,7 @@ const { version: currentVersion } = require(path.join(__dirname, '../../package.
  * @param {object} logger
  * @returns {express.Router}
  */
-function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, getDiscoveredEntities = null, getDiscoveredEntity = null, getDeviceGroups = null, emitElementsChanged = null} = {}) {
+function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, getDiscoveredEntities = null, getDiscoveredEntity = null, getDeviceGroups = null, setDiscoveryStale = null, emitElementsChanged = null} = {}) {
     const router = express.Router();
 
     // Version info
@@ -83,6 +83,25 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
     // data dir the store is empty and writes are dropped (the client falls
     // back to localStorage).
     const editorPrefsPath = () => storage.dataDir ? path.join(storage.dataDir, 'editor.json') : null;
+
+    // Autodiscovery grace period (Editor Settings → Autodiscovery): hide stale
+    // "ghost" climate devices after N days. Persisted in editor.json and applied
+    // to the discovery engine. Defaults match the engine's own default (ON, 30d),
+    // so an absent pref needs no action — but we still apply on start so a saved
+    // override survives a restart.
+    const DISCOVERY_GRACE_DEFAULT = {enabled: true, days: 30};
+    const applyDiscoveryPrefs = prefs => {
+        if (!setDiscoveryStale) return;
+        setDiscoveryStale({
+            enabled: prefs.discoveryGraceEnabled ?? DISCOVERY_GRACE_DEFAULT.enabled,
+            days:    prefs.discoveryGraceDays    ?? DISCOVERY_GRACE_DEFAULT.days,
+        });
+    };
+    (() => {
+        const file = editorPrefsPath();
+        if (!file) { applyDiscoveryPrefs({}); return; }
+        fs.readFile(file, 'utf8').then(t => JSON.parse(t)).catch(() => ({})).then(applyDiscoveryPrefs);
+    })();
 
     router.get('/editor/prefs', (_req, res) => {
         const file = editorPrefsPath();
@@ -101,7 +120,14 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
         fs.readFile(file, 'utf8')
             .then(text => JSON.parse(text))
             .catch(() => ({}))
-            .then(prefs => fs.writeFile(file, JSON.stringify({...prefs, ...req.body}, null, 2)))
+            .then(prefs => {
+                const merged = {...prefs, ...req.body};
+                // Push discovery-grace changes to the running engine immediately.
+                if ('discoveryGraceEnabled' in req.body || 'discoveryGraceDays' in req.body) {
+                    applyDiscoveryPrefs(merged);
+                }
+                return fs.writeFile(file, JSON.stringify(merged, null, 2));
+            })
             .then(() => res.status(204).end())
             .catch(err => res.status(500).json({error: err.message}));
     });
