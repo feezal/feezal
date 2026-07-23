@@ -81,10 +81,24 @@ function createHub(io, {storage, logger}) {
                 data.site = data.site || {name: 'default'};
                 const siteName = data.site.name;
 
-                const formattedHtml = prettyHtml(data.html, {
-                    tabWidth: 4,
-                    prettier: {jsxBracketSameLine: true}
-                }).toString();
+                // Pretty-printing is cosmetic — a formatter/parser failure must
+                // never block the save (that loses the user's work). prettyhtml's
+                // parser (rehype-webparser) can choke on some attribute
+                // combinations — notably an element whose `type` attribute value
+                // it mistakes for a hast node type ("Cannot compile unknown node
+                // `<value>`"). On any failure, fall back to the raw HTML: it is
+                // the exact same DOM the editor serialized, just not indented.
+                let formattedHtml;
+                try {
+                    formattedHtml = prettyHtml(data.html, {
+                        tabWidth: 4,
+                        prettier: {jsxBracketSameLine: true}
+                    }).toString();
+                } catch (formatErr) {
+                    logger.warn('deploy: HTML formatting failed (' + formatErr.message +
+                        '); saving unformatted so the change is not lost');
+                    formattedHtml = data.html;
+                }
 
                 await storage.saveSite(siteName, {
                     html: formattedHtml,

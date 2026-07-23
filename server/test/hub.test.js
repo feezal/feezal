@@ -106,6 +106,23 @@ describe('getSite / deploy', () => {
         });
     });
 
+    it('deploy still saves when HTML formatting fails (never loses work)', async () => {
+        const client = await connectClient();
+        // prettyhtml's parser mishandles a `value` + `type` attribute combo and
+        // throws ("Cannot compile unknown node `generic`"). Formatting is
+        // cosmetic — the deploy must fall back to the raw HTML and still save,
+        // rather than dropping the change (the user could not save their work).
+        const html = '<feezal-site><feezal-view name="home">' +
+            '<feezal-element-glass-sensor value="" type="generic" subscribe="a/b"></feezal-element-glass-sensor>' +
+            '</feezal-view></feezal-site>';
+        await emitAck(client, 'deploy', {site: {name: 'unformattable'}, html});
+
+        const res = await emitAck(client, 'getSite', 'unformattable');
+        expect(res.views).toContain('feezal-element-glass-sensor');
+        expect(res.views).toContain('type="generic"');
+        expect(res.views).toContain('<feezal-view name="home">');
+    });
+
     it('deploy defaults the site name and notifies all clients to reload', async () => {
         const deployer = await connectClient();
         const bystander = await connectClient();
