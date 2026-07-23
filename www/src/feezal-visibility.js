@@ -24,8 +24,17 @@ export class FeezalVisibility {
         this.site = site;
         this._timers = new Map();   // view → grace timeout handle
         this._paused = new Set();   // views whose elements are unsubscribed
+        // The controller needs a real site element (attribute reads, DOM queries
+        // and a live MutationObserver). Some unit tests inject a plain-object
+        // stand-in for feezal.site (they exercise navigation, not N37); skip
+        // setup rather than throw inside the viewer's async init.
+        if (typeof site?.querySelectorAll !== 'function') return;
         this._observer = new MutationObserver(() => this.update());
-        this._observer.observe(site, {attributes: true, attributeFilter: ['view']});
+        try {
+            this._observer.observe(site, {attributes: true, attributeFilter: ['view']});
+        } catch {
+            this._observer = null;   // observe unsupported (e.g. happy-dom) — degrade
+        }
         this.update();
     }
 
@@ -92,7 +101,7 @@ export class FeezalVisibility {
     }
 
     dispose() {
-        this._observer.disconnect();
+        this._observer?.disconnect();
         for (const t of this._timers.values()) clearTimeout(t);
         this._timers.clear();
     }
