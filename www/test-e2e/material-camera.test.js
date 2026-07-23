@@ -13,11 +13,11 @@ const SITE = 'cameraclick';
 const PIXEL = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 const SITE_HTML =
     '<feezal-site><feezal-view name="main" style="width:100%;height:100%;">' +
-    `<feezal-element-material-camera id="cam-pub" type="image" src="${PIXEL}" click-action="publish" publish="cam/cmd" payload="snap" style="position:absolute;top:20px;left:20px;width:160px;height:100px;"></feezal-element-material-camera>` +
-    `<feezal-element-material-camera id="cam-pop" type="image" src="${PIXEL}" click-action="popup" label="garden" style="position:absolute;top:20px;left:220px;width:160px;height:100px;"></feezal-element-material-camera>` +
+    `<feezal-element-circle-camera id="cam-pub" type="image" src="${PIXEL}" click-action="publish" publish="cam/cmd" payload="snap" style="position:absolute;top:20px;left:20px;width:160px;height:100px;"></feezal-element-circle-camera>` +
+    `<feezal-element-circle-camera id="cam-pop" type="image" src="${PIXEL}" click-action="popup" label="garden" style="position:absolute;top:20px;left:220px;width:160px;height:100px;"></feezal-element-circle-camera>` +
     '<feezal-element-material-button label="press" publish="cam/under" payload="go" style="position:absolute;top:160px;left:20px;width:160px;height:60px;"></feezal-element-material-button>' +
-    `<feezal-element-material-camera id="cam-thru" type="image" src="${PIXEL}" click-through style="position:absolute;top:160px;left:20px;width:160px;height:60px;"></feezal-element-material-camera>` +
-    `<feezal-element-material-camera id="cam-anim" type="image" src="${PIXEL}" click-action="popup" popup-animation style="position:absolute;top:160px;left:220px;width:160px;height:100px;"></feezal-element-material-camera>` +
+    `<feezal-element-circle-camera id="cam-thru" type="image" src="${PIXEL}" click-through style="position:absolute;top:160px;left:20px;width:160px;height:60px;"></feezal-element-circle-camera>` +
+    `<feezal-element-circle-camera id="cam-anim" type="image" src="${PIXEL}" click-action="popup" popup-animation style="position:absolute;top:160px;left:220px;width:160px;height:100px;"></feezal-element-circle-camera>` +
     '</feezal-view></feezal-site>';
 
 let stack;
@@ -116,7 +116,7 @@ describe('webrtc (WHEP loopback)', () => {
     const RTC_SITE = 'camerartc';
     const RTC_HTML =
         '<feezal-site><feezal-view name="main" style="width:100%;height:100%;">' +
-        '<feezal-element-material-camera id="cam-rtc" type="webrtc" src="/fake-whep/cam" click-action="popup" style="position:absolute;top:20px;left:20px;width:320px;height:180px;"></feezal-element-material-camera>' +
+        '<feezal-element-circle-camera id="cam-rtc" type="webrtc" src="/fake-whep/cam" click-action="popup" style="position:absolute;top:20px;left:20px;width:320px;height:180px;"></feezal-element-circle-camera>' +
         '</feezal-view></feezal-site>';
 
     it('negotiates a WHEP session and plays live frames; the popup reuses the stream', async () => {
