@@ -86,7 +86,7 @@ One workspace package per function under `www/packages/@feezal/`:
 
 | Package | Controller | Adopted by |
 |---|---|---|
-| `@feezal/feezal-controller-sensor` | `SensorController` | material-motion, glass-occupancy, metro-occupancy |
+| `@feezal/feezal-controller-sensor` | `SensorController` | circle-motion, glass-occupancy, metro-occupancy |
 | `@feezal/feezal-controller-contact` | `ContactController` | material/glass/metro-contact |
 | `@feezal/feezal-controller-climate` | `ClimateController` | material/glass/metro-climate |
 

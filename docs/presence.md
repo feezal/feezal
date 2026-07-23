@@ -13,6 +13,14 @@ commands (monitoring-only). Disable presence in the editor under **Viewer
 Settings → Site → Viewer presence** (sets `presence="off"` on
 `<feezal-site>`).
 
+**Connection toasts (U48).** The transient "Connected as …" / renamed pop-ups
+can be silenced without turning presence off — **Viewer Settings → Site →
+Viewer presence → "Show connection toasts"** (sets `presence-toasts="off"` on
+`<feezal-site>`). Presence, status publishing and per-client commands all keep
+working; only the on-screen notifications go quiet. The sticky "already online
+in another browser" warning is never suppressed — it flags a real
+misconfiguration. Handy on a wall-mounted panel that reloads often.
+
 ## Client identity
 
 On first run a viewer generates a random client ID (`viewer-x7k2` style) and

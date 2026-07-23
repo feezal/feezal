@@ -3,7 +3,7 @@
 Completed and closed roadmap items — **one file per item**, named after its ID (e.g. `U39.md`).
 Open items live in [../ROADMAP.md](../ROADMAP.md).
 
-**252 items.**
+**256 items.**
 
 ## Bugs
 
@@ -98,6 +98,8 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [N37 — Pause subscriptions of hidden views (bandwidth saver) ✅ done](N37.md)
 
 ## Element Ecosystem
+- [E110 — Server-side HTTP→MQTT poller (bridge for services with no MQTT) ❌ won’t do](E110.md)
+- [E111 — Pi-hole integration ❌ won’t do](E111.md)
 
 - [E39 — Splash / FOUC-prevention element (`feezal-element-system-splash`) ✅ implemented](E39.md)
 - [E88 — JSON tree viewer (`feezal-element-basic-json`) ✅ implemented](E88.md)
@@ -105,11 +107,14 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [E102 — Climate elements: boost mode, thermostat mode datapoint conventions, valve position ✅ implemented (code-complete; hm2mqtt topic shapes pending live verification)](E102.md)
 - [E103 — WLED elements (Device / Glass / Metro) ✅ MVP implemented](E103.md)
 - [E108 — Native device self-discovery (Homematic climate + WLED) via server-side topic recognizers ✅ implemented (live-system smoke test pending)](E108.md)
-- [E121 — New element: outlet / plug card (`feezal-element-material-outlet`) ✅ implemented](E121.md)
+- [E121 — New element: outlet / plug card (`feezal-element-circle-switch`) ✅ implemented](E121.md)
 - [E122 — Lights: on/off-only mode (no dimming) ✅ implemented](E122.md)
 - [E123 — material-cover: stronger colour, and size parity with material-light ✅ implemented](E123.md)
 - [E124 — Battery-powered sensors: dedicated low-battery indicator (contact + motion/occupancy + climate) ✅ done](E124.md)
 - [E57 — E-ink / mono element family (`feezal-element-eink-*`) ✅ implemented](E57.md)
+- [E137 — Shared MQTT device contracts: extract behavior controllers (climate / light / cover / wled) ✅ implemented](E137.md)
+- [E138 — Contact / sensor / motion / value: untangle the boolean-card taxonomy ✅ implemented](E138.md)
+- [U57 — Theme selector: richer swatch (bg chip + role dots + accent) ✅ implemented](U57.md)
 - [E118 — `click-through` on `basic-number`, `basic-icon-value`, `basic-datetime` ✅ implemented](E118.md)
 - [E120 — Homematic cover discovery: wire Up/Down to the LEVEL set topic ✅ implemented](E120.md)
 - [E126 — Homematic discovery: switch recognizer with name word-list heuristic (+ light classification) ✅ implemented](E126.md)
@@ -124,8 +129,12 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [E133 — Palette category rename: "Material" → "Circle", "Simple" → "Material" ✅ done](E133.md)
 - [E134 — Circle design language: align the remaining device cards with light/climate/cover/switch ✅ done](E134.md)
 - [E136 — Metro tile backsides: redesign for touch — bigger targets, calmer layout, use the space ✅ done](E136.md)
+- [E34 — Countdown / timer element (`feezal-element-basic-countdown`) ✅ implemented](E34.md)
 ## Editor UX
+- [E115 — Switch an element to another family (context menu) ✅ implemented](E115.md)
 
+- [U30 — Auto-generated starter dashboard from MQTT discovery ⛔ superseded by U58](U30.md)
+- [U31 — Device-first element insertion ⛔ superseded by U58](U31.md)
 - [E1 — Migrate feezal-element-basic-* from Polymer to Lit ✅ implemented](E1.md)
 - [E2 — New modern element set ✅ implemented](E2.md)
 - [E3 — Element authoring template / CLI ✅ done](E3.md)
@@ -135,25 +144,25 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [E8 — Navigation element ✅ implemented (`feezal-element-navigation`)](E8.md)
 - [E9 — Flexbox layout element (`feezal-element-layout-flex`) ✅ done (v1)](E9.md)
 - [E10 — More material elements (`feezal-element-material-*`) ✅](E10.md)
-- [E11 — Climate element ✅ implemented (`feezal-element-material-climate`)](E11.md)
+- [E11 — Climate element ✅ implemented (`feezal-element-circle-climate`)](E11.md)
 - [E12 — Shutter / Blinds element ✅ implemented (`feezal-element-material-shutter`)](E12.md)
-- [E13 — Door lock element ✅ implemented (`feezal-element-material-door-lock`)](E13.md)
+- [E13 — Door lock element ✅ implemented (`feezal-element-circle-lock`)](E13.md)
 - [E14 — Energy flow element (`feezal-element-material-energy-flow`) ✅](E14.md)
-- [E15 — Media player element (`feezal-element-material-media-player`) ✅ done](E15.md)
-- [E16 — Light control element (`feezal-element-material-light`) ✅ implemented](E16.md)
-- [E17 — Alarm panel element (`feezal-element-material-alarm-panel`) ✅ done](E17.md)
-- [E18 — Fan control element ✅ implemented (`feezal-element-material-fan`)](E18.md)
-- [E19 — Humidifier / dehumidifier element (`feezal-element-material-humidifier`) ✅ done](E19.md)
-- [E21 — Robot vacuum element (`feezal-element-material-vacuum`) ✅ done](E21.md)
+- [E15 — Media player element (`feezal-element-circle-media`) ✅ done](E15.md)
+- [E16 — Light control element (`feezal-element-circle-light`) ✅ implemented](E16.md)
+- [E17 — Alarm panel element (`feezal-element-circle-alarm`) ✅ done](E17.md)
+- [E18 — Fan control element ✅ implemented (`feezal-element-circle-fan`)](E18.md)
+- [E19 — Humidifier / dehumidifier element (`feezal-element-circle-humidifier`) ✅ done](E19.md)
+- [E21 — Robot vacuum element (`feezal-element-circle-vacuum`) ✅ done](E21.md)
 - [E22 — Computer stats element (`feezal-element-material-computer-stats`) ✅](E22.md)
 - [E23 — Map element (`feezal-element-material-map`) ✅](E23.md)
 - [E24 — Clock element ✅ implemented (`feezal-element-material-clock`)](E24.md)
 - [E25 — Time picker element (`feezal-element-material-time-picker`) ✅ implemented](E25.md)
 - [E26 — Fluid level / tank element ✅ implemented (`feezal-element-material-tank`)](E26.md)
-- [E27 — Window / door contact element ✅ implemented (`feezal-element-material-contact`)](E27.md)
-- [E31 — Plant / flower monitor ✅ implemented (`feezal-element-material-plant`)](E31.md)
+- [E27 — Window / door contact element ✅ implemented (`feezal-element-circle-contact`)](E27.md)
+- [E31 — Plant / flower monitor ✅ implemented (`feezal-element-circle-plant`)](E31.md)
 - [E33 — Webpage / iframe element ✅ implemented (`feezal-element-basic-iframe`)](E33.md)
-- [E35 — Light element: dual-payload + N6 custom inspector + auto-discovery retrofit (`feezal-element-material-light`) ✅ done](E35.md)
+- [E35 — Light element: dual-payload + N6 custom inspector + auto-discovery retrofit (`feezal-element-circle-light`) ✅ done](E35.md)
 - [E43 — Template body for dialog and countdown-dialog ✅ done](E43.md)
 - [E44 — Pin protection element ✅ done](E44.md)
 - [E45 — Responsive / breakpoint layouts ✅ done](E45.md)
@@ -239,6 +248,9 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [U53 — View theme selector: same styled control as the site theme selector ✅ done](U53.md)
 - [U54 — Source editor opens at the current view's line ✅ done](U54.md)
 - [U55 — View tab bar: hold-to-drag so clicks stop reordering views ✅ done](U55.md)
+- [U56 — Discovery picker: zigbee2mqtt multi-attribute entities are indistinguishable — append the attribute to the label ✅ implemented](U56.md)
+- [U46 — Clippy easter egg in the help popup ✅ implemented](U46.md)
+- [U48 — Make the viewer's `Connected as "…"` toast optional ✅ implemented](U48.md)
 
 ## Architecture & Infrastructure
 

@@ -22,7 +22,6 @@ Work in progress — priorities and scope are not final.
 - [E29 — Tile / compact state element (`feezal-element-material-tile`)](#e29--tile--compact-state-element-feezal-element-material-tile)
 - [E30 — Mini live sparkline (`feezal-element-basic-sparkline`)](#e30--mini-live-sparkline-feezal-element-basic-sparkline)
 - [E32 — Logbook / event list (`feezal-element-basic-logbook`)](#e32--logbook--event-list-feezal-element-basic-logbook)
-- [E34 — Countdown / timer element (`feezal-element-basic-countdown`)](#e34--countdown--timer-element-feezal-element-basic-countdown)
 - [E38 — Element scaling / responsive sizing](#e38--element-scaling--responsive-sizing-️-tbd--needs-element-audit) ⚠️
 - [E54 — Markdown element (`feezal-element-basic-markdown`)](#e54--markdown-element-feezal-element-basic-markdown)
 - [E61 — HMI / alarm element family (`feezal-element-hmi-*`)](#e61--hmi--alarm-element-family-feezal-element-hmi--️-reviewrefinement-needed) ⚠️
@@ -47,31 +46,23 @@ Work in progress — priorities and scope are not final.
 - [E96 — MIDI input as an element trigger (Web MIDI)](#e96--midi-input-as-an-element-trigger-web-midi-️-questionable-future) ❓
 - [E107 — Thermostat schedule elements (device week programs)](#e107--thermostat-schedule-elements-device-week-programs--blocked-by-upstream-homematic) 🚧 *(blocked by upstream — Homematic)*
 - [E109 — evcc integration: native discovery + energy/charging elements](#e109--evcc-integration-native-discovery--energycharging-elements--to-refine) 💡 *(to refine)*
-- [E110 — Server-side HTTP→MQTT poller (bridge for services with no MQTT)](#e110--server-side-httpmqtt-poller-bridge-for-services-with-no-mqtt--likely-out-of-scope) ❌ *(likely out of scope — breaks export/native apps)*
-- [E111 — Pi-hole integration](#e111--pi-hole-integration--largely-dissolves-needs-a-user-provided-bridge) ❓ *(largely dissolves — needs a user-provided bridge)*
 - [E112 — Scrypted integration: camera snapshot element](#e112--scrypted-integration-camera-snapshot-element-sensors-already-work--to-refine) 💡 *(to refine)*
 - [E113 — Element taxonomy: make "function × style" explicit](#e113--element-taxonomy-make-function--style-explicit--needs-discussion) ⚠️
 - [E114 — Family parity contract: material/circle / glass / metro stay in sync](#e114--family-parity-contract-materialcircle--glass--metro-stay-in-sync--needs-discussion) ⚠️
-- [E115 — Switch an element to another family (context menu)](#e115--switch-an-element-to-another-family-context-menu--to-refine) 💡 *(to refine)*
 - [E119 — `basic-number`: configurable placeholder before the first value](#e119--basic-number-configurable-placeholder-before-the-first-value)
 - [E125 — Homematic battery voltage (`OPERATING_VOLTAGE`)](#e125--homematic-battery-voltage-operating_voltage--future) 💡
 - [E128 — Homematic blinds: settling behaviour + `DIRECTION` indicator](#e128--homematic-blinds-settling-behaviour--direction-indicator-later--after-e127) *(later)*
 - [E135 — Homematic maintenance signals: ERROR_CODE + SABOTAGE badges, device-health board](#e135--homematic-maintenance-signals-error_code--sabotage-badges-device-health-board)
-- [E137 — Shared MQTT device contracts: extract behavior controllers (climate / light / cover / wled)](#e137--shared-mqtt-device-contracts-extract-behavior-controllers-climate--light--cover--wled)
-- [E138 — Contact / sensor / motion / value: untangle the boolean-card taxonomy](#e138--contact--sensor--motion--value-untangle-the-boolean-card-taxonomy)
+- [E139 — "Fancy" element family: Lottie-animated device cards](#e139--fancy-element-family-lottie-animated-device-cards)
 
 **Editor UX**
 
 - [U3 — Element grouping and locking](#u3--element-grouping-and-locking-partial) *(grouping not yet done)*
 - [U23 — Custom collapsed placeholder text in the source editor](#u23--custom-collapsed-placeholder-text-in-the-source-editor-blocked-by-upstream) 🚧
-- [U30 — Auto-generated starter dashboard from MQTT discovery](#u30--auto-generated-starter-dashboard-from-mqtt-discovery-questionable-low-priority) ❓ 🔽
-- [U31 — Device-first element insertion](#u31--device-first-element-insertion-) ⚡
 - [U38 — Topic browser sidebar panel](#u38--topic-browser-sidebar-panel)
 - [U45 — Element insertion: palette sidebar + full-screen picker](#u45--element-insertion-palette-sidebar--full-screen-picker--to-refine) 💡 *(to refine)*
-- [U46 — Clippy easter egg in the help popup](#u46--clippy-easter-egg-in-the-help-popup--low-priority) 🔽
-- [U48 — Make the viewer's `Connected as "…"` toast optional](#u48--make-the-viewers-connected-as--toast-optional)
 - [U50 — layout-app: expose the content area's inset (padding)](#u50--layout-app-expose-the-content-areas-inset-padding)
-- [U56 — Discovery picker: zigbee2mqtt multi-attribute entities are indistinguishable — append the attribute to the label](#u56--discovery-picker-zigbee2mqtt-multi-attribute-entities-are-indistinguishable--append-the-attribute-to-the-label)
+- [U58 — "Generate" button: bulk element + app scaffold wizard from discovery](#u58--generate-button-bulk-element--app-scaffold-wizard-from-discovery--to-refine) 💡
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -409,51 +400,6 @@ A rolling, in-browser list of recent MQTT events — the live counterpart to HA'
 
 **Default size:** 240×160 px.
 
-### E34 — Countdown / timer element (`feezal-element-basic-countdown`)
-
-A countdown display toward a target time — common in ioBroker timer/schedule dashboards (e.g. "irrigation in 12:34", "next departure", "washing machine done in …"). Counts down (or up) and can publish when it reaches zero.
-
-**Visual concept:** large monospaced `mm:ss` (or `HH:mm:ss` / `d HH:mm:ss`) digits, with an optional thin progress ring or bar showing elapsed-vs-total. Turns amber/red in the final stretch (`warn-seconds`). Shows a configurable "done" label at zero.
-
-**Target sources** (`mode`):
-
-| Mode | Source |
-|---|---|
-| `target-timestamp` | Subscribes to a topic carrying an absolute Unix/ISO timestamp; counts down to it |
-| `seconds-remaining` | Subscribes to a topic carrying remaining seconds; ticks down locally between updates |
-| `count-up` | Counts up from a subscribed start timestamp (a stopwatch / "running for" display) |
-
-**Attributes:**
-
-| Attribute | Type | Default | Description |
-|---|---|---|---|
-| `mode` | select | `seconds-remaining` | Target source (see table) |
-| `subscribe` | mqttTopic | — | Topic carrying the timestamp or remaining seconds |
-| `format` | `mm:ss` \| `HH:mm:ss` \| `d HH:mm:ss` \| `auto` | `auto` | Digit format |
-| `show-ring` | boolean | `true` | Show the progress ring/bar |
-| `total-seconds` | number | `0` | Denominator for the progress ring (0 = infer from first value) |
-| `warn-seconds` | number | `10` | Remaining seconds at which digits turn amber/red |
-| `done-label` | string | `Done` | Text shown at zero |
-| `publish-on-zero` | mqttTopic | — | Optional topic to publish to when the countdown reaches zero |
-| `payload-zero` | string | `done` | Payload published at zero |
-
-> **Conventions:** dual-payload — (single topic) · auto-discovery: — · custom inspector: not required. See [Element platform conventions](#element-platform-conventions).
-
-**Implementation spec (decided 07/2026 — implementation-ready):**
-- **Timestamp parsing (`target-timestamp` / `count-up` modes), auto-detected:** numeric payload `< 1e12` → Unix seconds, `≥ 1e12` → milliseconds; non-numeric string → `Date.parse()` (ISO). Unparseable → show `--:--`, never throw. **Clock-skew caveat** (ℹ help): these modes compare against the *client* clock — a wrong tablet clock shifts the countdown; `seconds-remaining` mode is immune.
-- **Ticking:** 1 s interval, but remaining time is always recomputed from `Date.now()` against the anchor (target timestamp, or value+receive-time in `seconds-remaining` mode) — no cumulative interval drift. Interval paused when the element is disconnected.
-- **`publish-on-zero` semantics (decided: keep + document):** arms only after a value `> 0` has been seen, fires exactly **once** on the transition to `≤ 0`, and never fires on load when the first (retained, stale) value is already `≤ 0`. **Multi-viewer caveat documented in the ℹ help:** every open viewer publishes at zero (2 tablets = 2 messages) — consuming automations must tolerate duplicates (or use a retained flag). Re-arms when a new value `> 0` arrives.
-- **Rendering:** monospace digits (`font-variant-numeric: tabular-nums`), SVG progress ring (or bar when the element box is much wider than tall — container query, same trick as E105); `warn-seconds` switches digits+ring to `--error-color`. At zero: `done-label` replaces the digits, ring full/empty per mode.
-- **Styles (§5.1 canonical vars):** digits `--primary-text-color`, ring `--primary-color`, warn `--error-color`, done-label `--secondary-text-color`.
-
-**Editor preview:** static `12:34` digits with a ring at ~40 %; no ticking in the editor.
-
-**Default size:** 160×100 px.
-
-**Ships with:** standard element scaffolding + patch version, TESTING.md §6 entry (all three modes, format auto, warn transition, publish-on-zero arm/fire-once/stale-retained no-fire, editor preview).
-
-**Deferred:** pause/reset control payloads (start/stop the stopwatch via MQTT), server-side deduped publish-on-zero.
-
 ### E38 — Element scaling / responsive sizing ⚠️ TBD — needs element audit
 
 Some elements scale their internal UI proportionally when the element is resized on the canvas (font sizes, icon sizes, SVG geometry adapt to the element's width/height). Others render at a fixed internal size regardless of the element's configured dimensions, leading to clipped or cramped content at non-default sizes.
@@ -545,9 +491,9 @@ State-driven equipment symbols for plant/heating schematics — each bound to a 
 
 ### E64 — Camera image via MQTT (`feezal-element-basic-mqtt-image`) 💡 idea
 
-Displays **image payloads received over MQTT** (binary or base64) — distinct from `material-camera`, which is stream/URL-based. ESP32-cams, doorbells, printer cams, and vision systems publish stills this way. Options: state framing (border color bound to a second topic — e.g. pass/fail, motion), **filmstrip of the last N images** (tap to enlarge; Cognex's no-read-review pattern), freeze-on-condition. Memory-bounded ring buffer; document payload-size caution.
+Displays **image payloads received over MQTT** (binary or base64) — distinct from `circle-camera`, which is stream/URL-based. ESP32-cams, doorbells, printer cams, and vision systems publish stills this way. Options: state framing (border color bound to a second topic — e.g. pass/fail, motion), **filmstrip of the last N images** (tap to enlarge; Cognex's no-read-review pattern), freeze-on-condition. Memory-bounded ring buffer; document payload-size caution.
 
-**Relates:** E65 (vision sibling), material-camera (stream sibling), E32 (event context).
+**Relates:** E65 (vision sibling), circle-camera (stream sibling), E32 (event context).
 
 ### E65 — Pass/fail counter (`feezal-element-basic-passfail`) 💡 idea
 
@@ -842,28 +788,6 @@ In the source view, collapsed `<feezal-element-*>` regions all render with the s
 
 **Low-risk cosmetic alternatives (not the same feature, available now if desired):** `showFoldingControls: 'always'`, a custom `editor.foldBackground` highlight colour, and `unfoldOnClickAfterEndOfLine: true` improve how collapsed regions *look* and behave, but cannot change the placeholder *text*.
 
-### U30 — Auto-generated starter dashboard from MQTT discovery ❓ questionable 🔽 low priority
-
-A "generate views from discovered devices" wizard: walk the discovery registry (`server/src/mqtt/discovery.js`), group by area/device, and emit one pre-wired device card per component — feezal's equivalent of Home Assistant's auto-generated Areas/Home dashboards (which became HA's default in 2026.2 and are widely credited with fixing HA's blank-canvas onboarding problem), but fully editable afterwards.
-
-**Why questionable:** skepticism that a generated layout would actually be *good* — feezal's value is the hand-crafted free-form canvas, and a mediocre generated result may hurt more than a blank canvas. The AI assistant (with its existing `search_discovery`/`search_topics` tools) may be the better path to the same goal without any dedicated wizard code. Revisit only if onboarding feedback demands it.
-
-### U31 — Device-first element insertion ⚡
-
-A second palette tab / picker mode listing discovered devices; choosing a device creates the matching pre-wired element (inverse of today's flow) — inspired by HA 2026.6's entity-first card picker.
-
-> **Promoted (07/2026) — the "revisit only with concrete user demand" clause has fired.** This entry previously read *"the existing workflow is good enough… low value"*. **User testing showed people actively want device-first insertion**, so the questionable/low-priority markers are dropped. The old objection (palette/DnD complexity) is also much weaker now: **E108** shipped native discovery for whole families of real devices (Homematic climate/contact/cover/light, WLED), so there is now a genuinely populated device list to insert *from* — the feature has content it didn't have when it was first written.
-
-**How it should work (given E113).** With the **function × style** axes made explicit, device-first insertion is simply the two axes *in the other order*: **pick a device → pick a look**. Today's flow is pick-a-look-then-bind; device-first is pick-the-thing-then-style-it. Both should exist and share one picker, rather than device-first being a bolted-on second tab:
-1. User picks a discovered device (grouped by source: Homematic, zigbee2mqtt, WLED, evcc…).
-2. feezal proposes the matching **function** (light / climate / cover / contact / sensor) from the discovery entity's `component`.
-3. User picks the **style family** (material / glass / metro / plain), defaulting to the site's most-used family.
-4. The element is created **pre-wired** — exactly the attribute stamping `_applyDiscovery` already does, just triggered at insert time instead of after.
-
-**Note:** step 4 is essentially free — the discovery→attribute stamping already exists and is well tested; the new work is the picker flow and the function→family resolution, not the wiring.
-
-**Relates:** **E113** (function × style — this is that model applied to insertion), **U45** (the picker this should live inside, not a separate tab), **E108** ✅ (native discovery — supplies the device list), U30 (auto-generated starter dashboard — same onboarding theme, revisit together), E114 (family parity — makes step 3 a safe choice rather than a commitment).
-
 ### U38 — Topic browser sidebar panel
 
 A new tab in the right sidebar (the icon-tab row in [feezal-app-editor.js](www/src/feezal-app-editor.js): inspector / themes / site settings / assets / packages / history / editor settings — plus **topics**): a **topic browser** so the user can comfortably find topics on the broker and **copy them to the clipboard** while wiring up elements — instead of switching to an external MQTT client.
@@ -899,29 +823,65 @@ The left palette is a poor place to *browse* a catalog that now spans many famil
 
 **Relates:** **E113** (taxonomy — the picker's information architecture), **U31** (device-first insertion — a mode *inside* this picker, not a separate tab), B42 ✅ (filter bug — fixed standalone 07/2026, subsumed here), U24 ✅ (collapsible categories), U32 ✅ (site-specific Components category — must appear in both surfaces), B20 ✅ (palette drag → snap machinery to preserve).
 
-### U46 — Clippy easter egg in the help popup 🔽 low priority
+### U58 — "Generate" button: bulk element + app scaffold wizard from discovery 🔨 Phase ① (Devices) ✅ done · Phase ② (App) pending
 
-Optional, off-by-default **Editor Settings** toggle that adds a paperclip assistant — a deliberate homage to the late-90s Microsoft Office assistant — to the help popup. Purely a joke feature.
+**✅ Phase ① implemented (07/2026) — Devices mode + shared prerequisites.** The top-bar **Generate** button (`auto_awesome`, between the `#toolbar` cluster and the source-mode toggle) opens the two-tile popup ([feezal-generate-dialog.js](../www/src/feezal-generate-dialog.js)); the **App** tile renders disabled ("Coming soon" — Phase ②). **Devices** mode: pick a style family (the device-card families that ship ≥3 discovery elements — Circle / Glass / Metro / E-ink lead), tick discovered devices from a source-grouped, filterable list, and one pre-wired element per device is dropped onto the current view in a deterministic auto-grid. Append-only with a `discovery-id` dupe-guard (a device already on the view is skipped, never duplicated); family-parity gaps are skipped-and-reported (grouped by function on the result screen); id-less/unknown-component rows are filtered out. All three prerequisites landed as the shared headless module [feezal-discovery-stamp.js](../www/src/feezal-discovery-stamp.js): `stampDiscovery(el, entity)` (extracted verbatim from `_applyDiscovery`, which now delegates to it — the ⚡ picker and Generate wire devices byte-for-byte the same), `resolveElementTag(component, family, deviceClass)` (registry-checked, `binary_sensor` routed by device_class, null on parity gap — the minimal slice of **E113**), and `layoutGrid` (uniform-cell packing from `defaultStyle`, columns from view width, Devices-mode only). Unit-tested (`test/feezal-discovery-stamp.test.js`) + browser-tested (`test-browser/feezal-generate-dialog.test.js`); TESTING.md §Generate wizard. **Phase ② (App mode)** — the room/function heuristic, multi-view creation, `layout-app` wiring and the `--feezal-app-content-max-width` cap — remains open below.
 
-**Constraints:** must be **opt-in**, must not interfere with the actual help content, and the artwork must be **self-drawn/self-hosted** (an original paperclip, not Microsoft's asset — trademark/copyright) and bundled locally per A25 ✅ (no CDN — implemented 07/2026). Respect `prefers-reduced-motion` if it animates.
+A one-click path from "connected broker with discovered devices" to "a populated, wired dashboard". Where **U31/U45** insert *one* element at a time and **U30** was a vague "generate a starter dashboard" idea, this is the concrete, opinionated wizard: pick a lot at once, pick the look, get views wired.
 
-**Relates:** B43 ✅ (help popup bug — was the blocker, fixed 07/2026), A25 ✅ (self-hosted assets — implemented 07/2026), U37 ✅ (welcome wizard — the other "friendly onboarding" surface).
+**Entry point — a `Generate` button in the top bar**, sitting **between** the left tool cluster (`#toolbar`: copy / paste / cut / delete / undo, [feezal-app-editor.js:893-900](../www/src/feezal-app-editor.js#L893-L900)) and the right cluster (the `<>` source-mode toggle → `feezal-site-manager` → the Deploy split button, [feezal-app-editor.js:902-924](../www/src/feezal-app-editor.js#L902-L924)). Clicking it opens a **large, Windows-Start-menu-style popup** offering **two choices**:
 
-### U48 — Make the viewer's `Connected as "…"` toast optional
+**① Devices — bulk-generate elements onto the current view.**
+- A **filterable, checkbox list of all discovered devices** (from the discovery registry, `server/src/mqtt/discovery.js`; grouped by source — Homematic / zigbee2mqtt / WLED / evcc — the same grouping the ⚡ picker already uses).
+- The user ticks the devices they want elements for, picks a **style family** (glass / metro / material-circle / eink / …), and hits generate.
+- feezal creates one **pre-wired** element per selected device, laid out on a **sensible auto-grid** on the current view. Wiring is free — it is exactly the `_applyDiscovery` attribute-stamping that already runs in the ⚡ picker ([feezal-sidebar-inspector-attributes.js](../www/src/feezal-sidebar-inspector-attributes.js)), just fired in bulk at insert time. Function → element is the discovery `component` → `palette.function` resolution (**E113**), and the family is the user's pick.
+- This is **U31 done in bulk**: U31 is "pick one device → one element at a chosen spot"; this is "tick many → grid them". They share the device list, the function→family resolution and the stamping — build the shared pieces once.
 
-Every viewer load pops a `Connected as "<client-id>"` toast ([feezal-presence.js:215](../www/src/feezal-presence.js#L215)). On a wall-mounted or kiosk dashboard — the case feezal is most often used for — that is noise on every reload, and there is currently no way to silence it short of turning presence **off** entirely (Site Settings → Viewer presence, `presence="off"` — [feezal-sidebar-viewer.js:647-651](../www/src/feezal-sidebar-viewer.js#L647-L651)). That is far too blunt: it also drops the retained status publish and the whole per-client command subtree (`view · reload · theme · playlist · addclass · removeclass · rename`), which users very much want to keep.
+**② App — scaffold a whole multi-view app.**
+- Creates a **`Menu` view containing a `layout-app` element** plus a **set of sub-views**, all wired into the `layout-app` navigation config (drawer/tab entries → view names).
+- The user chooses the **grouping axis**:
+  - **by room** → sub-views `Living room`, `Bathroom`, `Kitchen`, … (each holding that room's device elements), or
+  - **by function** → sub-views `Heating`, `Lights`, `Covers`, `Sensors`, … (each holding all devices of that function).
+- Plus the same **style-family** pick, applied to every generated element and (where families ship an app shell / view chrome) to the `layout-app` styling.
+- Each sub-view is itself a "Devices" bulk-generation scoped to that room/function bucket, so the two modes share the generation core.
+- **Sub-views use flow layout, width-capped for phones/tablets.** Each generated sub-view is set to `child-position="flow"` (**U41** — a wrapping flex container, not absolute placement) so the device cards stack and reflow responsively; the flow container is **width-capped and centred** (a max-width around a phone/tablet column, `flow-justify: center`) so the app doesn't sprawl edge-to-edge on a large monitor — **tablets and phones are the target form factor**. ⚠️ **Supporting knob needed:** the view today exposes only `width`/`height` styles plus the U41 flow knobs (`flow-gap`/`-direction`/`-justify`/`-align`) — there is **no `max-width`**. U58's App mode needs one. ✅ **Resolved (07/2026): centrally on the `layout-app` content area** — a new `--feezal-app-content-max-width` style knob (default none) that caps every embedded view in one place, built next to **U50**'s content inset (not a per-sub-view style — one knob, no per-view drift). This is a small dependency to build alongside App mode, not part of the wizard proper.
 
-**Wanted:** a separate switch in **Site Settings → Viewer presence** — "Show connection toasts" (default on, so existing behaviour is unchanged) — writing a `presence-toasts="off"` attribute on `<feezal-site>` alongside the existing `presence` attribute. Presence keeps working; only the on-screen notifications go quiet.
+**Decided (refinement, 07/2026):**
+- **Two tiles only — no third option.** A third mode was weighed (AI *"Describe"* free-text generation, a single-Room view, a Template/preset filler) and **declined for v1** — revisit only if demand appears. The AI path stays available separately through the assistant, not as a Generate tile.
+- **Devices mode is a flat auto-grid.** No section headers or room/function grouping on the single view — all structure lives in **App** mode. This keeps the two tiles clearly distinct (place-and-wire vs. structure-into-views).
+- **One family per run.** The style family is chosen once and applied to the whole batch in both modes; per-element restyle afterwards is **E115**'s job, not this wizard's.
+- **Append-only, with a dupe guard.** Re-running Generate (or generating onto a non-empty view) only adds devices **not already placed** — guarded on `discovery-id` — and never touches or removes existing elements. No "replace / regenerate" in v1.
+- **List unit = one discovered entity (function), not one physical device.** A device exposing several functions (e.g. climate + battery, or a multi-gang switch) yields one row — and one card — per entity, matching the discovery registry and the ⚡ picker; no "primary function" guessing.
+- **Family-parity gap = skip + report.** If the chosen family lacks an element for a device's function, those devices are **skipped and listed** ("N devices have no *&lt;family&gt;* card — add them in another family"); Generate never silently drops them and never mixes families in one run (per-element restyle later is **E115**). This makes **E114**'s parity report a direct input.
+- **Room detection = deterministic lexicon + editable review (v1).** A multilingual room-word match over device/topic/channel names, plus HA `device.suggested_area` when present, feeding the always-editable room list; AI-driven clustering is **deferred** (a later "improve with AI" enhancement, not a v1 dependency).
+- **Sub-view width cap = central on `layout-app`.** A single content-area max-width knob caps every embedded view in one place (not a per-sub-view style), landing next to **U50**'s content inset.
+- **No hybrid room×function axis in v1.** App mode groups on exactly one axis per run (room OR function); a two-level rooms-then-functions layout is deferred.
 
-**Scope decision to make when implementing:** `feezal-presence.js` raises three toasts, and they are not equally noisy —
+**Implementation-readiness — prerequisites (07/2026).** Before the wizard UI, three small reusable pieces must exist:
+1. **Headless stamping core.** Today `_applyDiscovery` ([feezal-sidebar-inspector-attributes.js](../www/src/feezal-sidebar-inspector-attributes.js)) stamps the *selected* element via the inspector. Extract the stamp itself into a pure `stampDiscovery(element, entity)` (create-element-then-stamp, no selection/inspector coupling) that both the ⚡ picker and bulk Generate call. Highest-leverage refactor — de-risks everything downstream.
+2. **Function → element-tag resolver.** `resolveElementTag(component, family)` → `feezal-element-<family>-<function>`, registry-checked, returning null when the family lacks that function (feeds the skip-and-report parity gate). This is a **minimal slice of E113** — U58 does *not* need the full `palette.function`/`palette.family` descriptor migration to ship, only this lookup; landing full E113 later can replace the resolver's internals without touching U58.
+3. **Auto-grid v1 (`layoutGrid`).** A deterministic starting layout: uniform cells sized from each element's `defaultStyle`, packed left-to-right into columns derived from the target view width, wrapping to rows. Explicitly a *starting point, fully editable* (inherits U30's caveat); size-aware packing (**E38**) is a later refinement, not a v1 gate. Devices mode places absolutely on the current view; App-mode sub-views use U41 flow layout instead, so this grid math is **Devices-mode only**.
 
-- `Connected as "<id>"` on every start ([feezal-presence.js:215](../www/src/feezal-presence.js#L215)) — pure noise on a kiosk, definitely gated.
-- `This viewer is now "<id>"` after a rename ([feezal-presence.js:201](../www/src/feezal-presence.js#L201)) — confirms a deliberate editor-initiated action; gating it is reasonable but it is not what the user is complaining about.
-- `"<id>" is already online in another browser` ([feezal-presence.js:153](../www/src/feezal-presence.js#L153)) — a **sticky diagnostic warning** about an ID collision that silently doubles every command. Suppressing this hides a real misconfiguration; recommend it stays on regardless, or gets its own setting.
+**App-mode idempotency rules (07/2026).** Re-running App mode (or running it with a `Menu`/`layout-app` already present) **reuses** the existing app shell rather than creating a second one, and **merges** into same-named sub-views instead of duplicating them; the `discovery-id` dupe guard spans the whole app, so a device already carded anywhere is not re-added. Collisions with pre-existing hand-made views merge by name — the wizard adds only the missing device cards, never clears a view.
 
-**Implementation notes:** gate inside `toast()` ([feezal-presence.js:104](../www/src/feezal-presence.js#L104)) rather than at each call site if all three are covered, otherwise gate per call. Read the attribute through a helper next to `presenceEnabled()` ([feezal-presence.js:54-57](../www/src/feezal-presence.js#L54-L57)) so the site-attribute contract stays in one place. The viewer bundle carries no UI library — these toasts are plain DOM, so there is no component-level `open` prop to lean on.
+**The hard part — a room/function heuristic.** Function grouping is easy (it's the discovery `component`, already known — light/climate/cover/contact/sensor/motion per **E113/E138**). **Room grouping needs detection** from device metadata:
+- **Best signal, when present:** an explicit area — HA MQTT discovery devices can carry `device.suggested_area`; the device-group machinery (`getDeviceGroups()` by `device.identifiers`, `discovery.js`) is where this would be read.
+- **Fallback:** parse a room from the **device / topic / channel name** against a **room-word lexicon** — multilingual (`Wohnzimmer`/Living, `Bad`/Bath, `Küche`/Kitchen, `Schlafzimmer`/Bedroom, `Büro`/Office, `Flur`/Hall, …), since Homematic channel names, zigbee2mqtt friendly names (`wohnzimmer_lampe`) and evcc titles usually encode the room. Homematic device/channel names and z2m friendly names are the richest source here.
+- The detected room list must be **shown and editable before generation** (rename / merge / assign-unmatched-to-a-bucket) — a wrong guess must be a two-click fix, never a silent miscategorisation. "Unknown room" is its own bucket.
 
-**Relates:** N24 ✅ (viewer presence + per-client control topics — the feature these toasts belong to), `docs/presence.md` (documents the `presence` attribute; needs the new one), U-viewer-settings (Site Settings panel this switch lands in).
+**Relationship to existing items (asked explicitly):**
+- **U30 (auto-generated starter dashboard) — superseded.** U30 was the vague version of exactly this ("walk discovery, group by area/device, emit cards"); U58's App mode is its concrete, decided design. **Recommend folding U30 into U58** (or marking U30 done-by/subsumed) rather than keeping two onboarding-generation entries. U30's live caveat still applies and is inherited: a generated layout must be genuinely good and fully editable afterwards, or it hurts more than a blank canvas — which is why the room list is editable and the grid is a starting point, not a lock-in.
+- **U31 (device-first insertion) — complementary, not obsolete.** Single precise insertion vs. bulk scaffolding; they share the device list + stamping. Keep both.
+- **U45 (palette + full-screen picker) — complementary, not obsolete.** U45's "Add element" picker browses the catalog to place *one* element; U58's Generate is a distinct entry point for *scaffolding many*. Different mental model → its own button, but the "Devices" checkbox list could be reachable from both.
+- **E113 (function × style) — prerequisite, consumer.** The family pick is E113's style axis; function detection is its function axis. U58 is a heavy consumer of that model, not a replacement.
+- **E114 (family parity) — prerequisite for a *safe* family pick.** "Generate everything as glass" must not silently drop devices whose function glass lacks; a complete parity set (or an explicit "N devices have no glass equivalent — generate those as …?" prompt) is required. U58 makes E114 more valuable, doesn't obsolete it.
+- **E115 (switch family) — complementary.** Generated as metro but wanted glass? E115's "switch all of family X" is the after-the-fact fix; U58 sets the family up front. Neither obsoletes the other.
+
+**Phasing (suggested).** Ship **① Devices** first (small: device list + family pick + bulk stamp + auto-grid; reuses proven machinery). **② App** second (the room heuristic + multi-view creation + `layout-app` wiring is the real design and risk). Both gate on **E113** for the function/family model and benefit from **E114** parity.
+
+**Risks / open questions.** The **auto-grid layout algorithm** is now the single remaining quality risk — v1 ships the deterministic uniform-cell packing described above; whether that reads well across mixed element sizes or needs size-aware packing (**E38**) is the open judgement call, mitigated by the layout being fully editable afterward. Everything else is settled (see *Decided* + *Implementation-readiness* above): deterministic-lexicon room detection with editable review (AI deferred), no hybrid room×function axis, skip-and-report on parity gaps, per-entity list unit, central width cap — plus this session's no-third-tile / flat-grid / one-family / append-only decisions.
+
+**Relates:** **U30** (the idea this concretises — recommend subsuming), **U31** (device-first single insert — shared machinery), **U45** (element picker — sibling entry point), **E113** (function × style — the model), **E114** (parity — safe family pick), **E115** (switch family — after-the-fact restyle), **E138** (the device-function taxonomy the buckets use), **E108** ✅ (native discovery — supplies the device list), **U41** ✅ (flow layout — the sub-view layout mode App generates), **U50** (layout-app content inset — candidate home for the sub-view width cap), **E38** (responsive sizing — the width-cap + auto-grid concern), `layout-app` (the app-shell element the App mode wires), U37 ✅ (welcome wizard — the other onboarding surface), U9/AI assistant (candidate room-clustering engine).
 
 ### U50 — layout-app: expose the content area's inset (padding)
 
@@ -939,31 +899,19 @@ The embedded view sits flush against the app bar and drawer — there is no way 
 
 **Relates:** E-layout-app (the shell), N36 (the `--feezal-app-*` style-var set this extends), E38 (element scaling / responsive sizing — a responsive inset would belong there).
 
-### U56 — Discovery picker: zigbee2mqtt multi-attribute entities are indistinguishable — append the attribute to the label
-
-A zigbee2mqtt sensor with several attributes (temperature, humidity, pressure, …) publishes **one HA discovery entity per attribute** — so it correctly appears multiple times in the ⚡ discovery picker. But all of those entries render the **same label**: `_discoveryOptionLabel()` ([feezal-sidebar-inspector-attributes.js:1696-1706](../www/src/feezal-sidebar-inspector-attributes.js#L1696-L1706)) labels HA/z2m entities by `state_topic` (fallbacks: other topics, `name`), and the per-attribute entities of one device **share the same state topic** (`zigbee2mqtt/sensor_1`). You cannot see which attribute you're picking — before *or after* selection (the closed select shows the same string).
-
-**Wanted:** append the attribute, space-separated — e.g. `zigbee2mqtt/sensor_1 temperature`.
-
-**Implementation — attribute extraction, first hit wins:**
-1. **`value_template`** — z2m per-attribute configs carry `{{ value_json.temperature }}`; extract the leaf with the same parsing the `valueTemplateToPath` discovery transform already uses (reuse, don't re-implement a Jinja mini-parser).
-2. **`object_id` / `unique_id` suffix** — HA configs suffix the attribute (`sensor_1_temperature`); strip the device prefix.
-3. **`device_class`** — coarse but better than nothing (`temperature`, `humidity`).
-4. **Entity `name`** when it differs from the device/topic label.
-
-Nothing found → label unchanged (single-attribute entities must not grow noise). Apply the same suffix in the **filter** matching (it already matches on the label via `_discoveryOptionLabel`, so that comes for free) and verify the closed select's display text shows the full label. Native-recognizer entities (`sourceLabel` branch — hm/WLED) are already distinct per entity and stay untouched.
-
-**Ships with:** TESTING.md discovery-section note (multi-attribute z2m sensor → picker shows one entry per attribute with the attribute appended; selected value readable after choosing; single-attribute devices unchanged).
-
-**Relates:** N12 ✅ (discovery + the picker), E126 ✅-era recognizer work (the `sourceLabel` branch that already solved this for native entities), `valueTemplateToPath` (the existing template→path parser to reuse).
-
 ### E109 — evcc integration: native discovery + energy/charging elements 💡 to refine
 
 **Why.** [evcc](https://evcc.io/) is a self-hosted, open-source (MIT, Go+Vue) EV-charging / energy manager — PV-surplus charging, dynamic-tariff and CO₂-optimised charging, departure planning, home-battery coordination — talking to hundreds of wallboxes, inverters, meters and vehicles. Its users are precisely feezal's audience (self-hosted, MQTT, home automation, PV), it exposes a rich real-time MQTT API… and feezal sees **nothing** of it today.
 
 **Positioning (decided).** evcc ships a good web UI that is explicitly kiosk/iframe-friendly (`?theme=…&lang=…&unit=…`), so **an iframe of evcc's own UI is the baseline to beat**. The goal is therefore *not* to rebuild that UI. feezal's value is **integration**: one wall panel / app where charging sits next to heating, lights and covers, in the site's visual family, exposing only the two or three controls the user actually touches. evcc's UI is charging-only and always shows everything; feezal's job is selective, blended, themed.
 
-#### MQTT facts (confirmed against docs + `evcc-io/evcc@master`)
+**Field input (07/2026 — from an evcc user testing this live).** Three sharpenings that change the priority order:
+
+- **evcc's own UI has no real energy-flow visualization** — this is a *capability gap*, not just a styling one. It shows PV generation, feed-in, battery and grid figures, but "what flows where" appears only as a **single horizontal bar colour-proportioned by source** (self-consumption green, grid import dark, …) with the In/Out split (Erzeugung / Batterie entladen / Netzbezug → Verbrauch / Ladepunkt / Batterie laden / Einspeisung) as **separate tiles beneath it** — never a node diagram showing the interaction *between* producers, battery, home, grid and car. So the generic energy-flow element (#1) fills a gap in evcc itself, which strengthens the case for it well beyond "prettier iframe".
+- **The two things that actually matter for evcc support are (a) tiles that control the energy consumers — the loadpoints — and (b) the flow chart.** Everything else (forecast, stats) is secondary. **Prioritise #1 and #2**; treat #3/#4 as follow-ons.
+- **The price/forecast data is NOT evcc's own** — evcc only *relays* what its configured tariff provider gives it (Tibber, in the tester's case). See element #3: it is really a dynamic-tariff element, not an evcc one.
+
+#### MQTT facts (confirmed against docs + `evcc-io/evcc@master`, and a live retained-topic dump 07/2026)
 
 - **Root prefix is user-configurable** (`mqtt.topic`), default **`evcc`**; empty ⇒ no MQTT API. The recognizer must therefore detect by **structure, not literal prefix** (same as the configurable `hmPrefix`).
 - **Flat scalars — one value per topic, NOT JSON.** `publishComplex()` explodes structs/maps/slices into sub-topics. ⇒ feezal's default `message-property: payload` works as-is — **none** of the `payload.val` plumbing Homematic needed.
@@ -991,65 +939,25 @@ Full set; the **energy-flow element stays generic** (serves any PV/battery home,
 **Elements:**
 1. **Energy-flow diagram — generic, highest value.** Grid ↔ PV ↔ battery ↔ home ↔ car nodes with animated flows sized/directed by power. Deliberately **not** evcc-branded so it serves any PV/battery home; evcc discovery just wires it. Inputs: grid power (± import/export), PV power, battery power (± charge/discharge) + SoC, home power, charge power. Shares the animated-flow technique with **E63**'s schematic pipes — build once.
 2. **evcc loadpoint card — evcc-specific.** The control widget: mode selector (Off/Solar/Min+Solar/Fast), charge power, vehicle SoC bar with draggable limit, session energy, phases, connected/charging state.
-3. **Forecast / price chart.** Dynamic tariff + solar forecast. ⚠️ `<root>/site/forecast` goes through a "sharder" (`BytesMarshaler`) and is likely **chunked JSON**, not exploded scalars — **verify against a live instance before designing**. Relates to the history-in-payload convention (Open Questions).
+3. **Forecast / price chart — a dynamic-tariff element, not evcc-native** *(secondary — see Field input)*. evcc only **relays** forecast/price data from the configured tariff provider (e.g. Tibber); it exists only when such a provider is set up and belongs conceptually to the **tariff**, not to evcc — position and name it that way (an evcc install without a dynamic tariff publishes nothing useful here). **Live-dump-confirmed shape (07/2026):** `<root>/site/forecast/{grid,feedIn,planner}` are **plain JSON arrays** of quarter-hour slots `{"start":"…Z","end":"…Z","value":…}` (~48 h ≈ 190 entries) on single topics — *not* exploded scalars and *not* the multi-chunk "sharder" output previously feared, so this can be designed now (one `message-property: payload` subscription; the element parses the slot list). Relates to the history-in-payload convention (Open Questions).
 4. **Session statistics** (energy, solar %, price/kWh, CO₂) — probably generic value/chart elements rather than a new element.
 
 **MVP control scope:** loadpoint `mode`, `limitSoc` / `limitEnergy`, `minCurrent` / `maxCurrent`, `phasesConfigured`.
 **Deferred:** plans/departure (`planSoc`/`planEnergy` take JSON `{"value":…,"time":"…Z"}`), `repeatingPlans`, smart-cost / feed-in limits, and **`batteryMode`** — an external override **auto-resets after 60 s**, so any control for it needs a keep-alive republish (a real design wrinkle, not v1).
 
-**Verification constraint (important).** No local evcc instance — a friend can test, so the feedback loop is slow and indirect. Design accordingly: put **all topic assembly behind one small helper** (like `hmTopics()`) so a wrong assumption is a one-line fix, and flag every inferred value in code comments. Unverified today: the `forecast` payload shape; whether heating loadpoints expose a temperature key (heating devices are chargers carrying the `Heating` feature, where `minSoc`/`vehicleSoc` semantically become temperatures); the docs' `batteryboost` vs the source's **`batteryBoost`** (trust the source); exact sub-topics under `plan` / `statistics` / `thresholds`.
+**Verification constraint (important).** No local evcc instance — an evcc user can test, so the feedback loop is slow and indirect. Design accordingly: put **all topic assembly behind one small helper** (like `hmTopics()`) so a wrong assumption is a one-line fix, and flag every inferred value in code comments.
+
+**A live retained-topic dump (07/2026) resolved several unknowns:**
+- **`forecast` shape** — plain JSON arrays of `{start,end,value}` quarter-hour slots (see element #3), designable now.
+- **`batteryBoost`** is camelCase (confirmed — trust the source, not the docs' `batteryboost`).
+- **Multiple loadpoints coexist** and are mixed-type: the dump has a **heat-pump loadpoint** (`title: Wärmepumpe`, `mode: off`) *and* a wallbox (`title: Wallbox`, `mode: pv`, vehicle `Golf`), so the loadpoint card must not assume "car".
+- **Heating loadpoints are chargers** carrying `chargerFeatureHeating: true` (with `chargerIcon: heatpump`) — the earlier inference is correct.
+
+**Still unverified:** whether an *active* heating loadpoint repurposes `minSoc`/`vehicleSoc` as temperatures — the dumped heat-pump loadpoint was idle (`mode off`) and reported those as plain `0`, so no temperature key was observed; exact sub-topics under `plan` / `statistics` / `thresholds`; and the live behaviour of the 60 s `batteryMode` auto-reset.
 
 **Worth remembering:** evcc already works in feezal **today** with manual wiring (predictable topics, flat scalars, retained, `/set` writes). Discovery + elements make it one-click and native-looking — that convenience *is* the deliverable, which should keep the scope honest.
 
 **Relates:** **E108** (the native-recognizer framework this reuses — archived), **E63** (animated-flow technique for the energy diagram), **E62** (topic-tree browser — helps manual wiring in the meantime), **N31** (availability — evcc's LWT maps directly), A18 (kiosk/wall-panel — the prime placement for this).
-
-### E110 — Server-side HTTP→MQTT poller (bridge for services with no MQTT) ❌ likely out of scope
-
-> **Decision (07/2026): most likely NOT doing this.** A server-side poller only runs while the **feezal server** runs — but a **statically exported site (and native app builds) talk directly to the broker with no feezal server present**. Any dashboard built on polled topics would therefore work in the editor/viewer and then silently break on export, splitting the element set into "works everywhere" vs "works only with the server running". That inconsistency is a worse outcome than simply not integrating REST-only services. Secondary objection: it drags credential storage, scheduling and auth-flow handling into the server of an otherwise MQTT-native product.
->
-> **If a REST-only service is ever wanted, the right answer is external:** the user runs their own bridge (or a Node-RED / `system-script` flow) that publishes to MQTT, and feezal consumes plain topics like any other source — no feezal-side machinery, and exports keep working. The analysis below is kept as the record of why, and the Pi-hole API details in **E111** stay useful if this is ever revisited.
-
-**Why it was considered.** feezal being MQTT-native is a strength — until a service simply *has* no MQTT. Pi-hole (E111) has **none at all**, and its third-party bridge ecosystem is thin and undocumented. The same gap applies to Uptime Kuma, router/NAS APIs, Scrypted's stats, and most self-hosted tools, which expose only REST. Rather than a bespoke integration per service, add **one** server-side capability: **poll an HTTP endpoint on a schedule, extract values, publish them to MQTT** — after which the entire existing pipeline (elements, discovery, topic tree, autocomplete, export) works unchanged.
-
-**Why server-side, not in the browser (decided).** Three independent reasons, all confirmed against Pi-hole as the reference case:
-- **Credentials.** A Pi-hole v5 API token / v6 app password in a browser-delivered dashboard config is effectively **full admin** — it can rewrite config (`PATCH /api/config`), dump the entire query log (who visited which domain), export everything (`/api/teleporter`) and restart DNS; FTL has had RCE advisories through that surface. There is **no read-only scope**. Client-side credentials are a non-starter.
-- **CORS.** FTL ships no `Access-Control-Allow-Origin` in its default headers, upstream evidence about civetweb's default is contradictory, `X-FTL-SID` is a non-simple header (forces preflight), and session cookies are `SameSite=Strict` by design. A server-side fetch sidesteps all of it.
-- **Session economics.** Pi-hole v6 sessions expire (1800 s), are **IP-bound**, rate-limited on login and capped at **16 concurrent**. A dashboard authenticating per panel or per browser tab would exhaust them; one server-side session shared by all viewers will not.
-
-**Shape (to refine).**
-- A **poll job**: URL, method, interval, headers, an optional **auth pre-flight** (login → token/session, cached, re-run on 401), and a set of **extractions** (JSON path → MQTT topic). Publish retained.
-- Auth strategies: none · static header/bearer · query param · **login→session** (the Pi-hole v6 pattern: `POST /api/auth` → `sid`, reused until 401).
-- Lives in `server/src/` beside the MQTT bridge; results land on ordinary topics so elements bind to them with no special support.
-- **Presets/recipes** per service (Pi-hole first) so the user picks "Pi-hole" + host + password instead of hand-writing JSON paths.
-- Open: config surface (editor UI vs config file), extraction syntax (JSON path vs small template), error/backoff/logging semantics, and whether polled services should also synthesize **E108 discovery entities** so they arrive as ready-made devices rather than bare topics.
-
-**Relates:** **E111** (Pi-hole — first consumer and reference implementation), **E108** (native discovery — polled services could register entities the same way), E62 (topic-tree browser — polled topics appear there for free), E49 (script element — the "just poll it yourself" workaround this replaces).
-
-### E111 — Pi-hole integration ❓ largely dissolves (needs a user-provided bridge)
-
-> **Status (07/2026):** this was scoped around **E110**, which is now **out of scope** (it would break static export / native apps). Without it there is **no feezal-side path** to Pi-hole, since Pi-hole has no MQTT of its own. What remains is: *the user runs any Pi-hole→MQTT bridge themselves* (or a Node-RED / `system-script` poll), after which **the existing generic elements already cover it** — stat tiles, a stacked area chart, a doughnut and a top-list table need no new feezal work. So the item largely dissolves into **documentation/a recipe** rather than a feature. The only piece that would need something bespoke is the **enable/disable-blocking control with duration presets**, and that only works if the user's bridge exposes a command topic for it.
->
-> The API research below is kept as reference for anyone writing such a bridge or revisiting this.
-
-**Confirmed: Pi-hole publishes no MQTT at all** — nothing in `pi-hole/pi-hole`, `pi-hole/FTL` or `pi-hole/web`; the entire v6 API surface has no MQTT endpoint or config key. The official Home Assistant integration polls the **REST** API. Third-party bridges are weak: the one maintained project (`mqtt4pihole`) exposes *adlists/domain-lists/groups as HA switches*, **not** statistics, and no well-documented "Pi-hole stats → MQTT" bridge with a stable topic contract exists. ⇒ **Pi-hole needs E110**, not a recognizer.
-
-**Two API generations are in the wild — support both:**
-- **v5 (legacy, removed in v6):** `GET /admin/api.php?summaryRaw&auth=<token>` etc. Token = hash of `WEBPASSWORD`; static, never expires. Since **5.18** even `summary`/`status` require auth. Flat keys: `dns_queries_today`, `ads_blocked_today`, `ads_percentage_today`, `domains_being_blocked`, `unique_clients`, `status`. (Use `summaryRaw` — plain `?summary` returns comma-formatted **strings**.)
-- **v6 (Feb 2025):** lighttpd+PHP replaced by a civetweb server embedded in `pihole-FTL`; `/admin/api.php` is **404**. Base `/api/…`; auth = `POST /api/auth {"password":…}` → `{"session":{"sid":…,"csrf":…}}`, passed as header **`X-FTL-SID`** (or `?sid=`, URL-encoded — it's base64). *No* `Authorization: Bearer` scheme despite what several blog posts claim. Live per-instance OpenAPI at `/api/docs`.
-
-**Poll targets (v6) — three calls reproduce essentially the whole admin dashboard:**
-- **`GET /api/padd`** — the single best endpoint: the four headline tiles, `blocking` status, top domain/blocked/client, cache stats, plus host name/model, CPU%, mem% and temperature in **one** request.
-- `GET /api/history` — 10-minute buckets, `{timestamp,total,cached,blocked,forwarded}` (the queries-over-24h chart).
-- `GET /api/stats/top_domains[?blocked=true]` / `top_clients[?blocked=true]` — the top-list tables.
-- Key fields: `queries.{total,blocked,percent_blocked,unique_domains,forwarded,cached,frequency}`, `clients.{active,total}`, `gravity.{domains_being_blocked,last_update}`, and v6-only `queries.status.{GRAVITY,REGEX,DENYLIST,CACHE,FORWARDED,…}` (block-reason breakdown).
-
-**Control:** `GET /api/dns/blocking` → `{"blocking":"enabled","timer":null}`; `POST /api/dns/blocking {"blocking":false,"timer":300}` (seconds; enum `enabled|disabled|failed|unknown`). This is the one genuinely bespoke widget — an **enable/disable-blocking control with duration presets** (10 s / 30 s / 5 min / indefinite), mirroring the admin sidebar. Also available: `POST /action/gravity`, `POST /action/restartdns`.
-
-**Elements:** mostly **generic** — four stat tiles, a stacked area chart (blocked/cached/forwarded over time), a query-type doughnut, and top-list tables. Only the blocking control warrants something Pi-hole-specific. So the real work is E110 plus a preset, not a new element family.
-
-⚠️ **Security must be stated in the UI/help, not just here:** the credential is full admin with no read-only scope, so it lives **only** in the server-side poller config and must never reach a dashboard/export payload.
-
-**Relates:** **E110** (the enabler — this is its reference consumer), E62 (topic tree), E75/E32 (table + chart elements the tiles and top-lists reuse).
 
 ### E112 — Scrypted integration: camera snapshot element (sensors already work) 💡 to refine
 
@@ -1113,20 +1021,6 @@ Device families must offer **the same elements with the same MQTT contracts** �
 
 **Relates:** **E86** ✅ (the unit-asserted parity precedent to generalise), **E106** ✅ (shared base class/code — the mechanism that makes parity cheap), **E103** ✅ (WLED shipped with an identical contract across three families), **E115** (switching — this contract is its precondition), E108 ✅ (discovery — why gaps now cause bugs), **E137** (behavior-controller extraction — the structural fix that makes behavior parity true by construction; this item's test lands *first* and serves as E137's migration safety net).
 
-### E115 — Switch an element to another family (context menu) 💡 to refine
-
-Right-click an element → **Switch family** → `metro-light` becomes `glass-light`, **keeping all configuration** (topics, payloads, limits, label) and its position/size. Today changing your mind about a family means deleting and re-configuring every element.
-
-**Depends on E114** — parity is what makes the attribute set transferable; without it this is a lossy guess.
-
-**Machinery that already exists:** **A23/A24** ship a static **tag-prefix → family-package map** in the editor (for missing-element detection) — exactly the lookup a switcher needs to know which families exist and which are installed. **E87** ✅ established the **deprecated-tag-alias + attribute-remap** pattern for rewriting saved dashboards, which is the same operation applied at author time instead of load time.
-
-**Design points:** carry across every attribute in the shared contract; **warn (don't silently drop)** on family-specific attributes that have no counterpart; preserve position/size and `discovery-id`; route through the normal change/undo pipeline so it's one undoable action. Power feature worth considering: **switch all elements of family X** on a view or site-wide ("restyle this dashboard"), which is the real payoff — though it should probably ship after the single-element case proves the mapping.
-
-**Open:** whether an unavailable target family should offer to install it (A23's missing-element detection already knows the package), and what happens to elements whose target-family twin doesn't exist yet (blocked until E114's parity set is satisfied).
-
-**Relates:** **E114** (parity — precondition), **E113** (function × style — the model that makes this coherent), E87 ✅ (attribute-remap precedent), A23/A24 (tag→package map). *(E115's "strip the styling" switch target is the **Basic** family where a functional twin exists — E116 ❌ dropped.)*
-
 ### E119 — `basic-number`: configurable placeholder before the first value
 
 Until the first MQTT message arrives, `basic-number` renders **nothing** — `_formatedValue` starts as `''` and `_valueChanged()` early-returns while `value == null` ([feezal-element-basic-number.js:70-73](../www/packages/@feezal/feezal-element-basic-number/feezal-element-basic-number.js#L70-L73)). On a fresh dashboard that reads as a broken or empty widget rather than "no data yet".
@@ -1144,7 +1038,7 @@ It is also **inconsistent**: `prefix` and `suffix` render regardless of whether 
 
 **Relates:** N31 (availability / `unavailable` attribute — the other "this element has no trustworthy value right now" signal; a placeholder and an unavailable state should not contradict each other), E118 (same element family), **E114** (parity contract, if it spreads to siblings).
 
-> **Terminology note for E120:** reported as "*-shutter". The packages are named **cover** (`feezal-element-material-cover`, `-glass-cover`, `-metro-cover`) — same elements. Whether the user-facing label should become "Shutter" is a separate question for **E113** (taxonomy).
+> **Terminology note for E120:** reported as "*-shutter". The packages are named **cover** (`feezal-element-circle-cover`, `-glass-cover`, `-metro-cover`) — same elements. Whether the user-facing label should become "Shutter" is a separate question for **E113** (taxonomy).
 
 ### E125 — Homematic battery voltage (`OPERATING_VOLTAGE`) 💡 future
 
@@ -1193,109 +1087,38 @@ Homematic `:0` maintenance channels carry two under-used, genuinely actionable d
 
 **3. ERROR_CODE v1: nonzero = error, show the raw code** (badge + tooltip "ERROR_CODE 4"). A per-device-family code→text mapping (HM-CC-RT-DN valve faults, Keymatic clutch errors, …) is the explicit **phase 2** — each family's codes need researching against CCU docs; don't block the badge on that.
 
-**4. V1 element scope (where the signals actually occur):** `ERROR_CODE` → the three `*-climate` cards + `material-door-lock`; `SABOTAGE` → `*-contact`, `*-motion`/`occupancy` (E132's `*-sensor`), `material-door-lock`. Shared descriptors per the E117/E124 convention.
+**4. V1 element scope (where the signals actually occur):** `ERROR_CODE` → the three `*-climate` cards + `circle-lock`; `SABOTAGE` → `*-contact`, `*-motion`/`occupancy` (E132's `*-sensor`), `circle-lock`. Shared descriptors per the E117/E124 convention.
 
 **⚠ Verify before implementing (the usual hm-metadata caveat):** `ERROR_CODE`/`SABOTAGE` naming is BidCoS-flavoured — confirm the HmIP `:0` equivalents on real devices (HmIP tends to report `SABOTAGE` too, but error reporting may be per-channel `ERROR_*` datapoints rather than one `:0` code). Same verify-first rule as E131's channel types.
 
 **Ships with:** recognizer tests (presence-checked emission, both records), applier auto-stamp test, the health-board element (+ TESTING.md §6 entry with element-specific notes per the checklist rule), badge rendering tests incl. the alarm-grade sabotage styling, TESTING.md rows (stuck-valve TRV shows the error badge while the setpoint stays operable; opening a contact's case shows the sabotage badge on the card AND a row on the board).
 
-**Relates:** **E124** (the canonical-record + auto-stamp pattern this extends; battery is the third signal on the board), N31 (availability — the fourth board signal, already normalized), **E131** (motion recognizer — emits sabotage for motion sensors when it lands), E108 ✅ (recognizer framework), E66 💡 (fleet/heartbeat board — the generic sibling idea; this board is its Homematic-first concretization), E61 (HMI/alarm family — same alarm-grade signalling language), material-door-lock (Keymatic consumer).
+**Relates:** **E124** (the canonical-record + auto-stamp pattern this extends; battery is the third signal on the board), N31 (availability — the fourth board signal, already normalized), **E131** (motion recognizer — emits sabotage for motion sensors when it lands), E108 ✅ (recognizer framework), E66 💡 (fleet/heartbeat board — the generic sibling idea; this board is its Homematic-first concretization), E61 (HMI/alarm family — same alarm-grade signalling language), circle-lock (Keymatic consumer).
 
-### E137 — Shared MQTT device contracts: extract behavior controllers (climate / light / cover / wled)
+### E139 — "Fancy" element family: Lottie-animated device cards
 
-**Progress (07/2026 — sensor / contact / climate shipped):** the pattern is live. Workspace packages `@feezal/feezal-controller-sensor` / `-contact` / `-climate` each export controller class + attribute fragment + `discovery.map` fragment + `*_CONSUMED_ATTRIBUTES` as one unit, and all nine adopting elements are migrated (sensor: material-motion / glass-occupancy / metro-occupancy; contact + climate: all three families). E124's battery quartet shipped inside the fragments; family quirks are constructor flags as decided (metro-climate `{json:false, actualFromSubscribe:true}`, material-climate `{humidity:true}`); per-family inspector metadata (U39 sections/`visibleWhen`) is merged onto the shared fragment by attribute name. The **derived parity test** exists: `www/test-browser/feezal-controller-parity.test.js` checks every adopting element against the consumed-set declarations (metro-climate's json-only exclusions documented in the test). Unification side effects: string `modes` entries render capitalized labels in every family; live-canvas rewire works in all three climate cards. **Remaining: light / cover / wled** (order: light next — settling folds into `LightController` —, then cover with E128, then wled).
-
-**Problem — the contract is triplicated.** For the complex device functions, the *entire MQTT behavior* — subscriptions, payload modes, scaling, mode machinery, command publishing — is implemented three times over in material / glass / metro, held in sync only by discipline and literal `duplicated, keep in sync` comments (`pctToRaw`, `hsvToRgb`/`rgbToHsv`/`parseRgb`/`xyToRgb`, the `$setpoint` substitution helper). The 07/2026 climate bug wave is the receipts:
-
-- **B53/B55** — metro (and partly glass) silently *diverged* from material (missing `match-setpoint-max` resolution; falsy-zero mode filter added to two copies but not the third).
-- **B58** — one root cause, **three files to patch**.
-- **E122** (on_off light mode) — one feature, three implementations.
-- **E114's whole existence** — a CI test to catch drift that shouldn't be *possible*.
-
-**Proposal — behavior controllers (composition, not inheritance).** Per device function, a controller **package**: `@feezal/feezal-controller-climate` / `-light` / `-cover` / `-wled`, each exporting its controller class (**`ClimateController`**, **`LightController`**, **`CoverController`**, **`WledController`**) following the Lit Reactive Controller pattern. The in-repo precedent already exists: **E127's `SettlingController`** (`feezal-element/feezal-settling.js`) is exactly this shape — family-agnostic, shared by all three light elements, explicitly designed for reuse (E128 covers).
-
-The controller owns everything MQTT:
-- **Subscriptions** (wired through the host's `addSubscription`), payload modes (json / separate topics), `message-property-*` extraction, availability.
-- **Normalization/scaling**: brightness min/max ↔ percent, Homematic `LEVEL` 0–1, mired ↔ kelvin, color parsing (`hsvToRgb` & friends live here, once).
-- **Mode machinery**: mode-list parsing, active-entry resolution (`match-*` incl. `match-setpoint-max`), `$setpoint` substitution with correct payload *types* (B58's class of bug becomes structurally impossible), boost, Homematic Off-as-4.5° detection (B53).
-- **Commands**: `setMode(entry)`, `setSetpoint(v)`, `toggle()`, `setBrightness(pct)`, `open()/stop()/close()` — with settling (E127) folded in behind the command surface.
-
-The family element becomes a **view**: it reads controller state, renders its chrome, and forwards gestures to controller commands. **Why not a shared base class:** single inheritance is already spent — metro extends `MetroTileBase`, glass extends `FeezalGlassCard`. Mixins would dodge that, but controllers are Lit-native, host-agnostic, and unit-testable without a DOM host.
-
-**Companion extractions** (same move, smaller scale — both with precedent):
-- **Shared attribute-descriptor fragments** — the E117 `publishLocalAttribute` pattern scaled up: `climateAttributes` / `lightAttributes` / `coverAttributes` / `wledAttributes`, exported by each controller package alongside its class; families spread them into `static get feezal()` and append family-specific extras (glass `degrade`, metro `size`).
-- **Shared `discovery.map` fragments** — per-function maps exported once; recognizers already stamp identical config across families (E108), so the map that consumes it should be single-sourced too.
-
-**Benefits:**
-- **Fix once.** Every divergence bug in B53–B58 would have been a single fix; every E122-style feature a single implementation.
-- **E114 parity by construction.** The parity *test* shrinks from "compare full contracts across families" to "does each family wire the controller + declare the shared descriptor set" — drift in the behavior layer can no longer happen.
-- **New families get cheap.** E134's circle redesign, E57 e-ink, E61 HMI, community families: a new climate element becomes "render this state object, call these commands".
-- **Behavior gets unit tests** — once, against the controller, without three families × N attributes of DOM fixtures.
-
-**Caveats:**
-- **Migration risk.** ~12 elements (4 functions × 3 families) get their guts replaced; the regression surface is the entire device-element stock. **E114's parity test should exist *before* the extraction** — first as the net proving the three copies agree (or documenting where they legitimately don't), then as the proof the controller reproduces them.
-- **Per-family quirks must stay expressible** — metro-light deliberately omits availability attrs (tile scope); glass defers some work to popup-open. Controller feature flags / partial adoption, not forks.
-- **Version coupling.** Externalized families (A23/A24) pin against the controller packages — a controller behavior change ships to families on their own release cadence. Per-controller packaging (see Decided) narrows the pin surface to the behaviors a family actually uses, and keeps `@feezal/feezal-element` — a dependency of *every* element, down to `basic-icon` — out of the churn. Lockstep-major discipline covers breaking changes; still, the API surface must be deliberate.
-- **Over-abstraction is the failure mode.** This must be an *extraction of existing code*, not a generic "device framework". Four concrete controllers, shaped by what the twelve elements actually do today.
-- **Out of scope:** Polymer/paper legacy, and the non-parity families (carbon, tui, panel) keep their own wiring.
+A new element family whose defining trait is **animation**: a `fancy-contact` that visibly swings the window/door open and closed, a `fancy-light` whose glow breathes with the state, a `fancy-cover` whose blind actually travels. Rich vector motion as the family chrome — nothing in the palette does this today.
 
 **Decided (07/2026):**
-- **Bug wave first:** the B53–B58 wave is fixed **first, in the current triplicated code** (fast relief; the fixes then become the controller's regression fixtures). Extraction follows, with the E114 parity test in place as the safety net.
-- **API scope: internal first** — extract for the three built-in families; document in `element-spec.md` and open to community/external families only after the shape has survived at least one refactor cycle.
-- **Migration order: climate first** (worst offender, knowledge freshest from B53–B58, fixes become fixtures), then light (E127's settling is already half-extracted there), then cover, then wled.
-- **v1 scope: four controllers — wled is in.** Its duplication across the three families (presets, palettes, segments) is real. switch / contact / sensor stay as-is for v1; extending further is a later reassessment (see open questions).
-- **Descriptor ownership: the controller declares them.** Each controller module exports behavior + attribute-descriptor fragment + `discovery.map` fragment as **one unit**, and declares which attributes it consumes — **E114's parity test derives the parity set from that declaration** instead of a hand-maintained list.
-- **Packaging: one workspace package per controller** — `@feezal/feezal-controller-<function>` (`-climate`, `-light`, `-cover`, `-wled`), not modules inside `@feezal/feezal-element`. Rationale:
-  - **The base package stays lean and stable.** Every element pins `@feezal/feezal-element`; per-controller packages mean a wled behavior change never bumps the package that `basic-icon` depends on. Independent semver cadence per behavior; externalized families (A23/A24) pin only the controllers they use.
-  - **Structural isolation beats build-config discipline.** Honest note on tree shaking: with ESM + `sideEffects: false` + subpath exports, per-*module* tree shaking inside one package would achieve the same dead-code elimination — bundlers shake at module granularity, not package granularity. But a package boundary makes the isolation *structural*: no accidental cross-controller imports, no barrel re-export from the base entry quietly dragging every controller into every bundle. And controllers will grow (WLED segments/effects; future schedule support per E107) — the boundary is where growth gets contained.
-  - **Package = the "one unit" from the descriptor decision.** Controller class + attribute fragment + `discovery.map` fragment ship and version as one artifact; the package boundary *is* the contract boundary.
-  - **Bundle-size payoff is in exports.** The export build already subsets elements per site; a site without climate elements then carries no `feezal-controller-climate` bytes at all. (The full viewer bundle imports all elements via the manifest, so it always carries all controllers — no change there.)
-  - **No server work needed:** the `@feezal/` package scan whitelists `feezal-element-` / `feezal-elements-` / `feezal-theme-` / `feezal-icons-` prefixes ([elements.js:253](../server/src/build/elements.js#L253)) — `feezal-controller-*` is transparently ignored, exactly like the existing shared packages `@feezal/feezal-glass` and `@feezal/feezal-lottie` (the workspace precedent for non-element packages).
-  - **Cost accepted:** four more packages under the patch-bump-per-change and lockstep-major rules, plus workspace/`www/package.json` registration for each.
-  - **Cross-controller shared machinery stays in `@feezal/feezal-element`** — settling (E127), payload-mode / `message-property` extraction, scaling and color helpers shared by light+wled. No fourth "controller-core" layer for now (open question below if that shared surface grows).
-- **State surface: plain properties.** Host templates read controller fields directly (`this.climate.mode`, `this.climate.setpoint`); the controller calls `host.requestUpdate()` on change — Lit-idiomatic, matches the `SettlingController` precedent.
-- **Settling (E127) is a mechanism, not a device contract — no `feezal-controller-settling` package.** The device controllers are the *contract* layer (attributes + discovery + commands per function); settling is echo-suppression machinery that several of them need (light today, cover via **E128**, likely wled brightness). Its fate in the target picture:
-  - The **class survives** in `@feezal/feezal-element` (it's the first named tenant of the cross-controller shared-machinery bucket; moves to `feezal-controller-core` only if that split ever happens).
-  - Its **element-facing role disappears**: after migration, elements no longer instantiate `SettlingController` themselves — each device controller embeds a settling instance behind its command surface, and the settling attributes (`subscribe-working`, `message-property-working`, `subscribe-settled`, `settle-timeout`, `report-delay-ms`) are absorbed into that controller's **declared attribute fragment** (per-function defaults included — e.g. E128's generous cover `settle-timeout`). The inspector's "Settling" section is then driven by the controller declaration, and settling-attribute parity is derived like everything else.
-  - **Transition:** the light elements' current direct `SettlingController` wiring is simply the pre-extraction state; it folds into `LightController` when the light slice lands. No throwaway — the class and its tests carry over unchanged, only the call site moves.
-- **Sequencing vs. the rename/redesign wave: renames → extraction → redesigns.** E132/E133 renames land first (mechanical, low-risk), then the extraction, then E134/E136 write their new views **against controller state** — each element's render code is rewritten only once.
+- **Core family** (`feezal-element-fancy-*`, palette category `Fancy`) — ships with feezal, in the default palette. *(Deliberate exception to the A23 keep-core-small line.)*
+- **MVP scope: light, climate, cover, contact, sensor, lock** — six cards (sensor = the E138 ✅ alarm-boolean semantics; a `fancy-motion` can follow the taxonomy later).
+- **Animations: programmatic built-in set + per-element override.** The default set is **self-authored/generated Lottie JSON** — feasible because Lottie is plain JSON (shape layers + keyframed transforms) and the chosen style tier is authorable in code; MIT-clean by construction, no third-party asset licensing. Every element additionally accepts **user-supplied animation JSON via asset refs** (per-state/per-variant `src` overrides through the E89 loader) for anyone wanting LottieFiles art instead.
+- **Style: filled flat duotone** — solid flat shapes in **two theme-derived tones**, recoloured at runtime: the animation JSON uses two palette slots substituted with resolved values of the canonical theme vars before instantiating (lottie-web needs concrete colours — read computed style, re-render on theme change; must respect per-view themes). Default tone mapping follows E138's colour semantics: base tone from `--secondary-text-color`/`--divider-color`; active tone `--primary-color` (light/cover/lock/contact), `--error-color` (alarm sensor states).
+- **Chrome: animation + slim chrome** — the animation is the hero (most of the tile); beneath it a slim label + state line; availability/low-bat/sabotage badges come from the controller contracts. One consistent family frame across all six cards.
 
-**Open questions (refinement needed):**
-- **Follow-on functions** — do switch / contact / sensor (and metro-media?) join after v1 proves the pattern, or is four the right stopping point? Reassess once climate has shipped.
-- **WledController surface** — presets / palettes / effects / segments are a bigger, listier state shape than climate/light/cover; refine its exact API when its slice comes up (last in the order).
-- **Allow-list mechanics** — how the derived parity set expresses *permitted* family-specific extras (glass `degrade`, metro `size`): per-family allow-list in the test, or a `familyExtras` declaration next to the shared fragment?
-- **`feezal-controller-core`?** — if the cross-controller machinery kept in `@feezal/feezal-element` (payload modes, `message-property` extraction, shared scaling/color) grows enough to churn the base package anyway, split it into a `@feezal/feezal-controller-core` that only controller packages depend on. Default **no** — don't add the layer until the churn is demonstrated.
+**Architecture:**
+- **E137 controllers are the behavior layer — fancy elements are pure views:** contact → `ContactController`, sensor → `SensorController`, climate → `ClimateController`, light → `LightController`, cover → `CoverController` (all extracted as of E137 part 5). **Lock has no controller yet** — with `fancy-lock` as a second consumer beside `circle-lock`, the E137 rule applies: **extract `feezal-controller-lock` first.** All six register in `feezal-controller-parity.test.js`.
+- **State → segment model on the E89 machinery:** shared lazy `lottie-web` chunk (fetched only when a fancy element is on a view — the established E39/E89 export discipline); per-state segments plus **directional transitions** (open→closed plays the closing segment, never a jump-cut). Two special mappings: `fancy-cover` **seeks by position** (position % → frame within the travel segment, so the blind stands where the device reports — E127/E128 settling-aware); `fancy-light` scales glow intensity with brightness. `fancy-contact` covers door/window/garage variants incl. the Homematic **tilt tristate** (three poses + transitions between all of them).
+- **Editor: static pose** (current state's first frame, no lib load — E89 pattern); `prefers-reduced-motion` freezes to poses in the viewer too.
+- **Packaging: one N29 bundle** (`@feezal/feezal-elements-fancy`) in the core workspace — the six cards share the animation set, the recolour helper and the chrome frame (E106 lesson: no six hand-rolled copies).
 
-**Relates:** **E114** (parity contract — this is the structural answer to it; its test lands first as the migration net), E106 ✅ (shared base class/code — this continues that line), E127 ✅ (`SettlingController` — the controller precedent and first tenant of the pattern), E117 ✅ (shared descriptor precedent), **B53–B58** (the motivating bug wave; fixed pre-extraction, then regression fixtures), E122 ✅ (one feature, three implementations — the cost this removes), **E115** (family switching — an identical behavior layer makes switching lossless by construction), E132/E133/E134/E136 (renames + redesigns — coordinate sequencing), A23/A24 (externalization — version-coupling caveat), E86 ✅ (descriptor-parity test precedent).
+**Animation authoring:** the default set is generated by a **checked-in generator script** emitting the Lottie JSONs — reproducible, tweakable, and the two-tone palette slots are enforced by the generator. Complex illustrative art is explicitly out of scope for the built-in set (that's what the override attributes are for). *(Answer to "can you create them": yes for this tier — flat-geometric Lottie is authorable programmatically; illustrator-grade art would need supplied/curated assets.)*
+ 
+**Sequencing:** first wave **contact, sensor, climate, light, cover** (controllers all shipped); **lock** follows the controller-lock extraction. Family frame + recolour helper + generator land with the first wave.
 
-### E138 — Contact / sensor / motion / value: untangle the boolean-card taxonomy
+**Ships with:** N29 bundle + registration + `generate-elements`, parity-test registrations, TESTING.md §6 family section (state animations, directional transitions, position-seek, tilt tristate, theme recolour incl. per-view themes, reduced motion, editor static pose, override srcs, lazy chunk), version bumps per policy.
 
-**Problem — we created chaos.** "Sensor" means two different things depending on the family, and the boolean card carries a different name in every family:
-
-| today | material | glass | metro | eink |
-|---|---|---|---|---|
-| boolean card (SensorController) | `material-motion` | `glass-occupancy` | `metro-occupancy` | `eink-sensor` |
-| numeric card (value/unit/trend) | — | `glass-sensor` | `metro-sensor` | — |
-| openings card (ContactController) | `material-contact` | `glass-contact` | `metro-contact` | `eink-contact` |
-
-The boolean card's scope also sprawls: `material-motion` describes itself as "motion, presence, water leak, smoke, gas, …" — motion and alarm sensors have different UX expectations (expected activity vs. exceptional alarm) and different colour semantics.
-
-**Decided taxonomy (07/2026)** — four elements per family, all on the E137 shared contracts:
-
-- **`*-contact`** — door/window contacts, garage doors, incl. the Homematic **3-state window (tilt)**. `ContactController`, unchanged in scope.
-- **`*-sensor`** — **alarm-character, normally boolean** sensors: fire/smoke, water/leak, CO, CO2/gas, vibration, … `SensorController` with the alarm slice of the E132 type vocabulary.
-- **`*-motion`** *(new name)* — motion / occupancy / presence / radar. Also `SensorController` (motion slice of the type vocabulary); separate element because defaults, iconography and colour semantics differ from alarms.
-- **`*-value`** *(new name, decided)* — today's **numeric** readout cards (big numeral + unit + trend): `glass-sensor`/`metro-sensor` renamed.
-
-**Rename matrix (hard rename + release note — decided; no tag aliasing):** `glass-occupancy → glass-motion`, `metro-occupancy → metro-motion` (`material-motion` keeps its name, scope narrows to motion types); `glass-sensor → glass-value`, `metro-sensor → metro-value`; **new** `material-sensor`, `glass-sensor`, `metro-sensor` (alarm card — note glass/metro reuse the freed name with a *different meaning*: call this out loudly in the release note), `eink-sensor` narrows to alarms + **new** `eink-motion`. Family gaps (e.g. material has no numeric card, eink has no motion card yet) verified and filled or documented at implementation. Saved dashboards using renamed tags break — **release-note migration table** (old tag → new tag) is mandatory, and the reused `glass-sensor`/`metro-sensor` names mean an *old* dashboard's numeric sensor silently becomes an alarm card: consider having the release note recommend a search-replace in source view before upgrading.
-
-- **Low-bat + sabotage on contact, sensor and motion:** low-bat is already in both controllers (E124). **Sabotage** rides on **E135**'s SABOTAGE badge machinery — the controllers gain the sabotage subscription/badge as part of E135's canonical-record auto-stamp; this item just requires it on all three boolean cards.
-- **Active-state default colours from the canonical theme vars** (§5.1): **motion → `--accent-color`**, **alarm sensors (smoke/water/CO/…) → `--error-color`**, **contact open/tilted → `--primary-color`** — defaults only, per-element overrides stay via the existing `--feezal-*` style props. One definition in the shared fragments, not per family.
-- **Discovery split by `device_class`:** `binary_sensor` configs route to the right card — `motion`/`occupancy`/`presence` → `*-motion`; `smoke`/`moisture`/`gas`/`carbon_monoxide`/`vibration`/… → `*-sensor`; `door`/`window`/`garage_door` → `*-contact`. Update the HA/z2m mapping and the native recognizers (E131 motion recognizer included) accordingly.
-
-**Ships with:** controller/fragment updates, package renames + new packages + `generate-elements`, parity-test registrations (`feezal-controller-parity.test.js`), palette/description updates, discovery routing, TESTING.md §6 restructure for the four-way split, release note with the migration table, version bumps per policy.
-
-**Relates:** **E137** (the contract layer — sensor/contact controllers shipped, this reorganizes their consumers), E132 (type vocabulary — split into motion/alarm slices), E135 (SABOTAGE badges — sabotage support lands there, required here), E124 ✅ (low-bat, already in the controllers), E113 (function×style taxonomy discussion — this is its concrete first act), E114 (parity — the four-way split must hold in every family), E130 (outlet rename — bundle into the same breaking-rename release note), E131 (motion recognizer — routes to `*-motion`).
+**Relates:** E89 ✅ (Lottie machinery + lazy loader — the foundation), **E137** (controllers — the behavior layer; lock-controller extraction is the one prerequisite), **E138 ✅** (taxonomy + colour semantics the family follows), E114 (parity), E39 ✅ (splash — same lazy-chunk discipline), per-view themes ✅ (recolour must respect them), A25 ✅ (self-hosted/MIT-clean assets — the programmatic set satisfies it by construction), E113 (function × style — a new style family over existing functions, exactly that model), E135 (sabotage badge on the fancy cards too).
 
 ## Architecture & Infrastructure
 
