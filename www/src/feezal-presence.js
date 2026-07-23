@@ -57,6 +57,15 @@ export function presenceEnabled() {
         s.getAttribute('publish') && s.getAttribute('presence') !== 'off');
 }
 
+/** U48: the transient connection/rename toasts are on by default; a site may
+ *  silence them with presence-toasts="off" (e.g. a wall panel). The sticky
+ *  ID-collision warning is never gated — it flags a real misconfiguration.
+ *  Presence itself keeps working regardless. */
+export function presenceToastsEnabled() {
+    const s = site();
+    return !(s && s.getAttribute('presence-toasts') === 'off');
+}
+
 /** Stable per-browser client ID (viewer-x7k2 style), generated on first run. */
 export function clientId() {
     try {
@@ -102,6 +111,9 @@ function publishStatus() {
 // ── Toasts (plain DOM — the viewer bundle carries no UI library) ────────────
 
 export function toast(text, {sticky = false} = {}) {
+    // U48: transient (non-sticky) presence toasts can be silenced per site; the
+    // sticky collision warning always shows.
+    if (!sticky && !presenceToastsEnabled()) return;
     let stack = document.querySelector('#feezal-presence-toasts');
     if (!stack) {
         stack = document.createElement('div');

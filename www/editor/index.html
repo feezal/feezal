@@ -21,6 +21,19 @@
 
     <script>
 
+        // Cosmetic: keep the ? and # separators slash-wrapped so the address bar
+        // always reads /editor/?/<site>/#/<view> (the site reader below already
+        // accepts both /editor/?<site> and /editor/?/<site>/).
+        (function () {
+            try {
+                var site = location.search.replace(/^\?\/?([^/]*)\/?$/, '$1') || 'default';
+                var want = '/editor/?/' + site + '/' + (location.hash || '');
+                if (location.pathname + location.search + location.hash !== want) {
+                    history.replaceState(null, '', want);
+                }
+            } catch (e) { /* ignore */ }
+        })();
+
         window.feezal = {
             isEditor: true,
             siteName: location.search.replace(/^\?\/?([^/]*)\/?$/, '$1') || 'default',

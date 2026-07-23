@@ -8,8 +8,8 @@ import '@feezal/feezal-element-material-gauge';
 import '@feezal/feezal-element-material-slider';
 import '@feezal/feezal-element-material-progress';
 import '@feezal/feezal-element-material-checkbox';
-import '@feezal/feezal-element-material-contact';
-import '@feezal/feezal-element-material-motion';
+import '@feezal/feezal-element-circle-contact';
+import '@feezal/feezal-element-circle-motion';
 import '@feezal/feezal-element-material-select';
 import '@feezal/feezal-element-material-input';
 import '@feezal/feezal-element-paper-button';
@@ -129,7 +129,7 @@ describe('checkbox', () => {
 
 describe('contact', () => {
     it('maps open/closed/tilted payloads to the contact state', async () => {
-        const el = await mount('feezal-element-material-contact', {
+        const el = await mount('feezal-element-circle-contact', {
             'subscribe': 'stat/window', 'payload-tilted': 'TILTED'
         });
 
@@ -144,7 +144,7 @@ describe('contact', () => {
     });
 
     it('B27: Homematic numeric payloads (0/1/2) drive the tristate incl. tilt handle', async () => {
-        const el = await mount('feezal-element-material-contact', {
+        const el = await mount('feezal-element-circle-contact', {
             'subscribe': 'hm/window/STATE',
             'payload-closed': '0', 'payload-open': '1', 'payload-tilted': '2'
         });
@@ -152,9 +152,8 @@ describe('contact', () => {
         feezal.connection.deliver('hm/window/STATE', 2);
         await el.updateComplete;
         expect(el.contact.state).toBe('tilted');
-        // Handle lever drawn pointing up (pivot y=30 → endpoint y=16)
-        const lever = [...el.shadowRoot.querySelectorAll('svg.contact line')].pop();
-        expect(lever.getAttribute('y2')).toBe('16');
+        // E138 redesign: the state disc carries the tilt class (tilt colour).
+        expect(el.shadowRoot.querySelector('.disc.tilted')).not.toBeNull();
 
         feezal.connection.deliver('hm/window/STATE', 1);
         expect(el.contact.state).toBe('open');
@@ -163,7 +162,7 @@ describe('contact', () => {
     });
 
     it('B27: rewires subscriptions when the topic changes on the live canvas', async () => {
-        const el = await mount('feezal-element-material-contact', {
+        const el = await mount('feezal-element-circle-contact', {
             'subscribe': 'stat/old', 'payload-tilted': '2'
         });
 
@@ -179,7 +178,7 @@ describe('contact', () => {
     });
 
     it('E78: a legacy contacts attribute falls back to single-contact mode (multi-contact removed)', async () => {
-        const el = await mount('feezal-element-material-contact', {
+        const el = await mount('feezal-element-circle-contact', {
             contacts: JSON.stringify([
                 {subscribe: 'w/1', label: 'One'},
                 {subscribe: 'w/2', label: 'Two'}
@@ -187,14 +186,14 @@ describe('contact', () => {
         });
         await el.updateComplete;
         // Multi-contact mode was removed — the attribute is ignored, the
-        // element renders the single-contact SVG (compose multiple contact
-        // elements for room overviews instead).
+        // element renders the single-contact state disc (compose multiple
+        // contact elements for room overviews instead).
         expect(el.shadowRoot.querySelector('.multi-dot')).toBeNull();
-        expect(el.shadowRoot.querySelector('svg.contact')).not.toBeNull();
+        expect(el.shadowRoot.querySelector('.disc')).not.toBeNull();
     });
 
     it('shows the unavailable marker when the availability topic reports offline', async () => {
-        const el = await mount('feezal-element-material-contact', {
+        const el = await mount('feezal-element-circle-contact', {
             'subscribe': 'stat/window',
             'subscribe-availability': 'tele/window/LWT'
         });
@@ -210,7 +209,7 @@ describe('contact', () => {
 
 describe('motion', () => {
     it('maps active/clear payloads, unwrapping JSON state objects', async () => {
-        const el = await mount('feezal-element-material-motion', {subscribe: 'stat/pir'});
+        const el = await mount('feezal-element-circle-motion', {subscribe: 'stat/pir'});
 
         feezal.connection.deliver('stat/pir', 'ON');
         expect(el.sensor.active).toBe(true);

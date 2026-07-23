@@ -9,13 +9,19 @@
  * the value→segment map (incl. src-swap), reload-on-src-change, disconnect
  * cleanup, and the broken-src placeholder.
  */
-import {describe, it, expect, beforeEach, afterEach} from 'vitest';
+import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest';
 import '@feezal/feezal-element-basic-lottie';
 import {__setLottieFactoryForTests} from '@feezal/feezal-lottie';
 import {setupFeezal, mount, until} from './helpers.js';
 
 let feezal;
 let created;   // every AnimationItem the fake factory produced, in order
+let _origFetch;
+
+/** A minimal but VALID Lottie object, tagged with the requested URL. */
+function fakeLottieData(url) {
+    return {v: '5.7.4', fr: 30, ip: 0, op: 60, w: 100, h: 100, layers: [], __src: String(url)};
+}
 
 /** A fake lottie factory: records created instances + their method calls. */
 function fakeLottie() {
@@ -53,10 +59,16 @@ beforeEach(() => {
     const fake = fakeLottie();
     created = fake.instances;
     __setLottieFactoryForTests(fake.factory);
+    // The element now fetches + validates the JSON itself (instead of handing
+    // lottie-web a `path`), so mock fetch to return a minimal VALID Lottie that
+    // tags the requested URL — tests assert which src loaded via animationData.
+    _origFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async url => ({ok: true, json: async () => fakeLottieData(url)}));
 });
 
 afterEach(() => {
     __setLottieFactoryForTests(null);
+    globalThis.fetch = _origFetch;
 });
 
 async function mountLottie(attrs) {
@@ -64,17 +76,25 @@ async function mountLottie(attrs) {
     return el;
 }
 
-describe('editor placeholder', () => {
-    it('renders a static placeholder and never loads the library in editor mode', async () => {
+describe('editor rendering', () => {
+    it('renders the animation on the editor canvas (loads the lib) but does NOT subscribe to MQTT playback', async () => {
         feezal.isEditor = true;
         const el = await mountLottie({src: 'assets/weather.json', subscribe: 'dev/anim'});
-        await el.updateComplete;
-        expect(el.shadowRoot.querySelector('.placeholder')).not.toBeNull();
-        expect(el.shadowRoot.querySelector('.stage')).toBeNull();
-        // No animation instance was ever created.
-        expect(created.length).toBe(0);
-        // Delivering a payload in the editor does nothing (no subscription).
+        const inst = await until(() => created[0]);   // loads in the editor now
+        expect(el.shadowRoot.querySelector('.stage')).not.toBeNull();
+        // MQTT-driven playback is viewer-only — a delivered payload does nothing.
+        const before = inst.calls.length;
         feezal.connection.deliver('dev/anim', 'play');
+        await el.updateComplete;
+        expect(inst.calls.length).toBe(before);
+    });
+
+    it('shows the chip and loads nothing in the editor when there is no src', async () => {
+        feezal.isEditor = true;
+        const el = await mountLottie({subscribe: 'dev/anim'});
+        await el.updateComplete;
+        await new Promise(r => setTimeout(r, 20));
+        expect(el.shadowRoot.querySelector('.placeholder')).not.toBeNull();
         expect(created.length).toBe(0);
     });
 });
@@ -83,11 +103,20 @@ describe('lazy load + lifecycle', () => {
     it('creates a lottie instance from src (viewer) with the resolved path', async () => {
         const el = await mountLottie({src: 'assets/weather.json'});
         const inst = await until(() => created[0]);
-        expect(inst.opts.path).toBe('assets/weather.json');
+        expect(inst.opts.animationData.__src).toBe('assets/weather.json');
         expect(inst.opts.renderer).toBe('svg');
         expect(inst.opts.loop).toBe(true);
         expect(inst.opts.autoplay).toBe(true);
         expect(el.shadowRoot.querySelector('.stage')).not.toBeNull();
+    });
+
+    it('loop="false" disables looping and persists as an explicit attribute (default-true fix)', async () => {
+        const el = await mountLottie({src: 'a.json', loop: 'false', autoplay: 'false'});
+        const inst = await until(() => created[0]);
+        expect(inst.opts.loop).toBe(false);
+        expect(inst.opts.autoplay).toBe(false);
+        // Stored as the literal "false" (not removed) so it survives save/reload.
+        expect(el.getAttribute('loop')).toBe('false');
     });
 
     it('with no src shows the placeholder and loads nothing', async () => {
@@ -183,12 +212,12 @@ describe('value → segment map', () => {
         const map = JSON.stringify({storm: {src: 'storm.json'}});
         const el = await mountLottie({src: 'weather.json', subscribe: 'dev/anim', map});
         const first = await until(() => created[0]);
-        expect(first.opts.path).toBe('weather.json');
+        expect(first.opts.animationData.__src).toBe('weather.json');
 
         feezal.connection.deliver('dev/anim', 'storm');
         const second = await until(() => created[1]);
         expect(first.destroyed).toBe(true);
-        expect(second.opts.path).toBe('storm.json');
+        expect(second.opts.animationData.__src).toBe('storm.json');
     });
 });
 
@@ -196,12 +225,12 @@ describe('src change reloads', () => {
     it('changing the src attribute destroys and re-creates the instance', async () => {
         const el = await mountLottie({src: 'one.json'});
         const first = await until(() => created[0]);
-        expect(first.opts.path).toBe('one.json');
+        expect(first.opts.animationData.__src).toBe('one.json');
 
         el.setAttribute('src', 'two.json');
         const second = await until(() => created[1]);
         expect(first.destroyed).toBe(true);
-        expect(second.opts.path).toBe('two.json');
+        expect(second.opts.animationData.__src).toBe('two.json');
     });
 });
 
@@ -209,10 +238,29 @@ describe('broken src', () => {
     it('shows the placeholder on a data_failed event and never throws', async () => {
         const el = await mountLottie({src: 'missing.json'});
         const inst = await until(() => created[0]);
-        // Simulate lottie-web failing to fetch/parse the asset.
+        // Simulate lottie-web failing on the animation data.
         inst.fire('data_failed');
         await el.updateComplete;
         expect(el._broken).toBe(true);
+        expect(el.shadowRoot.querySelector('.placeholder')).not.toBeNull();
+    });
+
+    it('shows a "Not a Lottie" placeholder for a JSON that is not an animation', async () => {
+        // A valid JSON that is not a Lottie (no layers array / version keys).
+        globalThis.fetch = vi.fn(async () => ({ok: true, json: async () => ({foo: 'bar', hello: [1, 2]})}));
+        const el = await mountLottie({src: 'data.json'});
+        await until(() => el._invalid === true);
+        expect(el._invalid).toBe(true);
+        expect(created.length).toBe(0);   // never handed to lottie-web
+        expect(el.shadowRoot.querySelector('.placeholder')?.textContent).toContain('Not a Lottie');
+    });
+
+    it('shows the broken placeholder when the JSON fetch fails (404)', async () => {
+        globalThis.fetch = vi.fn(async () => ({ok: false, status: 404, json: async () => ({})}));
+        const el = await mountLottie({src: 'missing.json'});
+        await until(() => el._broken === true);
+        expect(el._broken).toBe(true);
+        expect(created.length).toBe(0);
         expect(el.shadowRoot.querySelector('.placeholder')).not.toBeNull();
     });
 });

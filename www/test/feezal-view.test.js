@@ -19,7 +19,7 @@ describe('feezal-view visibility', () => {
 
     it('propagates visibility to feezal-element-* descendants', () => {
         const view = makeView('home');
-        const light = document.createElement('feezal-element-material-light');
+        const light = document.createElement('feezal-element-circle-light');
         const nested = document.createElement('feezal-element-basic-image');
         const wrapper = document.createElement('div');
         wrapper.append(nested);

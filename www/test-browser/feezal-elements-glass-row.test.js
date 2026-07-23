@@ -6,7 +6,7 @@
 import {describe, it, expect, beforeEach} from 'vitest';
 import '@feezal/feezal-element-glass-switch';
 import '@feezal/feezal-element-glass-light';
-import '@feezal/feezal-element-glass-sensor';
+import '@feezal/feezal-element-glass-value';
 import {setupFeezal, mount, until} from './helpers.js';
 
 beforeEach(() => {
@@ -36,9 +36,9 @@ describe('glass wide-tile row layout (E105)', () => {
         expect(await displayAt('feezal-element-glass-light', 150, 150, 'flex')).toBe('flex');
     });
 
-    it('glass-sensor: grid at 320x100, flex at 150x150', async () => {
-        expect(await displayAt('feezal-element-glass-sensor', 320, 100, 'grid')).toBe('grid');
-        expect(await displayAt('feezal-element-glass-sensor', 150, 150, 'flex')).toBe('flex');
+    it('glass-value: grid at 320x100, flex at 150x150', async () => {
+        expect(await displayAt('feezal-element-glass-value', 320, 100, 'grid')).toBe('grid');
+        expect(await displayAt('feezal-element-glass-value', 150, 150, 'flex')).toBe('flex');
     });
 });
 

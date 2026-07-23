@@ -3,6 +3,18 @@ import {LitElement, html, css} from 'lit';
 
 import '@shoelace-style/shoelace/dist/components/input/input.js';
 
+// E133: the device cards are "Circle" (their circular-slider design language),
+// the MD3 widgets are "Material" (they literally are Material Design 3
+// controls). This is also the set of "known" (shipped) families used to seed
+// the seen-categories migration below — a family NOT in this list (a freshly
+// installed one, e.g. Eink) counts as new and defaults collapsed.
+const CATEGORY_ORDER = ['Components', 'Basic', 'Layout', 'System', 'Glass', 'Metro', 'Circle', 'Eink', 'Material', 'Carbon', 'Paper', 'Panel', 'TUI'];
+// The families that existed BEFORE the seen-categories tracking shipped — used
+// only to seed `_seen` on migration, so pre-existing families the user already
+// expanded are NOT re-collapsed. Deliberately excludes Eink (and any newer
+// family) so those collapse once on upgrade.
+const PRE_SEEN_CATEGORIES = new Set(['Components', 'Basic', 'Layout', 'System', 'Circle', 'Glass', 'Metro', 'Material', 'Carbon', 'Paper', 'Panel', 'TUI']);
+
 class FeezalPalette extends LitElement {
     static properties = {
         categories: {type: Array},
@@ -99,6 +111,13 @@ class FeezalPalette extends LitElement {
         try {
             this._collapsed = new Set(JSON.parse(localStorage.getItem('feezal-palette-collapsed') || '[]'));
         } catch { /* corrupt value — start expanded */ }
+        // Categories the palette has already shown the user. A category that is
+        // NOT here when it appears (a freshly installed family) defaults to
+        // collapsed, so an upgrade never silently expands the palette.
+        this._seenMigrated = localStorage.getItem('feezal-palette-seen') !== null;
+        try {
+            this._seen = new Set(JSON.parse(localStorage.getItem('feezal-palette-seen') || '[]'));
+        } catch { this._seen = new Set(); }
     }
 
     _toggleCategory(name) {
@@ -244,27 +263,58 @@ class FeezalPalette extends LitElement {
         this.categories = Object.entries(categories)
             .map(([name, elements]) => ({name, elements}))
             .sort((a, b) => {
-                // E133: the device cards are "Circle" (their circular-slider
-                // design language), the MD3 widgets are "Material" (they
-                // literally are Material Design 3 controls).
-                const ORDER = ['Components', 'Basic', 'Layout', 'System', 'Circle', 'Glass', 'Metro', 'Material', 'Carbon', 'Paper', 'Panel', 'TUI'];
-                const ai = ORDER.indexOf(a.name);
-                const bi = ORDER.indexOf(b.name);
+                const ai = CATEGORY_ORDER.indexOf(a.name);
+                const bi = CATEGORY_ORDER.indexOf(b.name);
                 if (ai === -1 && bi === -1) return a.name.localeCompare(b.name);
                 if (ai === -1) return 1;
                 if (bi === -1) return -1;
                 return ai - bi;
             });
 
+        if (!this.categories.length) return;
+        const names = this.categories.map(c => c.name);
+
         // First-run default: everything collapsed except "Basic". Persist so
         // it happens once, and subsequent user toggles behave normally.
-        if (this._needsDefaultCollapse && this.categories.length) {
+        if (this._needsDefaultCollapse) {
             this._needsDefaultCollapse = false;
-            this._collapsed = new Set(this.categories.map(c => c.name).filter(n => n !== 'Basic'));
+            this._collapsed = new Set(names.filter(n => n !== 'Basic'));
+            this._persistCollapsed();
+        } else {
+            // Migration: first time we track "seen", seed it with the families
+            // that already shipped so a family the user deliberately expanded is
+            // NOT re-collapsed — only genuinely new families (not in the shipped
+            // set) count as unseen.
+            if (!this._seenMigrated) {
+                this._seenMigrated = true;
+                this._seen = new Set(names.filter(n => PRE_SEEN_CATEGORIES.has(n)));
+            }
+            // A newly appeared (unseen, non-Basic) family defaults to collapsed.
+            let changed = false;
+            for (const n of names) {
+                if (n !== 'Basic' && !this._seen.has(n) && !this._collapsed.has(n)) {
+                    this._collapsed.add(n);
+                    changed = true;
+                }
+            }
+            if (changed) { this._collapsed = new Set(this._collapsed); this._persistCollapsed(); }
+        }
+
+        // Remember every category now shown, so it isn't re-collapsed later
+        // (e.g. after the user expands it).
+        const seenNext = new Set([...this._seen, ...names]);
+        if (seenNext.size !== this._seen.size) {
+            this._seen = seenNext;
             try {
-                localStorage.setItem('feezal-palette-collapsed', JSON.stringify([...this._collapsed]));
+                localStorage.setItem('feezal-palette-seen', JSON.stringify([...seenNext]));
             } catch { /* quota — non-fatal */ }
         }
+    }
+
+    _persistCollapsed() {
+        try {
+            localStorage.setItem('feezal-palette-collapsed', JSON.stringify([...this._collapsed]));
+        } catch { /* quota — non-fatal */ }
     }
 
     /**

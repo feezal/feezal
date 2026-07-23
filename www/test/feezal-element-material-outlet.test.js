@@ -1,6 +1,6 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 
-import '../packages/@feezal/feezal-element-material-outlet/feezal-element-material-outlet.js';
+import '../packages/@feezal/feezal-element-circle-switch/feezal-element-circle-switch.js';
 
 // E121 — smart plug / outlet card: material-light locked to on_off mode
 // (E122). One rendering/publishing code path, own palette identity.
@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 async function mountOutlet(attrs = {}) {
-    const el = document.createElement('feezal-element-material-outlet');
+    const el = document.createElement('feezal-element-circle-switch');
     for (const [k, v] of Object.entries({
         'subscribe-state': 'plug/state',
         'publish-state': 'plug/set',
@@ -26,10 +26,10 @@ async function mountOutlet(attrs = {}) {
     return el;
 }
 
-describe('feezal-element-material-outlet (E121)', () => {
+describe('feezal-element-circle-switch (E121)', () => {
     it('is a material-light subclass locked to on_off mode', async () => {
         const el = await mountOutlet();
-        expect(el instanceof customElements.get('feezal-element-material-light')).toBe(true);
+        expect(el instanceof customElements.get('feezal-element-circle-light')).toBe(true);
         expect(el.mode).toBe('on_off');
     });
 
@@ -51,7 +51,7 @@ describe('feezal-element-material-outlet (E121)', () => {
     });
 
     it('declares its own palette identity and no mode/brightness attributes', () => {
-        const cls = customElements.get('feezal-element-material-outlet');
+        const cls = customElements.get('feezal-element-circle-switch');
         // E130: palette name aligned with glass-switch/metro-switch; the tag stays material-outlet.
         expect(cls.feezal.palette).toMatchObject({name: 'Switch', category: 'Circle'});   // E133
         const names = cls.feezal.attributes.map(a => a.name);
@@ -63,7 +63,7 @@ describe('feezal-element-material-outlet (E121)', () => {
     });
 
     it('E130: carries the family switch discovery contract (glass/metro parity)', () => {
-        const cls = customElements.get('feezal-element-material-outlet');
+        const cls = customElements.get('feezal-element-circle-switch');
         expect(cls.feezal.discovery.component).toBe('switch');
         expect(cls.feezal.discovery.map).toMatchObject({
             state_topic:   'subscribe-state',
@@ -77,7 +77,7 @@ describe('feezal-element-material-outlet (E121)', () => {
     });
 
     it('shares the light theme tokens for styling', () => {
-        const cls = customElements.get('feezal-element-material-outlet');
+        const cls = customElements.get('feezal-element-circle-switch');
         const props = cls.feezal.styles.filter(s => typeof s === 'object').map(s => s.property);
         expect(props).toContain('--feezal-light-on-color');
         expect(props).toContain('--feezal-light-surface-color');

@@ -12,6 +12,50 @@ class TestTarget extends HTMLElement {
 customElements.define('feezal-element-attr-test-target', TestTarget);
 const makeTarget = () => document.createElement('feezal-element-attr-test-target');
 
+// E-boolean-persist: default-aware boolean write — a default-TRUE boolean set
+// to OFF must persist an explicit "false" (a plain removeAttribute would
+// serialise as absent = back to the default in the viewer).
+describe('default-aware boolean write in _change', () => {
+    class BoolTarget extends HTMLElement {
+        static feezal = {attributes: [
+            {name: 'loop',      type: 'boolean', default: true},
+            {name: 'show-dots', type: 'boolean', default: true},
+            {name: 'flag',      type: 'boolean', default: false}
+        ], styles: []};
+    }
+    customElements.define('feezal-element-bool-test-target', BoolTarget);
+
+    function panelFor(target, attrName) {
+        const panel = document.createElement('feezal-sidebar-inspector-attributes');
+        panel.selectedElems = [target];
+        panel.items = [{label: attrName, attrName, value: true, mixed: false, invalid: false, elem: {checkbox: true}}];
+        feezal.app = {change: vi.fn()};
+        feezal.editor = {selectedElems: [target]};
+        return panel;
+    }
+
+    it('default-TRUE boolean → OFF persists an explicit "false" (not removed)', () => {
+        const target = document.createElement('feezal-element-bool-test-target');
+        panelFor(target, 'loop')._change(false, 0, true);
+        expect(target.getAttribute('loop')).toBe('false');
+    });
+
+    it('default-TRUE boolean → ON writes explicit "true"', () => {
+        const target = document.createElement('feezal-element-bool-test-target');
+        panelFor(target, 'show-dots')._change(true, 0, true);
+        expect(target.getAttribute('show-dots')).toBe('true');
+    });
+
+    it('default-FALSE boolean is unchanged (present on true, removed on false)', () => {
+        const target = document.createElement('feezal-element-bool-test-target');
+        const panel = panelFor(target, 'flag');
+        panel._change(true, 0, true);
+        expect(target.getAttribute('flag')).toBe('true');
+        panel._change(false, 0, true);
+        expect(target.hasAttribute('flag')).toBe(false);
+    });
+});
+
 describe('_toKebab() — property name to attribute name', () => {
     it('converts camelCase to kebab-case', () => {
         expect(el._toKebab('childPosition')).toBe('child-position');
@@ -374,11 +418,11 @@ describe('WP3/E106 — type:custom platform hook (_rebuildItems)', () => {
 // Homematic climate / WLED topics and merges them into /api/discovery/devices.
 // These tests drive _applyDiscovery with the EXACT synthesised config shapes to
 // prove the real element discovery maps consume the native contract.
-import '../packages/@feezal/feezal-element-material-climate/feezal-element-material-climate.js';
+import '../packages/@feezal/feezal-element-circle-climate/feezal-element-circle-climate.js';
 import '../packages/@feezal/feezal-element-glass-wled/feezal-element-glass-wled.js';
-import '../packages/@feezal/feezal-element-material-contact/feezal-element-material-contact.js';
-import '../packages/@feezal/feezal-element-material-cover/feezal-element-material-cover.js';
-import '../packages/@feezal/feezal-element-material-light/feezal-element-material-light.js';
+import '../packages/@feezal/feezal-element-circle-contact/feezal-element-circle-contact.js';
+import '../packages/@feezal/feezal-element-circle-cover/feezal-element-circle-cover.js';
+import '../packages/@feezal/feezal-element-circle-light/feezal-element-circle-light.js';
 
 describe('E108 — native discovery stamps onto *-climate + wled elements', () => {
     it('Homematic climate: native config stamps message-property/valve/modes/topics', () => {
@@ -422,7 +466,7 @@ describe('E108 — native discovery stamps onto *-climate + wled elements', () =
             },
         };
 
-        const el = document.createElement('feezal-element-material-climate');
+        const el = document.createElement('feezal-element-circle-climate');
         const change = vi.fn();
         globalThis.feezal.app = {change};
 
@@ -484,7 +528,7 @@ describe('E108 — native discovery stamps onto *-climate + wled elements', () =
             },
         };
 
-        const el = document.createElement('feezal-element-material-contact');
+        const el = document.createElement('feezal-element-circle-contact');
         const change = vi.fn();
         globalThis.feezal.app = {change};
 
@@ -537,7 +581,7 @@ describe('E108 — native discovery stamps onto *-climate + wled elements', () =
             },
         };
 
-        const el = document.createElement('feezal-element-material-cover');
+        const el = document.createElement('feezal-element-circle-cover');
         const change = vi.fn();
         globalThis.feezal.app = {change};
 
@@ -595,7 +639,7 @@ describe('E108 — native discovery stamps onto *-climate + wled elements', () =
             },
         };
 
-        const el = document.createElement('feezal-element-material-light');
+        const el = document.createElement('feezal-element-circle-light');
         const change = vi.fn();
         globalThis.feezal.app = {change};
 
@@ -689,7 +733,7 @@ describe('E108 — discovery picker encode/decode + source label', () => {
             },
         };
 
-        const el = document.createElement('feezal-element-material-climate');
+        const el = document.createElement('feezal-element-circle-climate');
         const change = vi.fn();
         globalThis.feezal.app = {change};
 
@@ -721,10 +765,103 @@ describe('E108 — discovery picker encode/decode + source label', () => {
         expect(ins._discoveryOptionLabel({sourceLabel: 'hm'})).toBe('hm');
 
         // HA entity (no sourceLabel) → unchanged topic-preferring behaviour.
+        // (component === name → the name is just the component type, not a
+        // distinguishing attribute, so U56's rule 4 must not append it.)
         expect(ins._discoveryOptionLabel({
+            component: 'switch',
             name: 'switch',
             config: {state_topic: 'home/lamp/state'},
         })).toBe('home/lamp/state');
+    });
+});
+
+describe('U56 — discovery picker appends the attribute for multi-attribute z2m entities', () => {
+    // A zigbee2mqtt device with several attributes publishes one HA discovery
+    // entity per attribute, all sharing the same state_topic. Without the U56
+    // suffix every entry renders the identical label and is unpickable.
+    const state_topic = 'zigbee2mqtt/sensor_1';
+
+    it('value_template dot AND bracket forms → distinct labels, attribute appended', () => {
+        const ins = document.createElement('feezal-sidebar-inspector-attributes');
+
+        // dot form: {{ value_json.temperature }}
+        expect(ins._discoveryOptionLabel({
+            component: 'sensor',
+            config: {state_topic, value_template: '{{ value_json.temperature }}'},
+        })).toBe('zigbee2mqtt/sensor_1 temperature');
+
+        // bracket form: {{ value_json["humidity"] }}
+        expect(ins._discoveryOptionLabel({
+            component: 'sensor',
+            config: {state_topic, value_template: '{{ value_json["humidity"] }}'},
+        })).toBe('zigbee2mqtt/sensor_1 humidity');
+
+        // The two entries of the same device are distinguishable.
+        expect(ins._discoveryOptionLabel({
+            component: 'sensor',
+            config: {state_topic, value_template: '{{ value_json.temperature }}'},
+        })).not.toBe(ins._discoveryOptionLabel({
+            component: 'sensor',
+            config: {state_topic, value_template: '{{ value_json["humidity"] }}'},
+        }));
+    });
+
+    it('object_id / unique_id suffix fallback with the device prefix stripped', () => {
+        const ins = document.createElement('feezal-sidebar-inspector-attributes');
+
+        // object_id suffixes the attribute onto the device id; the topic's last
+        // segment (sensor_1) is the device prefix that gets stripped.
+        expect(ins._discoveryOptionLabel({
+            component: 'sensor',
+            config: {state_topic, object_id: 'sensor_1_pressure'},
+        })).toBe('zigbee2mqtt/sensor_1 pressure');
+
+        // unique_id works the same when object_id is absent.
+        expect(ins._discoveryOptionLabel({
+            component: 'sensor',
+            config: {state_topic, unique_id: 'sensor_1_pressure'},
+        })).toBe('zigbee2mqtt/sensor_1 pressure');
+    });
+
+    it('device_class fallback when no template or id suffix', () => {
+        const ins = document.createElement('feezal-sidebar-inspector-attributes');
+
+        expect(ins._discoveryOptionLabel({
+            component: 'sensor',
+            config: {state_topic, device_class: 'temperature'},
+        })).toBe('zigbee2mqtt/sensor_1 temperature');
+    });
+
+    it('single-attribute entity → label unchanged (no noise appended)', () => {
+        const ins = document.createElement('feezal-sidebar-inspector-attributes');
+
+        // No value_template, no id suffix matching the topic, no device_class,
+        // name equal to the component → nothing to append.
+        expect(ins._discoveryOptionLabel({
+            component: 'switch',
+            name: 'switch',
+            config: {state_topic: 'home/lamp/state'},
+        })).toBe('home/lamp/state');
+
+        // Bare topic-only entity.
+        expect(ins._discoveryOptionLabel({
+            component: 'sensor',
+            config: {state_topic: 'zigbee2mqtt/plug_1'},
+        })).toBe('zigbee2mqtt/plug_1');
+    });
+
+    it('native sourceLabel entity is untouched (already distinct per entity)', () => {
+        const ins = document.createElement('feezal-sidebar-inspector-attributes');
+
+        // Even with a value_template present, the sourceLabel branch returns early.
+        expect(ins._discoveryOptionLabel({
+            sourceLabel: 'hm',
+            name: 'Thermostat Hobbyraum',
+            config: {
+                current_temperature_topic: 'hm/status/Thermostat Hobbyraum:1/ACTUAL_TEMPERATURE',
+                value_template: '{{ value_json.temperature }}',
+            },
+        })).toBe('hm: Thermostat Hobbyraum');
     });
 });
 
@@ -878,7 +1015,9 @@ describe('B50 — dropdown emptyOption renders and clears like the × ', () => {
 
 describe('E124 — _applyDiscovery stamps battery_low_normalized for declaring elements', () => {
     it('stamps the trio on the sensor card (declares the attrs)', async () => {
-        await import('../packages/@feezal/feezal-element-material-motion/feezal-element-material-motion.js');
+        // E138: the alarm-slice hazard classes (moisture → water-leak) live on the
+        // material-sensor card; material-motion narrowed to the motion slice.
+        await import('../packages/@feezal/feezal-element-circle-sensor/feezal-element-circle-sensor.js');
         const entity = {
             discovery_id: 'binary_sensor/ws1/water',
             component: 'binary_sensor',
@@ -889,13 +1028,13 @@ describe('E124 — _applyDiscovery stamps battery_low_normalized for declaring e
                 battery_low_normalized: {topic: 'zigbee2mqtt/ws1', property: 'payload.battery_low', payloadLow: true},
             },
         };
-        const el = document.createElement('feezal-element-material-motion');
+        const el = document.createElement('feezal-element-circle-sensor');
         globalThis.feezal.app = {change: vi.fn()};
         const ins = document.createElement('feezal-sidebar-inspector-attributes');
         ins.selectedElems = [el];
         ins._applyDiscovery(entity);
 
-        expect(el.getAttribute('type')).toBe('water-leak');   // shared hazard map
+        expect(el.getAttribute('type')).toBe('water-leak');   // alarm-slice hazard map
         expect(el.getAttribute('subscribe-battery-low')).toBe('zigbee2mqtt/ws1');
         expect(el.getAttribute('message-property-battery-low')).toBe('payload.battery_low');
         expect(el.getAttribute('payload-battery-low')).toBe('true');

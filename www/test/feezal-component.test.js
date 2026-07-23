@@ -13,8 +13,8 @@ function buildSite({params, templateHtml, instanceAttrs = {}} = {}) {
     template.setAttribute('feezal-component', 'room-card');
     if (params) template.setAttribute('feezal-params', JSON.stringify(params));
     template.innerHTML = templateHtml ?? `
-        <feezal-element-material-light subscribe="\${prefix}/light/state" publish="\${prefix}/light/set"
-            style="left:0px; top:0px; width:180px; height:56px"></feezal-element-material-light>
+        <feezal-element-circle-light subscribe="\${prefix}/light/state" publish="\${prefix}/light/set"
+            style="left:0px; top:0px; width:180px; height:56px"></feezal-element-circle-light>
         <feezal-element-basic-number subscribe="\${prefix}/climate/temperature" label="\${label}"
             style="left:0px; top:64px; width:180px; height:40px"></feezal-element-basic-number>`;
     site.append(template);
@@ -45,7 +45,7 @@ describe('feezal-component stamping + substitution', () => {
     it('stamps the template content into the light DOM', () => {
         const {instance} = buildSite({params: DEFAULT_PARAMS});
         expect(instance.children.length).toBe(2);
-        expect(instance.children[0].localName).toBe('feezal-element-material-light');
+        expect(instance.children[0].localName).toBe('feezal-element-circle-light');
     });
 
     it('substitutes ${param} in attribute values with declared defaults', () => {

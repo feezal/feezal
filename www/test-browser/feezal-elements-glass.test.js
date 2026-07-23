@@ -7,11 +7,11 @@ import {describe, it, expect, beforeEach} from 'vitest';
 import '@feezal/feezal-element-glass-light';
 import '@feezal/feezal-element-glass-switch';
 import '@feezal/feezal-element-glass-contact';
-import '@feezal/feezal-element-glass-sensor';
+import '@feezal/feezal-element-glass-value';
 import '@feezal/feezal-element-glass-button';
 import '@feezal/feezal-element-glass-cover';
 import '@feezal/feezal-element-glass-climate';
-import '@feezal/feezal-element-glass-occupancy';
+import '@feezal/feezal-element-glass-motion';
 import {setupFeezal, mount} from './helpers.js';
 
 let feezal;
@@ -178,9 +178,9 @@ describe('glass-contact texts', () => {
     });
 });
 
-describe('glass-occupancy', () => {
+describe('glass-motion', () => {
     it('material-motion contract: plain, JSON {state} and boolean payloads; type icon; texts', async () => {
-        const el = await mount('feezal-element-glass-occupancy', {
+        const el = await mount('feezal-element-glass-motion', {
             subscribe: 'stat/pir', type: 'radar',
             'text-active': 'Bewegung', 'text-clear': 'Ruhe',
         });
@@ -201,7 +201,7 @@ describe('glass-occupancy', () => {
     });
 
     it('availability badge + live-canvas rewire', async () => {
-        const el = await mount('feezal-element-glass-occupancy', {});
+        const el = await mount('feezal-element-glass-motion', {});
         el.setAttribute('subscribe', 'stat/late');
         el.setAttribute('subscribe-availability', 'tele/LWT');
         await el.updateComplete;
@@ -398,8 +398,8 @@ describe('glass live-canvas rewire (editor-state bug)', () => {
         expect(el.shadowRoot.querySelector('.card').classList.contains('open')).toBe(false);
     });
 
-    it('glass-sensor: topic set after mount starts flowing', async () => {
-        const el = await mount('feezal-element-glass-sensor', {});
+    it('glass-value: topic set after mount starts flowing', async () => {
+        const el = await mount('feezal-element-glass-value', {});
         el.setAttribute('subscribe', 'stat/temp');
         await el.updateComplete;
         feezal.connection.deliver('stat/temp', '21.5');

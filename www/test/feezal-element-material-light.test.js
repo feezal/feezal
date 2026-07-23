@@ -1,6 +1,6 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 
-import {pctToRaw} from '../packages/@feezal/feezal-element-material-light/feezal-element-material-light.js';
+import {pctToRaw} from '../packages/@feezal/feezal-element-circle-light/feezal-element-circle-light.js';
 
 beforeEach(() => {
     feezal.connection = {sub: vi.fn(() => ({})), unsubscribe: vi.fn(), pub: vi.fn()};
@@ -51,7 +51,7 @@ describe('pctToRaw', () => {
 
 describe('subscribe-brightness scaling (regression)', () => {
     it('maps an incoming 0.5 on a 0–1 range to 50 % on the ring', async () => {
-        await import('../packages/@feezal/feezal-element-material-light/feezal-element-material-light.js');
+        await import('../packages/@feezal/feezal-element-circle-light/feezal-element-circle-light.js');
         feezal.isEditor = false;
 
         const callbacks = {};
@@ -60,7 +60,7 @@ describe('subscribe-brightness scaling (regression)', () => {
             return {};
         });
 
-        const el = document.createElement('feezal-element-material-light');
+        const el = document.createElement('feezal-element-circle-light');
         el.setAttribute('subscribe-brightness', 'hm/dimmer/level');
         el.setAttribute('brightness-min', '0');
         el.setAttribute('brightness-max', '1');
@@ -78,7 +78,7 @@ describe('on-off-source=brightness (E77)', () => {
     let callbacks;
 
     beforeEach(async () => {
-        await import('../packages/@feezal/feezal-element-material-light/feezal-element-material-light.js');
+        await import('../packages/@feezal/feezal-element-circle-light/feezal-element-circle-light.js');
         feezal.isEditor = false;
         callbacks = {};
         feezal.connection.sub = vi.fn((topic, cb) => {
@@ -88,7 +88,7 @@ describe('on-off-source=brightness (E77)', () => {
     });
 
     async function mountLight(attrs = {}) {
-        const el = document.createElement('feezal-element-material-light');
+        const el = document.createElement('feezal-element-circle-light');
         for (const [k, v] of Object.entries({
             'on-off-source': 'brightness',
             'subscribe-brightness': 'hm/level',
@@ -203,7 +203,7 @@ describe('subscribe-state runtime support (E77 fix)', () => {
     let callbacks;
 
     beforeEach(async () => {
-        await import('../packages/@feezal/feezal-element-material-light/feezal-element-material-light.js');
+        await import('../packages/@feezal/feezal-element-circle-light/feezal-element-circle-light.js');
         feezal.isEditor = false;
         callbacks = {};
         feezal.connection.sub = vi.fn((topic, cb) => {
@@ -213,7 +213,7 @@ describe('subscribe-state runtime support (E77 fix)', () => {
     });
 
     it('subscribe-state (written by the inspector) drives on/off', async () => {
-        const el = document.createElement('feezal-element-material-light');
+        const el = document.createElement('feezal-element-circle-light');
         el.setAttribute('subscribe-state', 'lamp/state');
         el.setAttribute('message-property-state', 'payload.value');
         document.body.append(el);
@@ -226,7 +226,7 @@ describe('subscribe-state runtime support (E77 fix)', () => {
     });
 
     it('falls back to subscribe for saved views (back-compat)', async () => {
-        const el = document.createElement('feezal-element-material-light');
+        const el = document.createElement('feezal-element-circle-light');
         el.setAttribute('subscribe', 'lamp/state');
         document.body.append(el);
         await el.updateComplete;
@@ -240,12 +240,12 @@ describe('subscribe-state runtime support (E77 fix)', () => {
 
 describe('json mode state fallback (E77)', () => {
     it('derives on/off from brightness when no state key is present', async () => {
-        await import('../packages/@feezal/feezal-element-material-light/feezal-element-material-light.js');
+        await import('../packages/@feezal/feezal-element-circle-light/feezal-element-circle-light.js');
         feezal.isEditor = false;
         const callbacks = {};
         feezal.connection.sub = vi.fn((topic, cb) => { callbacks[topic] = cb; return {}; });
 
-        const el = document.createElement('feezal-element-material-light');
+        const el = document.createElement('feezal-element-circle-light');
         el.setAttribute('payload-mode', 'json');
         el.setAttribute('subscribe', 'lamp');
         el.setAttribute('brightness-max', '254');
@@ -266,12 +266,12 @@ describe('json mode state fallback (E77)', () => {
 
 describe('on_off mode (E122)', () => {
     beforeEach(async () => {
-        await import('../packages/@feezal/feezal-element-material-light/feezal-element-material-light.js');
+        await import('../packages/@feezal/feezal-element-circle-light/feezal-element-circle-light.js');
         feezal.isEditor = false;
     });
 
     async function mountOnOff(attrs = {}) {
-        const el = document.createElement('feezal-element-material-light');
+        const el = document.createElement('feezal-element-circle-light');
         for (const [k, v] of Object.entries({
             mode: 'on_off',
             'subscribe-state': 'plug/state',
@@ -313,14 +313,14 @@ describe('on_off mode (E122)', () => {
     });
 
     it('the mode select offers on_off', () => {
-        const cls = customElements.get('feezal-element-material-light');
+        const cls = customElements.get('feezal-element-circle-light');
         const mode = cls.feezal.attributes.find(a => a.name === 'mode');
         expect(mode.options).toContain('on_off');
         expect(mode.default).toBe('brightness');      // back-compat: default unchanged
     });
 
     it('brightness/CT/colour attributes hide in on_off mode via visibleWhen', () => {
-        const cls = customElements.get('feezal-element-material-light');
+        const cls = customElements.get('feezal-element-circle-light');
         for (const name of ['subscribe-brightness', 'publish-brightness', 'subscribe-color-temp', 'subscribe-rgb', 'subscribe-hs', 'subscribe-effect']) {
             const spec = cls.feezal.attributes.find(a => a.name === name);
             expect(spec.visibleWhen, name).toBeTruthy();

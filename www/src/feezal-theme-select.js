@@ -1,13 +1,19 @@
 import {LitElement, html, css} from 'lit';
 
 /**
- * feezal-theme-select (U53)
+ * feezal-theme-select (U53 · U57)
  *
- * The ONE styled theme picker — shortened names + three colour swatches per
- * option — used by BOTH the themes sidebar (site theme) and the view
+ * The ONE styled theme picker — shortened names + a compound colour swatch
+ * per option — used by BOTH the themes sidebar (site theme) and the view
  * inspector (per-view `theme` attribute). One component, two mounts, in sync
  * by construction (the E106 shared-building-block lesson applied to editor
  * UI).
+ *
+ * U57: the swatch is a two-tone background CHIP (--primary-background-color /
+ * --secondary-background-color) carrying three role dots (--primary-color,
+ * --primary-text-color, --secondary-text-color), then a --divider-color rule
+ * and a --accent-color dot — seven canonical theme roles previewed at once,
+ * with text/accent shown against the real surfaces behind them.
  *
  * Mount contracts:
  *  - Sidebar: set `.options` ([{cls, label, user?}]), `.colors`, `value`;
@@ -29,18 +35,47 @@ export function pkgToLabel(pkg) {
     return pkgToClass(pkg).replace(/^feezal-theme-/, '');
 }
 
-// 3 neutral swatches shown for the built-in default theme.
-export const DEFAULT_SWATCHES = ['#ffffff', '#eeeeee', '#333333'];
+// U57: the seven canonical roles the compound swatch previews, in draw order.
+export const SWATCH_ROLES = ['bg', 'bg2', 'primary', 'text', 'text2', 'divider', 'accent'];
 
-// Not-yet-sampled placeholder swatches.
-const PLACEHOLDER_SWATCHES = ['#e0e0e0', '#bdbdbd', '#757575'];
+// Neutral swatch record shown for the built-in default theme.
+export const DEFAULT_SWATCHES = {
+    bg: '#ffffff', bg2: '#f0f0f0', primary: '#0284c7',
+    text: '#212121', text2: '#6b6b6b', divider: '#e0e0e0', accent: '#ff9800',
+};
+
+// Not-yet-sampled placeholder record (also fills any role a theme omits).
+const PLACEHOLDER_SWATCHES = {
+    bg: '#f5f5f5', bg2: '#e6e6e6', primary: '#9e9e9e',
+    text: '#616161', text2: '#9e9e9e', divider: '#d0d0d0', accent: '#bdbdbd',
+};
+
+/** Coerce a legacy `[bg, text, text2]` array (pre-U57 callers/tests) into the
+ * role record so old data keeps rendering. Records pass through unchanged. */
+export function toSwatchRecord(v) {
+    if (!v) return null;
+    if (Array.isArray(v)) {
+        const [bg = '', text = '', text2 = ''] = v;
+        return {bg, text, text2};
+    }
+    return v;
+}
+
+/** Fill missing/empty roles from the placeholder so the chip never has a
+ * transparent slot. */
+export function fillSwatch(rec) {
+    const out = {...PLACEHOLDER_SWATCHES};
+    for (const k of SWATCH_ROLES) if (rec && rec[k]) out[k] = rec[k];
+    return out;
+}
 
 /**
- * U53 — sample 3 representative colours (plus optional extra custom
+ * U53/U57 — sample the seven swatch roles (plus optional extra custom
  * properties) per theme class by temporarily applying each class to
  * feezal.site. Extracted from the themes sidebar so both mounts share the
  * same extraction; the sidebar lifts/restores its colour overrides AROUND
- * this call (it owns them).
+ * this call (it owns them). Returns `{colors: {cls: {bg, bg2, primary, text,
+ * text2, divider, accent}}, vars}`.
  */
 export function sampleThemeColors(themeClasses, extraVars = []) {
     const site = window.feezal?.site;
@@ -54,11 +89,19 @@ export function sampleThemeColors(themeClasses, extraVars = []) {
         site.className = [cls, ...base].join(' ').trim();
         const cs = getComputedStyle(site);
         const get = prop => cs.getPropertyValue(prop).trim();
-        colors[cls] = [
-            get('--primary-background-color'),
-            get('--primary-text-color'),
-            get('--secondary-text-color') || get('--divider-color'),
-        ].filter(v => v && v !== 'initial' && v !== 'inherit');
+        const role = (prop, fallback = '') => {
+            const val = get(prop);
+            return (val && val !== 'initial' && val !== 'inherit') ? val : fallback;
+        };
+        colors[cls] = {
+            bg:      role('--primary-background-color'),
+            bg2:     role('--secondary-background-color'),
+            primary: role('--primary-color'),
+            text:    role('--primary-text-color'),
+            text2:   role('--secondary-text-color', role('--divider-color')),
+            divider: role('--divider-color'),
+            accent:  role('--accent-color'),
+        };
         const m = {};
         for (const v of extraVars) {
             const val = get(v);
@@ -78,7 +121,7 @@ class FeezalThemeSelect extends LitElement {
         label:       {type: String},
         emptyOption: {type: String, attribute: 'empty-option'},
         options:     {attribute: false},   // [{cls, label, user?}]; null → derive from feezal.themes
-        colors:      {attribute: false},   // {cls: [c1,c2,c3]}; null → sample lazily on open
+        colors:      {attribute: false},   // {cls: {bg,bg2,primary,text,text2,divider,accent}}; null → sample lazily on open
         element:     {attribute: false},   // N6 custom-inspector mount (edits `theme`)
         _open:       {state: true},
         _sampled:    {state: true},
@@ -108,10 +151,32 @@ class FeezalThemeSelect extends LitElement {
             opacity: 0.6;
         }
         .trigger-clear:hover { opacity: 1; }
-        .swatches { display: flex; gap: 3px; flex-shrink: 0; }
-        .swatch {
-            width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0;
-            border: 1px solid rgba(0,0,0,0.12);
+        /* U57: compound swatch — everything sits INSIDE the two-tone chip:
+           three big role dots, a divider rule, then a small accent dot. */
+        .swatches { display: inline-flex; align-items: center; flex-shrink: 0; }
+        .chip {
+            position: relative; width: 54px; height: 16px; flex-shrink: 0;
+            display: flex; overflow: hidden;
+            border-radius: 4px; border: 1px solid rgba(0,0,0,0.18);
+        }
+        .chip-half { flex: 1 1 0; height: 100%; }
+        .chip-overlay {
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center; gap: 4px;
+            padding: 0 4px;
+        }
+        .chip-dots { display: flex; align-items: center; gap: 3px; }
+        .dot {
+            width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+            box-shadow: 0 0 0 0.5px rgba(0,0,0,0.3);
+        }
+        .swatch-divider {
+            width: 2px; height: 11px; flex-shrink: 0; border-radius: 1px;
+            box-shadow: 0 0 0 0.5px rgba(0,0,0,0.15);
+        }
+        .dot-accent {
+            width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
+            box-shadow: 0 0 0 0.5px rgba(0,0,0,0.3);
         }
         .dropdown {
             position: absolute; top: calc(100% + 5px); left: 0; right: 0;
@@ -146,7 +211,7 @@ class FeezalThemeSelect extends LitElement {
         this.colors = null;
         this.element = null;
         this._open = false;
-        this._sampled = null;   // lazily-sampled {cls: [...]} when no colors provided
+        this._sampled = null;   // lazily-sampled {cls: {roles…}} when no colors provided
         this.__outside = e => {
             if (!e.composedPath().includes(this)) this._open = false;
         };
@@ -186,11 +251,33 @@ class FeezalThemeSelect extends LitElement {
         return pkgs.map(p => ({cls: pkgToClass(p), label: pkgToLabel(p)}));
     }
 
-    _swatches(cls) {
+    /** The filled 7-role swatch record for a theme class. */
+    _swatchRecord(cls) {
         if (cls === '') return PLACEHOLDER_SWATCHES;        // empty option — neutral
-        if (cls === 'default') return DEFAULT_SWATCHES;
-        const palette = (this.colors || this._sampled || {})[cls] || [];
-        return palette.length ? palette.slice(0, 3) : PLACEHOLDER_SWATCHES;
+        if (cls === 'default') return fillSwatch(DEFAULT_SWATCHES);
+        return fillSwatch(toSwatchRecord((this.colors || this._sampled || {})[cls]));
+    }
+
+    /** U57: the compound swatch — the two-tone chip carries three big role
+     * dots, a divider rule and a small accent dot, all inside it. */
+    _renderSwatch(cls) {
+        const s = this._swatchRecord(cls);
+        return html`
+            <span class="swatches" part="swatch">
+                <span class="chip">
+                    <span class="chip-half" style="background:${s.bg}"></span>
+                    <span class="chip-half" style="background:${s.bg2}"></span>
+                    <span class="chip-overlay">
+                        <span class="chip-dots">
+                            <span class="dot" style="background:${s.primary}"></span>
+                            <span class="dot" style="background:${s.text}"></span>
+                            <span class="dot" style="background:${s.text2}"></span>
+                        </span>
+                        <span class="swatch-divider" style="background:${s.divider}"></span>
+                        <span class="dot-accent" style="background:${s.accent}"></span>
+                    </span>
+                </span>
+            </span>`;
     }
 
     _toggleOpen() {
@@ -231,9 +318,7 @@ class FeezalThemeSelect extends LitElement {
             ${this.label ? html`<div class="lbl">${this.label}</div>` : ''}
             <div class="picker">
                 <button class="trigger" @click="${this._toggleOpen}">
-                    <div class="swatches">
-                        ${this._swatches(current.cls).map(c => html`<div class="swatch" style="background:${c}"></div>`)}
-                    </div>
+                    ${this._renderSwatch(current.cls)}
                     <span class="trigger-name">${current.label}</span>
                     ${value && this.emptyOption != null ? html`
                         <button class="trigger-clear" title="Back to ${this.emptyOption}"
@@ -245,9 +330,7 @@ class FeezalThemeSelect extends LitElement {
                         ${withEmpty.map(o => html`
                             <div class="option ${o.cls === value ? 'active' : ''}"
                                 @click="${() => this._select(o.cls)}">
-                                <div class="swatches">
-                                    ${this._swatches(o.cls).map(c => html`<div class="swatch" style="background:${c}"></div>`)}
-                                </div>
+                                ${this._renderSwatch(o.cls)}
                                 <span class="option-name">${o.label}</span>
                                 ${o.user ? html`<span class="option-user">✏</span>` : ''}
                                 ${o.cls === value ? html`<span class="option-check">✓</span>` : ''}

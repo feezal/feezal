@@ -1,7 +1,7 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 
 import '../packages/@feezal/feezal-element-glass-button/feezal-element-glass-button.js';
-import '../packages/@feezal/feezal-element-glass-sensor/feezal-element-glass-sensor.js';
+import '../packages/@feezal/feezal-element-glass-value/feezal-element-glass-value.js';
 import {payloadMatch as contactMatch} from '../packages/@feezal/feezal-element-glass-contact/feezal-element-glass-contact.js';
 import {pctToRaw} from '../packages/@feezal/feezal-element-glass-light/feezal-element-glass-light.js';
 import '../packages/@feezal/feezal-element-glass-cover/feezal-element-glass-cover.js';
@@ -61,11 +61,11 @@ describe('glass-button', () => {
     });
 });
 
-// ── glass-sensor ──────────────────────────────────────────────────────────────
+// ── glass-value ──────────────────────────────────────────────────────────────
 
-describe('glass-sensor', () => {
+describe('glass-value', () => {
     it('shows the subscribed value with unit; decimals round numerics', async () => {
-        const el = await mount('feezal-element-glass-sensor', {subscribe: 'home/temp', unit: '°C', decimals: '1'});
+        const el = await mount('feezal-element-glass-value', {subscribe: 'home/temp', unit: '°C', decimals: '1'});
         deliver('home/temp', '21.456');
         await el.updateComplete;
         expect(el.renderRoot.querySelector('.value').textContent).toContain('21.5');
@@ -73,7 +73,7 @@ describe('glass-sensor', () => {
     });
 
     it('honours message-property and non-numeric payloads pass through', async () => {
-        const el = await mount('feezal-element-glass-sensor', {subscribe: 'home/env', 'message-property': 'payload.state'});
+        const el = await mount('feezal-element-glass-value', {subscribe: 'home/env', 'message-property': 'payload.state'});
         deliver('home/env', {state: 'raining'});
         await el.updateComplete;
         expect(el.renderRoot.querySelector('.value').textContent).toContain('raining');
@@ -292,8 +292,8 @@ describe('glass device-card inspectors', () => {
         }
     });
 
-    it('contact/button/sensor use the flat attribute form (like material-contact)', () => {
-        for (const tag of ['feezal-element-glass-contact', 'feezal-element-glass-button', 'feezal-element-glass-sensor']) {
+    it('contact/button/value use the flat attribute form (like material-contact)', () => {
+        for (const tag of ['feezal-element-glass-contact', 'feezal-element-glass-button', 'feezal-element-glass-value']) {
             expect(customElements.get(tag).feezal.inspector).toBeUndefined();
         }
     });

@@ -17,6 +17,10 @@ class FeezalSidebarEditor extends LitElement {
         gridVisible:    {type: Boolean, reflect: true},
         snapping:       {type: String, reflect: true},
         preventEditorMqtt: {type: Boolean, reflect: true},
+        _clippy: {state: true},   // U46: opt-in help-popup easter egg (localStorage)
+        // Autodiscovery grace period (server pref in editor.json).
+        _discoveryGrace:     {state: true},
+        _discoveryGraceDays: {state: true},
         // AI assistant (U9) — server-side config, fetched/saved by this panel.
         _aiProvider: {state: true},
         _aiEndpoint: {state: true},
@@ -98,6 +102,9 @@ class FeezalSidebarEditor extends LitElement {
         this.gridVisible = false;
         this.snapping = 'elements';
         this.preventEditorMqtt = true;
+        this._clippy = localStorage.getItem('feezal-clippy') === 'true';   // U46
+        this._discoveryGrace = true;       // default ON (matches server)
+        this._discoveryGraceDays = 30;     // default 30-day grace
         this._aiProvider = 'openai-compatible';
         this._aiEndpoint = '';
         this._aiApiKey   = '';
@@ -116,6 +123,28 @@ class FeezalSidebarEditor extends LitElement {
         super.connectedCallback();
         this._loadAiConfig();
         this._loadCapabilities();
+        this._loadDiscoveryPrefs();
+    }
+
+    async _loadDiscoveryPrefs() {
+        try {
+            const r = await fetch('/api/editor/prefs');
+            if (!r.ok) return;
+            const p = await r.json();
+            if (typeof p.discoveryGraceEnabled === 'boolean') this._discoveryGrace = p.discoveryGraceEnabled;
+            if (Number.isFinite(p.discoveryGraceDays)) this._discoveryGraceDays = p.discoveryGraceDays;
+        } catch { /* serverless — keep defaults */ }
+    }
+
+    _saveDiscoveryPrefs() {
+        fetch('/api/editor/prefs', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                discoveryGraceEnabled: this._discoveryGrace,
+                discoveryGraceDays: this._discoveryGraceDays,
+            }),
+        }).catch(() => { /* serverless — nothing to persist against */ });
     }
 
     async _loadAiConfig() {
@@ -245,6 +274,27 @@ class FeezalSidebarEditor extends LitElement {
                         Show welcome tour
                     </button>
                 </div>
+                <sl-switch size="small" style="margin-top:8px;"
+                    .checked="${this._clippy}"
+                    @sl-change="${e => { this._clippy = e.target.checked; localStorage.setItem('feezal-clippy', String(e.target.checked)); }}">
+                    Assistant in the keyboard-shortcuts popup
+                </sl-switch>
+
+                <hr class="section-sep">
+                <div class="section-title"><span class="material-icons">sensors</span> Autodiscovery</div>
+                <sl-switch size="small"
+                    .checked="${this._discoveryGrace}"
+                    @sl-change="${e => { this._discoveryGrace = e.target.checked; this._saveDiscoveryPrefs(); }}">
+                    Hide stale devices
+                </sl-switch>
+                <div style="font-size:12px;opacity:0.7;line-height:1.4;margin:2px 0 0;">
+                    Hides likely "ghost" heating devices whose last update is older than the grace period (old retained topics from replaced devices). Event-driven devices (contacts, lights, covers) are never hidden.
+                </div>
+                ${this._discoveryGrace ? html`
+                    <sl-input label="Grace period (days)" size="small" type="number" min="1" style="margin-top:8px;"
+                        .value="${String(this._discoveryGraceDays)}"
+                        @sl-change="${e => { this._discoveryGraceDays = Math.max(1, Number(e.target.value) || 30); this._saveDiscoveryPrefs(); }}">
+                    </sl-input>` : ''}
 
                 ${this._caps && (this._caps.restart || this._caps.selfUpdate) ? html`
                     <hr class="section-sep">

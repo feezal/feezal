@@ -35,6 +35,8 @@ import './feezal-sidebar-packages.js';
 import './feezal-ai-chat.js';
 import './feezal-capacitor-dialog.js';
 import './feezal-export-dialog.js';
+import './feezal-generate-dialog.js';
+import {clippyStyles, clippyMarkup, clippyEnabled} from './feezal-clippy.js';
 
 class FeezalAppEditor extends LitElement {
     static properties = {
@@ -614,6 +616,7 @@ class FeezalAppEditor extends LitElement {
         :host(.dark) feezal-sidebar-packages,
         :host(.dark) feezal-capacitor-dialog,
         :host(.dark) feezal-export-dialog,
+        :host(.dark) feezal-generate-dialog,
         :host(.dark) feezal-ai-chat {
             --feezal-bg:     #2e2e2e;
             --feezal-bg-sub: #262626;
@@ -643,14 +646,31 @@ class FeezalAppEditor extends LitElement {
             --feezal-sel-badge-bg:     rgba(2,132,199, 0.15);
             --feezal-sel-badge-color:  #7dd3fc;
             --feezal-sel-badge-border: #0ea5e9;
+            /* U46: dark values for the shared paperclip in the canvas-mode popup. */
+            --feezal-clippy-bg:     #3a3626;
+            --feezal-clippy-fg:     rgba(255,255,255,0.9);
+            --feezal-clippy-border: #5a5330;
         }
         /* Same panel color as the #viewdialog/#deletedialog family above */
         :host(.dark) feezal-capacitor-dialog,
-        :host(.dark) feezal-export-dialog {
+        :host(.dark) feezal-export-dialog,
+        :host(.dark) feezal-generate-dialog {
             --sl-panel-background-color: #2e2e2e;
             --sl-panel-border-color: #3d3d3d;
             --feezal-btn-hover-border: #666;
             --feezal-btn-hover-color: rgba(255,255,255,0.95);
+        }
+        :host(.dark) feezal-generate-dialog {
+            --feezal-tile-border: #3d3d3d;
+            --feezal-tile-bg:     #262626;
+            --feezal-tile-hover:  #333a44;
+            --feezal-badge-bg:    #3a3a3a;
+            --feezal-badge-fg:    rgba(255,255,255,0.7);
+            --feezal-dialog-bg:   #2e2e2e;
+            /* Shoelace only themes the resting input bg via the big block above;
+               set the focus/hover bg too so the filter field stays dark. */
+            --sl-input-background-color-focus: #252525;
+            --sl-input-background-color-hover: #252525;
         }
 
         /* ── Source view (N15) ──────────────────────────────────────────── */
@@ -691,6 +711,15 @@ class FeezalAppEditor extends LitElement {
             font-size: 20px; line-height: 1; color: var(--feezal-color, #888);
         }
         .source-help-close:hover { color: #c00; }
+        /* U46: opt-in paperclip assistant — shared markup + styles (feezal-clippy.js)
+           so the canvas-mode and source-mode popups can never drift. Dark values
+           are piped through --feezal-clippy-* below. */
+        ${clippyStyles}
+        :host(.dark) {
+            --feezal-clippy-bg: #3a3626;
+            --feezal-clippy-fg: rgba(255,255,255,0.9);
+            --feezal-clippy-border: #5a5330;
+        }
         :host(.dark) .source-help-modal {
             background: #2e2e2e; color: rgba(255,255,255,0.88);
             box-shadow: 0 10px 40px rgba(0,0,0,0.6);
@@ -899,6 +928,12 @@ class FeezalAppEditor extends LitElement {
                         <button class="icon-btn" style="margin-left:20px;font-size:15px;font-weight:600" title="Keyboard shortcuts (Ctrl+I)" @click="${this._openShortcuts}">?</button>
                     </div>
 
+                    <button class="icon-btn generate-btn" title="Generate elements from discovery"
+                        style="${this._sourceMode ? 'visibility:hidden' : ''}"
+                        @click="${this._openGenerate}">
+                        <span class="material-icons">auto_awesome</span>
+                    </button>
+
                     <button class="icon-btn source-mode-btn ${this._sourceMode ? 'active' : ''}"
                         title="${this._sourceMode ? 'Design mode (Ctrl+Shift+U)' : 'Source mode (Ctrl+Shift+U)'}"
                         ?disabled="${this._sourceMode && !!this._sourceError}"
@@ -948,6 +983,7 @@ class FeezalAppEditor extends LitElement {
                     ` : ''}
                     <feezal-capacitor-dialog></feezal-capacitor-dialog>
                     <feezal-export-dialog></feezal-export-dialog>
+                    <feezal-generate-dialog></feezal-generate-dialog>
 
                     ${this._aiConfigured && this._sourceMode && !this._aiPanelOpen ? html`
                         <button class="icon-btn" title="AI assistant"
@@ -1369,6 +1405,7 @@ class FeezalAppEditor extends LitElement {
                             <tr><td>Ctrl+S</td><td>Apply &amp; deploy</td></tr>
                             <tr><td>Ctrl+Shift+U</td><td>Back to design mode</td></tr>
                         </table>
+                        ${clippyEnabled() ? clippyMarkup() : ''}
                     </div>
                 </div>
             ` : ''}
@@ -2263,6 +2300,11 @@ class FeezalAppEditor extends LitElement {
         // U34: the export dialog shows the bundle size breakdown and hosts
         // the actual ZIP download button.
         this.shadowRoot.querySelector('feezal-export-dialog').open();
+    }
+
+    // U58: the Generate wizard — bulk element scaffold from MQTT discovery.
+    _openGenerate() {
+        this.shadowRoot.querySelector('feezal-generate-dialog').open();
     }
 
     // -------------------------------------------------------------------

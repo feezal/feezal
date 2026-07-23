@@ -229,7 +229,7 @@ class FeezalSiteManager extends LitElement {
     _switchSite(name) {
         if (name === feezal.siteName) { this._open = false; return; }
         if (feezal.hasChanges && !confirm('Switch site? Unsaved changes will be lost.')) return;
-        window.location.href = `/editor/?${name}`;
+        window.location.href = `/editor/?/${name}/`;
     }
 
     // ── New site ──────────────────────────────────────────────────────────────
@@ -266,7 +266,7 @@ class FeezalSiteManager extends LitElement {
             if (!r.ok) throw new Error(await r.text());
             this._closeNewDialog();
             if (feezal.hasChanges && !confirm('Navigate to new site? Unsaved changes will be lost.')) return;
-            window.location.href = `/editor/?${name}`;
+            window.location.href = `/editor/?/${name}/`;
         } catch (err) {
             this._newError = err.message || 'Failed to create site.';
         } finally {
@@ -340,7 +340,7 @@ class FeezalSiteManager extends LitElement {
             this._renaming = null;
             // If current site was renamed, navigate to new name.
             if (oldName === feezal.siteName) {
-                window.location.href = `/editor/?${newName}`;
+                window.location.href = `/editor/?/${newName}/`;
             } else {
                 await this._loadSites();
             }
@@ -361,7 +361,7 @@ class FeezalSiteManager extends LitElement {
             this._confirmDelete = null;
             // If current site was deleted, navigate to 'default'.
             if (name === feezal.siteName) {
-                window.location.href = '/editor/?default';
+                window.location.href = '/editor/?/default/';
             } else {
                 await this._loadSites();
             }

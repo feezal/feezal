@@ -709,6 +709,18 @@ class FeezalSidebarViewer extends LitElement {
                         @sl-change="${e => this._setSite('presence', e.target.checked ? '' : 'off')}">
                         Announce connected viewers
                     </sl-switch>
+                    ${s.presence !== 'off' ? html`
+                        <sl-switch id="presence-toasts-switch" size="small" ?checked="${s.presenceToasts !== 'off'}"
+                            @sl-change="${e => this._setSite('presenceToasts', e.target.checked ? '' : 'off')}">
+                            Show connection toasts
+                        </sl-switch>
+                        <div class="pwa-hint">
+                            U48: off silences the transient <code>Connected as "…"</code> /
+                            renamed pop-ups on every viewer load (handy on a wall panel).
+                            Presence and per-client commands keep working; the sticky
+                            "already online in another browser" warning still shows.
+                        </div>
+                    ` : ''}
                     <div class="pwa-hint">
                         Each viewer publishes retained status JSON (client id, current
                         view, connected-since, user agent) to

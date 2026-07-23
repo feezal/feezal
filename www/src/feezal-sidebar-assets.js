@@ -14,13 +14,23 @@ import './feezal-pwa-icon-dialog.js';
 const IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'ico', 'bmp', 'avif']);
 const AUDIO_EXTS = new Set(['mp3', 'wav', 'ogg', 'flac', 'm4a']);
 const VIDEO_EXTS = new Set(['mp4', 'webm', 'mov']);
+const LOTTIE_EXTS = new Set(['json']);   // dragged onto the canvas → Lottie element
 
 function ext(p) { return (p.split('.').pop() || '').toLowerCase(); }
 function isImage(p) { return IMAGE_EXTS.has(ext(p)); }
+// Assets that can be dragged onto the canvas, mapped to the element they create
+// (same UX for both): images → image element, .json → Lottie element. Returns
+// null for non-draggable assets.
+function draggableAssetTag(p) {
+    if (IMAGE_EXTS.has(ext(p)))  return 'feezal-element-basic-image';
+    if (LOTTIE_EXTS.has(ext(p))) return 'feezal-element-basic-lottie';
+    return null;
+}
 function fileIcon(p) {
-    if (IMAGE_EXTS.has(ext(p))) return 'image';
-    if (AUDIO_EXTS.has(ext(p))) return 'audio_file';
-    if (VIDEO_EXTS.has(ext(p))) return 'video_file';
+    if (IMAGE_EXTS.has(ext(p)))  return 'image';
+    if (LOTTIE_EXTS.has(ext(p))) return 'animation';
+    if (AUDIO_EXTS.has(ext(p)))  return 'audio_file';
+    if (VIDEO_EXTS.has(ext(p)))  return 'video_file';
     return 'insert_drive_file';
 }
 function basename(p) { return p.split('/').pop(); }
@@ -661,20 +671,31 @@ class FeezalSidebarAssets extends LitElement {
                     // never touches the canvas at all.
                     this._dragSrc  = event.target.dataset.src;
                     this._dragFile = event.target.dataset.file;
+                    // Which element this asset creates on drop (image vs Lottie).
+                    this._dragElemTag = event.target.dataset.elem || 'feezal-element-basic-image';
                     this._dragCategory = this._category;   // source tab (for copy-on-use of globals)
                     this._dragTile = event.target;
                     this._dragTile.classList.add('dragging');
                     this.classList.add('tile-dragging');
-                    // Create a floating ghost thumbnail that follows the cursor.
+                    // Create a floating ghost that follows the cursor: a thumbnail
+                    // for images, a glyph for non-image assets (e.g. Lottie .json).
                     const ghost = document.createElement('div');
                     ghost.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;width:64px;height:64px;border-radius:6px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.3);border:2px solid #38bdf8;transform:translate(-50%,-50%);opacity:0.9;';
                     ghost.style.left = event.clientX + 'px';
                     ghost.style.top  = event.clientY + 'px';
-                    const img = document.createElement('img');
-                    img.src = feezal.resolveAsset ? feezal.resolveAsset(this._dragSrc) : this._dragSrc;
-                    img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
-                    img.draggable = false;
-                    ghost.appendChild(img);
+                    if (this._dragElemTag === 'feezal-element-basic-image') {
+                        const img = document.createElement('img');
+                        img.src = feezal.resolveAsset ? feezal.resolveAsset(this._dragSrc) : this._dragSrc;
+                        img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+                        img.draggable = false;
+                        ghost.appendChild(img);
+                    } else {
+                        const icon = document.createElement('span');
+                        icon.className = 'material-icons';
+                        icon.textContent = 'animation';
+                        icon.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:32px;color:#38bdf8;background:var(--feezal-bg,#fff);';
+                        ghost.appendChild(icon);
+                    }
                     document.body.appendChild(ghost);
                     this._ghost = ghost;
                 },
@@ -717,7 +738,7 @@ class FeezalSidebarAssets extends LitElement {
                         // Entering the canvas — hide ghost, let the canvas element be the visual.
                         if (this._ghost) this._ghost.style.display = 'none';
                         this._clearFolderHighlight();
-                        this._dragElem = document.createElement('feezal-element-basic-image');
+                        this._dragElem = document.createElement(this._dragElemTag || 'feezal-element-basic-image');
                         this._dragElem.setAttribute('src', this._dragSrc);
                         feezal.view.append(this._dragElem);
                         feezal.editor.initElem(this._dragElem, true);
@@ -763,6 +784,7 @@ class FeezalSidebarAssets extends LitElement {
                     }
                     delete this._dragSrc;
                     delete this._dragFile;
+                    delete this._dragElemTag;
                     delete this._dragCategory;
                 }
             });
@@ -990,11 +1012,13 @@ class FeezalSidebarAssets extends LitElement {
         const isImg  = isImage(file.path);
         const name   = basename(file.path);
         const src    = this._assetSrc(file.path);
+        const dragTag = draggableAssetTag(file.path);
         const renaming = this._renaming === file.path;
         return html`
-            <div class="list-row ${isImg ? 'image-tile' : ''}"
-                data-src="${isImg ? src : ''}"
-                data-file="${isImg ? file.path : ''}"
+            <div class="list-row ${dragTag ? 'image-tile' : ''}"
+                data-src="${dragTag ? src : ''}"
+                data-file="${dragTag ? file.path : ''}"
+                data-elem="${dragTag || ''}"
                 @dragstart="${e => e.preventDefault()}"
                 @click="${() => { if (isImg && !renaming) this._openPreview(file); }}"
                 @contextmenu="${e => this._openContextMenu(e, file.path)}">
@@ -1021,11 +1045,13 @@ class FeezalSidebarAssets extends LitElement {
         const ext    = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toUpperCase() : '—';
         const size   = file.size != null ? formatSize(file.size) : '—';
         const date   = file.modified ? new Date(file.modified).toLocaleDateString() : '—';
+        const dragTag = draggableAssetTag(file.path);
         const renaming = this._renaming === file.path;
         return html`
-            <div class="detail-row ${isImg ? 'image-tile' : ''}"
-                data-src="${isImg ? src : ''}"
-                data-file="${isImg ? file.path : ''}"
+            <div class="detail-row ${dragTag ? 'image-tile' : ''}"
+                data-src="${dragTag ? src : ''}"
+                data-file="${dragTag ? file.path : ''}"
+                data-elem="${dragTag || ''}"
                 @dragstart="${e => e.preventDefault()}"
                 @click="${() => { if (isImg && !renaming) this._openPreview(file); }}"
                 @contextmenu="${e => this._openContextMenu(e, file.path)}">
@@ -1074,11 +1100,13 @@ class FeezalSidebarAssets extends LitElement {
         const name       = basename(file.path);
         const src        = this._assetSrc(file.path);
         const resolvedSrc = feezal.resolveAsset ? feezal.resolveAsset(src) : src;
+        const dragTag    = draggableAssetTag(file.path);
         const renaming   = this._renaming === file.path;
 
         return html`
-            <div class="tile ${isImg ? 'image-tile' : ''}"
-                data-src="${src}" data-file="${file.path}"
+            <div class="tile ${dragTag ? 'image-tile' : ''}"
+                data-src="${dragTag ? src : ''}" data-file="${dragTag ? file.path : ''}"
+                data-elem="${dragTag || ''}"
                 title="${name} (${formatSize(file.size)})"
                 @dragstart="${e => e.preventDefault()}"
                 @click="${() => { if (isImg && !renaming) this._openPreview(file); }}"

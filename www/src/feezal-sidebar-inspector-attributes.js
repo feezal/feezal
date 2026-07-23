@@ -5,6 +5,12 @@ import {html as staticHtml, unsafeStatic} from 'lit/static-html.js';
 // attribute AND style inspectors (the styles panel imports this constant).
 export const LIVE_APPLY_DEBOUNCE_MS = 250;
 
+// U58: the discovery-stamp primitives moved to a shared, headless module so
+// the ⚡ picker and the bulk Generate wizard apply identical wiring.
+// valueTemplateLeaf is re-exported here for back-compat with existing importers.
+import {stampDiscovery, valueTemplateLeaf, discoveryLabel, discoveryAttributeSuffix} from './feezal-discovery-stamp.js';
+export {valueTemplateLeaf};
+
 import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/textarea/textarea.js';
 import '@shoelace-style/shoelace/dist/components/select/select.js';
@@ -521,6 +527,9 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         this._completionIdx    = -1;
         this._completions      = [];
         this._completionCursor = -1;
+        // Asset autocomplete (type:'asset') — lazily loaded, cached list.
+        this._assetsLoaded = false;
+        this._assetPaths   = [];
         this._completionTimer  = null;
         this._helpTip          = null;
         this._discoveryMatch   = null;
@@ -726,7 +735,21 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         const {name, value} = e.detail || {};
         if (!name) return;
         this.selectedElems.forEach(element => {
-            if (value === null || value === undefined) {
+            // Look up the descriptor so a default-true boolean persists an
+            // explicit "false" when OFF (custom inspectors emit `checked || null`,
+            // so `null`/`false` both mean off here).
+            const spec = window.customElements.get(element.localName)?.feezal?.attributes
+                ?.find(a => (typeof a === 'string' ? a : a.name) === name);
+            if (spec && typeof spec === 'object' && spec.type === 'boolean') {
+                const on = value === true;
+                if (Boolean(spec.default)) {
+                    element.setAttribute(name, on ? 'true' : 'false');
+                } else if (on) {
+                    element.setAttribute(name, 'true');
+                } else {
+                    element.removeAttribute(name);
+                }
+            } else if (value === null || value === undefined) {
                 element.removeAttribute(name);
             } else if (typeof value === 'boolean') {
                 if (value) element.setAttribute(name, '');
@@ -995,6 +1018,37 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             `;
         }
 
+        if (elem.asset) {
+            // Asset picker — reuses the mqtt-topic completion UI, but the
+            // completions come from the site's assets (filtered by `accept`).
+            return html`
+                <div class="topic-wrap">
+                    <sl-input .label="${labelAttr}" size="small"
+                        autocomplete="off" clearable
+                        .value="${mixed ? '' : (value ?? '')}"
+                        placeholder="${mixed ? '— varies —' : (item.default != null ? String(item.default) : '')}"
+                        @sl-clear="${() => this._clearAttr(idx)}"
+                        @sl-focus="${e => this._onAssetInput(e.target.value, idx, elem.accept)}"
+                        @sl-input="${e => { this._onAssetInput(e.target.value, idx, elem.accept); this._liveChange(e.target.value, idx); }}"
+                        @sl-blur="${() => this._scheduleCloseCompletions(idx)}"
+                        @sl-change="${e => this._flushChange(e.target.value, idx)}"
+                        @keydown="${e => this._onTopicKeydown(e, idx)}">
+                        ${labelSlot}
+                    </sl-input>
+                    ${this._completionIdx === idx && this._completions.length ? html`
+                        <ul class="completions">
+                            ${this._completions.map((c, ci) => html`
+                                <li class="${ci === this._completionCursor ? 'active' : ''}"
+                                    @mousedown="${e => { e.preventDefault(); this._selectCompletion(c, idx); }}">
+                                    ${c}
+                                </li>
+                            `)}
+                        </ul>
+                    ` : ''}
+                </div>
+            `;
+        }
+
         // Default: text / number input — an unset field shows the default as a
         // greyed placeholder so the effective value is visible. U44: × clears
         // back to that default (Shoelace shows it only while non-empty, which
@@ -1098,6 +1152,36 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         }, 200);
     }
 
+    // ── Asset autocomplete (type:'asset') ──────────────────────────────────────
+    // Fetches the site's assets once, then reuses the mqtt-completion UI/keyboard
+    // handling to suggest asset paths (as /assets/<site>/<path> URLs — the same
+    // value the drag-to-canvas creates).
+    async _ensureAssets() {
+        if (this._assetsLoaded) return;
+        this._assetsLoaded = true;
+        const site = (typeof feezal !== 'undefined' && feezal.siteName) || 'default';
+        try {
+            const r = await fetch(`/api/assets/${encodeURIComponent(site)}`);
+            if (!r.ok) return;
+            const data = await r.json();
+            const siteVals   = (data.site   || []).map(f => `/assets/${site}/${f.path}`);
+            const globalVals = (data.global || []).map(f => `/assets/global/${f.path}`);
+            this._assetPaths = [...siteVals, ...globalVals].sort();
+        } catch { /* offline / no assets — autocomplete stays empty */ }
+    }
+
+    async _onAssetInput(prefix, idx, accept) {
+        await this._ensureAssets();
+        const exts = Array.isArray(accept) ? accept.map(x => String(x).toLowerCase()) : null;
+        const p = String(prefix || '').toLowerCase();
+        this._completions = (this._assetPaths || [])
+            .filter(path => !exts || exts.includes((path.split('.').pop() || '').toLowerCase()))
+            .filter(path => !p || path.toLowerCase().includes(p))
+            .slice(0, 50);
+        this._completionIdx    = idx;
+        this._completionCursor = -1;
+    }
+
     // ── Icon picker (N19) ──────────────────────────────────────────────────────
     _openIconPicker(idx, value) {
         this._iconIdx   = idx;
@@ -1179,8 +1263,15 @@ class FeezalSidebarInspectorAttributes extends LitElement {
 
             if (typeof newValue === 'boolean') {
                 const htmlAttr = this._toKebab(attr);
-                if (newValue) {
-                    element.setAttribute(htmlAttr, newValue);
+                const boolDefault = attrOptions && typeof attrOptions === 'object' ? Boolean(attrOptions.default) : false;
+                if (boolDefault) {
+                    // Default-true booleans must persist an explicit "false" when
+                    // switched OFF — a plain removeAttribute serialises as absent
+                    // = back to the default (needs the feezalBoolean converter on
+                    // the element to read the "false"). ON writes explicit "true".
+                    element.setAttribute(htmlAttr, newValue ? 'true' : 'false');
+                } else if (newValue) {
+                    element.setAttribute(htmlAttr, 'true');
                 } else {
                     element.removeAttribute(htmlAttr);
                 }
@@ -1351,12 +1442,20 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             // 4. Icon: explicit ({type:'icon'} / {iconPicker:true}) OR any attribute named icon* (N19)
             const isIcon = !isBool && !isColor && !isTopic && !options && !attrSpec.textarea && !isList
                 && (attrSpec.iconPicker || attrSpec.type === 'icon' || /^icon(-|$)/i.test(attrName));
+            // 5. Asset picker: explicit {type:'asset'} autocompletes the site's
+            //    assets, optionally filtered by {accept:['json', …]} extensions.
+            const isAsset = !isBool && !isColor && !isTopic && !isIcon && !options
+                && !attrSpec.textarea && !isList && attrSpec.type === 'asset';
 
             // Read value from ALL selected elements and detect mixed state.
             const vals = this.selectedElems.map(e => {
                 if (attrSpec.template) return e.querySelector('template')?.innerHTML ?? '';
                 const rawAttr = e.getAttribute(this._toKebab(attrName)) ?? e.getAttribute(attrName) ?? null;
-                return isBool ? (rawAttr !== null && rawAttr !== 'false') : (rawAttr ?? '');
+                // Boolean: an ABSENT attribute means the descriptor default (so a
+                // default-true boolean shows checked); "false"/"0" means off.
+                return isBool
+                    ? (rawAttr === null ? Boolean(attrSpec.default) : (rawAttr !== 'false' && rawAttr !== '0'))
+                    : (rawAttr ?? '');
             });
             const mixed = this.selectedElems.length > 1 && vals.some(v => v !== vals[0]);
             const value = mixed ? (isBool ? false : null) : vals[0];
@@ -1385,7 +1484,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                 // the attribute, exactly like the × clear.
                 emptyOption: attrSpec.emptyOption,
                 elem: {
-                    input: !options && !attrSpec.textarea && !isBool && !isList && !isColor && !isTopic && !isIcon,
+                    input: !options && !attrSpec.textarea && !isBool && !isList && !isColor && !isTopic && !isIcon && !isAsset,
                     inputType,
                     dropdown: Boolean(options),
                     options,
@@ -1396,6 +1495,8 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                     color: isColor,
                     mqttTopic: isTopic,
                     icon: isIcon,
+                    asset: isAsset,
+                    accept: attrSpec.accept || null,
                     list: isList,
                     // U35: per-item field spec; legacy {columns:['a','b']}
                     // converts to itemFields; default is the canonical
@@ -1693,16 +1794,14 @@ class FeezalSidebarInspectorAttributes extends LitElement {
     // Build a meaningful option label from the discovery payload. The entity
     // `name` is often just the component type ("light"), so prefer the status
     // topic(s) found in the config, falling back to the name.
+    // U58: label + attribute-suffix logic now lives in the shared discovery
+    // module so the ⚡ picker and the Generate wizard label devices identically.
     _discoveryOptionLabel(entity) {
-        // Native recognizers set a sourceLabel (e.g. "hm", "WLED") so the option
-        // reads as a friendly "<source>: <name>" instead of a raw MQTT topic.
-        if (entity.sourceLabel) {
-            return entity.name ? entity.sourceLabel + ': ' + entity.name : entity.sourceLabel;
-        }
-        const cfg = entity.config || {};
-        const topic = cfg.state_topic || cfg.position_topic || cfg.percentage_state_topic ||
-            cfg.current_temperature_topic || cfg.command_topic || '';
-        return topic || entity.name || entity.discovery_id;
+        return discoveryLabel(entity);
+    }
+
+    _discoveryAttributeSuffix(entity, base) {
+        return discoveryAttributeSuffix(entity, base);
     }
 
     _onPickDiscovery(encodedId) {
@@ -1756,98 +1855,10 @@ class FeezalSidebarInspectorAttributes extends LitElement {
     _applyDiscovery(entity) {
         const el = this.selectedElems?.[0];
         if (!el) return;
-        const tagName = el.name ? 'feezal-view' : el.localName;
-        const cls = window.customElements.get(tagName);
-        const discoveryMap = cls?.feezal?.discovery?.map;
-        if (!discoveryMap) return;
-
-        const cfg = entity.config || {};
-        for (const [configKey, spec] of Object.entries(discoveryMap)) {
-            const raw = cfg[configKey];
-            if (raw === undefined || raw === null) continue;
-            const attrName = typeof spec === 'string' ? spec : spec.attr;
-            if (!attrName) continue;
-            // onlyWhen guard — skip this mapping unless every guard key matches.
-            if (typeof spec === 'object' && spec.onlyWhen &&
-                !Object.entries(spec.onlyWhen).every(([k, v]) => cfg[k] === v)) {
-                continue;
-            }
-            let value = raw;
-            if (typeof spec === 'object') {
-                if (spec.unit === 'mired\u2192kelvin') {
-                    value = Math.round(1_000_000 / Number(raw));
-                } else if (spec.valueMap) {
-                    value = spec.valueMap[raw] ?? spec.valueMap['_default'] ?? raw;
-                } else if (spec.transform === 'first') {
-                    value = Array.isArray(raw) ? raw[0] : raw;
-                } else if (spec.transform === 'join') {
-                    value = Array.isArray(raw) ? raw.join(',') : raw;
-                } else if (spec.transform === 'jsonStringify') {
-                    value = JSON.stringify(raw);
-                } else if (spec.transform === 'colorMode') {
-                    // supported_color_modes array → a single feezal centre control.
-                    // color_temp maps to brightness_ct: CT-capable lamps are
-                    // effectively always dimmable, and plain color_temp would
-                    // hide the brightness control.
-                    const modeMap = {
-                        color_temp: 'brightness_ct', xy: 'hs', hs: 'hs',
-                        rgb: 'rgb', rgbw: 'rgb', rgbww: 'rgb', white: 'brightness',
-                        // E126/E122: an onoff-only capability IS the switch-only
-                        // mode — a relay lamp must not be offered a brightness
-                        // ring it cannot honour.
-                        brightness: 'brightness', onoff: 'on_off',
-                    };
-                    const list = Array.isArray(raw) ? raw : [raw];
-                    value = list.map(m => modeMap[m]).find(Boolean) || 'brightness';
-                } else if (spec.transform === 'valueTemplateToPath') {
-                    // Convert a HA value_template like "{{ value_json.state }}" to
-                    // a feezal message-property path like "payload.state".
-                    // E124: z2m also emits the bracket form ({{ value_json["x"] }}).
-                    const m = /\{\{\s*value_json(?:\.(\w+)|\[\s*["'](\w+)["']\s*\])\s*\}\}/.exec(String(raw));
-                    if (!m) continue; // complex/unsupported template — leave attribute at default
-                    value = 'payload.' + (m[1] || m[2]);
-                }
-            }
-            el.setAttribute(attrName, String(value));
-            // alsoSet — apply companion attributes (e.g. switch colour-temp unit to
-            // mired when mired discovery values are mapped).
-            if (typeof spec === 'object' && spec.alsoSet) {
-                for (const [k, v] of Object.entries(spec.alsoSet)) {
-                    el.setAttribute(k, String(v));
-                }
-            }
-        }
-
-        // N31: canonical availability applies to EVERY element automatically —
-        // individual discovery maps no longer need availability_topic lines.
-        // A single plain-topic entry stays a plain string (back-compat, and it
-        // keeps the inspector field readable); anything richer becomes the
-        // JSON-array form the FeezalElement base class parses.
-        const avail = cfg.availability_normalized;
-        if (avail?.entries?.length) {
-            el.setAttribute('subscribe-availability',
-                avail.entries.length === 1 && !avail.entries[0].property
-                    ? avail.entries[0].topic
-                    : JSON.stringify(avail.entries));
-            if (avail.mode && avail.mode !== 'all') el.setAttribute('availability-mode', avail.mode);
-            if (avail.payloadAvailable !== undefined) el.setAttribute('payload-available', String(avail.payloadAvailable));
-            if (avail.payloadUnavailable !== undefined) el.setAttribute('payload-unavailable', String(avail.payloadUnavailable));
-        }
-
-        // E124/E132: canonical low-battery record — auto-stamped like
-        // availability, but ONLY for elements that declare the attribute
-        // (contacts/climate join with E124; the sensor cards carry it now).
-        const batt = cfg.battery_low_normalized;
-        const declaresBattery = cls.feezal.attributes?.some(a => a?.name === 'subscribe-battery-low');
-        if (batt?.topic && declaresBattery) {
-            el.setAttribute('subscribe-battery-low', batt.topic);
-            if (batt.property) el.setAttribute('message-property-battery-low', batt.property);
-            if (batt.payloadLow !== undefined) el.setAttribute('payload-battery-low', String(batt.payloadLow));
-        }
-
-        // Store the discovery-id for future re-sync (N12 MVP)
-        if (entity.discovery_id) el.setAttribute('discovery-id', entity.discovery_id);
-
+        // U58: the stamping itself lives in the shared headless module so the
+        // ⚡ picker and the bulk Generate wizard wire devices identically. The
+        // inspector-specific redraw stays here.
+        if (!stampDiscovery(el, entity)) return;
         this._rebuildItems();
         feezal.app.change();
         // Refresh a custom inspector (N6) so its fields show the applied values.

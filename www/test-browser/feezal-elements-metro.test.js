@@ -9,9 +9,10 @@ import '@feezal/feezal-element-metro-switch';
 import '@feezal/feezal-element-metro-contact';
 import '@feezal/feezal-element-metro-light';
 import '@feezal/feezal-element-metro-climate';
+import '@feezal/feezal-element-metro-value';
 import '@feezal/feezal-element-metro-sensor';
 import '@feezal/feezal-element-metro-media';
-import '@feezal/feezal-element-metro-occupancy';
+import '@feezal/feezal-element-metro-motion';
 // The metro-light inspector uses editor-global components — register them
 // here like the editor bundle does.
 import '@shoelace-style/shoelace/dist/components/tab-group/tab-group.js';
@@ -373,9 +374,9 @@ describe('metro-climate', () => {
     });
 });
 
-describe('metro-sensor', () => {
+describe('metro-value', () => {
     it('front shows the formatted value; back renders the trend polyline + min/max', async () => {
-        const el = await mount('feezal-element-metro-sensor', {
+        const el = await mount('feezal-element-metro-value', {
             subscribe: 'stat/p', digits: '1', unit: 'W', points: '5',
         });
         for (const v of [1, 5, 3]) feezal.connection.deliver('stat/p', String(v));
@@ -453,9 +454,9 @@ describe('metro-light inspector (N6)', () => {
     });
 });
 
-describe('metro-occupancy', () => {
+describe('metro-motion (E138 motion slice)', () => {
     it('material-motion contract: state coercion, type icon, per-state icons, texts, badge', async () => {
-        const el = await mount('feezal-element-metro-occupancy', {
+        const el = await mount('feezal-element-metro-motion', {
             subscribe: 'stat/pir', type: 'presence',
             'text-active': 'belegt', 'text-clear': 'frei',
             'subscribe-availability': 'tele/LWT',
@@ -478,6 +479,46 @@ describe('metro-occupancy', () => {
         feezal.connection.deliver('tele/LWT', 'offline');
         await el.updateComplete;
         expect(el.shadowRoot.querySelector('.badge').textContent).toBe('!');
+    });
+
+    it('motion slice: type options exclude alarm classes; active default is the accent var', () => {
+        const cls = customElements.get('feezal-element-metro-motion');
+        const type = cls.feezal.attributes.find(a => a.name === 'type');
+        expect(type.options).toEqual(['motion', 'presence', 'radar', 'zone']);
+        const active = cls.feezal.styles.find(s => s.property === '--feezal-metro-active-color');
+        expect(active.default).toContain('--accent-color');
+    });
+});
+
+describe('metro-sensor (E138 alarm slice)', () => {
+    it('alarm contract: state coercion, type icon/text, battery badge, availability', async () => {
+        const el = await mount('feezal-element-metro-sensor', {
+            subscribe: 'stat/leak', type: 'water-leak',
+            'subscribe-battery-low': 'stat/leak/batt',
+            'subscribe-availability': 'tele/LWT',
+        });
+        expect(el.shadowRoot.querySelector('.flip-btn')).toBeNull();   // front-only
+
+        feezal.connection.deliver('stat/leak', {state: 'ON'});   // z2m JSON shape
+        await el.updateComplete;
+        expect(el.hasAttribute('data-active')).toBe(true);
+
+        // E124 low-battery badge
+        feezal.connection.deliver('stat/leak/batt', 'true');
+        await el.updateComplete;
+        expect(el.shadowRoot.querySelector('.feezal-batt-badge')).not.toBeNull();
+
+        feezal.connection.deliver('tele/LWT', 'offline');
+        await el.updateComplete;
+        expect(el.shadowRoot.querySelector('.badge').textContent).toBe('!');
+    });
+
+    it('alarm slice: type options are the hazard classes; active default is the error var', () => {
+        const cls = customElements.get('feezal-element-metro-sensor');
+        const type = cls.feezal.attributes.find(a => a.name === 'type');
+        expect(type.options).toEqual(['water-leak', 'smoke', 'gas', 'co', 'vibration', 'tamper', 'generic']);
+        const active = cls.feezal.styles.find(s => s.property === '--feezal-metro-active-color');
+        expect(active.default).toContain('--error-color');
     });
 });
 
@@ -509,9 +550,9 @@ describe('metro-media', () => {
 describe('E129 — metro size tokens', () => {
     const FAMILY = [
         'feezal-element-metro-tile', 'feezal-element-metro-switch', 'feezal-element-metro-light',
-        'feezal-element-metro-climate', 'feezal-element-metro-sensor', 'feezal-element-metro-media',
-        'feezal-element-metro-contact', 'feezal-element-metro-occupancy', 'feezal-element-metro-cover',
-        'feezal-element-metro-wled',
+        'feezal-element-metro-climate', 'feezal-element-metro-value', 'feezal-element-metro-sensor',
+        'feezal-element-metro-media', 'feezal-element-metro-contact', 'feezal-element-metro-motion',
+        'feezal-element-metro-cover', 'feezal-element-metro-wled',
     ];
     const SIZE_VARS = ['--feezal-metro-icon-size', '--feezal-metro-font-size-label',
         '--feezal-metro-font-size-value', '--feezal-metro-font-size-unit'];

@@ -8,7 +8,7 @@ const REPORT = {
     estimate: true,
     elemCount: 2,
     buckets: [
-        {name: '@feezal/feezal-element-material-light', minified: 120 * 1024, gzip: 36 * 1024},
+        {name: '@feezal/feezal-element-circle-light', minified: 120 * 1024, gzip: 36 * 1024},
         {name: 'lit', minified: 90 * 1024, gzip: 27 * 1024},
         {name: '@feezal/feezal-element-material-switch', minified: 60 * 1024, gzip: 18 * 1024},
         {name: 'feezal core', minified: 30 * 1024, gzip: 9 * 1024},
@@ -61,7 +61,7 @@ describe('bundle size breakdown (U34)', () => {
 
         const rows = [...el.renderRoot.querySelectorAll('.row')];
         expect(rows.map(r => r.querySelector('.name').textContent)).toEqual([
-            '@feezal/feezal-element-material-light', 'lit',
+            '@feezal/feezal-element-circle-light', 'lit',
             '@feezal/feezal-element-material-switch', 'feezal core',
         ]);
         expect(rows.map(r => r.classList.contains('top'))).toEqual([true, true, true, false]);

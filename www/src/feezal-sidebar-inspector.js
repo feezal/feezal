@@ -10,6 +10,7 @@ import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
 import './feezal-sidebar-inspector-styles.js';
 import './feezal-sidebar-inspector-attributes.js';
 import './feezal-sidebar-inspector-conditions.js';
+import {clippyStyles, clippyMarkup, clippyEnabled} from './feezal-clippy.js';
 
 // U32: everything the canvas machinery treats as a first-class element —
 // regular feezal elements plus component instances. Stamped children inside a
@@ -17,6 +18,13 @@ import './feezal-sidebar-inspector-conditions.js';
 // they are never enumerated or wired.
 const isCanvasElement = el =>
     Boolean(el.localName) && (el.localName.startsWith('feezal-element-') || el.localName === 'feezal-component');
+
+// E115 — function-identity aliases for the Switch-family pairing: a family
+// whose tag suffix diverges for the SAME function is normalised here so its twin
+// pairs up (E138: the numeric readout is `*-value` everywhere but `eink-number`).
+const FN_ALIAS = {number: 'value'};
+const FAMILY_LABELS = {eink: 'E-ink', tui: 'TUI', wled: 'WLED'};
+const familyLabel = f => FAMILY_LABELS[f] || (f ? f.charAt(0).toUpperCase() + f.slice(1) : f);
 
 // U33: canvas stacking is DOM order, period. DragSelect writes cumulative
 // inline z-index junk on every selection/drag (+1/-1 per add/remove, 9999
@@ -120,6 +128,7 @@ class FeezalSidebarInspector extends LitElement {
         gridVisible:    {type: Boolean, reflect: true},
         gridColor:      {type: String, reflect: true},
         _ctxMenu:       {state: true},
+        _switchReport:  {state: true},   // E115: transient Switch-family summary
         _shortcutsOpen: {state: true}
     };
 
@@ -206,6 +215,21 @@ class FeezalSidebarInspector extends LitElement {
             color: var(--feezal-color, #666); line-height: 1; padding: 2px;
         }
         .shortcuts-close:hover { color: #c00; }
+
+        /* E115: transient Switch-family report (never silently lossy). */
+        .switch-toast {
+            position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+            z-index: 20001; max-width: 560px;
+            padding: 9px 16px; border-radius: 8px; cursor: pointer;
+            font-size: 12.5px; line-height: 1.35;
+            background: var(--feezal-bg, #fff); color: var(--feezal-color, #222);
+            border: 1px solid var(--sl-color-primary-400, #38bdf8);
+            box-shadow: 0 6px 24px rgba(0,0,0,0.28);
+        }
+        .switch-toast.warn { border-color: var(--warning-color, #f59e0b); }
+
+        /* U46: opt-in paperclip assistant, shared with the source-mode popup. */
+        ${clippyStyles}
     `;
 
     constructor() {
@@ -220,6 +244,7 @@ class FeezalSidebarInspector extends LitElement {
         this.gridColor = '#cccccc';
         this.dragselect = {};
         this._ctxMenu = {visible: false, x: 0, y: 0, onElem: false, subMenu: null};
+        this._switchReport = null;
         this._shortcutsOpen = false;
         this._shiftDown = false;
         this._ctrlDown = false;
@@ -264,6 +289,9 @@ class FeezalSidebarInspector extends LitElement {
         const canConditions = !this.viewSelected && this.selectedElems.length === 1 &&
             Boolean(this.selectedElems[0]?.localName?.startsWith?.('feezal-element-'));
         const condCount = canConditions ? this._conditionCount(this.selectedElems[0]) : 0;
+        // E115: families the current selection can be switched to (union of each
+        // element's twins in other installed families).
+        const switchTargets = cm.visible && cm.onElem ? this._switchFamilyTargets() : [];
         return html`
             <sl-tab-group @sl-tab-show="${e => { this._activeTab = e.detail.name; }}">
                 <sl-tab slot="nav" panel="attributes">Attributes</sl-tab>
@@ -357,6 +385,25 @@ class FeezalSidebarInspector extends LitElement {
                             ` : ''}
                         </div>
                         <div class="ctx-sep"></div>
+                        ${switchTargets.length ? html`
+                            <div class="ctx-item"
+                                @mouseenter="${() => this._openCtxSub('switch')}"
+                                @mouseleave="${() => this._scheduleCtxSub(null)}">
+                                Switch family… <span class="ctx-arrow">▶</span>
+                                ${cm.subMenu === 'switch' ? html`
+                                    <div class="ctx-sub"
+                                        @mouseenter="${() => this._clearCtxSub()}"
+                                        @mouseleave="${() => this._scheduleCtxSub(null)}">
+                                        ${switchTargets.map(t => html`
+                                            <div class="ctx-item" @click="${() => this._ctxSwitchFamily(t.family)}">
+                                                ${familyLabel(t.family)}${t.count > 1 ? html` <span class="ctx-kbd">${t.count}</span>` : ''}
+                                            </div>
+                                        `)}
+                                    </div>
+                                ` : ''}
+                            </div>
+                            <div class="ctx-sep"></div>
+                        ` : ''}
                         ${canCreateComponent ? html`
                             <div class="ctx-item" @click="${() => this._ctxAction('createComponent')}">
                                 Create component…
@@ -391,6 +438,12 @@ class FeezalSidebarInspector extends LitElement {
                     </div>
                 </div>
             ` : ''}
+            ${this._switchReport ? html`
+                <div class="switch-toast ${this._switchReport.warn ? 'warn' : ''}"
+                    @click="${() => { this._switchReport = null; }}">
+                    ${this._switchReport.text}
+                </div>
+            ` : ''}
             ${this._shortcutsOpen ? html`
                 <div class="shortcuts-overlay" @click="${() => this._shortcutsOpen = false}">
                     <div class="shortcuts-modal" @click="${e => e.stopPropagation()}">
@@ -413,6 +466,7 @@ class FeezalSidebarInspector extends LitElement {
                             <tr><td>Ctrl while drag/resize</td><td>Disable snapping temporarily (or enable element snap when off)</td></tr>
                             <tr><td>Shift while drag/resize</td><td>Switch snap mode: elements ↔ grid (or enable grid when off)</td></tr>
                         </table>
+                        ${clippyEnabled() ? clippyMarkup() : ''}
                     </div>
                 </div>
             ` : ''}
@@ -1985,6 +2039,110 @@ class FeezalSidebarInspector extends LitElement {
         } else {
             feezal.app.change();
         }
+    }
+
+    // ── E115: switch an element to its twin in another family ────────────────
+    // Map<functionKey, Map<family, tag>> over all installed feezal elements. The
+    // pairing key is the tag-function (E138 standardised these across families),
+    // normalised via FN_ALIAS for the one known divergence (number ↔ value).
+    _familyFunctionMap() {
+        const map = new Map();
+        for (const pkg of (window.feezal?.elements || [])) {
+            const tag = pkg.replace(/^@[^/]+\//, '');
+            const m = /^feezal-element-([a-z0-9]+)-(.+)$/.exec(tag);
+            if (!m) continue;
+            const cls = window.customElements.get(tag);
+            if (!cls?.feezal) continue;
+            const family = m[1];
+            const key = FN_ALIAS[m[2]] || m[2];
+            if (!map.has(key)) map.set(key, new Map());
+            map.get(key).set(family, tag);
+        }
+        return map;
+    }
+
+    // {family, key} for a canvas element from its tag, or null.
+    _elemFunction(el) {
+        const m = /^feezal-element-([a-z0-9]+)-(.+)$/.exec(el.localName || '');
+        return m ? {family: m[1], key: FN_ALIAS[m[2]] || m[2]} : null;
+    }
+
+    // Target families for the current selection: any family (other than an
+    // element's own) with a twin for at least one selected element, + the count
+    // of selected elements that would switch to it.
+    _switchFamilyTargets() {
+        const map = this._familyFunctionMap();
+        const counts = new Map();
+        for (const el of this.selectedElems) {
+            if (el.tagName === 'FEEZAL-VIEW' || el.localName === 'feezal-component') continue;
+            const fn = this._elemFunction(el);
+            const twins = fn && map.get(fn.key);
+            if (!twins) continue;
+            for (const family of twins.keys()) {
+                if (family === fn.family) continue;
+                counts.set(family, (counts.get(family) || 0) + 1);
+            }
+        }
+        return [...counts.entries()]
+            .map(([family, count]) => ({family, count}))
+            .sort((a, b) => familyLabel(a.family).localeCompare(familyLabel(b.family)));
+    }
+
+    // Swap each selected element to its twin in `targetFamily`, carrying the
+    // shared attribute contract + discovery-id + geometry, dropping the source
+    // family's chrome and any orphan attributes (reported, never silent).
+    _ctxSwitchFamily(targetFamily) {
+        this._closeCtxMenu();
+        const map = this._familyFunctionMap();
+        const ALWAYS = new Set(['discovery-id', 'locked', 'data-group']);
+        const newSel = [];
+        const dropped = new Set();
+        let switched = 0;
+        let skipped = 0;
+
+        for (const el of [...this.selectedElems]) {
+            if (el.tagName === 'FEEZAL-VIEW' || el.localName === 'feezal-component') { skipped++; continue; }
+            const fn = this._elemFunction(el);
+            const targetTag = fn && map.get(fn.key)?.get(targetFamily);
+            if (!targetTag || targetFamily === fn.family) { skipped++; continue; }
+            const targetCls = window.customElements.get(targetTag);
+            // Attribute descriptors are either a `{name}` object or a bare string.
+            const declared = new Set((targetCls?.feezal?.attributes || [])
+                .map(a => typeof a === 'string' ? a : a?.name).filter(Boolean));
+
+            const swapped = document.createElement(targetTag);
+            for (const attr of [...el.attributes]) {
+                if (attr.name === 'style' || attr.name === 'class') continue;
+                if (declared.has(attr.name) || ALWAYS.has(attr.name)) swapped.setAttribute(attr.name, attr.value);
+                else dropped.add(attr.name);
+            }
+            el.replaceWith(swapped);          // in place — preserves DOM order / grouping
+            this.initElem(swapped, true);     // applies the target family's defaultStyle
+            // Preserve geometry + generic inline CSS; drop the source family's
+            // --feezal-* chrome overrides (adopting the target look is the point).
+            for (let i = 0; i < el.style.length; i++) {
+                const p = el.style[i];
+                if (p.startsWith('--feezal-')) continue;
+                swapped.style.setProperty(p, el.style.getPropertyValue(p));
+            }
+            newSel.push(swapped);
+            switched++;
+        }
+
+        if (!switched) return;
+        this.selectElement(newSel);
+        feezal.app.change();   // whole batch = one undo entry
+
+        const parts = [`Switched ${switched} to ${familyLabel(targetFamily)}`];
+        if (skipped) parts.push(`${skipped} skipped (no ${familyLabel(targetFamily)} twin)`);
+        if (dropped.size) parts.push(`dropped: ${[...dropped].sort().join(', ')}`);
+        this._showSwitchReport(parts.join(' · '), dropped.size > 0);
+    }
+
+    _showSwitchReport(text, warn) {
+        this._switchReport = {text, warn};
+        if (this._switchReportTimer) clearTimeout(this._switchReportTimer);
+        this._switchReportTimer = setTimeout(() => { this._switchReport = null; }, warn ? 9000 : 5000);
     }
 }
 

@@ -1,7 +1,7 @@
 /**
  * E102 — glass-climate per-entry mode-descriptor model + momentary boost,
  * ported from material-climate. Mirrors the material-climate E102 test
- * suite (see feezal-element-material-climate.test.js).
+ * suite (see feezal-element-circle-climate.test.js).
  */
 import {describe, it, expect, beforeEach, vi} from 'vitest';
 import '../packages/@feezal/feezal-element-glass-climate/feezal-element-glass-climate.js';

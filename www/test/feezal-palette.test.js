@@ -233,11 +233,35 @@ describe('collapsed-category persistence', () => {
         expect(JSON.parse(localStorage.getItem('feezal-palette-collapsed'))).not.toContain('Basic');
     });
 
-    it('an existing empty stored value is respected (not treated as first run)', () => {
+    it('an existing empty stored value keeps SHIPPED families expanded; an unknown family still defaults collapsed', () => {
+        // Not first run (collapsed key present), and no "seen" record yet →
+        // migration seeds seen with the shipped families, so Basic/Paper stay
+        // expanded, but the unrecognised "Other" category defaults collapsed.
         localStorage.setItem('feezal-palette-collapsed', '[]');
         const el = makePalette();
         el._rebuildCategories();
-        expect(el._collapsed.size).toBe(0);     // stays fully expanded
+        expect(el._collapsed.has('Basic')).toBe(false);
+        expect(el._collapsed.has('Paper')).toBe(false);
+        expect(el._collapsed.has('Other')).toBe(true);   // new/unknown → collapsed
+    });
+
+    it('a newly appeared family defaults collapsed without disturbing existing choices (the Eink upgrade case)', () => {
+        // User had already seen Basic/Paper/Other and left Paper expanded
+        // (only Other collapsed). A freshly installed "Eink" family appears.
+        localStorage.setItem('feezal-palette-collapsed', JSON.stringify(['Other']));
+        localStorage.setItem('feezal-palette-seen', JSON.stringify(['Basic', 'Paper', 'Other']));
+        class PaletteEink extends HTMLElement {
+            static feezal = {palette: {name: 'Eink Thing', category: 'Eink'}};
+        }
+        customElements.define('feezal-element-pal-eink', PaletteEink);
+        feezal.elements = [...feezal.elements, '@feezal/feezal-element-pal-eink'];
+
+        const el = makePalette();
+        el._rebuildCategories();
+        expect(el._collapsed.has('Eink')).toBe(true);     // new family collapses
+        expect(el._collapsed.has('Paper')).toBe(false);   // user's expand preserved
+        expect(el._collapsed.has('Other')).toBe(true);    // untouched
+        expect(JSON.parse(localStorage.getItem('feezal-palette-seen'))).toContain('Eink');
     });
 });
 

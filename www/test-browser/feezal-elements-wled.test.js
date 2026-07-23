@@ -13,11 +13,12 @@
  * www/package.json, so there are no node_modules symlinks for them.
  */
 import {describe, it, expect, beforeEach} from 'vitest';
-import '../packages/@feezal/feezal-element-material-wled/feezal-element-material-wled.js';
+import '../packages/@feezal/feezal-element-circle-wled/feezal-element-circle-wled.js';
 import '../packages/@feezal/feezal-element-glass-wled/feezal-element-glass-wled.js';
 import '../packages/@feezal/feezal-element-metro-wled/feezal-element-metro-wled.js';
+// E137: the lists live once in the controller package now.
 import {WLED_EFFECTS, WLED_PALETTES, effectName, paletteName}
-    from '../packages/@feezal/feezal-element-material-wled/wled-lists.js';
+    from '../packages/@feezal/feezal-controller-wled/wled-lists.js';
 import {setupFeezal, mount, until} from './helpers.js';
 
 let feezal;
@@ -41,39 +42,39 @@ describe('wled-lists', () => {
 
 describe('material-wled state binding', () => {
     it('binds /g (brightness, 0 = off) and /c (colour)', async () => {
-        const el = await mount('feezal-element-material-wled', {topic: 'wled/device'});
+        const el = await mount('feezal-element-circle-wled', {topic: 'wled/device'});
         feezal.connection.deliver('wled/device/g', '128');
         await el.updateComplete;
-        expect(el._on).toBe(true);
-        expect(el._bri).toBe(128);
+        expect(el.wled.on).toBe(true);
+        expect(el.wled.bri).toBe(128);
         expect(el.shadowRoot.querySelector('svg text').textContent).toContain('50%');
 
         feezal.connection.deliver('wled/device/c', '#FF0000');
         await el.updateComplete;
-        expect(el._color).toBe('#ff0000');
+        expect(el.wled.color).toBe('#ff0000');
 
         feezal.connection.deliver('wled/device/g', '0');
         await el.updateComplete;
-        expect(el._on).toBe(false);
+        expect(el.wled.on).toBe(false);
         expect(el.shadowRoot.querySelector('svg text').textContent).toContain('off');
     });
 
     it('rewires live when the topic changes', async () => {
-        const el = await mount('feezal-element-material-wled', {topic: 'wled/one'});
+        const el = await mount('feezal-element-circle-wled', {topic: 'wled/one'});
         el.setAttribute('topic', 'wled/two');
         await until(() => el.subscribeAvailability === 'wled/two/status');
         feezal.connection.deliver('wled/one/g', '255');
         await el.updateComplete;
-        expect(el._on).toBe(false);            // old topic no longer wired
+        expect(el.wled.on).toBe(false);            // old topic no longer wired
         feezal.connection.deliver('wled/two/g', '255');
         await el.updateComplete;
-        expect(el._on).toBe(true);
+        expect(el.wled.on).toBe(true);
     });
 });
 
 describe('material-wled commands → <topic>/api', () => {
     it('toggle (ring centre tap) publishes {"on":true}', async () => {
-        const el = await mount('feezal-element-material-wled', {topic: 'wled/device'});
+        const el = await mount('feezal-element-circle-wled', {topic: 'wled/device'});
         const svgEl = el.shadowRoot.querySelector('svg');
         svgEl.getBoundingClientRect = () => ({left: 0, top: 0, width: 100, height: 100});
         svgEl.dispatchEvent(new PointerEvent('pointerdown', {clientX: 50, clientY: 50}));
@@ -82,7 +83,7 @@ describe('material-wled commands → <topic>/api', () => {
     });
 
     it('colour input publishes {"seg":[{"col":[[r,g,b]]}]}', async () => {
-        const el = await mount('feezal-element-material-wled', {topic: 'wled/device'});
+        const el = await mount('feezal-element-circle-wled', {topic: 'wled/device'});
         const col = el.shadowRoot.querySelector('input.col');
         col.value = '#ff8800';
         col.dispatchEvent(new Event('change'));
@@ -91,7 +92,7 @@ describe('material-wled commands → <topic>/api', () => {
     });
 
     it('colour input publishes immediately on `input` (debounced ~100 ms)', async () => {
-        const el = await mount('feezal-element-material-wled', {topic: 'wled/device'});
+        const el = await mount('feezal-element-circle-wled', {topic: 'wled/device'});
         const col = el.shadowRoot.querySelector('input.col');
         col.value = '#00ff88';
         col.dispatchEvent(new Event('input'));
@@ -103,7 +104,7 @@ describe('material-wled commands → <topic>/api', () => {
     });
 
     it('effect and palette selects publish fx / pal ids', async () => {
-        const el = await mount('feezal-element-material-wled', {topic: 'wled/device'});
+        const el = await mount('feezal-element-circle-wled', {topic: 'wled/device'});
         const fx = el.shadowRoot.querySelector('select.fx');
         fx.value = '9';
         fx.dispatchEvent(new Event('change'));
@@ -118,7 +119,7 @@ describe('material-wled commands → <topic>/api', () => {
     });
 
     it('speed and intensity sliders publish sx/ix scaled 0-100% → 0-255', async () => {
-        const el = await mount('feezal-element-material-wled', {topic: 'wled/device'});
+        const el = await mount('feezal-element-circle-wled', {topic: 'wled/device'});
         const speed = el.shadowRoot.querySelector('input.speed');
         expect(speed.value).toBe('50');   // default 128/255 ≈ 50 % when unset
         speed.value = '50';
@@ -134,7 +135,7 @@ describe('material-wled commands → <topic>/api', () => {
     });
 
     it('transition attribute (seconds) is appended as WLED 0.1 s units', async () => {
-        const el = await mount('feezal-element-material-wled',
+        const el = await mount('feezal-element-circle-wled',
             {topic: 'wled/device', transition: '0.7'});
         const svgEl = el.shadowRoot.querySelector('svg');
         svgEl.getBoundingClientRect = () => ({left: 0, top: 0, width: 100, height: 100});
@@ -145,7 +146,7 @@ describe('material-wled commands → <topic>/api', () => {
 
     it('never publishes in the editor', async () => {
         feezal = setupFeezal({isEditor: true});
-        const el = await mount('feezal-element-material-wled', {topic: 'wled/device'});
+        const el = await mount('feezal-element-circle-wled', {topic: 'wled/device'});
         const svgEl = el.shadowRoot.querySelector('svg');
         svgEl.getBoundingClientRect = () => ({left: 0, top: 0, width: 100, height: 100});
         svgEl.dispatchEvent(new PointerEvent('pointerdown', {clientX: 50, clientY: 50}));
@@ -161,12 +162,12 @@ describe('material-wled commands → <topic>/api', () => {
 
 describe('material-wled circular brightness ring (B29/B37 parity)', () => {
     it('exposes --feezal-wled-track-width / --feezal-wled-knob-size as style vars, wired into the ring', async () => {
-        const styleProps = customElements.get('feezal-element-material-wled').feezal.styles
+        const styleProps = customElements.get('feezal-element-circle-wled').feezal.styles
             .filter(s => typeof s === 'object').map(s => s.property);
         expect(styleProps).toContain('--feezal-wled-track-width');
         expect(styleProps).toContain('--feezal-wled-knob-size');
 
-        const el = await mount('feezal-element-material-wled', {topic: 'wled/device'});
+        const el = await mount('feezal-element-circle-wled', {topic: 'wled/device'});
         feezal.connection.deliver('wled/device/g', '128');
         await el.updateComplete;
         const paths = el.shadowRoot.querySelectorAll('svg path');
@@ -178,7 +179,7 @@ describe('material-wled circular brightness ring (B29/B37 parity)', () => {
     });
 
     it('dragging the ring publishes {"bri":raw} (drag to ~83 % → 212)', async () => {
-        const el = await mount('feezal-element-material-wled', {topic: 'wled/device'});
+        const el = await mount('feezal-element-circle-wled', {topic: 'wled/device'});
         const svgEl = el.shadowRoot.querySelector('svg');
         svgEl.getBoundingClientRect = () => ({left: 0, top: 0, width: 100, height: 100});
         // Right side of the ring (distance 40 from centre — inside the
@@ -192,7 +193,7 @@ describe('material-wled circular brightness ring (B29/B37 parity)', () => {
 
 describe('material-wled show-effect / show-palette', () => {
     it('show-effect=false hides the effect picker AND the speed/intensity sliders', async () => {
-        const el = await mount('feezal-element-material-wled', {topic: 'wled/device'});
+        const el = await mount('feezal-element-circle-wled', {topic: 'wled/device'});
         el.showEffect = false;
         await el.updateComplete;
         expect(el.shadowRoot.querySelector('select.fx')).toBeNull();
@@ -202,7 +203,7 @@ describe('material-wled show-effect / show-palette', () => {
     });
 
     it('show-palette=false hides the palette picker only', async () => {
-        const el = await mount('feezal-element-material-wled', {topic: 'wled/device'});
+        const el = await mount('feezal-element-circle-wled', {topic: 'wled/device'});
         el.showPalette = false;
         await el.updateComplete;
         expect(el.shadowRoot.querySelector('select.pal')).toBeNull();
@@ -213,7 +214,7 @@ describe('material-wled show-effect / show-palette', () => {
 
 describe('material-wled presets', () => {
     it('numeric fallback publishes {"ps":<n>} when no presets list is configured', async () => {
-        const el = await mount('feezal-element-material-wled', {topic: 'wled/device'});
+        const el = await mount('feezal-element-circle-wled', {topic: 'wled/device'});
         el.showPresets = true;
         await el.updateComplete;
         const input = el.shadowRoot.querySelector('input.preset-num');
@@ -225,9 +226,10 @@ describe('material-wled presets', () => {
     });
 
     it('preset picker publishes {"ps":<id>} when a presets list is configured', async () => {
-        const el = await mount('feezal-element-material-wled', {topic: 'wled/device'});
+        const el = await mount('feezal-element-circle-wled', {topic: 'wled/device'});
         el.showPresets = true;
-        el.presets = JSON.stringify([{id: 1, name: 'Relax'}, {id: 2, name: 'Party'}]);
+        // E137: the controller reads the presets ATTRIBUTE — set it directly.
+        el.setAttribute('presets', JSON.stringify([{id: 1, name: 'Relax'}, {id: 2, name: 'Party'}]));
         await el.updateComplete;
         const select = el.shadowRoot.querySelector('select.preset');
         expect(select).not.toBeNull();
@@ -238,7 +240,7 @@ describe('material-wled presets', () => {
     });
 
     it('hidden by default (show-presets defaults false)', async () => {
-        const el = await mount('feezal-element-material-wled', {topic: 'wled/device'});
+        const el = await mount('feezal-element-circle-wled', {topic: 'wled/device'});
         expect(el.shadowRoot.querySelector('select.preset')).toBeNull();
         expect(el.shadowRoot.querySelector('input.preset-num')).toBeNull();
     });
@@ -246,7 +248,7 @@ describe('material-wled presets', () => {
 
 describe('material-wled availability', () => {
     it('auto-derives <topic>/status and shows the badge on offline', async () => {
-        const el = await mount('feezal-element-material-wled', {topic: 'wled/device'});
+        const el = await mount('feezal-element-circle-wled', {topic: 'wled/device'});
         expect(el.subscribeAvailability).toBe('wled/device/status');
         feezal.connection.deliver('wled/device/status', 'offline');
         await el.updateComplete;
@@ -259,7 +261,7 @@ describe('material-wled availability', () => {
     });
 
     it('an explicit subscribe-availability wins over the derived topic', async () => {
-        const el = await mount('feezal-element-material-wled',
+        const el = await mount('feezal-element-circle-wled',
             {topic: 'wled/device', 'subscribe-availability': 'my/avail'});
         expect(el.subscribeAvailability).toBe('my/avail');
         feezal.connection.deliver('wled/device/status', 'offline');
@@ -273,8 +275,9 @@ describe('material-wled availability', () => {
 
 describe('material-wled effect ids beyond the bundled list', () => {
     it('shows the numeric id in the select', async () => {
-        const el = await mount('feezal-element-material-wled', {topic: 'wled/device'});
-        el._fx = 250;                           // beyond WLED_EFFECTS (newer firmware)
+        const el = await mount('feezal-element-circle-wled', {topic: 'wled/device'});
+        el.wled.fx = 250;                           // beyond WLED_EFFECTS (newer firmware)
+        el.requestUpdate();                          // E137: plain controller field
         await el.updateComplete;
         const opt = el.shadowRoot.querySelector(`select.fx option[value="250"]`);
         expect(opt).not.toBeNull();
@@ -290,8 +293,8 @@ describe('glass-wled smoke', () => {
         feezal.connection.deliver('wled/glass/g', '255');
         feezal.connection.deliver('wled/glass/c', '00ff00');
         await el.updateComplete;
-        expect(el._on).toBe(true);
-        expect(el._color).toBe('#00ff00');
+        expect(el.wled.on).toBe(true);
+        expect(el.wled.color).toBe('#00ff00');
         expect(el.shadowRoot.querySelector('.state').textContent).toContain('100 %');
         el.toggle();
         expect(feezal.connection.published).toContainEqual(
@@ -347,7 +350,7 @@ describe('glass-wled smoke', () => {
 
 describe('B38 — WLED select dropdowns pick up theme colours', () => {
     it('material-wled: select declares a colour-scheme and <option> uses the surface/text tokens', async () => {
-        const el = await mount('feezal-element-material-wled', {topic: 'wled/device'});
+        const el = await mount('feezal-element-circle-wled', {topic: 'wled/device'});
         const select = el.shadowRoot.querySelector('select.fx');
         expect(getComputedStyle(select).colorScheme).not.toBe('normal');
         const option = select.querySelector('option');
@@ -381,7 +384,7 @@ describe('metro-wled smoke', () => {
         expect(el.subscribeAvailability).toBe('wled/metro/status');
         feezal.connection.deliver('wled/metro/g', '64');
         await el.updateComplete;
-        expect(el._on).toBe(true);
+        expect(el.wled.on).toBe(true);
         expect(el.shadowRoot.querySelector('.state').textContent).toContain('on 25%');
         el.baseAction();
         expect(feezal.connection.published).toContainEqual(
