@@ -152,7 +152,9 @@ describe('deploy persistence', () => {
         expect(savedHtml).toContain('feezal-component="room-card"');
         expect(savedHtml).toContain('feezal-component="two-buttons"');
         // Empty instance tag: no stamped children between open and close tag.
-        expect(savedHtml).toMatch(/<feezal-component[^>]*name="room-card"[^>]*>\s*<\/feezal-component>/);
+        // (prettier may put the closing tag's `>` on its own line for custom
+        // elements, so tolerate whitespace inside the close tag.)
+        expect(savedHtml).toMatch(/<feezal-component[^>]*name="room-card"[^>]*>\s*<\/feezal-component\s*>/);
         // No pseudo-view leaked.
         expect(savedHtml).not.toContain('feezal-component-edit');
     });
