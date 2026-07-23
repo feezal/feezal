@@ -6,7 +6,7 @@ const path = require('path');
 const {execFile} = require('child_process');
 const {promisify} = require('util');
 const execFileAsync = promisify(execFile);
-const prettyHtml = require('@starptech/prettyhtml');
+const {formatHtml} = require('../format-html');
 const createExport = require('../build/export.js');
 const bridge = require('../mqtt/bridge.js');
 const pkgManager = require('../build/install.js');
@@ -144,22 +144,17 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
         });
     });
 
-    // Format an HTML fragment with the same prettyhtml settings used on deploy,
-    // so the editor source view matches the saved views.html style exactly.
-    router.post('/format', (req, res) => {
+    // Format an HTML fragment with the same prettier settings used on deploy, so
+    // the editor source view matches the saved views.html style exactly. A
+    // formatting failure returns the raw HTML (never an error) — the source view
+    // should never break over cosmetics.
+    router.post('/format', async (req, res) => {
         const html = req.body && req.body.html;
         if (typeof html !== 'string') {
             return res.status(400).json({error: 'html is required'});
         }
-        try {
-            const formatted = prettyHtml(html, {
-                tabWidth: 4,
-                prettier: {jsxBracketSameLine: true}
-            }).toString();
-            res.json({html: formatted});
-        } catch (err) {
-            res.status(400).json({error: err.message});
-        }
+        const {html: formatted} = await formatHtml(html);
+        res.json({html: formatted});
     });
 
     // List all sites

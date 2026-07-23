@@ -106,21 +106,21 @@ describe('getSite / deploy', () => {
         });
     });
 
-    it('deploy still saves when HTML formatting fails (never loses work)', async () => {
+    it('deploy saves a site whose numeric sensors carry value+type attributes', async () => {
         const client = await connectClient();
-        // prettyhtml's parser mishandles a `value` + `type` attribute combo and
-        // throws ("Cannot compile unknown node `generic`"). Formatting is
-        // cosmetic — the deploy must fall back to the raw HTML and still save,
-        // rather than dropping the change (the user could not save their work).
+        // Regression: the old @starptech/prettyhtml parser mistook the value+type
+        // attribute combo for an <input> and threw ("Cannot compile unknown node
+        // `generic`"), so the deploy silently failed and the site could not be
+        // saved. prettier formats it fine — the save must succeed and round-trip.
         const html = '<feezal-site><feezal-view name="home">' +
             '<feezal-element-glass-sensor value="" type="generic" subscribe="a/b"></feezal-element-glass-sensor>' +
             '</feezal-view></feezal-site>';
-        await emitAck(client, 'deploy', {site: {name: 'unformattable'}, html});
+        await emitAck(client, 'deploy', {site: {name: 'valtype'}, html});
 
-        const res = await emitAck(client, 'getSite', 'unformattable');
+        const res = await emitAck(client, 'getSite', 'valtype');
         expect(res.views).toContain('feezal-element-glass-sensor');
         expect(res.views).toContain('type="generic"');
-        expect(res.views).toContain('<feezal-view name="home">');
+        expect(res.views).toContain('name="home"');
     });
 
     it('deploy defaults the site name and notifies all clients to reload', async () => {

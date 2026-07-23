@@ -4,7 +4,6 @@ const fs = require('fs').promises;
 const path = require('path');
 
 const rimraf = require('rimraf');
-const prettyHtml = require('@starptech/prettyhtml');
 const rollup = require('rollup');
 const {createSpaConfig} = require('@open-wc/building-rollup');
 const cpy = require('rollup-plugin-cpy');
