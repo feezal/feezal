@@ -51,7 +51,7 @@ describe('site manager', () => {
         await input.fill('mansion');
         await input.press('Enter');
 
-        await page.waitForURL('**/editor/?*mansion*', {timeout: 20_000});
+        await page.waitForURL('**/editor/**mansion**', {timeout: 20_000});
         await page.waitForSelector('feezal-palette .element', {timeout: 60_000});
         expect(await page.evaluate(() => window.feezal.siteName)).toBe('mansion');
         expect(await sitesOnServer()).toContain('mansion');
@@ -66,7 +66,7 @@ describe('site manager', () => {
         await rename.fill('castle');
         await rename.press('Enter');
 
-        await page.waitForURL('**/editor/?*castle*', {timeout: 20_000});
+        await page.waitForURL('**/editor/**castle**', {timeout: 20_000});
         const sites = await sitesOnServer();
         expect(sites).toContain('castle');
         expect(sites).not.toContain('mansion');

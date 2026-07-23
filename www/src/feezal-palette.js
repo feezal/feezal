@@ -281,13 +281,16 @@ class FeezalPalette extends LitElement {
             this._collapsed = new Set(names.filter(n => n !== 'Basic'));
             this._persistCollapsed();
         } else {
-            // Migration: first time we track "seen", seed it with the families
-            // that already shipped so a family the user deliberately expanded is
-            // NOT re-collapsed — only genuinely new families (not in the shipped
-            // set) count as unseen.
+            // Migration: first time we track "seen", seed it with EVERY family
+            // that already shipped — not just the ones present right now — so a
+            // known category that appears later (e.g. Components once the first
+            // component exists, or a family whose site loaded after this build)
+            // is never mistaken for a freshly installed family and collapsed.
+            // Only genuinely new families (absent from the shipped set) count as
+            // unseen and default collapsed.
             if (!this._seenMigrated) {
                 this._seenMigrated = true;
-                this._seen = new Set(names.filter(n => PRE_SEEN_CATEGORIES.has(n)));
+                this._seen = new Set(PRE_SEEN_CATEGORIES);
             }
             // A newly appeared (unseen, non-Basic) family defaults to collapsed.
             let changed = false;
