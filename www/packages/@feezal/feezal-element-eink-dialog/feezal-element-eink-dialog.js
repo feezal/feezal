@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, feezalBoolean, html, css} from '@feezal/feezal-element';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {EinkBase, einkCardStyles} from '@feezal/feezal-eink';
 import {render} from 'lit';
@@ -80,8 +80,8 @@ class FeezalElementEinkDialog extends EinkBase {
         cancelLabel:     {type: String,  reflect: true, attribute: 'cancel-label'},
         cancelPublish:   {type: String,  reflect: true, attribute: 'cancel-publish'},
         cancelPayload:   {type: String,  reflect: true, attribute: 'cancel-payload'},
-        closeOnBackdrop: {type: Boolean, reflect: true, attribute: 'close-on-backdrop'},
-        showClose:       {type: Boolean, reflect: true, attribute: 'show-close'},
+        closeOnBackdrop: {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'close-on-backdrop'},
+        showClose:       {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-close'},
         hideHeader:      {type: Boolean, reflect: true, attribute: 'hide-header'},
         width:           {type: String,  reflect: true},
         height:          {type: String,  reflect: true},

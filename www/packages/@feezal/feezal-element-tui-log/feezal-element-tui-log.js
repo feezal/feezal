@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, feezalBoolean, html, css} from '@feezal/feezal-element';
 
 /**
  * feezal-element-tui-log (E59)
@@ -36,7 +36,7 @@ class FeezalElementTuiLog extends FeezalElement {
 
     static properties = {
         maxLines:   {type: Number,  reflect: true, attribute: 'max-lines'},
-        timestamps: {type: Boolean, reflect: true},
+        timestamps: {type: Boolean, reflect: true, converter: feezalBoolean},
         showTopic:  {type: Boolean, reflect: true, attribute: 'show-topic'},
         _lines:     {state: true},
     };

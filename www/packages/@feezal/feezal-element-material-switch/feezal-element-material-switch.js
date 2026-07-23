@@ -23,11 +23,12 @@ class FeezalElementMaterialSwitch extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height',
-                {property: '--feezal-switch-track-on',    type: 'color', default: 'var(--primary-color)', help: 'Track colour when ON.'},
-                {property: '--feezal-switch-track-off',   type: 'color', default: 'var(--primary-background-color)', help: 'Track colour when OFF.'},
+                {property: '--feezal-switch-track-on',    type: 'color', default: 'var(--primary-color)', help: 'Track fill when ON (the active state — the theme accent).'},
+                {property: '--feezal-switch-track-off',   type: 'color', default: 'transparent', help: 'Track fill when OFF (muted; the active ring shows it is clickable).'},
                 {property: '--feezal-switch-thumb-on',    type: 'color', default: 'var(--primary-text-color)', help: 'Thumb (handle) colour when ON.'},
                 {property: '--feezal-switch-thumb-off',   type: 'color', default: 'var(--disabled-text-color)', help: 'Thumb (handle) colour when OFF.'},
-                {property: '--feezal-switch-outline-off', type: 'color', default: 'var(--primary-color)', help: 'Track outline colour when OFF.'},
+                {property: '--feezal-switch-ring-color',  type: 'color', default: 'var(--primary-color)', help: 'Always-on ring colour — shown in BOTH states as the clickability affordance. Defaults to the active/primary colour.'},
+                {property: '--feezal-switch-ring-width',  default: '1.5px', help: 'Thickness of the always-on active ring.'},
                 {property: '--feezal-switch-label-color', type: 'color', default: 'var(--primary-text-color)', help: 'Label text colour.'},
                 {property: '--feezal-switch-size', default: '100cqh', help: 'Track height, drives overall switch size. Default scales with the element height.'},
             ],
@@ -80,10 +81,16 @@ class FeezalElementMaterialSwitch extends FeezalElement {
                concrete fallbacks keep it visible in a theme-less viewer. */
             --feezal-switch-color:        var(--primary-color, var(--sl-color-primary-600, #0284c7)); /* legacy alias → on-track */
             --feezal-switch-track-on:     var(--feezal-switch-color);
-            --feezal-switch-track-off:    var(--primary-background-color, #d0d4d8);
+            /* E139: OFF is muted (transparent fill), the active state (ON) carries
+               the accent fill, and an always-on active ring (below) signals the
+               switch is clickable in BOTH states. */
+            --feezal-switch-track-off:    transparent;
             --feezal-switch-thumb-on:     var(--primary-text-color, #ffffff);
             --feezal-switch-thumb-off:    var(--disabled-text-color, #757575);
-            --feezal-switch-outline-off:  var(--primary-color, #757575);
+            /* Back-compat alias: --feezal-switch-outline-off still feeds the ring. */
+            --feezal-switch-ring-color:   var(--feezal-switch-outline-off, var(--primary-color, #0284c7));
+            --feezal-switch-outline-off:  var(--primary-color, #0284c7);
+            --feezal-switch-ring-width:   1.5px;
             --feezal-switch-label-color:  var(--primary-text-color, #333);
             --feezal-switch-size:         100cqh;
 
@@ -99,6 +106,10 @@ class FeezalElementMaterialSwitch extends FeezalElement {
             --md-switch-with-icon-handle-height: calc(var(--feezal-switch-size) * 0.75);
             --md-switch-with-icon-handle-width:  calc(var(--feezal-switch-size) * 0.75);
             --md-switch-state-layer-size:        calc(var(--feezal-switch-size) * 1.25);
+            /* E139: MD3 draws its own outline only on the UNSELECTED track — we
+               want the ring in both states, so suppress MD3's and draw our own
+               (box-shadow on md-switch below). */
+            --md-switch-track-outline-width:     0;
 
             /* ── Colour tokens ── */
             --md-sys-color-primary: var(--feezal-switch-track-on);
@@ -132,6 +143,14 @@ class FeezalElementMaterialSwitch extends FeezalElement {
             --md-switch-hover-icon-color:            var(--feezal-switch-track-off);
             --md-switch-focus-icon-color:            var(--feezal-switch-track-off);
             --md-switch-pressed-icon-color:          var(--feezal-switch-track-off);
+        }
+        /* E139: an always-on active-colour ring around the track — the
+           clickability affordance that stays in BOTH ON and OFF states.
+           (MD3's own outline only shows when unselected, so it's suppressed
+           above and we draw our own pill ring here.) */
+        md-switch {
+            border-radius: 999px;
+            box-shadow: 0 0 0 var(--feezal-switch-ring-width, 1.5px) var(--feezal-switch-ring-color);
         }
         .label {
             font-size: 40cqmin;

@@ -7,7 +7,7 @@
  * ({"seg":[{"fx":<id>}]} / {"seg":[{"pal":<id>}]}).
  *
  * KEEP IN SYNC: this file is duplicated verbatim in
- * feezal-element-material-wled, feezal-element-glass-wled and
+ * feezal-element-circle-wled, feezal-element-glass-wled and
  * feezal-element-metro-wled — element packages cannot import non-main
  * files across package boundaries.
  *

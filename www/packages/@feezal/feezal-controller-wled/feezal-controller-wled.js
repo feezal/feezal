@@ -26,9 +26,9 @@
  * duplicated per family).
  */
 
-import {WLED_EFFECTS, WLED_PALETTES, hexToRgb} from './wled-lists.js';
+import {WLED_EFFECTS, WLED_PALETTES, effectName, paletteName, hexToRgb} from './wled-lists.js';
 
-export {WLED_EFFECTS, WLED_PALETTES, hexToRgb};
+export {WLED_EFFECTS, WLED_PALETTES, effectName, paletteName, hexToRgb};
 
 /** Shared attribute descriptors — spread into every family's `feezal.attributes`. */
 export const wledAttributes = [

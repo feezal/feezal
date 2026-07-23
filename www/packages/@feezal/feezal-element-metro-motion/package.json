@@ -1,8 +1,8 @@
 {
-  "name": "@feezal/feezal-element-metro-occupancy",
-  "version": "3.0.4",
+  "name": "@feezal/feezal-element-metro-motion",
+  "version": "3.0.6",
   "license": "MIT",
-  "main": "feezal-element-metro-occupancy.js",
+  "main": "feezal-element-metro-motion.js",
   "dependencies": {
     "@feezal/feezal-element-metro-tile": "*"
   }

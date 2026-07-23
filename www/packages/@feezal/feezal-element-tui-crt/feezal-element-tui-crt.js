@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, feezalBoolean, html, css} from '@feezal/feezal-element';
 
 /**
  * feezal-element-tui-crt (E59)
@@ -31,7 +31,7 @@ class FeezalElementTuiCrt extends FeezalElement {
 
     static properties = {
         scanlines: {type: Number,  reflect: true},
-        vignette:  {type: Boolean, reflect: true},
+        vignette:  {type: Boolean, reflect: true, converter: feezalBoolean},
         flicker:   {type: Boolean, reflect: true},
     };
 

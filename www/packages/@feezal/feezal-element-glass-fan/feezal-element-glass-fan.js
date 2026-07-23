@@ -6,7 +6,7 @@ import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard} fro
  * feezal-element-glass-fan (E100)
  *
  * Frosted-glass fan card — the Glass family's fan control. Same MQTT
- * contract as feezal-element-material-fan (subscribe / publish /
+ * contract as feezal-element-circle-fan (subscribe / publish /
  * payload-on / payload-off, speed topics with speed-range-min/max
  * scaling, preset topics + preset-modes, HA `fan` discovery) restyled
  * as a glass tile: the fan icon spins while on (speed-dependent period,

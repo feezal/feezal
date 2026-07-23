@@ -20,40 +20,73 @@
 
 import {
     SENSOR_TYPES, SENSOR_TYPE_OPTIONS, SENSOR_DEVICE_CLASS_MAP,
+    MOTION_SENSOR_TYPES, ALARM_SENSOR_TYPES,
+    MOTION_DEVICE_CLASS_MAP, ALARM_DEVICE_CLASS_MAP,
+    SENSOR_SLICE_COLOR_VARS, sensorTypesFor, sensorDefaultTypeFor,
+    sensorDeviceClassMapFor, sensorActiveColorVar,
     sensorType, batteryLowAttributes, batteryLowFromValue,
 } from '@feezal/feezal-element/feezal-sensor-types.js';
 
 // Re-export the vocabulary so views need a single import.
-export {SENSOR_TYPES, SENSOR_TYPE_OPTIONS, SENSOR_DEVICE_CLASS_MAP, sensorType, batteryLowFromValue};
+export {
+    SENSOR_TYPES, SENSOR_TYPE_OPTIONS, SENSOR_DEVICE_CLASS_MAP,
+    MOTION_SENSOR_TYPES, ALARM_SENSOR_TYPES,
+    MOTION_DEVICE_CLASS_MAP, ALARM_DEVICE_CLASS_MAP,
+    SENSOR_SLICE_COLOR_VARS, sensorTypesFor, sensorDefaultTypeFor,
+    sensorDeviceClassMapFor, sensorActiveColorVar,
+    sensorType, batteryLowFromValue,
+};
+
+/**
+ * Build the shared attribute descriptors for a vocabulary slice
+ * ('motion' | 'alarm' | 'all') — only the `type` option list and its default
+ * differ per slice; everything else (subscribe, payloads, icons, texts, the
+ * E124 battery trio) is identical. E138: `*-motion` views pass 'motion',
+ * `*-sensor` (alarm) views pass 'alarm'; the current not-yet-split cards use
+ * the 'all' export below, byte-identical to the pre-E138 fragment.
+ */
+export function sensorAttributesFor(slice = 'all') {
+    return [
+        {name: 'subscribe', type: 'mqttTopic', help: 'Topic reporting the boolean sensor state.'},
+        {name: 'message-property', type: 'string', default: 'payload',
+            help: 'Dot-notation path to the value within the MQTT message. Default: payload'},
+        {name: 'payload-active', type: 'string', default: 'ON', help: 'Payload meaning triggered / detected / occupied.'},
+        {name: 'payload-clear',  type: 'string', default: 'OFF', help: 'Payload meaning clear / vacant.'},
+        {name: 'type', type: 'select', options: sensorTypesFor(slice), default: sensorDefaultTypeFor(slice),
+            help: 'E132: sensor class — picks the default per-state icons, texts and (for alarm classes like water-leak/smoke) the error-coloured active state. Overridden by icon-active/icon-clear when set.'},
+        {name: 'icon-active', type: 'icon', help: 'Icon shown while triggered — overrides the type default (empty = type default).'},
+        {name: 'icon-clear',  type: 'icon', help: 'Icon shown while clear — overrides the type default (empty = type default).'},
+        {name: 'text-active', type: 'string', default: '', help: 'State text while triggered. Empty = the type default (e.g. "Leak!" for water-leak).'},
+        {name: 'text-clear',  type: 'string', default: '', help: 'State text while clear. Empty = the type default.'},
+        // E124: dedicated low-battery warning (badge, never a blackout).
+        ...batteryLowAttributes,
+    ];
+}
+
+/**
+ * Build the shared discovery.map fragment for a vocabulary slice. Only the
+ * device_class valueMap is slice-restricted; the 'all' export keeps the exact
+ * SENSOR_DEVICE_CLASS_MAP reference the pre-E138 fragment used (the sensor-card
+ * test asserts it by identity).
+ */
+export function sensorDiscoveryMapFor(slice = 'all') {
+    return {
+        state_topic:  {attr: 'subscribe'},
+        payload_on:   {attr: 'payload-active'},
+        payload_off:  {attr: 'payload-clear'},
+        device_class: {attr: 'type', valueMap: sensorDeviceClassMapFor(slice)},
+        // N31 availability + E124 battery are auto-stamped from the canonical
+        // records — no map lines needed.
+        value_template: {attr: 'message-property', transform: 'valueTemplateToPath'},
+        name:           'label',
+    };
+}
 
 /** Shared attribute descriptors — spread into every family's `feezal.attributes`. */
-export const sensorAttributes = [
-    {name: 'subscribe', type: 'mqttTopic', help: 'Topic reporting the boolean sensor state.'},
-    {name: 'message-property', type: 'string', default: 'payload',
-        help: 'Dot-notation path to the value within the MQTT message. Default: payload'},
-    {name: 'payload-active', type: 'string', default: 'ON', help: 'Payload meaning triggered / detected / occupied.'},
-    {name: 'payload-clear',  type: 'string', default: 'OFF', help: 'Payload meaning clear / vacant.'},
-    {name: 'type', type: 'select', options: SENSOR_TYPE_OPTIONS, default: 'motion',
-        help: 'E132: sensor class — picks the default per-state icons, texts and (for alarm classes like water-leak/smoke) the error-coloured active state. Overridden by icon-active/icon-clear when set.'},
-    {name: 'icon-active', type: 'icon', help: 'Icon shown while triggered — overrides the type default (empty = type default).'},
-    {name: 'icon-clear',  type: 'icon', help: 'Icon shown while clear — overrides the type default (empty = type default).'},
-    {name: 'text-active', type: 'string', default: '', help: 'State text while triggered. Empty = the type default (e.g. "Leak!" for water-leak).'},
-    {name: 'text-clear',  type: 'string', default: '', help: 'State text while clear. Empty = the type default.'},
-    // E124: dedicated low-battery warning (badge, never a blackout).
-    ...batteryLowAttributes,
-];
+export const sensorAttributes = sensorAttributesFor('all');
 
 /** Shared discovery.map fragment (HA `binary_sensor`) — single-sourced. */
-export const sensorDiscoveryMap = {
-    state_topic:  {attr: 'subscribe'},
-    payload_on:   {attr: 'payload-active'},
-    payload_off:  {attr: 'payload-clear'},
-    device_class: {attr: 'type', valueMap: SENSOR_DEVICE_CLASS_MAP},
-    // N31 availability + E124 battery are auto-stamped from the canonical
-    // records — no map lines needed.
-    value_template: {attr: 'message-property', transform: 'valueTemplateToPath'},
-    name:           'label',
-};
+export const sensorDiscoveryMap = sensorDiscoveryMapFor('all');
 
 /** Attribute names this controller consumes (parity-set derivation, E114). */
 export const SENSOR_CONSUMED_ATTRIBUTES = sensorAttributes.map(a => a.name);
@@ -95,6 +128,14 @@ export class SensorController {
     }
 
     get alarm() { return Boolean(this.typeInfo.alarm); }
+
+    /**
+     * E138: the active-state default colour var for the current type — motion
+     * slice → --accent-color, alarm slice → --error-color. One definition, so
+     * views set their active chrome from `var(--feezal-...-active, var(<this>))`
+     * instead of a per-family colour fork.
+     */
+    activeColorVar() { return sensorActiveColorVar(this.type); }
 
     signature() {
         return [this._attr('subscribe'), this._attr('subscribe-battery-low')].join('|');

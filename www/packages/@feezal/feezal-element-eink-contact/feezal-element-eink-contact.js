@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
 import {EinkBase, einkCardStyles} from '@feezal/feezal-eink';
 // E137: the contact behavior lives in the shared controller — this element
 // is a VIEW (eink chrome: inverted block while not closed).
@@ -63,7 +63,7 @@ class FeezalElementEinkContact extends EinkBase {
         discoveryId: {type: String, reflect: true, attribute: 'discovery-id'},
     };
 
-    static styles = [feezalBaseStyles, einkCardStyles, css`
+    static styles = [feezalBatteryStyles, feezalBaseStyles, einkCardStyles, css`
         .card { gap: 2px; align-items: flex-start; }
         feezal-icon { font-size: var(--feezal-eink-icon-size, 28px); line-height: 1; }
         .state { font-size: var(--feezal-eink-font-size-value, 22px); line-height: 1.05;
@@ -104,7 +104,7 @@ class FeezalElementEinkContact extends EinkBase {
 
     _icon() {
         const icons = {window: 'window', door: 'sensor_door', generic: 'sensors',
-            waterleak: 'water_damage', firealarm: 'local_fire_department', garagedoor: 'garage'};
+            garagedoor: 'garage'};
         return icons[this.type] || 'window';
     }
 
@@ -117,7 +117,7 @@ class FeezalElementEinkContact extends EinkBase {
         return html`
             <div class="card ${this.contact.state === 'closed' ? '' : 'inv'}">
                 ${!this._available ? html`<span class="badge-tr" title="Device unavailable">!</span>` : ''}
-                ${this.contact.batteryLow ? html`<feezal-icon class="badge-tl" name="battery_alert" title="Battery low"></feezal-icon>` : ''}
+                ${batteryLowBadge(this.contact.batteryLow)}
                 <feezal-icon name="${this._icon()}"></feezal-icon>
                 <span class="state">${this._stateText()}</span>
                 <span class="label">${this.label || (feezal.isEditor ? 'Contact' : '')}</span>

@@ -1,5 +1,5 @@
 /* global feezal */
-import {feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {feezalBaseStyles, feezalBoolean, html, css} from '@feezal/feezal-element';
 // E137: the cover behavior lives in the shared controller — this element
 // is a VIEW (Glass chrome: frost tile, details popup: position pill,
 // up/stop/down buttons, tilt slider).
@@ -93,7 +93,7 @@ class FeezalElementGlassCover extends FeezalGlassCard {
         msgPropTilt:       {type: String,  reflect: true, attribute: 'message-property-tilt'},
         publishSlatAngle:  {type: String,  reflect: true, attribute: 'publish-slat-angle'},
         invert:            {type: Boolean, reflect: true},
-        showPosition:      {type: Boolean, reflect: true, attribute: 'show-position'},
+        showPosition:      {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-position'},
         label:             {type: String,  reflect: true},
         icon:              {type: String,  reflect: true},
         // N31: availability inherited from FeezalElement.

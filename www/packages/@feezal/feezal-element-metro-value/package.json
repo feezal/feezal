@@ -1,8 +1,8 @@
 {
-  "name": "@feezal/feezal-element-metro-sensor",
-  "version": "3.0.2",
+  "name": "@feezal/feezal-element-metro-value",
+  "version": "3.0.3",
   "license": "MIT",
-  "main": "feezal-element-metro-sensor.js",
+  "main": "feezal-element-metro-value.js",
   "dependencies": {
     "@feezal/feezal-element-metro-tile": "*"
   }

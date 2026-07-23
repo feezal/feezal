@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, feezalBoolean, html, css} from '@feezal/feezal-element';
 import {svg} from 'lit';
 
 // ── Tank geometry ─────────────────────────────────────────────────────────────
@@ -67,8 +67,8 @@ class FeezalElementMaterialTank extends FeezalElement {
         shape:         {type: String,  reflect: true},
         warnThreshold: {type: Number,  reflect: true, attribute: 'warn-threshold'},
         critThreshold: {type: Number,  reflect: true, attribute: 'crit-threshold'},
-        animateWave:   {type: Boolean, reflect: true, attribute: 'animate-wave'},
-        showValue:     {type: Boolean, reflect: true, attribute: 'show-value'},
+        animateWave:   {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'animate-wave'},
+        showValue:     {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-value'},
         showPercent:   {type: Boolean, reflect: true, attribute: 'show-percent'},
         decimals:      {type: Number,  reflect: true},
         label:         {type: String,  reflect: true},

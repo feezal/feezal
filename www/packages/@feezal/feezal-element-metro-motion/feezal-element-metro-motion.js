@@ -1,38 +1,39 @@
 /* global feezal */
-import {html, css} from '@feezal/feezal-element';
+import {html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
 // E137: the boolean-sensor behavior lives in the shared controller — this
 // element is a VIEW (metro chrome) over SensorController state.
-import {SensorController, sensorAttributes, sensorDiscoveryMap} from '@feezal/feezal-controller-sensor';
+// E138: the MOTION slice — presence/occupancy character (expected activity),
+// active tile colour derives from the accent var (SensorController.activeColorVar()
+// → --accent-color for every motion-slice type).
+import {SensorController, sensorAttributesFor, sensorDiscoveryMapFor} from '@feezal/feezal-controller-sensor';
 import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
 
 /**
- * feezal-element-metro-occupancy (E55)
+ * feezal-element-metro-motion (E55, E138)
  *
  * Front-only Metro tile for a motion/presence sensor — the Device occupancy
  * card's (material-motion) contract in tile form: same payload matching
  * (payload-active/payload-clear incl. JSON {state} and boolean coercion),
- * the same `type` variants (motion / presence / radar / zone — here they
+ * the motion `type` variants (motion / presence / radar / zone — here they
  * pick the default icon), availability `!` badge and the same discovery
  * descriptor incl. `device_class` → type. The tile background carries the
- * state: accent while clear, active colour while motion is detected.
+ * state: accent while clear, the accent colour while motion is detected.
  *
  * `icon-active`/`icon-clear` override the type icon per state.
  */
 
-class FeezalElementMetroOccupancy extends MetroTileBase {
+class FeezalElementMetroMotion extends MetroTileBase {
     static get feezal() {
         return {
-            // E132: palette name "Sensor" — the generalized boolean-sensor
-            // tile (motion + water/smoke/gas/… hazard classes). The tag stays
-            // metro-occupancy until the alias mechanism exists.
-            palette: {name: 'Sensor', category: 'Metro', color: '#1ba1e2', icon: 'sensors'},
-            description: 'Metro boolean-sensor tile (motion, presence, water leak, smoke, gas, …): accent while clear, active/alarm colour while triggered. Display-only. Same MQTT contract as the Circle sensor card.',
+            // E138: MOTION slice — palette name "Motion".
+            palette: {name: 'Motion', category: 'Metro', color: '#1ba1e2', icon: 'sensors'},
+            description: 'Metro motion/presence tile (motion, presence, radar, zone): accent while clear, active accent colour while triggered. Display-only. Same MQTT contract as the Circle motion card.',
             attributes: [
                 ...MetroTileBase.tileAttributes,
-                // E137: the shared sensor contract (subscribe/payloads/type/
-                // icons/texts + the E124 battery trio) — declared ONCE by the
-                // controller package, spread by every family.
-                ...sensorAttributes,
+                // E137/E138: the shared sensor contract (subscribe/payloads/type/
+                // icons/texts + the E124 battery trio) — MOTION slice of the
+                // vocabulary, declared ONCE by the controller package.
+                ...sensorAttributesFor('motion'),
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability — a ! badge appears while unavailable.'},
                 {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
                 {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
@@ -41,13 +42,13 @@ class FeezalElementMetroOccupancy extends MetroTileBase {
             styles: [
                 ...MetroTileBase.tileStyles,
                 {property: '--feezal-metro-active-color', type: 'color',
-                    default: 'var(--warning-color, #fa6800)',
-                    help: 'Tile colour while motion is detected / the zone is occupied.'},
+                    default: 'var(--accent-color, #fa6800)',
+                    help: 'Tile colour while motion is detected / the zone is occupied (theme accent by default).'},
             ],
             restrict: {minWidth: 40, minHeight: 40},
             defaultStyle: {width: '150px', height: '150px'},
-            // E137: the discovery map is the controller package's fragment.
-            discovery: {component: 'binary_sensor', map: sensorDiscoveryMap},
+            // E137: the discovery map is the controller package's fragment (motion slice).
+            discovery: {component: 'binary_sensor', map: sensorDiscoveryMapFor('motion')},
         };
     }
 
@@ -70,20 +71,15 @@ class FeezalElementMetroOccupancy extends MetroTileBase {
         discoveryId:   {type: String, reflect: true, attribute: 'discovery-id'},
     };
 
-    static styles = [MetroTileBase.styles, css`
-        :host { --feezal-metro-active-color: var(--warning-color, #fa6800); }
+    static styles = [feezalBatteryStyles, MetroTileBase.styles, css`
+        /* E138: active default = the accent var (SensorController.activeColorVar()
+           resolves the motion slice to --accent-color); --feezal-metro-active-color
+           stays the per-element override. */
+        :host { --feezal-metro-active-color: var(--accent-color, #fa6800); }
         .face { transition: background 0.15s; }
         :host([data-active]) .face { background: var(--feezal-metro-active-color); }
-        /* E132: alarm classes (water-leak/smoke/gas/co/tamper) go error-red
-           while triggered — an active fire alarm is not a neutral state chip. */
-        :host([data-alarm][data-active]) .face { background: var(--error-color, #e51400); }
         .front { cursor: default; }
         .state { font-size: var(--_metro-unit-size); text-transform: lowercase; opacity: 0.85; }   /* E129 */
-        /* E124: low-battery warning, top-left (the ! badge owns top-right). */
-        .batt {
-            position: absolute; top: 4px; left: 6px;
-            font-size: 15px; color: var(--feezal-metro-text, #fff); opacity: 0.9;
-        }
     `];
 
     constructor() {
@@ -111,7 +107,6 @@ class FeezalElementMetroOccupancy extends MetroTileBase {
         super.updated(changed);
         this.sensor.rewireIfChanged();
         this.toggleAttribute('data-active', this.sensor.active);
-        this.toggleAttribute('data-alarm', this.sensor.alarm);
     }
 
     renderBadge() {
@@ -120,11 +115,11 @@ class FeezalElementMetroOccupancy extends MetroTileBase {
 
     renderFront() {
         return html`
-            ${this.sensor.batteryLow ? html`<feezal-icon class="batt" name="battery_alert" title="Battery low"></feezal-icon>` : ''}
+            ${batteryLowBadge(this.sensor.batteryLow)}
             <feezal-icon name="${this.sensor.icon()}"></feezal-icon>
             <div class="state">${this.sensor.text()}</div>`;
     }
 }
 
-customElements.define('feezal-element-metro-occupancy', FeezalElementMetroOccupancy);
-export {FeezalElementMetroOccupancy};
+customElements.define('feezal-element-metro-motion', FeezalElementMetroMotion);
+export {FeezalElementMetroMotion};

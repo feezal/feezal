@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, feezalBoolean, html, css} from '@feezal/feezal-element';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
 import '@shoelace-style/shoelace/dist/components/input/input.js';
@@ -79,7 +79,7 @@ class FeezalElementLayoutApp extends FeezalElement {
         subscribeTitle:  {type: String,  reflect: true, attribute: 'subscribe-title'},
         activeView:      {type: String,  reflect: true, attribute: 'active-view'},
         breakpoint:      {type: Number,  reflect: true},
-        drawerPersistent:{type: Boolean, reflect: true, attribute: 'drawer-persistent'},
+        drawerPersistent:{type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'drawer-persistent'},
         slim:            {type: Boolean, reflect: true},
         autohide:        {type: Boolean, reflect: true},
         entryStyle:      {type: String,  reflect: true, attribute: 'entry-style'},

@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, feezalBoolean, html, css} from '@feezal/feezal-element';
 
 class FeezalElementBasicChart extends FeezalElement {
     static get feezal() {
@@ -29,7 +29,7 @@ class FeezalElementBasicChart extends FeezalElement {
         label:    {type: String,  reflect: true},
         min:      {type: Number,  reflect: true},
         max:      {type: Number,  reflect: true},
-        showDots: {type: Boolean, reflect: true, attribute: 'show-dots'},
+        showDots: {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-dots'},
         fill:    {type: Boolean, reflect: true},
         _values: {state: true}
     };

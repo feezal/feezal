@@ -1,5 +1,5 @@
 /* global feezal */
-import {feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {feezalBaseStyles, feezalBoolean, html, css} from '@feezal/feezal-element';
 import {EinkBase, einkCardStyles} from '@feezal/feezal-eink';
 // E137: the cover behavior lives in the shared controller — this element
 // is a VIEW (1-bit chrome: position numeral, black-fill bar, ▲ ■ ▼ buttons).
@@ -88,7 +88,7 @@ class FeezalElementEinkCover extends EinkBase {
         msgPropTilt:       {type: String,  reflect: true, attribute: 'message-property-tilt'},
         publishSlatAngle:  {type: String,  reflect: true, attribute: 'publish-slat-angle'},
         invert:            {type: Boolean, reflect: true},
-        showPosition:      {type: Boolean, reflect: true, attribute: 'show-position'},
+        showPosition:      {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-position'},
         label:             {type: String,  reflect: true},
         // N31: availability inherited from FeezalElement.
         discoveryId:       {type: String,  reflect: true, attribute: 'discovery-id'},

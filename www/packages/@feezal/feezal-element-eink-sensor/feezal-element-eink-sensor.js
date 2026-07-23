@@ -1,29 +1,35 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
 import {EinkBase, einkCardStyles} from '@feezal/feezal-eink';
 // E137: the boolean-sensor behavior lives in the shared controller — this
 // element is a VIEW (eink chrome: inverted block while active).
-import {SensorController, sensorAttributes, sensorDiscoveryMap} from '@feezal/feezal-controller-sensor';
+// E138: alarm slice of the type vocabulary (motion lives in eink-motion).
+import {SensorController, sensorAttributesFor, sensorDiscoveryMapFor} from '@feezal/feezal-controller-sensor';
 
 /**
- * feezal-element-eink-sensor (E57)
+ * feezal-element-eink-sensor (E57 · E138 alarm slice)
  *
- * E-ink boolean-sensor card (motion / presence / water-leak / smoke / …):
+ * E-ink ALARM-sensor card (water-leak / smoke / gas / CO / vibration / …):
  * icon + oversized state word, whole card INVERTS while active (the 1-bit
- * "attention" treatment — alarm classes get it too, there is no red here).
+ * "attention" treatment). Motion/occupancy/presence live in eink-motion.
  * Same contract as the other sensor cards (E132 type table + E124 battery).
+ *
+ * E138 note: SensorController.activeColorVar() (motion → --accent-color,
+ * alarm → --error-color) is IRRELEVANT on this 1-bit display — the inverted
+ * block IS the active treatment; there is no colour to set here.
  */
 
 class FeezalElementEinkSensor extends EinkBase {
     static get feezal() {
         return {
             palette: {name: 'Sensor', category: 'Eink', color: '#222222', icon: 'sensors'},
-            description: 'E-ink boolean-sensor card — inverted block while active, 1-bit, redraw-deduped.',
-            discovery: {component: 'binary_sensor', map: sensorDiscoveryMap},
+            description: 'E-ink alarm-sensor card (leak / smoke / gas / CO / …) — inverted block while active, 1-bit, redraw-deduped.',
+            discovery: {component: 'binary_sensor', map: sensorDiscoveryMapFor('alarm')},
             attributes: [
-                // E137: the shared sensor contract (subscribe/payloads/type/
-                // icons/texts + the E124 battery trio) — declared ONCE.
-                ...sensorAttributes,
+                // E137/E138: the shared sensor contract, ALARM slice of the
+                // type vocabulary (subscribe/payloads/type/icons/texts + the
+                // E124 battery trio) — declared ONCE.
+                ...sensorAttributesFor('alarm'),
                 {name: 'label', type: 'string', help: 'Label under the state (rendered uppercase).'},
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability — a ! badge appears while unavailable.'},
                 {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
@@ -60,7 +66,7 @@ class FeezalElementEinkSensor extends EinkBase {
         discoveryId: {type: String, reflect: true, attribute: 'discovery-id'},
     };
 
-    static styles = [feezalBaseStyles, einkCardStyles, css`
+    static styles = [feezalBatteryStyles, feezalBaseStyles, einkCardStyles, css`
         .card { gap: 2px; align-items: flex-start; }
         feezal-icon { font-size: var(--feezal-eink-icon-size, 28px); line-height: 1; }
         .state { font-size: var(--feezal-eink-font-size-value, 22px); line-height: 1.05;
@@ -69,7 +75,7 @@ class FeezalElementEinkSensor extends EinkBase {
 
     constructor() {
         super();
-        this.type = 'motion';
+        this.type = 'generic'; // E138: alarm-slice default type
         this.subscribe = '';
         this.msgProp = '';
         this.payloadActive = 'ON';
@@ -103,7 +109,7 @@ class FeezalElementEinkSensor extends EinkBase {
         return html`
             <div class="card ${this.sensor.active ? 'inv' : ''}">
                 ${!this._available ? html`<span class="badge-tr" title="Device unavailable">!</span>` : ''}
-                ${this.sensor.batteryLow ? html`<feezal-icon class="badge-tl" name="battery_alert" title="Battery low"></feezal-icon>` : ''}
+                ${batteryLowBadge(this.sensor.batteryLow)}
                 <feezal-icon name="${this.sensor.icon()}"></feezal-icon>
                 <span class="state">${this.sensor.text()}</span>
                 <span class="label">${this.label || (feezal.isEditor ? 'Sensor' : '')}</span>

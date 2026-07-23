@@ -1,6 +1,9 @@
 /* global feezal */
 import {feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {EinkBase, einkCardStyles} from '@feezal/feezal-eink';
+// E137: the WLED behavior lives in the shared controller — this element is
+// a VIEW (1-bit chrome; colour/effect/palette stay unrendered by design).
+import {WledController, wledAttributes, wledDiscoveryMap} from '@feezal/feezal-controller-wled';
 
 /**
  * feezal-element-eink-wled (E57)
@@ -41,23 +44,15 @@ class FeezalElementEinkWled extends EinkBase {
             // feezal-element-glass-wled. Availability is applied automatically
             // by _applyDiscovery from the entity's availability_normalized
             // record (no map entry needed).
-            discovery: {
-                component: 'wled',
-                map: {
-                    device_topic: {attr: 'topic'},
-                    name: 'label',
-                },
-            },
+            // E137: the discovery map is the controller package's fragment.
+            discovery: {component: 'wled', map: wledDiscoveryMap},
             attributes: [
-                {name: 'topic', type: 'mqttTopic', default: 'wled/device',
-                    help: 'WLED device base topic (Sync settings → MQTT). Subscribes <topic>/g (brightness); commands are published to <topic>/api as JSON.'},
-                {name: 'transition', type: 'number', min: 0, step: 0.1,
-                    help: 'Optional crossfade duration in seconds, sent with every command (WLED counts in 0.1 s units). Empty = device default.'},
+                // E137: the shared WLED contract (topic/transition/speed/
+                // intensity read-backs/presets) — declared ONCE.
+                ...wledAttributes,
                 {name: 'label', type: 'string', help: 'Label line (rendered uppercase). "WLED" when empty.'},
                 {name: 'show-presets', type: 'boolean', default: false,
-                    help: 'Show preset buttons that recall a WLED preset via {"ps":<id>} on <topic>/api. WLED does not expose preset names over MQTT — supply them via the presets list, or a numeric cycle button is shown instead.'},
-                {name: 'presets', type: 'objectList', itemFields: [{key: 'id', type: 'number'}, {key: 'name'}],
-                    help: 'Optional list of {id, name} presets shown as flat buttons when show-presets is on. Empty = a cycle button stepping through preset ids 1–16.'},
+                    help: 'Show preset buttons that recall a WLED preset via {"ps":<id>} on <topic>/api.'},
                 {name: 'subscribe-availability', type: 'mqttTopic',
                     help: 'Availability topic (retained online/offline) — a ! badge appears while unavailable. Empty = auto-derived <topic>/status; set to override.'},
                 {name: 'availability-mode', type: 'select', options: ['all', 'any'], default: 'all',
@@ -82,8 +77,8 @@ class FeezalElementEinkWled extends EinkBase {
         label:       {type: String, reflect: true},
         showPresets: {type: Boolean, reflect: true, attribute: 'show-presets'},
         presets:     {type: String, reflect: true},
-        _on:  {state: true},
-        _bri: {state: true},   // raw 0–255 (null = unknown)
+        // E137: WLED state lives on the WledController; only the local
+        // preset selection stays element-local (write-only over MQTT).
         _ps:  {state: true},   // last recalled preset id (null = none)
     };
 
@@ -117,88 +112,34 @@ class FeezalElementEinkWled extends EinkBase {
         this.label       = '';
         this.showPresets = false;
         this.presets     = '';
-        this._on  = false;
-        this._bri = null;
         this._ps  = null;
+        // E137: the behavior layer — wires/parses/publishes; this view renders.
+        this.wled = new WledController(this);
     }
 
     connectedCallback() {
-        this._deriveAvailability();
+        // E137: derive <topic>/status BEFORE the N31 base subscribes.
+        this.wled.deriveAvailability();
         super.connectedCallback();
-        this._wire();
-    }
-
-    /** Auto-derive `<topic>/status` while subscribe-availability is empty or
-     * still holds our previous derivation — an explicit user value wins
-     * (glass-wled pattern, verbatim). */
-    _deriveAvailability() {
-        const derived = this.topic ? `${this.topic}/status` : '';
-        const current = this.subscribeAvailability || '';
-        if (current === '' || current === this.__derivedAvail) {
-            this.__derivedAvail = derived;
-            if (current !== derived) this.subscribeAvailability = derived;
-        }
-    }
-
-    _wireSignature() {
-        return this.topic || '';
-    }
-
-    _wire() {
-        this.__wireSig = this._wireSignature();
-        if (this.topic) {
-            this.addSubscription(`${this.topic}/g`, msg => {
-                const v = Number(this.getProperty(msg, this.messageProperty));
-                if (Number.isFinite(v)) {
-                    this._bri = Math.max(0, Math.min(255, Math.round(v)));
-                    this._on = this._bri > 0;
-                }
-            });
-            // <topic>/c (colour) and <topic>/v (XML state) are deliberately
-            // NOT subscribed — 1-bit display, no colour UI.
-        }
     }
 
     willUpdate(changed) {
         super.willUpdate?.(changed);
         if (changed.has('topic') || changed.has('subscribeAvailability')) {
-            this._deriveAvailability();
+            this.wled.deriveAvailability();
         }
     }
 
     updated(changed) {
         super.updated(changed);
-        // Live rewire when the topic changes at runtime (glass-wled pattern).
-        if (this.isConnected && this.__wireSig !== undefined && this._wireSignature() !== this.__wireSig) {
-            this._unsubscribe();
-            this._wire();
-        }
+        // E137: live-canvas topic edits re-wire through the controller.
+        this.wled.rewireIfChanged();
     }
 
-    // ── Commands → <topic>/api (glass-wled contract, verbatim) ───────────────
+    // ── E137: commands delegate to the controller ───────────────────────────
 
-    _api(obj) {
-        if (feezal.isEditor || !this.topic) return;
-        const t = Number(this.transition);
-        if (this.transition !== '' && this.transition !== null && this.transition !== undefined && Number.isFinite(t)) {
-            obj = {...obj, transition: Math.round(t * 10)};
-        }
-        feezal.connection.pub(`${this.topic}/api`, JSON.stringify(obj));
-    }
-
-    toggle() {
-        if (feezal.isEditor) return;
-        this._on = !this._on;
-        this._api({on: this._on});
-    }
-
-    setBrightnessPct(pct) {
-        if (feezal.isEditor) return;
-        const clamped = Math.max(0, Math.min(100, Math.round(Number(pct))));
-        this._bri = Math.round((clamped / 100) * 255);
-        this._on = this._bri > 0;
-        this._api({bri: this._bri});
-    }
+    toggle()            { this.wled.toggle(); }
+    setBrightnessPct(p) { this.wled.setBrightnessPct(p); }
 
     /** Flat −/+ steppers: ±10 % of the displayed value. */
     _stepBrightness(direction) {
@@ -206,13 +147,13 @@ class FeezalElementEinkWled extends EinkBase {
         this.setBrightnessPct((this._pct ?? 0) + direction * 10);
     }
 
-    /** Recall a WLED preset — {"ps":<id>} on <topic>/api. */
+    /** Recall a WLED preset — remembers the id locally (write-only). */
     setPreset(id) {
         if (feezal.isEditor) return;
         const ps = Math.round(Number(id));
         if (!Number.isFinite(ps) || ps < 0) return;
         this._ps = ps;
-        this._api({ps});
+        this.wled.setPreset(ps);
     }
 
     /** Numeric fallback (no preset names over MQTT): cycle ids 1–16. */
@@ -222,18 +163,8 @@ class FeezalElementEinkWled extends EinkBase {
         this.setPreset(next);
     }
 
-    get _pct() {
-        return this._bri === null ? null : Math.round((this._bri / 255) * 100);
-    }
-
-    get _presetsList() {
-        try {
-            const arr = this.presets ? JSON.parse(this.presets) : [];
-            return Array.isArray(arr) ? arr : [];
-        } catch {
-            return [];
-        }
-    }
+    get _pct()         { return this.wled.pct; }
+    get _presetsList() { return this.wled.presetsList; }
 
     /** Displayed % — editor shows a sample value while unwired. */
     get _shownPct() {
@@ -242,7 +173,7 @@ class FeezalElementEinkWled extends EinkBase {
 
     /** E57 redraw dedup: everything visibly rendered, values as shown. */
     renderSignature() {
-        return [this._on ? 'on' : 'off', this._shownPct ?? '—',
+        return [this.wled.on ? 'on' : 'off', this._shownPct ?? '—',
             this._ps ?? '', this._available].join('|');
     }
 
@@ -266,7 +197,7 @@ class FeezalElementEinkWled extends EinkBase {
     render() {
         const pct = this._shownPct;
         return html`
-            <div class="card ${this._on ? 'inv' : ''}" role="button" tabindex="0"
+            <div class="card ${this.wled.on ? 'inv' : ''}" role="button" tabindex="0"
                 @click="${this.toggle}"
                 @keydown="${e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.toggle(); } }}">
                 ${!this._available ? html`<span class="badge-tr" title="Device unavailable">!</span>` : ''}

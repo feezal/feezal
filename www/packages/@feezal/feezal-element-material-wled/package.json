@@ -1,7 +1,0 @@
-{
-  "name": "@feezal/feezal-element-material-wled",
-  "version": "3.0.5",
-  "main": "feezal-element-material-wled.js",
-  "license": "MIT",
-  "keywords": ["feezal", "feezal-element", "mqtt", "dashboard", "wled"]
-}

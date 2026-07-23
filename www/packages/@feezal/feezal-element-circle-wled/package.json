@@ -1,0 +1,7 @@
+{
+  "name": "@feezal/feezal-element-circle-wled",
+  "version": "3.0.8",
+  "main": "feezal-element-circle-wled.js",
+  "license": "MIT",
+  "keywords": ["feezal", "feezal-element", "mqtt", "dashboard", "wled"]
+}

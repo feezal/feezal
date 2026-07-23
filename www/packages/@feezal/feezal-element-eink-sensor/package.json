@@ -1,6 +1,6 @@
 {
     "name": "@feezal/feezal-element-eink-sensor",
-    "version": "3.0.0",
+    "version": "3.0.2",
     "main": "feezal-element-eink-sensor.js",
     "license": "MIT"
 }

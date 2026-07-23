@@ -1,5 +1,5 @@
 /* global feezal */
-import {html, css} from '@feezal/feezal-element';
+import {html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
 import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
 // E137: the thermostat behavior lives in the shared controller — this element
 // is a VIEW (Metro tile chrome: temperature front, stepper + chips back).
@@ -109,7 +109,7 @@ class FeezalElementMetroClimate extends MetroTileBase {
         // host.requestUpdate) — no reactive state properties needed.
     };
 
-    static styles = [MetroTileBase.styles, css`
+    static styles = [feezalBatteryStyles, MetroTileBase.styles, css`
         .current { font-size: min(var(--_metro-value-size), 30cqh); font-weight: 300; line-height: 1; }   /* E129 */
         .setpoint { font-size: var(--_metro-unit-size); opacity: 0.85; }   /* E129 */
         /* E136: WP7-volume-style stepper — giant flat +/− halves with the
@@ -136,11 +136,6 @@ class FeezalElementMetroClimate extends MetroTileBase {
         }
         .valve-fill { height: 100%; background: var(--feezal-metro-text, #fff); }
         .valve-pct { min-width: 3.5ch; text-align: right; font-variant-numeric: tabular-nums; }
-        /* E124: low-battery warning, top-left (the ! badge owns top-right). */
-        .batt {
-            position: absolute; top: 4px; left: 6px;
-            font-size: 15px; color: var(--feezal-metro-text, #fff); opacity: 0.9;
-        }
     `];
 
     constructor() {
@@ -199,7 +194,7 @@ class FeezalElementMetroClimate extends MetroTileBase {
         // B53: off sentinel active → mode label ("Off") instead of the 4.5° target.
         const offEntry = this.climate.offSentinelEntry();
         return html`
-            ${this.climate.batteryLow ? html`<feezal-icon class="batt" name="battery_alert" title="Battery low"></feezal-icon>` : ''}
+            ${batteryLowBadge(this.climate.batteryLow)}
             <div class="current">${current === null ? '—' : `${current}${this.unit}`}</div>
             ${offEntry ? html`<div class="setpoint">${offEntry.label}</div>`
                 : (this.climate.setpoint !== null ? html`<div class="setpoint">→ ${this.climate.setpoint}${this.unit}</div>` : '')}`;

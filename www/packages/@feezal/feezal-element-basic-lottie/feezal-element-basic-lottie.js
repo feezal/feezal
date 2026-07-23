@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, feezalBoolean} from '@feezal/feezal-element';
 import {loadLottie} from '@feezal/feezal-lottie';
 
 /**
@@ -9,8 +9,9 @@ import {loadLottie} from '@feezal/feezal-lottie';
  * The lottie-web library is lazy-loaded through the shared `@feezal/feezal-lottie`
  * loader: the ~250 kB dependency is a dynamic Rollup chunk fetched only when a
  * viewer actually has an animation to show (a `src`, or a `map`-driven src
- * swap). The editor renders a static film-strip placeholder and NEVER loads the
- * library.
+ * swap). The animation renders on the editor canvas too (respecting
+ * autoplay/loop); only the MQTT-driven playback (map / transport commands)
+ * is viewer-only. An unconfigured element (no `src`) shows a placeholder chip.
  *
  * MQTT drives playback two ways, checked in this order:
  *   1. `map` — value → clip descriptor. A matched payload seeks/plays a frame
@@ -23,6 +24,16 @@ import {loadLottie} from '@feezal/feezal-lottie';
  * instance is destroyed on disconnect (popup / view-switch safety). A broken or
  * missing `src` shows a subtle placeholder and never throws.
  */
+// Lightweight shape check — a Lottie/Bodymovin animation has a `layers` array
+// plus at least one characteristic top-level key (bodymovin version `v`,
+// framerate `fr`, or the in/out points `ip`+`op`). Guards against a plain JSON
+// asset being fed to lottie-web (which would render nothing).
+function looksLikeLottie(o) {
+    return !!o && typeof o === 'object' && !Array.isArray(o)
+        && Array.isArray(o.layers)
+        && ('v' in o || 'fr' in o || ('ip' in o && 'op' in o));
+}
+
 class FeezalElementBasicLottie extends FeezalElement {
     static get feezal() {
         return {
@@ -32,8 +43,8 @@ class FeezalElementBasicLottie extends FeezalElement {
                 'commands (play/pause/stop) and a value→segment map that seeks clips or swaps the ' +
                 'animation. The lottie-web library is lazy-loaded only when a dashboard uses the element.',
             attributes: [
-                {name: 'src', type: 'string',
-                    help: 'Animation JSON URL (upload via the Asset Manager, e.g. assets/weather.json).'},
+                {name: 'src', type: 'asset', accept: ['json'],
+                    help: 'Animation JSON (upload via the Asset Manager). The field autocompletes the site’s .json assets; you can also drag a .json asset from the Asset Manager onto the canvas to create a Lottie element.'},
                 {name: 'subscribe', type: 'mqttTopic',
                     help: 'Topic whose payload drives playback (map clips and transport commands).'},
                 {name: 'message-property', type: 'string', default: 'payload',
@@ -49,9 +60,9 @@ class FeezalElementBasicLottie extends FeezalElement {
                         'Example: {"sunny":{"segment":[0,60]}, "rain":{"segment":[61,120],"loop":true}, "storm":{"src":"storm.json"}}. ' +
                         'A matched payload seeks/plays that frame segment (optionally overriding "loop"/"speed"), or swaps "src" entirely.'},
                 {name: 'autoplay', type: 'boolean', default: true,
-                    help: 'Start playing as soon as the animation loads.'},
+                    help: 'Start playing as soon as the animation loads (off = load paused on the first frame).'},
                 {name: 'loop', type: 'boolean', default: true,
-                    help: 'Loop the animation continuously (a map clip may override this per value).'},
+                    help: 'Loop the animation continuously (a map clip may override this per value). Off = play once and stop on the last frame.'},
                 {name: 'speed', type: 'number', default: '1', step: 0.1,
                     help: 'Playback speed multiplier (1 = normal; a map clip may override this per value).'}
             ],
@@ -71,10 +82,12 @@ class FeezalElementBasicLottie extends FeezalElement {
         payloadPause: {type: String,  reflect: true, attribute: 'payload-pause'},
         payloadStop:  {type: String,  reflect: true, attribute: 'payload-stop'},
         map:          {type: String,  attribute: 'map'},
-        autoplay:     {type: Boolean, reflect: true},
-        loop:         {type: Boolean, reflect: true},
+        // Default-true → feezalBoolean converter so an explicit "off" persists.
+        autoplay:     {type: Boolean, reflect: true, converter: feezalBoolean},
+        loop:         {type: Boolean, reflect: true, converter: feezalBoolean},
         speed:        {type: Number,  reflect: true},
-        _broken:      {state: true}
+        _broken:      {state: true},
+        _invalid:     {state: true}   // src loaded but is not a Lottie animation
     };
 
     static styles = [feezalBaseStyles, css`
@@ -117,6 +130,7 @@ class FeezalElementBasicLottie extends FeezalElement {
         this.loop = true;
         this.speed = 1;
         this._broken = false;
+        this._invalid = false;
         // Non-reactive runtime state.
         this._anim = null;        // current lottie AnimationItem
         this._activeSrc = null;   // src currently loaded into _anim
@@ -131,11 +145,10 @@ class FeezalElementBasicLottie extends FeezalElement {
 
     connectedCallback() {
         super.connectedCallback();
-        // Editor mode is a static placeholder: never subscribe, never load lib.
-        if (feezal.isEditor) {
-            return;
-        }
-        if (this.subscribe && !this._msgSub) {
+        // The animation renders on the editor canvas too (first frame, or playing
+        // per autoplay/loop). Only the MQTT-driven playback (map / transport
+        // commands) is viewer-only — never subscribe in the editor.
+        if (!feezal.isEditor && this.subscribe && !this._msgSub) {
             this._msgSub = true;
             this.addSubscription(this.subscribe, msg => this._onMessage(msg));
         }
@@ -161,9 +174,6 @@ class FeezalElementBasicLottie extends FeezalElement {
 
     updated(changed) {
         super.updated(changed);
-        if (feezal.isEditor) {
-            return;
-        }
         if (changed.has('src') && this._effectiveSrc() !== this._activeSrc) {
             this._reload();
         }
@@ -267,11 +277,9 @@ class FeezalElementBasicLottie extends FeezalElement {
     }
 
     async _reload() {
-        if (feezal.isEditor) {
-            return;
-        }
         this._destroyAnim();
         this._broken = false;
+        this._invalid = false;
         const src = this._effectiveSrc();
         if (!src) {
             return;
@@ -289,25 +297,48 @@ class FeezalElementBasicLottie extends FeezalElement {
         if (token !== this._loadToken || !this.isConnected) {
             return;
         }
+
+        // Fetch + parse + validate the JSON ourselves (instead of handing
+        // lottie-web a `path`) so a non-Lottie JSON shows a clear placeholder
+        // rather than a silent empty render. Network/parse errors → _broken.
+        const path = (feezal.resolveAsset ? feezal.resolveAsset(src) : src);
+        let data;
+        try {
+            const res = await fetch(path);
+            if (!res.ok) throw new Error('http ' + res.status);
+            data = await res.json();
+        } catch {
+            this._broken = true;
+            this.requestUpdate();
+            return;
+        }
+        if (token !== this._loadToken || !this.isConnected) {
+            return;
+        }
+        if (!looksLikeLottie(data)) {
+            this._invalid = true;
+            this.requestUpdate();
+            return;
+        }
+
         const container = this.renderRoot?.querySelector('.stage');
         if (!container) {
             return;
         }
-        const path = (feezal.resolveAsset ? feezal.resolveAsset(src) : src);
         try {
             const anim = lottie.loadAnimation({
                 container,
                 renderer: 'svg',
                 loop: this.loop,
                 autoplay: this.autoplay,
-                path
+                animationData: data
             });
             this._anim = anim;
             this._activeSrc = src;
             try {
                 anim.setSpeed(Number(this.speed) || 1);
             } catch { /* ignore */ }
-            // A broken/missing asset resolves to a placeholder, never a throw.
+            // A broken asset resolves to a placeholder, never a throw.
             anim.addEventListener('data_failed', () => {
                 this._broken = true;
                 this._destroyAnim();
@@ -329,8 +360,11 @@ class FeezalElementBasicLottie extends FeezalElement {
     }
 
     render() {
-        if (feezal.isEditor) {
-            return html`<div class="placeholder"><span class="glyph"></span> Lottie</div>`;
+        // The animation renders on the editor canvas too (E-lottie-editor). An
+        // unconfigured element (no src) still shows the discoverable chip; an
+        // invalid asset shows the "Not a Lottie" hint — in both editor and viewer.
+        if (this._invalid) {
+            return html`<div class="placeholder"><span class="glyph"></span> Not a Lottie animation</div>`;
         }
         const showPlaceholder = this._broken || !this._effectiveSrc();
         return html`

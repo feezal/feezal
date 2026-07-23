@@ -1,6 +1,6 @@
 {
     "name": "@feezal/feezal-eink",
-    "version": "3.0.0",
+    "version": "3.0.1",
     "main": "feezal-eink.js",
     "license": "MIT",
     "description": "Shared base class (redraw dedup) and 1-bit chrome for the feezal-element-eink-* family (E57)."

@@ -1,5 +1,6 @@
 /* global feezal */
 import {LitElement, html, css} from 'lit';
+import {feezalBoolean} from '@feezal/feezal-element';
 
 /**
  * feezal-element-system-connection-status
@@ -46,10 +47,10 @@ class FeezalElementSystemConnectionStatus extends LitElement {
         backdrop:           {type: Boolean, reflect: true},
         backdropOpacity:    {type: Number,  reflect: true, attribute: 'backdrop-opacity'},
         backdropColor:      {type: String,  reflect: true, attribute: 'backdrop-color'},
-        blockInteraction:   {type: Boolean, reflect: true, attribute: 'block-interaction'},
+        blockInteraction:   {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'block-interaction'},
         title:              {type: String,  reflect: true},
         message:            {type: String,  reflect: true},
-        showCountdown:      {type: Boolean, reflect: true, attribute: 'show-countdown'},
+        showCountdown:      {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-countdown'},
         animate:            {type: String,  reflect: true},
         _disconnected:      {state: true},
         _elapsed:           {state: true}

@@ -1,5 +1,5 @@
 /* global feezal */
-import {html, css} from '@feezal/feezal-element';
+import {feezalBoolean, html, css} from '@feezal/feezal-element';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
 import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
@@ -93,7 +93,7 @@ class FeezalElementMetroCover extends MetroTileBase {
         slatMin:          {type: Number,  reflect: true, attribute: 'slat-min'},
         slatMax:          {type: Number,  reflect: true, attribute: 'slat-max'},
         invert:           {type: Boolean, reflect: true},
-        showPosition:     {type: Boolean, reflect: true, attribute: 'show-position'},
+        showPosition:     {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-position'},
         // N31: availability inherited from FeezalElement.
         discoveryId:      {type: String,  reflect: true, attribute: 'discovery-id'},
         // E137: cover state (position/tilt) lives on the CoverController

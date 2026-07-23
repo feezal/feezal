@@ -458,6 +458,34 @@ export function availabilityBadge(available) {
     return available ? '' : html`<span class="feezal-unavail-badge" title="Device unavailable">⚠</span>`;
 }
 
+// E124: shared low-battery badge — a crisp, self-drawn tiny horizontal battery
+// showing a single low charge bar (far more recognizable at small sizes than the
+// Material `battery_alert` ligature, and no exclamation clutter). Bottom-right by
+// default; families whose bottom-right corner is taken override via
+// `--feezal-battery-*` (or plain right/left).
+export const feezalBatteryStyles = css`
+    .feezal-batt-badge {
+        position: absolute;
+        bottom: var(--feezal-battery-bottom, 6px);
+        right: var(--feezal-battery-right, 6px);
+        width: var(--feezal-battery-size, 20px);
+        height: var(--feezal-battery-size, 20px);
+        color: var(--feezal-battery-color, var(--warning-color, #f59e0b));
+        opacity: 0.95; pointer-events: none; z-index: 2;
+    }
+    .feezal-batt-badge svg { width: 100%; height: 100%; display: block; }
+`;
+
+/** Low-battery badge template partial: renders nothing unless the battery is low.
+ *  A tiny battery outline + terminal with one short bar of charge remaining. */
+export function batteryLowBadge(low) {
+    return low ? html`<span class="feezal-batt-badge" title="Battery low"><svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="2.5" y="8.5" width="15" height="7" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <rect x="18.6" y="10.6" width="2.1" height="2.8" rx="0.7" fill="currentColor"/>
+        <rect x="4.3" y="10.3" width="3" height="3.4" rx="0.6" fill="currentColor"/>
+    </svg></span>` : '';
+}
+
 /**
  * E117: shared descriptor for the `publish-local` attribute — spread into an
  * element's `feezal.attributes` right after `publish` so the label and help
@@ -486,6 +514,28 @@ export function payloadMatch(value, configured) {
     if (value === false && /^(off|false|0|no)$/i.test(String(configured))) return true;
     return false;
 }
+
+/**
+ * Boolean-attribute converter for DEFAULT-TRUE booleans.
+ *
+ * Lit's built-in Boolean is *present = true / absent = false*, which cannot
+ * represent an explicit "false" for an attribute that defaults to true: the
+ * inspector removes the attribute on "off", it serialises as absent via
+ * outerHTML, and the viewer's fresh element re-reads its constructor default
+ * (true) — so the "off" choice is silently lost on save/deploy.
+ *
+ * This converter reads the literal "false" / "0" as false (any other present
+ * value → true; absent → the constructor default stands), and reflects the
+ * value as an explicit "true" / "false" so an OFF state persists. Pair it with
+ * the inspector's default-aware boolean write. Apply to any boolean whose
+ * descriptor `default` is true:
+ *
+ *   loop: {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'loop'}
+ */
+export const feezalBoolean = {
+    fromAttribute: v => v !== null && v !== 'false' && v !== '0',
+    toAttribute:   v => (v ? 'true' : 'false')
+};
 
 // Re-export so element files can do a single import.
 export {html, css};

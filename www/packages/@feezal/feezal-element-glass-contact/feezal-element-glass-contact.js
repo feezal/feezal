@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
 import {ContactController, contactAttributes, contactDiscoveryMap} from '@feezal/feezal-controller-contact';
 import {applySizePreset, glassCardStyles} from '@feezal/feezal-glass';
 
@@ -7,7 +7,7 @@ import {applySizePreset, glassCardStyles} from '@feezal/feezal-glass';
  * feezal-element-glass-contact (E58)
  *
  * Frosted-glass window/door contact card. Same MQTT capability contract as
- * feezal-element-material-contact (attribute names, payload matching incl.
+ * feezal-element-circle-contact (attribute names, payload matching incl.
  * tilt, availability badge, HA discovery) — only the look differs: an icon +
  * label squircle whose card highlights and states "Open"/"Tilted" when the
  * contact is not closed. Like the material sibling it has no custom
@@ -22,8 +22,6 @@ const TYPE_ICONS = {
     window: 'sensor_window',
     door: 'sensor_door',
     generic: 'radio_button_checked',
-    waterleak: 'water_drop',
-    firealarm: 'local_fire_department',
     garagedoor: 'garage',
 };
 
@@ -41,8 +39,8 @@ class FeezalElementGlassContact extends FeezalElement {
                 // E137: the shared contact contract (subscribe/payloads/type +
                 // the E124 battery trio) — declared ONCE by the controller.
                 ...contactAttributes.filter(a => a.name !== 'type'),
-                {name: 'type', type: 'select', options: ['window', 'door', 'generic', 'waterleak', 'firealarm', 'garagedoor'], default: 'window',
-                    help: 'Default icon: window, door, generic, water droplet (leak), flame (fire/smoke), garage door.'},
+                {name: 'type', type: 'select', options: ['window', 'door', 'generic', 'garagedoor'], default: 'window',
+                    help: 'Default icon: window, door, generic, garage door.'},
                 {name: 'icon',  type: 'string', help: 'Explicit icon name — overrides the type default.'},
                 {name: 'text-open',   type: 'string', default: 'Open',   help: 'State text while open.'},
                 {name: 'text-closed', type: 'string', default: 'Closed', help: 'State text while closed.'},
@@ -86,7 +84,7 @@ class FeezalElementGlassContact extends FeezalElement {
         _state:     {state: true},   // 'closed' | 'open' | 'tilted'
     };
 
-    static styles = [feezalBaseStyles, glassCardStyles, css`
+    static styles = [feezalBatteryStyles, feezalBaseStyles, glassCardStyles, css`
         .card {
             gap: 2px;
             transition: background 0.2s ease;
@@ -100,11 +98,6 @@ class FeezalElementGlassContact extends FeezalElement {
             font-size: var(--feezal-glass-font-size-label, 12px); font-weight: 600; line-height: 1.2;
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-        }
-        /* E124: low-battery warning, bottom-left (⚠ unavail owns top-right). */
-        .batt {
-            position: absolute; bottom: 8px; left: 10px;
-            font-size: 14px; color: var(--warning-color, #ff9800); opacity: 0.9;
         }
         .unavail {
             position: absolute; top: 8px; right: 10px;
@@ -168,7 +161,7 @@ class FeezalElementGlassContact extends FeezalElement {
         return html`
             <div class="card ${this.contact.state}">
                 ${!this._available ? html`<span class="unavail" title="Device unavailable">⚠</span>` : ''}
-                ${this.contact.batteryLow ? html`<feezal-icon class="batt" name="battery_alert" title="Battery low"></feezal-icon>` : ''}
+                ${batteryLowBadge(this.contact.batteryLow)}
                 <feezal-icon name="${this.icon || TYPE_ICONS[this.type] || TYPE_ICONS.window}"></feezal-icon>
                 <span class="state">${this._stateText()}</span>
                 <span class="label">${this.label || (feezal.isEditor ? 'Contact' : '')}</span>

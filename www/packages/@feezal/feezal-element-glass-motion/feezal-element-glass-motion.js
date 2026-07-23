@@ -1,40 +1,44 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
 // E137: the boolean-sensor behavior lives in the shared controller — this
 // element is a VIEW (glass chrome) over SensorController state.
-import {SensorController, sensorAttributes, sensorDiscoveryMap} from '@feezal/feezal-controller-sensor';
+// E138: narrowed to the MOTION slice (motion / presence / radar / zone).
+import {SensorController, sensorAttributesFor, sensorDiscoveryMapFor} from '@feezal/feezal-controller-sensor';
 import {applySizePreset, glassCardStyles} from '@feezal/feezal-glass';
 
 /**
- * feezal-element-glass-occupancy (E58)
+ * feezal-element-glass-motion (E58, E138)
  *
- * Frosted-glass motion/presence card. Same MQTT capability contract as the
- * Device occupancy card (feezal-element-material-motion) — attribute names,
- * payload matching incl. JSON {state} and boolean coercion, the `type`
- * variants (motion / presence / radar / zone — here they pick the default
- * icon), availability badge and the same HA discovery descriptor incl.
- * `device_class` → type. The card highlights while motion is detected.
+ * Frosted-glass motion / presence card. A VIEW over SensorController, narrowed
+ * to the MOTION vocabulary slice: the `type` variants (motion / presence /
+ * radar / zone) pick the default icon; the card highlights while motion is
+ * detected. Same MQTT capability contract as the Circle motion card
+ * (feezal-element-circle-motion) — attribute names, payload matching incl.
+ * JSON {state} and boolean coercion, availability badge, E124 low-battery
+ * badge and the HA `binary_sensor` discovery descriptor incl. `device_class`.
+ *
+ * E138: the active-state accent DEFAULTS from the controller's slice colour
+ * var (`activeColorVar()` → `--accent-color` for the motion slice); the
+ * per-element `--feezal-glass-active-color` style override still wins.
  *
  * Family conventions (frost vars, degrade, squircle): see glass-button.
  */
 
-class FeezalElementGlassOccupancy extends FeezalElement {
+class FeezalElementGlassMotion extends FeezalElement {
     static get feezal() {
         return {
-            // E132: palette name "Sensor" — the generalized boolean-sensor
-            // card (motion + water/smoke/gas/… hazard classes). The tag stays
-            // glass-occupancy until the alias mechanism exists.
-            palette: {name: 'Sensor', category: 'Glass', color: '#7aa5c9', icon: 'sensors'},
-            description: 'Frosted-glass boolean-sensor card (motion, presence, water leak, smoke, gas, …) — ' +
-                'highlights while triggered, error-coloured for alarm classes. Same MQTT contract as the Circle sensor card.',
-            // E137: the discovery map is the controller package's fragment.
-            discovery: {component: 'binary_sensor', map: sensorDiscoveryMap},
+            // E138: MOTION slice — the motion / presence card.
+            palette: {name: 'Motion', category: 'Glass', color: '#7aa5c9', icon: 'sensors'},
+            description: 'Frosted-glass motion / presence card (motion, presence, radar, zone) — ' +
+                'highlights while triggered. Same MQTT contract as the Circle motion card.',
+            // E137/E138: discovery map is the controller package's motion-slice fragment.
+            discovery: {component: 'binary_sensor', map: sensorDiscoveryMapFor('motion')},
             attributes: [
                 {name: 'size', type: 'select', options: ['', '2x2', '2x1'], default: '',
                     help: 'Preset size: 2x2 = square (150×150), 2x1 = wide (150×75). Empty keeps the current/manual size.'},
-                // E137: the shared sensor contract — declared ONCE by the
-                // controller package, spread by every family.
-                ...sensorAttributes,
+                // E137/E138: the shared sensor contract, motion slice — declared
+                // ONCE by the controller package, spread by every family.
+                ...sensorAttributesFor('motion'),
                 {name: 'icon',  type: 'string', help: 'Explicit icon name — overrides the type default in BOTH states.'},
                 {name: 'label', type: 'string', help: 'Card label.'},
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability.'},
@@ -46,7 +50,7 @@ class FeezalElementGlassOccupancy extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height',
-                {property: '--feezal-glass-active-color', type: 'color', default: 'var(--warning-color, #ff9f0a)', help: 'Icon/state colour while detected.'},
+                {property: '--feezal-glass-active-color', type: 'color', default: 'var(--accent-color, #ff9f0a)', help: 'Icon/state colour while detected. Defaults to the theme accent colour.'},
                 {property: '--feezal-glass-tint', type: 'color', help: 'Frost tint (defaults from the theme).'},
                 {property: '--feezal-glass-icon-size', default: '28px', help: 'Icon font size.'},
                 {property: '--feezal-glass-font-size-state', default: '15px', help: 'State line font size.'},
@@ -78,23 +82,18 @@ class FeezalElementGlassOccupancy extends FeezalElement {
         // E137: sensor state lives on the SensorController.
     };
 
-    static styles = [feezalBaseStyles, glassCardStyles, css`
+    static styles = [feezalBatteryStyles, feezalBaseStyles, glassCardStyles, css`
         .card {
             gap: 2px;
             transition: background 0.2s ease;
             --_state-color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
         }
+        /* E138: active accent — per-element --feezal-glass-active-color override
+           wins, else the controller's slice colour var (set inline on the card
+           via --feezal-glass-active-default). */
         .card.active {
             background: var(--feezal-glass-on-tint, rgba(255,255,255,0.62));
-            --_state-color: var(--feezal-glass-active-color, #ff9f0a);
-        }
-        /* E132: alarm classes (water-leak/smoke/gas/co/tamper) show their
-           ACTIVE state in the error colour — not a neutral state chip. */
-        :host([data-alarm]) .card.active { --_state-color: var(--error-color, #d32f2f); }
-        /* E124: low-battery warning, bottom-left (⚠ unavail owns top-right). */
-        .batt {
-            position: absolute; bottom: 8px; left: 10px;
-            font-size: 14px; color: var(--warning-color, #ff9800); opacity: 0.9;
+            --_state-color: var(--feezal-glass-active-color, var(--feezal-glass-active-default, #ff9f0a));
         }
         feezal-icon { font-size: var(--feezal-glass-icon-size, 28px); line-height: 1; color: var(--_state-color); transition: color 0.2s ease; }
         .state { font-size: var(--feezal-glass-font-size-state, 15px); font-weight: 700; color: var(--_state-color); }
@@ -156,21 +155,23 @@ class FeezalElementGlassOccupancy extends FeezalElement {
         // The size grid writes the element's inline geometry (editor keeps
         // full manual control afterwards).
         if (changed.has('size')) applySizePreset(this);
-        this.toggleAttribute('data-alarm', this.sensor.alarm);
     }
 
     render() {
+        // E138: the active accent defaults from the controller's slice colour
+        // var (motion → --accent-color); the per-element style override wins.
+        const activeDefault = `var(${this.sensor.activeColorVar()}, #ff9f0a)`;
         return html`
-            <div class="card ${this.sensor.active ? 'active' : ''}">
+            <div class="card ${this.sensor.active ? 'active' : ''}" style="--feezal-glass-active-default: ${activeDefault}">
                 ${!this._available ? html`<span class="unavail" title="Device unavailable">⚠</span>` : ''}
-                ${this.sensor.batteryLow ? html`<feezal-icon class="batt" name="battery_alert" title="Battery low"></feezal-icon>` : ''}
+                ${batteryLowBadge(this.sensor.batteryLow)}
                 <feezal-icon name="${this.icon || this.sensor.icon()}"></feezal-icon>
                 <span class="state">${this.sensor.text()}</span>
-                <span class="label">${this.label || (feezal.isEditor ? 'Sensor' : '')}</span>
+                <span class="label">${this.label || (feezal.isEditor ? 'Motion' : '')}</span>
             </div>
         `;
     }
 }
 
-customElements.define('feezal-element-glass-occupancy', FeezalElementGlassOccupancy);
-export {FeezalElementGlassOccupancy};
+customElements.define('feezal-element-glass-motion', FeezalElementGlassMotion);
+export {FeezalElementGlassMotion};

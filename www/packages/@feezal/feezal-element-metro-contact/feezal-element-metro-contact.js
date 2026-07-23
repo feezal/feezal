@@ -1,5 +1,5 @@
 /* global feezal */
-import {html, css} from '@feezal/feezal-element';
+import {html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
 import {svg} from 'lit';
 import {ContactController, contactAttributes, contactDiscoveryMap} from '@feezal/feezal-controller-contact';
 import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
@@ -9,7 +9,7 @@ import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
  *
  * Front-only Metro tile for a binary sensor — material-contact's contract in
  * tile form: `type` picks a stylised SVG (window with tilt state + mirrored
- * handle, door, generic, water leak, fire alarm, garage door), payload
+ * handle, door, generic, garage door), payload
  * matching uses the same string/boolean coercion, availability shows a badge,
  * and the discovery descriptor maps `device_class` onto the type. The tile
  * itself carries the state colour: accent while closed, open/tilt colour
@@ -73,33 +73,6 @@ function genericSvg(isOpen) {
         ` : ''}`;
 }
 
-function waterleakSvg(isOpen) {
-    return svg`
-        <path d="M30,6 C24,16 10,28 10,40 C10,50 19,56 30,56 C41,56 50,50 50,40 C50,28 36,16 30,6 Z"
-              fill="${isOpen ? 'currentColor' : 'none'}" fill-opacity="${isOpen ? 0.35 : 0}"
-              stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
-        ${isOpen ? svg`
-            <path d="M20,50 Q25,45 30,50 Q35,55 40,50"
-                  fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-        ` : svg`
-            <line x1="30" y1="35" x2="30" y2="47" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" opacity="0.45"/>
-        `}`;
-}
-
-function fireAlarmSvg(isOpen) {
-    return svg`
-        <path d="M30,5 C24,14 16,24 16,35 C16,45 22,54 30,57 C38,54 44,45 44,35 C44,24 36,14 30,5 Z"
-              fill="${isOpen ? 'currentColor' : 'none'}" fill-opacity="${isOpen ? 0.3 : 0}"
-              stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
-        ${isOpen ? svg`
-            <path d="M30,22 C27,26 22,32 24,39 C25,43 28,47 30,49 C32,47 35,43 36,39 C38,32 33,26 30,22 Z"
-                  fill="white" fill-opacity="0.55" stroke="none"/>
-        ` : svg`
-            <circle cx="30" cy="38" r="4" fill="currentColor" opacity="0.4"/>
-            <line x1="30" y1="20" x2="30" y2="31" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity="0.4"/>
-        `}`;
-}
-
 function garageDoorSvg(isOpen) {
     return svg`
         <rect x="5" y="5" width="50" height="52" rx="1"
@@ -122,14 +95,14 @@ class FeezalElementMetroContact extends MetroTileBase {
     static get feezal() {
         return {
             palette: {name: 'Contact', category: 'Metro', color: '#1ba1e2', icon: 'sensor_door'},
-            description: 'Metro contact tile (window/door/leak/fire/garage): stylised state visual or configurable per-state icons; accent while closed, alarm colour while open, tilt state supported. Display-only.',
+            description: 'Metro contact tile (window/door/generic/garage): stylised state visual or configurable per-state icons; accent while closed, alarm colour while open, tilt state supported. Display-only.',
             attributes: [
                 ...MetroTileBase.tileAttributes,
                 // E137: the shared contact contract — declared ONCE by the
                 // controller package (incl. the E124 battery trio).
                 ...contactAttributes.filter(a => a.name !== 'type'),
-                {name: 'type', type: 'select', options: ['window', 'door', 'generic', 'waterleak', 'firealarm', 'garagedoor'], default: 'window',
-                    help: 'Visual style — window frame (with tilt), door, generic circle, water droplet (leak), flame (fire/smoke alarm), or garage door. Overridden by icon-open/icon-closed when set.'},
+                {name: 'type', type: 'select', options: ['window', 'door', 'generic', 'garagedoor'], default: 'window',
+                    help: 'Visual style — window frame (with tilt), door, generic circle, or garage door. Overridden by icon-open/icon-closed when set.'},
                 {name: 'mirror', type: 'boolean', default: false, help: 'Show the window handle on the left side instead of the right. Window type only.'},
                 {name: 'icon-open',   type: 'icon', help: 'Icon shown while open — overrides the type visual (empty = type visual).'},
                 {name: 'icon-closed', type: 'icon', help: 'Icon shown while closed — overrides the type visual (empty = type visual).'},
@@ -172,7 +145,7 @@ class FeezalElementMetroContact extends MetroTileBase {
         discoveryId:   {type: String,  reflect: true, attribute: 'discovery-id'},
     };
 
-    static styles = [MetroTileBase.styles, css`
+    static styles = [feezalBatteryStyles, MetroTileBase.styles, css`
         :host {
             --feezal-metro-open-color: var(--error-color, #e51400);
             --feezal-metro-tilt-color: var(--info-color, #1ba1e2);
@@ -183,11 +156,6 @@ class FeezalElementMetroContact extends MetroTileBase {
         .front { cursor: default; }
         .state { font-size: var(--_metro-unit-size); text-transform: lowercase; opacity: 0.85; }   /* E129 */
         svg.contact { height: min(42px, 45cqh); aspect-ratio: 1; overflow: visible; }
-        /* E124: low-battery warning, top-left (the ! badge owns top-right). */
-        .batt {
-            position: absolute; top: 4px; left: 6px;
-            font-size: 15px; color: var(--feezal-metro-text, #fff); opacity: 0.9;
-        }
     `];
 
     constructor() {
@@ -219,8 +187,6 @@ class FeezalElementMetroContact extends MetroTileBase {
         const isOpen = state === 'open';
         if (this.type === 'door')       return doorSvg(isOpen);
         if (this.type === 'generic')    return genericSvg(isOpen);
-        if (this.type === 'waterleak')  return waterleakSvg(isOpen);
-        if (this.type === 'firealarm')  return fireAlarmSvg(isOpen);
         if (this.type === 'garagedoor') return garageDoorSvg(isOpen);
         return windowSvg(state, this.mirror);
     }
@@ -243,7 +209,7 @@ class FeezalElementMetroContact extends MetroTileBase {
             ? html`<feezal-icon name="${stateIcon}"></feezal-icon>`
             : html`<svg class="contact" viewBox="0 0 60 60">${this._shapeSvg(this.contact.state)}</svg>`;
         return html`
-            ${this.contact.batteryLow ? html`<feezal-icon class="batt" name="battery_alert" title="Battery low"></feezal-icon>` : ''}
+            ${batteryLowBadge(this.contact.batteryLow)}
             ${visual}
             <div class="state">${this._stateText()}</div>`;
     }

@@ -3,19 +3,19 @@ import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element
 import {applySizePreset, glassCardStyles} from '@feezal/feezal-glass';
 
 /**
- * feezal-element-glass-sensor (E58)
+ * feezal-element-glass-value (E58, E138)
  *
- * Frosted-glass sensor card: icon, big numeral value + unit, label.
+ * Frosted-glass numeric value card: icon, big numeral value + unit, label.
  * Display-only. See feezal-element-glass-button for the family conventions
  * (frost vars, degrade, squircle).
  */
 
-class FeezalElementGlassSensor extends FeezalElement {
+class FeezalElementGlassValue extends FeezalElement {
     static get feezal() {
         return {
-            // E132: numeric value card — "sensor" now means boolean family-wide.
-            palette: {name: 'Number', category: 'Glass', color: '#7aa5c9', icon: 'thermostat'},
-            description: 'Frosted-glass sensor card — big numeral value with unit and label.',
+            // E138: numeric value card — "sensor" now means the boolean/alarm card family-wide.
+            palette: {name: 'Value', category: 'Glass', color: '#7aa5c9', icon: 'thermostat'},
+            description: 'Frosted-glass value card — big numeral value with unit and label.',
             baseAttribute: 'value',
             discovery: {
                 component: 'sensor',
@@ -152,11 +152,11 @@ class FeezalElementGlassSensor extends FeezalElement {
             <div class="card">
                 <feezal-icon name="${this.icon || 'thermostat'}"></feezal-icon>
                 <span class="value">${this.displayValue}${this.unit ? html`<span class="unit">${this.unit}</span>` : ''}</span>
-                <span class="label">${this.label || (feezal.isEditor ? 'Sensor' : '')}</span>
+                <span class="label">${this.label || (feezal.isEditor ? 'Value' : '')}</span>
             </div>
         `;
     }
 }
 
-customElements.define('feezal-element-glass-sensor', FeezalElementGlassSensor);
-export {FeezalElementGlassSensor};
+customElements.define('feezal-element-glass-value', FeezalElementGlassValue);
+export {FeezalElementGlassValue};

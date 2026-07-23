@@ -4,17 +4,18 @@ import {svg} from 'lit';
 import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
 
 /**
- * feezal-element-metro-sensor (E55)
+ * feezal-element-metro-value (E55, E138)
  *
- * Sensor tile: big value + unit on the front; the back shows the recent
+ * Value tile: big value + unit on the front; the back shows the recent
  * trend (SVG polyline of the last `points` values) with min/max readouts.
  */
-class FeezalElementMetroSensor extends MetroTileBase {
+class FeezalElementMetroValue extends MetroTileBase {
     static get feezal() {
         return {
-            // E132: numeric value card — "sensor" now means boolean family-wide.
-            palette: {name: 'Number', category: 'Metro', color: '#1ba1e2', icon: 'monitoring'},
-            description: 'Metro sensor tile: big value on the front, recent trend (min/max + polyline) on the back.',
+            // E138: numeric value card — palette name "Value" ("sensor" now
+            // means the boolean card family-wide).
+            palette: {name: 'Value', category: 'Metro', color: '#1ba1e2', icon: 'monitoring'},
+            description: 'Metro value tile: big value on the front, recent trend (min/max + polyline) on the back.',
             attributes: [
                 ...MetroTileBase.tileAttributes,
                 'subscribe',
@@ -112,5 +113,5 @@ class FeezalElementMetroSensor extends MetroTileBase {
     }
 }
 
-customElements.define('feezal-element-metro-sensor', FeezalElementMetroSensor);
-export {FeezalElementMetroSensor};
+customElements.define('feezal-element-metro-value', FeezalElementMetroValue);
+export {FeezalElementMetroValue};

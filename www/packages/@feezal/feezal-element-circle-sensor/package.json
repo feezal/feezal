@@ -1,0 +1,6 @@
+{
+  "name": "@feezal/feezal-element-circle-sensor",
+  "version": "3.1.5",
+  "license": "MIT",
+  "main": "feezal-element-circle-sensor.js"
+}

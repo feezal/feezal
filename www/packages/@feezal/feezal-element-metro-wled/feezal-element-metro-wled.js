@@ -1,7 +1,10 @@
 /* global feezal */
-import {html, css} from '@feezal/feezal-element';
+import {feezalBoolean, html, css} from '@feezal/feezal-element';
 import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
-import {WLED_EFFECTS, WLED_PALETTES, effectName, hexToRgb} from './wled-lists.js';
+// E137: the WLED behavior lives in the shared controller — this element is
+// a VIEW (Metro tile chrome: front state, back controls). The effect/palette
+// name tables are bundled once in the controller package.
+import {WledController, wledAttributes, wledDiscoveryMap, WLED_EFFECTS, WLED_PALETTES, effectName} from '@feezal/feezal-controller-wled';
 
 /**
  * feezal-element-metro-wled (E103 MVP)
@@ -11,7 +14,7 @@ import {WLED_EFFECTS, WLED_PALETTES, effectName, hexToRgb} from './wled-lists.js
  * via ⋯) holds the brightness slider, colour swatch and effect / palette
  * pickers.
  *
- * MQTT contract identical to feezal-element-material-wled (keep in sync):
+ * MQTT contract identical to feezal-element-circle-wled (keep in sync):
  * subscribes `<topic>/g` (brightness 0–255, 0 = off) and `<topic>/c`
  * ("#RRGGBB"); `<topic>/v` is ignored. Commands go to `<topic>/api` as
  * /json/state JSON ({"on":bool}, {"bri":n}, {"seg":[{"col":[[r,g,b]]}]},
@@ -35,35 +38,19 @@ class FeezalElementMetroWled extends MetroTileBase {
             // WLED topics; the ⚡ picker / Auto-configure banner stamps it here.
             // Availability is applied automatically by _applyDiscovery from the
             // entity's availability_normalized record (no map entry needed).
-            discovery: {
-                component: 'wled',
-                map: {
-                    device_topic: {attr: 'topic'},
-                    name: 'label',
-                },
-            },
+            // E137: the discovery map is the controller package's fragment.
+            discovery: {component: 'wled', map: wledDiscoveryMap},
             attributes: [
                 ...MetroTileBase.tileAttributes,
-                {name: 'topic', type: 'mqttTopic', default: 'wled/device',
-                    help: 'WLED device base topic (Sync settings → MQTT). Subscribes <topic>/g (brightness) and <topic>/c (colour); commands are published to <topic>/api as JSON.'},
-                {name: 'transition', type: 'number', min: 0, step: 0.1,
-                    help: 'Optional crossfade duration in seconds, sent with every command (WLED counts in 0.1 s units). Empty = device default.'},
+                // E137: the shared WLED contract (topic/transition/speed/
+                // intensity read-backs/presets) — declared ONCE.
+                ...wledAttributes,
                 {name: 'show-effect', type: 'boolean', default: true,
                     help: 'Show the effect picker and its speed/intensity sliders on the back face.'},
                 {name: 'show-palette', type: 'boolean', default: true,
                     help: 'Show the palette picker on the back face.'},
-                {name: 'subscribe-speed', type: 'mqttTopic',
-                    help: 'Optional read-back of the current effect speed (sx, 0–255). WLED does not push sx/ix on <topic>/g — leave empty to default the slider to 128.'},
-                {name: 'message-property-speed', type: 'string', default: 'payload',
-                    help: 'Property path for the speed topic. Defaults to message-property.'},
-                {name: 'subscribe-intensity', type: 'mqttTopic',
-                    help: 'Optional read-back of the current effect intensity (ix, 0–255). Same caveat as subscribe-speed.'},
-                {name: 'message-property-intensity', type: 'string', default: 'payload',
-                    help: 'Property path for the intensity topic. Defaults to message-property.'},
                 {name: 'show-presets', type: 'boolean', default: false,
-                    help: 'Show a preset selector on the back face that recalls a WLED preset via {"ps":<id>} on <topic>/api. WLED does not expose preset names over MQTT — supply them via the presets list, or use the numeric fallback.'},
-                {name: 'presets', type: 'objectList', itemFields: [{key: 'id', type: 'number'}, {key: 'name'}],
-                    help: 'Optional list of {id, name} presets shown as a picker when show-presets is on. Empty = a numeric "preset #" input is shown instead.'},
+                    help: 'Show a preset selector on the back face that recalls a WLED preset via {"ps":<id>} on <topic>/api.'},
                 {name: 'subscribe-availability', type: 'mqttTopic',
                     help: 'Availability topic (retained online/offline). Empty = auto-derived <topic>/status; set to override.'},
                 {name: 'availability-mode', type: 'select', options: ['all', 'any'], default: 'all',
@@ -83,21 +70,16 @@ class FeezalElementMetroWled extends MetroTileBase {
     static properties = {
         topic:      {type: String, reflect: true},
         transition: {type: String, reflect: true},
-        showEffect:         {type: Boolean, reflect: true, attribute: 'show-effect'},
-        showPalette:        {type: Boolean, reflect: true, attribute: 'show-palette'},
+        showEffect:         {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-effect'},
+        showPalette:        {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-palette'},
         subscribeSpeed:     {type: String, reflect: true, attribute: 'subscribe-speed'},
         msgPropSpeed:       {type: String, reflect: true, attribute: 'message-property-speed'},
         subscribeIntensity: {type: String, reflect: true, attribute: 'subscribe-intensity'},
         msgPropIntensity:   {type: String, reflect: true, attribute: 'message-property-intensity'},
         showPresets:        {type: Boolean, reflect: true, attribute: 'show-presets'},
         presets:            {type: String, reflect: true},
-        _on:    {state: true},
-        _bri:   {state: true},   // raw 0–255 (null = unknown)
-        _color: {state: true},   // '#rrggbb' (null = unknown)
-        _fx:    {state: true},   // locally selected effect id
-        _pal:   {state: true},   // locally selected palette id
-        _speed:     {state: true},   // raw 0–255 (null = unknown → default 128)
-        _intensity: {state: true},   // raw 0–255 (null = unknown → default 128)
+        // E137: WLED state lives on the WledController (plain fields +
+        // host.requestUpdate).
     };
 
     static styles = [MetroTileBase.styles, css`
@@ -160,190 +142,46 @@ class FeezalElementMetroWled extends MetroTileBase {
         this.msgPropIntensity   = '';
         this.showPresets        = false;
         this.presets            = '';
-        this._on    = false;
-        this._bri   = null;
-        this._color = null;
-        this._fx    = null;
-        this._pal   = null;
-        this._speed     = null;
-        this._intensity = null;
+        // E137: the behavior layer — wires/parses/publishes; this view renders.
+        this.wled = new WledController(this);
     }
 
     connectedCallback() {
-        this._deriveAvailability();
+        // E137: derive <topic>/status BEFORE the N31 base subscribes.
+        this.wled.deriveAvailability();
         super.connectedCallback();
-        this._wire();
-    }
-
-    disconnectedCallback() {
-        super.disconnectedCallback();
-        clearTimeout(this.__colorDebounce);
-    }
-
-    /** Auto-derive `<topic>/status` while subscribe-availability is empty or
-     * still holds our previous derivation — an explicit user value wins. */
-    _deriveAvailability() {
-        const derived = this.topic ? `${this.topic}/status` : '';
-        const current = this.subscribeAvailability || '';
-        if (current === '' || current === this.__derivedAvail) {
-            this.__derivedAvail = derived;
-            if (current !== derived) this.subscribeAvailability = derived;
-        }
-    }
-
-    _wireSignature() {
-        return `${this.topic || ''}|${this.subscribeSpeed || ''}|${this.subscribeIntensity || ''}`;
-    }
-
-    _wire() {
-        this.__wireSig = this._wireSignature();
-        if (this.topic) {
-            this.addSubscription(`${this.topic}/g`, msg => {
-                const v = Number(this.getProperty(msg, this.messageProperty));
-                if (Number.isFinite(v)) {
-                    this._bri = Math.max(0, Math.min(255, Math.round(v)));
-                    this._on = this._bri > 0;
-                }
-            });
-            this.addSubscription(`${this.topic}/c`, msg => {
-                const raw = String(this.getProperty(msg, this.messageProperty) ?? '').trim();
-                const m = raw.match(/^#?([0-9a-f]{6})$/i);
-                if (m) this._color = '#' + m[1].toLowerCase();
-            });
-            // <topic>/v (XML state) is deliberately NOT subscribed.
-        }
-        // Optional speed/intensity read-back — write-mostly (WLED does not
-        // push sx/ix on the compact /g topic).
-        if (this.subscribeSpeed) {
-            this.addSubscription(this.subscribeSpeed, msg => {
-                const v = Number(this.getProperty(msg, this.msgPropSpeed || this.messageProperty));
-                if (Number.isFinite(v)) this._speed = Math.max(0, Math.min(255, Math.round(v)));
-            });
-        }
-        if (this.subscribeIntensity) {
-            this.addSubscription(this.subscribeIntensity, msg => {
-                const v = Number(this.getProperty(msg, this.msgPropIntensity || this.messageProperty));
-                if (Number.isFinite(v)) this._intensity = Math.max(0, Math.min(255, Math.round(v)));
-            });
-        }
     }
 
     willUpdate(changed) {
         super.willUpdate?.(changed);
         if (changed.has('topic') || changed.has('subscribeAvailability')) {
-            this._deriveAvailability();
+            this.wled.deriveAvailability();
         }
     }
 
     updated(changed) {
         super.updated(changed);
-        if (changed.has('_on')) this.toggleAttribute('data-on', this._on);
-        // Live rewire when the topic changes at runtime.
-        if (this.isConnected && this.__wireSig !== undefined && this._wireSignature() !== this.__wireSig) {
-            this._unsubscribe();
-            this._wire();
-        }
+        this.toggleAttribute('data-on', this.wled.on);
+        // E137: live-canvas topic edits re-wire through the controller.
+        this.wled.rewireIfChanged();
     }
 
-    // ── Commands → <topic>/api ────────────────────────────────────────────────
+    // ── E137: commands + computed values delegate to the controller ─────────
 
-    _api(obj) {
-        if (feezal.isEditor || !this.topic) return;
-        const t = Number(this.transition);
-        if (this.transition !== '' && this.transition !== null && this.transition !== undefined && Number.isFinite(t)) {
-            obj = {...obj, transition: Math.round(t * 10)};
-        }
-        feezal.connection.pub(`${this.topic}/api`, JSON.stringify(obj));
-    }
+    toggle()             { this.wled.toggle(); }
+    setBrightnessPct(p)  { this.wled.setBrightnessPct(p); }
+    setColor(hex)        { this.wled.setColor(hex); }
+    _onColorInput(hex)   { this.wled.colorInput(hex); }
+    setEffect(id)        { this.wled.setEffect(id); }
+    setPalette(id)       { this.wled.setPalette(id); }
+    setSpeedPct(p)       { this.wled.setSpeedPct(p); }
+    setIntensityPct(p)   { this.wled.setIntensityPct(p); }
+    setPreset(id)        { this.wled.setPreset(id); }
 
-    toggle() {
-        if (feezal.isEditor) return;
-        this._on = !this._on;
-        this._api({on: this._on});
-    }
-
-    setBrightnessPct(pct) {
-        if (feezal.isEditor) return;
-        const clamped = Math.max(0, Math.min(100, Math.round(Number(pct))));
-        this._bri = Math.round((clamped / 100) * 255);
-        this._on = this._bri > 0;
-        this._api({bri: this._bri});
-    }
-
-    setColor(hex) {
-        if (feezal.isEditor) return;
-        const rgb = hexToRgb(hex);
-        if (!rgb) return;
-        this._color = hex.toLowerCase();
-        this._api({seg: [{col: [rgb]}]});
-    }
-
-    /** Fires continuously while the native colour picker is dragged (`input`
-     * event) — debounced ~100 ms so it doesn't flood the broker. */
-    _onColorInput(hex) {
-        if (feezal.isEditor) return;
-        clearTimeout(this.__colorDebounce);
-        this.__colorDebounce = setTimeout(() => this.setColor(hex), 100);
-    }
-
-    setEffect(id) {
-        if (feezal.isEditor) return;
-        const fx = Math.round(Number(id));
-        if (!Number.isFinite(fx) || fx < 0) return;
-        this._fx = fx;
-        this._api({seg: [{fx}]});
-    }
-
-    setPalette(id) {
-        if (feezal.isEditor) return;
-        const pal = Math.round(Number(id));
-        if (!Number.isFinite(pal) || pal < 0) return;
-        this._pal = pal;
-        this._api({seg: [{pal}]});
-    }
-
-    setSpeedPct(pct) {
-        if (feezal.isEditor) return;
-        const clamped = Math.max(0, Math.min(100, Math.round(Number(pct))));
-        this._speed = Math.round((clamped / 100) * 255);
-        this._api({seg: [{sx: this._speed}]});
-    }
-
-    setIntensityPct(pct) {
-        if (feezal.isEditor) return;
-        const clamped = Math.max(0, Math.min(100, Math.round(Number(pct))));
-        this._intensity = Math.round((clamped / 100) * 255);
-        this._api({seg: [{ix: this._intensity}]});
-    }
-
-    /** Recall a WLED preset — {"ps":<id>} on <topic>/api. */
-    setPreset(id) {
-        if (feezal.isEditor) return;
-        const ps = Math.round(Number(id));
-        if (!Number.isFinite(ps) || ps < 0) return;
-        this._api({ps});
-    }
-
-    get _pct() {
-        return this._bri === null ? null : Math.round((this._bri / 255) * 100);
-    }
-
-    get _speedPct() {
-        return Math.round(((this._speed ?? 128) / 255) * 100);
-    }
-
-    get _intensityPct() {
-        return Math.round(((this._intensity ?? 128) / 255) * 100);
-    }
-
-    get _presetsList() {
-        try {
-            const arr = this.presets ? JSON.parse(this.presets) : [];
-            return Array.isArray(arr) ? arr : [];
-        } catch {
-            return [];
-        }
-    }
+    get _pct()          { return this.wled.pct; }
+    get _speedPct()     { return this.wled.speedPct; }
+    get _intensityPct() { return this.wled.intensityPct; }
+    get _presetsList()  { return this.wled.presetsList; }
 
     // ── Faces ─────────────────────────────────────────────────────────────────
 
@@ -352,12 +190,12 @@ class FeezalElementMetroWled extends MetroTileBase {
     }
 
     renderFront() {
-        const pct = this._pct !== null && this._on ? ` ${this._pct}%` : '';
+        const pct = this._pct !== null && this.wled.on ? ` ${this._pct}%` : '';
         return html`
             ${this._available ? '' : html`<span class="unavail" title="Device unavailable">⚠</span>`}
             ${this.icon ? html`<feezal-icon name="${this.icon || 'wb_iridescent'}"></feezal-icon>` : ''}
-            <div class="state">${this._on ? `on${pct}` : 'off'}</div>
-            ${this._on && this._fx !== null ? html`<div class="fxname">${effectName(this._fx)}</div>` : ''}`;
+            <div class="state">${this.wled.on ? `on${pct}` : 'off'}</div>
+            ${this.wled.on && this.wled.fx !== null ? html`<div class="fxname">${effectName(this.wled.fx)}</div>` : ''}`;
     }
 
     _renderPresets() {
@@ -377,16 +215,16 @@ class FeezalElementMetroWled extends MetroTileBase {
     }
 
     renderBack() {
-        const fxBeyond = this._fx !== null && this._fx >= WLED_EFFECTS.length;
-        const palBeyond = this._pal !== null && this._pal >= WLED_PALETTES.length;
+        const fxBeyond = this.wled.fx !== null && this.wled.fx >= WLED_EFFECTS.length;
+        const palBeyond = this.wled.pal !== null && this.wled.pal >= WLED_PALETTES.length;
         return html`
             <div class="onoff">
-                <button class="mbtn ${this._on ? 'active' : ''}" @click="${() => { if (!this._on) this.toggle(); }}">ON</button>
-                <button class="mbtn ${this._on ? '' : 'active'}" @click="${() => { if (this._on) this.toggle(); }}">OFF</button>
+                <button class="mbtn ${this.wled.on ? 'active' : ''}" @click="${() => { if (!this.wled.on) this.toggle(); }}">ON</button>
+                <button class="mbtn ${this.wled.on ? '' : 'active'}" @click="${() => { if (this.wled.on) this.toggle(); }}">OFF</button>
             </div>
             <div class="rowline">
                 <input type="color" class="col" title="Colour"
-                    .value="${this._color ?? '#ffffff'}"
+                    .value="${this.wled.color ?? '#ffffff'}"
                     @input="${e => this._onColorInput(e.target.value)}"
                     @change="${e => this.setColor(e.target.value)}">
                 <input type="range" min="0" max="100" step="1" title="Brightness"
@@ -396,10 +234,10 @@ class FeezalElementMetroWled extends MetroTileBase {
             ${this.showEffect ? html`
                 <select class="fx" title="Effect"
                     @change="${e => { if (e.target.value !== '') this.setEffect(e.target.value); }}">
-                    <option value="" ?selected="${this._fx === null}">— Effect —</option>
+                    <option value="" ?selected="${this.wled.fx === null}">— Effect —</option>
                     ${WLED_EFFECTS.map((name, i) => html`
-                        <option value="${i}" ?selected="${this._fx === i}">${name}</option>`)}
-                    ${fxBeyond ? html`<option value="${this._fx}" selected>${this._fx}</option>` : ''}
+                        <option value="${i}" ?selected="${this.wled.fx === i}">${name}</option>`)}
+                    ${fxBeyond ? html`<option value="${this.wled.fx}" selected>${this.wled.fx}</option>` : ''}
                 </select>
                 <div class="slider-row">
                     <span class="mini-label">Speed</span>
@@ -417,10 +255,10 @@ class FeezalElementMetroWled extends MetroTileBase {
             ${this.showPalette ? html`
                 <select class="pal" title="Palette"
                     @change="${e => { if (e.target.value !== '') this.setPalette(e.target.value); }}">
-                    <option value="" ?selected="${this._pal === null}">— Palette —</option>
+                    <option value="" ?selected="${this.wled.pal === null}">— Palette —</option>
                     ${WLED_PALETTES.map((name, i) => html`
-                        <option value="${i}" ?selected="${this._pal === i}">${name}</option>`)}
-                    ${palBeyond ? html`<option value="${this._pal}" selected>${this._pal}</option>` : ''}
+                        <option value="${i}" ?selected="${this.wled.pal === i}">${name}</option>`)}
+                    ${palBeyond ? html`<option value="${this.wled.pal}" selected>${this.wled.pal}</option>` : ''}
                 </select>
             ` : ''}
             ${this._renderPresets()}`;

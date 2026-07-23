@@ -1,6 +1,9 @@
 /* global feezal */
-import {feezalBaseStyles, html, css} from '@feezal/feezal-element';
-import {WLED_EFFECTS, WLED_PALETTES, hexToRgb} from './wled-lists.js';
+import {feezalBaseStyles, feezalBoolean, html, css} from '@feezal/feezal-element';
+// E137: the WLED behavior lives in the shared controller — this element is
+// a VIEW (glass chrome: frost tile + details popup). The effect/palette
+// name tables are bundled once in the controller package.
+import {WledController, wledAttributes, wledDiscoveryMap, WLED_EFFECTS, WLED_PALETTES} from '@feezal/feezal-controller-wled';
 import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard} from '@feezal/feezal-glass';
 
 /**
@@ -10,7 +13,7 @@ import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard} fro
  * opens the details popup: vertical brightness pill, colour swatch, effect
  * and palette pickers.
  *
- * MQTT contract identical to feezal-element-material-wled (keep in sync):
+ * MQTT contract identical to feezal-element-circle-wled (keep in sync):
  * subscribes `<topic>/g` (brightness 0–255, 0 = off) and `<topic>/c`
  * ("#RRGGBB"); `<topic>/v` is ignored. Commands go to `<topic>/api` as
  * /json/state JSON ({"on":bool}, {"bri":n}, {"seg":[{"col":[[r,g,b]]}]},
@@ -39,20 +42,14 @@ class FeezalElementGlassWled extends FeezalGlassCard {
             // WLED topics; the ⚡ picker / Auto-configure banner stamps it here.
             // Availability is applied automatically by _applyDiscovery from the
             // entity's availability_normalized record (no map entry needed).
-            discovery: {
-                component: 'wled',
-                map: {
-                    device_topic: {attr: 'topic'},
-                    name: 'label',
-                },
-            },
+            // E137: the discovery map is the controller package's fragment.
+            discovery: {component: 'wled', map: wledDiscoveryMap},
             attributes: [
                 {name: 'size', type: 'select', options: ['', '2x2', '2x1'], default: '',
                     help: 'Preset size: 2x2 = square (150×150), 2x1 = wide (150×75). Empty keeps the current/manual size.'},
-                {name: 'topic', type: 'mqttTopic', default: 'wled/device',
-                    help: 'WLED device base topic (Sync settings → MQTT). Subscribes <topic>/g (brightness) and <topic>/c (colour); commands are published to <topic>/api as JSON.'},
-                {name: 'transition', type: 'number', min: 0, step: 0.1,
-                    help: 'Optional crossfade duration in seconds, sent with every command (WLED counts in 0.1 s units). Empty = device default.'},
+                // E137: the shared WLED contract (topic/transition/speed/
+                // intensity read-backs/presets) — declared ONCE.
+                ...wledAttributes,
                 {name: 'label', type: 'string', help: 'Card label.'},
                 {name: 'label-on',  type: 'string', default: 'On',  help: 'Displayed state text while on (localise). Display only.'},
                 {name: 'label-off', type: 'string', default: 'Off', help: 'Displayed state text while off (localise). Display only.'},
@@ -63,18 +60,8 @@ class FeezalElementGlassWled extends FeezalGlassCard {
                     help: 'Show the effect picker and its speed/intensity sliders in the details popup.'},
                 {name: 'show-palette', type: 'boolean', default: true,
                     help: 'Show the palette picker in the details popup.'},
-                {name: 'subscribe-speed', type: 'mqttTopic',
-                    help: 'Optional read-back of the current effect speed (sx, 0–255). WLED does not push sx/ix on <topic>/g — leave empty to default the slider to 128.'},
-                {name: 'message-property-speed', type: 'string', default: 'payload',
-                    help: 'Property path for the speed topic. Defaults to message-property.'},
-                {name: 'subscribe-intensity', type: 'mqttTopic',
-                    help: 'Optional read-back of the current effect intensity (ix, 0–255). Same caveat as subscribe-speed.'},
-                {name: 'message-property-intensity', type: 'string', default: 'payload',
-                    help: 'Property path for the intensity topic. Defaults to message-property.'},
                 {name: 'show-presets', type: 'boolean', default: false,
-                    help: 'Show a preset selector in the details popup that recalls a WLED preset via {"ps":<id>} on <topic>/api. WLED does not expose preset names over MQTT — supply them via the presets list, or use the numeric fallback.'},
-                {name: 'presets', type: 'objectList', itemFields: [{key: 'id', type: 'number'}, {key: 'name'}],
-                    help: 'Optional list of {id, name} presets shown as a picker when show-presets is on. Empty = a numeric "preset #" input is shown instead.'},
+                    help: 'Show a preset selector in the details popup that recalls a WLED preset via {"ps":<id>} on <topic>/api.'},
                 {name: 'subscribe-availability', type: 'mqttTopic',
                     help: 'Availability topic (retained online/offline). Empty = auto-derived <topic>/status; set to override.'},
                 {name: 'availability-mode', type: 'select', options: ['all', 'any'], default: 'all',
@@ -106,21 +93,16 @@ class FeezalElementGlassWled extends FeezalGlassCard {
         labelOff:   {type: String, reflect: true, attribute: 'label-off'},
         icon:       {type: String, reflect: true},
         degrade:    {type: Boolean, reflect: true},
-        showEffect:         {type: Boolean, reflect: true, attribute: 'show-effect'},
-        showPalette:        {type: Boolean, reflect: true, attribute: 'show-palette'},
+        showEffect:         {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-effect'},
+        showPalette:        {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-palette'},
         subscribeSpeed:     {type: String, reflect: true, attribute: 'subscribe-speed'},
         msgPropSpeed:       {type: String, reflect: true, attribute: 'message-property-speed'},
         subscribeIntensity: {type: String, reflect: true, attribute: 'subscribe-intensity'},
         msgPropIntensity:   {type: String, reflect: true, attribute: 'message-property-intensity'},
         showPresets:        {type: Boolean, reflect: true, attribute: 'show-presets'},
         presets:            {type: String, reflect: true},
-        _on:      {state: true},
-        _bri:     {state: true},   // raw 0–255 (null = unknown)
-        _color:   {state: true},   // '#rrggbb' (null = unknown)
-        _fx:      {state: true},   // locally selected effect id
-        _pal:     {state: true},   // locally selected palette id
-        _speed:     {state: true},   // raw 0–255 (null = unknown → default 128)
-        _intensity: {state: true},   // raw 0–255 (null = unknown → default 128)
+        // E137: WLED state lives on the WledController (plain fields +
+        // host.requestUpdate).
     };
 
     static styles = [feezalBaseStyles, glassCardStyles, glassPopupStyles, css`
@@ -249,91 +231,34 @@ class FeezalElementGlassWled extends FeezalGlassCard {
         this.msgPropIntensity   = '';
         this.showPresets        = false;
         this.presets            = '';
-        this._on      = false;
-        this._bri     = null;
-        this._color   = null;
-        this._fx      = null;
-        this._pal     = null;
-        this._speed     = null;
-        this._intensity = null;
         this._pressTimer  = null;
         this._longPressed = false;
+        // E137: the behavior layer — wires/parses/publishes; this view renders.
+        this.wled = new WledController(this);
     }
 
     connectedCallback() {
-        this._deriveAvailability();
+        // E137: derive <topic>/status BEFORE the N31 base subscribes.
+        this.wled.deriveAvailability();
         super.connectedCallback();
-        this._wire();
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         clearTimeout(this._pressTimer);
-        clearTimeout(this.__colorDebounce);
-    }
-
-    /** Auto-derive `<topic>/status` while subscribe-availability is empty or
-     * still holds our previous derivation — an explicit user value wins. */
-    _deriveAvailability() {
-        const derived = this.topic ? `${this.topic}/status` : '';
-        const current = this.subscribeAvailability || '';
-        if (current === '' || current === this.__derivedAvail) {
-            this.__derivedAvail = derived;
-            if (current !== derived) this.subscribeAvailability = derived;
-        }
-    }
-
-    _wireSignature() {
-        return `${this.topic || ''}|${this.subscribeSpeed || ''}|${this.subscribeIntensity || ''}`;
-    }
-
-    _wire() {
-        this.__wireSig = this._wireSignature();
-        if (this.topic) {
-            this.addSubscription(`${this.topic}/g`, msg => {
-                const v = Number(this.getProperty(msg, this.messageProperty));
-                if (Number.isFinite(v)) {
-                    this._bri = Math.max(0, Math.min(255, Math.round(v)));
-                    this._on = this._bri > 0;
-                }
-            });
-            this.addSubscription(`${this.topic}/c`, msg => {
-                const raw = String(this.getProperty(msg, this.messageProperty) ?? '').trim();
-                const m = raw.match(/^#?([0-9a-f]{6})$/i);
-                if (m) this._color = '#' + m[1].toLowerCase();
-            });
-            // <topic>/v (XML state) is deliberately NOT subscribed.
-        }
-        // Optional speed/intensity read-back — write-mostly (WLED does not
-        // push sx/ix on the compact /g topic).
-        if (this.subscribeSpeed) {
-            this.addSubscription(this.subscribeSpeed, msg => {
-                const v = Number(this.getProperty(msg, this.msgPropSpeed || this.messageProperty));
-                if (Number.isFinite(v)) this._speed = Math.max(0, Math.min(255, Math.round(v)));
-            });
-        }
-        if (this.subscribeIntensity) {
-            this.addSubscription(this.subscribeIntensity, msg => {
-                const v = Number(this.getProperty(msg, this.msgPropIntensity || this.messageProperty));
-                if (Number.isFinite(v)) this._intensity = Math.max(0, Math.min(255, Math.round(v)));
-            });
-        }
     }
 
     willUpdate(changed) {
         super.willUpdate?.(changed);
         if (changed.has('topic') || changed.has('subscribeAvailability')) {
-            this._deriveAvailability();
+            this.wled.deriveAvailability();
         }
     }
 
     updated(changed) {
         super.updated(changed);
-        // Live rewire when the topic changes at runtime (glass-light pattern).
-        if (this.isConnected && this.__wireSig !== undefined && this._wireSignature() !== this.__wireSig) {
-            this._unsubscribe();
-            this._wire();
-        }
+        // E137: live-canvas topic edits re-wire through the controller.
+        this.wled.rewireIfChanged();
         // The size grid writes the element's inline geometry (editor keeps
         // full manual control afterwards).
         if (changed.has('size')) applySizePreset(this);
@@ -347,105 +272,22 @@ class FeezalElementGlassWled extends FeezalGlassCard {
         }
     }
 
-    // ── Commands → <topic>/api ────────────────────────────────────────────────
+    // ── E137: commands + computed values delegate to the controller ─────────
 
-    _api(obj) {
-        if (feezal.isEditor || !this.topic) return;
-        const t = Number(this.transition);
-        if (this.transition !== '' && this.transition !== null && this.transition !== undefined && Number.isFinite(t)) {
-            obj = {...obj, transition: Math.round(t * 10)};
-        }
-        feezal.connection.pub(`${this.topic}/api`, JSON.stringify(obj));
-    }
+    toggle()             { this.wled.toggle(); }
+    setBrightnessPct(p)  { this.wled.setBrightnessPct(p); }
+    setColor(hex)        { this.wled.setColor(hex); }
+    _onColorInput(hex)   { this.wled.colorInput(hex); }
+    setEffect(id)        { this.wled.setEffect(id); }
+    setPalette(id)       { this.wled.setPalette(id); }
+    setSpeedPct(p)       { this.wled.setSpeedPct(p); }
+    setIntensityPct(p)   { this.wled.setIntensityPct(p); }
+    setPreset(id)        { this.wled.setPreset(id); }
 
-    toggle() {
-        if (feezal.isEditor) return;
-        this._on = !this._on;
-        this._api({on: this._on});
-    }
-
-    setBrightnessPct(pct) {
-        if (feezal.isEditor) return;
-        const clamped = Math.max(0, Math.min(100, Math.round(Number(pct))));
-        this._bri = Math.round((clamped / 100) * 255);
-        this._on = this._bri > 0;
-        this._api({bri: this._bri});
-    }
-
-    setColor(hex) {
-        if (feezal.isEditor) return;
-        const rgb = hexToRgb(hex);
-        if (!rgb) return;
-        this._color = hex.toLowerCase();
-        this._api({seg: [{col: [rgb]}]});
-    }
-
-    /** Fires continuously while the native colour picker is dragged (`input`
-     * event) — debounced ~100 ms so it doesn't flood the broker. */
-    _onColorInput(hex) {
-        if (feezal.isEditor) return;
-        clearTimeout(this.__colorDebounce);
-        this.__colorDebounce = setTimeout(() => this.setColor(hex), 100);
-    }
-
-    setEffect(id) {
-        if (feezal.isEditor) return;
-        const fx = Math.round(Number(id));
-        if (!Number.isFinite(fx) || fx < 0) return;
-        this._fx = fx;
-        this._api({seg: [{fx}]});
-    }
-
-    setPalette(id) {
-        if (feezal.isEditor) return;
-        const pal = Math.round(Number(id));
-        if (!Number.isFinite(pal) || pal < 0) return;
-        this._pal = pal;
-        this._api({seg: [{pal}]});
-    }
-
-    setSpeedPct(pct) {
-        if (feezal.isEditor) return;
-        const clamped = Math.max(0, Math.min(100, Math.round(Number(pct))));
-        this._speed = Math.round((clamped / 100) * 255);
-        this._api({seg: [{sx: this._speed}]});
-    }
-
-    setIntensityPct(pct) {
-        if (feezal.isEditor) return;
-        const clamped = Math.max(0, Math.min(100, Math.round(Number(pct))));
-        this._intensity = Math.round((clamped / 100) * 255);
-        this._api({seg: [{ix: this._intensity}]});
-    }
-
-    /** Recall a WLED preset — {"ps":<id>} on <topic>/api. */
-    setPreset(id) {
-        if (feezal.isEditor) return;
-        const ps = Math.round(Number(id));
-        if (!Number.isFinite(ps) || ps < 0) return;
-        this._api({ps});
-    }
-
-    get _pct() {
-        return this._bri === null ? null : Math.round((this._bri / 255) * 100);
-    }
-
-    get _speedPct() {
-        return Math.round(((this._speed ?? 128) / 255) * 100);
-    }
-
-    get _intensityPct() {
-        return Math.round(((this._intensity ?? 128) / 255) * 100);
-    }
-
-    get _presetsList() {
-        try {
-            const arr = this.presets ? JSON.parse(this.presets) : [];
-            return Array.isArray(arr) ? arr : [];
-        } catch {
-            return [];
-        }
-    }
+    get _pct()          { return this.wled.pct; }
+    get _speedPct()     { return this.wled.speedPct; }
+    get _intensityPct() { return this.wled.intensityPct; }
+    get _presetsList()  { return this.wled.presetsList; }
 
     // ── interaction: tap toggles, long-press (or ⋯) opens the details popup ──
 
@@ -490,17 +332,19 @@ class FeezalElementGlassWled extends FeezalGlassCard {
         if (!this.__vsliderDragging) return;
         this.__vsliderDragging = false;
         this._vsliderApply(e);
-        this.setBrightnessPct(this._pct ?? 0);
+        this.setBrightnessPct(this.wled.pct ?? 0);
     }
 
     _vsliderApply(e) {
         const rect = e.currentTarget.getBoundingClientRect();
         const pct = Math.round((1 - (e.clientY - rect.top) / rect.height) * 100);
-        this._bri = Math.round((Math.max(0, Math.min(100, pct)) / 100) * 255);
+        // Live drag preview writes the controller field; release publishes.
+        this.wled.bri = Math.round((Math.max(0, Math.min(100, pct)) / 100) * 255);
+        this.requestUpdate();
     }
 
     _stateText() {
-        if (!this._on) return this.labelOff || 'Off';
+        if (!this.wled.on) return this.labelOff || 'Off';
         const on = this.labelOn || 'On';
         return this._pct !== null ? `${on} • ${this._pct} %` : on;
     }
@@ -522,8 +366,8 @@ class FeezalElementGlassWled extends FeezalGlassCard {
     }
 
     _renderDetails() {
-        const fxBeyond = this._fx !== null && this._fx >= WLED_EFFECTS.length;
-        const palBeyond = this._pal !== null && this._pal >= WLED_PALETTES.length;
+        const fxBeyond = this.wled.fx !== null && this.wled.fx >= WLED_EFFECTS.length;
+        const palBeyond = this.wled.pal !== null && this.wled.pal >= WLED_PALETTES.length;
         return html`
             <div class="details" popover="manual">
                 <div class="title">${this.label || 'WLED'}</div>
@@ -537,7 +381,7 @@ class FeezalElementGlassWled extends FeezalGlassCard {
                 </div>
                 <div class="swatch-row">
                     <input type="color" class="col" title="Colour"
-                        .value="${this._color ?? '#ffffff'}"
+                        .value="${this.wled.color ?? '#ffffff'}"
                         @input="${e => this._onColorInput(e.target.value)}"
                         @change="${e => this.setColor(e.target.value)}">
                     <span>Colour</span>
@@ -545,10 +389,10 @@ class FeezalElementGlassWled extends FeezalGlassCard {
                 ${this.showEffect ? html`
                     <select class="fx" title="Effect"
                         @change="${e => { if (e.target.value !== '') this.setEffect(e.target.value); }}">
-                        <option value="" ?selected="${this._fx === null}">— Effect —</option>
+                        <option value="" ?selected="${this.wled.fx === null}">— Effect —</option>
                         ${WLED_EFFECTS.map((name, i) => html`
-                            <option value="${i}" ?selected="${this._fx === i}">${name}</option>`)}
-                        ${fxBeyond ? html`<option value="${this._fx}" selected>${this._fx}</option>` : ''}
+                            <option value="${i}" ?selected="${this.wled.fx === i}">${name}</option>`)}
+                        ${fxBeyond ? html`<option value="${this.wled.fx}" selected>${this.wled.fx}</option>` : ''}
                     </select>
                     <div class="slider-row">
                         <span class="mini-label">Speed</span>
@@ -566,10 +410,10 @@ class FeezalElementGlassWled extends FeezalGlassCard {
                 ${this.showPalette ? html`
                     <select class="pal" title="Palette"
                         @change="${e => { if (e.target.value !== '') this.setPalette(e.target.value); }}">
-                        <option value="" ?selected="${this._pal === null}">— Palette —</option>
+                        <option value="" ?selected="${this.wled.pal === null}">— Palette —</option>
                         ${WLED_PALETTES.map((name, i) => html`
-                            <option value="${i}" ?selected="${this._pal === i}">${name}</option>`)}
-                        ${palBeyond ? html`<option value="${this._pal}" selected>${this._pal}</option>` : ''}
+                            <option value="${i}" ?selected="${this.wled.pal === i}">${name}</option>`)}
+                        ${palBeyond ? html`<option value="${this.wled.pal}" selected>${this.wled.pal}</option>` : ''}
                     </select>
                 ` : ''}
                 ${this._renderPresets()}
@@ -577,9 +421,9 @@ class FeezalElementGlassWled extends FeezalGlassCard {
     }
 
     render() {
-        const accent = this._on && this._color ? this._color : '';
+        const accent = this.wled.on && this.wled.color ? this.wled.color : '';
         return html`
-            <div class="card ${this._on ? 'on' : ''}" role="button" tabindex="0"
+            <div class="card ${this.wled.on ? 'on' : ''}" role="button" tabindex="0"
                 style="${accent ? `--wled-accent:${accent}` : ''}"
                 @pointerdown="${this._onPointerDown}"
                 @pointerup="${this._onPointerUp}"

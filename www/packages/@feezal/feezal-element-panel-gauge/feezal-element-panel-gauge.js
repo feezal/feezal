@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, feezalBoolean, html, css} from '@feezal/feezal-element';
 import {svg} from 'lit';
 
 /**
@@ -88,7 +88,7 @@ class FeezalElementPanelGauge extends FeezalElement {
         ticks:      {type: Number,  reflect: true},
         minorTicks: {type: Number,  reflect: true, attribute: 'minor-ticks'},
         tickLabels: {type: Number,  reflect: true, attribute: 'tick-labels'},
-        showValue:  {type: Boolean, reflect: true, attribute: 'show-value'},
+        showValue:  {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-value'},
         valuePrefix: {type: String, reflect: true, attribute: 'value-prefix'},
         valueSuffix: {type: String, reflect: true, attribute: 'value-suffix'},
         zones:  {type: String, reflect: true},

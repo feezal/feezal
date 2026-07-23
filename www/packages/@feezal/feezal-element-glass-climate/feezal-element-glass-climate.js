@@ -1,5 +1,5 @@
 /* global feezal */
-import {feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
 // E137: the thermostat behavior lives in the shared controller — this element
 // is a VIEW (glass chrome: frost card + Apple-Home details popup).
 import {ClimateController, climateAttributes, climateDiscoveryMap} from '@feezal/feezal-controller-climate';
@@ -13,7 +13,7 @@ import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard} fro
  * a big vertical setpoint pill (drag like the glass-light brightness pill,
  * snapped to `step`, publish on release) with the mode buttons beneath it.
  *
- * MQTT capability contract mirrors feezal-element-material-climate for the
+ * MQTT capability contract mirrors feezal-element-circle-climate for the
  * setpoint + actual + mode subset — SAME attribute names, both payload
  * modes (json = zigbee2mqtt TRVs with the same default key map, separate =
  * per-property topics), min/max/step/unit, the same `modes` format and HA
@@ -155,7 +155,7 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         _dragSp:    {state: true},   // live setpoint while dragging the pill
     };
 
-    static styles = [feezalBaseStyles, glassCardStyles, glassPopupStyles, css`
+    static styles = [feezalBatteryStyles, feezalBaseStyles, glassCardStyles, glassPopupStyles, css`
         .card {
             cursor: pointer;
             gap: 2px;
@@ -180,11 +180,7 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
             position: absolute; bottom: 8px; right: 10px;
             font-size: 12px; color: var(--error-color, #d32f2f); opacity: 0.85;
         }
-        /* E124: low-battery warning, bottom-left (⚠ unavail owns bottom-right). */
-        .batt {
-            position: absolute; bottom: 8px; left: 10px;
-            font-size: 14px; color: var(--warning-color, #ff9800); opacity: 0.9;
-        }
+        .feezal-batt-badge { right: auto; left: 10px; }
         /* E105: much wider than tall → horizontal layout (Apple-Home wide
            tile): icon left, actual/state/label stacked right of it.
            display:contents dissolves .head so the icon and the actual
@@ -426,7 +422,7 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
                 <button class="flip-btn" title="Details"
                     @click="${e => { e.stopPropagation(); this.openDetails(); }}">tune</button>
                 ${!this._available ? html`<span class="unavail" title="Device unavailable">⚠</span>` : ''}
-                ${this.climate.batteryLow ? html`<feezal-icon class="batt" name="battery_alert" title="Battery low"></feezal-icon>` : ''}
+                ${batteryLowBadge(this.climate.batteryLow)}
                 <div class="head">
                     <feezal-icon name="${this.icon || 'thermostat'}"></feezal-icon>
                     <span class="actual">${this._fmt(actual)}</span>

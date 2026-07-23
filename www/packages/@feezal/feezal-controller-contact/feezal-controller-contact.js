@@ -19,7 +19,15 @@ import {batteryLowAttributes, batteryLowFromValue} from '@feezal/feezal-element/
 
 export {payloadMatch, batteryLowFromValue};
 
-export const CONTACT_TYPES = ['window', 'door', 'generic', 'waterleak', 'firealarm', 'garagedoor'];
+// E138: contacts are openings only — window / door / garage / generic.
+// Water-leak and smoke/fire are alarm-character sensors handled by the
+// `*-sensor` (alarm-slice) cards, not contacts.
+export const CONTACT_TYPES = ['window', 'door', 'generic', 'garagedoor'];
+
+// E138: active-state (open / tilted) default colour var, from the canonical
+// theme vars (spec §5.1) — one definition here, not a per-family CSS fork.
+// A view sets its open/tilted chrome from `var(--feezal-...-open, var(<this>))`.
+export const CONTACT_ACTIVE_COLOR_VAR = '--primary-color';
 
 /** Shared attribute descriptors — spread into every family's `feezal.attributes`. */
 export const contactAttributes = [
@@ -31,7 +39,7 @@ export const contactAttributes = [
     {name: 'payload-tilted', type: 'string', default: '',
         help: 'Payload meaning the window is tilted/vented (e.g. Homematic rotary handle: 1). Leave blank to disable the tilt state. Window type only.'},
     {name: 'type', type: 'select', options: CONTACT_TYPES, default: 'window',
-        help: 'Visual style — window (with tilt + handle), door, generic contact, water leak, fire alarm, or garage door.'},
+        help: 'Opening type — window (with tilt), door, generic contact, or garage door. Leak/smoke sensors use the alarm Sensor card, not this contact card.'},
     // E124: dedicated low-battery warning — contacts are battery devices;
     // a weak battery is a badge, never a blackout (state keeps updating).
     ...batteryLowAttributes,
@@ -45,7 +53,9 @@ export const contactDiscoveryMap = {
     // Set by the native Homematic ROTARY_HANDLE recognizer; HA/z2m
     // binary_sensor entities lack it → skipped (undefined config key).
     payload_tilted: {attr: 'payload-tilted'},
-    device_class:   {attr: 'type', valueMap: {window: 'window', door: 'door', moisture: 'waterleak', smoke: 'firealarm', garage_door: 'garagedoor', _default: 'window'}},
+    // E138: only opening device_classes route to contacts; moisture/smoke
+    // route to the alarm *-sensor cards (sensorDiscoveryMapFor('alarm')).
+    device_class:   {attr: 'type', valueMap: {window: 'window', door: 'door', garage_door: 'garagedoor', _default: 'window'}},
     // N31 availability + E124 battery auto-stamp from the canonical records.
     value_template: {attr: 'message-property', transform: 'valueTemplateToPath'},
     name:           'label',
@@ -76,6 +86,9 @@ export class ContactController {
     get type() { return this._attr('type', 'window'); }
     get open() { return this.state === 'open'; }
     get tilted() { return this.state === 'tilted'; }
+
+    /** E138: active-state (open/tilted) default colour var → --primary-color. */
+    activeColorVar() { return CONTACT_ACTIVE_COLOR_VAR; }
 
     signature() {
         return [this._attr('subscribe'), this._attr('subscribe-battery-low')].join('|');

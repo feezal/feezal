@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, feezalBoolean, html, css} from '@feezal/feezal-element';
 import {render} from 'lit';
 import {unsafeHTML} from 'lit/directives/unsafe-html.js';
 
@@ -69,8 +69,8 @@ class FeezalElementPaperDialog extends FeezalElement {
         cancelLabel:     {type: String,  reflect: true, attribute: 'cancel-label'},
         cancelPublish:   {type: String,  reflect: true, attribute: 'cancel-publish'},
         cancelPayload:   {type: String,  reflect: true, attribute: 'cancel-payload'},
-        closeOnBackdrop: {type: Boolean, reflect: true, attribute: 'close-on-backdrop'},
-        showClose:       {type: Boolean, reflect: true, attribute: 'show-close'},
+        closeOnBackdrop: {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'close-on-backdrop'},
+        showClose:       {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-close'},
         hideHeader:      {type: Boolean, reflect: true, attribute: 'hide-header'},
         width:           {type: String,  reflect: true},
         height:          {type: String,  reflect: true},

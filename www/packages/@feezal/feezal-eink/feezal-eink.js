@@ -95,6 +95,8 @@ export const einkCardStyles = css`
     /* Corner badges — text/glyph only, always currentColor. */
     .badge-tr { position: absolute; top: 4px; right: 7px; font-size: 15px; line-height: 1; }
     .badge-tl { position: absolute; top: 4px; left: 7px; font-size: 15px; line-height: 1; }
+    /* E124: the shared low-battery badge inherits the e-ink ink colour (stays monochrome). */
+    .feezal-batt-badge { color: currentColor; }
     feezal-icon { color: currentColor; }
 `;
 

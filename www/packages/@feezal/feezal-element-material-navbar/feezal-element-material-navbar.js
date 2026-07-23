@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css, publishLocalAttribute} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, feezalBoolean, html, css, publishLocalAttribute} from '@feezal/feezal-element';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
 import '@shoelace-style/shoelace/dist/components/input/input.js';
@@ -50,7 +50,7 @@ class FeezalElementMaterialNavbar extends FeezalElement {
         items:       {type: String,  reflect: true},
         orientation: {type: String,  reflect: true},
         showLabels:  {type: String,  reflect: true, attribute: 'show-labels'},
-        showIcons:   {type: Boolean, reflect: true, attribute: 'show-icons'},
+        showIcons:   {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-icons'},
         align:       {type: String,  reflect: true},
         itemWidth:   {type: String,  reflect: true, attribute: 'item-width'},
         // E117: `publish` was never a declared property — the attribute from
