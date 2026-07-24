@@ -523,12 +523,15 @@ describe('Homematic cover recognizer', () => {
         });
     });
 
-    it('HmIP BLIND_VIRTUAL_RECEIVER: a 12-channel device → exactly 4 covers (first-of-3 leaders)', () => {
+    it('HmIP BLIND_VIRTUAL_RECEIVER: a 4-output device → exactly 4 covers (first of each transmitter-gap run)', () => {
         const dev = '0022HMIPBLIND';
         const seg = i => 'Jalousieaktor:' + i;
-        // Feed all 12 virtual-receiver channels (channelIndex 1..12). Two of them
-        // fed twice / out of order to exercise the stable per-group id.
-        const order = [3, 1, 2, 6, 5, 4, 7, 8, 9, 12, 11, 10, 1, 12];
+        // Realistic HmIP layout: each output = a BLIND_TRANSMITTER channel (a
+        // different channelType, NOT published here) followed by 3 consecutive
+        // BLIND_VIRTUAL_RECEIVER channels. Transmitters at 1,5,9,13 → the VR
+        // channels are 2-4, 6-8, 10-12, 14-16 (one consecutive run per output).
+        // A couple fed twice / out of order to exercise the stable per-group id.
+        const order = [4, 2, 3, 7, 6, 8, 10, 11, 12, 15, 14, 16, 2, 16];
         for (const i of order) {
             nat.handleNativeMessage('hm/status/' + seg(i) + '/LEVEL', je(0.5, {
                 device: dev, deviceName: 'Jalousieaktor', deviceType: 'HmIP-BROLL',
@@ -540,11 +543,11 @@ describe('Homematic cover recognizer', () => {
         const covers = nat.getNativeEntities().filter(e => e.component === 'cover');
         expect(covers).toHaveLength(4);
 
-        // Group ids g0..g3, leaders at channelIndex 1,4,7,10 (first of each triple).
-        const leaders = {g0: 1, g1: 4, g2: 7, g3: 10};
-        for (const [g, idx] of Object.entries(leaders)) {
-            const e = nat.getNativeEntity('hm-cover:' + dev + ':' + g);
-            expect(e, g).toBeTruthy();
+        // Stable per-output ids keyed on the leader channelIndex 2,6,10,14
+        // (first of each transmitter-gap run) — order-independent (B64).
+        for (const idx of [2, 6, 10, 14]) {
+            const e = nat.getNativeEntity('hm-cover:' + dev + ':c' + idx);
+            expect(e, ':c' + idx).toBeTruthy();
             expect(e.config.position_state_topic).toBe('hm/status/' + seg(idx) + '/LEVEL');
             expect(e.config.position_command_topic).toBe('hm/set/' + seg(idx) + '/LEVEL');
             expect(e.config.stop_command_topic).toBe('hm/set/' + seg(idx) + '/STOP');
@@ -563,7 +566,7 @@ describe('Homematic cover recognizer', () => {
         }
         const covers = nat.getNativeEntities().filter(e => e.component === 'cover');
         expect(covers).toHaveLength(1);
-        const e = nat.getNativeEntity('hm-cover:' + dev + ':g0');
+        const e = nat.getNativeEntity('hm-cover:' + dev + ':c1');   // leader = channelIndex 1
         expect(e).toBeTruthy();
         expect(e.config.position_state_topic).toBe('hm/status/Rollo Bad:1/LEVEL');   // leader = index 1
     });
@@ -664,12 +667,14 @@ describe('Homematic light recognizer', () => {
         expect(nat.getNativeEntities().filter(e => e.component === 'light')).toHaveLength(1);
     });
 
-    it('HmIP DIMMER_VIRTUAL_RECEIVER: a 6-channel device → exactly 2 lights (first-of-3 leaders)', () => {
+    it('HmIP DIMMER_VIRTUAL_RECEIVER: a 2-output device → exactly 2 lights (first of each transmitter-gap run)', () => {
         const dev = '0044HMIPDIM';
         const seg = i => 'Dimmaktor:' + i;
-        // Feed all 6 virtual-receiver channels out of order (+ a repeat) to
-        // exercise the stable per-group id.
-        const order = [3, 1, 2, 6, 5, 4, 1, 6];
+        // Realistic HmIP layout: each output = a DIMMER_TRANSMITTER channel (not
+        // published here) + 3 consecutive DIMMER_VIRTUAL_RECEIVER channels.
+        // Transmitters at 1,5 → VR channels 2-4 and 6-8 (one run per output).
+        // Out of order (+ a repeat) to exercise the stable per-group id.
+        const order = [4, 2, 3, 7, 6, 8, 2, 8];
         for (const i of order) {
             nat.handleNativeMessage('hm/status/' + seg(i) + '/LEVEL', je(0.5, {
                 device: dev, deviceName: 'Dimmaktor', deviceType: 'HmIP-BDT',
@@ -681,11 +686,11 @@ describe('Homematic light recognizer', () => {
         const lights = nat.getNativeEntities().filter(e => e.component === 'light');
         expect(lights).toHaveLength(2);
 
-        // Leaders at sorted positions 0 and 3 → channelIndex 1 and 4.
-        const leaders = {g0: 1, g1: 4};
-        for (const [g, idx] of Object.entries(leaders)) {
-            const e = nat.getNativeEntity('hm-light:' + dev + ':' + g);
-            expect(e, g).toBeTruthy();
+        // Stable per-output ids keyed on the leader channelIndex 2 and 6 (first
+        // of each transmitter-gap run) — order-independent (B64).
+        for (const idx of [2, 6]) {
+            const e = nat.getNativeEntity('hm-light:' + dev + ':c' + idx);
+            expect(e, ':c' + idx).toBeTruthy();
             expect(e.config.brightness_state_topic).toBe('hm/status/' + seg(idx) + '/LEVEL');
             expect(e.config.brightness_command_topic).toBe('hm/set/' + seg(idx) + '/LEVEL');
             expect(e.config.brightness_scale).toBe(1);
@@ -877,9 +882,66 @@ describe('homematic switch recognizer (E126)', () => {
         }
         const entities = nat.getNativeEntities().filter(e => e.discovery_id.startsWith('hm-switch:' + dev));
         expect(entities).toHaveLength(1);
-        expect(entities[0].discovery_id).toBe('hm-switch:' + dev + ':g0');
+        expect(entities[0].discovery_id).toBe('hm-switch:' + dev + ':c4');   // leader = channelIndex 4
         expect(entities[0].component).toBe('switch');
         expect(entities[0].config.state_topic).toBe('hm/status/Standby TV:4/STATE');
+    });
+
+    it('B64: a multi-output HmIP-MOD-OC8 → one switch per output (transmitter-gap runs, custom names win)', () => {
+        const dev = '000D1709A5915B';
+        // OC8: 8 outputs at channels 10,14,18,… (transmitters at 9,13,17,… are a
+        // different channelType). Model 3 outputs; only the output/first-VR
+        // channels publish STATE, so the SWITCH_VIRTUAL_RECEIVER channels are
+        // NON-consecutive — the old position-chunk-of-3 collapsed all three into
+        // ONE group (leader :10) and dropped the named :14 and :18.
+        const outputs = [
+            {idx: 14, name: 'Steckdosen Werkstatt'},   // custom name, NOT the lowest index
+            {idx: 10, name: 'Steckdose Keller'},
+            {idx: 18, name: 'Steckdose Flur'},
+        ];
+        for (const o of outputs) {
+            nat.handleNativeMessage(`hm/status/${o.name}/STATE`, je(false, {
+                device: dev, deviceName: 'OC8 Hobbyraum', deviceType: 'HmIP-MOD-OC8',
+                channel: `${dev}:${o.idx}`, channelName: o.name,
+                channelType: 'SWITCH_VIRTUAL_RECEIVER', channelIndex: o.idx,
+                iface: 'HmIP-RF', datapoint: 'STATE',
+            }));
+        }
+        const entities = nat.getNativeEntities().filter(e => e.discovery_id.startsWith('hm-switch:' + dev));
+        expect(entities).toHaveLength(3);                       // one per output, not collapsed
+        const byName = Object.fromEntries(entities.map(e => [e.name, e]));
+        expect(byName['Steckdosen Werkstatt']).toBeTruthy();    // the named non-lowest output survives
+        expect(byName['Steckdosen Werkstatt'].config.state_topic).toBe('hm/status/Steckdosen Werkstatt/STATE');
+        expect(byName['Steckdose Keller']).toBeTruthy();
+        expect(byName['Steckdose Flur']).toBeTruthy();
+    });
+
+    it('B65: availability resolves the :0 segment for a custom-named channel via the maintenance index', () => {
+        const dev = '000D1709A5915B';
+        // Custom-named output — its topic segment shares nothing with the :0
+        // segment except the device id, so the :idx→:0 string transform can't
+        // find it. The maintenance index (from the :0 message) resolves it.
+        nat.handleNativeMessage('hm/status/Steckdosen Werkstatt/STATE', je(false, {
+            device: dev, deviceName: 'OC8 Hobbyraum', deviceType: 'HmIP-MOD-OC8',
+            channel: `${dev}:14`, channelName: 'Steckdosen Werkstatt',
+            channelType: 'SWITCH_VIRTUAL_RECEIVER', channelIndex: 14, iface: 'HmIP-RF', datapoint: 'STATE',
+        }));
+        // Before the :0 message is seen: no string-derivable :0 → availability omitted (never a dead topic).
+        expect(nat.getNativeEntity('hm-switch:' + dev + ':c14').config.availability_normalized).toBeUndefined();
+
+        // The device's :0 MAINTENANCE channel (custom-default name "OC8 Hobbyraum:0").
+        nat.handleNativeMessage('hm/status/OC8 Hobbyraum:0/UNREACH', je(false, {
+            device: dev, deviceName: 'OC8 Hobbyraum', deviceType: 'HmIP-MOD-OC8',
+            channel: `${dev}:0`, channelName: 'OC8 Hobbyraum:0',
+            channelType: 'MAINTENANCE', channelIndex: 0, iface: 'HmIP-RF', datapoint: 'UNREACH',
+        }));
+        // Now availability resolves to the real :0 segment — NOT "Steckdosen Werkstatt:0".
+        expect(nat.getNativeEntity('hm-switch:' + dev + ':c14').config.availability_normalized).toEqual({
+            entries: [{topic: 'hm/status/OC8 Hobbyraum:0/UNREACH', property: 'payload.val'}],
+            mode: 'all',
+            payloadAvailable: false,
+            payloadUnavailable: true,
+        });
     });
 });
 

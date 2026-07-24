@@ -335,33 +335,11 @@ const hmClimateRecognizer = {
         // handle it), so publish-mode stays unset there.
         if (generation === 'hmip') config.mode_command_topic = hmSet(p, writeSeg, 'CONTROL_MODE');
 
-        // Availability: the device's :0 maintenance channel UNREACH datapoint
-        // (UNREACH val=true ⇒ unreachable, so payload-available=false /
-        // payload-unavailable=true). Derive the :0 channel from the control
-        // channel's name-based segment (device-name:1 → device-name:0), or its
-        // address for a nameless device. property `payload.val` reads the
-        // JSON-Extended value.
+        // Availability (:0 UNREACH) + battery (:0 LOWBAT/LOW_BAT) are resolved at
+        // READ time (B65) via the device→:0 maintenance index — the :0 segment
+        // can't always be string-derived from a custom-named channel. Store the
+        // inputs; applyHmAvailability() builds the config keys on read.
         const availBase = readSeg !== '' ? readSeg : (control.channelAddr || readSeg);
-        const availSeg = availBase.replace(/:\d+$/, ':0');
-        // availability_normalized lives INSIDE config (the HA convention — the
-        // client's _applyDiscovery reads cfg.availability_normalized).
-        config.availability_normalized = {
-            entries: [{topic: hmStatus(p, availSeg, 'UNREACH'), property: 'payload.val'}],
-            mode: 'all',
-            payloadAvailable: false,
-            payloadUnavailable: true,
-        };
-
-        // E124: dedicated low-battery record — ONLY when a LOWBAT/LOW_BAT
-        // datapoint was actually observed on :0 (presence-checked; mains
-        // devices never grow a dead battery slot).
-        if (dev.batteryDp) {
-            config.battery_low_normalized = {
-                topic: hmStatus(p, availSeg, dev.batteryDp),
-                property: 'payload.val',
-                payloadLow: true,
-            };
-        }
 
         // Device-level discovery_id → one entry per physical device; re-promotes
         // (updates) as more datapoints arrive.
@@ -372,6 +350,7 @@ const hmClimateRecognizer = {
             sourceLabel: 'hm',
             name,
             config,
+            _availResolve: {deviceId, availBase, batteryDp: dev.batteryDp || null},
         };
     },
 
@@ -531,31 +510,10 @@ const hmContactRecognizer = {
             config.payload_off = '0';
         }
 
-        // Availability from the device's :0 maintenance channel — derive the :0
-        // segment from the contact channel's name-based segment (device:1 →
-        // device:0), or its channel address for a nameless device.
-        // E124: UNREACH is the SOLE availability source now — the old
-        // "LOWBAT folded into availability" compromise is gone; a weak
-        // battery is a dedicated warning, not a blackout.
+        // Availability (:0 UNREACH) + battery resolved at READ time (B65) via the
+        // device→:0 maintenance index. E124: UNREACH is the SOLE availability
+        // source; a weak battery is a dedicated warning, not a blackout.
         const availBase = seg !== '' ? seg : (contact.channelAddr || seg);
-        const availSeg = availBase.replace(/:\d+$/, ':0');
-        config.availability_normalized = {
-            entries: [{topic: hmStatus(p, availSeg, 'UNREACH'), property: 'payload.val'}],
-            mode: 'all',
-            payloadAvailable: false,
-            payloadUnavailable: true,
-        };
-
-        // E124: dedicated low-battery record — presence-checked (the observed
-        // generation name: LOWBAT BidCoS / LOW_BAT HmIP — the latter was
-        // silently lost before).
-        if (dev.batteryDp) {
-            config.battery_low_normalized = {
-                topic: hmStatus(p, availSeg, dev.batteryDp),
-                property: 'payload.val',
-                payloadLow: true,
-            };
-        }
 
         return {
             discovery_id: 'hm-contact:' + deviceId,
@@ -564,6 +522,7 @@ const hmContactRecognizer = {
             sourceLabel: 'hm',
             name,
             config,
+            _availResolve: {deviceId, availBase, batteryDp: dev.batteryDp || null},
         };
     },
 
@@ -577,41 +536,59 @@ const hmContactRecognizer = {
 //
 //   BidCoS  BLIND                  — one physical output = ONE BLIND channel;
 //                                    each such channel → one cover entity.
-//   HmIP    BLIND_VIRTUAL_RECEIVER — a blind/shutter actuator exposes its outputs
-//                                    as virtual-receiver channels grouped in
-//                                    consecutive TRIPLES (per the user's HmIP
-//                                    virtual-receiver convention: 1 output = 3
-//                                    channels). We sort the device's
-//                                    BLIND_VIRTUAL_RECEIVER channels ascending by
-//                                    channelIndex, chunk them into 3s, and wire
-//                                    the cover to the FIRST (lowest-index) channel
-//                                    of each triple. A 12-channel device → 4
-//                                    covers. The discovery_id is STABLE per group
-//                                    (…:g0/:g1/…) so the retained-message burst
-//                                    can't leave stale duplicates as channels
-//                                    arrive out of order.
+//   HmIP    BLIND_VIRTUAL_RECEIVER — a blind/shutter actuator lays out each output
+//                                    as a BLIND_TRANSMITTER channel followed by 3
+//                                    BLIND_VIRTUAL_RECEIVER channels; the output is
+//                                    the FIRST virtual receiver (transmitter+1).
+//                                    The transmitter gaps split the virtual
+//                                    receivers into one consecutive-index RUN per
+//                                    output, so we wire the cover to the first of
+//                                    each run (hmipVirtualGroup). The discovery_id
+//                                    is keyed on the leader's channelIndex (…:c14),
+//                                    stable regardless of the retained burst's
+//                                    (name-sorted) arrival order; superseded
+//                                    run-leaders are dropped at read time.
 //
 // Position is Homematic LEVEL (0.0–1.0): the entity ships position_min 0 /
 // position_max 1 so the client element scales it to 0–100 % (max=1, no server
 // scaling). STOP is a write-only datapoint, so it is not part of the match; it is
 // simply constructed as the stop_command_topic.
 const COVER_BIDCOS_TYPES = new Set(['BLIND']);            // single channel, any index
-const COVER_HMIP_TYPES = new Set(['BLIND_VIRTUAL_RECEIVER']); // grouped in 3s
+const COVER_HMIP_TYPES = new Set(['BLIND_VIRTUAL_RECEIVER']); // transmitter-gap runs, output = first of run
 
-// Shared HmIP virtual-receiver grouping (used by cover BLIND_VIRTUAL_RECEIVER and
-// light DIMMER_VIRTUAL_RECEIVER). HmIP actuators expose each physical output as a
-// consecutive TRIPLE of virtual-receiver channels (1 output = 3 channels). Given
-// the just-updated channel, returns the triple's leader (its lowest-channelIndex
-// member) + the group index, computed against the FULL current sorted set of that
+// Shared HmIP virtual-receiver grouping (used by cover BLIND_VIRTUAL_RECEIVER,
+// light DIMMER_VIRTUAL_RECEIVER and switch SWITCH_VIRTUAL_RECEIVER). Each physical
+// output is a *_TRANSMITTER channel followed by three *_VIRTUAL_RECEIVER channels;
+// the output is the FIRST virtual receiver (transmitter+1). The transmitter gaps
+// split the virtual receivers into one consecutive-index RUN per output, so the
+// output is the first channel of the given channel's run. Returns that leader +
+// a per-output ordinal, computed against the FULL current sorted set of that
 // channelType so the retained-message burst converges to a stable per-group id.
 function hmipVirtualGroup(dev, chan, channelType) {
     const vr = [...dev.channels.values()]
-        .filter(c => c.channelType === channelType)
-        .sort((a, b) => (a.channelIndex ?? 0) - (b.channelIndex ?? 0));
+        .filter(c => c.channelType === channelType && c.channelIndex != null)
+        .sort((a, b) => a.channelIndex - b.channelIndex);
     const pos = vr.indexOf(chan);
     if (pos < 0) return null;
-    const groupIndex = Math.floor(pos / 3);
-    return {leader: vr[groupIndex * 3], groupIndex};
+    // B64: each physical output on an HmIP actuator is a *_TRANSMITTER channel
+    // followed by THREE consecutive *_VIRTUAL_RECEIVER channels; the
+    // controllable output is the FIRST virtual receiver (transmitter+1). The
+    // transmitter is a different channelType (absent from `vr`), so its index
+    // gap splits the virtual receivers into one consecutive-index RUN per
+    // output. The output/leader is therefore the first channel of chan's run.
+    // This is device-agnostic — it absorbs the per-device base index and the
+    // step-4 block layout (RedMatic-HomeKit: BLIND_ base 2, SWITCH_ DRSI4 base
+    // 6 / OC8 base 10, all step 4) with NO per-device table — and replaces the
+    // earlier position-chunk-of-3, which mis-aligned whenever the virtual
+    // receivers didn't start at a clean multiple of 3 (the OC8 B64 bug).
+    let start = pos;
+    while (start > 0 && vr[start - 1].channelIndex === vr[start].channelIndex - 1) start--;
+    // Stable per-output ordinal: number of run boundaries before `start`.
+    let groupIndex = 0;
+    for (let i = 1; i <= start; i++) {
+        if (vr[i].channelIndex !== vr[i - 1].channelIndex + 1) groupIndex++;
+    }
+    return {leader: vr[start], groupIndex};
 }
 
 const hmCoverRecognizer = {
@@ -697,16 +674,9 @@ const hmCoverRecognizer = {
             message_property_position: 'payload.val',
         };
 
-        // Availability from the device's :0 maintenance UNREACH datapoint. Covers
-        // carry no LOWBAT entry (per the user) — UNREACH only.
+        // Availability (:0 UNREACH) resolved at READ time (B65) via the
+        // device→:0 maintenance index. Covers carry no battery entry (mains).
         const availBase = readSeg !== '' ? readSeg : (chan.channelAddr || readSeg);
-        const availSeg = availBase.replace(/:\d+$/, ':0');
-        config.availability_normalized = {
-            entries: [{topic: hmStatus(p, availSeg, 'UNREACH'), property: 'payload.val'}],
-            mode: 'all',
-            payloadAvailable: false,
-            payloadUnavailable: true,
-        };
 
         return {
             discovery_id: discoveryId,
@@ -715,6 +685,7 @@ const hmCoverRecognizer = {
             sourceLabel: 'hm',
             name,
             config,
+            _availResolve: {deviceId: dev.deviceId, availBase, batteryDp: null},
         };
     },
 
@@ -737,16 +708,19 @@ const hmCoverRecognizer = {
             const grp = hmipVirtualGroup(dev, chan, 'BLIND_VIRTUAL_RECEIVER');
             if (!grp) return null;
             const {leader, groupIndex} = grp;
-            // Stable per-group id (…:g0/:g1/…) keyed on the device + group index,
-            // so re-emitting the leader as later channels arrive overwrites in place.
-            const id = 'hm-cover:' + dev.deviceId + ':g' + groupIndex;
+            // Stable per-output id keyed on the LEADER's channel index (…:c14),
+            // NOT the run ordinal: retained bursts arrive name-sorted (not index-
+            // sorted), so an ordinal would shift and drop outputs (B64).
+            const id = 'hm-cover:' + dev.deviceId + ':c' + leader.channelIndex;
             // Prefer a distinct leader channel name; else deviceName + group number.
             const name = (leader.channelName && leader.channelName !== dev.deviceName)
                 ? leader.channelName
                 : ((dev.deviceName
                     || (dev.deviceType ? dev.deviceType + ' ' + dev.deviceId : dev.deviceId))
                     + ' ' + (groupIndex + 1));
-            return this._build(dev, leader, id, name);
+            const entity = this._build(dev, leader, id, name);
+            entity._hmGroup = {recognizerId: this.id, deviceId: dev.deviceId, channelType: chan.channelType, leaderIndex: leader.channelIndex};
+            return entity;
         }
 
         return null;
@@ -764,25 +738,22 @@ const hmCoverRecognizer = {
 //                                     (the channel number varies per device, so
 //                                     we key off the channelType, not the index);
 //                                     each such channel → one light entity.
-//   HmIP    DIMMER_VIRTUAL_RECEIVER — a dimmer actuator exposes its outputs as
-//                                     virtual-receiver channels grouped in
-//                                     consecutive TRIPLES (1 output = 3 channels,
-//                                     the same HmIP convention as the blind
-//                                     actuator). We reuse hmipVirtualGroup() to
-//                                     sort ascending by channelIndex, chunk into
-//                                     3s, and wire the light to the FIRST
-//                                     (lowest-index) channel of each triple. A
-//                                     6-channel device → 2 lights. The
-//                                     discovery_id is STABLE per group (…:g0/:g1)
-//                                     so the retained burst can't leave stale
-//                                     duplicates as channels arrive out of order.
+//   HmIP    DIMMER_VIRTUAL_RECEIVER — a dimmer actuator lays out each output as a
+//                                     DIMMER_TRANSMITTER channel + 3 DIMMER_VIRTUAL_
+//                                     RECEIVER channels; the output is the first
+//                                     virtual receiver (transmitter+1). We reuse
+//                                     hmipVirtualGroup() to wire the light to the
+//                                     first of each transmitter-gap run; the
+//                                     discovery_id is keyed on the leader's
+//                                     channelIndex (order-independent, stale
+//                                     run-leaders dropped at read time).
 //
 // Homematic dimmers have NO on/off datapoint — on/off is derived from the level
 // (on-off-source=brightness). Brightness is Homematic LEVEL (0.0–1.0): the entity
 // ships brightness_min 0 / brightness_scale 1 so the client element treats max=1
 // (feezal's internal 0–100 % scales to 0…1, no server scaling).
 const LIGHT_BIDCOS_TYPES = new Set(['DIMMER']);                    // single channel, any index
-const LIGHT_HMIP_TYPES = new Set(['DIMMER_VIRTUAL_RECEIVER']);     // grouped in 3s
+const LIGHT_HMIP_TYPES = new Set(['DIMMER_VIRTUAL_RECEIVER']);     // transmitter-gap runs, output = first of run
 
 const hmLightRecognizer = {
     id: 'homematic-light',
@@ -895,16 +866,9 @@ const hmLightRecognizer = {
             config.message_property_settled = 'payload.val';
         }
 
-        // Availability from the device's :0 maintenance UNREACH datapoint. Dimmers
-        // carry no LOWBAT entry (mains-powered) — UNREACH only, mirrors the cover.
+        // Availability (:0 UNREACH) resolved at READ time (B65) via the
+        // device→:0 maintenance index. Dimmers carry no battery entry (mains).
         const availBase = readSeg !== '' ? readSeg : (chan.channelAddr || readSeg);
-        const availSeg = availBase.replace(/:\d+$/, ':0');
-        config.availability_normalized = {
-            entries: [{topic: hmStatus(p, availSeg, 'UNREACH'), property: 'payload.val'}],
-            mode: 'all',
-            payloadAvailable: false,
-            payloadUnavailable: true,
-        };
 
         return {
             discovery_id: discoveryId,
@@ -913,6 +877,7 @@ const hmLightRecognizer = {
             sourceLabel: 'hm',
             name,
             config,
+            _availResolve: {deviceId: dev.deviceId, availBase, batteryDp: null},
         };
     },
 
@@ -935,15 +900,17 @@ const hmLightRecognizer = {
             const grp = hmipVirtualGroup(dev, chan, 'DIMMER_VIRTUAL_RECEIVER');
             if (!grp) return null;
             const {leader, groupIndex} = grp;
-            // Stable per-group id (…:g0/:g1/…) keyed on the device + group index,
-            // so re-emitting the leader as later channels arrive overwrites in place.
-            const id = 'hm-light:' + dev.deviceId + ':g' + groupIndex;
+            // Stable per-output id keyed on the LEADER's channel index (B64) —
+            // see the cover recognizer for why an ordinal drops outputs.
+            const id = 'hm-light:' + dev.deviceId + ':c' + leader.channelIndex;
             const name = (leader.channelName && leader.channelName !== dev.deviceName)
                 ? leader.channelName
                 : ((dev.deviceName
                     || (dev.deviceType ? dev.deviceType + ' ' + dev.deviceId : dev.deviceId))
                     + ' ' + (groupIndex + 1));
-            return this._build(dev, leader, id, name);
+            const entity = this._build(dev, leader, id, name);
+            entity._hmGroup = {recognizerId: this.id, deviceId: dev.deviceId, channelType: chan.channelType, leaderIndex: leader.channelIndex};
+            return entity;
         }
 
         return null;
@@ -958,9 +925,10 @@ const hmLightRecognizer = {
 // promoting them all would bury the discovered-device list. Two gates:
 //
 //   1. channelType  — SWITCH (BidCoS; one channel = one output) or
-//                     SWITCH_VIRTUAL_RECEIVER (HmIP; outputs exposed as
-//                     consecutive TRIPLES — reuse hmipVirtualGroup, same
-//                     *_VIRTUAL_RECEIVER convention as blinds/dimmers).
+//                     SWITCH_VIRTUAL_RECEIVER (HmIP; each output = a
+//                     SWITCH_TRANSMITTER channel + 3 virtual receivers, output =
+//                     transmitter+1 — hmipVirtualGroup wires the first of each
+//                     transmitter-gap run, same convention as blinds/dimmers).
 //                     channelType absent ⇒ no promotion (framework rule).
 //   2. channel name — users leave irrelevant channels UNNAMED (topic segment
 //                     stays the CCU default, model+serial:idx), relevant ones
@@ -1072,16 +1040,9 @@ const hmSwitchRecognizer = {
                 value_template: '{{ value_json.val }}',
             };
 
-        // Availability from the device's :0 maintenance UNREACH datapoint.
-        // Switch actuators are mains-powered — UNREACH only, mirrors cover/light.
+        // Availability (:0 UNREACH) resolved at READ time (B65) via the
+        // device→:0 maintenance index. Switch actuators are mains — UNREACH only.
         const availBase = readSeg !== '' ? readSeg : (chan.channelAddr || readSeg);
-        const availSeg = availBase.replace(/:\d+$/, ':0');
-        config.availability_normalized = {
-            entries: [{topic: hmStatus(p, availSeg, 'UNREACH'), property: 'payload.val'}],
-            mode: 'all',
-            payloadAvailable: false,
-            payloadUnavailable: true,
-        };
 
         return {
             discovery_id: discoveryId,
@@ -1090,6 +1051,7 @@ const hmSwitchRecognizer = {
             sourceLabel: 'hm',
             name,
             config,
+            _availResolve: {deviceId: dev.deviceId, availBase, batteryDp: null},
         };
     },
 
@@ -1113,15 +1075,17 @@ const hmSwitchRecognizer = {
             const {leader, groupIndex} = grp;
             const component = switchNameClass(leader);
             if (!component) return null;                 // leader unnamed/unmatched
-            // Stable per-group id (…:g0/:g1/…) so the retained burst overwrites
-            // in place as channels arrive out of order.
-            const id = 'hm-switch:' + dev.deviceId + ':g' + groupIndex;
+            // Stable per-output id keyed on the LEADER's channel index (B64) —
+            // an ordinal shifts under name-sorted retained bursts and drops outputs.
+            const id = 'hm-switch:' + dev.deviceId + ':c' + leader.channelIndex;
             const name = (leader.channelName && leader.channelName !== dev.deviceName)
                 ? leader.channelName
                 : ((dev.deviceName
                     || (dev.deviceType ? dev.deviceType + ' ' + dev.deviceId : dev.deviceId))
                     + ' ' + (groupIndex + 1));
-            return this._build(dev, leader, id, name, component);
+            const entity = this._build(dev, leader, id, name, component);
+            entity._hmGroup = {recognizerId: this.id, deviceId: dev.deviceId, channelType: chan.channelType, leaderIndex: leader.channelIndex};
+            return entity;
         }
 
         return null;
@@ -1257,26 +1221,10 @@ const hmSensorRecognizer = {
             payload_off: '0',
         };
 
-        // Availability from the :0 maintenance UNREACH datapoint only —
-        // battery is a dedicated record (E124), never folded into availability.
+        // Availability (:0 UNREACH) + battery (:0 LOWBAT/LOW_BAT, presence-
+        // checked) resolved at READ time (B65) via the device→:0 maintenance
+        // index. E124: battery is a dedicated record, never folded into avail.
         const availBase = seg !== '' ? seg : (sensorChan.channelAddr || seg);
-        const availSeg = availBase.replace(/:\d+$/, ':0');
-        config.availability_normalized = {
-            entries: [{topic: hmStatus(p, availSeg, 'UNREACH'), property: 'payload.val'}],
-            mode: 'all',
-            payloadAvailable: false,
-            payloadUnavailable: true,
-        };
-
-        // E124: dedicated low-battery record — only when the device was SEEN
-        // publishing LOWBAT/LOW_BAT on :0 (presence-checked, both generations).
-        if (dev.batteryDp) {
-            config.battery_low_normalized = {
-                topic: hmStatus(p, availSeg, dev.batteryDp),
-                property: 'payload.val',
-                payloadLow: true,
-            };
-        }
 
         return {
             discovery_id: 'hm-sensor:' + deviceId,
@@ -1285,6 +1233,7 @@ const hmSensorRecognizer = {
             sourceLabel: 'hm',
             name,
             config,
+            _availResolve: {deviceId, availBase, batteryDp: dev.batteryDp || null},
         };
     },
 
@@ -1300,6 +1249,89 @@ const nativeEntities = new Map();
 /** @type {Map<string, number>} discovery_id → newest datapoint ts (liveness),
  *  used by the read-time climate staleness filter in getNativeEntities(). */
 const nativeEntityTs = new Map();
+
+// ── B65: Homematic :0 maintenance-channel index ──────────────────────────────
+// Availability (UNREACH) and battery live on a device's :0 MAINTENANCE channel.
+// Its TOPIC segment cannot always be derived by string-transforming an output
+// channel's segment: in RedMatic name-mode a custom-named output
+// ("Steckdosen Werkstatt") shares NOTHING with the :0 segment
+// ("OC8 Hobbyraum:0") except the CCU device id. So we index every device's :0
+// segment from the firehose (keyed by hm.device) and resolve availability at
+// READ time — once the whole retained burst has been seen (the :0 channel
+// arrives in arbitrary order relative to the output channel). Falls back to the
+// `:<idx>`→`:0` string transform for address/index-suffixed segments; null when
+// neither resolves (⇒ availability is OMITTED, never wired to a dead topic).
+const hmMaintSeg = new Map();   // deviceId → :0 maintenance topic segment
+
+function indexMaintenance(topic, payload) {
+    if (!payload || !payload.hm || payload.hm.device == null) return;
+    if (!topic.startsWith(hmPrefix + '/status/')) return;
+    const hm = payload.hm;
+    if (hm.channelType !== 'MAINTENANCE' && hm.channelIndex !== 0) return;
+    const parts = topic.split('/');
+    if (parts.length !== 4) return;
+    hmMaintSeg.set(String(hm.device), parts[2]);
+}
+
+/** Resolve a device's :0 maintenance topic segment: the observed segment from
+ *  the index (authoritative, works for custom-named channels), else the
+ *  `:<idx>`→`:0` string transform, else null. */
+function resolveMaintSeg(deviceId, availBase) {
+    if (deviceId != null) {
+        const seg = hmMaintSeg.get(String(deviceId));
+        if (seg != null) return seg;
+    }
+    if (/:\d+$/.test(availBase)) return availBase.replace(/:\d+$/, ':0');
+    return null;
+}
+
+// B64: an HmIP-grouped entity (cover/light/switch) is emitted keyed on its run's
+// leader channelIndex. Because retained bursts arrive out of index order, a
+// channel briefly seen as a run-leader can later be superseded when a lower
+// consecutive sibling arrives, leaving a STALE entity. At READ time we drop any
+// grouped entity whose leader is no longer a genuine run-leader — i.e. a channel
+// of the same type exists at leaderIndex-1 in the recognizer's accumulator.
+function isStaleHmGroup(entity) {
+    const g = entity && entity._hmGroup;
+    if (!g) return false;
+    const rec = recognizers.find(r => r.id === g.recognizerId);
+    const dev = rec && rec.state.devices.get(g.deviceId);
+    if (!dev) return false;
+    for (const c of dev.channels.values()) {
+        if (c.channelType === g.channelType && c.channelIndex === g.leaderIndex - 1) return true;
+    }
+    return false;
+}
+
+/** Build a native entity's availability + battery config from its stored
+ *  `_availResolve` inputs, at READ time. Idempotent. */
+function applyHmAvailability(entity) {
+    const r = entity && entity._availResolve;
+    if (!r) return entity;
+    const p = hmPrefix;
+    const availSeg = resolveMaintSeg(r.deviceId, r.availBase);
+    if (availSeg == null) {
+        delete entity.config.availability_normalized;
+        delete entity.config.battery_low_normalized;
+        return entity;
+    }
+    entity.config.availability_normalized = {
+        entries: [{topic: hmStatus(p, availSeg, 'UNREACH'), property: 'payload.val'}],
+        mode: 'all',
+        payloadAvailable: false,
+        payloadUnavailable: true,
+    };
+    if (r.batteryDp) {
+        entity.config.battery_low_normalized = {
+            topic: hmStatus(p, availSeg, r.batteryDp),
+            property: 'payload.val',
+            payloadLow: true,
+        };
+    } else {
+        delete entity.config.battery_low_normalized;
+    }
+    return entity;
+}
 
 /**
  * Extract a value from a raw MQTT payload. MQTT-Smarthome "JSON Extended"
@@ -1348,6 +1380,11 @@ function parsePayload(payloadOrBuf) {
  * @param {Buffer|string} payloadOrBuf
  */
 function handleNativeMessage(topic, payloadOrBuf) {
+    // B65: index every device's :0 MAINTENANCE topic segment (keyed by
+    // hm.device) so availability/battery can resolve the :0 channel at read
+    // time even when output channels are custom-named (RedMatic name-mode).
+    try { indexMaintenance(topic, parsePayload(payloadOrBuf)); } catch { /* ignore */ }
+
     for (const rec of recognizers) {
         let parsed;
         try { parsed = rec.match(topic); } catch { parsed = null; }
@@ -1381,25 +1418,32 @@ function handleNativeMessage(topic, payloadOrBuf) {
  *  entities older than the configured grace window are filtered out here (the
  *  ghost-topic filter); event-driven types are always kept. */
 function getNativeEntities() {
-    const all = [...nativeEntities.values()];
-    if (!hmClimateStaleMs) return all;
-    const now = Date.now();
-    return all.filter(e => {
-        if (e.component !== 'climate') return true;
-        const ts = nativeEntityTs.get(e.discovery_id);
-        return !ts || (now - ts) <= hmClimateStaleMs;
-    });
+    // B64: drop stale HmIP-group entities (superseded run-leaders). B65: resolve
+    // :0 availability/battery now — the whole retained burst (incl. the :0
+    // MAINTENANCE channel) has been seen by read time.
+    const now = hmClimateStaleMs ? Date.now() : 0;
+    return [...nativeEntities.values()]
+        .filter(e => !isStaleHmGroup(e))
+        .filter(e => {
+            if (!hmClimateStaleMs || e.component !== 'climate') return true;
+            const ts = nativeEntityTs.get(e.discovery_id);
+            return !ts || (now - ts) <= hmClimateStaleMs;
+        })
+        .map(applyHmAvailability);
 }
 
 /** One promoted native entity by discovery_id, or null. */
 function getNativeEntity(id) {
-    return nativeEntities.get(id) ?? null;
+    const e = nativeEntities.get(id);
+    if (!e || isStaleHmGroup(e)) return null;   // B64: skip superseded run-leaders
+    return applyHmAvailability(e);               // B65: resolve :0 availability at read time
 }
 
 /** Clear promoted entities AND every recognizer's accumulator. */
 function clearNativeEntities() {
     nativeEntities.clear();
     nativeEntityTs.clear();
+    hmMaintSeg.clear();
     for (const rec of recognizers) {
         try { rec.reset(); } catch { /* ignore */ }
     }
