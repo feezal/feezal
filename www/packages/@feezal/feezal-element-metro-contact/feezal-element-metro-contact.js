@@ -116,6 +116,11 @@ class FeezalElementMetroContact extends MetroTileBase {
             ],
             styles: [
                 ...MetroTileBase.tileStyles,
+                // E141: CLOSED defaults to the family accent (open/tilted keep
+                // their own colours); all three states now overridable.
+                {property: '--feezal-metro-closed-color', type: 'color',
+                    default: 'var(--feezal-metro-accent)',
+                    help: 'Tile colour while the contact is closed (defaults to the family accent).'},
                 {property: '--feezal-metro-open-color', type: 'color',
                     default: 'var(--error-color, #e51400)',
                     help: 'Tile colour while the contact is open.'},
@@ -147,10 +152,12 @@ class FeezalElementMetroContact extends MetroTileBase {
 
     static styles = [feezalBatteryStyles, MetroTileBase.styles, css`
         :host {
+            --feezal-metro-closed-color: var(--feezal-metro-accent);
             --feezal-metro-open-color: var(--error-color, #e51400);
             --feezal-metro-tilt-color: var(--info-color, #1ba1e2);
         }
         .face { transition: background 0.15s; }
+        :host([data-state='closed']) .face { background: var(--feezal-metro-closed-color); }
         :host([data-state='open'])   .face { background: var(--feezal-metro-open-color); }
         :host([data-state='tilted']) .face { background: var(--feezal-metro-tilt-color); }
         .front { cursor: default; }

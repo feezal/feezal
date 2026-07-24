@@ -140,6 +140,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [E133 — Palette category rename: "Material" → "Circle", "Simple" → "Material" ✅ done](E133.md)
 - [E134 — Circle design language: align the remaining device cards with light/climate/cover/switch ✅ done](E134.md)
 - [E136 — Metro tile backsides: redesign for touch — bigger targets, calmer layout, use the space ✅ done](E136.md)
+- [E141 — Metro tiles: per-state background colour vars for state-driven elements ✅ done](E141.md)
 - [E142 — Dialog `label` attribute: editor-only placeholder tag to tell dialogs apart ✅ done](E142.md)
 - [E34 — Countdown / timer element (`feezal-element-basic-countdown`) ✅ implemented](E34.md)
 ## Editor UX

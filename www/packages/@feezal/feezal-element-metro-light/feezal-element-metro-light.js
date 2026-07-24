@@ -54,6 +54,8 @@ class FeezalElementMetroLight extends MetroTileBase {
             ],
             styles: [
                 ...MetroTileBase.tileStyles,
+                // E141: per-state tile background; ON defaults to the family accent.
+                {property: '--feezal-metro-on-color', type: 'color', default: 'var(--feezal-metro-accent)', help: 'Tile colour in the ON state (defaults to the family accent).'},
                 {property: '--feezal-metro-off-color', type: 'color', default: '#333333', help: 'Tile colour in the OFF state.'},
             ],
             restrict: {minWidth: 40, minHeight: 40},
@@ -119,8 +121,9 @@ class FeezalElementMetroLight extends MetroTileBase {
     };
 
     static styles = [MetroTileBase.styles, css`
-        :host { --feezal-metro-off-color: #333; }
+        :host { --feezal-metro-off-color: #333; --feezal-metro-on-color: var(--feezal-metro-accent); }
         .face { transition: background 0.15s; }
+        :host([data-on]) .face { background: var(--feezal-metro-on-color); }
         :host(:not([data-on])) .face { background: var(--feezal-metro-off-color); }
         .state { font-size: var(--_metro-unit-size); text-transform: lowercase; opacity: 0.85; }   /* E129 */
         .onoff { display: flex; justify-content: center; gap: 8px; }

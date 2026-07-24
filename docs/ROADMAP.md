@@ -57,7 +57,6 @@ Work in progress — priorities and scope are not final.
 - [E135 — Homematic maintenance signals: ERROR_CODE + SABOTAGE badges, device-health board](#e135--homematic-maintenance-signals-error_code--sabotage-badges-device-health-board)
 - [E139 — "Fancy" element family: Lottie-animated device cards](#e139--fancy-element-family-lottie-animated-device-cards)
 - [E140 — Per-state icon colour: configurable CSS vars for every state-driven icon](#e140--per-state-icon-colour-configurable-css-vars-for-every-state-driven-icon)
-- [E141 — Metro tiles: per-state background colour vars for state-driven elements](#e141--metro-tiles-per-state-background-colour-vars-for-state-driven-elements)
 - [E144 — Lock autodiscovery: Homematic BidCoS (Keymatic) + HmIP smart locks + zigbee2mqtt](#e144--lock-autodiscovery-homematic-bidcos-keymatic--hmip-smart-locks--zigbee2mqtt--keymatic--z2m-done-hmip-dld-open) 🔨 *(Keymatic + z2m done; HmIP-DLD open)*
 - [E145 — Autodiscovery support for ccu-jack's MQTT interface](#e145--autodiscovery-support-for-ccu-jacks-mqtt-interface)
 - [E146 — Autodiscovery for AI-on-the-edge-device (meter reader) via Home Assistant MQTT discovery](#e146--autodiscovery-for-ai-on-the-edge-device-meter-reader-via-home-assistant-mqtt-discovery)
@@ -1303,29 +1302,6 @@ Elements with a **state-driven icon** let you pick the icon per state (e.g. `*-s
 **Ships with:** the per-family colour-var additions, patch bumps on every touched element package, `feezal-controller-parity.test.js` coverage that the state-driven cards expose the agreed colour vars, and TESTING.md notes (set a distinct on/off icon colour, verify it survives save/reload and follows per-view themes when left default).
 
 **Relates:** **E114** (parity — same knobs across families is the core requirement), **E137** (controllers own the default per-state colour semantics), §5.1 theme-variable discipline (defaults), `basic-icon-value` (the existing per-state-colour precedent to mirror), E138 (colour semantics per function), **E141** (the tile-background sibling of this item for the metro family).
-
-### E141 — Metro tiles: per-state background colour vars for state-driven elements
-
-The **background sibling of [E140](#e140--per-state-icon-colour-configurable-css-vars-for-every-state-driven-icon).** For the Metro family the **tile background** *is* the primary state signal (a WP7-style solid-colour tile), so state-driven metro elements (`metro-switch`, `metro-contact`, `metro-light`'s on/off, `metro-motion`, …) should expose a **clearly-named background-colour CSS var per state**, just as E140 does for the icon colour.
-
-**Current state — the machinery exists but is inconsistent/implicit.** `MetroTileBase` paints `.face { background: var(--feezal-metro-accent) }` — the active/on/closed tile colour, defaulting to `--primary-color` ([feezal-element-metro-tile.js:52-54,106](../www/packages/@feezal/feezal-element-metro-tile/feezal-element-metro-tile.js#L52-L54)). Per-state overrides already exist on some elements: `--feezal-metro-off-color` (switch/light OFF — [feezal-element-metro-switch.js:29](../www/packages/@feezal/feezal-element-metro-switch/feezal-element-metro-switch.js#L29)), `--feezal-metro-open-color` / `--feezal-metro-tilt-color` (contact — [feezal-element-metro-contact.js:119-122](../www/packages/@feezal/feezal-element-metro-contact/feezal-element-metro-contact.js#L119-L122)). But it is uneven: the **on/active** background is the *generic* `--feezal-metro-accent` (shared with static, non-state tiles), not a dedicated state var, so an author can't independently set "background when ON" vs. the family's base tile colour, and not every state-driven metro element exposes its full state set.
-
-**Goal:** every state-driven metro element exposes an explicit, consistently-named **per-state tile background var**, listed in its `styles` descriptor, defaulting per the §5.1 theme-variable discipline:
-- `metro-switch`, `metro-light` (on/off) → an on-state and off-state background var (off already exists; give the on state a dedicated var or clearly document `--feezal-metro-accent` as the on default).
-- `metro-contact` → closed/open/tilt (open/tilt already exist; align naming with the on/off scheme).
-- `metro-motion`, `metro-sensor` (alarm-boolean) → active/clear background, with alarm classes defaulting the active tone to `--error-color`.
-
-**Design notes:**
-- **Decide the on/active source:** keep `--feezal-metro-accent` as the on/active default (it's the family's tile colour and themes key off it), but expose the per-state override explicitly so authors aren't forced to repurpose the generic accent. Don't break existing dashboards that set `--feezal-metro-accent`.
-- **Parity (E114):** the same state-driven function must expose the same background knobs across every metro element; pairs with E140 so a state-driven metro tile has *both* icon-colour and background-colour per-state vars, named consistently.
-- **Defaults stay theme-driven** — purely additive; unset vars resolve to today's colours (accent / off-color / error).
-- **Controller-backed elements** (`metro-contact`, `metro-motion`, `metro-sensor` via E137): the vars live in the metro view's `styles`, but default per-state semantics come from the controller — keep in sync, don't fork.
-
-**Cross-family note:** other families also carry a state-tinted surface (glass on-tint, `material-circle` chip fill), so a general "per-state surface colour" parity could extend this the way E140 spans all families — but this item is **scoped to the metro family** as reported; generalise later if wanted.
-
-**Ships with:** the per-state background-var additions across the state-driven metro elements, patch bumps on each touched package, `feezal-controller-parity.test.js` / metro-family test coverage that the agreed background vars are exposed, and TESTING.md notes (set distinct on/off tile backgrounds, verify save/reload and per-view-theme defaults).
-
-**Relates:** **E140** (the icon-colour sibling — build the two together for metro), **E114** (parity), **E137** (controllers own default per-state semantics for contact/motion/sensor), `MetroTileBase` (`--feezal-metro-accent` + `.face`), §5.1 theme-variable discipline, E129 (metro tile sizing/typography — same family chrome).
 
 ### E144 — Lock autodiscovery: Homematic BidCoS (Keymatic) + HmIP smart locks + zigbee2mqtt 🔨 Keymatic + z2m done; HmIP-DLD open
 

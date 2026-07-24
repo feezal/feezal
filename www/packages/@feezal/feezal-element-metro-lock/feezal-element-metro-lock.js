@@ -34,6 +34,8 @@ class FeezalElementMetroLock extends MetroTileBase {
             ],
             styles: [
                 ...MetroTileBase.tileStyles,
+                // E141: LOCKED defaults to the family accent; all three states overridable.
+                {property: '--feezal-metro-locked-color',   type: 'color', default: 'var(--feezal-metro-accent)',    help: 'Tile colour while locked (defaults to the family accent).'},
                 {property: '--feezal-metro-unlocked-color', type: 'color', default: 'var(--warning-color, #f0a30a)', help: 'Tile colour while unlocked.'},
                 {property: '--feezal-metro-jammed-color',   type: 'color', default: 'var(--error-color, #e51400)',  help: 'Tile colour while jammed / faulted.'},
             ],
@@ -58,10 +60,12 @@ class FeezalElementMetroLock extends MetroTileBase {
 
     static styles = [feezalBatteryStyles, MetroTileBase.styles, css`
         :host {
+            --feezal-metro-locked-color:   var(--feezal-metro-accent);
             --feezal-metro-unlocked-color: var(--warning-color, #f0a30a);
             --feezal-metro-jammed-color:   var(--error-color, #e51400);
         }
         .face { transition: background 0.15s; }
+        :host([data-state='locked'])   .face { background: var(--feezal-metro-locked-color); }
         :host([data-state='unlocked']) .face { background: var(--feezal-metro-unlocked-color); }
         :host([data-state='jammed'])   .face { background: var(--feezal-metro-jammed-color); }
         .front { cursor: default; }

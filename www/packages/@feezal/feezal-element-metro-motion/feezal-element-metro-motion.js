@@ -44,6 +44,10 @@ class FeezalElementMetroMotion extends MetroTileBase {
                 {property: '--feezal-metro-active-color', type: 'color',
                     default: 'var(--accent-color, #fa6800)',
                     help: 'Tile colour while motion is detected / the zone is occupied (theme accent by default).'},
+                // E141: CLEAR (idle) tile background — defaults to the family accent.
+                {property: '--feezal-metro-clear-color', type: 'color',
+                    default: 'var(--feezal-metro-accent)',
+                    help: 'Tile colour while clear / idle (defaults to the family accent).'},
             ],
             restrict: {minWidth: 40, minHeight: 40},
             defaultStyle: {width: '150px', height: '150px'},
@@ -75,9 +79,10 @@ class FeezalElementMetroMotion extends MetroTileBase {
         /* E138: active default = the accent var (SensorController.activeColorVar()
            resolves the motion slice to --accent-color); --feezal-metro-active-color
            stays the per-element override. */
-        :host { --feezal-metro-active-color: var(--accent-color, #fa6800); }
+        :host { --feezal-metro-active-color: var(--accent-color, #fa6800); --feezal-metro-clear-color: var(--feezal-metro-accent); }
         .face { transition: background 0.15s; }
         :host([data-active]) .face { background: var(--feezal-metro-active-color); }
+        :host(:not([data-active])) .face { background: var(--feezal-metro-clear-color); }
         .front { cursor: default; }
         .state { font-size: var(--_metro-unit-size); text-transform: lowercase; opacity: 0.85; }   /* E129 */
     `];
