@@ -1,5 +1,6 @@
 /* global feezal */
 import {feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
+import {faultBadge, feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
 // E137: the thermostat behavior lives in the shared controller — this element
 // is a VIEW (glass chrome: frost card + Apple-Home details popup).
 import {ClimateController, climateAttributes, climateDiscoveryMap} from '@feezal/feezal-controller-climate';
@@ -155,7 +156,7 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         _dragSp:    {state: true},   // live setpoint while dragging the pill
     };
 
-    static styles = [feezalBatteryStyles, feezalBaseStyles, glassCardStyles, glassPopupStyles, css`
+    static styles = [feezalBatteryStyles, feezalFaultStyles, feezalBaseStyles, glassCardStyles, glassPopupStyles, css`
         .card {
             cursor: pointer;
             gap: 2px;
@@ -426,6 +427,7 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
                     @click="${e => { e.stopPropagation(); this.openDetails(); }}">tune</button>
                 ${!this._available ? html`<span class="unavail" title="Device unavailable">⚠</span>` : ''}
                 ${batteryLowBadge(this.climate.batteryLow)}
+                ${faultBadge(this.climate.error)}
                 <div class="head">
                     <feezal-icon name="${this.icon || 'thermostat'}"></feezal-icon>
                     <span class="actual">${this._fmt(actual)}</span>

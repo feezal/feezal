@@ -52,6 +52,11 @@ const HM_THERMOSTAT_DPS = new Set([
     'LEVEL',
     'BOOST_MODE',
     'HUMIDITY',
+    // E135: BidCoS TRV fault. OpenCCU-Base rf_cc_rt_dn.xml confirms
+    // FAULT_REPORTING lives on the CLIMATECONTROL_RT_TRANSCEIVER channel (the
+    // control channel this recognizer already tracks) — enum 0 NO_FAULT … 7
+    // VALVE_ERROR_POSITION (decoded client-side via feezal-hm-fault.js).
+    'FAULT_REPORTING',
 ]);
 
 // B56: valve candidates — their payload metadata (datapointMin/Max) is captured
@@ -318,6 +323,17 @@ const hmClimateRecognizer = {
             valve_max: valveMax,
         };
         if (isTRV) config.action_topic = hmStatus(p, valveChan.seg, valveDp);
+
+        // E135: BidCoS TRV stuck-valve / comms fault — FAULT_REPORTING on the
+        // control channel (OpenCCU-Base-verified). Presence-checked; HmIP eTRVs
+        // use named boolean flags instead and expose no FAULT_REPORTING here.
+        if (control.dps && control.dps.has('FAULT_REPORTING')) {
+            config.error_normalized = {
+                topic: hmStatus(p, readSeg, 'FAULT_REPORTING'),
+                property: 'payload.val',
+                deviceType: dev.deviceType || 'HM-CC-RT-DN',
+            };
+        }
         // Mode WRITE topic (→ publish-mode). HmIP writes the mode via CONTROL_MODE;
         // BidCoS has no single mode-write datapoint (its per-entry `modes` publishes
         // handle it), so publish-mode stays unset there.

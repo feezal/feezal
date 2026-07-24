@@ -1,5 +1,6 @@
 /* global feezal */
 import {html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
+import {faultBadge, feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
 import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
 // E137: the thermostat behavior lives in the shared controller — this element
 // is a VIEW (Metro tile chrome: temperature front, stepper + chips back).
@@ -114,7 +115,7 @@ class FeezalElementMetroClimate extends MetroTileBase {
         // host.requestUpdate) — no reactive state properties needed.
     };
 
-    static styles = [feezalBatteryStyles, MetroTileBase.styles, css`
+    static styles = [feezalBatteryStyles, feezalFaultStyles, MetroTileBase.styles, css`
         .current { font-size: min(var(--_metro-value-size), 30cqh); font-weight: 300; line-height: 1; }   /* E129 */
         .setpoint { font-size: var(--_metro-unit-size); opacity: 0.85; }   /* E129 */
         /* E136: WP7-volume-style stepper — giant flat +/− halves with the
@@ -205,6 +206,7 @@ class FeezalElementMetroClimate extends MetroTileBase {
         const offEntry = this.climate.offSentinelEntry();
         return html`
             ${batteryLowBadge(this.climate.batteryLow)}
+            ${faultBadge(this.climate.error)}
             <div class="current">${current === null ? '—' : `${current}${this.unit}`}</div>
             ${offEntry ? html`<div class="setpoint">${offEntry.label}</div>`
                 : (this.climate.setpoint !== null ? html`<div class="setpoint">→ ${this.climate.setpoint}${this.unit}</div>` : '')}`;

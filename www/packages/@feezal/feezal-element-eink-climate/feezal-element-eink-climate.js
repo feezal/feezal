@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
+import {faultBadge, feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
 import {EinkBase, einkCardStyles} from '@feezal/feezal-eink';
 // E137: the thermostat behavior lives in the shared controller — this element
 // is a VIEW (eink chrome: big actual, setpoint line, +/- tap targets).
@@ -78,7 +79,7 @@ class FeezalElementEinkClimate extends EinkBase {
         discoveryId: {type: String, reflect: true, attribute: 'discovery-id'},
     };
 
-    static styles = [feezalBatteryStyles, feezalBaseStyles, einkCardStyles, css`
+    static styles = [feezalBatteryStyles, feezalFaultStyles, feezalBaseStyles, einkCardStyles, css`
         .card { gap: 3px; }
         .row { display: flex; align-items: center; gap: 8px; }
         .actual { flex: 1; text-align: center; }
@@ -181,6 +182,7 @@ class FeezalElementEinkClimate extends EinkBase {
             <div class="card">
                 ${!this._available ? html`<span class="badge-tr" title="Device unavailable">!</span>` : ''}
                 ${batteryLowBadge(c.batteryLow)}
+                ${faultBadge(c.error)}
                 <div class="row">
                     <button class="stepbtn" @click="${() => this._stepSetpoint(-1)}">−</button>
                     <span class="value actual">${this._fmt(actual)}</span>

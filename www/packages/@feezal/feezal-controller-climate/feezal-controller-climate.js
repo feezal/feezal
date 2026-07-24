@@ -25,6 +25,7 @@
  */
 
 import {batteryLowAttributes, batteryLowFromValue} from '@feezal/feezal-element/feezal-sensor-types.js';
+import {faultSabotageAttributes, subscribeFaultSabotage, faultSabotageSignature} from '@feezal/feezal-element/feezal-hm-fault.js';
 
 export {batteryLowFromValue};
 
@@ -77,6 +78,9 @@ export const climateAttributes = [
     // E124: TRVs are battery devices in most cases (presence-checked stamping
     // keeps mains-powered wall thermostats badge-free).
     ...batteryLowAttributes,
+    // E135: BidCoS TRV stuck-valve / comms fault (FAULT_REPORTING). A warning
+    // badge shows the decoded text; the setpoint stays operable.
+    ...faultSabotageAttributes,
 ];
 
 /** Shared discovery.map fragment (HA `climate` + the E108 native keys). */
@@ -127,6 +131,7 @@ export class ClimateController {
         this.valve = null;            // 0–100 % or null
         this.humidity = null;
         this.batteryLow = false;
+        this.error = '';              // E135: decoded fault text ('' = none)
         this.momentaryActive = null;  // value of the active momentary entry
         this.boostForced = false;     // B54 device-reported boost
         this.boostRemaining = null;   // seconds, null = inactive
@@ -160,7 +165,7 @@ export class ClimateController {
     signature() {
         return ['payload-mode', 'subscribe', 'subscribe-setpoint', 'subscribe-actual', 'subscribe-mode',
             'subscribe-valve', 'subscribe-humidity', 'subscribe-boost-remaining', 'subscribe-boost-state',
-            'subscribe-battery-low'].map(a => this._attr(a)).join('|');
+            'subscribe-battery-low'].map(a => this._attr(a)).join('|') + '|' + faultSabotageSignature(this.host);
     }
 
     hostConnected() { this.wire(); }
@@ -259,6 +264,11 @@ export class ClimateController {
                 this._attr('payload-battery-low', 'true'),
                 Number(this._attr('battery-low-threshold', '15')));
             update();
+        });
+
+        // E135: TRV stuck-valve / comms fault badge (FAULT_REPORTING).
+        subscribeFaultSabotage(this.host, {
+            onError: t => { this.error = t; update(); },
         });
     }
 

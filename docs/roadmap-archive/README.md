@@ -139,6 +139,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [E132 — Generalize the boolean-sensor family: *-occupancy → *-sensor, numeric *-sensor → *-number ✅ done](E132.md)
 - [E133 — Palette category rename: "Material" → "Circle", "Simple" → "Material" ✅ done](E133.md)
 - [E134 — Circle design language: align the remaining device cards with light/climate/cover/switch ✅ done](E134.md)
+- [E135 — Homematic maintenance signals: fault + sabotage badges, device-health board ✅ done](E135.md)
 - [E136 — Metro tile backsides: redesign for touch — bigger targets, calmer layout, use the space ✅ done](E136.md)
 - [E140 — Per-state icon colour: configurable CSS vars for every state-driven icon ✅ done](E140.md)
 - [E141 — Metro tiles: per-state background colour vars for state-driven elements ✅ done](E141.md)

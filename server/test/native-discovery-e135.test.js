@@ -48,6 +48,20 @@ describe('E135 — contact sabotage emission', () => {
         });
     });
 
+    it('BidCoS TRV: emits error_normalized from FAULT_REPORTING on the control channel', () => {
+        const rt = ch => ({device: 't1', deviceName: 'Thermostat Bad', deviceType: 'HM-CC-RT-DN', channelType: 'CLIMATECONTROL_RT_TRANSCEIVER', channel: ch});
+        nat.handleNativeMessage('hm/status/Thermostat Bad:4/SET_TEMPERATURE',
+            je(21, {...rt(4), datapointMin: 4.5, datapointMax: 30.5}));
+        nat.handleNativeMessage('hm/status/Thermostat Bad:4/CONTROL_MODE', je(0, rt(4)));
+        nat.handleNativeMessage('hm/status/Thermostat Bad:4/ACTUAL_TEMPERATURE', je(20, rt(4)));
+        nat.handleNativeMessage('hm/status/Thermostat Bad:4/FAULT_REPORTING', je(4, rt(4)));
+        const e = byId('hm-climate:t1');
+        expect(e).toBeTruthy();
+        expect(e.config.error_normalized).toEqual({
+            topic: 'hm/status/Thermostat Bad:4/FAULT_REPORTING', property: 'payload.val', deviceType: 'HM-CC-RT-DN',
+        });
+    });
+
     it('no sabotage record when neither datapoint is observed (presence-checked)', () => {
         nat.handleNativeMessage('hm/status/Fenster:1/STATE',
             je(0, {device: 'd3', deviceName: 'Fenster', deviceType: 'HM-Sec-SC', channelType: 'SHUTTER_CONTACT', channel: 1}));
