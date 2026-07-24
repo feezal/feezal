@@ -135,6 +135,7 @@ import '@feezal/feezal-element-system-notification';
 import '@feezal/feezal-element-system-pin';
 import '@feezal/feezal-element-system-script';
 import '@feezal/feezal-element-system-splash';
+import '@feezal/feezal-element-system-swipe';
 import '@feezal/feezal-element-tui-ascii';
 import '@feezal/feezal-element-tui-checkbox';
 import '@feezal/feezal-element-tui-crt';
@@ -295,6 +296,7 @@ window.feezal.elements = [
   "feezal-element-system-pin",
   "feezal-element-system-script",
   "feezal-element-system-splash",
+  "feezal-element-system-swipe",
   "feezal-element-tui-ascii",
   "feezal-element-tui-checkbox",
   "feezal-element-tui-crt",

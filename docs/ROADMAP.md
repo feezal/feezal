@@ -18,7 +18,6 @@ Work in progress — priorities and scope are not final.
 - [N38 — Site locale: localized number formatting (decimal separator & friends)](#n38--site-locale-localized-number-formatting-decimal-separator--friends)
 
 **Element Ecosystem**
-- [E7 — Swipe gesture element](#e7--swipe-gesture-element)
 - [E20 — Weather forecast (`feezal-element-material-weather`)](#e20--weather-forecast-element-feezal-element-material-weather)
 - [E28 — Grafana integration](#e28--grafana-integration)
 - [E29 — Tile / compact state element (`feezal-element-material-tile`)](#e29--tile--compact-state-element-feezal-element-material-tile)
@@ -257,21 +256,6 @@ Numeric elements render `21.5` everywhere; a European dashboard should show `21,
 
 ### N2b — Repeater with live canvas sub-elements *(future)*
 Each repeater child becomes individually selectable and configurable on the editor canvas. Requires a virtual sub-editor context — significantly more complex, deferred until the MVP repeater is proven useful.
-
-### E7 — Swipe gesture element
-A **pseudo-element** (invisible placeholder in the editor, position/size irrelevant) that enables swipe-to-navigate between views in the viewer. Pairs naturally with U13 (viewer mobile support).
-
-Configurable attributes:
-
-| Attribute | Type | Default | Description |
-|---|---|---|---|
-| `views` | comma-separated names | *(all views in order)* | Which views participate in the swipe cycle and in what order |
-| `direction` | `horizontal` \| `vertical` | `horizontal` | Swipe axis |
-| `threshold` | number (px) | `50` | Minimum swipe distance to trigger navigation |
-| `animate` | boolean | `true` | Slide animation between views |
-| `wrap` | boolean | `true` | Whether swiping past the last view wraps back to the first |
-
-Listens for `touchstart`/`touchend` (and `pointerdown`/`pointerup` for unified pointer handling) on the viewer root. Does not interfere with scrollable content inside elements — only triggers when the swipe starts on an unoccupied area or is sufficiently directional.
 
 ### E20 — Weather forecast element (`feezal-element-material-weather`)
 
