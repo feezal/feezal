@@ -16,6 +16,7 @@ Work in progress — priorities and scope are not final.
 - [B71 — `system-splash` appears to do nothing in the viewer (no visible splash/spinner)](#b71--system-splash-appears-to-do-nothing-in-the-viewer-no-visible-splashspinner)
 - [B72 — `device-health`: one list entry per entity instead of per device (ESPHome / zigbee2mqtt)](#b72--device-health-one-list-entry-per-entity-instead-of-per-device-esphome--zigbee2mqtt)
 - [B73 — Background editor (view styles): solid + gradient colour fields should use the style-inspector var-autocomplete, not a dropdown; widen the too-small percent input](#b73--background-editor-view-styles-solid--gradient-colour-fields-should-use-the-style-inspector-var-autocomplete-not-a-dropdown-widen-the-too-small-percent-input)
+- [B74 — View theme selector: rename the default entry "Site theme (default)" → "Inherit" and drop its colour swatch](#b74--view-theme-selector-rename-the-default-entry-site-theme-default--inherit-and-drop-its-colour-swatch)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -270,6 +271,22 @@ Either way the overlay is **fixed at the app root** and the hide conditions (con
 **Ships with:** the shared var-autocomplete control (or a documented reuse), the gradient-editor swap + widened `.pct`, a browser test (typing `var(` in a stop suggests theme vars and commits the pick; the percent field shows a two/three-digit value un-clipped), and a TESTING.md note on the view-styles gradient editor.
 
 **Relates:** **U59** (the gradient editor + the literal-or-`var(--…)` stop model this refines), the Style inspector `var(--…)` autocomplete ([feezal-sidebar-inspector-styles.js](../www/src/feezal-sidebar-inspector-styles.js) — the pattern to share), the canonical theme-variable set (`THEME_VARS` — the suggestions source).
+
+### B74 — View theme selector: rename the default entry "Site theme (default)" → "Inherit" and drop its colour swatch
+
+**Reported (07/2026).** In the **view theme selector**, the default (empty) entry is labelled **"Site theme (default)"** and shows a (neutral) colour swatch chip like the real themes. The reporter wants it **renamed "Inherit"** and this special entry to **show no swatch** (a view with no theme inherits the site theme — there's no colour to preview).
+
+**Where.** The shared picker `feezal-theme-select.js` ([the ONE styled theme picker, used by both the site-theme sidebar and the view picker](../www/src/feezal-theme-select.js)):
+- The label is the `emptyOption` fallback **"Site theme (default)"** ([:234-235](../www/src/feezal-theme-select.js#L235), the B50 contract) — the view picker's empty entry (`cls === ''`).
+- That empty entry currently renders `PLACEHOLDER_SWATCHES` — a neutral chip ([:256](../www/src/feezal-theme-select.js#L256)) — in both the dropdown row and the selected-value display.
+
+**Fix.**
+1. **Rename** the view picker's empty-entry label to **"Inherit"** — set the view theme attribute descriptor's `emptyOption` (passed through at [feezal-sidebar-inspector-attributes.js:1485](../www/src/feezal-sidebar-inspector-attributes.js#L1485)), or change the `:235` fallback. **Scope it to the view picker** — confirm the site-theme sidebar doesn't rely on the same empty label (it shouldn't show an "inherit" entry).
+2. **No swatch for the empty entry.** For `cls === ''`, render **nothing** where the swatch chip goes (both the option list and the closed/selected display), instead of `PLACEHOLDER_SWATCHES` — the label sits alone, visually distinct from the real themes. Keep the real `default` theme (`cls === 'default'`) swatch untouched ([:257](../www/src/feezal-theme-select.js#L257)).
+
+**Ships with:** the label + swatch-suppression change, a browser test (the view picker's empty entry reads "Inherit" and renders no `.swatches`; a real theme still shows its chip), and a TESTING.md note. Small, contained.
+
+**Relates:** **U57** (the compound-swatch theme picker this tweaks), **U53** (the shared styled theme picker), **B50** (the `emptyOption` "(default)" contract being adjusted), the view-settings theme attribute (the descriptor that should pass `emptyOption: 'Inherit'`).
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
