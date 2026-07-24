@@ -58,7 +58,6 @@ Work in progress — priorities and scope are not final.
 - [E139 — "Fancy" element family: Lottie-animated device cards](#e139--fancy-element-family-lottie-animated-device-cards)
 - [E144 — Lock autodiscovery: Homematic BidCoS (Keymatic) + HmIP smart locks + zigbee2mqtt](#e144--lock-autodiscovery-homematic-bidcos-keymatic--hmip-smart-locks--zigbee2mqtt--keymatic--z2m-done-hmip-dld-open) 🔨 *(Keymatic + z2m done; HmIP-DLD open)*
 - [E145 — Autodiscovery support for ccu-jack's MQTT interface](#e145--autodiscovery-support-for-ccu-jacks-mqtt-interface)
-- [E146 — Autodiscovery for AI-on-the-edge-device (meter reader) via Home Assistant MQTT discovery](#e146--autodiscovery-for-ai-on-the-edge-device-meter-reader-via-home-assistant-mqtt-discovery)
 - [E147 — AI-on-the-edge meter element (glass / metro / circle): value + rate + action/status + error](#e147--ai-on-the-edge-meter-element-glass--metro--circle-value--rate--actionstatus--error)
 
 **Editor UX**
@@ -1324,34 +1323,6 @@ feezal's native Homematic autodiscovery is **RedMatic-only** today (established 
 **Ships with:** for **B** — the pure-MQTT ccu-jack signature recognizer, topic-prefix + `payload.v` config, the `:0`/availability wiring reuse, tests (sample ccu-jack value topics → correct discovery records; `:0` availability resolves), TESTING.md, docs. For **C** — an upstream PR to mdzio/ccu-jack (retained metadata topics, opt-in) plus the feezal side that maps its meta fields into the existing recognizers; tracked as a separate deliverable that upgrades B.
 
 **Relates:** **B65** (the research this builds on — bridge scheme table, and the `:0` synergy), **E108** ✅ (recognizer framework — where the ccu-jack signature recognizer / meta-adapter slots in), **N31 / E124 / E135** (`:0` availability/battery/maintenance — trivially derivable here), RedMatic (the currently-only-supported bridge — this is the parallel pure-MQTT path), **E109 / E112** (sibling third-party integration items), pure-MQTT design principle (no second transport — the constraint that shaped this item), the discovery `component` model (the shared target these records must produce).
-
-### E146 — Autodiscovery for AI-on-the-edge-device (meter reader) via Home Assistant MQTT discovery
-
-[AI-on-the-edge-device](https://github.com/jomjol/AI-on-the-edge-device) is a hugely popular ESP32-cam that reads analog/digital **meters** (water/gas/energy) with on-device AI and publishes the reading over MQTT — squarely feezal's audience.
-
-**Decided (07/2026): rely PURELY on the device's Home Assistant MQTT discovery — do NOT build a native recognizer.** Since v12.0.1 the device can publish `homeassistant/<component>/…/config` (opt-in in its web UI), and feezal's **existing HA-discovery path already ingests it** with the proper `state_topic`, `unit_of_measurement`, `device_class`, and `availability_topic` — all resolved *by the device*. So the "integration" is: **verify feezal ingests AI-on-the-edge's HA discovery configs correctly, and document that the user enables HA discovery on the device.** No feezal recognizer code.
-
-**Why native recognition is explicitly declined (the real-payload evidence makes the case).** The reporter's `wasserzaehler/#` dump shows a native recognizer would be a swamp — all of which HA discovery already solves on the device side:
-- **Base topic (`MainTopic`) is user-configurable and contains slashes** (`wasserzaehler/status`) → no fixed prefix/depth to match; would need leaf-anchored matching (a first for the `match()` contract, which assumes fixed depth).
-- **Flat AND nested styles coexist** — the primary meter at `<MainTopic>/{value,json,…}` *and* named sequences at `<MainTopic>/<seq>/{value,json,…}`, with device keys (`connection`/`MAC`) at the MainTopic level too.
-- **Nested MainTopics across devices** — the dump has two MACs where one device's whole tree (`wasserzaehler/status/zaehlerstand`) sits *inside* another's (`wasserzaehler/status`); disambiguating would require walking prefixes to the nearest `/connection`.
-- **Stale retained ghosts** — old renamed/removed sequences linger with years-old `json.timestamp`s (the reporter's stale `wasserzaehler`/`main` entries); would need a timestamp ghost-filter.
-- **Stringy payloads** — `json` values are quoted strings (`"value":"371.7657"`).
-
-HA discovery makes every one of these moot: the device emits one clean `homeassistant/sensor/…/config` per meter with the exact `state_topic`, unit, and `availability_topic` (`<deviceRoot>/connection`), regardless of how the base topic is configured.
-
-**Reference — topic structure & real payload** (kept for context, NOT for a recognizer): per sequence `…/<seq>/{value,raw,pre,error,rate,rate_per_time_unit,changeabsolut,timestamp,status,json}`; device `…/{connection,MAC,IP,hostname,uptime,freeMem,wifiRSSI,CPUtemp,interval}`; `json` = `{"value":"371.7657","raw":"00371.7657","pre":…,"error":"no error","rate":"0.000020","timestamp":"…ISO8601…"}`. Docs: [MQTT-API](https://jomjol.github.io/AI-on-the-edge-device-docs/MQTT-API/).
-
-**Scope of this item (small):**
-- **Verify** feezal's HA-discovery path ingests AI-on-the-edge's `homeassistant/sensor/…/config` correctly (state topic, unit, device_class `water`/`gas`/`energy`, `availability_topic` → N31) — confirm against a real device with HA discovery enabled.
-- **Document** in onboarding/docs: *"For AI-on-the-edge-device, enable Home Assistant discovery in its web UI; the meter then appears in feezal automatically."*
-- **If** a gap surfaces (e.g. AI-on-the-edge uses a discovery shape feezal mishandles — see the HA-Core 2026.4 deprecation note in [issue #3932](https://github.com/jomjol/AI-on-the-edge-device/issues/3932)), fix it in the **HA-discovery mapping**, not with a native recognizer.
-
-**Explicitly NOT doing:** a native `MainTopic`/`json`-anchored recognizer, base-topic-slash parsing, nested-MainTopic disambiguation, or a meter-topic staleness filter. Reconsider only if a meaningful population of users runs AI-on-the-edge **without** HA discovery and asks for it.
-
-**Ships with:** a verification pass + a fix in the HA-discovery mapping only if needed, and the onboarding/docs note (enable HA discovery on the device). No recognizer, no new tests beyond an HA-discovery fixture if a gap is found.
-
-**Relates:** the existing **HA-discovery path** (the entire mechanism this leans on), **N31** (availability via the device's `availability_topic` = `<deviceRoot>/connection`), **E30** (sparkline for the rate sensor), the **pure-MQTT principle** (HA discovery is pure MQTT), **E145** (contrast: ccu-jack has *no* HA discovery, so it needs the native/upstream route — AI-on-the-edge doesn't), **E147** (the dedicated meter element that shows the richer topic set discovery alone doesn't).
 
 ### E147 — AI-on-the-edge meter element (glass / metro / circle): value + rate + action/status + error
 
