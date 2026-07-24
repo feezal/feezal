@@ -23,6 +23,10 @@ import {CLIMATE_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-climate';
 import {LIGHT_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-light';
 import {COVER_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-cover';
 import {WLED_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-wled';
+import {LOCK_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-lock';
+import '../packages/@feezal/feezal-element-circle-lock/feezal-element-circle-lock.js';
+import '../packages/@feezal/feezal-element-glass-lock/feezal-element-glass-lock.js';
+import '../packages/@feezal/feezal-element-metro-lock/feezal-element-metro-lock.js';
 import '../packages/@feezal/feezal-element-circle-wled/feezal-element-circle-wled.js';
 import '../packages/@feezal/feezal-element-glass-wled/feezal-element-glass-wled.js';
 import '../packages/@feezal/feezal-element-metro-wled/feezal-element-metro-wled.js';
@@ -93,6 +97,11 @@ const CASES = [
     {tag: 'feezal-element-glass-wled',       consumed: WLED_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-metro-wled',       consumed: WLED_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-eink-wled',        consumed: WLED_CONSUMED_ATTRIBUTES},
+    // E143 lock slice — circle/glass/metro adopt the lock controller (incl. the
+    // E124 battery trio, E135 error signal, and the Homematic OPEN action).
+    {tag: 'feezal-element-circle-lock',    consumed: LOCK_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-glass-lock',       consumed: LOCK_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-metro-lock',       consumed: LOCK_CONSUMED_ATTRIBUTES},
 ];
 
 describe('E137 — adopting elements declare the full controller contract', () => {

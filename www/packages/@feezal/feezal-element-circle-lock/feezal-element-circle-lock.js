@@ -1,5 +1,6 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
+import {LockController, lockAttributes, lockDiscoveryMap} from '@feezal/feezal-controller-lock';
 import {svg} from 'lit';
 
 // ── Unavailability badge ─────────────────────────────────────────────────────
@@ -45,30 +46,10 @@ class FeezalElementCircleLock extends FeezalElement {
         return {
             palette: {name: 'Lock', category: 'Circle', color: '#1565c0', icon: 'lock'},
             description: 'Smart door lock card — shows locked / unlocked / jammed state with a padlock SVG. Lock and unlock command buttons included.',
-            discovery: {
-                component: 'lock',
-                map: {
-                    state_topic:           {attr: 'subscribe'},
-                    command_topic:         {attr: 'publish'},
-                    payload_lock:          {attr: 'payload-lock'},
-                    payload_unlock:        {attr: 'payload-unlock'},
-                    state_locked:          {attr: 'payload-locked'},
-                    state_unlocked:        {attr: 'payload-unlocked'},
-                    state_jammed:          {attr: 'payload-jammed'},
-                    // N31: availability is mapped automatically from the canonical discovery record.
-                    value_template:        {attr: 'message-property', transform: 'valueTemplateToPath'},
-                    name:                  'label',
-                },
-            },
+            // E137: behavior + discovery map come from the controller package.
+            discovery: {component: 'lock', map: lockDiscoveryMap},
             attributes: [
-                {name: 'subscribe',              type: 'mqttTopic', help: 'Topic receiving the lock state.'},
-                {name: 'message-property',       type: 'string',    default: 'payload', help: 'Property path within the message payload (dot-notation). Blank = top-level payload.'},
-                {name: 'publish',                type: 'mqttTopic', help: 'Topic to publish lock/unlock commands to.'},
-                {name: 'payload-lock',           type: 'string', default: 'LOCK',     help: 'Command payload to lock.'},
-                {name: 'payload-unlock',         type: 'string', default: 'UNLOCK',   help: 'Command payload to unlock.'},
-                {name: 'payload-locked',         type: 'string', default: 'LOCKED',   help: 'State payload meaning locked.'},
-                {name: 'payload-unlocked',       type: 'string', default: 'UNLOCKED', help: 'State payload meaning unlocked.'},
-                {name: 'payload-jammed',         type: 'string', default: 'JAMMED',   help: 'State payload meaning jammed.'},
+                ...lockAttributes,
                 {name: 'label',                  type: 'string', default: '',         help: 'Optional card label.'},
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Availability topic.'},
                 {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
@@ -89,20 +70,28 @@ class FeezalElementCircleLock extends FeezalElement {
     }
 
     static properties = {
-        subscribe:             {type: String, reflect: true},
         publish:               {type: String, reflect: true},
+        publishOpen:           {type: String, reflect: true, attribute: 'publish-open'},
         payloadLock:           {type: String, reflect: true, attribute: 'payload-lock'},
         payloadUnlock:         {type: String, reflect: true, attribute: 'payload-unlock'},
+        payloadOpen:           {type: String, reflect: true, attribute: 'payload-open'},
         payloadLocked:         {type: String, reflect: true, attribute: 'payload-locked'},
         payloadUnlocked:       {type: String, reflect: true, attribute: 'payload-unlocked'},
         payloadJammed:         {type: String, reflect: true, attribute: 'payload-jammed'},
+        subscribeError:        {type: String, reflect: true, attribute: 'subscribe-error'},
         label:                 {type: String, reflect: true},
-        // N31: availability inherited from FeezalElement.
+        // N31: availability + subscribe/message-property inherited from FeezalElement.
         discoveryId:           {type: String, reflect: true, attribute: 'discovery-id'},
-        _lockState: {state: true},   // 'locked' | 'unlocked' | 'jammed' | null
     };
 
-    static styles = [feezalBaseStyles, css`
+    static styles = [feezalBatteryStyles, feezalBaseStyles, css`
+        /* E124: low-battery badge — top-left (opposite the top-right unavail). */
+        .feezal-batt-badge { top: 4px; left: 4px; bottom: auto; right: auto; }
+        .err-line {
+            font-size: 9px; font-weight: 600; letter-spacing: 0.02em;
+            color: var(--feezal-lock-jammed-color, #b00020);
+            max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
         :host {
             display: flex;
             flex-direction: column;
@@ -180,56 +169,48 @@ class FeezalElementCircleLock extends FeezalElement {
         this.payloadLocked         = 'LOCKED';
         this.payloadUnlocked       = 'UNLOCKED';
         this.payloadJammed         = 'JAMMED';
+        this.publishOpen           = '';
+        this.payloadOpen           = '';
+        this.subscribeError        = '';
         this.label                 = '';
         this.discoveryId           = '';
-        this._lockState = null;
+        // E137: the behavior layer \u2014 wires/parses/publishes; this view renders.
+        this.lock = new LockController(this);
     }
 
+    // Device cards manage subscriptions manually; suppress the base class path.
     _subscribe() { /* intentionally empty */ }
 
-    connectedCallback() {
-        super.connectedCallback();
-
-        // N31: availability subscription handled by the FeezalElement base.
-
-        if (this.subscribe) {
-            this.addSubscription(this.subscribe, msg => {
-                let v = this.getProperty(msg, this.messageProperty);
-                if (typeof v === 'string') {
-                    try { const p = JSON.parse(v); if (p && 'state' in p) v = p.state; } catch { /* raw */ }
-                } else if (v && typeof v === 'object' && 'state' in v) { v = v.state; }
-                const s = String(v).toUpperCase();
-                if      (s === this.payloadJammed.toUpperCase())   this._lockState = 'jammed';
-                else if (s === this.payloadLocked.toUpperCase())   this._lockState = 'locked';
-                else if (s === this.payloadUnlocked.toUpperCase()) this._lockState = 'unlocked';
-                else this._lockState = null;
-            });
-        }
-    }
-
-    _cmd(payload) {
-        if (this.publish) feezal.connection.pub(this.publish, payload);
+    updated(changed) {
+        super.updated(changed);
+        // E137: live-canvas topic edits re-wire through the controller.
+        this.lock.rewireIfChanged();
     }
 
     render() {
-        const stateText = this._lockState
-            ? this._lockState.charAt(0).toUpperCase() + this._lockState.slice(1)
+        // E135: a fault (jammed state OR an error signal) shows the jammed visual.
+        const dispState = this.lock.faulted ? 'jammed' : (this.lock.state ?? 'locked');
+        const stateText = this.lock.state
+            ? this.lock.state.charAt(0).toUpperCase() + this.lock.state.slice(1)
             : '\u2014';
 
         return html`
             ${!this._available ? html`<div class="unavail">${UNAVAIL}</div>` : ''}
+            ${batteryLowBadge(this.lock.batteryLow)}
             <div class="disc-wrap">
-                <div class="disc ${this._lockState ?? 'locked'}">
+                <div class="disc ${dispState}">
                     <svg class="lock" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-                        ${lockSvg(this._lockState ?? 'locked')}
+                        ${lockSvg(dispState)}
                     </svg>
                 </div>
             </div>
             <span class="state-label">${stateText}</span>
-            ${this.publish ? html`
+            ${this.lock.error ? html`<span class="err-line" title="${this.lock.error}">\u26a0 ${this.lock.error}</span>` : ''}
+            ${(this.publish || this.publishOpen) ? html`
                 <div class="btn-row">
-                    <button @click="${() => this._cmd(this.payloadLock)}">Lock</button>
-                    <button @click="${() => this._cmd(this.payloadUnlock)}">Unlock</button>
+                    <button @click="${() => this.lock.lock()}">Lock</button>
+                    <button @click="${() => this.lock.unlock()}">Unlock</button>
+                    ${this.lock.canOpen ? html`<button @click="${() => this.lock.open()}">Open</button>` : ''}
                 </div>
             ` : ''}
             ${this.label ? html`<div class="label">${this.label}</div>` : ''}`;

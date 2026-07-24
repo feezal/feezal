@@ -61,6 +61,7 @@ import '@feezal/feezal-element-glass-dialog';
 import '@feezal/feezal-element-glass-dialog-view';
 import '@feezal/feezal-element-glass-fan';
 import '@feezal/feezal-element-glass-light';
+import '@feezal/feezal-element-glass-lock';
 import '@feezal/feezal-element-glass-motion';
 import '@feezal/feezal-element-glass-sensor';
 import '@feezal/feezal-element-glass-switch';
@@ -99,6 +100,7 @@ import '@feezal/feezal-element-metro-climate';
 import '@feezal/feezal-element-metro-contact';
 import '@feezal/feezal-element-metro-cover';
 import '@feezal/feezal-element-metro-light';
+import '@feezal/feezal-element-metro-lock';
 import '@feezal/feezal-element-metro-media';
 import '@feezal/feezal-element-metro-motion';
 import '@feezal/feezal-element-metro-sensor';
@@ -213,6 +215,7 @@ window.feezal.elements = [
   "feezal-element-glass-dialog-view",
   "feezal-element-glass-fan",
   "feezal-element-glass-light",
+  "feezal-element-glass-lock",
   "feezal-element-glass-motion",
   "feezal-element-glass-sensor",
   "feezal-element-glass-switch",
@@ -251,6 +254,7 @@ window.feezal.elements = [
   "feezal-element-metro-contact",
   "feezal-element-metro-cover",
   "feezal-element-metro-light",
+  "feezal-element-metro-lock",
   "feezal-element-metro-media",
   "feezal-element-metro-motion",
   "feezal-element-metro-sensor",

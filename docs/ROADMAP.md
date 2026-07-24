@@ -62,7 +62,6 @@ Work in progress — priorities and scope are not final.
 - [E140 — Per-state icon colour: configurable CSS vars for every state-driven icon](#e140--per-state-icon-colour-configurable-css-vars-for-every-state-driven-icon)
 - [E141 — Metro tiles: per-state background colour vars for state-driven elements](#e141--metro-tiles-per-state-background-colour-vars-for-state-driven-elements)
 - [E142 — Dialog `label` attribute: editor-only placeholder tag to tell dialogs apart](#e142--dialog-label-attribute-editor-only-placeholder-tag-to-tell-dialogs-apart)
-- [E143 — Lock element family parity: `glass-lock` + `metro-lock` (extract `feezal-controller-lock` first)](#e143--lock-element-family-parity-glass-lock--metro-lock-extract-feezal-controller-lock-first)
 - [E144 — Lock autodiscovery: Homematic BidCoS (Keymatic) + HmIP smart locks + zigbee2mqtt](#e144--lock-autodiscovery-homematic-bidcos-keymatic--hmip-smart-locks--zigbee2mqtt)
 - [E145 — Autodiscovery support for ccu-jack's MQTT interface](#e145--autodiscovery-support-for-ccu-jacks-mqtt-interface)
 - [E146 — Autodiscovery for AI-on-the-edge-device (meter reader) via Home Assistant MQTT discovery](#e146--autodiscovery-for-ai-on-the-edge-device-meter-reader-via-home-assistant-mqtt-discovery)
@@ -1471,22 +1470,6 @@ Dialogs are **pseudo-elements** — a small (~120×40 px) invisible placeholder 
 **Ships with:** the `label` attribute on every dialog element + the shared placeholder-append helper, patch bumps on each touched package, a browser test (label set → appears in the editor placeholder, absent from the viewer render), and TESTING.md notes (per dialog element: set a label, confirm canvas shows "…: &lt;label&gt;" and the viewer shows nothing extra).
 
 **Relates:** the dialog element set (material/glass/eink/paper × dialog / dialog-view / countdown-dialog), E114 (parity — the attribute must exist identically across all of them), the dialog `title` attribute (the user-visible counterpart to contrast against), pseudo-element editor conventions (E7/swipe and other invisible placeholders could reuse the same editor-label idea later).
-
-### E143 — Lock element family parity: `glass-lock` + `metro-lock` (extract `feezal-controller-lock` first)
-
-`circle-lock` is the **only** lock element ([feezal-element-circle-lock.js](../www/packages/@feezal/feezal-element-circle-lock/feezal-element-circle-lock.js)) — glass and metro have no lock card, an **E114 family-parity gap** (and it makes the U58 Generate wizard skip locks for those families). Add **`glass-lock`** and **`metro-lock`**.
-
-**E137 prerequisite — extract `feezal-controller-lock` first.** `circle-lock` is currently **standalone**: it hand-rolls the lock command/state contract (`subscribe`/`publish`, `payload-lock`/`-unlock`, `state-locked`/`-unlocked`, jammed state, N31 availability) directly, with an HA `discovery: {component: 'lock', map}` fragment. Adding two more families means **2+ families share the lock function → the E137 rule requires a controller**. So:
-1. **Extract `feezal-controller-lock`** from circle-lock's logic (state parsing → locked/unlocked/jammed, command publishing, availability, the E135 lock **error/jammed** signal — Keymatic `ERROR` enum / HmIP `ERROR_JAMMED`), with the `component: 'lock'` discovery-map fragment and the attribute fragment.
-2. **Refactor `circle-lock` to a view over the controller** (no behaviour change; parity-test it).
-3. **Add `glass-lock`** (frosted card + padlock, the glass family chrome) and **`metro-lock`** (WP7 tile; state → tile background per E141, icon per E140) as views over the controller.
-4. Register all in `feezal-controller-parity.test.js`.
-
-This is also the **prerequisite E139 already named** for `fancy-lock` — do the controller extraction once here and circle/glass/metro/fancy all become views. **Scope decided by request: glass + metro** (eink-lock can follow the same controller later).
-
-**Ships with:** the new `feezal-controller-lock` package, the circle refactor + glass/metro elements, `generate-elements` manifest + `www/package.json` registration, parity-test entries, per-element patch/version bumps, TESTING.md §6 rows (locked/unlocked/jammed rendering, lock/unlock commands, availability, per-family chrome).
-
-**Relates:** **E114** (the parity gap this closes), **E137** (controller-first rule — this triggers the lock-controller extraction), **E139** (fancy-lock — same controller prerequisite; coordinate), **E135** (lock error/jammed maintenance signal the controller should carry), **E144** (lock autodiscovery — the discovery records these elements consume), `circle-lock` (the reference implementation), U58 (Generate wizard — parity gap means locks are skipped for glass/metro today).
 
 ### E144 — Lock autodiscovery: Homematic BidCoS (Keymatic) + HmIP smart locks + zigbee2mqtt
 

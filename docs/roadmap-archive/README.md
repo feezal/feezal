@@ -101,6 +101,8 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [N37 — Pause subscriptions of hidden views (bandwidth saver) ✅ done](N37.md)
 
 ## Element Ecosystem
+
+- [E143 — Lock element family parity: `glass-lock` + `metro-lock` (extract `feezal-controller-lock`) ✅ done](E143.md)
 - [E110 — Server-side HTTP→MQTT poller (bridge for services with no MQTT) ❌ won’t do](E110.md)
 - [E111 — Pi-hole integration ❌ won’t do](E111.md)
 
