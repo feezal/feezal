@@ -3,20 +3,24 @@ import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element
 import {EinkBase, einkCardStyles} from '@feezal/feezal-eink';
 
 /**
- * feezal-element-eink-number (E57)
+ * feezal-element-eink-value (E57 / E148)
  *
  * E-ink numeric value card: oversized numeral + unit, uppercase label,
- * thick rule. Display-only. Same wiring contract as glass-sensor
+ * thick rule. Display-only. Same wiring contract as glass-value
  * (subscribe / message-property / unit / decimals / label).
+ *
+ * E148: renamed from `eink-number` to `eink-value` for numeric-card naming
+ * parity — every family-styled numeric readout is `*-value` now (circle/glass/
+ * metro/tui). `basic-number` stays the unstyled primitive.
  *
  * Redraw discipline: renderSignature() is the ROUNDED display string —
  * a republished unchanged value never touches the panel (E57).
  */
 
-class FeezalElementEinkNumber extends EinkBase {
+class FeezalElementEinkValue extends EinkBase {
     static get feezal() {
         return {
-            palette: {name: 'Number', category: 'Eink', color: '#222222', icon: 'thermostat'},
+            palette: {name: 'Value', category: 'Eink', color: '#222222', icon: 'thermostat'},
             description: 'E-ink numeric card — oversized numeral with unit and label, 1-bit, redraw-deduped.',
             baseAttribute: 'value',
             discovery: {
@@ -120,12 +124,12 @@ class FeezalElementEinkNumber extends EinkBase {
         return html`
             <div class="card">
                 <span class="value">${this.displayValue}${this.unit ? html`<span class="unit">${this.unit}</span>` : ''}</span>
-                <span class="label">${this.label || (feezal.isEditor ? 'Number' : '')}</span>
+                <span class="label">${this.label || (feezal.isEditor ? 'Value' : '')}</span>
                 ${this.footer ? html`<div class="rule footer">${this.footer}</div>` : ''}
             </div>
         `;
     }
 }
 
-customElements.define('feezal-element-eink-number', FeezalElementEinkNumber);
-export {FeezalElementEinkNumber};
+customElements.define('feezal-element-eink-value', FeezalElementEinkValue);
+export {FeezalElementEinkValue};

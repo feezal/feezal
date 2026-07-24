@@ -48,9 +48,9 @@ import '@feezal/feezal-element-eink-dialog-view';
 import '@feezal/feezal-element-eink-fan';
 import '@feezal/feezal-element-eink-light';
 import '@feezal/feezal-element-eink-motion';
-import '@feezal/feezal-element-eink-number';
 import '@feezal/feezal-element-eink-sensor';
 import '@feezal/feezal-element-eink-switch';
+import '@feezal/feezal-element-eink-value';
 import '@feezal/feezal-element-eink-wled';
 import '@feezal/feezal-element-glass-button';
 import '@feezal/feezal-element-glass-climate';
@@ -202,9 +202,9 @@ window.feezal.elements = [
   "feezal-element-eink-fan",
   "feezal-element-eink-light",
   "feezal-element-eink-motion",
-  "feezal-element-eink-number",
   "feezal-element-eink-sensor",
   "feezal-element-eink-switch",
+  "feezal-element-eink-value",
   "feezal-element-eink-wled",
   "feezal-element-glass-button",
   "feezal-element-glass-climate",

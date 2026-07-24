@@ -143,6 +143,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [E140 — Per-state icon colour: configurable CSS vars for every state-driven icon ✅ done](E140.md)
 - [E141 — Metro tiles: per-state background colour vars for state-driven elements ✅ done](E141.md)
 - [E142 — Dialog `label` attribute: editor-only placeholder tag to tell dialogs apart ✅ done](E142.md)
+- [E148 — `eink-number` → `eink-value`: numeric-card naming parity ✅ done](E148.md)
 - [E34 — Countdown / timer element (`feezal-element-basic-countdown`) ✅ implemented](E34.md)
 ## Editor UX
 - [E115 — Switch an element to another family (context menu) ✅ implemented](E115.md)

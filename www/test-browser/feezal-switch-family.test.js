@@ -11,7 +11,7 @@ import '../packages/@feezal/feezal-element-glass-switch/feezal-element-glass-swi
 import '../packages/@feezal/feezal-element-metro-switch/feezal-element-metro-switch.js';
 import '../packages/@feezal/feezal-element-circle-switch/feezal-element-circle-switch.js';
 import '../packages/@feezal/feezal-element-glass-value/feezal-element-glass-value.js';
-import '../packages/@feezal/feezal-element-eink-number/feezal-element-eink-number.js';
+import '../packages/@feezal/feezal-element-eink-value/feezal-element-eink-value.js';
 
 import '../src/feezal-sidebar-inspector.js';
 import {setupFeezal} from './helpers.js';
@@ -23,7 +23,7 @@ const PKGS = [
     '@feezal/feezal-element-metro-switch',
     '@feezal/feezal-element-circle-switch',
     '@feezal/feezal-element-glass-value',
-    '@feezal/feezal-element-eink-number',
+    '@feezal/feezal-element-eink-value',
 ];
 
 let feezal, view, changes;
@@ -58,10 +58,11 @@ describe('E115 — Switch family targets', () => {
         expect(fams).not.toContain('glass');   // own family excluded
     });
 
-    it('pairs the numeric readout across the number↔value tag divergence (E138)', () => {
+    it('pairs the numeric readout across families now that eink is -value too (E148)', () => {
         const el = document.createElement('feezal-element-glass-value');
         view.append(el);
-        // glass-value ↔ eink-number are the same function despite the tag suffix
+        // E148: eink-number was renamed eink-value, so glass-value ↔ eink-value
+        // pair by their shared `value` function with no alias.
         expect(receiver([el])._switchFamilyTargets().map(t => t.family)).toContain('eink');
     });
 
@@ -111,7 +112,7 @@ describe('E115 — Switch family transform', () => {
         view.append(sw); view.append(val);
         const ctx = receiver([sw, val]);
         // switch to eink: eink-switch exists, but glass-switch→eink-switch ok;
-        // glass-value→eink-number ok too — pick a family missing a twin instead:
+        // glass-value→eink-value ok too — pick a family missing a twin instead:
         ctx._ctxSwitchFamily('circle');   // circle-switch exists, circle has no "value" twin here
         // sw switched, val skipped (no circle twin imported)
         expect(view.querySelector('feezal-element-circle-switch')).not.toBeNull();

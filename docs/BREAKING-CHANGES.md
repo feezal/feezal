@@ -18,6 +18,7 @@ upgrading is the safest route).
 | `feezal-element-metro-sensor` | `feezal-element-metro-value` | ⚠ same reused-name trap as glass: `metro-sensor` is now the alarm card |
 | `feezal-element-circle-motion` | *(unchanged)* | scope narrowed to motion types; hazard types (water-leak/smoke/…) move to the new `feezal-element-circle-sensor` (which carries the E134 state disc) |
 | `feezal-element-eink-sensor` | *(unchanged)* | scope narrowed to alarm types; motion types move to the new `feezal-element-eink-motion` |
+| `feezal-element-eink-number` | `feezal-element-eink-value` | E148: numeric-card naming parity — the eink numeric readout joins the `*-value` convention (behaviour/attributes/discovery unchanged, palette `Number` → `Value`). `basic-number` (the unstyled primitive) keeps its name. No reused-name trap. Source-view search-replace `eink-number` → `eink-value`. |
 
 New elements: `feezal-element-circle-sensor`, `feezal-element-glass-sensor`
 (new meaning), `feezal-element-metro-sensor` (new meaning),
@@ -39,9 +40,10 @@ New elements: `feezal-element-circle-sensor`, `feezal-element-glass-sensor`
   open/tilted → `--primary-color`. Per-element `--feezal-*` style overrides
   keep working.
 - **Palette names**: Motion / Sensor / Value (plus Contact) in every family.
-- **Family gaps** (documented): material has no numeric *value* card; the
-  eink numeric card keeps its `eink-number` name (the `*-value` rename
-  matrix covered glass/metro only).
+- **Family gaps** (documented): material has no numeric *value* card. (The
+  eink numeric card was `eink-number` at E138; **E148** renamed it to
+  `feezal-element-eink-value`, closing the last naming gap — see the tag
+  migration table row above.)
 - **Sabotage badges** on contact/sensor/motion land with **E135** (the
   canonical-record machinery) — not part of this change.
 

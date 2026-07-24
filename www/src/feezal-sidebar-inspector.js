@@ -22,7 +22,11 @@ const isCanvasElement = el =>
 // E115 — function-identity aliases for the Switch-family pairing: a family
 // whose tag suffix diverges for the SAME function is normalised here so its twin
 // pairs up (E138: the numeric readout is `*-value` everywhere but `eink-number`).
-const FN_ALIAS = {number: 'value'};
+// E148: eink's numeric card was renamed eink-number → eink-value, so the
+// former number↔value divergence is gone — no aliases needed. (basic-number
+// stays the unstyled primitive and is deliberately NOT paired with the styled
+// -value cards.) Kept as an empty map for any future divergence.
+const FN_ALIAS = {};
 const FAMILY_LABELS = {eink: 'E-ink', tui: 'TUI', wled: 'WLED'};
 const familyLabel = f => FAMILY_LABELS[f] || (f ? f.charAt(0).toUpperCase() + f.slice(1) : f);
 
@@ -2043,8 +2047,8 @@ class FeezalSidebarInspector extends LitElement {
 
     // ── E115: switch an element to its twin in another family ────────────────
     // Map<functionKey, Map<family, tag>> over all installed feezal elements. The
-    // pairing key is the tag-function (E138 standardised these across families),
-    // normalised via FN_ALIAS for the one known divergence (number ↔ value).
+    // pairing key is the tag-function (E138 standardised these across families;
+    // E148 removed the last divergence, so FN_ALIAS is now empty).
     _familyFunctionMap() {
         const map = new Map();
         for (const pkg of (window.feezal?.elements || [])) {
