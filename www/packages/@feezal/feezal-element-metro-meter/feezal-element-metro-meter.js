@@ -17,7 +17,7 @@ import {AiedgeController, aiedgeAttributes, formatMeterValue} from '@feezal/feez
 class FeezalElementMetroMeter extends MetroTileBase {
     static get feezal() {
         return {
-            palette: {name: 'Meter', category: 'Metro', color: '#4a9d7f', icon: 'speed'},
+            palette: {name: 'Meter', category: 'Metro', color: '#1ba1e2', icon: 'speed'},
             description: 'Metro meter tile: value + rate + error badge on the front, action/status + reading age + raw on the back. ' +
                 'Built for AI-on-the-edge meters but works with any MQTT meter. Same controller as the glass/circle meter cards.',
             attributes: [

@@ -20,7 +20,7 @@ const SEV = {sabotage: 3, fault: 2, battery: 1, unreach: 0};
 class FeezalElementBasicDeviceHealth extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Device Health', category: 'Basic', color: '#455a64', icon: 'health_and_safety'},
+            palette: {name: 'Device Health', category: 'Basic', color: '#4a6080', icon: 'health_and_safety'},
             description: 'Homematic device-health board: faults, sabotage, low battery and unreachable devices in one list. ' +
                 'Discovery-less — subscribes to the maintenance datapoints by wildcard.',
             attributes: [

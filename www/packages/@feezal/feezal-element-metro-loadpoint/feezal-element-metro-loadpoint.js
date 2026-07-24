@@ -27,7 +27,7 @@ const fmtEnergy = wh => {
 class FeezalElementMetroLoadpoint extends MetroTileBase {
     static get feezal() {
         return {
-            palette: {name: 'Loadpoint', category: 'Metro', color: '#3d7a99', icon: 'ev_station'},
+            palette: {name: 'Loadpoint', category: 'Metro', color: '#1ba1e2', icon: 'ev_station'},
             description: 'Metro evcc loadpoint tile: charge-mode segments + power + vehicle SoC/limit on the front, ' +
                 'session / vehicle / current detail on the back. Heat-pump loadpoints get a reduced °C view. ' +
                 'Auto-wired by evcc discovery. Same controller as the glass/circle loadpoint cards.',

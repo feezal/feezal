@@ -14,7 +14,7 @@ import {AiedgeController, aiedgeAttributes, formatMeterValue} from '@feezal/feez
 class FeezalElementCircleMeter extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Meter', category: 'Circle', color: '#4a9d7f', icon: 'speed'},
+            palette: {name: 'Meter', category: 'Circle', color: '#1565c0', icon: 'speed'},
             description: 'Circle-family meter card (value + rate + action/status + error + reading age) rendered in a ' +
                 'disc/ring. Built for AI-on-the-edge meters but works with any MQTT meter. Same controller as the glass/metro meter cards.',
             attributes: [

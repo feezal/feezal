@@ -24,7 +24,7 @@ const fmtEnergy = wh => {
 class FeezalElementCircleLoadpoint extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Loadpoint', category: 'Circle', color: '#3d7a99', icon: 'ev_station'},
+            palette: {name: 'Loadpoint', category: 'Circle', color: '#1565c0', icon: 'ev_station'},
             description: 'Circle evcc loadpoint card: charge mode, power, vehicle SoC + limit, session. ' +
                 'Heat-pump loadpoints get a reduced °C view. Auto-wired by evcc discovery. Same controller as the glass/metro loadpoint cards.',
             discovery: {component: 'evcc-loadpoint', map: evccLoadpointDiscoveryMap},

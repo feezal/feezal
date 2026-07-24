@@ -14,7 +14,7 @@ import {applySizePreset, glassCardStyles} from '@feezal/feezal-glass';
 class FeezalElementGlassMeter extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: 'Meter', category: 'Glass', color: '#4a9d7f', icon: 'speed'},
+            palette: {name: 'Meter', category: 'Glass', color: '#7aa5c9', icon: 'speed'},
             description: 'Frosted-glass meter card (value + rate + action/status + error + reading age). ' +
                 'Built for AI-on-the-edge meters but works with any MQTT meter. Same controller as the metro/circle meter cards.',
             attributes: [
