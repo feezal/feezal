@@ -18,6 +18,7 @@ Work in progress — priorities and scope are not final.
 - [B73 — Background editor (view styles): solid + gradient colour fields should use the style-inspector var-autocomplete, not a dropdown; widen the too-small percent input](#b73--background-editor-view-styles-solid--gradient-colour-fields-should-use-the-style-inspector-var-autocomplete-not-a-dropdown-widen-the-too-small-percent-input)
 - [B74 — View theme selector: rename the default entry "Site theme (default)" → "Inherit" and drop its colour swatch](#b74--view-theme-selector-rename-the-default-entry-site-theme-default--inherit-and-drop-its-colour-swatch)
 - [B75 — Roadmap IDs leak into user-facing help texts & labels](#b75--roadmap-ids-leak-into-user-facing-help-texts--labels)
+- [B76 — `paper-slider`: invisible track (default ≈ background) + knob defaults should be `--primary-text-color`](#b76--paper-slider-invisible-track-default--background--knob-defaults-should-be---primary-text-color)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -302,6 +303,25 @@ Either way the overlay is **fixed at the app root** and the hide conditions (con
 **Ships with:** the sweep across the ~15 files, the regression-guard test, and (if any element package is modified) its patch bump + `docs/TESTING.md` note that user-facing strings must be ID-free.
 
 **Relates:** the element-spec authoring guide (`docs/element-spec.md` — add a "no roadmap IDs in user-facing strings" rule), the attribute-descriptor `help`/`label` convention (CLAUDE.md), every element package + `www/src` inspector/help surfaces that carry the offending strings.
+
+### B76 — `paper-slider`: invisible track (default ≈ background) + knob defaults should be `--primary-text-color`
+
+**Reported (07/2026).** The **`paper-slider`** ([feezal-element-paper-slider.js](../www/packages/@feezal/feezal-element-paper-slider/feezal-element-paper-slider.js)) renders badly out of the box:
+1. **No usable exposed var / invisible track.** The **track colour default resolves to ≈ `--primary-background-color`**, so the track is invisible against the page. The Style-inspector list ([:106-125](../www/packages/@feezal/feezal-element-paper-slider/feezal-element-paper-slider.js#L106)) exposes `--paper-slider-container-color` / `-bar-color` etc. but **none carry a `default`**, and none reliably drives the visible track.
+2. **Knob colour default is wrong** — both the knob and the **start knob** should default to **`var(--primary-text-color)`**.
+
+**Root cause.** The element wraps Polymer `<paper-slider>` and sets **no `--paper-slider-*` defaults of its own** — the color vars (`container-color` = track, `knob-color`, `knob-start-color`, `active-color`, …) rely entirely on **per-theme wiring, which is inconsistent**: most themes set only `--paper-slider-active-color`, and a couple map `--paper-slider-container-color` onto a `linear-gradient(var(--primary-background-color), …)` (e.g. [midnight-blue.js:35](../www/packages/@feezal/feezal-theme-midnight-blue/feezal-theme-midnight-blue.js#L35), [dark-mint.js:36](../www/packages/@feezal/feezal-theme-dark-mint/feezal-theme-dark-mint.js#L36)). On any theme that doesn't set them, the track/knob fall back to Polymer defaults or the near-background mapping → invisible track, unthemed knob.
+
+**Fix — give the element sensible, theme-var defaults** (in the wrapper's `<style> :host`, and mirror them as `default:` on the style descriptors so the inspector shows them):
+- **Track** (`--paper-slider-container-color`): a **visible** muted default — `var(--divider-color)` or `var(--secondary-background-color)` — **never `--primary-background-color`**. (Add/clarify a "track colour" descriptor with this default.)
+- **Knob + start knob** (`--paper-slider-knob-color`, `--paper-slider-knob-start-color`): **`var(--primary-text-color)`**.
+- **Active fill** (`--paper-slider-active-color`): `var(--primary-color)` (most themes already set this — the element default just guarantees it when they don't).
+
+Theme overrides keep winning (element `:host` defaults are the floor). Use the canonical theme vars per the theme-variable discipline (each with a literal hex last-resort fallback).
+
+**Ships with:** the `:host` defaults + descriptor `default`s, patch-bump `feezal-element-paper-slider`, and a TESTING.md note (slider track + knob are visible on the **default** theme with no per-element styling). Legacy paper/Polymer element — keep it minimal.
+
+**Relates:** the theme-variable discipline (canonical `--primary-text-color` / `--divider-color` / `--primary-color` + hex fallback — CLAUDE.md, element-spec §5.1), the `--paper-slider-*` theme wiring across the theme packages (the inconsistency this floors), `carbon-slider` / `material-slider` (the modern sliders — sanity-check their track/knob defaults are visible too).
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
