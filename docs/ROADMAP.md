@@ -17,6 +17,7 @@ Work in progress — priorities and scope are not final.
 - [B72 — `device-health`: one list entry per entity instead of per device (ESPHome / zigbee2mqtt)](#b72--device-health-one-list-entry-per-entity-instead-of-per-device-esphome--zigbee2mqtt)
 - [B73 — Background editor (view styles): solid + gradient colour fields should use the style-inspector var-autocomplete, not a dropdown; widen the too-small percent input](#b73--background-editor-view-styles-solid--gradient-colour-fields-should-use-the-style-inspector-var-autocomplete-not-a-dropdown-widen-the-too-small-percent-input)
 - [B74 — View theme selector: rename the default entry "Site theme (default)" → "Inherit" and drop its colour swatch](#b74--view-theme-selector-rename-the-default-entry-site-theme-default--inherit-and-drop-its-colour-swatch)
+- [B75 — Roadmap IDs leak into user-facing help texts & labels](#b75--roadmap-ids-leak-into-user-facing-help-texts--labels)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -287,6 +288,20 @@ Either way the overlay is **fixed at the app root** and the hide conditions (con
 **Ships with:** the label + swatch-suppression change, a browser test (the view picker's empty entry reads "Inherit" and renders no `.swatches`; a real theme still shows its chip), and a TESTING.md note. Small, contained.
 
 **Relates:** **U57** (the compound-swatch theme picker this tweaks), **U53** (the shared styled theme picker), **B50** (the `emptyOption` "(default)" contract being adjusted), the view-settings theme attribute (the descriptor that should pass `emptyOption: 'Inherit'`).
+
+### B75 — Roadmap IDs leak into user-facing help texts & labels
+
+**Reported (07/2026).** Some editor **help popups and labels show internal roadmap IDs** — e.g. a help tooltip reading **"N37: …"**. These IDs (our `E##` / `N##` / `B##` / `U##` / `A##` roadmap references) are for code comments / commits / the roadmap, **not the UI**, and should never appear to users.
+
+**Scope (~15 files, ~20+ occurrences).** They sit in user-facing descriptor strings — attribute `help:`, `label:`, `placeholder:`, and element `description:` — across both element packages (`www/packages/@feezal/*`) and editor built-ins (`www/src/*`). Confirmed offenders include: **`E102:`** (climate valve range help), **`B54:`** (climate boost help), **`E132:`** (sensor class help), **`E124:`** (low-battery help), **`E138:`** (motion/alarm active-colour help), **`E81:`** (bar item-size help), **`N12`**, **`E129`**, **`E50`**, **`E123`**, **`B56`**, **`E135`**, and the reporter's **`N37:`** in `www/src/`. (Grep: `help|label|placeholder|description` string values matching `\b[ENBUA][0-9]{1,3}\b`.)
+
+**Fix.** Strip the roadmap-ID prefix/mention from every user-facing string, keeping the actual explanatory text (`"E124: optional low-battery topic…"` → `"Optional low-battery topic…"`; `"E138: the motion-slice active default is…"` → `"The motion-slice active default is…"`). Leave the IDs in **code comments** (they're useful there). Where a bumped element package is touched, patch-bump it.
+
+**Guard against regressions.** Add a test that scans element descriptors (`palette`/`attributes`/`styles` `help`/`label`/`placeholder`/`description`) and the editor's user-facing strings for the roadmap-ID pattern and **fails CI** on a hit, with a small curated allowlist for legitimate matches (units / chemistry / paper sizes like `CO2`, `A4`, `B12`) so real text isn't blocked. This is the durable fix — a one-time sweep alone will drift back.
+
+**Ships with:** the sweep across the ~15 files, the regression-guard test, and (if any element package is modified) its patch bump + `docs/TESTING.md` note that user-facing strings must be ID-free.
+
+**Relates:** the element-spec authoring guide (`docs/element-spec.md` — add a "no roadmap IDs in user-facing strings" rule), the attribute-descriptor `help`/`label` convention (CLAUDE.md), every element package + `www/src` inspector/help surfaces that carry the offending strings.
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
