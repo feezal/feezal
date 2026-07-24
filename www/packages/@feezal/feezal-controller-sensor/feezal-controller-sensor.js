@@ -26,6 +26,7 @@ import {
     sensorDeviceClassMapFor, sensorActiveColorVar,
     sensorType, batteryLowAttributes, batteryLowFromValue,
 } from '@feezal/feezal-element/feezal-sensor-types.js';
+import {faultSabotageAttributes, subscribeFaultSabotage, faultSabotageSignature} from '@feezal/feezal-element/feezal-hm-fault.js';
 
 // Re-export the vocabulary so views need a single import.
 export {
@@ -60,6 +61,9 @@ export function sensorAttributesFor(slice = 'all') {
         {name: 'text-clear',  type: 'string', default: '', help: 'State text while clear. Empty = the type default.'},
         // E124: dedicated low-battery warning (badge, never a blackout).
         ...batteryLowAttributes,
+        // E135: sabotage (tamper) is alarm-grade on motion/alarm sensors —
+        // classic HM encodes it as ERROR == 7; HmIP as a SABOTAGE bool.
+        ...faultSabotageAttributes,
     ];
 }
 
@@ -99,6 +103,8 @@ export class SensorController {
         // ── state (plain fields, E137 decided) ──
         this.active = false;
         this.batteryLow = false;
+        this.sabotage = false;        // E135: tamper / case-opened
+        this.error = '';              // E135: decoded fault text ('' = none)
     }
 
     // ── attribute access (the saved markup is the source of truth) ──
@@ -138,7 +144,7 @@ export class SensorController {
     activeColorVar() { return sensorActiveColorVar(this.type); }
 
     signature() {
-        return [this._attr('subscribe'), this._attr('subscribe-battery-low')].join('|');
+        return [this._attr('subscribe'), this._attr('subscribe-battery-low'), faultSabotageSignature(this.host)].join('|');
     }
 
     hostConnected() {
@@ -174,6 +180,11 @@ export class SensorController {
                 this.host.requestUpdate();
             });
         }
+        // E135: fault + sabotage badges.
+        subscribeFaultSabotage(this.host, {
+            onError: t => { this.error = t; this.host.requestUpdate(); },
+            onSabotage: b => { this.sabotage = b; this.host.requestUpdate(); },
+        });
     }
 
     /** Call from the host's updated() to re-wire on live topic edits. */

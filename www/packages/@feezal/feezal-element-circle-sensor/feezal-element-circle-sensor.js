@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
+import {sabotageBadge, faultBadge, feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
 // E137/E138: the boolean-sensor behavior lives in the shared controller — this
 // element is a VIEW (Circle chrome: the E134 state disc). E138 split the alarm
 // slice of the type vocabulary onto this dedicated card; the sibling
@@ -65,7 +66,7 @@ class FeezalElementCircleSensor extends FeezalElement {
         discoveryId:           {type: String, reflect: true, attribute: 'discovery-id'},
     };
 
-    static styles = [feezalBatteryStyles, feezalBaseStyles, css`
+    static styles = [feezalBatteryStyles, feezalFaultStyles, feezalBaseStyles, css`
         :host {
             display: flex;
             flex-direction: column;
@@ -167,6 +168,7 @@ class FeezalElementCircleSensor extends FeezalElement {
         return html`
             ${!this._available ? html`<div class="unavail">${UNAVAIL}</div>` : ''}
             ${batteryLowBadge(s.batteryLow)}
+            ${sabotageBadge(s.sabotage)}${faultBadge(s.error)}
             <div class="disc-wrap">
                 <div class="disc ${s.active ? 'active' : ''} ${s.alarm ? 'alarm' : ''}">
                     <feezal-icon name="${s.icon()}"></feezal-icon>

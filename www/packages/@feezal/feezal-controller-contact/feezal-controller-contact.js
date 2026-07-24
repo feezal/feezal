@@ -16,6 +16,7 @@
 
 import {payloadMatch} from '@feezal/feezal-element';
 import {batteryLowAttributes, batteryLowFromValue} from '@feezal/feezal-element/feezal-sensor-types.js';
+import {faultSabotageAttributes, subscribeFaultSabotage, faultSabotageSignature} from '@feezal/feezal-element/feezal-hm-fault.js';
 
 export {payloadMatch, batteryLowFromValue};
 
@@ -43,6 +44,9 @@ export const contactAttributes = [
     // E124: dedicated low-battery warning — contacts are battery devices;
     // a weak battery is a badge, never a blackout (state keeps updating).
     ...batteryLowAttributes,
+    // E135: sabotage (case-opened) is alarm-grade on a window/door contact —
+    // classic HM encodes it as ERROR == 7; HmIP as a SABOTAGE bool.
+    ...faultSabotageAttributes,
 ];
 
 /** Shared discovery.map fragment (HA `binary_sensor`) — single-sourced. */
@@ -72,6 +76,8 @@ export class ContactController {
         // ── state (plain fields, E137 decided) ──
         this.state = 'closed';        // 'open' | 'closed' | 'tilted'
         this.batteryLow = false;
+        this.sabotage = false;        // E135: case-opened / tamper
+        this.error = '';              // E135: decoded fault text ('' = none)
     }
 
     _attr(name, fallback = '') {
@@ -91,7 +97,7 @@ export class ContactController {
     activeColorVar() { return CONTACT_ACTIVE_COLOR_VAR; }
 
     signature() {
-        return [this._attr('subscribe'), this._attr('subscribe-battery-low')].join('|');
+        return [this._attr('subscribe'), this._attr('subscribe-battery-low'), faultSabotageSignature(this.host)].join('|');
     }
 
     hostConnected() {
@@ -121,6 +127,11 @@ export class ContactController {
                 this.host.requestUpdate();
             });
         }
+        // E135: fault + sabotage badges.
+        subscribeFaultSabotage(this.host, {
+            onError: t => { this.error = t; this.host.requestUpdate(); },
+            onSabotage: b => { this.sabotage = b; this.host.requestUpdate(); },
+        });
     }
 
     /** Call from the host's updated() to re-wire on live topic edits. */

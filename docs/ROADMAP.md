@@ -1109,13 +1109,14 @@ Blinds/covers have **the same LEVEL ramp problem** as dimmers (position reports 
 
 **Relates:** **E127** (the machinery this reuses — do first), **E137** (controller extraction — cover settling ends up inside `CoverController`; see sequencing note), E108 ✅ (recognizer), E114 (parity), E120 ✅-era cover-discovery work (same recognizer area).
 
-### E135 — Homematic maintenance signals: ERROR_CODE + SABOTAGE badges, device-health board 🔨 board + decoder done; per-element badges open
+### E135 — Homematic maintenance signals: ERROR_CODE + SABOTAGE badges, device-health board 🔨 board + decoder + sabotage badges done; climate fault-reporting open
 
-**✅ Shipped (07/2026) — the device-health board + the shared decoder:**
-- **`@feezal/feezal-element/feezal-hm-fault.js`** — the shared fault/sabotage decoder: family-keyed classic enum tables (`HM-CC-RT-DN` FAULT_REPORTING, `HM-Sec-Key`/`HM-Sec-SC` ERROR — the same number means different things per family), the HmIP named-flag → text map, and the two sabotage encodings (`decodeHmFault`, `isHmSabotageValue`, `isSabotageActive`, `hmipFlagText`, `HM_HEALTH_DATAPOINTS`). Unit-tested.
-- **`feezal-element-basic-device-health`** — the "is everything okay?" board. Runs **discovery-less** on wildcard subscriptions (`<prefix>/status/+/{FAULT_REPORTING,ERROR,SABOTAGE,SABOTAGE_STICKY,LOWBAT,LOW_BAT,UNREACH, HmIP ERROR_* flags}`), device name from the topic segment, sorted by severity (sabotage alarm > fault warning > battery > unreach), clears on OK. Browser-tested.
+**✅ Shipped (07/2026) — the device-health board + the shared decoder + the sabotage/fault badge surface:**
+- **`@feezal/feezal-element/feezal-hm-fault.js`** — the shared decoder + badge infra: family-keyed classic enum tables (`HM-CC-RT-DN` FAULT_REPORTING, `HM-Sec-Key`/`HM-Sec-SC` ERROR — the same number means different things per family), the HmIP named-flag → text map, the two sabotage encodings (`decodeHmFault`/`isHmSabotageValue`/`isSabotageActive`/`hmipFlagText`), plus the shared `faultSabotageAttributes` fragment, `subscribeFaultSabotage` wiring helper, and the alarm-grade `sabotageBadge` / warning-tier `faultBadge` templates + `feezalFaultStyles`. Unit-tested.
+- **`feezal-element-basic-device-health`** — the "is everything okay?" board (discovery-less wildcard board, severity-sorted). Browser-tested.
+- **Per-element sabotage/fault badges** — `ContactController` + `SensorController` now wire `subscribe-error`/`subscribe-sabotage` (decoded via the shared helper) and expose `.error`/`.sabotage`; the badges render on all **contact / motion / (alarm) sensor** cards across circle/glass/metro/eink (12 views). The Homematic **contact and sensor recognizers auto-emit** the presence-checked `sabotage_normalized` record (classic `ERROR == 7` → encoding `error7`; HmIP `:0 SABOTAGE` bool → encoding `bool`), and `stampDiscovery` auto-stamps `error_normalized`/`sabotage_normalized` like the E124 battery record. `circle-lock` already renders the Keymatic `ERROR` fault (E144). Recognizer + stamp + badge all tested.
 
-**⏳ Still open — the per-element badges:** the recognizer emission of the `error_normalized` / `sabotage_normalized` records (presence-checked, `recognizers/homematic.js`), the `_applyDiscovery` auto-stamp of `subscribe-error`/`subscribe-sabotage`, and rendering the badges on the `*-climate` / `circle-lock` / `*-contact` / `*-motion`/`*-sensor` cards (alarm-grade sabotage vs. warning-tier error). The HmIP numeric `ERROR_CODE` per-device enums remain verify-gated (see the research below).
+**⏳ Still open — climate fault-reporting badge:** the TRV stuck-valve `FAULT_REPORTING` error on the `*-climate` cards (ClimateController `subscribe-error` + the climate recognizer emitting `error_normalized` — the FAULT_REPORTING service-channel index is verify-gated). The HmIP numeric `ERROR_CODE` per-device enums also remain verify-gated (see the research below).
 
 ---
 

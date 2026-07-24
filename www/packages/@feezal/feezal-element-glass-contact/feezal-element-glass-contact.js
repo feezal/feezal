@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
+import {sabotageBadge, faultBadge, feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
 import {ContactController, contactAttributes, contactDiscoveryMap} from '@feezal/feezal-controller-contact';
 import {applySizePreset, glassCardStyles} from '@feezal/feezal-glass';
 
@@ -87,7 +88,7 @@ class FeezalElementGlassContact extends FeezalElement {
         _state:     {state: true},   // 'closed' | 'open' | 'tilted'
     };
 
-    static styles = [feezalBatteryStyles, feezalBaseStyles, glassCardStyles, css`
+    static styles = [feezalBatteryStyles, feezalFaultStyles, feezalBaseStyles, glassCardStyles, css`
         .card {
             gap: 2px;
             transition: background 0.2s ease;
@@ -165,6 +166,7 @@ class FeezalElementGlassContact extends FeezalElement {
             <div class="card ${this.contact.state}">
                 ${!this._available ? html`<span class="unavail" title="Device unavailable">⚠</span>` : ''}
                 ${batteryLowBadge(this.contact.batteryLow)}
+                ${sabotageBadge(this.contact.sabotage)}${faultBadge(this.contact.error)}
                 <feezal-icon name="${this.icon || TYPE_ICONS[this.type] || TYPE_ICONS.window}"></feezal-icon>
                 <span class="state">${this._stateText()}</span>
                 <span class="label">${this.label || (feezal.isEditor ? 'Contact' : '')}</span>

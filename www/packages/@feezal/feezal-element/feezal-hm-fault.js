@@ -1,3 +1,5 @@
+import {html, css} from 'lit';
+
 /**
  * E135 — Homematic fault / sabotage decoding (shared).
  *
@@ -93,6 +95,76 @@ export function isSabotageActive(value, encoding, deviceType) {
         return asNum(value) === (HM_FAULT_ENUMS[deviceType] ? HM_FAULT_ENUMS[deviceType].sabotage : 7);
     }
     return asBool(value);
+}
+
+/**
+ * E135 shared attribute fragment — spread into a card's `feezal.attributes` so
+ * a device's fault (`FAULT_REPORTING`/`ERROR`) and sabotage (`SABOTAGE`, or
+ * classic `ERROR == 7`) signals auto-stamp and render as badges. Presence-checked
+ * like the E124 battery contract — only stamped when the device exposes them.
+ */
+export const faultSabotageAttributes = [
+    {name: 'subscribe-error', type: 'mqttTopic', help: 'Optional device fault topic (Homematic FAULT_REPORTING / ERROR). A warning badge shows the decoded fault text.'},
+    {name: 'message-property-error', type: 'string', help: 'Property path within fault messages. Defaults to message-property.'},
+    {name: 'error-device-type', type: 'string', help: 'Homematic device type (e.g. HM-CC-RT-DN) — selects the fault-code text table. Blank = show the raw code.'},
+    {name: 'subscribe-sabotage', type: 'mqttTopic', help: 'Optional sabotage/tamper topic (HmIP SABOTAGE, or classic contacts via ERROR). Shows an alarm-grade badge.'},
+    {name: 'message-property-sabotage', type: 'string', help: 'Property path within sabotage messages. Defaults to message-property.'},
+    {name: 'sabotage-encoding', type: 'select', options: ['bool', 'error7'], default: 'bool', help: 'How sabotage is encoded: a boolean (HmIP SABOTAGE), or classic contacts where ERROR == 7 is sabotage.'},
+];
+
+/** Attribute names of the E135 fragment (for parity-set derivation). */
+export const FAULT_SABOTAGE_ATTRIBUTES = faultSabotageAttributes.map(a => a.name);
+
+/**
+ * Wire a card's fault + sabotage subscriptions off its HOST attributes and
+ * decode them. `onError(text)` receives the decoded fault text ('' = no fault);
+ * `onSabotage(active)` a boolean. Mirrors the E124 battery wiring shape.
+ */
+export function subscribeFaultSabotage(host, {onError, onSabotage} = {}) {
+    const attr = n => { const v = host.getAttribute(n); return v === null ? '' : v; };
+    const prop = (msg, specific) => host.getProperty(msg, attr(specific) || attr('message-property') || 'payload');
+    const err = attr('subscribe-error');
+    if (err && onError) {
+        host.addSubscription(err, msg => onError(decodeHmFault(attr('error-device-type'), prop(msg, 'message-property-error'))));
+    }
+    const sab = attr('subscribe-sabotage');
+    if (sab && onSabotage) {
+        host.addSubscription(sab, msg => onSabotage(isSabotageActive(prop(msg, 'message-property-sabotage'), attr('sabotage-encoding'), attr('error-device-type'))));
+    }
+}
+
+/** Signature fragment for rewire-on-edit (join into the controller's signature). */
+export function faultSabotageSignature(host) {
+    return ['subscribe-error', 'subscribe-sabotage'].map(n => host.getAttribute(n) || '').join('|');
+}
+
+// E135 badge styles — sabotage is alarm-grade (error colour, prominent); fault
+// is the warning tier. Bottom-left by default (battery owns bottom-right).
+export const feezalFaultStyles = css`
+    .feezal-sabotage-badge, .feezal-fault-badge {
+        position: absolute;
+        bottom: var(--feezal-fault-bottom, 6px);
+        left: var(--feezal-fault-left, 6px);
+        width: var(--feezal-fault-size, 18px); height: var(--feezal-fault-size, 18px);
+        pointer-events: none; z-index: 2;
+    }
+    .feezal-sabotage-badge { color: var(--error-color, #d32f2f); opacity: 1; }
+    .feezal-fault-badge { color: var(--warning-color, #f0a30a); opacity: 0.95; }
+    .feezal-sabotage-badge svg, .feezal-fault-badge svg { width: 100%; height: 100%; display: block; }
+`;
+
+/** Alarm-grade sabotage badge — a shield with an exclamation. Renders nothing when inactive. */
+export function sabotageBadge(active) {
+    return active ? html`<span class="feezal-sabotage-badge" title="Sabotage / tamper"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M12 2 4 5v6c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10V5l-8-3zm-1 5h2v6h-2V7zm0 8h2v2h-2v-2z"/>
+    </svg></span>` : '';
+}
+
+/** Warning-tier fault badge — a triangle; the decoded text is the tooltip. '' = none. */
+export function faultBadge(text) {
+    return text ? html`<span class="feezal-fault-badge" title="${text}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+    </svg></span>` : '';
 }
 
 /** The device-health board's wildcard datapoint set (classic + HmIP + N31/E124). */

@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
+import {sabotageBadge, faultBadge, feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
 // E137/E138: the boolean-sensor behavior lives in the shared controller — this
 // element is a VIEW (Circle chrome: the four dedicated motion SVG visuals). E138
 // narrowed this card to the MOTION slice of the type vocabulary; the alarm-class
@@ -142,7 +143,7 @@ class FeezalElementCircleMotion extends FeezalElement {
         discoveryId:           {type: String, reflect: true, attribute: 'discovery-id'},
     };
 
-    static styles = [feezalBatteryStyles, feezalBaseStyles, css`
+    static styles = [feezalBatteryStyles, feezalFaultStyles, feezalBaseStyles, css`
         :host {
             display: flex;
             flex-direction: column;
@@ -245,6 +246,7 @@ class FeezalElementCircleMotion extends FeezalElement {
         return html`
             ${!this._available ? html`<div class="unavail">${UNAVAIL}</div>` : ''}
             ${batteryLowBadge(s.batteryLow)}
+            ${sabotageBadge(s.sabotage)}${faultBadge(s.error)}
             <div class="disc-wrap">
                 <div class="disc ${s.active ? 'active' : ''}">
                     <svg class="motion" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">

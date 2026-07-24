@@ -1,5 +1,6 @@
 /* global feezal */
 import {html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
+import {sabotageBadge, faultBadge, feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
 import {svg} from 'lit';
 import {ContactController, contactAttributes, contactDiscoveryMap} from '@feezal/feezal-controller-contact';
 import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
@@ -150,7 +151,7 @@ class FeezalElementMetroContact extends MetroTileBase {
         discoveryId:   {type: String,  reflect: true, attribute: 'discovery-id'},
     };
 
-    static styles = [feezalBatteryStyles, MetroTileBase.styles, css`
+    static styles = [feezalBatteryStyles, feezalFaultStyles, MetroTileBase.styles, css`
         :host {
             --feezal-metro-closed-color: var(--feezal-metro-accent);
             --feezal-metro-open-color: var(--error-color, #e51400);
@@ -217,6 +218,7 @@ class FeezalElementMetroContact extends MetroTileBase {
             : html`<svg class="contact" viewBox="0 0 60 60">${this._shapeSvg(this.contact.state)}</svg>`;
         return html`
             ${batteryLowBadge(this.contact.batteryLow)}
+            ${sabotageBadge(this.contact.sabotage)}${faultBadge(this.contact.error)}
             ${visual}
             <div class="state">${this._stateText()}</div>`;
     }

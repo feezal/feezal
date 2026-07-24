@@ -1,5 +1,6 @@
 /* global feezal */
 import {html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
+import {sabotageBadge, faultBadge, feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
 // E137: the boolean-sensor behavior lives in the shared controller — this
 // element is a VIEW (metro chrome) over SensorController state.
 // E138: the MOTION slice — presence/occupancy character (expected activity),
@@ -75,7 +76,7 @@ class FeezalElementMetroMotion extends MetroTileBase {
         discoveryId:   {type: String, reflect: true, attribute: 'discovery-id'},
     };
 
-    static styles = [feezalBatteryStyles, MetroTileBase.styles, css`
+    static styles = [feezalBatteryStyles, feezalFaultStyles, MetroTileBase.styles, css`
         /* E138: active default = the accent var (SensorController.activeColorVar()
            resolves the motion slice to --accent-color); --feezal-metro-active-color
            stays the per-element override. */
@@ -121,6 +122,7 @@ class FeezalElementMetroMotion extends MetroTileBase {
     renderFront() {
         return html`
             ${batteryLowBadge(this.sensor.batteryLow)}
+            ${sabotageBadge(this.sensor.sabotage)}${faultBadge(this.sensor.error)}
             <feezal-icon name="${this.sensor.icon()}"></feezal-icon>
             <div class="state">${this.sensor.text()}</div>`;
     }

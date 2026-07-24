@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
+import {sabotageBadge, faultBadge, feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
 // E137: the boolean-sensor behavior lives in the shared controller — this
 // element is a VIEW (glass chrome) over SensorController state.
 // E138: narrowed to the MOTION slice (motion / presence / radar / zone).
@@ -85,7 +86,7 @@ class FeezalElementGlassMotion extends FeezalElement {
         // E137: sensor state lives on the SensorController.
     };
 
-    static styles = [feezalBatteryStyles, feezalBaseStyles, glassCardStyles, css`
+    static styles = [feezalBatteryStyles, feezalFaultStyles, feezalBaseStyles, glassCardStyles, css`
         .card {
             gap: 2px;
             transition: background 0.2s ease;
@@ -168,6 +169,7 @@ class FeezalElementGlassMotion extends FeezalElement {
             <div class="card ${this.sensor.active ? 'active' : ''}" style="--feezal-glass-active-default: ${activeDefault}">
                 ${!this._available ? html`<span class="unavail" title="Device unavailable">⚠</span>` : ''}
                 ${batteryLowBadge(this.sensor.batteryLow)}
+                ${sabotageBadge(this.sensor.sabotage)}${faultBadge(this.sensor.error)}
                 <feezal-icon name="${this.icon || this.sensor.icon()}"></feezal-icon>
                 <span class="state">${this.sensor.text()}</span>
                 <span class="label">${this.label || (feezal.isEditor ? 'Motion' : '')}</span>

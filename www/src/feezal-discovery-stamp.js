@@ -208,6 +208,22 @@ export function stampDiscovery(el, entity) {
         if (batt.payloadLow !== undefined) el.setAttribute('payload-battery-low', String(batt.payloadLow));
     }
 
+    // E135: canonical fault + sabotage records — auto-stamped like battery, but
+    // ONLY for elements that declare the attributes (presence-checked emission).
+    const declares = name => cls.feezal.attributes?.some(a => a?.name === name);
+    const err = cfg.error_normalized;
+    if (err?.topic && declares('subscribe-error')) {
+        el.setAttribute('subscribe-error', err.topic);
+        if (err.property) el.setAttribute('message-property-error', err.property);
+        if (err.deviceType) el.setAttribute('error-device-type', err.deviceType);
+    }
+    const sab = cfg.sabotage_normalized;
+    if (sab?.topic && declares('subscribe-sabotage')) {
+        el.setAttribute('subscribe-sabotage', sab.topic);
+        if (sab.property) el.setAttribute('message-property-sabotage', sab.property);
+        if (sab.encoding) el.setAttribute('sabotage-encoding', sab.encoding);
+    }
+
     // Store the discovery-id for future re-sync (N12) and Generate dupe-guard.
     if (entity.discovery_id) el.setAttribute('discovery-id', entity.discovery_id);
     return true;

@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
+import {sabotageBadge, faultBadge, feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
 // E137: the contact behavior lives in the shared controller — this element
 // is a VIEW (Circle chrome: the E134 state disc, mirroring material-sensor /
 // material-light). E138 dropped the leak/fire alarm "types" — those are
@@ -66,7 +67,7 @@ class FeezalElementCircleContact extends FeezalElement {
         discoveryId:           {type: String,  reflect: true, attribute: 'discovery-id'},
     };
 
-    static styles = [feezalBatteryStyles, feezalBaseStyles, css`
+    static styles = [feezalBatteryStyles, feezalFaultStyles, feezalBaseStyles, css`
         :host {
             display: flex;
             flex-direction: column;
@@ -185,6 +186,7 @@ class FeezalElementCircleContact extends FeezalElement {
         return html`
             ${!this._available ? html`<div class="unavail">${UNAVAIL}</div>` : ''}
             ${batteryLowBadge(this.contact.batteryLow)}
+            ${sabotageBadge(this.contact.sabotage)}${faultBadge(this.contact.error)}
             <div class="disc-wrap">
                 <div class="disc ${state === 'open' ? 'open' : ''} ${state === 'tilted' ? 'tilted' : ''}">
                     <feezal-icon name="${this._icon()}"></feezal-icon>

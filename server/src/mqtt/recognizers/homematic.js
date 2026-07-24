@@ -368,7 +368,9 @@ const hmContactRecognizer = {
         if (!topic.startsWith(hmPrefix + '/status/')) return null;
         const parts = topic.split('/');
         if (parts.length !== 4) return null;            // exactly prefix/status/seg/DP
-        if (parts[3] !== 'STATE' && !HM_BATTERY_DPS.has(parts[3])) return null;
+        // E135: also observe ERROR (classic sabotage: ERROR == 7) and the HmIP
+        // SABOTAGE bool, presence-checked like the E124 battery datapoints.
+        if (parts[3] !== 'STATE' && parts[3] !== 'ERROR' && parts[3] !== 'SABOTAGE' && !HM_BATTERY_DPS.has(parts[3])) return null;
         return {seg: parts[2], datapoint: parts[3]};
     },
 
@@ -397,6 +399,15 @@ const hmContactRecognizer = {
         if (HM_BATTERY_DPS.has(parsed.datapoint) && /:0$/.test(parsed.seg)) {
             dev.batteryDp = parsed.datapoint;
         }
+        // E135: a contact's ERROR datapoint (classic sabotage = ERROR == 7) is on
+        // the sensing channel; the HmIP SABOTAGE bool is on the :0 maintenance channel.
+        if (parsed.datapoint === 'ERROR') {
+            let chan = dev.channels.get(parsed.seg);
+            if (!chan) { chan = {seg: parsed.seg, channelType: undefined, channelAddr: undefined}; dev.channels.set(parsed.seg, chan); }
+            chan.hasError = true;
+            return dev;
+        }
+        if (parsed.datapoint === 'SABOTAGE') { dev.sabotageSeg = parsed.seg; return dev; }
         if (parsed.datapoint !== 'STATE') return dev;
 
         let chan = dev.channels.get(parsed.seg);
@@ -449,6 +460,15 @@ const hmContactRecognizer = {
             // both generations. No tilt.
             config.payload_on = '1';
             config.payload_off = '0';
+        }
+
+        // E135: sabotage (case-opened). Classic contacts encode it as ERROR == 7
+        // on the sensing channel; HmIP as a SABOTAGE bool on the :0 channel.
+        // Presence-checked — only emitted when the datapoint was observed.
+        if (contact.hasError) {
+            config.sabotage_normalized = {topic: hmStatus(p, seg, 'ERROR'), property: 'payload.val', encoding: 'error7'};
+        } else if (dev.sabotageSeg) {
+            config.sabotage_normalized = {topic: hmStatus(p, dev.sabotageSeg, 'SABOTAGE'), property: 'payload.val', encoding: 'bool'};
         }
 
         // Availability (:0 UNREACH) + battery resolved at READ time (B65) via the
@@ -1083,7 +1103,9 @@ const hmSensorRecognizer = {
         const parts = topic.split('/');
         if (parts.length !== 4) return null;            // exactly prefix/status/seg/DP
         const datapoint = parts[3];
-        if (!HM_SENSOR_DPS.has(datapoint) && !HM_BATTERY_DPS.has(datapoint)) return null;
+        // E135: also observe ERROR (classic sabotage: ERROR == 7) and the HmIP
+        // SABOTAGE bool, presence-checked like the E124 battery datapoints.
+        if (!HM_SENSOR_DPS.has(datapoint) && !HM_BATTERY_DPS.has(datapoint) && datapoint !== 'ERROR' && datapoint !== 'SABOTAGE') return null;
         return {seg: parts[2], datapoint};
     },
 
@@ -1111,6 +1133,9 @@ const hmSensorRecognizer = {
         if (HM_BATTERY_DPS.has(parsed.datapoint) && /:0$/.test(parsed.seg)) {
             dev.batteryDp = parsed.datapoint;
         }
+        // E135: HmIP sabotage bool on the :0 channel (classic ERROR is captured
+        // on the sensing channel's dp set below).
+        if (parsed.datapoint === 'SABOTAGE') dev.sabotageSeg = parsed.seg;
 
         let chan = dev.channels.get(parsed.seg);
         if (!chan) {
@@ -1161,6 +1186,14 @@ const hmSensorRecognizer = {
             payload_on: '1',
             payload_off: '0',
         };
+
+        // E135: sabotage — classic sensors encode it as ERROR == 7 on the sensing
+        // channel; HmIP as a SABOTAGE bool on :0. Presence-checked.
+        if (sensorChan.dps.has('ERROR')) {
+            config.sabotage_normalized = {topic: hmStatus(p, seg, 'ERROR'), property: 'payload.val', encoding: 'error7'};
+        } else if (dev.sabotageSeg) {
+            config.sabotage_normalized = {topic: hmStatus(p, dev.sabotageSeg, 'SABOTAGE'), property: 'payload.val', encoding: 'bool'};
+        }
 
         // Availability (:0 UNREACH) + battery (:0 LOWBAT/LOW_BAT, presence-
         // checked) resolved at READ time (B65) via the device→:0 maintenance

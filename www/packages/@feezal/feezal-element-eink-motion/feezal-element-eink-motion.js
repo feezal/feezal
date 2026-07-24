@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
+import {sabotageBadge, faultBadge, feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
 import {EinkBase, einkCardStyles} from '@feezal/feezal-eink';
 // E137: the boolean-sensor behavior lives in the shared controller — this
 // element is a VIEW (eink chrome: inverted block while active).
@@ -66,7 +67,7 @@ class FeezalElementEinkMotion extends EinkBase {
         discoveryId: {type: String, reflect: true, attribute: 'discovery-id'},
     };
 
-    static styles = [feezalBatteryStyles, feezalBaseStyles, einkCardStyles, css`
+    static styles = [feezalBatteryStyles, feezalFaultStyles, feezalBaseStyles, einkCardStyles, css`
         .card { gap: 2px; align-items: flex-start; }
         feezal-icon { font-size: var(--feezal-eink-icon-size, 28px); line-height: 1; }
         .state { font-size: var(--feezal-eink-font-size-value, 22px); line-height: 1.05;
@@ -110,6 +111,7 @@ class FeezalElementEinkMotion extends EinkBase {
             <div class="card ${this.sensor.active ? 'inv' : ''}">
                 ${!this._available ? html`<span class="badge-tr" title="Device unavailable">!</span>` : ''}
                 ${batteryLowBadge(this.sensor.batteryLow)}
+                ${sabotageBadge(this.sensor.sabotage)}${faultBadge(this.sensor.error)}
                 <feezal-icon name="${this.sensor.icon()}"></feezal-icon>
                 <span class="state">${this.sensor.text()}</span>
                 <span class="label">${this.label || (feezal.isEditor ? 'Motion' : '')}</span>
