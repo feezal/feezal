@@ -275,6 +275,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 
 - [A2 — Site management UI in editor  ✅ implemented](A2.md)
 - [A5 — Testing & CI ✅ done](A5.md)
+- [A30 — Split `native-discovery.js` into per-source recognizer modules ✅ done](A30.md)
 - [A6 — Remove `/feezal` path prefix ⚡ high priority  ✅ implemented](A6.md)
 - [A8 — Per-site tree-shaking for static HTML export ✅ implemented](A8.md)
 - [A9 — Mobile app packaging: PWA export + Capacitor project template ✅ all tiers implemented](A9.md)

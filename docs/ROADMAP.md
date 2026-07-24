@@ -80,7 +80,6 @@ Work in progress — priorities and scope are not final.
 - [A24 — Externalize the metro element family](#a24--externalize-the-metro-element-family-future--will-be-done-later) *(future)*
 - [A27 — i18n: editor localization + language-aware element defaults](#a27--i18n-editor-localization--language-aware-element-defaults--to-refine--needs-discussion) 💡 *(to refine)*
 - [A29 — RTL layout support (Arabic, Hebrew)](#a29--rtl-layout-support-arabic-hebrew--future) 💡 *(future)*
-- [A30 — Split `native-discovery.js` into per-source recognizer modules](#a30--split-native-discoveryjs-into-per-source-recognizer-modules)
 
 
 ---
@@ -1921,27 +1920,6 @@ Right-to-left support is **a layout mode, not a translation** — which is exact
 **Explicitly future:** nothing here blocks or complicates A27's en+de work; the only present-day requirement (A27's dictionary format must not preclude RTL locales) is already met.
 
 **Relates:** **A27** (the language machinery this rides on — split out from its language list 07/2026), A25 ✅ (font self-hosting constraint), N38 (site locale — supplies the locale that flips `dir`), layout-app / tab bars / sliders (the element-internal audit surface), E38 (element scaling — the other cross-cutting element-CSS audit; coordinate if both run).
-
-### A30 — Split `native-discovery.js` into per-source recognizer modules
-
-[native-discovery.js](../server/src/mqtt/native-discovery.js) has grown to **~1721 lines / 9 recognizers** (8 Homematic + WLED + evcc), with more inbound (E145 ccu-jack, E146 evcc AI-edge, and E149's HA-component work touching the sibling `discovery.js`). One file is now the wrong home.
-
-**Decided (07/2026): split by source/vendor** into `server/src/mqtt/recognizers/`:
-- `recognizers/homematic.js` — all 8 HM recognizers (climate/contact/cover/light/switch/sensor/lock) **plus their shared `hm` infrastructure** (`hmSet`/`hmStatus`/`hmParamset`, `hmipVirtualGroup`, the channel-type allowlists, `:0` correlation, JSON-Extended `hm`-metadata parsing). These genuinely cohere — they consume one payload model and share the virtual-receiver grouping.
-- `recognizers/wled.js`, `recognizers/evcc.js` — the two standalone recognizers.
-- Future sources (ccu-jack, …) land as one new file + one registry line.
-
-**Why *not* the axes originally floated** (recorded so it isn't re-proposed): **hm2mqtt vs RedMatic** emit the *same* MQTT-Smarthome payload — the recognizers already handle both, nothing to split. **BidCoS vs HmIP** are handled *within* each function recognizer via paired channel-type sets (`COVER_BIDCOS_TYPES`/`COVER_HMIP_TYPES`, etc.); a generation split would bisect every recognizer and duplicate its accumulate/promote skeleton — strictly worse.
-
-**`native-discovery.js` stays the orchestrator + framework** (decided): keeps the `match`/`accumulate`/`promote` dispatch loop, the entity registry, and the `recognizers` registry array; per-source modules import the shared framework/helpers from it (or a small sibling `core.js` if a cycle appears — homematic.js needs `hmSet` etc., so put the pure helpers where both can import without a loop). **`module.exports` API is unchanged** — callers and tests keep importing `native-discovery.js`.
-
-**Pure move, no behaviour change** (decided): mechanical extraction only. The existing `server/test/native-discovery.test.js` stays **green unchanged** as the safety net — that's the acceptance criterion. Splitting the test file per-source is an explicit *later, optional* follow-up, not part of this.
-
-**Watch-outs:** the shared HM helpers must live where `homematic.js` and any framework code both reach them without a circular import (extract pure helpers to `core.js`/`hm-common.js` if needed); keep the registry order identical (recognizer precedence is behavioural); re-run the full server suite, not just the discovery test, since `app.js` and routes import the module.
-
-**Ships with:** the file moves, import rewiring, unchanged public API, all server tests green (`native-discovery.test.js` untouched), a short note in the module header explaining the per-source layout for future recognizer authors.
-
-**Relates:** **E108** ✅ (the recognizer framework being reorganized), **E145** (ccu-jack recognizer — first beneficiary, drops in as `recognizers/ccu-jack.js`), **E146 / E149** (more discovery work landing on this surface), E106 ✅ (the "shared code, per-unit files" lesson from the glass refactor — same shape, server side), the discovery `component` model (unchanged target).
 
 ## Open Questions
 
