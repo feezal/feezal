@@ -12,6 +12,10 @@ import '@shoelace-style/shoelace/dist/components/option/option.js';
  * colour-var rows: a free-text value input (accepts hex, named colours,
  * var(--…)) with a resolving colour swatch to its right; an EMPTY input means
  * "theme default" (the swatch then resolves var(--primary-background-color)).
+ * U59: gradient stops share that model — each stop is editable as a literal
+ * swatch OR a themed `var(--…)` reference (typed, or via the theme-var menu),
+ * kept verbatim through parse/serialise so the gradient re-tints on theme
+ * switch instead of freezing to hex.
  * Declared on an element's `feezal().styles` as
  *     {group: 'background', editor: 'feezal-style-editor-background', label: 'Background'}
  * and mounted by the style inspector, which passes the selection in via
@@ -35,6 +39,16 @@ const ANCHORS = [
     'left top', 'center top', 'right top',
     'left center', 'center center', 'right center',
     'left bottom', 'center bottom', 'right bottom',
+];
+
+// U59: canonical themed CSS custom properties a gradient stop (or the solid
+// background colour) may reference, so the background re-tints with the active
+// theme instead of freezing to a literal hex (CLAUDE.md / element-spec §5.1).
+// Offered as a quick-pick menu next to the solid input and every gradient stop.
+const THEME_VARS = [
+    '--primary-background-color', '--secondary-background-color',
+    '--primary-text-color', '--secondary-text-color', '--disabled-text-color',
+    '--divider-color', '--primary-color', '--accent-color', '--error-color',
 ];
 
 class FeezalStyleEditorBackground extends LitElement {
@@ -143,9 +157,16 @@ class FeezalStyleEditorBackground extends LitElement {
         .anchor-grid button.active::after { background: var(--sl-color-primary-600, #0284c7); opacity: 1; }
 
         /* gradient stops */
-        .stop-row { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; }
-        .stop-row sl-input { flex: 1; min-width: 0; }
-        .stop-row .pct { width: 58px; flex: none; }
+        .stop-row { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; flex-wrap: wrap; }
+        .stop-row .stop-color { flex: 1 1 80px; min-width: 0; }
+        .stop-row .pct { width: 52px; flex: none; }
+        /* U59: compact theme-variable quick-pick (solid + each gradient stop) */
+        .var-menu {
+            flex: none; width: 40px; height: 26px; padding: 0 2px; cursor: pointer;
+            font-size: 10px; border-radius: 3px;
+            border: 1px solid var(--feezal-border, #ccc);
+            background: var(--feezal-bg, #fff); color: var(--feezal-color, #333);
+        }
         .stop-btn {
             width: 20px; height: 24px; padding: 0; border: none; background: none; cursor: pointer;
             color: var(--feezal-color, #666); font-size: 13px; border-radius: 3px; opacity: 0.6;
@@ -316,13 +337,18 @@ class FeezalStyleEditorBackground extends LitElement {
 
     _parseStops(text) {
         const stops = [];
-        // Split on commas that are not inside parentheses (rgb()/rgba() stops).
+        // Split on commas that are not inside parentheses (rgb()/rgba()/var()
+        // fallback stops).
         for (const part of text.split(/,(?![^(]*\))/)) {
             const m = part.trim().match(/^(.+?)\s+([\d.]+)%$/);
             if (!m) return null;
-            const color = this._hexish(m[1].trim());
-            if (!color) return null;
-            stops.push({color, pos: parseFloat(m[2])});
+            // U59: keep the AUTHORED colour string (a `var(--…)` reference or a
+            // literal hex/named/rgb) rather than normalising to hex — so it
+            // serialises back verbatim and re-tints with the theme. Validate
+            // loosely: accept a var() or anything _hexish can resolve.
+            const raw = m[1].trim();
+            if (!(/^var\(/i.test(raw) || this._hexish(raw))) return null;
+            stops.push({color: raw, pos: parseFloat(m[2])});
         }
         return stops.length >= 2 ? stops : null;
     }
@@ -441,8 +467,26 @@ class FeezalStyleEditorBackground extends LitElement {
         `;
     }
 
+    /**
+     * U59: a compact theme-variable quick-pick. Picking an entry hands the
+     * caller `var(--…)` so a stop (or the solid colour) references the theme and
+     * re-tints on theme switch; the caller resolves it for its swatch. The
+     * select snaps back to its "var…" placeholder after each pick.
+     */
+    _varMenu(onPick) {
+        return html`
+            <select class="var-menu" title="Reference a theme colour variable"
+                @change="${e => { const v = e.target.value; e.target.selectedIndex = 0; if (v) onPick(v); }}">
+                <option value="">var…</option>
+                ${THEME_VARS.map(v => html`<option value="var(${v})">${v.replace(/^--/, '').replace(/-/g, ' ')}</option>`)}
+            </select>
+        `;
+    }
+
     _renderSolid() {
         // Element colour-var row pattern: free value input + resolving swatch.
+        // The input already accepts a typed var(--…); the var menu offers the
+        // canonical names so authors don't have to remember them (U59).
         const hex = this._resolveHex(this._colorText);
         return html`
             <div class="row">
@@ -454,6 +498,7 @@ class FeezalStyleEditorBackground extends LitElement {
                 <input type="color" class="${hex ? '' : 'unresolved'}"
                     .value="${hex || '#000000'}"
                     @input="${e => { this._colorText = e.target.value; this._emitCurrent(); }}">
+                ${this._varMenu(v => { this._colorText = v; this._emitCurrent(); })}
             </div>
         `;
     }
@@ -530,10 +575,19 @@ class FeezalStyleEditorBackground extends LitElement {
                     </sl-select>
                 `}
             </div>
-            ${this._stops.map((s, i) => html`
+            ${this._stops.map((s, i) => {
+                // U59: each stop is editable as EITHER a literal colour (the
+                // swatch) OR a themed var(--…) (typed, or via the var menu). The
+                // swatch resolves the authored string; unresolvable → checkerboard.
+                const hex = this._resolveHex(s.color);
+                return html`
                 <div class="stop-row">
-                    <input type="color" .value="${s.color}"
+                    <sl-input class="stop-color" size="small" placeholder="#hex / var(--…)" .value="${s.color}"
+                        @sl-change="${e => this._stopChanged(i, {color: e.target.value.trim() || '#000000'})}">
+                    </sl-input>
+                    <input type="color" class="${hex ? '' : 'unresolved'}" .value="${hex || '#000000'}"
                         @input="${e => this._stopChanged(i, {color: e.target.value})}">
+                    ${this._varMenu(v => this._stopChanged(i, {color: v}))}
                     <sl-input class="pct" size="small" type="number" min="0" max="100" .value="${String(s.pos)}"
                         @sl-change="${e => this._stopChanged(i, {pos: Math.max(0, Math.min(100, parseFloat(e.target.value) || 0))})}">
                         <span slot="suffix">%</span>
@@ -544,8 +598,8 @@ class FeezalStyleEditorBackground extends LitElement {
                         @click="${() => this._moveStop(i, 1)}">↓</button>
                     <button class="stop-btn" title="Remove stop" ?disabled="${this._stops.length <= 2}"
                         @click="${() => this._removeStop(i)}">×</button>
-                </div>
-            `)}
+                </div>`;
+            })}
             <button class="add-stop" @click="${() => this._addStop()}">+ add stop</button>
         `;
     }

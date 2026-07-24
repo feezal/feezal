@@ -139,6 +139,33 @@ describe('feezal-style-editor-background — reading', () => {
         expect(ed._gradientValue()).toBe('linear-gradient(45deg, #ff0000 0%, #0000ff 100%)');
     });
 
+    it('U59: keeps themed var() gradient stops verbatim and round-trips them', () => {
+        target.style.setProperty('background-image',
+            'linear-gradient(90deg, var(--primary-color) 0%, #0000ff 100%)');
+        const ed = makeEditor(target);
+        expect(ed._mode).toBe('gradient');
+        // The authored var(--…) is preserved (not normalised to hex), the
+        // literal hex stays hex.
+        expect(ed._stops).toEqual([
+            {color: 'var(--primary-color)', pos: 0},
+            {color: '#0000ff', pos: 100},
+        ]);
+        // Serialisation emits the var() verbatim so the browser resolves it
+        // against the live theme cascade.
+        expect(ed._gradientValue())
+            .toBe('linear-gradient(90deg, var(--primary-color) 0%, #0000ff 100%)');
+    });
+
+    it('U59: a radial gradient mixing two theme vars round-trips', () => {
+        const g = 'radial-gradient(circle, var(--primary-background-color) 0%, var(--accent-color) 100%)';
+        target.style.setProperty('background-image', g);
+        const ed = makeEditor(target);
+        expect(ed._gradType).toBe('radial');
+        expect(ed._stops.map(s => s.color))
+            .toEqual(['var(--primary-background-color)', 'var(--accent-color)']);
+        expect(ed._gradientValue()).toBe(g);
+    });
+
     it('detects solid mode; no authored colour = solid with empty text (theme default)', () => {
         target.style.setProperty('background-color', '#123456');
         let ed = makeEditor(target);

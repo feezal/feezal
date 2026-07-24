@@ -72,7 +72,6 @@ Work in progress — priorities and scope are not final.
 - [U45 — Element insertion: palette sidebar + full-screen picker](#u45--element-insertion-palette-sidebar--full-screen-picker--to-refine) 💡 *(to refine)*
 - [U50 — layout-app: expose the content area's inset (padding)](#u50--layout-app-expose-the-content-areas-inset-padding)
 - [U58 — "Generate" button: bulk element + app scaffold wizard from discovery](#u58--generate-button-bulk-element--app-scaffold-wizard-from-discovery--to-refine) 💡
-- [U59 — Style inspector gradient editor: allow themed CSS vars as gradient stops](#u59--style-inspector-gradient-editor-allow-themed-css-vars-as-gradient-stops)
 - [U60 — Editor: surface lost server connection (grace-period → blocking overlay)](#u60--editor-surface-lost-server-connection-grace-period--blocking-overlay)
 - [U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow](#u61--editor-preview-fidelity-gradientbackground-in-a-percentage-sized-views-scroll-overflow)
 
@@ -1004,20 +1003,6 @@ The embedded view sits flush against the app bar and drawer — there is no way 
 - Accept a full CSS shorthand (`8px`, `8px 16px`, …) rather than a number, so per-side insets need no extra knobs.
 
 **Relates:** E-layout-app (the shell), N36 (the `--feezal-app-*` style-var set this extends), E38 (element scaling / responsive sizing — a responsive inset would belong there).
-
-### U59 — Style inspector gradient editor: allow themed CSS vars as gradient stops
-
-The style inspector's **solid** background-color already accepts a themed variable — you can type `var(--primary-background-color)` (or any canonical theme var) and get a resolving swatch, with an empty input meaning "theme default" ([feezal-style-editor-background.js:13-14,52](../www/src/feezal-style-editor-background.js#L13-L14)). The **gradient** editor does not: each stop is a plain `input[type=color]` and every authored/parsed colour is normalised to hex (`_hexish()`, stops shaped `{color, pos}` with hex defaults like `#0284c7` — [feezal-style-editor-background.js:88](../www/src/feezal-style-editor-background.js#L88)). So a gradient can never follow the active theme: switch themes and the gradient stays put while solid backgrounds re-tint.
-
-**Wanted:** let each gradient stop reference a themed CSS custom property (the canonical set — `--primary-color`, `--secondary-background-color`, `--accent-color`, … per the theme-variable discipline in CLAUDE.md / element-spec §5.1) exactly as the solid path does, so gradients participate in theming. A stop should be editable as *either* a literal colour swatch *or* a `var(--…)` reference, with the same "resolving swatch / unresolved checkerboard" affordance the solid input already uses.
-
-**Implementation notes:**
-- The reusable piece is the solid input's authored-text-plus-resolving-swatch control ([feezal-style-editor-background.js](../www/src/feezal-style-editor-background.js)) — factor it out and reuse it per gradient stop instead of the bare `input[type=color]`, rather than building a second resolver.
-- Stops must stop being hex-normalised: `{color, pos}` has to carry the *authored* string (`var(--…)` or hex), and only the **swatch preview** resolves it via the existing probe (`getComputedStyle` on a throwaway element). Serialisation to `linear-/radial-gradient(...)` should emit the authored `var(--…)` verbatim so the browser resolves it against the live theme cascade — this is what makes the gradient theme-aware.
-- The gradient parser (`_parseGradient` / the stop regexes around [feezal-style-editor-background.js:300-325](../www/src/feezal-style-editor-background.js#L300-L325)) currently rejects any stop that isn't hex-ish (`_hexish` returns `''` → parse bails). It must accept and round-trip `var(--…)` stop colours so re-opening the inspector on a themed gradient doesn't silently drop back to defaults.
-- Offer the canonical theme vars in a picker/datalist (same list the theme-variable discipline defines) so authors don't have to remember the names — the solid input could gain the same affordance.
-
-**Relates:** the solid-colour var support this mirrors (same file), §5.1 theme-variable discipline (the canonical var set gradients should draw from), U18/themes (why a themed gradient matters — it should re-tint on theme switch).
 
 ### U60 — Editor: surface lost server connection (grace-period → blocking overlay)
 
