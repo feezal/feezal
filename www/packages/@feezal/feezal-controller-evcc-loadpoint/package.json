@@ -1,0 +1,6 @@
+{
+    "name": "@feezal/feezal-controller-evcc-loadpoint",
+    "version": "0.1.0",
+    "main": "feezal-controller-evcc-loadpoint.js",
+    "license": "MIT"
+}

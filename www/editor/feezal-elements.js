@@ -29,6 +29,7 @@ import '@feezal/feezal-element-circle-fan';
 import '@feezal/feezal-element-circle-gauge';
 import '@feezal/feezal-element-circle-humidifier';
 import '@feezal/feezal-element-circle-light';
+import '@feezal/feezal-element-circle-loadpoint';
 import '@feezal/feezal-element-circle-lock';
 import '@feezal/feezal-element-circle-media';
 import '@feezal/feezal-element-circle-meter';
@@ -62,6 +63,7 @@ import '@feezal/feezal-element-glass-dialog';
 import '@feezal/feezal-element-glass-dialog-view';
 import '@feezal/feezal-element-glass-fan';
 import '@feezal/feezal-element-glass-light';
+import '@feezal/feezal-element-glass-loadpoint';
 import '@feezal/feezal-element-glass-lock';
 import '@feezal/feezal-element-glass-meter';
 import '@feezal/feezal-element-glass-motion';
@@ -102,6 +104,7 @@ import '@feezal/feezal-element-metro-climate';
 import '@feezal/feezal-element-metro-contact';
 import '@feezal/feezal-element-metro-cover';
 import '@feezal/feezal-element-metro-light';
+import '@feezal/feezal-element-metro-loadpoint';
 import '@feezal/feezal-element-metro-lock';
 import '@feezal/feezal-element-metro-media';
 import '@feezal/feezal-element-metro-meter';
@@ -186,6 +189,7 @@ window.feezal.elements = [
   "feezal-element-circle-gauge",
   "feezal-element-circle-humidifier",
   "feezal-element-circle-light",
+  "feezal-element-circle-loadpoint",
   "feezal-element-circle-lock",
   "feezal-element-circle-media",
   "feezal-element-circle-meter",
@@ -219,6 +223,7 @@ window.feezal.elements = [
   "feezal-element-glass-dialog-view",
   "feezal-element-glass-fan",
   "feezal-element-glass-light",
+  "feezal-element-glass-loadpoint",
   "feezal-element-glass-lock",
   "feezal-element-glass-meter",
   "feezal-element-glass-motion",
@@ -259,6 +264,7 @@ window.feezal.elements = [
   "feezal-element-metro-contact",
   "feezal-element-metro-cover",
   "feezal-element-metro-light",
+  "feezal-element-metro-loadpoint",
   "feezal-element-metro-lock",
   "feezal-element-metro-media",
   "feezal-element-metro-meter",

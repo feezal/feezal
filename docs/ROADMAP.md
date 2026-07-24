@@ -47,7 +47,6 @@ Work in progress — priorities and scope are not final.
 - [E95 — Configurable keyboard shortcuts for interactive elements](#e95--configurable-keyboard-shortcuts-for-interactive-elements)
 - [E96 — MIDI input as an element trigger (Web MIDI)](#e96--midi-input-as-an-element-trigger-web-midi-️-questionable-future) ❓
 - [E107 — Thermostat schedule elements (device week programs)](#e107--thermostat-schedule-elements-device-week-programs--blocked-by-upstream-homematic) 🚧 *(blocked by upstream — Homematic)*
-- [E109 — evcc integration: native discovery + energy/charging elements](#e109--evcc-integration-native-discovery--energycharging-elements--to-refine) 💡 *(to refine)*
 - [E112 — Scrypted integration: camera snapshot element](#e112--scrypted-integration-camera-snapshot-element-sensors-already-work--to-refine) 💡 *(to refine)*
 - [E113 — Element taxonomy: make "function × style" explicit](#e113--element-taxonomy-make-function--style-explicit--needs-discussion) ⚠️
 - [E114 — Family parity contract: material/circle / glass / metro stay in sync](#e114--family-parity-contract-materialcircle--glass--metro-stay-in-sync--needs-discussion) ⚠️
@@ -58,6 +57,7 @@ Work in progress — priorities and scope are not final.
 - [E139 — "Fancy" element family: Lottie-animated device cards](#e139--fancy-element-family-lottie-animated-device-cards)
 - [E144 — Lock autodiscovery: Homematic BidCoS (Keymatic) + HmIP smart locks + zigbee2mqtt](#e144--lock-autodiscovery-homematic-bidcos-keymatic--hmip-smart-locks--zigbee2mqtt--keymatic--z2m-done-hmip-dld-open) 🔨 *(Keymatic + z2m done; HmIP-DLD open)*
 - [E145 — Autodiscovery support for ccu-jack's MQTT interface](#e145--autodiscovery-support-for-ccu-jacks-mqtt-interface)
+- [E149 — Extend HA MQTT discovery to more component types](#e149--extend-ha-mqtt-discovery-to-more-component-types)
 
 **Editor UX**
 
@@ -81,6 +81,7 @@ Work in progress — priorities and scope are not final.
 - [A24 — Externalize the metro element family](#a24--externalize-the-metro-element-family-future--will-be-done-later) *(future)*
 - [A27 — i18n: editor localization + language-aware element defaults](#a27--i18n-editor-localization--language-aware-element-defaults--to-refine--needs-discussion) 💡 *(to refine)*
 - [A29 — RTL layout support (Arabic, Hebrew)](#a29--rtl-layout-support-arabic-hebrew--future) 💡 *(future)*
+- [A30 — Split `native-discovery.js` into per-source recognizer modules](#a30--split-native-discoveryjs-into-per-source-recognizer-modules)
 
 
 ---
@@ -1015,66 +1016,6 @@ The embedded view sits flush against the app bar and drawer — there is no way 
 
 **Relates:** **B62** (the sibling it split from — Issue A is the iOS tiling defect; this is the editor/viewer preview gap), `feezal-site` (the canvas-bg sync + editor checkerboard override), **U59** (gradient editor — authors these backgrounds), the fixed-vs-percentage view sizing model, E38 (responsive sizing — view/content sizing is adjacent).
 
-### E109 — evcc integration: native discovery + energy/charging elements 💡 to refine
-
-**Why.** [evcc](https://evcc.io/) is a self-hosted, open-source (MIT, Go+Vue) EV-charging / energy manager — PV-surplus charging, dynamic-tariff and CO₂-optimised charging, departure planning, home-battery coordination — talking to hundreds of wallboxes, inverters, meters and vehicles. Its users are precisely feezal's audience (self-hosted, MQTT, home automation, PV), it exposes a rich real-time MQTT API… and feezal sees **nothing** of it today.
-
-**Positioning (decided).** evcc ships a good web UI that is explicitly kiosk/iframe-friendly (`?theme=…&lang=…&unit=…`), so **an iframe of evcc's own UI is the baseline to beat**. The goal is therefore *not* to rebuild that UI. feezal's value is **integration**: one wall panel / app where charging sits next to heating, lights and covers, in the site's visual family, exposing only the two or three controls the user actually touches. evcc's UI is charging-only and always shows everything; feezal's job is selective, blended, themed.
-
-**Field input (07/2026 — from an evcc user testing this live).** Three sharpenings that change the priority order:
-
-- **evcc's own UI has no real energy-flow visualization** — this is a *capability gap*, not just a styling one. It shows PV generation, feed-in, battery and grid figures, but "what flows where" appears only as a **single horizontal bar colour-proportioned by source** (self-consumption green, grid import dark, …) with the In/Out split (Erzeugung / Batterie entladen / Netzbezug → Verbrauch / Ladepunkt / Batterie laden / Einspeisung) as **separate tiles beneath it** — never a node diagram showing the interaction *between* producers, battery, home, grid and car. So the generic energy-flow element (#1) fills a gap in evcc itself, which strengthens the case for it well beyond "prettier iframe".
-- **The two things that actually matter for evcc support are (a) tiles that control the energy consumers — the loadpoints — and (b) the flow chart.** Everything else (forecast, stats) is secondary. **Prioritise #1 and #2**; treat #3/#4 as follow-ons.
-- **The price/forecast data is NOT evcc's own** — evcc only *relays* what its configured tariff provider gives it (Tibber, in the tester's case). See element #3: it is really a dynamic-tariff element, not an evcc one.
-
-#### MQTT facts (confirmed against docs + `evcc-io/evcc@master`, and a live retained-topic dump 07/2026)
-
-- **Root prefix is user-configurable** (`mqtt.topic`), default **`evcc`**; empty ⇒ no MQTT API. The recognizer must therefore detect by **structure, not literal prefix** (same as the configurable `hmPrefix`).
-- **Flat scalars — one value per topic, NOT JSON.** `publishComplex()` explodes structs/maps/slices into sub-topics. ⇒ feezal's default `message-property: payload` works as-is — **none** of the `payload.val` plumbing Homematic needed.
-- **Everything is retained** (with a full retained-cleanup of the tree at startup *and* graceful shutdown, so stale keys don't linger) ⇒ **instant discovery on connect**.
-- **`<root>/status`** = LWT, payloads `online` / `offline`, retained, QoS 1 ⇒ **free availability for every evcc entity** (maps straight onto N31: `payload-available: online` / `payload-unavailable: offline`). Plus `<root>/updated` (unix-seconds heartbeat, ≤1/s).
-- **Writes use a `/set` suffix** ⇒ real bidirectional control: `evcc/loadpoints/1/mode/set` ← `pv`, `…/limitSoc/set` ← `80`, `…/minCurrent/set` ← `6`.
-- **Structure:** `<root>/site/<key>`, `<root>/loadpoints/<n>/<key>` (n from **1**), `<root>/vehicles/<name>/<key>`; `<root>/loadpoints` and `<root>/vehicles` carry **counts**.
-- **Encoding:** floats `%.3f` trimmed; bools `true`/`false`; `time.Time` → **unix seconds OUT** but **ISO-8601 UTC IN** (asymmetric); durations in seconds; `nil` ⇒ empty payload (retained delete).
-- **3-element phase arrays** publish `/l1 /l2 /l3` **plus the sum at the parent** (e.g. `chargeCurrents`).
-- ⚠️ **Live vehicle SoC/range/odometer live on the LOADPOINT** (`vehicleSoc`, `vehicleRange`, `vehicleOdometer`), *not* under `<root>/vehicles/<name>/` — that tree carries only static config, limits and plans.
-- Charge modes: **`off | now | minpv | pv`** (UI: Off / Fast / Min+Solar / Solar). Charger status `A` disconnected, `B` connected, `C` charging, `E`/`F` error.
-
-**No Home Assistant MQTT discovery (confirmed).** Zero `homeassistant/` hits in the repo; no discovery path in `server/mqtt.go`. evcc's official HA route is the *marq24* HACS integration over the **REST** API. ⇒ generic HA discovery will never see evcc; a **native recognizer is required** — and slots directly into E108's recognizer framework.
-
-#### Decided scope (07/2026)
-
-Full set; the **energy-flow element stays generic** (serves any PV/battery home, not evcc-branded) with evcc-specific elements added where the domain genuinely warrants it; **control ships in v1 but MVP-scoped**.
-
-**Recognizer** (a new recognizer in `server/src/mqtt/native-discovery.js`, alongside Homematic + WLED):
-- Detect the root by **structure** — match a `…/site/homePower` / `…/loadpoints/<n>/chargePower` signature and derive the prefix.
-- Synthesize **one site entity** (grid/PV/battery/home power, battery SoC, green share, tariffs) and **one entity per loadpoint** (the control surface). **Vehicle entities deferred** — low value, since live SoC is on the loadpoint.
-- Availability for every entity from `<root>/status`; `message-property` stays the default `payload`.
-- ⚠️ The recognizer and at least one matching element must **ship together** — discovery binds an entity to an element declaring the matching `discovery.component`, so a recognizer alone surfaces nothing.
-
-**Elements:**
-1. **Energy-flow diagram — generic, highest value.** Grid ↔ PV ↔ battery ↔ home ↔ car nodes with animated flows sized/directed by power. Deliberately **not** evcc-branded so it serves any PV/battery home; evcc discovery just wires it. Inputs: grid power (± import/export), PV power, battery power (± charge/discharge) + SoC, home power, charge power. Shares the animated-flow technique with **E63**'s schematic pipes — build once.
-2. **evcc loadpoint card — evcc-specific.** The control widget: mode selector (Off/Solar/Min+Solar/Fast), charge power, vehicle SoC bar with draggable limit, session energy, phases, connected/charging state.
-3. **Forecast / price chart — a dynamic-tariff element, not evcc-native** *(secondary — see Field input)*. evcc only **relays** forecast/price data from the configured tariff provider (e.g. Tibber); it exists only when such a provider is set up and belongs conceptually to the **tariff**, not to evcc — position and name it that way (an evcc install without a dynamic tariff publishes nothing useful here). **Live-dump-confirmed shape (07/2026):** `<root>/site/forecast/{grid,feedIn,planner}` are **plain JSON arrays** of quarter-hour slots `{"start":"…Z","end":"…Z","value":…}` (~48 h ≈ 190 entries) on single topics — *not* exploded scalars and *not* the multi-chunk "sharder" output previously feared, so this can be designed now (one `message-property: payload` subscription; the element parses the slot list). Relates to the history-in-payload convention (Open Questions).
-4. **Session statistics** (energy, solar %, price/kWh, CO₂) — probably generic value/chart elements rather than a new element.
-
-**MVP control scope:** loadpoint `mode`, `limitSoc` / `limitEnergy`, `minCurrent` / `maxCurrent`, `phasesConfigured`.
-**Deferred:** plans/departure (`planSoc`/`planEnergy` take JSON `{"value":…,"time":"…Z"}`), `repeatingPlans`, smart-cost / feed-in limits, and **`batteryMode`** — an external override **auto-resets after 60 s**, so any control for it needs a keep-alive republish (a real design wrinkle, not v1).
-
-**Verification constraint (important).** No local evcc instance — an evcc user can test, so the feedback loop is slow and indirect. Design accordingly: put **all topic assembly behind one small helper** (like `hmTopics()`) so a wrong assumption is a one-line fix, and flag every inferred value in code comments.
-
-**A live retained-topic dump (07/2026) resolved several unknowns:**
-- **`forecast` shape** — plain JSON arrays of `{start,end,value}` quarter-hour slots (see element #3), designable now.
-- **`batteryBoost`** is camelCase (confirmed — trust the source, not the docs' `batteryboost`).
-- **Multiple loadpoints coexist** and are mixed-type: the dump has a **heat-pump loadpoint** (`title: Wärmepumpe`, `mode: off`) *and* a wallbox (`title: Wallbox`, `mode: pv`, vehicle `Golf`), so the loadpoint card must not assume "car".
-- **Heating loadpoints are chargers** carrying `chargerFeatureHeating: true` (with `chargerIcon: heatpump`) — the earlier inference is correct.
-
-**Still unverified:** whether an *active* heating loadpoint repurposes `minSoc`/`vehicleSoc` as temperatures — the dumped heat-pump loadpoint was idle (`mode off`) and reported those as plain `0`, so no temperature key was observed; exact sub-topics under `plan` / `statistics` / `thresholds`; and the live behaviour of the 60 s `batteryMode` auto-reset.
-
-**Worth remembering:** evcc already works in feezal **today** with manual wiring (predictable topics, flat scalars, retained, `/set` writes). Discovery + elements make it one-click and native-looking — that convenience *is* the deliverable, which should keep the scope honest.
-
-**Relates:** **E108** (the native-recognizer framework this reuses — archived), **E63** (animated-flow technique for the energy diagram), **E62** (topic-tree browser — helps manual wiring in the meantime), **N31** (availability — evcc's LWT maps directly), A18 (kiosk/wall-panel — the prime placement for this).
-
 ### E112 — Scrypted integration: camera snapshot element (sensors already work) 💡 to refine
 
 **Surprise finding — half of this already works.** Scrypted's **official `@scrypted/mqtt` plugin publishes Home Assistant MQTT discovery** (`plugins/mqtt/src/autodiscovery.ts`): retained configs at `homeassistant/<component>/scrypted-<mqttId>-<deviceId>/<iface>/config` covering **MotionSensor, BinarySensor (doorbell), OccupancySensor, FloodSensor, AudioSensor, Online** (→ `binary_sensor`), **Thermometer, HumiditySensor** (→ `sensor`) and **OnOff** (→ `switch`). feezal's **existing** HA-discovery path should therefore already see Scrypted sensors — **verify first; do not build a recognizer before checking.** State topics are `scrypted/<deviceId>/<property>`, **retained**, payload = plain `String(value)` (`true`/`false`, `21.5`) — flat scalars, so the default `message-property: payload` works. Commands are `scrypted/<deviceId>/<method>` with a **JSON array of arguments** (`[]`, `[50]`), plus `…/on/set` ← `true|false` for `OnOff`. Note: **no LWT** — liveness is the retained `online` topic; and entity names come out as the *interface* name ("MotionSensor"), so labels may need prettifying.
@@ -1322,6 +1263,31 @@ feezal's native Homematic autodiscovery is **RedMatic-only** today (established 
 **Ships with:** for **B** — the pure-MQTT ccu-jack signature recognizer, topic-prefix + `payload.v` config, the `:0`/availability wiring reuse, tests (sample ccu-jack value topics → correct discovery records; `:0` availability resolves), TESTING.md, docs. For **C** — an upstream PR to mdzio/ccu-jack (retained metadata topics, opt-in) plus the feezal side that maps its meta fields into the existing recognizers; tracked as a separate deliverable that upgrades B.
 
 **Relates:** **B65** (the research this builds on — bridge scheme table, and the `:0` synergy), **E108** ✅ (recognizer framework — where the ccu-jack signature recognizer / meta-adapter slots in), **N31 / E124 / E135** (`:0` availability/battery/maintenance — trivially derivable here), RedMatic (the currently-only-supported bridge — this is the parallel pure-MQTT path), **E109 / E112** (sibling third-party integration items), pure-MQTT design principle (no second transport — the constraint that shaped this item), the discovery `component` model (the shared target these records must produce).
+
+### E149 — Extend HA MQTT discovery to more component types
+
+feezal's HA/z2m discovery ([discovery.js](../server/src/mqtt/discovery.js) `SUPPORTED_COMPONENTS`) recognizes **11** of Home Assistant's **31** discoverable platforms: `light climate cover switch fan humidifier lock vacuum sensor binary_sensor select`. Home Assistant's full MQTT discovery platform list (verified 07/2026 against [home-assistant.io/integrations/mqtt](https://www.home-assistant.io/integrations/mqtt/)): + `alarm_control_panel button camera date datetime device_tracker device_trigger event image lawn_mower notify number scene siren tag text time update valve water_heater`.
+
+**Add these eight (selected 07/2026)** — most map onto elements feezal already ships, so the work is a `discovery: {component, map}` fragment + a `SUPPORTED_COMPONENTS` entry, **not** a new element:
+
+| HA component | Target element | New element? | Notes |
+|---|---|---|---|
+| `button` | button family (material/glass/metro/eink/paper-button) | no | Stateless press: HA config has `command_topic` + `payload_press` → the button's publish-on-tap. Availability from `availability`/N31. |
+| `scene` | button family | no | Same shape as `button` (`command_topic`+`payload_on` to activate) — different palette label/icon, identical wiring; the map targets a button element with a "scene" preset. |
+| `number` | `material-slider` (or `material-input`) | no | Settable numeric: `command_topic`/`state_topic`, `min`/`max`/`step`, `mode` (slider/box). Map min/max/step onto the slider's range; `value_template` → message-property. |
+| `text` | `material-input` | no | Settable string: `command_topic`/`state_topic`, `min`/`max` length, `pattern`. Publishes on change. |
+| `alarm_control_panel` | `circle-alarm` *(material-alarm-panel, renamed)* | no — **element already exists** | Arm/disarm states (`disarmed`/`armed_home`/`armed_away`/`arming`/`pending`/`triggered`), `code` handling, `command_topic`/`state_topic`. Highest-value item — the element was built for exactly this and just lacks the discovery map. |
+| `water_heater` | climate family (via `ClimateController` variant) | maybe thin — reuse the contract | Climate-shaped: `temperature_command_topic`/`current_temperature_topic`, `mode`s (off/eco/performance/high_demand/…), min/max temp. A water-heater profile on the climate contract (like the Homematic climate profiles) rather than a fresh element. |
+| `camera` / `image` | `circle-camera` / `basic-image` / `basic-mqtt-image` | no | `topic` carrying image bytes/base64 (camera) or `url_topic`/`image_topic` (image). Wire the existing image elements' src/topic. |
+| `lawn_mower` | `circle-vacuum` | maybe thin — reuse the contract | vacuum-shaped: activity states (`mowing`/`docked`/`paused`/`error`), `*_command_topic` for start/pause/dock. Niche; reuse the vacuum contract with a lawn-mower profile. |
+
+**Deliberately deferred / skipped:** `siren` (on/off+tones — offer later if asked), `update` `device_tracker` `event` (need genuinely new elements), and `notify` `tag` `device_trigger` `date` `datetime` `time` (not dashboard-display entities — out of scope for discovery-to-element mapping).
+
+**Mechanism (per component):** (1) add the name to `SUPPORTED_COMPONENTS`; (2) the mapping either targets an element that declares `discovery: {component: X, map}` (the `button`/`scene`/`number`/`text`/`alarm`/`camera` cases — reuse), or extends a controller with a device-variant profile (`water_heater` on `ClimateController`, `lawn_mower` on the vacuum contract); (3) the discovery picker (**U56** ✅ label work) and the Generate wizard pick them up for free once the component is recognized. Each ships with recognizer/mapping tests (sample HA config JSON → correct discovery record → correct element attributes) and a TESTING.md discovery-section row.
+
+**Sequencing:** the pure-mapping wins first (`button`, `scene`, `alarm_control_panel`, `number`, `text`, `camera`/`image` — all target existing elements), then the profile-needing ones (`water_heater`, `lawn_mower`). `alarm_control_panel` is the standout: an existing element (`circle-alarm`) that just needs the map.
+
+**Relates:** **N12** ✅ (the HA/z2m discovery engine this extends), **E108** ✅ (native recognizer framework — same `component` target model), **U56** ✅ (discovery-picker labels — new components appear there automatically), **E137** (controllers — `water_heater`/`lawn_mower` variants ride existing controllers), **E138** ✅ (the `device_class`-routing precedent for splitting a component across cards), circle-alarm / button family / material-slider / material-input / circle-camera / circle-vacuum (the target elements), **U58** (Generate wizard — more discoverable device types to place).
 
 
 ## Architecture & Infrastructure
@@ -1971,6 +1937,27 @@ Right-to-left support is **a layout mode, not a translation** — which is exact
 **Explicitly future:** nothing here blocks or complicates A27's en+de work; the only present-day requirement (A27's dictionary format must not preclude RTL locales) is already met.
 
 **Relates:** **A27** (the language machinery this rides on — split out from its language list 07/2026), A25 ✅ (font self-hosting constraint), N38 (site locale — supplies the locale that flips `dir`), layout-app / tab bars / sliders (the element-internal audit surface), E38 (element scaling — the other cross-cutting element-CSS audit; coordinate if both run).
+
+### A30 — Split `native-discovery.js` into per-source recognizer modules
+
+[native-discovery.js](../server/src/mqtt/native-discovery.js) has grown to **~1721 lines / 9 recognizers** (8 Homematic + WLED + evcc), with more inbound (E145 ccu-jack, E146 evcc AI-edge, and E149's HA-component work touching the sibling `discovery.js`). One file is now the wrong home.
+
+**Decided (07/2026): split by source/vendor** into `server/src/mqtt/recognizers/`:
+- `recognizers/homematic.js` — all 8 HM recognizers (climate/contact/cover/light/switch/sensor/lock) **plus their shared `hm` infrastructure** (`hmSet`/`hmStatus`/`hmParamset`, `hmipVirtualGroup`, the channel-type allowlists, `:0` correlation, JSON-Extended `hm`-metadata parsing). These genuinely cohere — they consume one payload model and share the virtual-receiver grouping.
+- `recognizers/wled.js`, `recognizers/evcc.js` — the two standalone recognizers.
+- Future sources (ccu-jack, …) land as one new file + one registry line.
+
+**Why *not* the axes originally floated** (recorded so it isn't re-proposed): **hm2mqtt vs RedMatic** emit the *same* MQTT-Smarthome payload — the recognizers already handle both, nothing to split. **BidCoS vs HmIP** are handled *within* each function recognizer via paired channel-type sets (`COVER_BIDCOS_TYPES`/`COVER_HMIP_TYPES`, etc.); a generation split would bisect every recognizer and duplicate its accumulate/promote skeleton — strictly worse.
+
+**`native-discovery.js` stays the orchestrator + framework** (decided): keeps the `match`/`accumulate`/`promote` dispatch loop, the entity registry, and the `recognizers` registry array; per-source modules import the shared framework/helpers from it (or a small sibling `core.js` if a cycle appears — homematic.js needs `hmSet` etc., so put the pure helpers where both can import without a loop). **`module.exports` API is unchanged** — callers and tests keep importing `native-discovery.js`.
+
+**Pure move, no behaviour change** (decided): mechanical extraction only. The existing `server/test/native-discovery.test.js` stays **green unchanged** as the safety net — that's the acceptance criterion. Splitting the test file per-source is an explicit *later, optional* follow-up, not part of this.
+
+**Watch-outs:** the shared HM helpers must live where `homematic.js` and any framework code both reach them without a circular import (extract pure helpers to `core.js`/`hm-common.js` if needed); keep the registry order identical (recognizer precedence is behavioural); re-run the full server suite, not just the discovery test, since `app.js` and routes import the module.
+
+**Ships with:** the file moves, import rewiring, unchanged public API, all server tests green (`native-discovery.test.js` untouched), a short note in the module header explaining the per-source layout for future recognizer authors.
+
+**Relates:** **E108** ✅ (the recognizer framework being reorganized), **E145** (ccu-jack recognizer — first beneficiary, drops in as `recognizers/ccu-jack.js`), **E146 / E149** (more discovery work landing on this surface), E106 ✅ (the "shared code, per-unit files" lesson from the glass refactor — same shape, server side), the discovery `component` model (unchanged target).
 
 ## Open Questions
 

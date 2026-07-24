@@ -233,6 +233,11 @@ const FUNCTION_CANDIDATES = {
     number: ['number', 'value'],
     select: ['select'],
     sensor: ['sensor', 'value', 'gauge'],
+    // E109: evcc native entities. The site entity binds to the generic
+    // energy-flow diagram (material family only); each loadpoint to the
+    // loadpoint control card (glass/metro/circle).
+    'energy-flow': ['energy-flow'],
+    'evcc-loadpoint': ['loadpoint'],
 };
 
 // binary_sensor is device_class-routed: a motion/occupancy sensor wants the
