@@ -15,6 +15,7 @@ Work in progress — priorities and scope are not final.
 - [B70 — System element editor placeholders: swipe shows text not icon, mismatched chrome, inconsistent default sizes](#b70--system-element-editor-placeholders-swipe-shows-text-not-icon-mismatched-chrome-inconsistent-default-sizes)
 - [B71 — `system-splash` appears to do nothing in the viewer (no visible splash/spinner)](#b71--system-splash-appears-to-do-nothing-in-the-viewer-no-visible-splashspinner)
 - [B72 — `device-health`: one list entry per entity instead of per device (ESPHome / zigbee2mqtt)](#b72--device-health-one-list-entry-per-entity-instead-of-per-device-esphome--zigbee2mqtt)
+- [B73 — Gradient editor (view styles): use the style-inspector var-autocomplete, not a dropdown; widen the too-small percent input](#b73--gradient-editor-view-styles-use-the-style-inspector-var-autocomplete-not-a-dropdown-widen-the-too-small-percent-input)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -254,6 +255,21 @@ Either way the overlay is **fixed at the app root** and the hide conditions (con
 **Ships with:** the `buildHealthDevices` dedup fix + a unit test (several ESPHome/z2m entities sharing one `device.identifiers` collapse to a single entry that unions their signals; distinct devices stay separate), patch-bump `basic-device-health`, and a TESTING.md note.
 
 **Relates:** the device-health overhaul `eb3ec828` (introduced `buildHealthDevices`; this fixes its dedup), `decorateBatteryLow` / `getDeviceGroups` in `discovery.js` (the device-identity keying to mirror + the ready-made device-grouped endpoint), E124/N31 (the per-entity battery/availability records that duplicate here).
+
+### B73 — Gradient editor (view styles): use the style-inspector var-autocomplete, not a dropdown; widen the too-small percent input
+
+**Reported (07/2026).** Two gripes with the **view-styles background *gradient* editor** ([feezal-style-editor-background.js](../www/src/feezal-style-editor-background.js)):
+
+1. **The theme-variable picker is an extra dropdown, not the autocompleting input the rest of the style inspector uses.** Each gradient stop (and the solid input) carries a compact **`.var-menu` quick-pick `<select>`** for canonical theme vars ([:75-77](../www/src/feezal-style-editor-background.js#L75), the `THEME_VARS` list) sitting next to the colour input. Elsewhere in the **Style inspector**, a CSS-variable value is entered via an **autocompleting `var(--…)` input** (type `var(`, get theme-var suggestions inline — [feezal-sidebar-inspector-styles.js:148,326,395,442](../www/src/feezal-sidebar-inspector-styles.js#L148)). The reporter wants the gradient stops to use **that same autocompleting input** and **drop the extra dropdown**.
+2. **The breakpoint (stop position) percent input is too narrow to read the value.** `.stop-row .pct { width: 52px }` ([:74](../www/src/feezal-style-editor-background.js#L74)) — a stop at `100` is clipped/unreadable.
+
+**Fix.**
+- **Autocomplete instead of dropdown.** Reuse the style inspector's `var(--…)` autocomplete for the gradient stop / solid colour fields, and remove the `.var-menu` `<select>`. The stop colour input already accepts a typed literal **or** `var(--…)` and keeps it verbatim (U59), so only the **suggestion UI** changes. Best done by **extracting the var-autocomplete into a shared control/helper** (it currently lives inline in `feezal-sidebar-inspector-styles.js`) so both the style inspector and the gradient editor share one implementation — no divergent copies.
+- **Widen the percent input** so the value (up to `100`, optionally with a `%` suffix) is fully visible — e.g. `width: ~64–72px` (or let it flex), and right-align the digits.
+
+**Ships with:** the shared var-autocomplete control (or a documented reuse), the gradient-editor swap + widened `.pct`, a browser test (typing `var(` in a stop suggests theme vars and commits the pick; the percent field shows a two/three-digit value un-clipped), and a TESTING.md note on the view-styles gradient editor.
+
+**Relates:** **U59** (the gradient editor + the literal-or-`var(--…)` stop model this refines), the Style inspector `var(--…)` autocomplete ([feezal-sidebar-inspector-styles.js](../www/src/feezal-sidebar-inspector-styles.js) — the pattern to share), the canonical theme-variable set (`THEME_VARS` — the suggestions source).
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
