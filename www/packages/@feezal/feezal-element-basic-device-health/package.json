@@ -1,0 +1,6 @@
+{
+    "name": "@feezal/feezal-element-basic-device-health",
+    "version": "0.1.0",
+    "main": "feezal-element-basic-device-health.js",
+    "license": "MIT"
+}

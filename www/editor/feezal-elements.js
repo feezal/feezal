@@ -1,6 +1,7 @@
 import '@feezal/feezal-element-basic-chart';
 import '@feezal/feezal-element-basic-countdown';
 import '@feezal/feezal-element-basic-datetime';
+import '@feezal/feezal-element-basic-device-health';
 import '@feezal/feezal-element-basic-icon';
 import '@feezal/feezal-element-basic-icon-value';
 import '@feezal/feezal-element-basic-iframe';
@@ -162,6 +163,7 @@ window.feezal.elements = [
   "feezal-element-basic-chart",
   "feezal-element-basic-countdown",
   "feezal-element-basic-datetime",
+  "feezal-element-basic-device-health",
   "feezal-element-basic-icon",
   "feezal-element-basic-icon-value",
   "feezal-element-basic-iframe",

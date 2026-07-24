@@ -1109,7 +1109,15 @@ Blinds/covers have **the same LEVEL ramp problem** as dimmers (position reports 
 
 **Relates:** **E127** (the machinery this reuses — do first), **E137** (controller extraction — cover settling ends up inside `CoverController`; see sequencing note), E108 ✅ (recognizer), E114 (parity), E120 ✅-era cover-discovery work (same recognizer area).
 
-### E135 — Homematic maintenance signals: ERROR_CODE + SABOTAGE badges, device-health board
+### E135 — Homematic maintenance signals: ERROR_CODE + SABOTAGE badges, device-health board 🔨 board + decoder done; per-element badges open
+
+**✅ Shipped (07/2026) — the device-health board + the shared decoder:**
+- **`@feezal/feezal-element/feezal-hm-fault.js`** — the shared fault/sabotage decoder: family-keyed classic enum tables (`HM-CC-RT-DN` FAULT_REPORTING, `HM-Sec-Key`/`HM-Sec-SC` ERROR — the same number means different things per family), the HmIP named-flag → text map, and the two sabotage encodings (`decodeHmFault`, `isHmSabotageValue`, `isSabotageActive`, `hmipFlagText`, `HM_HEALTH_DATAPOINTS`). Unit-tested.
+- **`feezal-element-basic-device-health`** — the "is everything okay?" board. Runs **discovery-less** on wildcard subscriptions (`<prefix>/status/+/{FAULT_REPORTING,ERROR,SABOTAGE,SABOTAGE_STICKY,LOWBAT,LOW_BAT,UNREACH, HmIP ERROR_* flags}`), device name from the topic segment, sorted by severity (sabotage alarm > fault warning > battery > unreach), clears on OK. Browser-tested.
+
+**⏳ Still open — the per-element badges:** the recognizer emission of the `error_normalized` / `sabotage_normalized` records (presence-checked, `recognizers/homematic.js`), the `_applyDiscovery` auto-stamp of `subscribe-error`/`subscribe-sabotage`, and rendering the badges on the `*-climate` / `circle-lock` / `*-contact` / `*-motion`/`*-sensor` cards (alarm-grade sabotage vs. warning-tier error). The HmIP numeric `ERROR_CODE` per-device enums remain verify-gated (see the research below).
+
+---
 
 Homematic devices carry two under-used, genuinely actionable maintenance signals:
 

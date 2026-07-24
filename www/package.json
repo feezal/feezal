@@ -24,6 +24,7 @@
         "@feezal/feezal-element-basic-chart": "*",
         "@feezal/feezal-element-basic-countdown": "*",
         "@feezal/feezal-element-basic-datetime": "*",
+        "@feezal/feezal-element-basic-device-health": "*",
         "@feezal/feezal-element-basic-icon": "*",
         "@feezal/feezal-element-basic-icon-value": "*",
         "@feezal/feezal-element-basic-iframe": "*",
