@@ -59,6 +59,8 @@ Work in progress — priorities and scope are not final.
 - [E145 — Autodiscovery support for ccu-jack's MQTT interface](#e145--autodiscovery-support-for-ccu-jacks-mqtt-interface)
 - [E150 — Discovery for profile-shaped components: `water_heater` ✅ + `lawn_mower` 🔨](#e150--discovery-for-profile-shaped-components-water_heater---lawn_mower)
 - [E151 — Gauge parity: `glass-gauge` + `metro-gauge`](#e151--gauge-parity-glass-gauge--metro-gauge)
+- [E152 — Rename `metro-tile` → `metro-button` (naming parity)](#e152--rename-metro-tile--metro-button-naming-parity)
+- [E153 — `metro-loadpoint`: move the overloaded front controls to a 2×2 backside](#e153--metro-loadpoint-move-the-overloaded-front-controls-to-a-2×2-backside)
 
 **Editor UX**
 
@@ -1228,6 +1230,24 @@ Both are **display-only views** over the same value wiring as the `-value` cards
 **Ships with:** the two element packages (+ `www/package.json` deps, `generate-elements.js` manifest regen), the `docs/TESTING.md §6` element rows, and browser tests (value→needle-angle mapping, zone bands, tick geometry) mirroring `circle-gauge`'s.
 
 **Relates:** circle-gauge / panel-gauge / material-gauge (the existing gauges this brings to parity), **E114** (numeric-card cross-family parity), **E138** (the `-value` / `-sensor` / `-motion` taxonomy these slot into), glass-value / metro-value (the sibling readouts + the family chrome to mirror).
+
+### E152 — Rename `metro-tile` → `metro-button` (naming parity)
+
+`feezal-element-metro-tile` is the Metro family's **generic button/action tile** — icon + label, tap publishes a payload and/or navigates to a view, optional live badge ([metro-tile.js:283-347](../www/packages/@feezal/feezal-element-metro-tile/feezal-element-metro-tile.js#L283)). Every other family calls this the **button** (`material-button`, `glass-button`, `eink-button`, `paper-button`, `carbon-button`); "Tile" is a Metro-only misnomer. Hard-rename it to `metro-button` (E148/panel-value precedent: no alias, source-view search-replace, BREAKING-CHANGES row).
+
+**The complication — `MetroTileBase` lives in this package.** `metro-tile.js` exports **both** the concrete tile element **and** `MetroTileBase`, the shared live-tile base (size presets, the 3D Y-flip front/back, `renderFront`/`renderBack`/`baseAction`) that **~13 metro elements import** (`metro-lock`, `-light`, `-loadpoint`, `-cover`, `-climate`, `-meter`, `-motion`, `-sensor`, …). So the rename is **not** just one element:
+- **Preferred:** first **extract `MetroTileBase` into a shared `@feezal/feezal-metro` package** (mirroring `@feezal/feezal-glass` / `FeezalGlassCard`), update the ~13 importers to `@feezal/feezal-metro`, THEN rename the now-thin concrete element `metro-tile` → `metro-button`. Leaves a clean shared base, not a base hiding inside a "button" package.
+- **Minimal:** rename the package to `metro-button` and keep `MetroTileBase` exported from it, updating the ~13 `import … from '@feezal/feezal-element-metro-tile'` to `-metro-button`. Simpler, but semantically odd (the family base living in the button package).
+
+**Mechanics (per panel-value):** package dir + `package.json` name/main + `.js` file + tag + class (`FeezalElementMetroTile` → `FeezalElementMetroButton`) + palette `Tile` → `Button`; `www/package.json` dep (alphabetical), `npm install`, `generate-elements.js` regen; update the element-smoke/import refs and any `metro-tile` test references; BREAKING-CHANGES + TESTING.md rows; version bump.
+
+**Relates:** E148 / panel-value (the hard-rename precedent + mechanics), the button family (the shared naming this joins), `MetroTileBase` + `@feezal/feezal-glass` (the shared-base extraction pattern to mirror), **B70** (metro-loadpoint backside — same family base).
+
+### E153 — `metro-loadpoint`: move the overloaded front controls to a 2×2 backside
+
+The `metro-loadpoint` **front is overloaded** — the charge-mode buttons (Off / Solar / Min+Solar / Fast) sit inline under power + vehicle SoC/limit ([metro-loadpoint.js:79-80,123-126](../www/packages/@feezal/feezal-element-metro-loadpoint/feezal-element-metro-loadpoint.js#L79)), a cramped row of tiny targets on a Metro tile. It already extends `MetroTileBase` (which provides the flip/backside), so: **move the four mode buttons to the backside as a 2×2 grid, bigger** (touch-friendly), via `renderBack()` — exactly like `metro-lock`'s back buttons. The **front** keeps the primary readout (power + SoC/limit + charging state); the ⋯ flip affordance appears automatically once `renderBack()` returns content. Ships with a browser test (front shows power/SoC, backside 2×2 has the four modes and `setMode` publishes) and a TESTING.md row; version bump.
+
+**Relates:** `metro-lock` (the backside-buttons pattern to mirror), `MetroTileBase` (`renderFront`/`renderBack`/flip — the mechanism), E109 (the evcc loadpoint family this refines), glass-loadpoint (the sibling that had the same overload — see **B68**), **B69** (glass-meter overload — same "declutter into the popup/backside" theme).
 
 
 ## Architecture & Infrastructure
