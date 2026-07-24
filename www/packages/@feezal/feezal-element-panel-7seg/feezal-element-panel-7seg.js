@@ -41,7 +41,7 @@ const SEGS = [
 class FeezalElementPanel7seg extends FeezalElement {
     static get feezal() {
         return {
-            palette: {name: '7-Segment', category: 'Panel', color: '#455a64', icon: '123'},
+            palette: {name: 'Value', category: 'Panel', color: '#455a64', icon: '123'},
             description: 'Seven-segment LED readout. Shows the subscribed value right-aligned in a fixed number of digit cells, with ghost segments, decimal point and minus sign.',
             baseAttribute: 'value',
             attributes: [
@@ -118,8 +118,10 @@ class FeezalElementPanel7seg extends FeezalElement {
     /** Split the display string into per-cell {char, dp}, right-aligned. */
     _cells() {
         let raw = this.value ?? '';
-        // Unconfigured hint on the editor canvas.
-        if (raw === '' && feezal.isEditor && !this.subscribe) raw = '88.8';
+        // Editor preview: show a placeholder whenever there's no value yet, so a
+        // configured display isn't blank on the canvas (matches the other value
+        // cards — a set subscribe topic doesn't suppress the hint).
+        if (raw === '' && feezal.isEditor) raw = '88.8';
         const dec = this.decimals;
         if (raw !== '' && dec !== null && dec !== undefined && dec !== '' && !isNaN(Number(raw))) {
             raw = Number(raw).toFixed(Number(dec));

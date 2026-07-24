@@ -146,6 +146,16 @@ describe('panel-7seg', () => {
         // -3.0 → cells: blank, -, 3(+dp), 0
         expect(litCells(el)).toEqual([0, 1, 5, 6]);
     });
+
+    it('shows the editor placeholder even with a subscribe topic set (no live value)', async () => {
+        // Regression: the 88.8 hint used to be suppressed once a subscribe topic
+        // was configured, so a wired display went blank on the editor canvas.
+        feezal.isEditor = true;
+        const el = await mount('feezal-element-panel-7seg', {subscribe: 'stat/temp', digits: '4'});
+        await el.updateComplete;
+        expect(litCells(el).some(n => n > 0)).toBe(true);   // not a blank readout
+        feezal.isEditor = false;
+    });
 });
 
 describe('panel-gauge', () => {
