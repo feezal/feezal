@@ -7,7 +7,13 @@ Work in progress — priorities and scope are not final.
 ## Table of Contents
 
 **Bugs**
-- *(none open — all reported bugs are fixed or closed; see the [archive](roadmap-archive/README.md))*
+- [B59 — Generate wizard: numeric zigbee power sensor becomes a contact element](#b59--generate-wizard-numeric-zigbee-power-sensor-becomes-a-contact-element)
+- [B60 — Homematic settling: `*-light` slider still jumps with WORKING + LEVEL_NOTWORKING both wired](#b60--homematic-settling-light-slider-still-jumps-with-working--level_notworking-both-wired)
+- [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
+- [B62 — Gradient view background tiles/scrolls instead of staying put (Safari/iOS, PWA)](#b62--gradient-view-background-tilesscrolls-instead-of-staying-put-safariios-pwa)
+- [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
+- [B66 — Glass badges (battery / unavailable) overlap the card label](#b66--glass-badges-battery--unavailable-overlap-the-card-label)
+- [B67 — Battery / availability badge parity gaps (circle-climate battery; metro availability)](#b67--battery--availability-badge-parity-gaps-circle-climate-battery-metro-availability)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -54,6 +60,14 @@ Work in progress — priorities and scope are not final.
 - [E128 — Homematic blinds: settling behaviour + `DIRECTION` indicator](#e128--homematic-blinds-settling-behaviour--direction-indicator-later--after-e127) *(later)*
 - [E135 — Homematic maintenance signals: ERROR_CODE + SABOTAGE badges, device-health board](#e135--homematic-maintenance-signals-error_code--sabotage-badges-device-health-board)
 - [E139 — "Fancy" element family: Lottie-animated device cards](#e139--fancy-element-family-lottie-animated-device-cards)
+- [E140 — Per-state icon colour: configurable CSS vars for every state-driven icon](#e140--per-state-icon-colour-configurable-css-vars-for-every-state-driven-icon)
+- [E141 — Metro tiles: per-state background colour vars for state-driven elements](#e141--metro-tiles-per-state-background-colour-vars-for-state-driven-elements)
+- [E142 — Dialog `label` attribute: editor-only placeholder tag to tell dialogs apart](#e142--dialog-label-attribute-editor-only-placeholder-tag-to-tell-dialogs-apart)
+- [E143 — Lock element family parity: `glass-lock` + `metro-lock` (extract `feezal-controller-lock` first)](#e143--lock-element-family-parity-glass-lock--metro-lock-extract-feezal-controller-lock-first)
+- [E144 — Lock autodiscovery: Homematic BidCoS (Keymatic) + HmIP smart locks + zigbee2mqtt](#e144--lock-autodiscovery-homematic-bidcos-keymatic--hmip-smart-locks--zigbee2mqtt)
+- [E145 — Autodiscovery support for ccu-jack's MQTT interface](#e145--autodiscovery-support-for-ccu-jacks-mqtt-interface)
+- [E146 — Autodiscovery for AI-on-the-edge-device (meter reader) via Home Assistant MQTT discovery](#e146--autodiscovery-for-ai-on-the-edge-device-meter-reader-via-home-assistant-mqtt-discovery)
+- [E147 — AI-on-the-edge meter element (glass / metro / circle): value + rate + action/status + error](#e147--ai-on-the-edge-meter-element-glass--metro--circle-value--rate--actionstatus--error)
 
 **Editor UX**
 
@@ -63,6 +77,10 @@ Work in progress — priorities and scope are not final.
 - [U45 — Element insertion: palette sidebar + full-screen picker](#u45--element-insertion-palette-sidebar--full-screen-picker--to-refine) 💡 *(to refine)*
 - [U50 — layout-app: expose the content area's inset (padding)](#u50--layout-app-expose-the-content-areas-inset-padding)
 - [U58 — "Generate" button: bulk element + app scaffold wizard from discovery](#u58--generate-button-bulk-element--app-scaffold-wizard-from-discovery--to-refine) 💡
+- [U59 — Style inspector gradient editor: allow themed CSS vars as gradient stops](#u59--style-inspector-gradient-editor-allow-themed-css-vars-as-gradient-stops)
+- [U60 — Editor: surface lost server connection (grace-period → blocking overlay)](#u60--editor-surface-lost-server-connection-grace-period--blocking-overlay)
+- [U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow](#u61--editor-preview-fidelity-gradientbackground-in-a-percentage-sized-views-scroll-overflow)
+- [U62 — Normalize discovered names into friendly labels on stamping](#u62--normalize-discovered-names-into-friendly-labels-on-stamping)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -82,7 +100,193 @@ Work in progress — priorities and scope are not final.
 
 ## Bugs
 
-*(none open — all reported bugs are fixed or closed; see the [archive](roadmap-archive/README.md).)*
+### B59 — Generate wizard: numeric zigbee power sensor becomes a contact element
+
+**Reported (07/2026).** A zigbee2mqtt power meter was added via the **Generate** wizard (U58 Devices mode). The selected **power** attributes (numeric measurements — W / kWh / V / A) were stamped as **contact** elements (open/close cards) instead of value/number/sensor readouts.
+
+**Where it comes from.** `contact` is only ever produced by the `binary_sensor` branch of `resolveElementTag` — its default fallback is `BINARY_BY_CLASS[deviceClass] || 'contact'` ([feezal-discovery-stamp.js:225](../www/src/feezal-discovery-stamp.js#L225)). A numeric `sensor` (which is what a z2m power reading should be — `component: sensor`, `device_class: power`, `unit_of_measurement: W`) would resolve via `FUNCTION_CANDIDATES['sensor']` → `['sensor', 'value', 'gauge']` and never reach `contact`. So the power entity is going down the `binary_sensor` path, and two things compound:
+
+1. **Root cause to confirm — why is a power reading a `binary_sensor`?** Either the discovery layer is classifying the entity's `component` as `binary_sensor` (check what `server/src/mqtt/discovery.js` emits for this z2m device — device-based `cmps` discovery, `platform`/`p` resolution, `device_class`), or the actual z2m payload really is a `binary_sensor` (some z2m power entities are boolean, but a W/kWh measurement is not). **Needs the real discovery payload for this device to pin down.**
+2. **Design footgun regardless — the `|| 'contact'` default.** Any `binary_sensor` whose `device_class` is not in `BINARY_BY_CLASS` ([feezal-discovery-stamp.js:203-208](../www/src/feezal-discovery-stamp.js#L203-L208)) — including a device_class-less entity, or a measurement-ish class like `power`/`energy`/`current`/`voltage` — silently lands on a contact/open-close card. Defaulting an *unknown* binary sensor to "contact" is an unsafe guess; a generic `sensor` readout is the safer fallback.
+
+**Fix direction:**
+- Confirm the entity's actual `component` + `device_class` from the discovery registry for this z2m power meter (get the retained discovery config).
+- If discovery is mis-classifying a numeric sensor as `binary_sensor`, fix it there (`server/src/mqtt/discovery.js`).
+- Independently, change the `binary_sensor` default from `'contact'` to `'sensor'` (fall through to a generic readout, never assume open/close), and/or extend `BINARY_BY_CLASS` so measurement classes route to `sensor`. A numeric measurement must never become a contact element.
+- **Default icon for power meters (refinement).** Autodiscovery should default a power/energy device to the material **`energy_savings_leaf`** icon. Today discovered sensors get their default per-type icon via the `device_class → type` mapping (`sensorDeviceClassMapFor` / `typeInfo.icon` in [feezal-controller-sensor.js:77,117-120](../www/packages/@feezal/feezal-controller-sensor/feezal-controller-sensor.js#L117-L120)); the `power`/`energy` device_class needs an entry so the stamped value/sensor element shows `energy_savings_leaf` rather than a generic/blank icon. An author-set icon still wins.
+- Add a regression case to `test/feezal-discovery-stamp.test.js` (`resolveElementTag('sensor', family, 'power')` → the sensor/value/gauge tag; an unmapped-device_class `binary_sensor` → `sensor`, not `contact`) and cover the `power`/`energy` → `energy_savings_leaf` default-icon mapping.
+
+**Relates:** **U58** (the Generate wizard this surfaced in), **E113** (function × style — `resolveElementTag` is its minimal slice; the component→function mapping lives here), E114 (parity — the family must actually have the value/sensor element the corrected resolution picks), E138 (device-function taxonomy).
+
+### B60 — Homematic settling: `*-light` slider still jumps with WORKING + LEVEL_NOTWORKING both wired
+
+**Reported (07/2026).** A fully wired `glass-light` over a Homematic dimmer (`HM-LC-Dim1L-CV`, RedMatic; `LEVEL` scale 0..1). Autodiscovery wired everything correctly — **both** the `WORKING` topic (`subscribe-working`) and the settled-values topic (`subscribe-settled` = RedMatic `LEVEL_NOTWORKING`). Setting a brightness makes the slider **jump back to (near) the old value, then a moment later jump again to the set target** — instead of holding at the target through the ramp. The E127 settling machinery is meant to make exactly this case smooth.
+
+**Confirmed diagnosis (from the captured MQTT log — do NOT implement yet).** Reproduction, set target `0.22` (previous level `0.78`):
+
+| Δt | topic | payload | client-side effect |
+|---|---|---|---|
+| t0 | `hm/set/…/LEVEL` | `0.22` | element publishes → `command(0.22)`, holds slider at 0.22 |
+| t0 | `…/LEVEL` (live) | `0.775` | intermediate report, *still ≈ old value*. `settledWired` so `live()` swallows it for the slider — **but stores `_lastLive = 0.775`** |
+| **t+4s** | `…/WORKING` | `false` | **`working(false)` → `_settle(_lastLive=0.775)` → applies 0.775 → slider jumps to ≈old value** |
+| t+5s (~1s later) | `…/LEVEL_NOTWORKING` | `0.22` | `settled(0.22)` → applies 0.22 → slider jumps to target |
+
+So the two-jump symptom is fully explained by the `WORKING=false` edge calling `_settle(this._lastLive)` ([feezal-settling.js:108](../www/packages/@feezal/feezal-element/feezal-settling.js#L108)) and applying a stale live value, even though `settledWired` is true and `live()` otherwise correctly refuses to drive the display ([feezal-settling.js:70](../www/packages/@feezal/feezal-element/feezal-settling.js#L70)).
+
+**Two device-timing facts the log pins down (and that the fix must assume):**
+1. **RedMatic delivers `WORKING=false` ~1 s *before* `LEVEL_NOTWORKING`**, even though both carry the *same* device timestamp (`ts`). So at the WORKING=false edge the authoritative settled value is **not yet available** — the controller must wait for it, not fall back to `_lastLive`.
+2. **Only a single intermediate `LEVEL` is published, and it is ≈ the *old* value** (0.775 vs. old 0.78), not a value near the target. That is why the wrong jump lands on the old brightness specifically. `_lastLive` at the WORKING=false edge is therefore the *worst* possible value to apply.
+
+**Fix direction (note only, not yet implemented) — WORKING and the settled topic are mutually exclusive, not complementary.** The key insight: **when `LEVEL_NOTWORKING` (the settled topic) is present — i.e. RedMatic users — the `WORKING` datapoint should not be consulted at all.** `LEVEL_NOTWORKING` already publishes *only* settled values, so it is a complete, authoritative signal on its own; `WORKING` is only needed to synthesise settling on **non-RedMatic** Homematic MQTT interfaces (plain `hm2mqtt`/`homematic-manager`-style bridges) that expose `WORKING` but have **no** settled-values topic. The two are alternative sources for the same job, and RedMatic's is strictly better.
+
+So the fix is not "make `working(false)` behave under `settledWired`" — it is **when `settledWired` is true, ignore `working()` entirely** (the slider follows `command()` holds + `settled()` reports only). Concretely:
+- In `SettlingController`, when `settledWired`, `working()` becomes a no-op (or is never wired). The `WORKING=false`-applies-`_lastLive` path ([feezal-settling.js:108](../www/packages/@feezal/feezal-element/feezal-settling.js#L108)) then can't fire, and the stale-value jump disappears.
+- Review the **settle-timeout** reconcile ([feezal-settling.js:130-135](../www/packages/@feezal/feezal-element/feezal-settling.js#L130-L135)): under `settledWired` it should keep the commanded target and wait for the settled report, not reconcile to `_lastLive`.
+- Keep the **WORKING-only** path (no settled topic) fully intact — there `working()` and its `_lastLive` reconcile are the *only* settling signal and must stay.
+- **Consider it at the wiring layer too:** when both are discovered, `feezal-controller-light` could simply **not subscribe** `subscribe-working` (leave `workingWired` false), which is the cleanest expression of "settled wins". Autodiscovery may still populate both attributes for transparency, but the runtime should let settled win. (Decide: skip the WORKING subscription when settled is set, vs. subscribe-but-ignore — the former is simpler and avoids dead traffic.)
+
+**Secondary thing to verify while fixing:** the controller sets `this.brtLive = rawToPct(v)` on every live report under `subscribe-settled` and calls `update()` ([feezal-controller-light.js:270-276](../www/packages/@feezal/feezal-controller-light/feezal-controller-light.js#L270-L276)). Confirm the glass-light slider *position* binds to `brt` (held) and not `brtLive` (the live % readout) — if the slider ever reads `brtLive`, the intermediate 0.775 would also surface there at t0, independent of the settling bug above.
+
+**Regression test to add:** feed the SettlingController the exact captured sequence — `command(0.22)`, `live(0.775)`, `working(false)`, `settled(0.22)` with `settledWired: true` — and assert `apply` is called with `0.22` only (never `0.775`).
+
+**Relates:** **E127** ✅ (the settling controller this exercises — `SettlingController`), **E128** (blinds settling — same machinery, same `WORKING`-before-settled ordering risk on covers), **E137** (light controller owns the settling wiring), the RedMatic `LEVEL_NOTWORKING` dual-topic convention.
+
+### B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)
+
+**Reported (07/2026).** A `layout-app` with sub-views built from **glass** elements. Sub-views: theme `glass`, plus a manually configured **gradient background**. The `layout-app`'s own view: theme `midnight-blue`. Hovering the entries in the `layout-app` **drawer** produces **strange visual artifacts** in the embedded view, *underneath the glass elements* — as if the drawer entry's hover background-color change is bleeding into the view. **Chrome / macOS only** — does **not** reproduce on Chrome / Windows.
+
+**Analysis (do NOT fix yet).** This has the fingerprint of a **`backdrop-filter` invalidation/compositing artifact**, which is a known class of Chrome bug on macOS:
+- Glass cards paint a live blur: `-webkit-backdrop-filter / backdrop-filter: blur(var(--feezal-glass-blur, 20px))` ([feezal-glass.js:66-68,105-106](../www/packages/@feezal/feezal-glass/feezal-glass.js#L66-L68)). A `backdrop-filter` samples everything painted behind the element, so its correctness depends on the browser invalidating the filtered region whenever *anything* behind or around it repaints.
+- The drawer entries repaint on hover: `.entry:hover { background: rgba(128,128,128,0.12); }` with a hover `transition` ([feezal-element-layout-app.js:123,142](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js#L123)). That per-hover background repaint is the trigger.
+- On macOS Chrome the backdrop-root / dirty-region for the glass cards' `backdrop-filter` appears to be computed too narrowly (or on a stale layer), so the drawer's repaint region isn't correctly isolated from the backdrop-filtered content — the hover paint smears/ghosts into the glass cards' sampled backdrop.
+- **Why macOS-only:** Chrome uses a different GPU compositing backend per platform (macOS → Metal/CoreAnimation; Windows → ANGLE over D3D). `backdrop-filter` layerization and invalidation bugs are routinely backend-specific, which is exactly why this splits along OS lines rather than being a logic bug in feezal.
+- **Likely aggravators (all present in this repro):** the **theme mismatch** (drawer/host view `midnight-blue` vs. sub-view `glass`) and the **manual gradient background** mean the glass cards' backdrop samples across differently-backed layers; and nested stacking contexts (`layout-app` embedding a view that contains `container-type: size` glass hosts — [feezal-glass.js:60](../www/packages/@feezal/feezal-glass/feezal-glass.js#L60)) give the compositor more layer boundaries to get wrong.
+
+**This is primarily a browser bug, but feezal can likely mitigate it** (candidate directions, to validate — not yet chosen): force the embedded-view content and/or the glass cards onto a **stable, isolated compositing layer** so drawer repaints can't invalidate their backdrop root — e.g. `isolation: isolate` on the content container, a `transform: translateZ(0)` / `will-change: transform` promotion, or `contain: paint` on the `.drawer` so its hover repaint is confined. Each of these can *also* make `backdrop-filter` worse on some Chrome versions, so this must be measured, not assumed. The existing **"solid card" degrade** (glass elements can replace the live blur with a semi-opaque solid card — [feezal-element-glass-light.js:62](../www/packages/@feezal/feezal-element-glass-light/feezal-element-glass-light.js#L62)) is the guaranteed-correct fallback and a useful confirmation lever (see below).
+
+**Diagnosis needed from the reporter before attempting a fix — please capture:**
+1. **`chrome://gpu` dump** (or at least the top section): Chrome version, exact macOS version, GPU model, and the **ANGLE / graphics backend** line (Metal vs OpenGL vs SwiftShader), plus whether "Out-of-process Rasterization" / "Compositing" are hardware accelerated.
+2. **Solid-card test (the key isolating step):** switch the glass elements to the **solid-card / no-blur** mode (the per-element blur-off option). If the artifacts **vanish**, that confirms `backdrop-filter` as the cause and points the fix at layer isolation rather than the drawer.
+3. **A screen recording (or burst of screenshots) of the artifacts** — what do they actually look like? Ghost of the hover highlight? Smearing/trails? Colour bleed of the gradient? A stale rectangle? The *shape* of the artifact tells us which layer is mis-invalidated.
+4. **Minimal-repro narrowing** — does it still happen when you remove, one at a time: (a) the manual gradient background (plain solid view bg), (b) the theme mismatch (set the `layout-app` view to `glass` too, or the sub-views to `midnight-blue`), (c) the `slim`/`autohide` drawer modes, (d) `entry-style: list` vs `pill`, (e) the drawer in **overlay** vs **persistent** mode? Each "no longer repros" narrows the trigger.
+5. **Backend swap** — in `chrome://flags`, set **"Choose ANGLE graphics backend"** to a different value (e.g. Metal → OpenGL) and/or toggle GPU compositing, restart, and retest. If a different backend fixes it, that nails it as a Metal-path compositor bug (and informs whether a CSS layer hint can dodge it).
+6. **Viewer vs editor** — does it reproduce in the **deployed viewer** as well as the editor canvas? (Rules out editor-only chrome/overlays as a contributor.)
+7. **Does simply scrolling / any other repaint over the view** (not just drawer hover) trigger similar artifacts, or is it specifically the drawer entry hover? (Distinguishes "any repaint invalidates the backdrop" from "the drawer layer specifically".)
+
+**Ships with (once diagnosed):** the chosen layer-isolation CSS fix (guarded so it doesn't regress `backdrop-filter` performance/correctness on other platforms), a TESTING.md note (glass sub-views inside `layout-app`, hover drawer entries on macOS Chrome → no artifacts), and — if no clean CSS fix exists — documentation of the solid-card fallback as the recommended setting for macOS-heavy deployments.
+
+**Relates:** the glass family (`feezal-glass` — the `backdrop-filter` source), `layout-app` (the drawer whose hover triggers it), the glass **solid-card degrade** option (the fallback + diagnostic lever), E38/performance (backdrop-filter GPU cost is already a documented glass concern), per-view themes ✅ (the theme mismatch is an aggravating input here).
+
+### B62 — Gradient view background tiles/scrolls instead of staying put (Safari/iOS, PWA)
+
+**Reported (07/2026).** A view with a **gradient background**, viewed on **Safari / iOS in PWA (installed / standalone) mode**. Scrolling down the view, the gradient background is **not sticky** — it scrolls with the content and **repeats/tiles**, which looks broken.
+
+**Analysis (do NOT fix yet).** Two feezal-side mechanisms combine with two iOS Safari limitations:
+- **The viewer mirrors the view background onto `<html>` and `<body>`.** In the viewer, `feezal-site` copies the current view's `background` shorthand verbatim onto `document.documentElement` and `document.body` ([feezal-site.js:483-486](../www/src/feezal-site.js#L483-L486)) — added so the iOS status-bar inset (`viewport-fit=cover`) and overscroll bounce show the view colour instead of white. For a gradient view that value is a `linear-gradient(...)`/`radial-gradient(...)`, set with **no** accompanying `background-size` / `background-repeat` / `background-attachment`.
+- **A gradient with those defaults tiles.** CSS gradients default to `background-repeat: repeat` and `background-size: auto` — the gradient renders at one "tile" and **repeats down** any element taller than that tile. On a scrollable page (content taller than the viewport) the body/html gradient therefore repeats as you scroll.
+- **iOS Safari ignores `background-attachment: fixed`** (long-standing) — so even if we added `fixed` to pin the gradient to the viewport, iOS would render it as `scroll`. The canonical iOS workaround is a separate `position: fixed` full-viewport backdrop layer behind the content, not `background-attachment`.
+- **The host also carries a `--feezal-canvas-bg` sync with `background-attachment: local`** ([feezal-site.js:41-45](../www/src/feezal-site.js#L41-L45)) — meant to extend the current view's background across the full scrollable area. This works in the **viewer** but is **overridden by the editor-only checkerboard rule** ([feezal-site.js:59-64](../www/src/feezal-site.js#L59-L64)) — the source of the separate editor WYSIWYG discrepancy (**Issue B** below). The core iOS defect is on the **viewer**'s `<body>`/`<html>` gradient mirror (**Issue A**).
+- **Why PWA/standalone makes it obvious:** full-screen standalone mode + iOS momentum/overscroll exposes the whole tall background with no browser chrome, so the tiling and scroll are unmistakable.
+
+**Update (07/2026) — cross-platform testing splits this into TWO distinct issues.**
+- **Viewer, Chrome/Windows:** gradient background is **sticky and correct** across the full scroll area.
+- **Viewer, Safari/iOS:** the gradient **tiles/scrolls** — **the core B62 defect** (iOS-only).
+- **Editor, both platforms (Chrome/Windows == iOS):** scrolling down reveals the **checkerboard grid** in the overflow area — a *second, separate* issue (see below), not the iOS tiling bug.
+
+**Issue A (core, iOS viewer only).** The desktop viewer renders the `<body>`/`<html>` gradient mirror correctly (root-element background propagates to the viewport and stays put); iOS Safari does not (ignores `background-attachment: fixed`, tiles on the tall scroll/overscroll). Fix targets **only** the iOS viewer path — a `position: fixed` viewport backdrop for gradient backgrounds — leaving the correct desktop viewer untouched.
+
+**Issue B → split out to [U61](#u61--editor-preview-fidelity-gradientbackground-in-a-percentage-sized-views-scroll-overflow).** The reporter's 100%-sized view showed checkerboard on scroll in the **editor** where the **viewer** fills the gradient (the editor checkerboard rule overrides the `--feezal-canvas-bg` sync). That editor/viewer preview-fidelity gap + the view-sizing decisions behind it are tracked in **U61**, not here — B62 covers only the iOS tiling defect (Issue A).
+
+*(A separate regression surfaced during the same session — the viewer would not open at all from the editor on iOS; tracked as **B63**.)*
+
+**Fix direction (note only, not yet implemented):** when the background is a **gradient**, it must be painted `no-repeat` and sized to cover the viewport, and pinned in a way iOS honours — i.e. a dedicated **`position: fixed` full-viewport backdrop layer** carrying the gradient (behind the scrolling content), rather than relying on `background-attachment` or copying the raw shorthand onto `<body>`. A solid-colour background can keep today's `local`/mirror approach; the gradient case is the one that needs the fixed backdrop. Whatever the fix, it must keep the original intent (status-bar inset + overscroll bounce show the view colour) intact and must not regress non-iOS browsers.
+
+**Established by cross-platform testing (07/2026):** desktop viewer (Chrome/Windows) = correct; iOS viewer = tiles; editor checkerboard = by-design chrome on both platforms. So the offending layer is the **viewer `<body>`/`<html>` gradient mirror** ([feezal-site.js:483-486](../www/src/feezal-site.js#L483-L486)) under iOS Safari. Remaining diagnosis is optional — the mechanism is well understood — but if convenient:
+1. **Solid vs. gradient on iOS:** set the same view to a **solid colour** — expected to be fine (confirms it's gradient-tiling specifically, not the mirror in general).
+2. **Tab vs. installed PWA on iOS:** does the tiling differ between a normal Safari tab and the Home-Screen standalone app? (Both should show it; standalone just makes it starker.)
+3. **A screen recording of the iOS scroll** — tile with a visible repeat seam vs. scroll-away-leaving-a-gap vs. only-on-overscroll-bounce — to pick the exact `position: fixed` backdrop treatment.
+4. **iOS version + device model.**
+5. **macOS Safari Web Inspector** attached to the iPhone (Develop → *device*): read computed `background-image` / `background-repeat` / `background-attachment` on `html` / `body` while scrolling — final confirmation of the mirror layer.
+
+**Ships with (once diagnosed):** the fixed-backdrop gradient layer (gradient views only) with the status-bar/overscroll intent preserved, a TESTING.md note (gradient view on iOS Safari + installed PWA → background stays put on scroll, no tiling), and a regression check that solid-colour backgrounds and non-iOS browsers are unchanged.
+
+**Relates:** `feezal-style-editor-background` / **U59** (the gradient editor that authors these backgrounds), `feezal-site` (the canvas bg + iOS body/html mirror), A18 (kiosk / wall-panel mode — iOS PWA is a primary kiosk target), the `viewport-fit=cover` / status-bar-inset work the mirror was added for, **B63** (viewer-open regression found in the same iOS session).
+
+### B63 — "Open viewer" does nothing on Safari/iOS (regression)
+
+**Reported (07/2026).** From the editor on **Safari / iOS**, using the **open-viewer** action **does nothing** — no new tab/window opens. It **worked previously**. Surfaced while testing B62. **Clarified by reporter:** the editor was running as a **normal Safari tab with browser chrome — NOT an installed Home-Screen (standalone) app** — and the site had the **"Enable PWA" switch turned on** shortly before. **Further observations (reporter):** the failed attempts did **not** refresh the viewer that was open in the other tab; and after **closing** that other tab and trying again, **still no new viewer tab opened**.
+
+**Retracted hypothesis.** An earlier draft blamed the "`window.open` is a no-op inside an installed standalone PWA" behaviour. The reporter confirms they were in a **normal Safari tab**, so that explanation does **not** apply. In a normal iOS Safari tab, `window.open` from a genuine tap normally *does* open a tab.
+
+**What the new observations rule in/out.** "Did not refresh the other tab" + "closed it and still nothing" together mean the `window.open` call is **fully no-op'ing** — it is neither creating a tab nor navigating/reusing a background one. That **weakens** the plain "reuse-and-refresh" quirk and the SW-interference idea, and **strengthens a stale *named-window* binding**: iOS Safari keeps the `feezal-<site>` window *name*→handle mapping alive for the browsing-context session, so after the first (working) open the name is bound to a window the browser will no longer surface *or* recreate — and **closing the visible tab does not clear that session-level name binding**, which is exactly why the retry also does nothing. This fits all three facts: it worked the first time, doesn't refresh, and won't reopen after closing. It is also **independent of the PWA toggle** (the editor page is outside any service-worker scope, so nothing intercepts the `open()` call itself) — enabling PWA was most likely coincidental / just what prompted the retry.
+
+**Gesture path is fine (checked).** The action is an action-menu item ([feezal-app-editor.js:973](../www/src/feezal-app-editor.js#L973)) whose handler runs `this._actionMenuPos = null; this._view();` **synchronously** — setting a reactive property doesn't await, so user-activation is preserved into the `window.open` call. So "lost user gesture / popup-blocked" is unlikely to be the cause.
+
+**What "Enable PWA" does (relevant context).** The switch sets `viewer.pwa: true` and is **viewer-scoped only**: it registers a `display: standalone` **manifest** and a **service worker** (`sw.js`) at **`/viewer/<site>/`** ([server/src/build/pwa.js:191-259](../server/src/build/pwa.js#L191-L259)); the PWA tags are injected only into the viewer/export page. **The editor is never made a PWA** (no manifest/SW on the editor page) — matching the expectation that an editor PWA would be useless. But note: `/viewer/<site>/` is *exactly* the URL the editor's open-viewer button targets.
+
+**Analysis (do NOT fix yet).** The action is `_view()` → `window.open(base + hash, 'feezal-' + feezal.siteName)` ([feezal-app-editor.js:2222-2228](../www/src/feezal-app-editor.js#L2222-L2228)) — a **named** window target, not `_blank`. Ordered by fit with the observations:
+1. **Stale named-window binding (leading).** iOS Safari retains the `feezal-<site>` *name*→window handle for the browsing session; once bound (first, working open), later `window.open(url, 'feezal-<site>')` calls target that stale handle and no-op instead of creating a fresh tab, and **closing the visible tab doesn't clear the binding**. Explains *all three* facts (worked once · no refresh · won't reopen after close). Independent of PWA.
+2. **Named-window reuse-not-foregrounding.** A softer variant: a background tab exists/updates but iOS won't surface it. **Partly contradicted** by "did not refresh the other tab" — but keep it until the tab-switcher check (below) rules it out.
+3. **Viewer service worker / standalone manifest interfering** (from the PWA toggle). **Downgraded:** the SW is scoped to `/viewer/<site>/`, and the failing `window.open` runs on the **editor** page (out of scope), so the SW cannot intercept the `open()` call itself — it could only affect what loads *after* a tab opens, which isn't what's happening here.
+
+**Decisive experiments (run in this order):**
+1. **`_blank`/unique-name probe (most diagnostic).** Try opening the viewer URL with `target="_blank"` / `window.open(url, '_blank')` instead of the fixed `feezal-<site>` name. **Works → confirms the stale named-window binding (cause 1)** and points straight at the fix.
+2. **Reload the editor page, then open-viewer once.** A fresh page/browsing context clears Safari's name map. **First open works again → confirms the session-scoped stale-name binding.**
+3. **Tab-switcher check** right after a failed tap: is a viewer tab sitting in the background (updated or not)? **Present → cause 2 (non-foregrounding); absent → cause 1 (open fully no-op'd).**
+4. **PWA off + retry** (to formally clear the SW/manifest from the picture): expected **still broken** (confirms PWA was coincidental). If it unexpectedly *fixes* it, re-open cause 3.
+
+**Fix direction (note only, not yet implemented):** reconsider the **named target** — iOS's stale-name behaviour makes a fixed `feezal-<site>` name a poor fit. Options: use `_blank` (simplest; loses the "reuse one viewer tab" convenience — acceptable), or open via a **real anchor** the user taps (`<a href=… target="_blank" rel="noopener">`, which iOS honours most reliably) and, if tab-reuse is still wanted on desktop, keep a handle from the returned `Window` and `focus()` it rather than relying on the browser's name map. Whatever the mechanism, verify it survives repeated opens and tab-close on iOS.
+
+**Further diagnosis if still inconclusive:**
+1. **iOS version + device model**, and Safari build.
+2. **Does a plain link work?** Type/tap the viewer URL directly (`/viewer/<Site>/`) in Safari — if that opens but the button doesn't, it's the `window.open` mechanism, not the URL/route.
+3. **Remote Web Inspector** (macOS Safari → Develop → *iPhone*): watch the **console** on tap and confirm `_view()` fires and what `window.open` **returns** — `null` = blocked/suppressed; a `Window` object whose tab never surfaces = the stale/hidden named-window case.
+4. **Regression bisect (only if `_blank` also fails):** was the trailing-slash **B39** change or any recent top-bar/action-menu rework in the window that "previously worked"?
+
+**Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
+
+**Relates:** **B62** (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
+
+### B66 — Glass badges (battery / unavailable) overlap the card label
+
+**Reported (07/2026, screenshot).** On a `glass-climate` card with a low-battery warning, the battery icon sits at the **bottom-left, colliding with the card label** ("Thermostat Schlafzim…") — the icon overlaps the start of the label text. It should sit **below the label** (a few pixels down), clear of it. Same goes for the other bottom badges (the unavailable ⚠, and any future warning badge).
+
+**Cause.** The label is a normal flow element in the card footer (`.label`, [feezal-element-glass-climate.js:174-177](../www/packages/@feezal/feezal-element-glass-climate/feezal-element-glass-climate.js#L174)), while the badges are **absolutely positioned in the same bottom band**, so they overlap it:
+- battery — shared `.feezal-batt-badge` at `bottom: var(--feezal-battery-bottom, 6px)` ([feezal-element.js:466-469](../www/packages/@feezal/feezal-element/feezal-element.js#L466-L469)), pinned bottom-left in glass (`left: 10px`, [feezal-element-glass-climate.js:183](../www/packages/@feezal/feezal-element-glass-climate/feezal-element-glass-climate.js#L183));
+- unavailable — `.unavail { position: absolute; bottom: 8px; right: 10px }` ([feezal-element-glass-climate.js:179-180](../www/packages/@feezal/feezal-element-glass-climate/feezal-element-glass-climate.js#L179)).
+
+Nothing reserves space for the badges, so on a card whose label reaches the bottom they overlap.
+
+**Fix direction (not yet implemented):** place the badges **below the label baseline** — e.g. give the footer/label a bottom inset (padding/margin) sized to the badge row so the label text ends above the badges, and/or lower the badges a few px. Must hold in **both** glass layouts — the default stacked layout and the wide `min-aspect-ratio: 2/1` container-query layout ([feezal-element-glass-climate.js:189+](../www/packages/@feezal/feezal-element-glass-climate/feezal-element-glass-climate.js#L189)) — and not clip the badge on short cards.
+
+**Scope — audit the family, not just climate.** The battery badge (`batteryLowBadge` / `feezalBatteryStyles`) and the `.unavail` pattern are shared, so check every **glass** element that renders a label + badge (glass-sensor/contact/motion/light/switch/cover/value/wled/…), and verify the **other families** (metro / circle / eink / material) don't have the same label↔badge collision. Fix once at the shared layer where possible (the badge helper defaults + a consistent "badges sit below the label" rule), per-family only where the chrome differs.
+
+**Ships with:** the badge/label spacing fix across the affected elements, patch bumps on each touched package, and a TESTING.md note (low-battery + unavailable on a labelled card of each family → badge sits clear below the label, no overlap, in both stacked and wide layouts).
+
+**Relates:** **E124** (the low-battery badge this repositions), **N31** (the unavailable badge — same treatment), **E114** (family parity — the fix/behaviour should be consistent across families), **E140/E141** (other per-family chrome work — batch the touch), the glass family chrome (`feezal-glass`), `feezal-element` (`feezalBatteryStyles` / `batteryLowBadge` shared badge), **B67** (the sibling parity bug: circle-climate renders no battery badge at all).
+
+### B67 — Battery / availability badge parity gaps (circle-climate battery; metro availability)
+
+**Reported (07/2026, same device as B66).** `circle-climate` shows **no battery badge** for a device reporting low battery — the warning is invisible. Expected: a badge, positioned somewhere **between the circle slider and the buttons**. A follow-up audit (below) found this is one instance of a broader **badge-parity** hole spanning both the battery *and* availability badges.
+
+**Cause — the badge is declared but never rendered.** `circle-climate` declares the full E124 battery quartet (`subscribe-battery-low` + twins + `battery-low-threshold`, [feezal-element-circle-climate.js:150-153](../www/packages/@feezal/feezal-element-circle-climate/feezal-element-circle-climate.js#L150-L153)), so autodiscovery stamps the topic and the `ClimateController` tracks `climate.batteryLow` — **but the element never draws it**: it does **not** import `batteryLowBadge` / `feezalBatteryStyles` and has **no `batteryLowBadge(...)` call in `render()`** (it renders `.unavail` but not the battery badge). Contrast glass-climate, which imports both and renders `${batteryLowBadge(this.climate.batteryLow)}` ([feezal-element-glass-climate.js:2,425](../www/packages/@feezal/feezal-element-glass-climate/feezal-element-glass-climate.js#L425)). So the low-battery state is computed and then silently dropped on the floor.
+
+**Fix direction (not yet implemented):** import `batteryLowBadge` + `feezalBatteryStyles` in `circle-climate`, add the badge styles, and render `${batteryLowBadge(this.climate.batteryLow)}` **positioned between the slider ring and the button row** (per the reporter) — `--feezal-battery-bottom` / a circle-specific placement rule, avoiding the slider and the buttons. Mind B66 while here (don't recreate the label-overlap problem).
+
+**Audit results (07/2026) — battery badge.** Cross-referencing "declares `subscribe-battery-low`" vs. "calls `batteryLowBadge(...)`": **`circle-climate` is the ONLY element that declares it but doesn't render it.** Every other battery-capable element renders it — including **circle-contact, circle-motion, circle-sensor** (the reporter's specific worry — they're fine), plus the climate/sensor/motion/contact cards across glass / metro / eink. So the battery gap is `circle-climate` alone.
+
+**Audit results (07/2026) — availability badge (the bigger gap).** Cross-referencing "declares `subscribe-availability`" vs. "renders an `unavail` / `_available` badge": the **metro family is missing it on several device elements** — **`metro-climate`, `metro-switch`, `metro-light`, `metro-fan`** (and to verify: `metro-tile`, `metro-value`) have **no `unavail`/`_available` handling at all**, while their metro siblings **do** (`metro-sensor`, `metro-motion`, `metro-contact`, `metro-cover`, `metro-wled`). So `metro-climate` shows a battery badge but **no unavailable badge** — inconsistent within one card. The circle / glass / eink families render the unavailable badge on their device elements; **value/readout elements** (`*-value`) across all families don't show availability at all (a design call — a stale readout arguably should).
+
+**Fix scope:**
+- **Battery:** render the badge in `circle-climate` (per the reported symptom).
+- **Availability:** add the unavailable badge to the metro device elements that lack it (`metro-climate`, `metro-switch`, `metro-light`, `metro-fan`, + confirm `metro-tile`/`metro-value`), matching the metro sibling treatment.
+- **Decide `*-value` availability** — whether a bound value readout should show unavailable/stale (probably yes; scope per family).
+
+**Guard against regressions — a parity test.** This is an **E114 parity** hole made easy by the controller attribute-spread (E137): an element advertises `subscribe-battery-low` / `subscribe-availability` (auto-stamped by discovery) yet forgets to render the badge. Add a `feezal-controller-parity.test.js` assertion: **every element that accepts `subscribe-battery-low` renders a battery badge when `batteryLow` is true, and every device element that accepts `subscribe-availability` renders an unavailable badge when offline.**
+
+**Ships with:** the `circle-climate` battery-badge render + placement; the unavailable badge added to the metro elements that lack it (`metro-climate`/`-switch`/`-light`/`-fan` + confirmed others); the `*-value` availability decision; a `feezal-controller-parity.test.js` assertion (accepts battery/availability attr ⇒ renders the badge); patch bumps per touched package; TESTING.md notes.
+
+**Relates:** **B66** (the sibling badge bug on glass — placement there vs. missing entirely here; fix the whole badge story together), **E124** (the battery-low badge/record), **N31** (the availability/unavailable badge — the metro gap), **E114** (parity — declared/accepted-but-not-rendered is a parity gap a test should catch), **E137** (controllers spread the battery/availability attributes, which is why the mismatch is easy to introduce), glass-climate / the metro sibling elements (the reference implementations), `feezal-element` (`batteryLowBadge`/`feezalBatteryStyles`).
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
@@ -881,7 +1085,7 @@ A one-click path from "connected broker with discovered devices" to "a populated
 
 **Risks / open questions.** The **auto-grid layout algorithm** is now the single remaining quality risk — v1 ships the deterministic uniform-cell packing described above; whether that reads well across mixed element sizes or needs size-aware packing (**E38**) is the open judgement call, mitigated by the layout being fully editable afterward. Everything else is settled (see *Decided* + *Implementation-readiness* above): deterministic-lexicon room detection with editable review (AI deferred), no hybrid room×function axis, skip-and-report on parity gaps, per-entity list unit, central width cap — plus this session's no-third-tile / flat-grid / one-family / append-only decisions.
 
-**Relates:** **U30** (the idea this concretises — recommend subsuming), **U31** (device-first single insert — shared machinery), **U45** (element picker — sibling entry point), **E113** (function × style — the model), **E114** (parity — safe family pick), **E115** (switch family — after-the-fact restyle), **E138** (the device-function taxonomy the buckets use), **E108** ✅ (native discovery — supplies the device list), **U41** ✅ (flow layout — the sub-view layout mode App generates), **U50** (layout-app content inset — candidate home for the sub-view width cap), **E38** (responsive sizing — the width-cap + auto-grid concern), `layout-app` (the app-shell element the App mode wires), U37 ✅ (welcome wizard — the other onboarding surface), U9/AI assistant (candidate room-clustering engine).
+**Relates:** **U30** (the idea this concretises — recommend subsuming), **U31** (device-first single insert — shared machinery), **U45** (element picker — sibling entry point), **E113** (function × style — the model), **E114** (parity — safe family pick), **E115** (switch family — after-the-fact restyle), **E138** (the device-function taxonomy the buckets use), **E108** ✅ (native discovery — supplies the device list), **U41** ✅ (flow layout — the sub-view layout mode App generates), **U50** (layout-app content inset — candidate home for the sub-view width cap), **E38** (responsive sizing — the width-cap + auto-grid concern), `layout-app` (the app-shell element the App mode wires), U37 ✅ (welcome wizard — the other onboarding surface), U9/AI assistant (candidate room-clustering engine), **E147** (the AI-on-the-edge meter element — a candidate the wizard could place from discovered meters, deriving its json/status/connection topics from the discovered value topic).
 
 ### U50 — layout-app: expose the content area's inset (padding)
 
@@ -898,6 +1102,81 @@ The embedded view sits flush against the app bar and drawer — there is no way 
 - Accept a full CSS shorthand (`8px`, `8px 16px`, …) rather than a number, so per-side insets need no extra knobs.
 
 **Relates:** E-layout-app (the shell), N36 (the `--feezal-app-*` style-var set this extends), E38 (element scaling / responsive sizing — a responsive inset would belong there).
+
+### U59 — Style inspector gradient editor: allow themed CSS vars as gradient stops
+
+The style inspector's **solid** background-color already accepts a themed variable — you can type `var(--primary-background-color)` (or any canonical theme var) and get a resolving swatch, with an empty input meaning "theme default" ([feezal-style-editor-background.js:13-14,52](../www/src/feezal-style-editor-background.js#L13-L14)). The **gradient** editor does not: each stop is a plain `input[type=color]` and every authored/parsed colour is normalised to hex (`_hexish()`, stops shaped `{color, pos}` with hex defaults like `#0284c7` — [feezal-style-editor-background.js:88](../www/src/feezal-style-editor-background.js#L88)). So a gradient can never follow the active theme: switch themes and the gradient stays put while solid backgrounds re-tint.
+
+**Wanted:** let each gradient stop reference a themed CSS custom property (the canonical set — `--primary-color`, `--secondary-background-color`, `--accent-color`, … per the theme-variable discipline in CLAUDE.md / element-spec §5.1) exactly as the solid path does, so gradients participate in theming. A stop should be editable as *either* a literal colour swatch *or* a `var(--…)` reference, with the same "resolving swatch / unresolved checkerboard" affordance the solid input already uses.
+
+**Implementation notes:**
+- The reusable piece is the solid input's authored-text-plus-resolving-swatch control ([feezal-style-editor-background.js](../www/src/feezal-style-editor-background.js)) — factor it out and reuse it per gradient stop instead of the bare `input[type=color]`, rather than building a second resolver.
+- Stops must stop being hex-normalised: `{color, pos}` has to carry the *authored* string (`var(--…)` or hex), and only the **swatch preview** resolves it via the existing probe (`getComputedStyle` on a throwaway element). Serialisation to `linear-/radial-gradient(...)` should emit the authored `var(--…)` verbatim so the browser resolves it against the live theme cascade — this is what makes the gradient theme-aware.
+- The gradient parser (`_parseGradient` / the stop regexes around [feezal-style-editor-background.js:300-325](../www/src/feezal-style-editor-background.js#L300-L325)) currently rejects any stop that isn't hex-ish (`_hexish` returns `''` → parse bails). It must accept and round-trip `var(--…)` stop colours so re-opening the inspector on a themed gradient doesn't silently drop back to defaults.
+- Offer the canonical theme vars in a picker/datalist (same list the theme-variable discipline defines) so authors don't have to remember the names — the solid input could gain the same affordance.
+
+**Relates:** the solid-colour var support this mirrors (same file), §5.1 theme-variable discipline (the canonical var set gradients should draw from), U18/themes (why a themed gradient matters — it should re-tint on theme switch).
+
+### U60 — Editor: surface lost server connection (grace-period → blocking overlay)
+
+When the editor loses its Socket.IO connection to the server, **nothing indicates it** — the UI looks fully functional, but nothing works: no deploy, no save, no site/view load, no live MQTT data. The user finds out only when an action silently fails. There must be prominent feedback that the connection is gone, escalating to a modal that blocks interaction, because without the server there is genuinely nothing useful to do.
+
+**Mostly UX, not new plumbing.** The connection layer already emits the signals: `feezal-connection-feezal.js` runs Socket.IO with `reconnection: true` and dispatches `connected` / `disconnected`; `feezal-connection.js` re-dispatches them and tracks a `connected` boolean ([feezal-connection.js:96-114](../www/src/feezal-connection.js#L96-L114)). Nothing in the editor shell renders on those events today. This item wires that existing signal to UI. Note: `disconnected` is dispatched **without `bubbles`** ([feezal-connection.js:113](../www/src/feezal-connection.js#L113)) — listen on `feezal.connection` directly, or add bubbling.
+
+**Design (decided):**
+- **Escalation: grace period → modal.** On `disconnected`, immediately show a **subtle indicator** (e.g. a top status banner / status dot). Only after **~5–10 s of continuous disconnection** promote to a **non-closable, blocking modal overlay** (no ✕, no click-outside-to-close). This avoids nagging on the common transient blips — server restart, laptop sleep/wake, wifi hiccup — that Socket.IO recovers from on its own in a second or two.
+- **Auto-recovery.** On `connected` (reconnect), tear the overlay/banner down automatically and resync (getSite / loadViews already re-run on the reconnect `connected` event — see the `reconnect` counter in `feezal-connection-feezal.js`). Do **not** require manual acknowledgement to clear it.
+- **Overlay contents: status + Retry + Reload.** Live status line — "Connection to server lost. Reconnecting…" with **elapsed time** and **attempt count**; a manual **"Retry now"** button (force a reconnect attempt); and a **"Reload app"** escape hatch for the give-up case. A short "reconnected" toast on recovery is a nice touch.
+- **Scope: editor only.** The viewer's connection-lost UX (a kiosk showing stale data) is a separate concern — see *Relates*.
+
+**Open question to resolve during design — unsaved-work safety.** The overlay should only promise "your work is safe" if it's true. Confirm the editor's local-state/save story: if the server drops **mid-edit**, is in-progress work held safely in the browser until reconnect, or can it be lost (e.g. an autosave/deploy that fails silently)? If there's a real loss risk, that's a companion fix, and the overlay copy must be honest about it (don't reassure falsely). Worth auditing before finalising the message text.
+
+**Consider (non-blocking):** distinguish "**server up, socket dropped**" (reconnecting, the normal case) from "**server actually stopped / unreachable**" (repeated `connect_error`, [feezal-connection-feezal.js:71](../www/src/feezal-connection-feezal.js#L71)) — after many failed attempts the copy could shift from "Reconnecting…" to "The feezal server may have stopped — check it's running," which is more useful than an endless spinner.
+
+**Ships with:** the editor overlay component + grace-period timer + auto-dismiss, wired to `feezal.connection` `connected`/`disconnected`; a browser test simulating disconnect → (grace) → modal → reconnect → auto-clear; TESTING.md steps (kill the server → banner then modal after the grace period → Retry/Reload present → restart server → overlay clears and edits resume).
+
+**Relates:** `feezal-connection.js` / `feezal-connection-feezal.js` (the existing signal this consumes), N24 / `feezal-presence` (viewer/editor presence — the server-side side of "who's connected"; the hub already clears presence on socket disconnect), the deploy flow (the concrete thing that can't happen while disconnected), a future **viewer connection-lost indicator** (same pattern, separate scope — a kiosk viewer showing stale MQTT data deserves its own signal).
+
+### U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow
+
+**Split out of B62 (07/2026).** When a view is sized in **percentages (e.g. 100% width/height)** and its content overflows into a scroll, the **editor** paints a **checkerboard** in the overflow area, but the **viewer** paints the **view's gradient/background** there. So the editor does not faithfully preview what ships — a WYSIWYG gap. (The iOS-only gradient *tiling* defect is the separate Issue A, tracked in **B62**.)
+
+**Mechanism.** `feezal-site`'s host has a base rule `background: var(--feezal-canvas-bg); background-attachment: local` that extends the current view's background across the full scrollable area, beyond the view's own box ([feezal-site.js:41-45](../www/src/feezal-site.js#L41-L45)) — this is what the viewer uses, and why a desktop viewer fills the overflow with the gradient. But an **editor-only** rule `:host(:not(.feezal-viewer))` paints the checkerboard `background-image`, which **overrides** the canvas-bg sync ([feezal-site.js:59-64](../www/src/feezal-site.js#L59-L64)). Net: viewer overflow = gradient; editor overflow = checkerboard.
+
+**Why the checkerboard exists (and where it's still right).** It marks the area *outside* a **fixed-size** view (a view with explicit px dimensions smaller than the canvas) — genuinely useful there: it shows the view's bounds against the empty canvas. The problem is only the **percentage/100%-sized** case, where there is conceptually no "outside" the user cares about and the viewer will fill the whole scroll with the gradient.
+
+**Open decisions:**
+1. **Editor overflow paint by sizing mode.** Keep the checkerboard for **fixed-size** views (bounds are meaningful), but for **percentage-sized** views let the editor extend the view's background across the overflow — i.e. don't let the checkerboard override the `--feezal-canvas-bg` sync when the view is percentage-sized. This makes the editor match the viewer where it matters and keeps the useful bounds indicator where it helps.
+2. **View background vs. content height (deeper).** A 100%-height view whose content overflows still has a 100%-tall *box*, so its gradient (painted on the view element) doesn't cover the overflow by construction — the viewer only fills it via the separate canvas-bg sync. Should a view's background instead track its **content** height, so the gradient is continuous on the view element itself (editor and viewer alike), making the canvas-bg extension unnecessary for this case? This is the more principled fix but touches view layout/sizing semantics, so weigh it against option 1's smaller surface.
+3. **Interaction with B62's iOS fix.** Whatever backdrop approach B62 adopts for the iOS viewer (a `position: fixed` gradient layer) should be consistent with how the editor previews the overflow here — ideally one model that both the editor and every viewer platform honour.
+
+**Ships with (once decided):** the editor overflow-paint change (guarded by view sizing mode), a TESTING.md note (percentage-sized gradient view with overflowing content → editor overflow shows the gradient, matching the viewer; fixed-size view still shows the checkerboard bounds), and coordination with B62 so the two don't diverge.
+
+**Relates:** **B62** (the sibling it split from — Issue A is the iOS tiling defect; this is the editor/viewer preview gap), `feezal-site` (the canvas-bg sync + editor checkerboard override), **U59** (gradient editor — authors these backgrounds), the fixed-vs-percentage view sizing model, E38 (responsive sizing — view/content sizing is adjacent).
+
+### U62 — Normalize discovered names into friendly labels on stamping
+
+Autodiscovery stamps an element's `label` from the discovered device/entity name — but the raw name is often ugly: a Homematic channel keeps its `:14` suffix, a zigbee2mqtt friendly name is `licht_hobbyraum`. Normalize it into a human label **once, at stamp time**, so a discovered element reads *"Licht Hobbyraum"*, not *"licht_hobbyraum"* or *"OC8 Hobbyraum:14"*.
+
+**Normalization rules (in order):**
+1. **Strip a trailing Homematic channel suffix** — `…:14` / `…:0` → drop the `:<digits>` at the end (only a trailing `:<number>`, not colons elsewhere).
+2. **Underscores → spaces** (`licht_hobbyraum` → `licht hobbyraum`); collapse runs of whitespace.
+3. **Capitalize the first letter of each word** — first letter up, **leave the rest of each word untouched** so acronyms/units survive (`kWh`, `CO2`, `WLED` stay as-is; `licht` → `Licht`).
+4. **Idempotent** — an already-friendly name (`Wohnzimmer Lampe`) passes through unchanged.
+
+**Where — one place, all sources.** The label is stamped via the shared `stampDiscovery` when a discovery map routes the entity `name` → the `label` attribute ([feezal-controller-contact.js:61](../www/packages/@feezal/feezal-controller-contact/feezal-controller-contact.js#L61), [feezal-controller-light.js:124](../www/packages/@feezal/feezal-controller-light/feezal-controller-light.js#L124), applied in [feezal-discovery-stamp.js:86](../www/src/feezal-discovery-stamp.js#L86)). Normalizing there — a shared `friendlyName(raw)` helper, ideally as a discovery-map `transform: 'friendlyName'` on the `name→label` mappings — covers **native (Homematic/WLED), Home Assistant, and zigbee2mqtt uniformly** and applies identically in the **⚡ picker and the Generate wizard** (they share `stampDiscovery`). *(Applies to labels the user asked for — also derive labels for HA auto-discovery entities, not just native.)*
+
+**zigbee2mqtt — derive from the topic when there's no good name.** z2m's HA-discovery `name` is sometimes just the platform or missing; fall back to the **last segment of the base topic** (`zigbee2mqtt/licht_hobbyraum` → `licht_hobbyraum`) and run it through `friendlyName` → **"Licht Hobbyraum"**. (Reuse the topic already parsed in `discoveryLabel`.)
+
+**Decisions / edges:**
+- **Don't clobber user edits on re-sync (N12).** Normalize only when stamping the label the *first* time (or when the label is empty / equals the un-normalized raw); never overwrite a label the author has since edited.
+- **Title-casing keeps the tail** — capitalize first letter only, don't lowercase the remainder (protects `kWh`, `LED`, `ID`, German nouns already cased).
+- **Picker rows too (optional):** `discoveryLabel` could show the normalized name for consistency, though it keeps the `source:` prefix.
+- **Scope:** label text only — not topic values, discovery ids, or the entity's internal `name`.
+
+**Ships with:** the `friendlyName` helper + unit tests (trailing `:14` stripped; underscores→spaces; per-word capitalization; acronym/unit preservation; z2m topic fallback `zigbee2mqtt/licht_hobbyraum` → "Licht Hobbyraum"; idempotency; already-edited label left alone), wired into `stampDiscovery`, and a TESTING.md note (discover a Homematic channel + a z2m device → friendly labels; re-sync doesn't clobber an edited label).
+
+**Relates:** **U58** (Generate wizard — shares `stampDiscovery`, so labels normalize there too), the **⚡ discovery picker** (the other `stampDiscovery` caller), `feezal-discovery-stamp` / the controllers' `name→label` maps (where it hooks), **E146 / E147** (z2m + meter names benefit), **N12** (re-sync — must not clobber edited labels), E108 (native recognizers supply the raw names).
 
 ### E109 — evcc integration: native discovery + energy/charging elements 💡 to refine
 
@@ -1071,25 +1350,65 @@ Blinds/covers have **the same LEVEL ramp problem** as dimmers (position reports 
 
 ### E135 — Homematic maintenance signals: ERROR_CODE + SABOTAGE badges, device-health board
 
-Homematic `:0` maintenance channels carry two under-used, genuinely actionable datapoints:
+Homematic devices carry two under-used, genuinely actionable maintenance signals:
 
-- **`ERROR_CODE`** — device-fault reporting: a TRV signals a **stuck valve**, a Keymatic signals clutch/motor faults. Numeric, device-family-specific meanings; `0` = no error.
-- **`SABOTAGE`** — case-opened/tamper detection on contacts, motion sensors, smart locks (bool).
+- **Fault reporting** — a TRV signals a **stuck valve**, a Keymatic signals clutch/motor faults. Numeric enum, `0` = no error, **device-family-specific datapoint name and meanings** (the *Research* block below has the actual names — `FAULT_REPORTING` / `ERROR`, not a uniform `ERROR_CODE` — and the code→text tables).
+- **Sabotage** — case-opened/tamper detection on contacts, motion sensors, smart locks. On classic HM this is `ERROR == 7`, not a dedicated bool (see Research); HmIP may expose a `SABOTAGE` bool.
+
+*(The `ERROR_CODE`/`:0` framing in earlier drafts was corrected by the 07/2026 research below.)*
 
 **Decided (07/2026, discussed):**
 
 **1. Both surfaces: per-element badges AND a device-health board.**
 
 - **Badges via the E124 pattern:** two more canonical records on the entity — `error_normalized` / `sabotage_normalized` `{topic, property?}` — emitted by the Homematic recognizers from the `:0` channel, **presence-checked like E124's battery** (only when the datapoint has been observed; not every device has them) and auto-stamped by `_applyDiscovery` onto elements declaring the attributes (`subscribe-error` + twin, `subscribe-sabotage` + twin). State keeps rendering — warning, not blackout.
-- **Device-health board — a new element** (working name `feezal-element-basic-device-health` or hm-family): the wall-panel "is everything okay?" list aggregating errors, sabotage, low battery (E124) and unreachable devices — "Heizung Bad: Fehler 4 · Haustür: Sabotage · 2 Batterien schwach". Can run discovery-less on wildcard subscriptions (`hm/status/+/ERROR_CODE`, `…/SABOTAGE`, `…/LOWBAT`, `…/UNREACH`, `…/LOW_BAT`) with the device name from the topic segment — which also makes it useful before any element-level wiring. Zigbee siblings (battery/tamper from z2m payloads) are a natural phase 2 of the board.
+- **Device-health board — a new element** (working name `feezal-element-basic-device-health` or hm-family): the wall-panel "is everything okay?" list aggregating errors, sabotage, low battery (E124) and unreachable devices — "Heizung Bad: Fehler 4 · Haustür: Sabotage · 2 Batterien schwach". Can run discovery-less on wildcard subscriptions (`hm/status/+/FAULT_REPORTING`, `…/ERROR`, `…/SABOTAGE`, `…/LOWBAT`, `…/LOW_BAT`, `…/UNREACH` — see the Research block for the family-specific datapoint names) with the device name from the topic segment — which also makes it useful before any element-level wiring. Zigbee siblings (battery/tamper from z2m payloads) are a natural phase 2 of the board.
 
 **2. SABOTAGE is alarm-grade** — error colour and more prominent than the battery badge; an opened case on a lock or window contact is a security event, not maintenance. ERROR badges use the warning tier.
 
-**3. ERROR_CODE v1: nonzero = error, show the raw code** (badge + tooltip "ERROR_CODE 4"). A per-device-family code→text mapping (HM-CC-RT-DN valve faults, Keymatic clutch errors, …) is the explicit **phase 2** — each family's codes need researching against CCU docs; don't block the badge on that.
+**3. ERROR v1: nonzero = error, show text where known, raw code otherwise.** The per-device-family code→text mapping is **no longer phase-2-blocked** — it's researched below and small enough to ship in v1 for the core families (TRV, Keymatic, contact). Where the device family is unknown, fall back to the raw value ("Fault 4"). **Critical:** the map is **keyed by device family/channel type, NOT a global table** — the same numeric means different things per family (value `7` = `VALVE_ERROR_POSITION` on a TRV but `SABOTAGE` on a contact).
 
-**4. V1 element scope (where the signals actually occur):** `ERROR_CODE` → the three `*-climate` cards + `circle-lock`; `SABOTAGE` → `*-contact`, `*-motion`/`occupancy` (E132's `*-sensor`), `circle-lock`. Shared descriptors per the E117/E124 convention.
+**4. V1 element scope (where the signals actually occur):** fault reporting → the three `*-climate` cards (TRV `FAULT_REPORTING`) + `circle-lock` (Keymatic `ERROR`); sabotage → `*-contact`, `*-motion`/`occupancy` (E132's `*-sensor`), `circle-lock`. Shared descriptors per the E117/E124 convention.
 
-**⚠ Verify before implementing (the usual hm-metadata caveat):** `ERROR_CODE`/`SABOTAGE` naming is BidCoS-flavoured — confirm the HmIP `:0` equivalents on real devices (HmIP tends to report `SABOTAGE` too, but error reporting may be per-channel `ERROR_*` datapoints rather than one `:0` code). Same verify-first rule as E131's channel types.
+**Research (07/2026) — classic BidCoS/HM fault datapoints & code→text maps** *(source: [homematicip/OpenCCU-Base](https://github.com/homematicip/OpenCCU-Base) `firmware/rftypes/*.xml` device descriptions — the CCU's own value-lists).* This **corrects the datapoint-name/channel assumptions**: classic BidCoS devices do **not** expose a uniform `ERROR_CODE` on `:0`. Instead:
+
+- **TRV — `HM-CC-RT-DN`** (`rf_cc_rt_dn.xml`): datapoint **`FAULT_REPORTING`** (on the climate/service channel, index 4 — *not* `:0`), enum:
+  | # | id | suggested text (EN / DE) |
+  |---|---|---|
+  | 0 | `NO_FAULT` | OK |
+  | 1 | `VALVE_TIGHT` | Valve tight / Ventil schwergängig |
+  | 2 | `ADJUSTING_RANGE_TOO_LARGE` | Adjusting range too large / Stellbereich zu groß |
+  | 3 | `ADJUSTING_RANGE_TOO_SMALL` | Adjusting range too small / Stellbereich zu klein |
+  | 4 | `COMMUNICATION_ERROR` | Communication error / Kommunikationsfehler |
+  | 6 | `LOWBAT` | Low battery / Batterie schwach |
+  | 7 | `VALVE_ERROR_POSITION` | Valve mounting error / Ventil-Einbaufehler |
+
+  *(value 5 is undefined/reserved.)*
+- **Keymatic — `HM-Sec-Key`** (`rf_keymatic.xml`): datapoint **`ERROR`**, enum: `0 NO_ERROR` · `1 CLUTCH_FAILURE` (Kupplung) · `2 MOTOR_ABORTED` (Motor blockiert/abgebrochen).
+- **Door/window contact — `HM-Sec-SC`** (`rf_sc.xml`): datapoint **`ERROR`** on the **SHUTTER_CONTACT channel (index 1)**, enum: `0 NO_ERROR` · **`7 SABOTAGE`**. There is **no separate boolean `SABOTAGE` datapoint** on classic HM contacts — sabotage is `ERROR == 7`.
+- **Wall thermostat — `HM-TC-IT-WM-W-EU`** (`rf_cc_tc.xml`): **no** fault/error parameter at all (no valve → nothing to report). So not every "climate" device has a fault datapoint.
+
+**Consequences for the implementation:**
+- The recognizer must match **family-specific datapoint names** — `FAULT_REPORTING` (TRV), `ERROR` (Keymatic, contact) — not a single `ERROR_CODE`. Emit the normalized record from whichever the device exposes; key the text lookup on the device type (already parsed from the hm metadata, e.g. `deviceType: "HM-CC-RT-DN"`).
+- **Sabotage has two encodings:** classic HM → `ERROR == 7` on the sensing channel (not `:0`); HmIP → a dedicated `SABOTAGE` bool on the maintenance channel (confirmed below). The `sabotage_normalized` record must be derivable from *either*.
+- The board's wildcard subscriptions become **`…/FAULT_REPORTING`, `…/ERROR`, `…/SABOTAGE`** (plus `LOWBAT`/`LOW_BAT`/`UNREACH`), not just `ERROR_CODE`/`SABOTAGE`.
+- Over MQTT the value arrives as the **integer option index** (mqtt-smarthome/RedMatic publish the numeric datapoint), so feezal owns the number→text map. Ship feezal's own EN/DE strings per id (the CCU's localized text lives in the WebUI stringtable; the descriptive option ids above are enough to author from).
+
+**Research (07/2026) — HmIP fault/sabotage model** *(source: [homematicip/OpenCCU-Base](https://github.com/homematicip/OpenCCU-Base) `opt/HmIP/legacy-parameter-definition.config` — the HmIP→legacy-XML-RPC parameter map).* **HmIP is structurally different from classic HM** and this is the more important finding than any single enum:
+
+- **HmIP splits faults into many *named boolean* datapoints, not one enum.** Instead of a single `FAULT_REPORTING`/`ERROR` code, each fault is its own bool. Examples from the config:
+  - **Lock (`DOOR_LOCK_TRANSCEIVER`, e.g. HmIP-DLD):** `ERROR_JAMMED`, `ERROR_LOAD_TOO_LOW`, `ERROR_NO_END_STOP_LOCK`, `ERROR_NO_END_STOP_UNLOCK` — plus a numeric `DOOR_RECEIVER.ERROR_CODE`.
+  - **Wired / general (`MAINTENANCE`):** `ERROR_BUS_CONFIG_MISMATCH`, `ERROR_COPROCESSOR`, `ERROR_OVERHEAT`, `ERROR_UNDERVOLTAGE`, `ERROR_POWER_SHORT_CIRCUIT_BUS_1/2`, `ERROR_SHORT_CIRCUIT_DATA_LINE_BUS_1/2`, `ERROR_DALI_BUS`.
+  - **Smoke detector (`MAINTENANCE_SD`):** `ERROR_DEGRADED_CHAMBER`.
+- **A generic numeric `MAINTENANCE.ERROR_CODE` also exists** (maintenance channel `:0`), but its per-value enum is **firmware/device-specific and not in this config** (it's a parameter *mapping* file, not a value-list). So for HmIP, the *actionable* faults are the named booleans; the numeric `ERROR_CODE` is a fallback whose enum must be read per device (verify note).
+- **HmIP sabotage IS a dedicated boolean** — `MAINTENANCE.SABOTAGE` (also `MAINTENANCE_BAT_EL.SABOTAGE`), plus a latching **`SABOTAGE_STICKY`** variant. Confirmed contrast with classic HM's `ERROR == 7`.
+
+**Consequences — the normalizer needs a dual model:**
+- **Classic HM:** decode one integer enum datapoint (`FAULT_REPORTING`/`ERROR`) → text via the family-keyed table above; sabotage = `ERROR == 7`.
+- **HmIP:** collect the set of `ERROR_*` **boolean** datapoints that are `true` (the flag *name* is the message — `ERROR_JAMMED` → "Lock jammed / Schloss blockiert"); fall back to numeric `ERROR_CODE` only if present and no named flag fits. Sabotage = `SABOTAGE` (and/or `SABOTAGE_STICKY`) bool.
+- The `error_normalized` record should therefore carry either a decoded enum text **or** a list of active fault-flag names, so a badge/board can render both models uniformly. The board's wildcard set expands to include the HmIP flags (`…/ERROR_JAMMED`, `…/SABOTAGE_STICKY`, …) alongside the classic `FAULT_REPORTING`/`ERROR`.
+
+**⚠ Still to verify against real devices:** the numeric `MAINTENANCE.ERROR_CODE` / `DOOR_RECEIVER.ERROR_CODE` value→text enums per HmIP device (esp. **HmIP-eTRV** valve faults — the config doesn't carry them; likely in the HmIP firmware/device DB or eQ-3's *HMIP XML-RPC API Addendum*), the exact `MAINTENANCE_*` channel variant each device uses, and how the RedMatic/hm2mqtt bridge names these datapoints on the MQTT topic. Same verify-first rule as E131's channel types.
 
 **Ships with:** recognizer tests (presence-checked emission, both records), applier auto-stamp test, the health-board element (+ TESTING.md §6 entry with element-specific notes per the checklist rule), badge rendering tests incl. the alarm-grade sabotage styling, TESTING.md rows (stuck-valve TRV shows the error badge while the setpoint stays operable; opening a contact's case shows the sabotage badge on the card AND a row on the board).
 
@@ -1119,6 +1438,194 @@ A new element family whose defining trait is **animation**: a `fancy-contact` th
 **Ships with:** N29 bundle + registration + `generate-elements`, parity-test registrations, TESTING.md §6 family section (state animations, directional transitions, position-seek, tilt tristate, theme recolour incl. per-view themes, reduced motion, editor static pose, override srcs, lazy chunk), version bumps per policy.
 
 **Relates:** E89 ✅ (Lottie machinery + lazy loader — the foundation), **E137** (controllers — the behavior layer; lock-controller extraction is the one prerequisite), **E138 ✅** (taxonomy + colour semantics the family follows), E114 (parity), E39 ✅ (splash — same lazy-chunk discipline), per-view themes ✅ (recolour must respect them), A25 ✅ (self-hosted/MIT-clean assets — the programmatic set satisfies it by construction), E113 (function × style — a new style family over existing functions, exactly that model), E135 (sabotage badge on the fancy cards too).
+
+### E140 — Per-state icon colour: configurable CSS vars for every state-driven icon
+
+Elements with a **state-driven icon** let you pick the icon per state (e.g. `*-switch` exposes `icon-on` / `icon-off`), but the icon **colour per state is not consistently configurable**. On glass-switch the ON colour is exposed (`--feezal-glass-accent`, "Icon/state colour while on") but the OFF colour is a hardcoded internal default (`--feezal-glass-muted`, not in the `styles` descriptor); metro-switch exposes only its OFF *tile* background, no per-state icon colour. So an author who sets `icon-on: bolt` / `icon-off: power_off` can't independently colour the two states.
+
+**The precedent already exists in the codebase:** `basic-icon-value` exposes one style var per variant step — `--feezal-icon-value-color-0 … -100` (default `var(--primary-text-color)`), rendered inline per bucket ([feezal-element-basic-icon-value.js:46-48,163-164](../www/packages/@feezal/feezal-element-basic-icon-value/feezal-element-basic-icon-value.js#L46-L48)). That per-state colour var is exactly the pattern every state-driven-icon element should follow; the state-driven cards just don't do it uniformly.
+
+**Goal:** every element whose icon changes with state exposes a **CSS custom property for the icon colour of each state**, listed in its `styles` descriptor (so it's editable in the style inspector), defaulting per the §5.1 theme-variable discipline (never an `--md-sys-color-*` default).
+
+**Scope — audit all families for state-driven icons:**
+- **Switch / boolean** (`*-switch`, `glass-button`, `metro-tile`): `icon-on` colour + `icon-off` colour (today only the ON/accent side is typically exposed).
+- **Contact / motion / sensor** (E137 controllers: `*-contact`, `*-motion`, `*-sensor`): active vs. clear icon colour. `feezal-controller-sensor` already carries alarm-class error-colour semantics ([feezal-controller-sensor.js:117-120](../www/packages/@feezal/feezal-controller-sensor/feezal-controller-sensor.js#L117-L120)) — reconcile the exposed colour vars with that so the controller default and the style var don't fight.
+- **Cover / lock / light / climate** and any other card whose icon carries state.
+- **Families:** material, circle, glass, metro, eink, carbon, paper — one consistent naming scheme across them (e.g. `--feezal-<family>-icon-color-on` / `-off`, or an active/clear pair for controller-backed cards).
+
+**Design notes:**
+- **Naming consistency is the point** — this is an **E114 parity** concern: the same state-driven function must expose the same colour knobs across every family, so an author moving between families finds the same controls.
+- **Defaults must stay theme-driven** — an unset per-state colour resolves to the canonical theme var it does today (active → `--primary-color`, clear/off → `--secondary-text-color`, alarm → `--error-color`), so this is purely additive: existing dashboards look identical until someone overrides a colour.
+- **Controller-backed elements:** the colour vars belong in the family view's `styles` descriptor, but the default per-state colour semantics come from the controller (E137) — keep them in sync rather than forking per element.
+
+**Ships with:** the per-family colour-var additions, patch bumps on every touched element package, `feezal-controller-parity.test.js` coverage that the state-driven cards expose the agreed colour vars, and TESTING.md notes (set a distinct on/off icon colour, verify it survives save/reload and follows per-view themes when left default).
+
+**Relates:** **E114** (parity — same knobs across families is the core requirement), **E137** (controllers own the default per-state colour semantics), §5.1 theme-variable discipline (defaults), `basic-icon-value` (the existing per-state-colour precedent to mirror), E138 (colour semantics per function), **E141** (the tile-background sibling of this item for the metro family).
+
+### E141 — Metro tiles: per-state background colour vars for state-driven elements
+
+The **background sibling of [E140](#e140--per-state-icon-colour-configurable-css-vars-for-every-state-driven-icon).** For the Metro family the **tile background** *is* the primary state signal (a WP7-style solid-colour tile), so state-driven metro elements (`metro-switch`, `metro-contact`, `metro-light`'s on/off, `metro-motion`, …) should expose a **clearly-named background-colour CSS var per state**, just as E140 does for the icon colour.
+
+**Current state — the machinery exists but is inconsistent/implicit.** `MetroTileBase` paints `.face { background: var(--feezal-metro-accent) }` — the active/on/closed tile colour, defaulting to `--primary-color` ([feezal-element-metro-tile.js:52-54,106](../www/packages/@feezal/feezal-element-metro-tile/feezal-element-metro-tile.js#L52-L54)). Per-state overrides already exist on some elements: `--feezal-metro-off-color` (switch/light OFF — [feezal-element-metro-switch.js:29](../www/packages/@feezal/feezal-element-metro-switch/feezal-element-metro-switch.js#L29)), `--feezal-metro-open-color` / `--feezal-metro-tilt-color` (contact — [feezal-element-metro-contact.js:119-122](../www/packages/@feezal/feezal-element-metro-contact/feezal-element-metro-contact.js#L119-L122)). But it is uneven: the **on/active** background is the *generic* `--feezal-metro-accent` (shared with static, non-state tiles), not a dedicated state var, so an author can't independently set "background when ON" vs. the family's base tile colour, and not every state-driven metro element exposes its full state set.
+
+**Goal:** every state-driven metro element exposes an explicit, consistently-named **per-state tile background var**, listed in its `styles` descriptor, defaulting per the §5.1 theme-variable discipline:
+- `metro-switch`, `metro-light` (on/off) → an on-state and off-state background var (off already exists; give the on state a dedicated var or clearly document `--feezal-metro-accent` as the on default).
+- `metro-contact` → closed/open/tilt (open/tilt already exist; align naming with the on/off scheme).
+- `metro-motion`, `metro-sensor` (alarm-boolean) → active/clear background, with alarm classes defaulting the active tone to `--error-color`.
+
+**Design notes:**
+- **Decide the on/active source:** keep `--feezal-metro-accent` as the on/active default (it's the family's tile colour and themes key off it), but expose the per-state override explicitly so authors aren't forced to repurpose the generic accent. Don't break existing dashboards that set `--feezal-metro-accent`.
+- **Parity (E114):** the same state-driven function must expose the same background knobs across every metro element; pairs with E140 so a state-driven metro tile has *both* icon-colour and background-colour per-state vars, named consistently.
+- **Defaults stay theme-driven** — purely additive; unset vars resolve to today's colours (accent / off-color / error).
+- **Controller-backed elements** (`metro-contact`, `metro-motion`, `metro-sensor` via E137): the vars live in the metro view's `styles`, but default per-state semantics come from the controller — keep in sync, don't fork.
+
+**Cross-family note:** other families also carry a state-tinted surface (glass on-tint, `material-circle` chip fill), so a general "per-state surface colour" parity could extend this the way E140 spans all families — but this item is **scoped to the metro family** as reported; generalise later if wanted.
+
+**Ships with:** the per-state background-var additions across the state-driven metro elements, patch bumps on each touched package, `feezal-controller-parity.test.js` / metro-family test coverage that the agreed background vars are exposed, and TESTING.md notes (set distinct on/off tile backgrounds, verify save/reload and per-view-theme defaults).
+
+**Relates:** **E140** (the icon-colour sibling — build the two together for metro), **E114** (parity), **E137** (controllers own default per-state semantics for contact/motion/sensor), `MetroTileBase` (`--feezal-metro-accent` + `.face`), §5.1 theme-variable discipline, E129 (metro tile sizing/typography — same family chrome).
+
+### E142 — Dialog `label` attribute: editor-only placeholder tag to tell dialogs apart
+
+Dialogs are **pseudo-elements** — a small (~120×40 px) invisible placeholder on the canvas, no runtime footprint at that position. When a view has **several dialogs** they all render the identical "Dialog" chip and are impossible to tell apart in the editor. Add a **`label` attribute** whose only job is to disambiguate them on the canvas: the placeholder shows **"Dialog: &lt;label&gt;"** when set. **Editor-only — never rendered in the viewer.**
+
+**Scope: every dialog element** (all families/variants): `feezal-element-{material,glass,eink,paper}-dialog`, `-dialog-view`, and `-countdown-dialog` (the 11 `feezal-element-*dialog*` packages).
+
+**Behaviour:**
+- **Attribute:** `{name: 'label', type: 'string', default: '', help: 'Editor-only label shown on the canvas placeholder to tell multiple dialogs apart. Never shown in the viewer.'}` — reflected so it persists with the site.
+- **Placeholder:** append `: <label>` to each element's existing placeholder word — "Dialog: Confirm delete", "Dialog View: Light settings", "Countdown: Reboot" — keeping the per-element base word (the placeholder is rendered in the `if (feezal.isEditor)` branch, e.g. `<span>Dialog</span>` at [feezal-element-material-dialog.js:420-425](../www/packages/@feezal/feezal-element-material-dialog/feezal-element-material-dialog.js#L420-L425)). When `label` is empty, the placeholder is unchanged.
+- **Never in the viewer:** the label is not part of the rendered dialog anywhere — not the title bar, not an aria label, nothing. It exists purely for editor canvas identification.
+
+**Distinct from `title` (call this out in the `help`).** Dialogs already have a `title` attribute that **is** shown to users as the dialog heading ([feezal-element-material-dialog.js:24](../www/packages/@feezal/feezal-element-material-dialog/feezal-element-material-dialog.js#L24)). `label` is the opposite: never user-visible, editor-only. The help text must make the difference obvious so authors don't reach for `title` to organise their canvas (or `label` expecting it to show).
+
+**Implementation note:** the placeholder rendering is duplicated across the dialog elements — do the `label` append **once** in a shared helper (or the common dialog base, where one exists) so all 11 render it identically, rather than 11 hand-edited copies (the E106 "no N hand-rolled copies" lesson).
+
+**Possible extension (not MVP):** surface `label` wherever the editor lists/selects elements (selection chip, a future layers panel) — the same identifier is useful beyond the on-canvas placeholder. Out of scope for the first cut, which is just the placeholder text.
+
+**Ships with:** the `label` attribute on every dialog element + the shared placeholder-append helper, patch bumps on each touched package, a browser test (label set → appears in the editor placeholder, absent from the viewer render), and TESTING.md notes (per dialog element: set a label, confirm canvas shows "…: &lt;label&gt;" and the viewer shows nothing extra).
+
+**Relates:** the dialog element set (material/glass/eink/paper × dialog / dialog-view / countdown-dialog), E114 (parity — the attribute must exist identically across all of them), the dialog `title` attribute (the user-visible counterpart to contrast against), pseudo-element editor conventions (E7/swipe and other invisible placeholders could reuse the same editor-label idea later).
+
+### E143 — Lock element family parity: `glass-lock` + `metro-lock` (extract `feezal-controller-lock` first)
+
+`circle-lock` is the **only** lock element ([feezal-element-circle-lock.js](../www/packages/@feezal/feezal-element-circle-lock/feezal-element-circle-lock.js)) — glass and metro have no lock card, an **E114 family-parity gap** (and it makes the U58 Generate wizard skip locks for those families). Add **`glass-lock`** and **`metro-lock`**.
+
+**E137 prerequisite — extract `feezal-controller-lock` first.** `circle-lock` is currently **standalone**: it hand-rolls the lock command/state contract (`subscribe`/`publish`, `payload-lock`/`-unlock`, `state-locked`/`-unlocked`, jammed state, N31 availability) directly, with an HA `discovery: {component: 'lock', map}` fragment. Adding two more families means **2+ families share the lock function → the E137 rule requires a controller**. So:
+1. **Extract `feezal-controller-lock`** from circle-lock's logic (state parsing → locked/unlocked/jammed, command publishing, availability, the E135 lock **error/jammed** signal — Keymatic `ERROR` enum / HmIP `ERROR_JAMMED`), with the `component: 'lock'` discovery-map fragment and the attribute fragment.
+2. **Refactor `circle-lock` to a view over the controller** (no behaviour change; parity-test it).
+3. **Add `glass-lock`** (frosted card + padlock, the glass family chrome) and **`metro-lock`** (WP7 tile; state → tile background per E141, icon per E140) as views over the controller.
+4. Register all in `feezal-controller-parity.test.js`.
+
+This is also the **prerequisite E139 already named** for `fancy-lock` — do the controller extraction once here and circle/glass/metro/fancy all become views. **Scope decided by request: glass + metro** (eink-lock can follow the same controller later).
+
+**Ships with:** the new `feezal-controller-lock` package, the circle refactor + glass/metro elements, `generate-elements` manifest + `www/package.json` registration, parity-test entries, per-element patch/version bumps, TESTING.md §6 rows (locked/unlocked/jammed rendering, lock/unlock commands, availability, per-family chrome).
+
+**Relates:** **E114** (the parity gap this closes), **E137** (controller-first rule — this triggers the lock-controller extraction), **E139** (fancy-lock — same controller prerequisite; coordinate), **E135** (lock error/jammed maintenance signal the controller should carry), **E144** (lock autodiscovery — the discovery records these elements consume), `circle-lock` (the reference implementation), U58 (Generate wizard — parity gap means locks are skipped for glass/metro today).
+
+### E144 — Lock autodiscovery: Homematic BidCoS (Keymatic) + HmIP smart locks + zigbee2mqtt
+
+Lock elements exist but **Homematic locks don't auto-discover**. The generic **HA-discovery path already supports `component: 'lock'`** (`SUPPORTED_COMPONENTS` + the `pl_lock`/`pl_unlk`/`stat_locked`/`stat_unlocked` field map in [server/src/mqtt/discovery.js:120-147](../server/src/mqtt/discovery.js#L120-L147)), so anything publishing an HA lock discovery config is already ingested — but the **native Homematic recognizer** ([server/src/mqtt/native-discovery.js](../server/src/mqtt/native-discovery.js)) has recognizers for climate / wled / contact / sensor and **none for locks**. So Keymatic and HmIP door locks are invisible to auto-discovery today.
+
+**Add native lock recognizers** (E108 framework), one `lock` record per device, gated on CCU `channelType` like the contact recognizer:
+- **BidCoS Keymatic — `HM-Sec-Key`.** Datapoints (confirmed via E135 research, [homematicip/OpenCCU-Base](https://github.com/homematicip/OpenCCU-Base) `rf_keymatic.xml`): `STATE` (bool — locked/unlocked), `OPEN` (momentary "open the door latch" command, distinct from unlock), `ERROR` enum (`0 NO_ERROR` / `1 CLUTCH_FAILURE` / `2 MOTOR_ABORTED`). Map: `state_topic`=`STATE`, lock/unlock command → `STATE`, jammed ← `ERROR != 0`. **Verify the `STATE` polarity** (which boolean is "locked") on a real device.
+- **HmIP door lock — `HmIP-DLD`.** Channel `DOOR_LOCK_TRANSCEIVER`: `LOCK_STATE` (enum — UNKNOWN/LOCKED/UNLOCKED/…), `LOCK_TARGET_LEVEL` (command), and the E135 boolean fault flags (`ERROR_JAMMED`, `ERROR_LOAD_TOO_LOW`, `ERROR_NO_END_STOP_LOCK/UNLOCK`). Map: `LOCK_STATE`→state, `LOCK_TARGET_LEVEL`→command, jammed ← `ERROR_JAMMED`. **Verify** the `LOCK_STATE` enum values and the target-level command payloads.
+- **zigbee2mqtt.** z2m **does** support several Zigbee smart locks (Danalock, Yale, Schlage, …) and publishes HA MQTT discovery for them, so they *should* already flow through feezal's generic HA `lock` path with **no native work** — **confirm** with a real z2m lock (state/command topics, `state_locked`/`state_unlocked` payloads) rather than assuming. If z2m's lock discovery shape needs a tweak, handle it in the HA-discovery mapping, not a native recognizer.
+
+**⚠ Verify-first (usual hm-metadata caveat):** channelTypes (`KEYMATIC`/door-lock channel; `DOOR_LOCK_TRANSCEIVER`), the exact datapoint names/enums/**polarity** on real devices, and how the RedMatic/hm2mqtt bridge names these on the MQTT topic. Same rule as E131's channel types and E135's fault datapoints — read [OpenCCU-Base](https://github.com/homematicip/OpenCCU-Base), then confirm on hardware.
+
+**Ships with:** the Keymatic + HmIP-DLD recognizers (presence/channelType-gated), recognizer tests, an auto-stamp test onto `circle-lock` (and the E143 family locks), a z2m-lock confirmation note in TESTING.md, and docs on the lock discovery contract.
+
+**Relates:** **E108** ✅ (recognizer framework), **E135** (lock error/jammed datapoints — same devices, shared research), **E143** (the lock elements these records populate — build alongside), **E137** (`feezal-controller-lock` owns the discovery-map fragment), U58 (Generate wizard consumes the new lock records), N31 (availability), the HA-discovery `lock` path already in place for z2m.
+
+### E145 — Autodiscovery support for ccu-jack's MQTT interface
+
+feezal's native Homematic autodiscovery is **RedMatic-only** today (established in **B65**): every recognizer gates on the rich `hm` metadata block (`channelType`/`channelName`/`deviceType`) that **only RedMatic publishes**. [ccu-jack](https://github.com/mdzio/ccu-jack) is a popular, high-performance CCU MQTT/REST gateway, but its users get **no autodiscovery** — this item adds it.
+
+**The gap (from the B65 research):**
+- ccu-jack MQTT topics are **address-based**: `device/status/<serial>/<channel>/<param>` (and `device/set/…`).
+- Payloads are **bare VEAP** `{"v":…,"ts":…,"s":…}` — value only (`v`, not `val`), no channel/device metadata.
+- ccu-jack MQTT is **value-only** — it publishes **no** metadata/enumeration topics (no channelType, no device list). *(Confirmed against the [ccu-jack MQTT wiki](https://github.com/mdzio/ccu-jack/wiki/MQTT-Server).)*
+- **But the metadata exists in ccu-jack's REST/VEAP tree** — a hierarchical API with `identifier` / `title` (friendly device+channel names) / `description` / typed `~links` (`rel: device`, …). That's where channel types, device types and names live.
+
+**Design principle (decided): feezal stays purely MQTT.** No second transport — the discovery path must work over the MQTT stream alone. This rules out any HTTP/REST dependency.
+
+**Design approaches:**
+- **A — REST/VEAP metadata + MQTT values. ❌ Decided against.** Walking ccu-jack's REST/VEAP tree over HTTP would give RedMatic-level metadata, but it adds a **second transport (HTTP-client + auth)** — which violates the pure-MQTT principle above. Not pursued.
+- **B — MQTT-only datapoint-signature recognition.** Work purely from the address topics: `device/status/<serial>/<channel>/<param>` gives serial + channel + datapoint name. Classify by **datapoint-name signatures** per channel (e.g. `SET_POINT_TEMPERATURE`+`ACTUAL_TEMPERATURE` → climate; `STATE`+`LEVEL` → dimmer; `STATE` only → switch/contact, ambiguous). Pure MQTT, works with **any** ccu-jack today; but **no friendly names** (only `serial:channel`), weaker/ambiguous classification, more false positives. Extends the existing metadata-less datapoint-completeness fallback in `native-discovery.js`. This is the **works-today** path.
+- **C — Upstream PR to ccu-jack for optional richer MQTT payloads (preferred long-term).** Contribute an **opt-in** feature to [mdzio/ccu-jack](https://github.com/mdzio/ccu-jack) that publishes the device/channel metadata **over MQTT** (behind a config flag, off by default so existing users are unaffected). Two shapes to propose:
+  - **Retained metadata topics** (preferred — MQTT-idiomatic, keeps value payloads lean): one retained message per channel/device carrying `deviceType`, `channelType`, `channelName`, `channelIndex`, address — e.g. a `device/<serial>/<channel>/~meta` (or device-info) topic. feezal subscribes value topics + the retained meta tree and joins them by serial:channel. Retained ⇒ instant on connect, published once, not per value.
+  - **Enriched value payloads** (alternative): optionally fatten `{"v","ts","s"}` with a metadata block (à la RedMatic's `hm`). Simpler for consumers but heavier on every message.
+  With C in place, feezal's **existing rich-metadata recognizers work essentially unchanged** (map ccu-jack's meta fields to the same `channelType`/`channelName`/`deviceType` the recognizers already read), and `:0` correlation is exact. Trade-off: depends on the PR landing upstream **and** users updating ccu-jack — so **B remains the fallback** for un-upgraded installs.
+
+**Recommended path:** ship **B** (pure-MQTT, works with any ccu-jack now) and pursue **C** upstream in parallel; when C is available it upgrades the same integration from signature-guesses to full metadata without changing feezal's transport model.
+
+**Adaptation needed regardless of approach:**
+- **Topic scheme:** a configurable `device/status/…` / `device/set/…` prefix path (distinct from RedMatic's `hm/status/…`).
+- **Payload shape:** value at **`payload.v`** (not `payload.val`), plus `ts`/`s` — the built discovery records must set the message-property accordingly, and VEAP boolean/enum/number typing must map to feezal's cast model.
+- **Connection model:** decide whether ccu-jack is a **separate configured source** or **auto-detected** from the `device/` prefix on the same broker (still pure MQTT either way).
+
+**Silver lining (B65):** ccu-jack's **address-based topics make `:0` correlation trivial** — `device/status/<serial>/<channel>/…` → `device/status/<serial>/0/…` — so availability/battery/maintenance (`UNREACH`/battery/E135 signals) wiring is *easier* here than RedMatic name-mode. The B65 fix's string-transform path already covers this case.
+
+**Open questions:** for **C**, the exact retained-meta topic shape to propose upstream (and whether mdzio prefers retained-meta vs. enriched-payload); for **B**, how far datapoint-signature classification can go without channelType before false positives dominate; scope of system variables / programs (ccu-jack exposes these too — likely a later tier); how much of the existing recognizer logic (climate/contact/cover/light/switch/sensor) is reusable once fed ccu-jack-shaped metadata (C) vs. needs a signature-only variant (B).
+
+**Ships with:** for **B** — the pure-MQTT ccu-jack signature recognizer, topic-prefix + `payload.v` config, the `:0`/availability wiring reuse, tests (sample ccu-jack value topics → correct discovery records; `:0` availability resolves), TESTING.md, docs. For **C** — an upstream PR to mdzio/ccu-jack (retained metadata topics, opt-in) plus the feezal side that maps its meta fields into the existing recognizers; tracked as a separate deliverable that upgrades B.
+
+**Relates:** **B65** (the research this builds on — bridge scheme table, and the `:0` synergy), **E108** ✅ (recognizer framework — where the ccu-jack signature recognizer / meta-adapter slots in), **N31 / E124 / E135** (`:0` availability/battery/maintenance — trivially derivable here), RedMatic (the currently-only-supported bridge — this is the parallel pure-MQTT path), **E109 / E112** (sibling third-party integration items), pure-MQTT design principle (no second transport — the constraint that shaped this item), the discovery `component` model (the shared target these records must produce).
+
+### E146 — Autodiscovery for AI-on-the-edge-device (meter reader) via Home Assistant MQTT discovery
+
+[AI-on-the-edge-device](https://github.com/jomjol/AI-on-the-edge-device) is a hugely popular ESP32-cam that reads analog/digital **meters** (water/gas/energy) with on-device AI and publishes the reading over MQTT — squarely feezal's audience.
+
+**Decided (07/2026): rely PURELY on the device's Home Assistant MQTT discovery — do NOT build a native recognizer.** Since v12.0.1 the device can publish `homeassistant/<component>/…/config` (opt-in in its web UI), and feezal's **existing HA-discovery path already ingests it** with the proper `state_topic`, `unit_of_measurement`, `device_class`, and `availability_topic` — all resolved *by the device*. So the "integration" is: **verify feezal ingests AI-on-the-edge's HA discovery configs correctly, and document that the user enables HA discovery on the device.** No feezal recognizer code.
+
+**Why native recognition is explicitly declined (the real-payload evidence makes the case).** The reporter's `wasserzaehler/#` dump shows a native recognizer would be a swamp — all of which HA discovery already solves on the device side:
+- **Base topic (`MainTopic`) is user-configurable and contains slashes** (`wasserzaehler/status`) → no fixed prefix/depth to match; would need leaf-anchored matching (a first for the `match()` contract, which assumes fixed depth).
+- **Flat AND nested styles coexist** — the primary meter at `<MainTopic>/{value,json,…}` *and* named sequences at `<MainTopic>/<seq>/{value,json,…}`, with device keys (`connection`/`MAC`) at the MainTopic level too.
+- **Nested MainTopics across devices** — the dump has two MACs where one device's whole tree (`wasserzaehler/status/zaehlerstand`) sits *inside* another's (`wasserzaehler/status`); disambiguating would require walking prefixes to the nearest `/connection`.
+- **Stale retained ghosts** — old renamed/removed sequences linger with years-old `json.timestamp`s (the reporter's stale `wasserzaehler`/`main` entries); would need a timestamp ghost-filter.
+- **Stringy payloads** — `json` values are quoted strings (`"value":"371.7657"`).
+
+HA discovery makes every one of these moot: the device emits one clean `homeassistant/sensor/…/config` per meter with the exact `state_topic`, unit, and `availability_topic` (`<deviceRoot>/connection`), regardless of how the base topic is configured.
+
+**Reference — topic structure & real payload** (kept for context, NOT for a recognizer): per sequence `…/<seq>/{value,raw,pre,error,rate,rate_per_time_unit,changeabsolut,timestamp,status,json}`; device `…/{connection,MAC,IP,hostname,uptime,freeMem,wifiRSSI,CPUtemp,interval}`; `json` = `{"value":"371.7657","raw":"00371.7657","pre":…,"error":"no error","rate":"0.000020","timestamp":"…ISO8601…"}`. Docs: [MQTT-API](https://jomjol.github.io/AI-on-the-edge-device-docs/MQTT-API/).
+
+**Scope of this item (small):**
+- **Verify** feezal's HA-discovery path ingests AI-on-the-edge's `homeassistant/sensor/…/config` correctly (state topic, unit, device_class `water`/`gas`/`energy`, `availability_topic` → N31) — confirm against a real device with HA discovery enabled.
+- **Document** in onboarding/docs: *"For AI-on-the-edge-device, enable Home Assistant discovery in its web UI; the meter then appears in feezal automatically."*
+- **If** a gap surfaces (e.g. AI-on-the-edge uses a discovery shape feezal mishandles — see the HA-Core 2026.4 deprecation note in [issue #3932](https://github.com/jomjol/AI-on-the-edge-device/issues/3932)), fix it in the **HA-discovery mapping**, not with a native recognizer.
+
+**Explicitly NOT doing:** a native `MainTopic`/`json`-anchored recognizer, base-topic-slash parsing, nested-MainTopic disambiguation, or a meter-topic staleness filter. Reconsider only if a meaningful population of users runs AI-on-the-edge **without** HA discovery and asks for it.
+
+**Ships with:** a verification pass + a fix in the HA-discovery mapping only if needed, and the onboarding/docs note (enable HA discovery on the device). No recognizer, no new tests beyond an HA-discovery fixture if a gap is found.
+
+**Relates:** the existing **HA-discovery path** (the entire mechanism this leans on), **N31** (availability via the device's `availability_topic` = `<deviceRoot>/connection`), **E30** (sparkline for the rate sensor), the **pure-MQTT principle** (HA discovery is pure MQTT), **E145** (contrast: ccu-jack has *no* HA discovery, so it needs the native/upstream route — AI-on-the-edge doesn't), **E147** (the dedicated meter element that shows the richer topic set discovery alone doesn't).
+
+### E147 — AI-on-the-edge meter element (glass / metro / circle): value + rate + action/status + error
+
+E146 makes an AI-on-the-edge meter *discoverable* — but only as a **plain value sensor** (that's all the device's HA discovery exposes). The device publishes a much richer set that a generic readout throws away: the **consumption rate**, the **current processing action / last step** (`status`), the **error** state, `raw`/`pre`, and the **last-valid-reading timestamp**. A dedicated, purpose-built **meter card** surfaces all of it and just *feels* right for a meter. Build it in **glass, metro, and circle** (the user's pick).
+
+**Data model — mostly one topic.** The device's `…/<seq>/json` payload already bundles `{value, raw, pre, error, rate, timestamp}` (quoted strings — see E146), so the element can subscribe **that single topic** and pull each field via message-property paths (`value_json.value`, `.rate`, `.error`, `.timestamp`, …). Plus two topics the json doesn't carry: `…/status` (the "last performed step" = current action) and the device `…/connection` (availability → N31).
+
+**Visual (per family chrome):**
+- Prominent **value + unit** (unit is author-set — not in the payload).
+- **Rate** line (consumption per time unit); optional inline **sparkline** (reuse E30).
+- **Action / status** line — the current processing step ("digitizing…", "idle", last step) — the "specific stuff" that makes it feel like a real meter reader.
+- **Error badge** — `--error-color` when `error !== "no error"`, with the text in a tooltip.
+- **Last-reading timestamp** — relative ("3 min ago"); a subtle **stale** warning when it's old (the device keeps its last value even when a read fails).
+- **Availability** — offline treatment from `connection`.
+- Secondary/detail line for `raw`/`pre` (optional toggle).
+
+**Attributes (per E-spec):** `subscribe-json` (+ message-property paths for value/rate/error/timestamp/raw/pre), `subscribe-status`, `subscribe-availability`, `unit`, `rate-unit`, `decimals`, `label`, and `show-rate`/`show-status`/`show-timestamp`/`show-raw` toggles, plus a `stale-after` threshold for the timestamp warning.
+
+**Controller (E137):** three families share this function → extract a **`feezal-controller-aiedge`** (json parsing → value/rate/error/timestamp, status, availability) and make glass/metro/circle **views** over it; register in `feezal-controller-parity.test.js`. (eink/material can follow later — E114 parity.)
+
+**Discovery wiring (nice-to-have):** HA discovery (E146) only describes the *value* sensor, not the json/status/connection topics — so by default the author wires this element. A future **AI-on-the-edge-aware helper** could derive the sibling topics from a discovered value topic (strip `/value` → base, add `/json`, `/status`, `/connection`) and pre-wire the card — a small, optional convenience, not a dependency.
+
+**Generalization note:** at heart this is a **meter card** (value + rate + reading-age + fault); AI-on-the-edge is the primary consumer, but the same element serves any MQTT meter that publishes a value + rate. Keep the attribute names generic (`subscribe-value`/`subscribe-rate`) so it isn't AI-on-the-edge-locked, with a json convenience for the AI-on-the-edge case.
+
+**Ships with:** the `feezal-controller-aiedge` controller + glass/metro/circle views, `generate-elements` manifest + `www/package.json` registration, parity-test entries, per-package patch/version bumps, TESTING.md §6 rows (value/unit, rate + sparkline, status/action line, error badge on non-"no error", stale timestamp warning, availability offline).
+
+**Relates:** **E146** (discovery of the value sensor — this element shows the rest), **E137** (controller-first for the 3-family function), **E114** (parity — glass/metro/circle now, eink/material later), **E30** (sparkline for the rate), **N31** (availability from `connection`), the pure-MQTT principle, **U58** (a future Generate step could place these from discovered meters).
 
 ## Architecture & Infrastructure
 

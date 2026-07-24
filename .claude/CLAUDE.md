@@ -20,6 +20,17 @@ feezal is a browser-based MQTT dashboard editor + viewer.
 
 ---
 
+## Homematic reference source
+
+When you need to clarify **anything Homematic** — datapoint names, channel types, value-list enums (e.g. `FAULT_REPORTING`/`ERROR`/`ERROR_CODE`/`SABOTAGE`), device-type metadata, BidCoS vs. HmIP differences — consult the CCU's own definitions in **[homematicip/OpenCCU-Base](https://github.com/homematicip/OpenCCU-Base)**:
+
+- **Classic BidCoS/HM** device descriptions & value-lists: `firmware/rftypes/*.xml` (e.g. `rf_cc_rt_dn.xml`, `rf_keymatic.xml`, `rf_sc.xml`). These carry the authoritative per-device datapoint names, channel indices, and enum options.
+- **HmIP** parameter/datapoint mapping: `opt/HmIP/legacy-parameter-definition.config` (HmIP→legacy XML-RPC parameter map; note HmIP splits faults into many named boolean `ERROR_*` datapoints plus a dedicated `SABOTAGE` bool, unlike classic HM's single enum).
+
+Fetch the raw files (`raw.githubusercontent.com/homematicip/OpenCCU-Base/master/…`) rather than trusting memory — Homematic datapoint naming is device-family-specific and easy to get wrong. Treat this repo as the source of truth over forum posts or manuals when they conflict.
+
+---
+
 ## Critical Lit 3 pattern
 
 **Never initialise reactive properties with class field syntax (`=`).** Class fields shadow Lit's prototype-level reactive setters and break reactivity. Always initialise in the constructor:
