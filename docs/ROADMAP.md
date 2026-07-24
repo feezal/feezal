@@ -13,6 +13,7 @@ Work in progress — priorities and scope are not final.
 - [B68 — `glass-meter` + `glass-loadpoint`: card overflows the host and ignores its height](#b68--glass-meter--glass-loadpoint-card-overflows-the-host-and-ignores-its-height)
 - [B69 — `glass-meter` is overloaded: move the secondary readouts into a details popup](#b69--glass-meter-is-overloaded-move-the-secondary-readouts-into-a-details-popup)
 - [B70 — System element editor placeholders: swipe shows text not icon, mismatched chrome, inconsistent default sizes](#b70--system-element-editor-placeholders-swipe-shows-text-not-icon-mismatched-chrome-inconsistent-default-sizes)
+- [B71 — `system-splash` appears to do nothing in the viewer (no visible splash/spinner)](#b71--system-splash-appears-to-do-nothing-in-the-viewer-no-visible-splashspinner)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -222,6 +223,26 @@ The shared `glassCardStyles` `.card` is `position: absolute; inset: 6px` ([feeza
 **Ships with:** the three fixes across the System element files (patch-bump each touched package), a browser assertion that `system-swipe`'s placeholder renders a `feezal-icon` (not `.material-icons` text) — mirroring the device-health test — and a TESTING.md note. Small, mechanical; good to bundle in one commit.
 
 **Relates:** device-health icon fix `6e4a02fb` (the identical shadow-DOM `.material-icons` → `feezal-icon` fix + its test), E7 (`system-swipe` origin), the System element family (notification/pin/script/splash/swipe — the shared placeholder chrome + default-size convention this unifies).
+
+### B71 — `system-splash` appears to do nothing in the viewer (no visible splash/spinner)
+
+**Reported (07/2026).** Added a `system-splash` to a site; in the viewer **no spinner or overlay is perceptible** on load.
+
+**Analysis (candidate causes — do NOT fix yet; the most likely is "works as coded but invisible").** The splash ([system-splash.js](../www/packages/@feezal/feezal-element-system-splash/feezal-element-system-splash.js)) renders a full-screen `position: fixed` overlay on viewer mount and hides once the MQTT connection is up and a quiet `settle-window` (default **400 ms**) passes, or a `timeout` backstop (default **3 s**):
+1. **Invisible by default — the leading theory.** The overlay background defaults to `--feezal-splash-background` = **`--primary-background-color`** ([:78-80,125](../www/packages/@feezal/feezal-element-system-splash/feezal-element-system-splash.js#L78)) — i.e. **the same colour as the loaded page** — and the **spinner only appears after `spinner-delay` (default 1000 ms)** ([:60,215-219](../www/packages/@feezal/feezal-element-system-splash/feezal-element-system-splash.js#L60)). On a fast local load, `connected` + a 400 ms quiet window elapse well under 1 s, so the overlay fades out (250 ms) **before the spinner is ever shown** — leaving only a same-coloured overlay flash that is imperceptible. With no `logo`, no `lottie`, and a fast broker, there is **zero visible signal**. This is probably "correct but gives no feedback," not a hang.
+2. **Placement / mount timing.** The splash only runs when its **view is in the DOM** — its `connectedCallback` arms everything ([:183-225](../www/packages/@feezal/feezal-element-system-splash/feezal-element-system-splash.js#L183)). If the viewer mounts only the **active** view and the splash was placed on a **non-initial** view, it never mounts during boot → no overlay at all. "Place one per site" implies it must live on the **initial/default** view (or become a truly app-level concern), which isn't enforced or documented.
+3. **A genuine regression** (overlay never paints / hides instantly) — less likely given the code, but must be ruled out.
+
+**Candidate directions (validate, not yet chosen):** an editor **"Preview splash"** affordance (you cannot see it in the editor today — only a placeholder chip); **show the spinner immediately** (or cut the default `spinner-delay` to ~300 ms) so fast loads still flash a spinner; give the default overlay a **subtly distinct** background (or surface in the inspector that a `logo`/contrasting `--feezal-splash-background` is what makes it visible); **warn (or auto-promote to global)** when the splash isn't on the initial view; and a docs/TESTING note on how to actually observe it (throttle the connection).
+
+**Diagnosis needed from the reporter:**
+1. Is the site fast to load, and does a spinner appear if you **throttle** the broker/network (DevTools slow connection) or set `spinner-delay: 0`?
+2. Which **view** is the splash on — the initial one shown on load, or a secondary view?
+3. Does a **contrasting `--feezal-splash-background`** (e.g. red) or a **`logo`** make the overlay visible on load? (Confirms it renders at all.)
+4. Any **console warning** about "multiple splash elements"? (A second inactive instance would no-op.)
+5. **Viewer vs editor**, and does a hard reload (retained burst) change anything?
+
+**Relates:** E39 (`system-splash` origin — FOUC/boot cover), **B70** (sibling System-element polish), E89 / `@feezal/feezal-lottie` (the optional boot animation path), the viewer boot/connection lifecycle (`feezal.connection` `connected`/`message` events the hide rides on).
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
