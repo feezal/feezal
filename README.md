@@ -22,7 +22,7 @@ Then open [http://localhost:3000/editor/](http://localhost:3000/editor/) and fol
 - **Source editing** — edit the view's HTML directly in a built-in code editor, with formatting and live round-tripping back to the canvas
 - **Real-time data binding** — topic-based message routing connects any element attribute to a mqtt subscription
 - **MQTT support** — direct browser-to-broker WebSocket connection; no backend required for the viewer
-- **MQTT auto-discovery** — automatically detects devices published by zigbee2mqtt, ESPHome, and compatible bridges; one click pre-wires all topics and attributes
+- **MQTT auto-discovery** — automatically detects devices published by zigbee2mqtt, ESPHome, RedMatic and compatible devices and bridges; one click pre-wires all topics and attributes
 - **Web Components element model** — every palette element is a standard Custom Element; the ecosystem is distributed as plain npm packages
 - **Composable elements** — turn a selection of elements into a named, reusable component with typed parameters: build once, instantiate many times, edit centrally and every instance follows
 - **Responsive layouts** — layout elements (flex containers, responsive/app-shell wrappers, navbars) build fluid dashboards that adapt to any screen size, beyond fixed absolute positioning
