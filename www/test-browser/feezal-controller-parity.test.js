@@ -24,9 +24,13 @@ import {LIGHT_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-light';
 import {COVER_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-cover';
 import {WLED_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-wled';
 import {LOCK_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-lock';
+import {AIEDGE_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-aiedge';
 import '../packages/@feezal/feezal-element-circle-lock/feezal-element-circle-lock.js';
 import '../packages/@feezal/feezal-element-glass-lock/feezal-element-glass-lock.js';
 import '../packages/@feezal/feezal-element-metro-lock/feezal-element-metro-lock.js';
+import '../packages/@feezal/feezal-element-circle-meter/feezal-element-circle-meter.js';
+import '../packages/@feezal/feezal-element-glass-meter/feezal-element-glass-meter.js';
+import '../packages/@feezal/feezal-element-metro-meter/feezal-element-metro-meter.js';
 import '../packages/@feezal/feezal-element-circle-wled/feezal-element-circle-wled.js';
 import '../packages/@feezal/feezal-element-glass-wled/feezal-element-glass-wled.js';
 import '../packages/@feezal/feezal-element-metro-wled/feezal-element-metro-wled.js';
@@ -115,6 +119,10 @@ const CASES = [
     {tag: 'feezal-element-circle-lock',    consumed: LOCK_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-glass-lock',       consumed: LOCK_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-metro-lock',       consumed: LOCK_CONSUMED_ATTRIBUTES},
+    // E147 meter slice — circle/glass/metro adopt the AI-on-the-edge controller.
+    {tag: 'feezal-element-circle-meter',   consumed: AIEDGE_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-glass-meter',      consumed: AIEDGE_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-metro-meter',      consumed: AIEDGE_CONSUMED_ATTRIBUTES},
 ];
 
 describe('E137 — adopting elements declare the full controller contract', () => {

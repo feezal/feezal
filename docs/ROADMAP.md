@@ -58,7 +58,6 @@ Work in progress — priorities and scope are not final.
 - [E139 — "Fancy" element family: Lottie-animated device cards](#e139--fancy-element-family-lottie-animated-device-cards)
 - [E144 — Lock autodiscovery: Homematic BidCoS (Keymatic) + HmIP smart locks + zigbee2mqtt](#e144--lock-autodiscovery-homematic-bidcos-keymatic--hmip-smart-locks--zigbee2mqtt--keymatic--z2m-done-hmip-dld-open) 🔨 *(Keymatic + z2m done; HmIP-DLD open)*
 - [E145 — Autodiscovery support for ccu-jack's MQTT interface](#e145--autodiscovery-support-for-ccu-jacks-mqtt-interface)
-- [E147 — AI-on-the-edge meter element (glass / metro / circle): value + rate + action/status + error](#e147--ai-on-the-edge-meter-element-glass--metro--circle-value--rate--actionstatus--error)
 
 **Editor UX**
 
@@ -1323,33 +1322,6 @@ feezal's native Homematic autodiscovery is **RedMatic-only** today (established 
 **Ships with:** for **B** — the pure-MQTT ccu-jack signature recognizer, topic-prefix + `payload.v` config, the `:0`/availability wiring reuse, tests (sample ccu-jack value topics → correct discovery records; `:0` availability resolves), TESTING.md, docs. For **C** — an upstream PR to mdzio/ccu-jack (retained metadata topics, opt-in) plus the feezal side that maps its meta fields into the existing recognizers; tracked as a separate deliverable that upgrades B.
 
 **Relates:** **B65** (the research this builds on — bridge scheme table, and the `:0` synergy), **E108** ✅ (recognizer framework — where the ccu-jack signature recognizer / meta-adapter slots in), **N31 / E124 / E135** (`:0` availability/battery/maintenance — trivially derivable here), RedMatic (the currently-only-supported bridge — this is the parallel pure-MQTT path), **E109 / E112** (sibling third-party integration items), pure-MQTT design principle (no second transport — the constraint that shaped this item), the discovery `component` model (the shared target these records must produce).
-
-### E147 — AI-on-the-edge meter element (glass / metro / circle): value + rate + action/status + error
-
-E146 makes an AI-on-the-edge meter *discoverable* — but only as a **plain value sensor** (that's all the device's HA discovery exposes). The device publishes a much richer set that a generic readout throws away: the **consumption rate**, the **current processing action / last step** (`status`), the **error** state, `raw`/`pre`, and the **last-valid-reading timestamp**. A dedicated, purpose-built **meter card** surfaces all of it and just *feels* right for a meter. Build it in **glass, metro, and circle** (the user's pick).
-
-**Data model — mostly one topic.** The device's `…/<seq>/json` payload already bundles `{value, raw, pre, error, rate, timestamp}` (quoted strings — see E146), so the element can subscribe **that single topic** and pull each field via message-property paths (`value_json.value`, `.rate`, `.error`, `.timestamp`, …). Plus two topics the json doesn't carry: `…/status` (the "last performed step" = current action) and the device `…/connection` (availability → N31).
-
-**Visual (per family chrome):**
-- Prominent **value + unit** (unit is author-set — not in the payload).
-- **Rate** line (consumption per time unit); optional inline **sparkline** (reuse E30).
-- **Action / status** line — the current processing step ("digitizing…", "idle", last step) — the "specific stuff" that makes it feel like a real meter reader.
-- **Error badge** — `--error-color` when `error !== "no error"`, with the text in a tooltip.
-- **Last-reading timestamp** — relative ("3 min ago"); a subtle **stale** warning when it's old (the device keeps its last value even when a read fails).
-- **Availability** — offline treatment from `connection`.
-- Secondary/detail line for `raw`/`pre` (optional toggle).
-
-**Attributes (per E-spec):** `subscribe-json` (+ message-property paths for value/rate/error/timestamp/raw/pre), `subscribe-status`, `subscribe-availability`, `unit`, `rate-unit`, `decimals`, `label`, and `show-rate`/`show-status`/`show-timestamp`/`show-raw` toggles, plus a `stale-after` threshold for the timestamp warning.
-
-**Controller (E137):** three families share this function → extract a **`feezal-controller-aiedge`** (json parsing → value/rate/error/timestamp, status, availability) and make glass/metro/circle **views** over it; register in `feezal-controller-parity.test.js`. (eink/material can follow later — E114 parity.)
-
-**Discovery wiring (nice-to-have):** HA discovery (E146) only describes the *value* sensor, not the json/status/connection topics — so by default the author wires this element. A future **AI-on-the-edge-aware helper** could derive the sibling topics from a discovered value topic (strip `/value` → base, add `/json`, `/status`, `/connection`) and pre-wire the card — a small, optional convenience, not a dependency.
-
-**Generalization note:** at heart this is a **meter card** (value + rate + reading-age + fault); AI-on-the-edge is the primary consumer, but the same element serves any MQTT meter that publishes a value + rate. Keep the attribute names generic (`subscribe-value`/`subscribe-rate`) so it isn't AI-on-the-edge-locked, with a json convenience for the AI-on-the-edge case.
-
-**Ships with:** the `feezal-controller-aiedge` controller + glass/metro/circle views, `generate-elements` manifest + `www/package.json` registration, parity-test entries, per-package patch/version bumps, TESTING.md §6 rows (value/unit, rate + sparkline, status/action line, error badge on non-"no error", stale timestamp warning, availability offline).
-
-**Relates:** **E146** (discovery of the value sensor — this element shows the rest), **E137** (controller-first for the 3-family function), **E114** (parity — glass/metro/circle now, eink/material later), **E30** (sparkline for the rate), **N31** (availability from `connection`), the pure-MQTT principle, **U58** (a future Generate step could place these from discovered meters).
 
 
 ## Architecture & Infrastructure

@@ -1,0 +1,10 @@
+{
+  "name": "@feezal/feezal-element-metro-meter",
+  "version": "0.1.0",
+  "license": "MIT",
+  "main": "feezal-element-metro-meter.js",
+  "dependencies": {
+    "@feezal/feezal-controller-aiedge": "*",
+    "@feezal/feezal-element-metro-tile": "*"
+  }
+}

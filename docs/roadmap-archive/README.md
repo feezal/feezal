@@ -144,6 +144,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [E141 — Metro tiles: per-state background colour vars for state-driven elements ✅ done](E141.md)
 - [E142 — Dialog `label` attribute: editor-only placeholder tag to tell dialogs apart ✅ done](E142.md)
 - [E146 — Autodiscovery for AI-on-the-edge-device (meter reader) via Home Assistant MQTT discovery ✅ done](E146.md)
+- [E147 — AI-on-the-edge meter element (glass / metro / circle): value + rate + action/status + error ✅ done](E147.md)
 - [E148 — `eink-number` → `eink-value`: numeric-card naming parity ✅ done](E148.md)
 - [E34 — Countdown / timer element (`feezal-element-basic-countdown`) ✅ implemented](E34.md)
 ## Editor UX

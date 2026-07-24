@@ -1,0 +1,6 @@
+{
+    "name": "@feezal/feezal-controller-aiedge",
+    "version": "0.1.0",
+    "main": "feezal-controller-aiedge.js",
+    "license": "MIT"
+}

@@ -31,6 +31,7 @@ import '@feezal/feezal-element-circle-humidifier';
 import '@feezal/feezal-element-circle-light';
 import '@feezal/feezal-element-circle-lock';
 import '@feezal/feezal-element-circle-media';
+import '@feezal/feezal-element-circle-meter';
 import '@feezal/feezal-element-circle-motion';
 import '@feezal/feezal-element-circle-plant';
 import '@feezal/feezal-element-circle-sensor';
@@ -62,6 +63,7 @@ import '@feezal/feezal-element-glass-dialog-view';
 import '@feezal/feezal-element-glass-fan';
 import '@feezal/feezal-element-glass-light';
 import '@feezal/feezal-element-glass-lock';
+import '@feezal/feezal-element-glass-meter';
 import '@feezal/feezal-element-glass-motion';
 import '@feezal/feezal-element-glass-sensor';
 import '@feezal/feezal-element-glass-switch';
@@ -102,6 +104,7 @@ import '@feezal/feezal-element-metro-cover';
 import '@feezal/feezal-element-metro-light';
 import '@feezal/feezal-element-metro-lock';
 import '@feezal/feezal-element-metro-media';
+import '@feezal/feezal-element-metro-meter';
 import '@feezal/feezal-element-metro-motion';
 import '@feezal/feezal-element-metro-sensor';
 import '@feezal/feezal-element-metro-switch';
@@ -185,6 +188,7 @@ window.feezal.elements = [
   "feezal-element-circle-light",
   "feezal-element-circle-lock",
   "feezal-element-circle-media",
+  "feezal-element-circle-meter",
   "feezal-element-circle-motion",
   "feezal-element-circle-plant",
   "feezal-element-circle-sensor",
@@ -216,6 +220,7 @@ window.feezal.elements = [
   "feezal-element-glass-fan",
   "feezal-element-glass-light",
   "feezal-element-glass-lock",
+  "feezal-element-glass-meter",
   "feezal-element-glass-motion",
   "feezal-element-glass-sensor",
   "feezal-element-glass-switch",
@@ -256,6 +261,7 @@ window.feezal.elements = [
   "feezal-element-metro-light",
   "feezal-element-metro-lock",
   "feezal-element-metro-media",
+  "feezal-element-metro-meter",
   "feezal-element-metro-motion",
   "feezal-element-metro-sensor",
   "feezal-element-metro-switch",
