@@ -3,7 +3,7 @@
 /**
  * WLED native recognizer (A30 — extracted from native-discovery.js).
  *
- * WLED with its HA-sync interface disabled publishes a native `wled/<deviceTopic>/…`
+ * WLED with MQTT enabled publishes a native `wled/<deviceTopic>/…`
  * tree; this recognizer synthesizes the normalized entity shape the framework
  * consumes. Self-contained — it builds its config inline and needs none of the
  * shared HM helpers. See native-discovery.js for the recognizer contract.
