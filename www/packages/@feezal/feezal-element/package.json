@@ -15,6 +15,7 @@
     "files": [
         "feezal-element.js",
         "feezal-conditions.js",
+        "feezal-friendly-name.js",
         "feezal-polymer-element.js",
         "feezal-topic-input.js",
         "LICENSE"
@@ -35,5 +36,5 @@
         "url": "git+https://github.com/feezal/feezal.git",
         "directory": "www/packages/@feezal/feezal-element"
     },
-    "version": "3.0.10"
+    "version": "3.0.11"
 }

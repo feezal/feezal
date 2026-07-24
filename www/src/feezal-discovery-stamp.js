@@ -6,6 +6,12 @@
 // selection-free, inspector-free — means the two callers apply *identical*
 // wiring, and each piece is unit-testable in isolation.
 
+// U62/E135: `friendlyName` now lives in @feezal/feezal-element so element
+// packages (the device-health inspector) derive labels identically. Re-exported
+// here so every existing importer of this module is unchanged.
+import {friendlyName} from '@feezal/feezal-element/feezal-friendly-name.js';
+export {friendlyName};
+
 // Extract the leaf key of a HA/z2m `value_template` such as
 // "{{ value_json.temperature }}" → "temperature". E124: z2m also emits the
 // bracket form ({{ value_json["x"] }}). Returns '' for complex/unsupported
@@ -14,25 +20,6 @@
 export function valueTemplateLeaf(raw) {
     const m = /\{\{\s*value_json(?:\.(\w+)|\[\s*["'](\w+)["']\s*\])\s*\}\}/.exec(String(raw ?? ''));
     return m ? (m[1] || m[2]) : '';
-}
-
-// U62: normalize a discovered device/entity name into a friendly, human label
-// (applied once, at stamp time — see stampDiscovery). Rules, in order:
-//   1. strip a trailing Homematic channel suffix (`…:14` / `…:0` → drop only a
-//      trailing `:<digits>`, never a colon elsewhere),
-//   2. underscores → spaces, collapse whitespace runs,
-//   3. capitalize the first letter of each *all-lowercase* word — words that
-//      already carry an uppercase letter are left entirely alone, so acronyms
-//      and units survive (`kWh`, `CO2`, `WLED` unchanged; `licht` → `Licht`),
-//   4. idempotent — an already-friendly name (`Wohnzimmer Lampe`) is unchanged.
-export function friendlyName(raw) {
-    let s = String(raw ?? '').trim();
-    if (!s) return '';
-    s = s.replace(/:\d+$/, '');                 // 1. trailing HM channel suffix
-    s = s.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();   // 2. underscores → spaces
-    // 3. capitalize the first letter only of words with no existing uppercase.
-    s = s.replace(/\S+/g, w => (/[A-Z]/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)));
-    return s;
 }
 
 // U56: derive the per-attribute discriminator for a z2m/HA discovery entity,

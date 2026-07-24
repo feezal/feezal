@@ -1,34 +1,119 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, feezalBoolean, html, css} from '@feezal/feezal-element';
-import {decodeHmFault, hmipFlagText, HM_HEALTH_DATAPOINTS, HMIP_FAULT_FLAGS} from '@feezal/feezal-element/feezal-hm-fault.js';
+import {FeezalElement, feezalBoolean, html, css} from '@feezal/feezal-element';
+import {LitElement} from 'lit';
+import {friendlyName} from '@feezal/feezal-element/feezal-friendly-name.js';
+import {batteryLowFromValue} from '@feezal/feezal-element/feezal-sensor-types.js';
+import {decodeHmFault, isSabotageActive} from '@feezal/feezal-element/feezal-hm-fault.js';
 
 /**
- * feezal-element-basic-device-health (E135)
+ * feezal-element-basic-device-health (E135, overhauled)
  *
- * The wall-panel "is everything okay?" board. Aggregates Homematic maintenance
- * signals — faults (`FAULT_REPORTING`/`ERROR`, incl. HmIP `ERROR_*` flags),
- * sabotage (`SABOTAGE`/`SABOTAGE_STICKY`, and classic `ERROR == 7`), low battery
- * (`LOWBAT`/`LOW_BAT`) and unreachable (`UNREACH`) — via WILDCARD subscriptions
- * (`<prefix>/status/+/<DP>`), so it runs **discovery-less** with the device name
- * taken from the topic segment. Sabotage is alarm-grade (error colour); faults
- * are the warning tier; battery/unreach are muted.
+ * The wall-panel "is everything okay?" board. Surfaces low-battery, unreachable
+ * (unavailable), and — for Homematic — fault + sabotage signals across ALL
+ * ecosystems (Homematic, zigbee2mqtt, ESPHome, Tasmota, …) in one list.
+ *
+ * The device list is resolved AT EDIT TIME by the custom inspector: it reads the
+ * server's autodiscovery registry (`/api/discovery/devices`), keeps every device
+ * that carries a canonical battery/availability/fault/sabotage record, derives a
+ * friendly name (the same `friendlyName` used when linking a discovered device),
+ * and stamps a concrete `devices` JSON list onto the element. The VIEWER just
+ * subscribes to the listed topics — no discovery access, no name derivation at
+ * runtime. Uncheck a device in the inspector to exclude it from the board.
  */
 
 // Severity → sort weight + colour var (higher = worse, shown first).
 const SEV = {sabotage: 3, fault: 2, battery: 1, unreach: 0};
 
+/** Last non-empty topic segment (…/status/Fenster:1/STATE → "Fenster:1"). */
+function topicLeaf(topic) {
+    return String(topic || '').split('/').filter(Boolean).pop() || '';
+}
+/** Root topic segment as a coarse source label (zigbee2mqtt/… → "zigbee2mqtt"). */
+function sourceOf(topic) {
+    return String(topic || '').split('/').filter(Boolean)[0] || '';
+}
+
+/**
+ * Turn autodiscovery entities into the board's device list. Keeps only devices
+ * with an actionable health signal; battery is BOOLEAN-only (a percentage-only
+ * source carries no `payloadLow` and is skipped). Entities of one physical
+ * device are merged by friendly name (first signal of each kind wins).
+ * Pure — unit-tested without a browser.
+ */
+export function buildHealthDevices(entities) {
+    const byName = new Map();
+    for (const ent of entities || []) {
+        const cfg = ent.config || {};
+        const bat = cfg.battery_low_normalized;
+        const av  = cfg.availability_normalized;
+        const err = cfg.error_normalized;
+        const sab = cfg.sabotage_normalized;
+
+        const battery = (bat && bat.payloadLow !== undefined)
+            ? {topic: bat.topic, prop: bat.property || 'payload', low: bat.payloadLow} : null;
+        const a0 = av && Array.isArray(av.entries) ? av.entries[0] : null;
+        const avail = a0
+            ? {topic: a0.topic, prop: a0.property || 'payload', unavail: av.payloadUnavailable, avail: av.payloadAvailable} : null;
+        const fault = (err && err.topic)
+            ? {topic: err.topic, prop: err.property || 'payload', deviceType: err.deviceType} : null;
+        const sabotage = (sab && sab.topic)
+            ? {topic: sab.topic, prop: sab.property || 'payload', enc: sab.encoding, deviceType: sab.deviceType} : null;
+
+        if (!battery && !avail && !fault && !sabotage) continue;
+
+        const primary = (battery || avail || fault || sabotage).topic;
+        const rawName = (ent.name && ent.name !== ent.component) ? ent.name : topicLeaf(cfg.state_topic || primary);
+        const name = friendlyName(rawName) || topicLeaf(primary) || 'Device';
+        const source = sourceOf(cfg.state_topic || primary);
+
+        const cur = byName.get(name);
+        if (cur) {
+            if (battery && !cur.battery) cur.battery = battery;
+            if (avail && !cur.avail) cur.avail = avail;
+            if (fault && !cur.fault) cur.fault = fault;
+            if (sabotage && !cur.sabotage) cur.sabotage = sabotage;
+            continue;
+        }
+        byName.set(name, {
+            id: ent.discovery_id || ent.unique_id || name,
+            name, source,
+            ...(battery ? {battery} : {}),
+            ...(avail ? {avail} : {}),
+            ...(fault ? {fault} : {}),
+            ...(sabotage ? {sabotage} : {}),
+        });
+    }
+    return [...byName.values()];
+}
+
+/**
+ * Is an availability payload "unavailable"? Mirrors the base class N31 logic:
+ * unwrap a z2m `{"state":…}` object, then compare against the entity's
+ * payloadAvailable / payloadUnavailable, falling back to the offline/false/0
+ * convention.
+ */
+export function isDeviceUnavailable(value, unavail, avail) {
+    let v = value;
+    if (v && typeof v === 'object' && 'state' in v) v = v.state;
+    const s = String(v).toLowerCase();
+    if (avail !== undefined && avail !== null && s === String(avail).toLowerCase()) return false;
+    if (unavail !== undefined && unavail !== null && s === String(unavail).toLowerCase()) return true;
+    return ['offline', 'false', '0', 'unavailable'].includes(s);
+}
+
 class FeezalElementBasicDeviceHealth extends FeezalElement {
     static get feezal() {
         return {
             palette: {name: 'Device Health', category: 'Basic', color: '#4a6080', icon: 'health_and_safety'},
-            description: 'Homematic device-health board: faults, sabotage, low battery and unreachable devices in one list. ' +
-                'Discovery-less — subscribes to the maintenance datapoints by wildcard.',
+            description: 'Device-health board: low battery, unreachable devices, and Homematic fault/sabotage across ' +
+                'all ecosystems (Homematic, zigbee2mqtt, ESPHome, …). Pick which discovered devices to watch in the inspector.',
+            inspector: 'feezal-element-basic-device-health-inspector',
             attributes: [
-                {name: 'prefix', type: 'string', default: 'hm', help: 'Homematic MQTT bridge prefix (hm2mqtt / RedMatic).'},
                 {name: 'title', type: 'string', default: 'Device Health', help: 'Board heading.'},
-                {name: 'message-property', type: 'string', default: 'payload.val', help: 'Path to the value within the JSON-Extended payload. Default payload.val (mqtt-smarthome).'},
+                // Curated device list, stamped by the custom inspector (JSON).
+                {name: 'devices', type: 'string', default: '[]', help: 'Watched devices (managed by the inspector checklist).'},
                 {name: 'show-battery', type: 'boolean', default: true, help: 'Include low-battery warnings.'},
-                {name: 'show-unreach', type: 'boolean', default: true, help: 'Include unreachable devices.'},
+                {name: 'show-unreach', type: 'boolean', default: true, help: 'Include unreachable / unavailable devices.'},
                 {name: 'show-ok', type: 'boolean', default: true, help: 'Show an "all OK" state when nothing is wrong (else the board is empty).'},
             ],
             styles: ['top', 'left', 'width', 'height',
@@ -41,15 +126,15 @@ class FeezalElementBasicDeviceHealth extends FeezalElement {
     }
 
     static properties = {
-        prefix:      {type: String, reflect: true},
         title:       {type: String, reflect: true},
+        devices:     {type: String, reflect: true},
         showBattery: {type: Boolean, reflect: true, attribute: 'show-battery', converter: feezalBoolean},
         showUnreach: {type: Boolean, reflect: true, attribute: 'show-unreach', converter: feezalBoolean},
         showOk:      {type: Boolean, reflect: true, attribute: 'show-ok', converter: feezalBoolean},
         _issues:     {state: true},
     };
 
-    static styles = [feezalBaseStyles, css`
+    static styles = [FeezalElement.styles, css`
         :host { display: block; box-sizing: border-box; }
         .board {
             width: 100%; height: 100%; box-sizing: border-box; padding: 10px 12px;
@@ -69,71 +154,57 @@ class FeezalElementBasicDeviceHealth extends FeezalElement {
         .row.battery, .row.unreach { color: var(--feezal-health-muted-color, #666); }
         .ok { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #2e7d32; opacity: 0.9; }
         .ok feezal-icon { font-size: 18px; }
+        .empty { font-size: 12px; opacity: 0.6; font-style: italic; }
     `];
 
     constructor() {
         super();
-        this.prefix = 'hm';
         this.title = 'Device Health';
-        // mqtt-smarthome / RedMatic publish JSON-Extended {val,ts}; read .val.
-        this.messageProperty = 'payload.val';
+        this.devices = '[]';
         this.showBattery = true;
         this.showUnreach = true;
         this.showOk = true;
-        this._issues = new Map();   // deviceKey → {device, type, text, severity}
+        this._issues = new Map();   // `${device}|${type}` → {device, type, text, severity}
     }
 
-    _subscribe() { /* wildcard board manages its own subscriptions */ }
+    _subscribe() { /* the board manages its own per-device subscriptions */ }
 
     connectedCallback() {
         super.connectedCallback();
         if (feezal.isEditor) return;
-        const p = (this.prefix || 'hm').replace(/\/+$/, '');
-        const dps = [
-            ...HM_HEALTH_DATAPOINTS.fault,
-            ...HM_HEALTH_DATAPOINTS.sabotage,
-            ...HM_HEALTH_DATAPOINTS.battery,
-            ...HM_HEALTH_DATAPOINTS.unreach,
-            ...HM_HEALTH_DATAPOINTS.hmipFlags,
-        ];
-        for (const dp of dps) {
-            this.addSubscription(`${p}/status/+/${dp}`, msg => this._ingest(msg, dp));
+        this._wireDevices();
+    }
+
+    /** JSON-parse `devices` → subscribe each present signal topic. */
+    _wireDevices() {
+        let list;
+        try { list = JSON.parse(this.devices || '[]'); } catch { list = []; }
+        if (!Array.isArray(list)) return;
+        for (const d of list) {
+            if (d.battery?.topic) this.addSubscription(d.battery.topic, msg =>
+                this._setIssue(d.name, 'battery',
+                    this.showBattery && batteryLowFromValue(this.getProperty(msg, d.battery.prop || 'payload'), String(d.battery.low ?? 'true')),
+                    'Battery low', SEV.battery));
+            if (d.avail?.topic) this.addSubscription(d.avail.topic, msg =>
+                this._setIssue(d.name, 'unreach',
+                    this.showUnreach && isDeviceUnavailable(this.getProperty(msg, d.avail.prop || 'payload'), d.avail.unavail, d.avail.avail),
+                    'Unavailable', SEV.unreach));
+            if (d.fault?.topic) this.addSubscription(d.fault.topic, msg => {
+                const t = decodeHmFault(d.fault.deviceType, this.getProperty(msg, d.fault.prop || 'payload'));
+                this._setIssue(d.name, 'fault', !!t, t || 'Fault', SEV.fault);
+            });
+            if (d.sabotage?.topic) this.addSubscription(d.sabotage.topic, msg =>
+                this._setIssue(d.name, 'sabotage',
+                    isSabotageActive(this.getProperty(msg, d.sabotage.prop || 'payload'), d.sabotage.enc, d.sabotage.deviceType),
+                    'Sabotage', SEV.sabotage));
         }
     }
 
-    /** Device display name from the topic segment (drops a trailing channel :N). */
-    _deviceName(topic) {
-        const parts = topic.split('/');
-        const seg = parts[parts.length - 2] || '';   // …/status/<seg>/<DP>
-        return seg.replace(/:\d+$/, '');
-    }
-
-    _ingest(msg, dp) {
-        const value = this.getProperty(msg, this.messageProperty || 'payload.val');
-        const device = this._deviceName(msg.topic);
-        if (!device) return;
-        const key = `${device}|${dp}`;
-        const issue = this._classify(dp, value, device);
-        if (issue) this._issues.set(key, issue);
+    _setIssue(device, type, active, text, severity) {
+        const key = `${device}|${type}`;
+        if (active) this._issues.set(key, {device, type, text, severity});
         else this._issues.delete(key);
         this._issues = new Map(this._issues);   // trigger update
-    }
-
-    _classify(dp, value, device) {
-        const truthy = value === true || value === 1 || value === '1' || String(value).toLowerCase() === 'true';
-        const num = Number(value);
-        // Sabotage (alarm) — HmIP bool, or classic ERROR == 7.
-        if ((dp === 'SABOTAGE' || dp === 'SABOTAGE_STICKY') && truthy) return {device, type: 'sabotage', text: 'Sabotage', severity: SEV.sabotage};
-        if (dp === 'ERROR' && num === 7) return {device, type: 'sabotage', text: 'Sabotage', severity: SEV.sabotage};
-        // HmIP named fault flags — the flag name is the message.
-        if (dp in HMIP_FAULT_FLAGS && truthy) return {device, type: 'fault', text: hmipFlagText(dp), severity: SEV.fault};
-        // Classic fault enums — FAULT_REPORTING is TRV-only (decode via its table).
-        if (dp === 'FAULT_REPORTING') { const t = decodeHmFault('HM-CC-RT-DN', value); return t ? {device, type: 'fault', text: t, severity: SEV.fault} : null; }
-        if (dp === 'ERROR') { return num && num !== 0 ? {device, type: 'fault', text: `Fault ${num}`, severity: SEV.fault} : null; }
-        // Battery / unreachable.
-        if ((dp === 'LOWBAT' || dp === 'LOW_BAT')) return this.showBattery && truthy ? {device, type: 'battery', text: 'Battery low', severity: SEV.battery} : null;
-        if (dp === 'UNREACH') return this.showUnreach && truthy ? {device, type: 'unreach', text: 'Unreachable', severity: SEV.unreach} : null;
-        return null;
     }
 
     _icon(type) {
@@ -142,23 +213,29 @@ class FeezalElementBasicDeviceHealth extends FeezalElement {
 
     render() {
         const issues = [...this._issues.values()].sort((a, b) => b.severity - a.severity || a.device.localeCompare(b.device));
+        let watched = 0;
+        try { watched = (JSON.parse(this.devices || '[]') || []).length; } catch { watched = 0; }
         const sample = feezal.isEditor
             ? [{device: 'Haustür', type: 'sabotage', text: 'Sabotage', severity: 3},
                 {device: 'Heizung Bad', type: 'fault', text: 'Communication error', severity: 2},
-                {device: 'Fenster Küche', type: 'battery', text: 'Battery low', severity: 1}]
+                {device: 'Sensor Küche', type: 'battery', text: 'Battery low', severity: 1},
+                {device: 'Lampe Flur', type: 'unreach', text: 'Unavailable', severity: 0}]
             : issues;
+        const showEmptyHint = feezal.isEditor && watched === 0;
         return html`
             <div class="board">
                 <div class="head"><feezal-icon name="health_and_safety"></feezal-icon> ${this.title || 'Device Health'}</div>
-                ${sample.length ? html`
-                    <div class="list">
-                        ${sample.map(i => html`
-                            <div class="row ${i.type}">
-                                <feezal-icon name="${this._icon(i.type)}"></feezal-icon>
-                                <span class="dev">${i.device}</span><span class="issue">· ${i.text}</span>
-                            </div>`)}
-                    </div>`
-                    : this.showOk ? html`<div class="ok"><feezal-icon name="check_circle"></feezal-icon> All devices OK</div>` : ''}
+                ${showEmptyHint
+                    ? html`<div class="empty">No devices selected — open the inspector to pick devices to watch.</div>`
+                    : sample.length ? html`
+                        <div class="list">
+                            ${sample.map(i => html`
+                                <div class="row ${i.type}">
+                                    <feezal-icon name="${this._icon(i.type)}"></feezal-icon>
+                                    <span class="dev">${i.device}</span><span class="issue">· ${i.text}</span>
+                                </div>`)}
+                        </div>`
+                        : this.showOk ? html`<div class="ok"><feezal-icon name="check_circle"></feezal-icon> All devices OK</div>` : ''}
             </div>
         `;
     }
@@ -166,3 +243,162 @@ class FeezalElementBasicDeviceHealth extends FeezalElement {
 
 customElements.define('feezal-element-basic-device-health', FeezalElementBasicDeviceHealth);
 export {FeezalElementBasicDeviceHealth};
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Custom inspector (N6) — device checklist built from the discovery registry.
+ * Editor-only; renders in the inspector panel, emits feezal-attribute-changed.
+ * ───────────────────────────────────────────────────────────────────────── */
+class FeezalElementBasicDeviceHealthInspector extends LitElement {
+    static properties = {
+        element:     {attribute: false},
+        _candidates: {state: true},
+        _included:   {state: true},
+        _loading:    {state: true},
+        _error:      {state: true},
+    };
+
+    static styles = css`
+        :host { display: block; padding: 8px; font-size: 12px; color: var(--feezal-color, #333); }
+        .opts { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+        .opts .field { display: flex; flex-direction: column; gap: 2px; }
+        .opts label.cap { font-size: 10px; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.04em; }
+        sl-input::part(base) { background: var(--feezal-bg, #fff); border-color: var(--feezal-border, #ccc); color: var(--feezal-color, #333); }
+        sl-input::part(input) { background: var(--feezal-bg, #fff); color: var(--feezal-color, #333); }
+        sl-checkbox::part(label) { font-size: 11px; color: var(--feezal-color, #333); }
+        .bar { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+        .bar .count { flex: 1; opacity: 0.7; }
+        .bar button, .msg button {
+            font: inherit; font-size: 11px; cursor: pointer; padding: 2px 8px;
+            background: var(--feezal-bg-sub, #f0f0f0); color: var(--feezal-color, #333);
+            border: 1px solid var(--feezal-border, #ccc); border-radius: 4px;
+        }
+        .grp { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.55; margin: 8px 0 2px; }
+        .row { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+        .row .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .row .sig { display: flex; gap: 3px; opacity: 0.55; }
+        .row .sig feezal-icon { font-size: 14px; }
+        .msg { opacity: 0.7; line-height: 1.5; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+    `;
+
+    constructor() {
+        super();
+        this.element = null;
+        this._candidates = [];
+        this._included = new Set();
+        this._loading = false;
+        this._error = '';
+    }
+
+    willUpdate(changed) {
+        if (changed.has('element') && this.element) this._load();
+    }
+
+    async _load() {
+        this._loading = true; this._error = '';
+        let entities = [];
+        try {
+            const r = await fetch('/api/discovery/devices');
+            if (r.ok) { const j = await r.json(); entities = j.devices || []; }
+            else this._error = 'Discovery registry unavailable.';
+        } catch { this._error = 'Discovery registry unavailable.'; }
+        this._candidates = buildHealthDevices(entities);
+
+        let stored = [];
+        try { stored = JSON.parse(this.element?.getAttribute('devices') || '[]'); } catch { stored = []; }
+        if (Array.isArray(stored) && stored.length) {
+            this._included = new Set(stored.map(d => d.id).filter(Boolean));
+        } else {
+            // Fresh board: watch everything by default and stamp the list.
+            this._included = new Set(this._candidates.map(d => d.id));
+            if (this._candidates.length) this._emit();
+        }
+        this._loading = false;
+    }
+
+    _emit() {
+        const list = this._candidates.filter(d => this._included.has(d.id));
+        this._change('devices', JSON.stringify(list));
+    }
+
+    _change(name, value) {
+        this.dispatchEvent(new CustomEvent('feezal-attribute-changed', {
+            bubbles: true, composed: true, detail: {name, value},
+        }));
+    }
+
+    _toggle(id, on) {
+        if (on) this._included.add(id); else this._included.delete(id);
+        this._included = new Set(this._included);
+        this._emit();
+    }
+
+    _setAll(on) {
+        this._included = on ? new Set(this._candidates.map(d => d.id)) : new Set();
+        this._emit();
+    }
+
+    _signals(d) {
+        const out = [];
+        if (d.sabotage) out.push({icon: 'gpp_bad', title: 'Sabotage'});
+        if (d.fault) out.push({icon: 'warning', title: 'Fault'});
+        if (d.battery) out.push({icon: 'battery_alert', title: 'Low battery'});
+        if (d.avail) out.push({icon: 'wifi', title: 'Availability'});
+        return out;
+    }
+
+    _bool(name, label, dflt) {
+        const raw = this.element?.getAttribute(name);
+        const on = raw === null || raw === undefined ? dflt : raw !== 'false';
+        return html`<sl-checkbox size="small" ?checked="${on}"
+            @sl-change="${e => this._change(name, e.target.checked)}">${label}</sl-checkbox>`;
+    }
+
+    render() {
+        const groups = new Map();
+        for (const d of this._candidates) {
+            const g = d.source || 'other';
+            if (!groups.has(g)) groups.set(g, []);
+            groups.get(g).push(d);
+        }
+        return html`
+            <div class="opts">
+                <div class="field">
+                    <label class="cap">Title</label>
+                    <sl-input size="small" autocomplete="off"
+                        .value="${this.element?.getAttribute('title') ?? 'Device Health'}"
+                        @sl-change="${e => this._change('title', e.target.value)}"></sl-input>
+                </div>
+                ${this._bool('show-battery', 'Show low battery', true)}
+                ${this._bool('show-unreach', 'Show unavailable', true)}
+                ${this._bool('show-ok', 'Show "all OK"', true)}
+            </div>
+
+            ${this._loading
+                ? html`<div class="msg">Loading discovered devices…</div>`
+                : !this._candidates.length
+                    ? html`<div class="msg">${this._error || 'No discovered devices report a battery or availability signal yet.'}
+                        <button @click="${this._load}">Refresh</button></div>`
+                    : html`
+                        <div class="bar">
+                            <span class="count">${this._included.size} / ${this._candidates.length} watched</span>
+                            <button @click="${() => this._setAll(true)}">All</button>
+                            <button @click="${() => this._setAll(false)}">None</button>
+                            <button @click="${this._load}" title="Re-scan discovery">↻</button>
+                        </div>
+                        ${[...groups.entries()].map(([src, items]) => html`
+                            <div class="grp">${src}</div>
+                            ${items.map(d => html`
+                                <label class="row">
+                                    <sl-checkbox size="small" ?checked="${this._included.has(d.id)}"
+                                        @sl-change="${e => this._toggle(d.id, e.target.checked)}"></sl-checkbox>
+                                    <span class="nm" title="${d.name}">${d.name}</span>
+                                    <span class="sig">${this._signals(d).map(s =>
+                                        html`<feezal-icon name="${s.icon}" title="${s.title}"></feezal-icon>`)}</span>
+                                </label>`)}
+                        `)}`}
+        `;
+    }
+}
+
+customElements.define('feezal-element-basic-device-health-inspector', FeezalElementBasicDeviceHealthInspector);
+export {FeezalElementBasicDeviceHealthInspector};
