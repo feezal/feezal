@@ -1,7 +1,7 @@
 {
     "name": "@feezal/feezal-www",
     "private": true,
-    "version": "3.14.13",
+    "version": "3.14.14",
     "description": "",
     "main": "none",
     "scripts": {
