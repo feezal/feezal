@@ -72,7 +72,6 @@ Work in progress — priorities and scope are not final.
 - [U45 — Element insertion: palette sidebar + full-screen picker](#u45--element-insertion-palette-sidebar--full-screen-picker--to-refine) 💡 *(to refine)*
 - [U50 — layout-app: expose the content area's inset (padding)](#u50--layout-app-expose-the-content-areas-inset-padding)
 - [U58 — "Generate" button: bulk element + app scaffold wizard from discovery](#u58--generate-button-bulk-element--app-scaffold-wizard-from-discovery--to-refine) 💡
-- [U60 — Editor: surface lost server connection (grace-period → blocking overlay)](#u60--editor-surface-lost-server-connection-grace-period--blocking-overlay)
 - [U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow](#u61--editor-preview-fidelity-gradientbackground-in-a-percentage-sized-views-scroll-overflow)
 
 **Architecture & Infrastructure**
@@ -1003,26 +1002,6 @@ The embedded view sits flush against the app bar and drawer — there is no way 
 - Accept a full CSS shorthand (`8px`, `8px 16px`, …) rather than a number, so per-side insets need no extra knobs.
 
 **Relates:** E-layout-app (the shell), N36 (the `--feezal-app-*` style-var set this extends), E38 (element scaling / responsive sizing — a responsive inset would belong there).
-
-### U60 — Editor: surface lost server connection (grace-period → blocking overlay)
-
-When the editor loses its Socket.IO connection to the server, **nothing indicates it** — the UI looks fully functional, but nothing works: no deploy, no save, no site/view load, no live MQTT data. The user finds out only when an action silently fails. There must be prominent feedback that the connection is gone, escalating to a modal that blocks interaction, because without the server there is genuinely nothing useful to do.
-
-**Mostly UX, not new plumbing.** The connection layer already emits the signals: `feezal-connection-feezal.js` runs Socket.IO with `reconnection: true` and dispatches `connected` / `disconnected`; `feezal-connection.js` re-dispatches them and tracks a `connected` boolean ([feezal-connection.js:96-114](../www/src/feezal-connection.js#L96-L114)). Nothing in the editor shell renders on those events today. This item wires that existing signal to UI. Note: `disconnected` is dispatched **without `bubbles`** ([feezal-connection.js:113](../www/src/feezal-connection.js#L113)) — listen on `feezal.connection` directly, or add bubbling.
-
-**Design (decided):**
-- **Escalation: grace period → modal.** On `disconnected`, immediately show a **subtle indicator** (e.g. a top status banner / status dot). Only after **~5–10 s of continuous disconnection** promote to a **non-closable, blocking modal overlay** (no ✕, no click-outside-to-close). This avoids nagging on the common transient blips — server restart, laptop sleep/wake, wifi hiccup — that Socket.IO recovers from on its own in a second or two.
-- **Auto-recovery.** On `connected` (reconnect), tear the overlay/banner down automatically and resync (getSite / loadViews already re-run on the reconnect `connected` event — see the `reconnect` counter in `feezal-connection-feezal.js`). Do **not** require manual acknowledgement to clear it.
-- **Overlay contents: status + Retry + Reload.** Live status line — "Connection to server lost. Reconnecting…" with **elapsed time** and **attempt count**; a manual **"Retry now"** button (force a reconnect attempt); and a **"Reload app"** escape hatch for the give-up case. A short "reconnected" toast on recovery is a nice touch.
-- **Scope: editor only.** The viewer's connection-lost UX (a kiosk showing stale data) is a separate concern — see *Relates*.
-
-**Open question to resolve during design — unsaved-work safety.** The overlay should only promise "your work is safe" if it's true. Confirm the editor's local-state/save story: if the server drops **mid-edit**, is in-progress work held safely in the browser until reconnect, or can it be lost (e.g. an autosave/deploy that fails silently)? If there's a real loss risk, that's a companion fix, and the overlay copy must be honest about it (don't reassure falsely). Worth auditing before finalising the message text.
-
-**Consider (non-blocking):** distinguish "**server up, socket dropped**" (reconnecting, the normal case) from "**server actually stopped / unreachable**" (repeated `connect_error`, [feezal-connection-feezal.js:71](../www/src/feezal-connection-feezal.js#L71)) — after many failed attempts the copy could shift from "Reconnecting…" to "The feezal server may have stopped — check it's running," which is more useful than an endless spinner.
-
-**Ships with:** the editor overlay component + grace-period timer + auto-dismiss, wired to `feezal.connection` `connected`/`disconnected`; a browser test simulating disconnect → (grace) → modal → reconnect → auto-clear; TESTING.md steps (kill the server → banner then modal after the grace period → Retry/Reload present → restart server → overlay clears and edits resume).
-
-**Relates:** `feezal-connection.js` / `feezal-connection-feezal.js` (the existing signal this consumes), N24 / `feezal-presence` (viewer/editor presence — the server-side side of "who's connected"; the hub already clears presence on socket disconnect), the deploy flow (the concrete thing that can't happen while disconnected), a future **viewer connection-lost indicator** (same pattern, separate scope — a kiosk viewer showing stale MQTT data deserves its own signal).
 
 ### U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow
 

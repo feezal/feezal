@@ -36,6 +36,7 @@ import './feezal-ai-chat.js';
 import './feezal-capacitor-dialog.js';
 import './feezal-export-dialog.js';
 import './feezal-generate-dialog.js';
+import './feezal-connection-overlay.js';
 import {clippyStyles, clippyMarkup, clippyEnabled} from './feezal-clippy.js';
 
 class FeezalAppEditor extends LitElement {
@@ -984,6 +985,7 @@ class FeezalAppEditor extends LitElement {
                     <feezal-capacitor-dialog></feezal-capacitor-dialog>
                     <feezal-export-dialog></feezal-export-dialog>
                     <feezal-generate-dialog></feezal-generate-dialog>
+                    <feezal-connection-overlay></feezal-connection-overlay>
 
                     ${this._aiConfigured && this._sourceMode && !this._aiPanelOpen ? html`
                         <button class="icon-btn" title="AI assistant"

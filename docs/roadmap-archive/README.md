@@ -124,6 +124,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [E138 — Contact / sensor / motion / value: untangle the boolean-card taxonomy ✅ implemented](E138.md)
 - [U57 — Theme selector: richer swatch (bg chip + role dots + accent) ✅ implemented](U57.md)
 - [U59 — Style inspector gradient editor: allow themed CSS vars as gradient stops ✅ done](U59.md)
+- [U60 — Editor: surface lost server connection (grace-period → blocking overlay) ✅ done](U60.md)
 - [U62 — Normalize discovered names into friendly labels on stamping ✅ done](U62.md)
 - [E118 — `click-through` on `basic-number`, `basic-icon-value`, `basic-datetime` ✅ implemented](E118.md)
 - [E120 — Homematic cover discovery: wire Up/Down to the LEVEL set topic ✅ implemented](E120.md)
