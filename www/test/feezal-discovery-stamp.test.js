@@ -198,9 +198,14 @@ describe('resolveElementTag', () => {
         expect(resolveElementTag('binary_sensor', 'circle', 'weird', onlyContact)).toBe('feezal-element-circle-contact');
     });
 
-    it('falls through sensor candidates (sensor → value)', () => {
-        const noSensor = tag => registered.has(tag) && tag !== 'feezal-element-circle-sensor';
-        expect(resolveElementTag('sensor', 'circle', undefined, noSensor)).toBe('feezal-element-circle-value');
+    it('routes a numeric HA sensor to the value card, NOT the boolean -sensor card', () => {
+        // E138: `-sensor` is the boolean/alarm card (binary_sensor only). A HA
+        // `sensor` is numeric/text → the value card, even though circle-sensor
+        // IS registered here (regression: it used to grab `-sensor` first).
+        expect(resolveElementTag('sensor', 'circle', undefined, isReg)).toBe('feezal-element-circle-value');
+        // falls through to gauge when a family has neither value nor a plain readout
+        const onlyGauge = tag => tag === 'feezal-element-circle-gauge';
+        expect(resolveElementTag('sensor', 'circle', undefined, onlyGauge)).toBe('feezal-element-circle-gauge');
     });
 
     it('returns null for a family parity gap', () => {

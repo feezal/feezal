@@ -259,7 +259,12 @@ const FUNCTION_CANDIDATES = {
     // E150: water_heater is climate-shaped — reuse the climate card (its map
     // + aliasComponents link consume the identically-named HA topic keys).
     water_heater: ['climate'],
-    sensor: ['sensor', 'value', 'gauge'],
+    // A HA `sensor` is a numeric/text READ-OUT → the `value` card (then `gauge`).
+    // NOT the `-sensor` element: per E138 `-sensor` is the boolean/alarm card,
+    // which only `binary_sensor` resolves to (see the binary_sensor branch).
+    // Routing a numeric sensor to `-sensor` produced a boolean card that can't
+    // display a value (e.g. a power-meter channel).
+    sensor: ['value', 'gauge'],
     // E109: evcc native entities. The site entity binds to the generic
     // energy-flow diagram (material family only); each loadpoint to the
     // loadpoint control card (glass/metro/circle).
