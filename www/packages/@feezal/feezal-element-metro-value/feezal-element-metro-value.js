@@ -24,6 +24,10 @@ class FeezalElementMetroValue extends MetroTileBase {
                 {name: 'unit',   type: 'string', help: 'Unit shown after the value.'},
                 {name: 'digits', type: 'number', default: '', help: 'Fixed decimal places for numeric payloads. Empty = as received.'},
                 {name: 'points', type: 'number', default: 30, min: 2, max: 200, help: 'Trend buffer length (values kept for the back-side graph).'},
+                // B67: opt-in availability — a ! badge appears while unavailable.
+                {name: 'subscribe-availability', type: 'mqttTopic', section: 'Availability', help: 'Topic reporting device availability — a ! badge appears while unavailable.'},
+                {name: 'payload-available',   type: 'string', default: 'online',  section: 'Availability', help: 'Payload meaning available.'},
+                {name: 'payload-unavailable', type: 'string', default: 'offline', section: 'Availability', help: 'Payload meaning unavailable.'},
             ],
             styles: MetroTileBase.tileStyles,
             restrict: {minWidth: 40, minHeight: 40},
@@ -79,6 +83,11 @@ class FeezalElementMetroValue extends MetroTileBase {
             return Number(v).toFixed(Number(this.digits));
         }
         return String(v);
+    }
+
+    // B67: availability badge (top-right ! while unavailable).
+    renderBadge() {
+        return this._available ? '' : '!';
     }
 
     renderFront() {

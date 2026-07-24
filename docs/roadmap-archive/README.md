@@ -64,6 +64,8 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [B58 — *-climate: HmIP Manu mode ignored — `$setpoint` substitutes as a STRING in the putParamset payload ✅ fixed](B58.md)
 - [B59 — Generate wizard: numeric zigbee power sensor becomes a contact element ✅ fixed](B59.md)
 - [B60 — Homematic settling: `*-light` slider jumps with WORKING + LEVEL_NOTWORKING both wired ✅ fixed](B60.md)
+- [B66 — Glass badges (battery / unavailable) overlap the card label ✅ fixed](B66.md)
+- [B67 — Battery / availability badge parity gaps (circle-climate battery; metro availability) ✅ fixed](B67.md)
 - [B64 — `*-switch` autodiscovery misses multi-output HmIP switch actuators (virtual-receiver grouping) ✅ fixed](B64.md)
 - [B65 — Homematic `:0` correlation (availability + battery) breaks for custom-named channels ✅ fixed](B65.md)
 

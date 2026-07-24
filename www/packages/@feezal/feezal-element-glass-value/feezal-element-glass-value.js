@@ -38,6 +38,11 @@ class FeezalElementGlassValue extends FeezalElement {
                 {name: 'decimals',  type: 'number', min: 0, max: 6, help: 'Round numeric values to this many decimals. Empty = show the payload as-is.'},
                 {name: 'degrade',   type: 'boolean', default: false,
                     help: 'Replace the live backdrop blur with a semi-opaque solid card — no per-frame GPU cost (weak wall-tablet hardware).'},
+                // B67: opt-in availability — a badge appears while unavailable
+                // (the last value stays shown). Base class wires the subscription.
+                {name: 'subscribe-availability', type: 'mqttTopic', section: 'Availability', help: 'Optional availability topic — a badge appears while unavailable.'},
+                {name: 'payload-available',   type: 'string', default: 'online',  section: 'Availability', help: 'Payload meaning available.'},
+                {name: 'payload-unavailable', type: 'string', default: 'offline', section: 'Availability', help: 'Payload meaning unavailable.'},
             ],
             styles: [
                 'top', 'left', 'width', 'height',
@@ -67,6 +72,13 @@ class FeezalElementGlassValue extends FeezalElement {
     static styles = [feezalBaseStyles, glassCardStyles, css`
         .card {
             gap: 2px;
+            position: relative;   /* B67: anchor the availability badge */
+        }
+        .unavail {
+            position: absolute; top: 6px; right: 8px;
+            font-size: 14px; line-height: 1;
+            color: var(--error-color, #d32f2f);
+            opacity: 0.85; pointer-events: none; z-index: 2;
         }
         feezal-icon { font-size: var(--feezal-glass-icon-size, 28px); line-height: 1; color: var(--feezal-glass-accent, #ff9f0a); }
         .value {
@@ -150,6 +162,7 @@ class FeezalElementGlassValue extends FeezalElement {
     render() {
         return html`
             <div class="card">
+                ${this.subscribeAvailability && !this._available ? html`<span class="unavail" title="Device unavailable">⚠</span>` : ''}
                 <feezal-icon name="${this.icon || 'thermostat'}"></feezal-icon>
                 <span class="value">${this.displayValue}${this.unit ? html`<span class="unit">${this.unit}</span>` : ''}</span>
                 <span class="label">${this.label || (feezal.isEditor ? 'Value' : '')}</span>

@@ -63,6 +63,12 @@ class FeezalElementCircleValue extends FeezalElement {
                 {name: 'ranges',    type: 'string', default: '',
                     help: 'Fill mode: JSON colour bands, e.g. [{"from":0,"color":"#2196f3"},{"from":18,"color":"#4caf50"},{"from":24,"color":"#e53935"}]. ' +
                         'Each band colours values from its "from" up to the next band. Empty = single fill colour.'},
+                // B67: opt-in availability — a badge appears while unavailable
+                // (only shown when an availability topic is wired).
+                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Optional availability topic — a badge appears while unavailable (the last value stays shown).'},
+                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
+                {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
+                {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
@@ -100,6 +106,7 @@ class FeezalElementCircleValue extends FeezalElement {
             display: flex; flex-direction: column;
             align-items: center; justify-content: flex-start;
             gap: 4px; padding: 6px; box-sizing: border-box;
+            position: relative;   /* B67: anchor the availability badge */
             /* overflow visible so an oversized value/unit is never clipped
                (the fill is clipped locally via .fill-clip). */
             overflow: visible; text-align: center;
@@ -169,6 +176,14 @@ class FeezalElementCircleValue extends FeezalElement {
             color: var(--feezal-value-label-color);
             white-space: nowrap;
         }
+        /* B67: availability badge — top-right corner. */
+        .unavail {
+            position: absolute; top: 6px; right: 6px;
+            width: 16px; height: 16px;
+            color: var(--error-color, #d32f2f);
+            opacity: 0.85; pointer-events: none; z-index: 2;
+        }
+        .unavail svg { width: 100%; height: 100%; display: block; }
     `];
 
     constructor() {
@@ -272,6 +287,12 @@ class FeezalElementCircleValue extends FeezalElement {
     render() {
         const fill = this.mode === 'fill';
         return html`
+            ${this.subscribeAvailability && !this._available ? html`
+                <div class="unavail" title="Device unavailable">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M24 8.98C20.93 5.9 16.69 4 12 4c-1.69 0-3.32.25-4.86.71l2.5 2.5c.77-.14 1.55-.21 2.36-.21 3.42 0 6.7 1.21 9.32 3.42L24 8.98zM2.81 2.81L1.39 4.22l2.05 2.05C2.2 6.92 1.05 7.86 0 8.98l1.68 1.43c.93-.78 1.94-1.45 3.01-2L6.4 9.83c-1.2.55-2.31 1.3-3.28 2.21L4.81 13.46C5.96 12.38 7.4 11.62 9 11.27l2.16 2.16c-1.3.18-2.5.74-3.46 1.59L12 19.51l1.94-1.94 5.84 5.84 1.41-1.41L2.81 2.81zM12 16.5l-1.41-1.41L12 13.68c.5 0 .96.06 1.42.13l1.71 1.71c-.99-.65-2.18-1.02-3.13-1.02z"/>
+                    </svg>
+                </div>` : ''}
             <div class="disc-wrap">
                 <div class="disc">
                     ${fill ? html`<div class="fill-clip">${this._renderFill()}</div>` : ''}

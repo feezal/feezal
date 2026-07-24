@@ -10,8 +10,6 @@ Work in progress — priorities and scope are not final.
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B62 — Gradient view background tiles/scrolls instead of staying put (Safari/iOS, PWA)](#b62--gradient-view-background-tilesscrolls-instead-of-staying-put-safariios-pwa)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
-- [B66 — Glass badges (battery / unavailable) overlap the card label](#b66--glass-badges-battery--unavailable-overlap-the-card-label--glass-climate-fixed-other-glass-elements-open) 🔨 *(glass-climate fixed)*
-- [B67 — Battery / availability badge parity gaps (circle-climate battery; metro availability)](#b67--battery--availability-badge-parity-gaps-circle-climate-battery-metro-availability--core-fixed--value--parity-test-open) 🔨 *(core fixed)*
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -192,59 +190,6 @@ Work in progress — priorities and scope are not final.
 **Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
 
 **Relates:** **B62** (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
-
-### B66 — Glass badges (battery / unavailable) overlap the card label 🔨 glass-climate fixed; other glass elements open
-
-**✅ Fixed for `glass-climate` (07/2026).** Reserved a bottom strip (`.card { padding-bottom: 15px }`) and dropped the battery + unavailable badges to `bottom: 2px`, so they sit **below** the label instead of overlapping it (the reported case — battery icon over "Thermostat Schlafzim…").
-
-**⏳ Still open — the other bottom-badge glass elements.** `glass-wled`, `glass-cover`, `glass-light` also position `.unavail` at the bottom, but use a **different layout** (an absolutely-positioned, centred bottom label over a control ring) — lower collision risk (mains devices, no battery badge, centred label vs. right-corner badge), so left untouched to avoid layout regressions. They should be reviewed: a long ellipsised label could still reach the bottom-right `.unavail`; the clean fix there is likely to move `.unavail` to a top corner (as `glass-contact` already does) rather than reserve bottom space.
-
-**Reported (07/2026, screenshot).** On a `glass-climate` card with a low-battery warning, the battery icon sits at the **bottom-left, colliding with the card label** ("Thermostat Schlafzim…") — the icon overlaps the start of the label text. It should sit **below the label** (a few pixels down), clear of it. Same goes for the other bottom badges (the unavailable ⚠, and any future warning badge).
-
-**Cause.** The label is a normal flow element in the card footer (`.label`, [feezal-element-glass-climate.js:174-177](../www/packages/@feezal/feezal-element-glass-climate/feezal-element-glass-climate.js#L174)), while the badges are **absolutely positioned in the same bottom band**, so they overlap it:
-- battery — shared `.feezal-batt-badge` at `bottom: var(--feezal-battery-bottom, 6px)` ([feezal-element.js:466-469](../www/packages/@feezal/feezal-element/feezal-element.js#L466-L469)), pinned bottom-left in glass (`left: 10px`, [feezal-element-glass-climate.js:183](../www/packages/@feezal/feezal-element-glass-climate/feezal-element-glass-climate.js#L183));
-- unavailable — `.unavail { position: absolute; bottom: 8px; right: 10px }` ([feezal-element-glass-climate.js:179-180](../www/packages/@feezal/feezal-element-glass-climate/feezal-element-glass-climate.js#L179)).
-
-Nothing reserves space for the badges, so on a card whose label reaches the bottom they overlap.
-
-**Fix direction (not yet implemented):** place the badges **below the label baseline** — e.g. give the footer/label a bottom inset (padding/margin) sized to the badge row so the label text ends above the badges, and/or lower the badges a few px. Must hold in **both** glass layouts — the default stacked layout and the wide `min-aspect-ratio: 2/1` container-query layout ([feezal-element-glass-climate.js:189+](../www/packages/@feezal/feezal-element-glass-climate/feezal-element-glass-climate.js#L189)) — and not clip the badge on short cards.
-
-**Scope — audit the family, not just climate.** The battery badge (`batteryLowBadge` / `feezalBatteryStyles`) and the `.unavail` pattern are shared, so check every **glass** element that renders a label + badge (glass-sensor/contact/motion/light/switch/cover/value/wled/…), and verify the **other families** (metro / circle / eink / material) don't have the same label↔badge collision. Fix once at the shared layer where possible (the badge helper defaults + a consistent "badges sit below the label" rule), per-family only where the chrome differs.
-
-**Ships with:** the badge/label spacing fix across the affected elements, patch bumps on each touched package, and a TESTING.md note (low-battery + unavailable on a labelled card of each family → badge sits clear below the label, no overlap, in both stacked and wide layouts).
-
-**Relates:** **E124** (the low-battery badge this repositions), **N31** (the unavailable badge — same treatment), **E114** (family parity — the fix/behaviour should be consistent across families), **E140/E141** (other per-family chrome work — batch the touch), the glass family chrome (`feezal-glass`), `feezal-element` (`feezalBatteryStyles` / `batteryLowBadge` shared badge), **B67** (the sibling parity bug: circle-climate renders no battery badge at all).
-
-### B67 — Battery / availability badge parity gaps (circle-climate battery; metro availability) 🔨 core fixed; *-value + parity-test open
-
-**✅ Fixed (07/2026):**
-- **`circle-climate`** now imports and renders `batteryLowBadge(this.climate.batteryLow)` (top-left, mirroring the top-right unavailable badge) — the low-battery warning is finally visible.
-- **`metro-climate`, `metro-switch`, `metro-light`** gained the availability badge — the `subscribe-availability` attribute set + a `renderBadge()` that shows a `!` while unavailable (metro-climate already had the battery badge; it lacked availability). (Note: `metro-fan` does not exist; the metro device elements with the gap were these three.)
-
-**⏳ Still open:**
-- **`*-value` availability** — the value/readout elements across families still show no availability (a design call: a stale readout arguably should — scope per family). Deliberately deferred as a design decision, not a clear bug.
-- **The anti-regression parity test** — assert that every element accepting `subscribe-battery-low` renders a battery badge when `batteryLow` is true, and every device element accepting `subscribe-availability` renders an unavailable badge when offline. Not yet added; this is what makes the "declared/accepted-but-not-rendered" class of gap (the root of this bug) impossible to reintroduce.
-
-**Reported (07/2026, same device as B66).** `circle-climate` shows **no battery badge** for a device reporting low battery — the warning is invisible. Expected: a badge, positioned somewhere **between the circle slider and the buttons**. A follow-up audit (below) found this is one instance of a broader **badge-parity** hole spanning both the battery *and* availability badges.
-
-**Cause — the badge is declared but never rendered.** `circle-climate` declares the full E124 battery quartet (`subscribe-battery-low` + twins + `battery-low-threshold`, [feezal-element-circle-climate.js:150-153](../www/packages/@feezal/feezal-element-circle-climate/feezal-element-circle-climate.js#L150-L153)), so autodiscovery stamps the topic and the `ClimateController` tracks `climate.batteryLow` — **but the element never draws it**: it does **not** import `batteryLowBadge` / `feezalBatteryStyles` and has **no `batteryLowBadge(...)` call in `render()`** (it renders `.unavail` but not the battery badge). Contrast glass-climate, which imports both and renders `${batteryLowBadge(this.climate.batteryLow)}` ([feezal-element-glass-climate.js:2,425](../www/packages/@feezal/feezal-element-glass-climate/feezal-element-glass-climate.js#L425)). So the low-battery state is computed and then silently dropped on the floor.
-
-**Fix direction (not yet implemented):** import `batteryLowBadge` + `feezalBatteryStyles` in `circle-climate`, add the badge styles, and render `${batteryLowBadge(this.climate.batteryLow)}` **positioned between the slider ring and the button row** (per the reporter) — `--feezal-battery-bottom` / a circle-specific placement rule, avoiding the slider and the buttons. Mind B66 while here (don't recreate the label-overlap problem).
-
-**Audit results (07/2026) — battery badge.** Cross-referencing "declares `subscribe-battery-low`" vs. "calls `batteryLowBadge(...)`": **`circle-climate` is the ONLY element that declares it but doesn't render it.** Every other battery-capable element renders it — including **circle-contact, circle-motion, circle-sensor** (the reporter's specific worry — they're fine), plus the climate/sensor/motion/contact cards across glass / metro / eink. So the battery gap is `circle-climate` alone.
-
-**Audit results (07/2026) — availability badge (the bigger gap).** Cross-referencing "declares `subscribe-availability`" vs. "renders an `unavail` / `_available` badge": the **metro family is missing it on several device elements** — **`metro-climate`, `metro-switch`, `metro-light`, `metro-fan`** (and to verify: `metro-tile`, `metro-value`) have **no `unavail`/`_available` handling at all**, while their metro siblings **do** (`metro-sensor`, `metro-motion`, `metro-contact`, `metro-cover`, `metro-wled`). So `metro-climate` shows a battery badge but **no unavailable badge** — inconsistent within one card. The circle / glass / eink families render the unavailable badge on their device elements; **value/readout elements** (`*-value`) across all families don't show availability at all (a design call — a stale readout arguably should).
-
-**Fix scope:**
-- **Battery:** render the badge in `circle-climate` (per the reported symptom).
-- **Availability:** add the unavailable badge to the metro device elements that lack it (`metro-climate`, `metro-switch`, `metro-light`, `metro-fan`, + confirm `metro-tile`/`metro-value`), matching the metro sibling treatment.
-- **Decide `*-value` availability** — whether a bound value readout should show unavailable/stale (probably yes; scope per family).
-
-**Guard against regressions — a parity test.** This is an **E114 parity** hole made easy by the controller attribute-spread (E137): an element advertises `subscribe-battery-low` / `subscribe-availability` (auto-stamped by discovery) yet forgets to render the badge. Add a `feezal-controller-parity.test.js` assertion: **every element that accepts `subscribe-battery-low` renders a battery badge when `batteryLow` is true, and every device element that accepts `subscribe-availability` renders an unavailable badge when offline.**
-
-**Ships with:** the `circle-climate` battery-badge render + placement; the unavailable badge added to the metro elements that lack it (`metro-climate`/`-switch`/`-light`/`-fan` + confirmed others); the `*-value` availability decision; a `feezal-controller-parity.test.js` assertion (accepts battery/availability attr ⇒ renders the badge); patch bumps per touched package; TESTING.md notes.
-
-**Relates:** **B66** (the sibling badge bug on glass — placement there vs. missing entirely here; fix the whole badge story together), **E124** (the battery-low badge/record), **N31** (the availability/unavailable badge — the metro gap), **E114** (parity — declared/accepted-but-not-rendered is a parity gap a test should catch), **E137** (controllers spread the battery/availability attributes, which is why the mismatch is easy to introduce), glass-climate / the metro sibling elements (the reference implementations), `feezal-element` (`batteryLowBadge`/`feezalBatteryStyles`).
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 

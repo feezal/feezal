@@ -11,7 +11,7 @@
  * legitimately does not support a capability (metro-climate has no json
  * payload mode — a constructor flag, not a fork).
  */
-import {describe, it, expect} from 'vitest';
+import {describe, it, expect, beforeEach} from 'vitest';
 import {
     SENSOR_CONSUMED_ATTRIBUTES, sensorAttributes, sensorDiscoveryMap,
     sensorAttributesFor, sensorDiscoveryMapFor,
@@ -55,6 +55,19 @@ import '../packages/@feezal/feezal-element-eink-climate/feezal-element-eink-clim
 import '../packages/@feezal/feezal-element-metro-cover/feezal-element-metro-cover.js';
 import '../packages/@feezal/feezal-element-glass-cover/feezal-element-glass-cover.js';
 import '../packages/@feezal/feezal-element-eink-cover/feezal-element-eink-cover.js';
+// B67: badge-render parity needs the remaining availability-bearing device
+// elements too (switch/fan/value families that weren't already imported above).
+import '../packages/@feezal/feezal-element-circle-switch/feezal-element-circle-switch.js';
+import '../packages/@feezal/feezal-element-glass-switch/feezal-element-glass-switch.js';
+import '../packages/@feezal/feezal-element-metro-switch/feezal-element-metro-switch.js';
+import '../packages/@feezal/feezal-element-eink-switch/feezal-element-eink-switch.js';
+import '../packages/@feezal/feezal-element-circle-fan/feezal-element-circle-fan.js';
+import '../packages/@feezal/feezal-element-glass-fan/feezal-element-glass-fan.js';
+import '../packages/@feezal/feezal-element-eink-fan/feezal-element-eink-fan.js';
+import '../packages/@feezal/feezal-element-circle-value/feezal-element-circle-value.js';
+import '../packages/@feezal/feezal-element-glass-value/feezal-element-glass-value.js';
+import '../packages/@feezal/feezal-element-metro-value/feezal-element-metro-value.js';
+import {setupFeezal, mount} from './helpers.js';
 
 const CASES = [
     // E138: the boolean card is split into motion + alarm ('sensor') cards;
@@ -173,4 +186,81 @@ describe('E138 — sensor vocabulary slices', () => {
         expect(CONTACT_ACTIVE_COLOR_VAR).toBe('--primary-color');
         expect(new ContactController(stubHost()).activeColorVar()).toBe('--primary-color');
     });
+});
+
+// ── B67: badge-render parity ─────────────────────────────────────────────────
+// The E137 test above proves an element *declares* the attribute. This block
+// proves it actually *renders* the corresponding badge when the matching MQTT
+// message arrives — the exact gap B67 fixed (attribute wired to a subscription
+// but never surfaced in the DOM). We drive real messages through the shared
+// bus and assert the badge shows up in the shadow root, per family convention:
+//   circle / glass / metro-wled → `.unavail`   eink → `.badge-tr` (!)
+//   metro (renderBadge)         → `.badge` (!)  shared helper → `.feezal-unavail-badge`
+//   battery (all)               → `.feezal-batt-badge`
+const ALL_DEVICE_TAGS = [
+    'feezal-element-circle-climate', 'feezal-element-circle-contact', 'feezal-element-circle-cover',
+    'feezal-element-circle-fan', 'feezal-element-circle-light', 'feezal-element-circle-lock',
+    'feezal-element-circle-motion', 'feezal-element-circle-sensor', 'feezal-element-circle-switch',
+    'feezal-element-circle-value', 'feezal-element-circle-wled',
+    'feezal-element-eink-climate', 'feezal-element-eink-contact', 'feezal-element-eink-cover',
+    'feezal-element-eink-fan', 'feezal-element-eink-light', 'feezal-element-eink-motion',
+    'feezal-element-eink-sensor', 'feezal-element-eink-switch', 'feezal-element-eink-wled',
+    'feezal-element-glass-climate', 'feezal-element-glass-contact', 'feezal-element-glass-cover',
+    'feezal-element-glass-fan', 'feezal-element-glass-light', 'feezal-element-glass-lock',
+    'feezal-element-glass-motion', 'feezal-element-glass-sensor', 'feezal-element-glass-switch',
+    'feezal-element-glass-value', 'feezal-element-glass-wled',
+    'feezal-element-metro-climate', 'feezal-element-metro-contact', 'feezal-element-metro-cover',
+    'feezal-element-metro-light', 'feezal-element-metro-lock', 'feezal-element-metro-motion',
+    'feezal-element-metro-sensor', 'feezal-element-metro-switch', 'feezal-element-metro-value',
+    'feezal-element-metro-wled',
+];
+
+let feezal;
+beforeEach(() => { feezal = setupFeezal(); });
+
+const declaresAttr = (tag, attr) => {
+    const cls = customElements.get(tag);
+    return !!cls && cls.feezal.attributes.some(a => a.name === attr);
+};
+const hasBatteryBadge = el => !!el.renderRoot.querySelector('.feezal-batt-badge');
+const hasUnavailBadge = el => {
+    const r = el.renderRoot;
+    if (r.querySelector('.unavail, .badge-tr, .feezal-unavail-badge')) return true;
+    const b = r.querySelector('.badge');
+    return !!(b && b.textContent.trim() === '!');
+};
+
+describe('B67 — badge-render parity (declared ⇒ actually rendered)', () => {
+    it('every listed tag is a defined element (imports stay in sync)', () => {
+        const undefinedTags = ALL_DEVICE_TAGS.filter(t => !customElements.get(t));
+        expect(undefinedTags).toEqual([]);
+    });
+
+    const availTags = ALL_DEVICE_TAGS.filter(t => declaresAttr(t, 'subscribe-availability'));
+    const battTags  = ALL_DEVICE_TAGS.filter(t => declaresAttr(t, 'subscribe-battery-low'));
+
+    it('coverage sanity: the derived sets are non-trivial', () => {
+        expect(availTags.length).toBeGreaterThan(20);   // every device family
+        expect(battTags.length).toBeGreaterThan(10);     // climate/contact/motion/sensor/lock
+    });
+
+    for (const tag of availTags) {
+        it(`${tag} renders an unavailable badge after an offline message`, async () => {
+            const el = await mount(tag, {'subscribe-availability': 'stat/avail'});
+            expect(hasUnavailBadge(el), `${tag} showed the badge before any message`).toBe(false);
+            feezal.connection.deliver('stat/avail', 'offline');
+            await el.updateComplete;
+            expect(hasUnavailBadge(el), `${tag} declares subscribe-availability but rendered no badge`).toBe(true);
+        });
+    }
+
+    for (const tag of battTags) {
+        it(`${tag} renders a battery badge after a low-battery message`, async () => {
+            const el = await mount(tag, {'subscribe-battery-low': 'stat/batt'});
+            expect(hasBatteryBadge(el), `${tag} showed the badge before any message`).toBe(false);
+            feezal.connection.deliver('stat/batt', 'true');
+            await el.updateComplete;
+            expect(hasBatteryBadge(el), `${tag} declares subscribe-battery-low but rendered no badge`).toBe(true);
+        });
+    }
 });
