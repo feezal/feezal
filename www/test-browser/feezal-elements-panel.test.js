@@ -6,7 +6,7 @@
 import {describe, it, expect, beforeEach} from 'vitest';
 import '@feezal/feezal-element-panel-led';
 import '@feezal/feezal-element-panel-switch';
-import '@feezal/feezal-element-panel-7seg';
+import '@feezal/feezal-element-panel-value';
 import '@feezal/feezal-element-panel-gauge';
 import '@feezal/feezal-element-panel-knob';
 import {setupFeezal, mount, until} from './helpers.js';
@@ -122,12 +122,12 @@ describe('panel-switch', () => {
     });
 });
 
-describe('panel-7seg', () => {
+describe('panel-value', () => {
     const litCells = el => [...el.shadowRoot.querySelectorAll('svg > g > g')]
         .map(cell => [...cell.querySelectorAll('polygon')].filter(p => !p.classList.contains('ghost')).length);
 
     it('renders the subscribed value right-aligned with decimal point', async () => {
-        const el = await mount('feezal-element-panel-7seg', {subscribe: 'stat/temp', digits: '4'});
+        const el = await mount('feezal-element-panel-value', {subscribe: 'stat/temp', digits: '4'});
         feezal.connection.deliver('stat/temp', '21.5');
         await el.updateComplete;
         expect(el.getAttribute('value')).toBe('21.5');   // baseAttribute wiring
@@ -141,7 +141,7 @@ describe('panel-7seg', () => {
     });
 
     it('applies fixed decimals and renders minus', async () => {
-        const el = await mount('feezal-element-panel-7seg', {digits: '4', decimals: '1', value: '-3'});
+        const el = await mount('feezal-element-panel-value', {digits: '4', decimals: '1', value: '-3'});
         await el.updateComplete;
         // -3.0 → cells: blank, -, 3(+dp), 0
         expect(litCells(el)).toEqual([0, 1, 5, 6]);
@@ -151,7 +151,7 @@ describe('panel-7seg', () => {
         // Regression: the 88.8 hint used to be suppressed once a subscribe topic
         // was configured, so a wired display went blank on the editor canvas.
         feezal.isEditor = true;
-        const el = await mount('feezal-element-panel-7seg', {subscribe: 'stat/temp', digits: '4'});
+        const el = await mount('feezal-element-panel-value', {subscribe: 'stat/temp', digits: '4'});
         await el.updateComplete;
         expect(litCells(el).some(n => n > 0)).toBe(true);   // not a blank readout
         feezal.isEditor = false;

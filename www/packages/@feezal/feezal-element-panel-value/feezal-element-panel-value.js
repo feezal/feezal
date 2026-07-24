@@ -3,9 +3,10 @@ import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element
 import {svg} from 'lit';
 
 /**
- * feezal-element-panel-7seg (E56)
+ * feezal-element-panel-value (E56; renamed from feezal-element-panel-7seg)
  *
- * Seven-segment numeric display — the classic red LED readout. Renders the
+ * The panel family's value card — a seven-segment numeric display (the classic
+ * red LED readout). Renders the
  * subscribed value right-aligned into a fixed number of digit cells with
  * ghost (unlit) segments, decimal points, minus sign and a small set of
  * letters (errors like "Err" render fine). Non-numeric payloads are shown
@@ -38,7 +39,7 @@ const SEGS = [
     /* G */ '1.7,9 2.9,8.2 7.1,8.2 8.3,9 7.1,9.8 2.9,9.8',
 ];
 
-class FeezalElementPanel7seg extends FeezalElement {
+class FeezalElementPanelValue extends FeezalElement {
     static get feezal() {
         return {
             palette: {name: 'Value', category: 'Panel', color: '#455a64', icon: '123'},
@@ -55,7 +56,7 @@ class FeezalElementPanel7seg extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height',
-                {property: '--feezal-panel-7seg-color', type: 'color',
+                {property: '--feezal-panel-value-color', type: 'color',
                     default: '#ff4136',
                     help: 'Lit segment colour (classic LED red; try #76ff03 for green or #ffb300 for amber).'},
                 {property: '--feezal-panel-face', type: 'color', default: '#14100f', help: 'Display window background (shared --feezal-panel-face family var).'},
@@ -85,7 +86,7 @@ class FeezalElementPanel7seg extends FeezalElement {
         :host {
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             gap: 4px; box-sizing: border-box; overflow: hidden;
-            --feezal-panel-7seg-color: #ff4136;
+            --feezal-panel-value-color: #ff4136;
         }
         .window {
             flex: 1; min-height: 0; width: 100%;
@@ -95,8 +96,8 @@ class FeezalElementPanel7seg extends FeezalElement {
             padding: 4px 6px; box-sizing: border-box;
         }
         svg { height: 100%; max-width: 100%; }
-        .seg       { fill: var(--feezal-panel-7seg-color); filter: drop-shadow(0 0 1.5px var(--feezal-panel-7seg-color)); }
-        .seg.ghost { fill: var(--feezal-panel-7seg-color); opacity: 0.07; filter: none; }
+        .seg       { fill: var(--feezal-panel-value-color); filter: drop-shadow(0 0 1.5px var(--feezal-panel-value-color)); }
+        .seg.ghost { fill: var(--feezal-panel-value-color); opacity: 0.07; filter: none; }
         .label {
             flex: 0 0 auto; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
             color: var(--feezal-panel-text, #aeb7bd);
@@ -174,5 +175,5 @@ class FeezalElementPanel7seg extends FeezalElement {
     }
 }
 
-customElements.define('feezal-element-panel-7seg', FeezalElementPanel7seg);
-export {FeezalElementPanel7seg};
+customElements.define('feezal-element-panel-value', FeezalElementPanelValue);
+export {FeezalElementPanelValue};

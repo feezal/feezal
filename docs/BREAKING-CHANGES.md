@@ -19,6 +19,7 @@ upgrading is the safest route).
 | `feezal-element-circle-motion` | *(unchanged)* | scope narrowed to motion types; hazard types (water-leak/smoke/…) move to the new `feezal-element-circle-sensor` (which carries the E134 state disc) |
 | `feezal-element-eink-sensor` | *(unchanged)* | scope narrowed to alarm types; motion types move to the new `feezal-element-eink-motion` |
 | `feezal-element-eink-number` | `feezal-element-eink-value` | E148: numeric-card naming parity — the eink numeric readout joins the `*-value` convention (behaviour/attributes/discovery unchanged, palette `Number` → `Value`). `basic-number` (the unstyled primitive) keeps its name. No reused-name trap. Source-view search-replace `eink-number` → `eink-value`. |
+| `feezal-element-panel-7seg` | `feezal-element-panel-value` | The panel family's numeric readout (a seven-segment LED display) joins the `*-value` convention — palette `7-Segment` → `Value`, class `FeezalElementPanelValue`, discovery (`component: 'sensor'`) unchanged; it now also resolves in the Generate wizard for `sensor` entities (function `value`). The CSS var `--feezal-panel-7seg-color` → `--feezal-panel-value-color`. No reused-name trap. Source-view search-replace `panel-7seg` → `panel-value` (covers both the tag and the CSS var). |
 
 New elements: `feezal-element-circle-sensor`, `feezal-element-glass-sensor`
 (new meaning), `feezal-element-metro-sensor` (new meaning),

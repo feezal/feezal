@@ -115,11 +115,11 @@ import '@feezal/feezal-element-metro-switch';
 import '@feezal/feezal-element-metro-tile';
 import '@feezal/feezal-element-metro-value';
 import '@feezal/feezal-element-metro-wled';
-import '@feezal/feezal-element-panel-7seg';
 import '@feezal/feezal-element-panel-gauge';
 import '@feezal/feezal-element-panel-knob';
 import '@feezal/feezal-element-panel-led';
 import '@feezal/feezal-element-panel-switch';
+import '@feezal/feezal-element-panel-value';
 import '@feezal/feezal-element-paper-badge';
 import '@feezal/feezal-element-paper-button';
 import '@feezal/feezal-element-paper-card';
@@ -277,11 +277,11 @@ window.feezal.elements = [
   "feezal-element-metro-tile",
   "feezal-element-metro-value",
   "feezal-element-metro-wled",
-  "feezal-element-panel-7seg",
   "feezal-element-panel-gauge",
   "feezal-element-panel-knob",
   "feezal-element-panel-led",
   "feezal-element-panel-switch",
+  "feezal-element-panel-value",
   "feezal-element-paper-badge",
   "feezal-element-paper-button",
   "feezal-element-paper-card",
