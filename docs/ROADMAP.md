@@ -14,6 +14,7 @@ Work in progress — priorities and scope are not final.
 - [B69 — `glass-meter` is overloaded: move the secondary readouts into a details popup](#b69--glass-meter-is-overloaded-move-the-secondary-readouts-into-a-details-popup)
 - [B70 — System element editor placeholders: swipe shows text not icon, mismatched chrome, inconsistent default sizes](#b70--system-element-editor-placeholders-swipe-shows-text-not-icon-mismatched-chrome-inconsistent-default-sizes)
 - [B71 — `system-splash` appears to do nothing in the viewer (no visible splash/spinner)](#b71--system-splash-appears-to-do-nothing-in-the-viewer-no-visible-splashspinner)
+- [B72 — `device-health`: one list entry per entity instead of per device (ESPHome / zigbee2mqtt)](#b72--device-health-one-list-entry-per-entity-instead-of-per-device-esphome--zigbee2mqtt)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -243,6 +244,18 @@ The shared `glassCardStyles` `.card` is `position: absolute; inset: 6px` ([feeza
 5. **Viewer vs editor**, and does a hard reload (retained burst) change anything?
 
 **Relates:** E39 (`system-splash` origin — FOUC/boot cover), **B70** (sibling System-element polish), E89 / `@feezal/feezal-lottie` (the optional boot animation path), the viewer boot/connection lifecycle (`feezal.connection` `connected`/`message` events the hide rides on).
+
+### B72 — `device-health`: one list entry per *entity* instead of per *device* (ESPHome / zigbee2mqtt)
+
+**Reported (07/2026).** In the reworked device-health inspector checklist, **every topic from an ESPHome device creates its own list entry** — the same device appears many times. Same for zigbee2mqtt. Expected: **one entry per physical device**.
+
+**Root cause.** `buildHealthDevices` ([feezal-element-basic-device-health.js](../www/packages/@feezal/feezal-element-basic-device-health/feezal-element-basic-device-health.js), added in the overhaul `eb3ec828`) merges a device's entities **by friendly name** (`byName`). That collapses Homematic (whose entities share the channel name) but **not ESPHome/z2m**: each of a device's entities has a **distinct entity name** ("Boiler Temperature", "Boiler Uptime", "Boiler WiFi", …), and — for ESPHome especially — **every entity carries the same `availability_normalized`** (the shared `<node>/status`), so each entity becomes its own health candidate → N duplicate rows, all watching the same availability topic.
+
+**Fix — key the merge on device identity, not name.** Discovery entities already carry it: `config.device.identifiers[0]` (server `decorateBatteryLow` and `getDeviceGroups` both key on exactly this — [discovery.js:391,398,432](../server/src/mqtt/discovery.js#L391)). Change `buildHealthDevices` to group by, in order: **`config.device.identifiers[0]` → `node_id` → the shared availability/battery topic → friendly name** (the current behaviour as the last-resort fallback). Take the **device label** from `config.device.name` (friendly-name'd) when present; **union** the signals (battery / availability / fault / sabotage) across the device's entities (first of each kind wins). Alternatively/additionally, the inspector could fetch the already-device-grouped **`/api/discovery/device-groups`** endpoint instead of `/api/discovery/devices` and build one entry per group.
+
+**Ships with:** the `buildHealthDevices` dedup fix + a unit test (several ESPHome/z2m entities sharing one `device.identifiers` collapse to a single entry that unions their signals; distinct devices stay separate), patch-bump `basic-device-health`, and a TESTING.md note.
+
+**Relates:** the device-health overhaul `eb3ec828` (introduced `buildHealthDevices`; this fixes its dedup), `decorateBatteryLow` / `getDeviceGroups` in `discovery.js` (the device-identity keying to mirror + the ready-made device-grouped endpoint), E124/N31 (the per-entity battery/availability records that duplicate here).
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
