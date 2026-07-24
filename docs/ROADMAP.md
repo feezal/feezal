@@ -55,7 +55,7 @@ Work in progress — priorities and scope are not final.
 - [E139 — "Fancy" element family: Lottie-animated device cards](#e139--fancy-element-family-lottie-animated-device-cards)
 - [E144 — Lock autodiscovery: Homematic BidCoS (Keymatic) + HmIP smart locks + zigbee2mqtt](#e144--lock-autodiscovery-homematic-bidcos-keymatic--hmip-smart-locks--zigbee2mqtt--keymatic--z2m-done-hmip-dld-open) 🔨 *(Keymatic + z2m done; HmIP-DLD open)*
 - [E145 — Autodiscovery support for ccu-jack's MQTT interface](#e145--autodiscovery-support-for-ccu-jacks-mqtt-interface)
-- [E150 — Discovery for profile-shaped components: `water_heater` + `lawn_mower`](#e150--discovery-for-profile-shaped-components-water_heater--lawn_mower)
+- [E150 — Discovery for profile-shaped components: `water_heater` ✅ + `lawn_mower` 🔨](#e150--discovery-for-profile-shaped-components-water_heater---lawn_mower)
 
 **Editor UX**
 
@@ -1180,18 +1180,15 @@ feezal's native Homematic autodiscovery is **RedMatic-only** today (established 
 
 **Relates:** **B65** (the research this builds on — bridge scheme table, and the `:0` synergy), **E108** ✅ (recognizer framework — where the ccu-jack signature recognizer / meta-adapter slots in), **N31 / E124 / E135** (`:0` availability/battery/maintenance — trivially derivable here), RedMatic (the currently-only-supported bridge — this is the parallel pure-MQTT path), **E109 / E112** (sibling third-party integration items), pure-MQTT design principle (no second transport — the constraint that shaped this item), the discovery `component` model (the shared target these records must produce).
 
-### E150 — Discovery for profile-shaped components: `water_heater` + `lawn_mower`
+### E150 — Discovery for profile-shaped components: `water_heater` ✅ + `lawn_mower` 🔨
 
-Follow-up to **E149** ✅ (which shipped the seven *pure-mapping* HA discovery components: `button` `scene` `number` `text` `alarm_control_panel` `camera` `image`). The two remaining selected components are **not** pure mappings — they need a device-variant *profile* on an existing controller, not just a `discovery: {component, map}` fragment:
+Follow-up to **E149** ✅ (which shipped the seven *pure-mapping* HA discovery components: `button` `scene` `number` `text` `alarm_control_panel` `camera` `image`). The two remaining selected components need a device-variant *profile* on an existing element, not just a new `discovery: {component, map}` fragment.
 
-| HA component | Target | Work |
-|---|---|---|
-| `water_heater` | climate family (via `ClimateController` variant) | Climate-shaped: `temperature_command_topic`/`current_temperature_topic`, `mode`s (`off`/`eco`/`performance`/`high_demand`/…), min/max temp. A water-heater profile on the climate contract (like the Homematic climate profiles) rather than a fresh element. |
-| `lawn_mower` | `circle-vacuum` | vacuum-shaped: activity states (`mowing`/`docked`/`paused`/`error`), `*_command_topic` for start/pause/dock. Niche; reuse the vacuum contract with a lawn-mower profile. |
+**✅ `water_heater` done (07/2026).** It turned out to be a **clean structural alias** of climate, not a profile fork: HA's `water_heater` uses the *identical* topic key names (`temperature_command_topic`/`temperature_state_topic`/`current_temperature_topic`/`mode_command_topic`/`mode_state_topic`/`modes`/`min_temp`/`max_temp`), and the config carries its own `modes` list (`off`/`eco`/`performance`/`high_demand`/…) which the climate controller already accepts as a plain string array. So instead of a fork: added `water_heater` to `SUPPORTED_COMPONENTS` + `FUNCTION_CANDIDATES` (→ `climate`), and a small **`aliasComponents`** field on the element's discovery descriptor (`discovery: {component: 'climate', aliasComponents: ['water_heater'], map: climateDiscoveryMap}`) so the ⚡ picker and auto-config banner accept the alias component (the shared `elementAcceptsComponent` helper). All four climate cards (circle/glass/metro/eink) consume it; the Generate wizard resolves it for free. Tests: `server/test/discovery-e150.test.js`, `www/test-browser/feezal-discovery-e150.test.js`.
 
-**Mechanism:** add the name to `SUPPORTED_COMPONENTS`; extend the relevant controller (`ClimateController` for `water_heater`, the vacuum contract for `lawn_mower`) with a device-variant profile so its discovery-map fragment covers the new mode/activity enums; the ⚡ picker + Generate wizard then pick them up for free. Ship with recognizer/mapping tests + a TESTING.md row, exactly as E149.
+**🔨 `lawn_mower` — deferred (needs per-action command topics).** Unlike vacuum, HA's `lawn_mower` has **no single `command_topic`** — it exposes three *separate* command topics (`start_mowing_command_topic`, `pause_command_topic`, `dock_command_topic`) plus `activity_state_topic` (activities `mowing`/`docked`/`paused`/`error`). `circle-vacuum`'s contract publishes every action as a payload to **one** `publish-command` topic, so an alias/map reuse would leave the control buttons non-functional. Landing it properly means either (a) extending `circle-vacuum` with an optional per-action-topic command mode (three `publish-*` attributes + activity-state labels), or (b) a dedicated `lawn-mower` element. Niche — parked until asked. When done: add `lawn_mower` to `SUPPORTED_COMPONENTS` + `FUNCTION_CANDIDATES`, and either the vacuum variant or the new element with its own discovery map + tests.
 
-**Relates:** **E149** ✅ (parent — the discovery-extension work this completes), **E137** (the controller contract these profiles ride), **N12** ✅ (the discovery engine), circle-climate / circle-vacuum (the target elements).
+**Relates:** **E149** ✅ (parent — the discovery-extension work this completes), **E137** (the climate controller the alias rides), **N12** ✅ (the discovery engine), **E135** (the Homematic climate profiles that inspired the "profile not fork" framing), circle-climate (water_heater target) / circle-vacuum (lawn_mower target).
 
 
 ## Architecture & Infrastructure

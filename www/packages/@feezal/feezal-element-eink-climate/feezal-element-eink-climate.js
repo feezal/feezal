@@ -22,7 +22,7 @@ class FeezalElementEinkClimate extends EinkBase {
             palette: {name: 'Climate', category: 'Eink', color: '#222222', icon: 'thermostat'},
             description: 'E-ink thermostat card — oversized actual, setpoint steppers, mode row, 1-bit.',
             // E137: the discovery map is the controller package's fragment.
-            discovery: {component: 'climate', map: climateDiscoveryMap},
+            discovery: {component: 'climate', aliasComponents: ['water_heater'], map: climateDiscoveryMap},
             attributes: [
                 // E137: the shared climate contract — declared ONCE.
                 ...climateAttributes,

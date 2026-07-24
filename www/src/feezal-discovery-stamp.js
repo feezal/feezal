@@ -256,6 +256,9 @@ const FUNCTION_CANDIDATES = {
     scene: ['button'],
     text: ['input'],
     image: ['image'],
+    // E150: water_heater is climate-shaped — reuse the climate card (its map
+    // + aliasComponents link consume the identically-named HA topic keys).
+    water_heater: ['climate'],
     sensor: ['sensor', 'value', 'gauge'],
     // E109: evcc native entities. The site entity binds to the generic
     // energy-flow diagram (material family only); each loadpoint to the
@@ -282,6 +285,16 @@ const BINARY_BY_CLASS = {
 // generatable entities, so raw/unknown MQTT discovery rows are not offered.
 export function knownComponents() {
     return [...Object.keys(FUNCTION_CANDIDATES), 'binary_sensor'];
+}
+
+// E150: the discovery components an element consumes — its primary
+// `discovery.component` plus any `discovery.aliasComponents` (e.g. a climate
+// card also accepts `water_heater`, which is climate-shaped). The ⚡ per-element
+// picker and the auto-config banner match entities against this set.
+export function elementAcceptsComponent(cls, component) {
+    const d = cls?.feezal?.discovery;
+    if (!d || !component) return false;
+    return component === d.component || (d.aliasComponents || []).includes(component);
 }
 
 const defaultIsRegistered = tag => !!window.customElements?.get(tag);

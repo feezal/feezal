@@ -76,7 +76,7 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
                 'details popup with a vertical setpoint slider and mode buttons. Same wiring contract as ' +
                 'the material thermostat card (setpoint/actual/mode subset).',
             // E137: the discovery map is the controller package's fragment.
-            discovery: {component: 'climate', map: climateDiscoveryMap},
+            discovery: {component: 'climate', aliasComponents: ['water_heater'], map: climateDiscoveryMap},
             // U39: section/visibleWhen/advanced structure the ~25-attribute
             // inspector — only the relevant payload-mode's topics show, and the
             // message-property-* twins tuck behind each section's Advanced group.

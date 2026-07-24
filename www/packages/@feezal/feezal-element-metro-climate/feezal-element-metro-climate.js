@@ -78,7 +78,7 @@ class FeezalElementMetroClimate extends MetroTileBase {
             restrict: {minWidth: 40, minHeight: 40},
             defaultStyle: {width: '150px', height: '150px'},
             // E137: the discovery map is the controller package's fragment.
-            discovery: {component: 'climate', map: climateDiscoveryMap},
+            discovery: {component: 'climate', aliasComponents: ['water_heater'], map: climateDiscoveryMap},
         };
     }
 

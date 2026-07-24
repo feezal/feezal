@@ -155,6 +155,9 @@ const SUPPORTED_COMPONENTS = new Set([
     // E149: command-only + read-only component types that already have a
     // matching feezal element declaring `discovery: {component, map}`.
     'button', 'scene', 'number', 'text', 'alarm_control_panel', 'camera', 'image',
+    // E150: water_heater is climate-shaped (identical HA topic key names), so it
+    // reuses the climate element + map via an aliasComponents link.
+    'water_heater',
 ]);
 
 // ── Entity registry ────────────────────────────────────────────────────────

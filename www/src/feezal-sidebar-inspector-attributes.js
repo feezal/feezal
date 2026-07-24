@@ -8,7 +8,7 @@ export const LIVE_APPLY_DEBOUNCE_MS = 250;
 // U58: the discovery-stamp primitives moved to a shared, headless module so
 // the ⚡ picker and the bulk Generate wizard apply identical wiring.
 // valueTemplateLeaf is re-exported here for back-compat with existing importers.
-import {stampDiscovery, valueTemplateLeaf, discoveryLabel, discoveryAttributeSuffix} from './feezal-discovery-stamp.js';
+import {stampDiscovery, valueTemplateLeaf, discoveryLabel, discoveryAttributeSuffix, elementAcceptsComponent} from './feezal-discovery-stamp.js';
 export {valueTemplateLeaf};
 
 import '@shoelace-style/shoelace/dist/components/input/input.js';
@@ -1742,7 +1742,8 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         const component = cls?.feezal?.discovery?.component;
         if (!component) return '';
 
-        const allMatches = (this.__discoveryEntities || []).filter(e => e.component === component);
+        // E150: also match alias components (e.g. a climate card accepts water_heater).
+        const allMatches = (this.__discoveryEntities || []).filter(e => elementAcceptsComponent(cls, e.component));
         if (!allMatches.length) return '';
 
         const q = (this._discoveryFilter || '').toLowerCase().trim();
@@ -1834,7 +1835,8 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         const expectedComponent = cls?.feezal?.discovery?.component;
 
         const match = this.__discoveryEntities.find(entity => {
-            if (expectedComponent && entity.component !== expectedComponent) return false;
+            // E150: alias components (e.g. climate ⊇ water_heater) also match.
+            if (expectedComponent && !elementAcceptsComponent(cls, entity.component)) return false;
             const cfg = entity.config || {};
             return Object.values(cfg).some(v => typeof v === 'string' && v === topic);
         });
