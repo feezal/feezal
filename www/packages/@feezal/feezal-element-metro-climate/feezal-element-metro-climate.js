@@ -67,6 +67,11 @@ class FeezalElementMetroClimate extends MetroTileBase {
                 // the E124 battery quartet) — declared ONCE by the controller
                 // package; METRO_UI merges the inspector grouping per name.
                 ...climateAttributes.filter(a => !METRO_OMIT.includes(a.name)).map(a => ({...a, ...METRO_UI[a.name]})),
+                // B67: availability — a ! badge appears while unavailable.
+                {name: 'subscribe-availability', type: 'mqttTopic', section: 'Availability', help: 'Topic reporting device availability — a ! badge appears while unavailable.'},
+                {name: 'message-property-availability', type: 'string', default: 'payload', section: 'Availability', advanced: true, help: 'Property path within availability messages. Defaults to message-property.'},
+                {name: 'payload-available',   type: 'string', default: 'online',  section: 'Availability', help: 'Payload meaning available.'},
+                {name: 'payload-unavailable', type: 'string', default: 'offline', section: 'Availability', help: 'Payload meaning unavailable.'},
             ],
             styles: MetroTileBase.tileStyles,
             restrict: {minWidth: 40, minHeight: 40},
@@ -187,6 +192,11 @@ class FeezalElementMetroClimate extends MetroTileBase {
         const step = Number(this.step) || 0.5;
         const current = this.climate.setpoint ?? (this.min + this.max) / 2;
         this.climate.setSetpoint(current + direction * step);
+    }
+
+    // B67: availability badge (top-right ! while unavailable).
+    renderBadge() {
+        return this._available ? '' : '!';
     }
 
     renderFront() {

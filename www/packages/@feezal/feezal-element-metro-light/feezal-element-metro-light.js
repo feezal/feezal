@@ -46,6 +46,11 @@ class FeezalElementMetroLight extends MetroTileBase {
                 // State icons (tile chrome)
                 {name: 'icon-on',  type: 'icon', help: 'Icon shown while ON (empty = the base icon).'},
                 {name: 'icon-off', type: 'icon', help: 'Icon shown while OFF (empty = the base icon).'},
+                // B67: availability — a ! badge appears while unavailable.
+                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability — a ! badge appears while unavailable.'},
+                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
+                {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
+                {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
             ],
             styles: [
                 ...MetroTileBase.tileStyles,
@@ -208,6 +213,11 @@ class FeezalElementMetroLight extends MetroTileBase {
         if (feezal.isEditor) return;   // also reachable from the back-face buttons
         // E137: E77 brightness-derived toggling (OLD_LEVEL restore) included.
         this.light.toggle();
+    }
+
+    // B67: availability badge (top-right ! while unavailable).
+    renderBadge() {
+        return this._available ? '' : '!';
     }
 
     // ── Back-face slider handlers ─────────────────────────────────────────────

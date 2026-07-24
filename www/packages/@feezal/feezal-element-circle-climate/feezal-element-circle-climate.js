@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
 // E137: the thermostat behavior lives in the shared controller — this element
 // is a VIEW (Circle chrome: the arc setpoint slider + chips/valve/humidity).
 import {ClimateController, climateAttributes, climateDiscoveryMap} from '@feezal/feezal-controller-climate';
@@ -170,7 +170,9 @@ class FeezalElementCircleClimate extends FeezalElement {
         _dragSpan:   {state: true},   // null | number — live arc span during drag
     };
 
-    static styles = [feezalBaseStyles, css`
+    static styles = [feezalBatteryStyles, feezalBaseStyles, css`
+        /* B67: low-battery badge — top-left (mirrors the top-right unavail). */
+        .feezal-batt-badge { top: 6px; left: 6px; bottom: auto; right: auto; }
         :host {
             display: flex;
             flex-direction: column;
@@ -499,6 +501,7 @@ class FeezalElementCircleClimate extends FeezalElement {
                     </svg>
                 </div>
             ` : ''}
+            ${batteryLowBadge(this.climate.batteryLow)}
 
             <div class="arc-wrap">
                 <svg class="arc" viewBox="0 0 200 200"

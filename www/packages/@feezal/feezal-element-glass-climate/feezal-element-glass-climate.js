@@ -176,11 +176,14 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
+        /* B66: reserve a bottom strip so the badges sit BELOW the label instead
+           of overlapping it (the label is flow content in the same bottom band). */
+        .card { padding-bottom: 15px; }
         .unavail {
-            position: absolute; bottom: 8px; right: 10px;
+            position: absolute; bottom: 2px; right: 10px;
             font-size: 12px; color: var(--error-color, #d32f2f); opacity: 0.85;
         }
-        .feezal-batt-badge { right: auto; left: 10px; }
+        .feezal-batt-badge { right: auto; left: 10px; bottom: 2px; }
         /* E105: much wider than tall → horizontal layout (Apple-Home wide
            tile): icon left, actual/state/label stacked right of it.
            display:contents dissolves .head so the icon and the actual

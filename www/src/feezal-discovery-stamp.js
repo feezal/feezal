@@ -197,9 +197,11 @@ const FUNCTION_CANDIDATES = {
 };
 
 // binary_sensor is device_class-routed: a motion/occupancy sensor wants the
-// motion card, an opening sensor the contact card, everything else a generic
-// sensor readout. Fallbacks follow the primary so a family missing the exact
-// function still lands on the nearest available card.
+// motion card, an *opening* class the contact card, everything else a generic
+// sensor readout. B59: an UNMAPPED or missing device_class defaults to `sensor`,
+// NOT `contact` — assuming open/close for e.g. a mis-classified numeric/power
+// reading turned it into an open-close card. `contact` is only chosen for a
+// genuine opening class, never as the fallback.
 const BINARY_BY_CLASS = {
     motion: 'motion', occupancy: 'motion', presence: 'motion', moving: 'motion', vibration: 'motion',
     door: 'contact', window: 'contact', garage_door: 'contact', opening: 'contact', lock: 'contact',
@@ -222,7 +224,10 @@ const defaultIsRegistered = tag => !!window.customElements?.get(tag);
 export function resolveElementTag(component, family, deviceClass, isRegistered = defaultIsRegistered) {
     let candidates;
     if (component === 'binary_sensor') {
-        candidates = [BINARY_BY_CLASS[deviceClass] || 'contact', 'contact', 'motion', 'sensor'];
+        // B59: default to `sensor` for an unmapped/missing class; `contact` is a
+        // last resort (never the default), so a non-opening binary reading is
+        // never turned into an open/close card.
+        candidates = [BINARY_BY_CLASS[deviceClass] || 'sensor', 'sensor', 'motion', 'contact'];
     } else {
         candidates = FUNCTION_CANDIDATES[component] || [];
     }

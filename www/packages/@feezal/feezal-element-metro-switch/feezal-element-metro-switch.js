@@ -23,6 +23,11 @@ class FeezalElementMetroSwitch extends MetroTileBase {
                 {name: 'payload-off', type: 'string', default: 'OFF', help: 'Payload published for / matched against the OFF state. Default: OFF'},
                 {name: 'icon-on',  type: 'icon', help: 'Icon shown while ON (empty = the base icon).'},
                 {name: 'icon-off', type: 'icon', help: 'Icon shown while OFF (empty = the base icon).'},
+                // B67: availability — a ! badge appears while unavailable.
+                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability — a ! badge appears while unavailable.'},
+                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
+                {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
+                {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
             ],
             styles: [
                 ...MetroTileBase.tileStyles,
@@ -99,6 +104,11 @@ class FeezalElementMetroSwitch extends MetroTileBase {
 
     baseAction() {
         this._set(!this._on);
+    }
+
+    // B67: availability badge (top-right ! while unavailable).
+    renderBadge() {
+        return this._available ? '' : '!';
     }
 
     renderFront() {

@@ -7,12 +7,11 @@ Work in progress — priorities and scope are not final.
 ## Table of Contents
 
 **Bugs**
-- [B59 — Generate wizard: numeric zigbee power sensor becomes a contact element](#b59--generate-wizard-numeric-zigbee-power-sensor-becomes-a-contact-element)
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B62 — Gradient view background tiles/scrolls instead of staying put (Safari/iOS, PWA)](#b62--gradient-view-background-tilesscrolls-instead-of-staying-put-safariios-pwa)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
-- [B66 — Glass badges (battery / unavailable) overlap the card label](#b66--glass-badges-battery--unavailable-overlap-the-card-label)
-- [B67 — Battery / availability badge parity gaps (circle-climate battery; metro availability)](#b67--battery--availability-badge-parity-gaps-circle-climate-battery-metro-availability)
+- [B66 — Glass badges (battery / unavailable) overlap the card label](#b66--glass-badges-battery--unavailable-overlap-the-card-label--glass-climate-fixed-other-glass-elements-open) 🔨 *(glass-climate fixed)*
+- [B67 — Battery / availability badge parity gaps (circle-climate battery; metro availability)](#b67--battery--availability-badge-parity-gaps-circle-climate-battery-metro-availability--core-fixed--value--parity-test-open) 🔨 *(core fixed)*
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -97,24 +96,6 @@ Work in progress — priorities and scope are not final.
 ---
 
 ## Bugs
-
-### B59 — Generate wizard: numeric zigbee power sensor becomes a contact element
-
-**Reported (07/2026).** A zigbee2mqtt power meter was added via the **Generate** wizard (U58 Devices mode). The selected **power** attributes (numeric measurements — W / kWh / V / A) were stamped as **contact** elements (open/close cards) instead of value/number/sensor readouts.
-
-**Where it comes from.** `contact` is only ever produced by the `binary_sensor` branch of `resolveElementTag` — its default fallback is `BINARY_BY_CLASS[deviceClass] || 'contact'` ([feezal-discovery-stamp.js:225](../www/src/feezal-discovery-stamp.js#L225)). A numeric `sensor` (which is what a z2m power reading should be — `component: sensor`, `device_class: power`, `unit_of_measurement: W`) would resolve via `FUNCTION_CANDIDATES['sensor']` → `['sensor', 'value', 'gauge']` and never reach `contact`. So the power entity is going down the `binary_sensor` path, and two things compound:
-
-1. **Root cause to confirm — why is a power reading a `binary_sensor`?** Either the discovery layer is classifying the entity's `component` as `binary_sensor` (check what `server/src/mqtt/discovery.js` emits for this z2m device — device-based `cmps` discovery, `platform`/`p` resolution, `device_class`), or the actual z2m payload really is a `binary_sensor` (some z2m power entities are boolean, but a W/kWh measurement is not). **Needs the real discovery payload for this device to pin down.**
-2. **Design footgun regardless — the `|| 'contact'` default.** Any `binary_sensor` whose `device_class` is not in `BINARY_BY_CLASS` ([feezal-discovery-stamp.js:203-208](../www/src/feezal-discovery-stamp.js#L203-L208)) — including a device_class-less entity, or a measurement-ish class like `power`/`energy`/`current`/`voltage` — silently lands on a contact/open-close card. Defaulting an *unknown* binary sensor to "contact" is an unsafe guess; a generic `sensor` readout is the safer fallback.
-
-**Fix direction:**
-- Confirm the entity's actual `component` + `device_class` from the discovery registry for this z2m power meter (get the retained discovery config).
-- If discovery is mis-classifying a numeric sensor as `binary_sensor`, fix it there (`server/src/mqtt/discovery.js`).
-- Independently, change the `binary_sensor` default from `'contact'` to `'sensor'` (fall through to a generic readout, never assume open/close), and/or extend `BINARY_BY_CLASS` so measurement classes route to `sensor`. A numeric measurement must never become a contact element.
-- **Default icon for power meters (refinement).** Autodiscovery should default a power/energy device to the material **`energy_savings_leaf`** icon. Today discovered sensors get their default per-type icon via the `device_class → type` mapping (`sensorDeviceClassMapFor` / `typeInfo.icon` in [feezal-controller-sensor.js:77,117-120](../www/packages/@feezal/feezal-controller-sensor/feezal-controller-sensor.js#L117-L120)); the `power`/`energy` device_class needs an entry so the stamped value/sensor element shows `energy_savings_leaf` rather than a generic/blank icon. An author-set icon still wins.
-- Add a regression case to `test/feezal-discovery-stamp.test.js` (`resolveElementTag('sensor', family, 'power')` → the sensor/value/gauge tag; an unmapped-device_class `binary_sensor` → `sensor`, not `contact`) and cover the `power`/`energy` → `energy_savings_leaf` default-icon mapping.
-
-**Relates:** **U58** (the Generate wizard this surfaced in), **E113** (function × style — `resolveElementTag` is its minimal slice; the component→function mapping lives here), E114 (parity — the family must actually have the value/sensor element the corrected resolution picks), E138 (device-function taxonomy).
 
 ### B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)
 
@@ -212,7 +193,11 @@ Work in progress — priorities and scope are not final.
 
 **Relates:** **B62** (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
 
-### B66 — Glass badges (battery / unavailable) overlap the card label
+### B66 — Glass badges (battery / unavailable) overlap the card label 🔨 glass-climate fixed; other glass elements open
+
+**✅ Fixed for `glass-climate` (07/2026).** Reserved a bottom strip (`.card { padding-bottom: 15px }`) and dropped the battery + unavailable badges to `bottom: 2px`, so they sit **below** the label instead of overlapping it (the reported case — battery icon over "Thermostat Schlafzim…").
+
+**⏳ Still open — the other bottom-badge glass elements.** `glass-wled`, `glass-cover`, `glass-light` also position `.unavail` at the bottom, but use a **different layout** (an absolutely-positioned, centred bottom label over a control ring) — lower collision risk (mains devices, no battery badge, centred label vs. right-corner badge), so left untouched to avoid layout regressions. They should be reviewed: a long ellipsised label could still reach the bottom-right `.unavail`; the clean fix there is likely to move `.unavail` to a top corner (as `glass-contact` already does) rather than reserve bottom space.
 
 **Reported (07/2026, screenshot).** On a `glass-climate` card with a low-battery warning, the battery icon sits at the **bottom-left, colliding with the card label** ("Thermostat Schlafzim…") — the icon overlaps the start of the label text. It should sit **below the label** (a few pixels down), clear of it. Same goes for the other bottom badges (the unavailable ⚠, and any future warning badge).
 
@@ -230,7 +215,15 @@ Nothing reserves space for the badges, so on a card whose label reaches the bott
 
 **Relates:** **E124** (the low-battery badge this repositions), **N31** (the unavailable badge — same treatment), **E114** (family parity — the fix/behaviour should be consistent across families), **E140/E141** (other per-family chrome work — batch the touch), the glass family chrome (`feezal-glass`), `feezal-element` (`feezalBatteryStyles` / `batteryLowBadge` shared badge), **B67** (the sibling parity bug: circle-climate renders no battery badge at all).
 
-### B67 — Battery / availability badge parity gaps (circle-climate battery; metro availability)
+### B67 — Battery / availability badge parity gaps (circle-climate battery; metro availability) 🔨 core fixed; *-value + parity-test open
+
+**✅ Fixed (07/2026):**
+- **`circle-climate`** now imports and renders `batteryLowBadge(this.climate.batteryLow)` (top-left, mirroring the top-right unavailable badge) — the low-battery warning is finally visible.
+- **`metro-climate`, `metro-switch`, `metro-light`** gained the availability badge — the `subscribe-availability` attribute set + a `renderBadge()` that shows a `!` while unavailable (metro-climate already had the battery badge; it lacked availability). (Note: `metro-fan` does not exist; the metro device elements with the gap were these three.)
+
+**⏳ Still open:**
+- **`*-value` availability** — the value/readout elements across families still show no availability (a design call: a stale readout arguably should — scope per family). Deliberately deferred as a design decision, not a clear bug.
+- **The anti-regression parity test** — assert that every element accepting `subscribe-battery-low` renders a battery badge when `batteryLow` is true, and every device element accepting `subscribe-availability` renders an unavailable badge when offline. Not yet added; this is what makes the "declared/accepted-but-not-rendered" class of gap (the root of this bug) impossible to reintroduce.
 
 **Reported (07/2026, same device as B66).** `circle-climate` shows **no battery badge** for a device reporting low battery — the warning is invisible. Expected: a badge, positioned somewhere **between the circle slider and the buttons**. A follow-up audit (below) found this is one instance of a broader **badge-parity** hole spanning both the battery *and* availability badges.
 

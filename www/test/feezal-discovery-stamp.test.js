@@ -123,8 +123,15 @@ describe('resolveElementTag', () => {
         expect(resolveElementTag('binary_sensor', 'circle', 'motion', isReg)).toBe('feezal-element-circle-motion');
         expect(resolveElementTag('binary_sensor', 'circle', 'door', isReg)).toBe('feezal-element-circle-contact');
         expect(resolveElementTag('binary_sensor', 'circle', 'smoke', isReg)).toBe('feezal-element-circle-sensor');
-        // unknown device_class → contact default
-        expect(resolveElementTag('binary_sensor', 'circle', 'weird', isReg)).toBe('feezal-element-circle-contact');
+        // B59: unknown/missing device_class → SENSOR default (never contact), so a
+        // mis-classified non-opening reading isn't turned into an open/close card.
+        expect(resolveElementTag('binary_sensor', 'circle', 'weird', isReg)).toBe('feezal-element-circle-sensor');
+        expect(resolveElementTag('binary_sensor', 'circle', undefined, isReg)).toBe('feezal-element-circle-sensor');
+        // contact is still chosen for a genuine opening class.
+        expect(resolveElementTag('binary_sensor', 'circle', 'door', isReg)).toBe('feezal-element-circle-contact');
+        // …and remains the last-resort fallback when only a contact card exists.
+        const onlyContact = tag => tag === 'feezal-element-circle-contact';
+        expect(resolveElementTag('binary_sensor', 'circle', 'weird', onlyContact)).toBe('feezal-element-circle-contact');
     });
 
     it('falls through sensor candidates (sensor → value)', () => {
