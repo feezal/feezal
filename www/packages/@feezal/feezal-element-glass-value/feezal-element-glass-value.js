@@ -72,7 +72,10 @@ class FeezalElementGlassValue extends FeezalElement {
     static styles = [feezalBaseStyles, glassCardStyles, css`
         .card {
             gap: 2px;
-            position: relative;   /* B67: anchor the availability badge */
+            /* B67: the availability badge anchors to the shared .card, which is
+               already position:absolute -- do NOT override to position:relative
+               here, or inset stops filling the host and the card collapses to
+               content size (no longer tracks the element's width/height). */
         }
         .unavail {
             position: absolute; top: 6px; right: 8px;
