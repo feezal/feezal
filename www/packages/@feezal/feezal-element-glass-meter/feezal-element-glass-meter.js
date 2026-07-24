@@ -64,7 +64,10 @@ class FeezalElementGlassMeter extends FeezalElement {
     };
 
     static styles = [feezalBaseStyles, glassCardStyles, css`
-        .card { gap: 1px; position: relative; }
+        /* B68: do NOT set position:relative — the shared .card is position:absolute;
+           inset (fills the host, anchors the badge). Overriding it collapses the
+           card to content size (wider than the element, height-independent). */
+        .card { gap: 1px; }
         feezal-icon { font-size: var(--feezal-glass-icon-size, 26px); line-height: 1; color: var(--feezal-glass-accent, #4a9d7f); }
         .value {
             font-size: var(--feezal-glass-font-size-value, 24px); font-weight: 700; line-height: 1.05;

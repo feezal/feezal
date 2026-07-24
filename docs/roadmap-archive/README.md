@@ -68,6 +68,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [B67 — Battery / availability badge parity gaps (circle-climate battery; metro availability) ✅ fixed](B67.md)
 - [B64 — `*-switch` autodiscovery misses multi-output HmIP switch actuators (virtual-receiver grouping) ✅ fixed](B64.md)
 - [B65 — Homematic `:0` correlation (availability + battery) breaks for custom-named channels ✅ fixed](B65.md)
+- [B68 — `glass-meter` + `glass-loadpoint`: card overflows the host and ignores its height ✅ fixed](B68.md)
 
 ## Near-term Improvements
 

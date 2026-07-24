@@ -10,7 +10,6 @@ Work in progress — priorities and scope are not final.
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B62 — Gradient view background tiles/scrolls instead of staying put (Safari/iOS, PWA)](#b62--gradient-view-background-tilesscrolls-instead-of-staying-put-safariios-pwa)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
-- [B68 — `glass-meter` + `glass-loadpoint`: card overflows the host and ignores its height](#b68--glass-meter--glass-loadpoint-card-overflows-the-host-and-ignores-its-height)
 - [B69 — `glass-meter` is overloaded: move the secondary readouts into a details popup](#b69--glass-meter-is-overloaded-move-the-secondary-readouts-into-a-details-popup)
 - [B70 — System element editor placeholders: swipe shows text not icon, mismatched chrome, inconsistent default sizes](#b70--system-element-editor-placeholders-swipe-shows-text-not-icon-mismatched-chrome-inconsistent-default-sizes)
 - [B71 — `system-splash` appears to do nothing in the viewer (no visible splash/spinner)](#b71--system-splash-appears-to-do-nothing-in-the-viewer-no-visible-splashspinner)
@@ -192,20 +191,6 @@ Work in progress — priorities and scope are not final.
 **Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
 
 **Relates:** **B62** (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
-
-### B68 — `glass-meter` + `glass-loadpoint`: card overflows the host and ignores its height
-
-**Reported (07/2026).** Both cards render **wider than the element** and **do not scale with the element's height** — the frosted card doesn't fill its host box.
-
-**Root cause (confirmed — same regression fixed in `glass-value`).** Both override the shared glass `.card` with `position: relative`:
-- [feezal-element-glass-meter.js:67](../www/packages/@feezal/feezal-element-glass-meter/feezal-element-glass-meter.js#L67) — `.card { gap: 1px; position: relative; }`
-- [feezal-element-glass-loadpoint.js:79](../www/packages/@feezal/feezal-element-glass-loadpoint/feezal-element-glass-loadpoint.js#L79) — `.card { … position: relative; }`
-
-The shared `glassCardStyles` `.card` is `position: absolute; inset: 6px` ([feezal-glass.js:61-62](../www/packages/@feezal/feezal-glass/feezal-glass.js#L61-L62)) — which both **fills the host** (so the card tracks width/height) **and** is the positioning context for the corner badges (`.unavail`, etc.). The local `position: relative` wins (element styles compose after the shared block), so `inset` stops applying and the card collapses to **content size**: wider than the element, height-independent.
-
-**Fix (mechanical — mirror `glass-value` fix `39c60584`).** Delete the `position: relative` from each `.card` override (keep the other props); the shared absolute card already anchors the badges. Bump each element's patch version. Add a browser regression test asserting the card insets to the host and grows with host height, exactly like `test-browser/feezal-glass-value.test.js`.
-
-**Relates:** `glass-value` (identical bug, already fixed — the reference fix + test), `feezal-glass` `glassCardStyles` (the shared `.card { position:absolute; inset }` these must not override), **B69** (the `glass-meter` redesign, bundle the two `glass-meter` changes).
 
 ### B69 — `glass-meter` is overloaded: move the secondary readouts into a details popup
 

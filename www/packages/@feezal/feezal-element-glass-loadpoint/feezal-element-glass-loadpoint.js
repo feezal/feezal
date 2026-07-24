@@ -76,7 +76,9 @@ class FeezalElementGlassLoadpoint extends FeezalElement {
     };
 
     static styles = [feezalBaseStyles, glassCardStyles, css`
-        .card { gap: 4px; justify-content: flex-start; padding: 10px 12px; text-align: left; align-items: stretch; position: relative; }
+        /* B68: no position:relative — the shared .card is position:absolute; inset
+           (fills the host + anchors the badge); overriding collapses it to content size. */
+        .card { gap: 4px; justify-content: flex-start; padding: 10px 12px; text-align: left; align-items: stretch; }
         .head { display: flex; align-items: center; gap: 6px; }
         feezal-icon { font-size: var(--feezal-glass-icon-size, 24px); line-height: 1; color: var(--feezal-glass-accent, #30d158); }
         .title { font-weight: 700; font-size: 14px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
