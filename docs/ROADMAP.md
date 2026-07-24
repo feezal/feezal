@@ -55,7 +55,7 @@ Work in progress — priorities and scope are not final.
 - [E139 — "Fancy" element family: Lottie-animated device cards](#e139--fancy-element-family-lottie-animated-device-cards)
 - [E144 — Lock autodiscovery: Homematic BidCoS (Keymatic) + HmIP smart locks + zigbee2mqtt](#e144--lock-autodiscovery-homematic-bidcos-keymatic--hmip-smart-locks--zigbee2mqtt--keymatic--z2m-done-hmip-dld-open) 🔨 *(Keymatic + z2m done; HmIP-DLD open)*
 - [E145 — Autodiscovery support for ccu-jack's MQTT interface](#e145--autodiscovery-support-for-ccu-jacks-mqtt-interface)
-- [E149 — Extend HA MQTT discovery to more component types](#e149--extend-ha-mqtt-discovery-to-more-component-types)
+- [E150 — Discovery for profile-shaped components: `water_heater` + `lawn_mower`](#e150--discovery-for-profile-shaped-components-water_heater--lawn_mower)
 
 **Editor UX**
 
@@ -1180,30 +1180,18 @@ feezal's native Homematic autodiscovery is **RedMatic-only** today (established 
 
 **Relates:** **B65** (the research this builds on — bridge scheme table, and the `:0` synergy), **E108** ✅ (recognizer framework — where the ccu-jack signature recognizer / meta-adapter slots in), **N31 / E124 / E135** (`:0` availability/battery/maintenance — trivially derivable here), RedMatic (the currently-only-supported bridge — this is the parallel pure-MQTT path), **E109 / E112** (sibling third-party integration items), pure-MQTT design principle (no second transport — the constraint that shaped this item), the discovery `component` model (the shared target these records must produce).
 
-### E149 — Extend HA MQTT discovery to more component types
+### E150 — Discovery for profile-shaped components: `water_heater` + `lawn_mower`
 
-feezal's HA/z2m discovery ([discovery.js](../server/src/mqtt/discovery.js) `SUPPORTED_COMPONENTS`) recognizes **11** of Home Assistant's **31** discoverable platforms: `light climate cover switch fan humidifier lock vacuum sensor binary_sensor select`. Home Assistant's full MQTT discovery platform list (verified 07/2026 against [home-assistant.io/integrations/mqtt](https://www.home-assistant.io/integrations/mqtt/)): + `alarm_control_panel button camera date datetime device_tracker device_trigger event image lawn_mower notify number scene siren tag text time update valve water_heater`.
+Follow-up to **E149** ✅ (which shipped the seven *pure-mapping* HA discovery components: `button` `scene` `number` `text` `alarm_control_panel` `camera` `image`). The two remaining selected components are **not** pure mappings — they need a device-variant *profile* on an existing controller, not just a `discovery: {component, map}` fragment:
 
-**Add these eight (selected 07/2026)** — most map onto elements feezal already ships, so the work is a `discovery: {component, map}` fragment + a `SUPPORTED_COMPONENTS` entry, **not** a new element:
+| HA component | Target | Work |
+|---|---|---|
+| `water_heater` | climate family (via `ClimateController` variant) | Climate-shaped: `temperature_command_topic`/`current_temperature_topic`, `mode`s (`off`/`eco`/`performance`/`high_demand`/…), min/max temp. A water-heater profile on the climate contract (like the Homematic climate profiles) rather than a fresh element. |
+| `lawn_mower` | `circle-vacuum` | vacuum-shaped: activity states (`mowing`/`docked`/`paused`/`error`), `*_command_topic` for start/pause/dock. Niche; reuse the vacuum contract with a lawn-mower profile. |
 
-| HA component | Target element | New element? | Notes |
-|---|---|---|---|
-| `button` | button family (material/glass/metro/eink/paper-button) | no | Stateless press: HA config has `command_topic` + `payload_press` → the button's publish-on-tap. Availability from `availability`/N31. |
-| `scene` | button family | no | Same shape as `button` (`command_topic`+`payload_on` to activate) — different palette label/icon, identical wiring; the map targets a button element with a "scene" preset. |
-| `number` | `material-slider` (or `material-input`) | no | Settable numeric: `command_topic`/`state_topic`, `min`/`max`/`step`, `mode` (slider/box). Map min/max/step onto the slider's range; `value_template` → message-property. |
-| `text` | `material-input` | no | Settable string: `command_topic`/`state_topic`, `min`/`max` length, `pattern`. Publishes on change. |
-| `alarm_control_panel` | `circle-alarm` *(material-alarm-panel, renamed)* | no — **element already exists** | Arm/disarm states (`disarmed`/`armed_home`/`armed_away`/`arming`/`pending`/`triggered`), `code` handling, `command_topic`/`state_topic`. Highest-value item — the element was built for exactly this and just lacks the discovery map. |
-| `water_heater` | climate family (via `ClimateController` variant) | maybe thin — reuse the contract | Climate-shaped: `temperature_command_topic`/`current_temperature_topic`, `mode`s (off/eco/performance/high_demand/…), min/max temp. A water-heater profile on the climate contract (like the Homematic climate profiles) rather than a fresh element. |
-| `camera` / `image` | `circle-camera` / `basic-image` / `basic-mqtt-image` | no | `topic` carrying image bytes/base64 (camera) or `url_topic`/`image_topic` (image). Wire the existing image elements' src/topic. |
-| `lawn_mower` | `circle-vacuum` | maybe thin — reuse the contract | vacuum-shaped: activity states (`mowing`/`docked`/`paused`/`error`), `*_command_topic` for start/pause/dock. Niche; reuse the vacuum contract with a lawn-mower profile. |
+**Mechanism:** add the name to `SUPPORTED_COMPONENTS`; extend the relevant controller (`ClimateController` for `water_heater`, the vacuum contract for `lawn_mower`) with a device-variant profile so its discovery-map fragment covers the new mode/activity enums; the ⚡ picker + Generate wizard then pick them up for free. Ship with recognizer/mapping tests + a TESTING.md row, exactly as E149.
 
-**Deliberately deferred / skipped:** `siren` (on/off+tones — offer later if asked), `update` `device_tracker` `event` (need genuinely new elements), and `notify` `tag` `device_trigger` `date` `datetime` `time` (not dashboard-display entities — out of scope for discovery-to-element mapping).
-
-**Mechanism (per component):** (1) add the name to `SUPPORTED_COMPONENTS`; (2) the mapping either targets an element that declares `discovery: {component: X, map}` (the `button`/`scene`/`number`/`text`/`alarm`/`camera` cases — reuse), or extends a controller with a device-variant profile (`water_heater` on `ClimateController`, `lawn_mower` on the vacuum contract); (3) the discovery picker (**U56** ✅ label work) and the Generate wizard pick them up for free once the component is recognized. Each ships with recognizer/mapping tests (sample HA config JSON → correct discovery record → correct element attributes) and a TESTING.md discovery-section row.
-
-**Sequencing:** the pure-mapping wins first (`button`, `scene`, `alarm_control_panel`, `number`, `text`, `camera`/`image` — all target existing elements), then the profile-needing ones (`water_heater`, `lawn_mower`). `alarm_control_panel` is the standout: an existing element (`circle-alarm`) that just needs the map.
-
-**Relates:** **N12** ✅ (the HA/z2m discovery engine this extends), **E108** ✅ (native recognizer framework — same `component` target model), **U56** ✅ (discovery-picker labels — new components appear there automatically), **E137** (controllers — `water_heater`/`lawn_mower` variants ride existing controllers), **E138** ✅ (the `device_class`-routing precedent for splitting a component across cards), circle-alarm / button family / material-slider / material-input / circle-camera / circle-vacuum (the target elements), **U58** (Generate wizard — more discoverable device types to place).
+**Relates:** **E149** ✅ (parent — the discovery-extension work this completes), **E137** (the controller contract these profiles ride), **N12** ✅ (the discovery engine), circle-climate / circle-vacuum (the target elements).
 
 
 ## Architecture & Infrastructure

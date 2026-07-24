@@ -98,6 +98,19 @@ class FeezalElementPaperButton extends FeezalPolymerElement {
                 name: 'Button',
                 color: '#4a6080'
             },
+            discovery: {
+                // E149: HA `button` (stateless press) and `scene` (activate) both resolve
+                // to this element. A button entity carries payload_press; a scene entity
+                // carries payload_on — either one maps to the click payload, the other
+                // key is simply absent so its line is skipped.
+                component: 'button',
+                map: {
+                    command_topic: 'publish',
+                    payload_press: {attr: 'payload'},
+                    payload_on:    {attr: 'payload'},
+                    name:          'label',
+                },
+            },
             attributes: [
                 'publish',
                 {name: 'publish-local', type: 'boolean', default: false,

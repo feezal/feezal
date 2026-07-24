@@ -148,6 +148,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [E146 — Autodiscovery for AI-on-the-edge-device (meter reader) via Home Assistant MQTT discovery ✅ done](E146.md)
 - [E147 — AI-on-the-edge meter element (glass / metro / circle): value + rate + action/status + error ✅ done](E147.md)
 - [E148 — `eink-number` → `eink-value`: numeric-card naming parity ✅ done](E148.md)
+- [E149 — Extend HA MQTT discovery to more component types ✅ done](E149.md)
 - [E7 — Swipe gesture element (`feezal-element-system-swipe`) ✅ done](E7.md)
 - [E34 — Countdown / timer element (`feezal-element-basic-countdown`) ✅ implemented](E34.md)
 ## Editor UX

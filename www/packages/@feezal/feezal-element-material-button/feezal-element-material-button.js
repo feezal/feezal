@@ -16,6 +16,19 @@ class FeezalElementMaterialButton extends FeezalElement {
             },
             description: 'Material Design 3 button. Publishes a configurable payload to an MQTT topic on click; ' +
                 'optionally reflects the state it controls via subscribe (active highlight).',
+            discovery: {
+                // E149: HA `button` (stateless press) and `scene` (activate) both resolve
+                // to this element. A button entity carries payload_press; a scene entity
+                // carries payload_on — either one maps to the click payload, the other
+                // key is simply absent so its line is skipped.
+                component: 'button',
+                map: {
+                    command_topic: 'publish',
+                    payload_press: {attr: 'payload'},
+                    payload_on:    {attr: 'payload'},
+                    name:          'label',
+                },
+            },
             attributes: [
                 {name: 'label',   type: 'string',  help: 'Button label text.', default: 'Button'},
                 {name: 'publish', type: 'mqttTopic', help: 'MQTT topic to publish to on click.'},

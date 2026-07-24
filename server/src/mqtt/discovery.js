@@ -125,6 +125,13 @@ const ABBREVS = {
     stat_jammed:     'state_jammed',
     // Select
     ops:             'options',
+    // E149: Button / Scene
+    pl_prs:          'payload_press',
+    // E149: Number / Text (min/max/step/mode/pattern arrive unabbreviated)
+    // E149: Camera — `t` is the image topic (matches the cmps entryAbbrevs form)
+    t:               'topic',
+    // E149: Image — `url_t` carries the image URL over MQTT
+    url_t:           'url_topic',
     // Sensor / binary_sensor
     expire_after:    'expire_after',
     force_update:    'force_update',
@@ -145,6 +152,9 @@ const ABBREVS = {
 const SUPPORTED_COMPONENTS = new Set([
     'light', 'climate', 'cover', 'switch', 'fan', 'humidifier',
     'lock', 'vacuum', 'sensor', 'binary_sensor', 'select',
+    // E149: command-only + read-only component types that already have a
+    // matching feezal element declaring `discovery: {component, map}`.
+    'button', 'scene', 'number', 'text', 'alarm_control_panel', 'camera', 'image',
 ]);
 
 // ── Entity registry ────────────────────────────────────────────────────────

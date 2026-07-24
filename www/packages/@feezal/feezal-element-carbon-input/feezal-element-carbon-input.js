@@ -7,6 +7,17 @@ class FeezalElementCarbonInput extends FeezalElement {
         return {
             palette: {name: 'Input', category: 'Carbon', color: '#393939', icon: 'text_fields'},
             description: 'IBM Carbon text input — subscribes to a text topic and publishes on Enter or blur.',
+            discovery: {
+                // E149: HA `text` — a free-text field. Reads current value from state_topic,
+                // publishes edits to command_topic.
+                component: 'text',
+                map: {
+                    command_topic:  'publish',
+                    state_topic:    'subscribe',
+                    name:           'label',
+                    value_template: {attr: 'message-property', transform: 'valueTemplateToPath'},
+                },
+            },
             attributes: [
                 {name: 'label',            type: 'string',    help: 'Label shown above the input.'},
                 {name: 'subscribe',        type: 'mqttTopic', help: 'Topic to read current text value from.'},

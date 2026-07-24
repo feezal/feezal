@@ -20,6 +20,19 @@ class FeezalElementEinkButton extends EinkBase {
         return {
             palette: {name: 'Button', category: 'Eink', color: '#222222', icon: 'smart_button'},
             description: 'E-ink button card — publishes a payload on tap; inverted block while active. 1-bit, redraw-deduped.',
+            discovery: {
+                // E149: HA `button` (stateless press) and `scene` (activate) both resolve
+                // to this element. A button entity carries payload_press; a scene entity
+                // carries payload_on — either one maps to the click payload, the other
+                // key is simply absent so its line is skipped.
+                component: 'button',
+                map: {
+                    command_topic: 'publish',
+                    payload_press: {attr: 'payload'},
+                    payload_on:    {attr: 'payload'},
+                    name:          'label',
+                },
+            },
             attributes: [
                 {name: 'label',   type: 'string', help: 'Label under the icon (rendered uppercase).'},
                 {name: 'icon',    type: 'string', default: 'auto_awesome', help: 'Icon name (icon picker sets, e.g. "movie" or "mdi:sofa").'},

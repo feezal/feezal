@@ -6,6 +6,14 @@ class FeezalElementBasicImage extends FeezalElement {
         return {
             palette: {category: 'Basic', name: 'Image', color: '#4a6080'},
             description: 'Displays a static or MQTT-updated image.',
+            discovery: {
+                // E149: HA `image` — the URL arrives over MQTT on url_topic.
+                component: 'image',
+                map: {
+                    url_topic: 'subscribe',
+                    name:      'alt',
+                },
+            },
             attributes: [
                 {
                     name: 'src',

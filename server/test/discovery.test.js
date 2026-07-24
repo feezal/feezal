@@ -47,8 +47,8 @@ describe('handleMessage — component discovery', () => {
     });
 
     it('ignores unsupported components', () => {
-        disc.handleMessage('homeassistant/camera/cam1/config', buf({name: 'Cam'}));
-        expect(disc.getDiscoveredEntity('camera/cam1')).toBe(null);
+        disc.handleMessage('homeassistant/siren/siren1/config', buf({name: 'Siren'}));
+        expect(disc.getDiscoveredEntity('siren/siren1')).toBe(null);
         expect(disc.getDiscoveredEntities()).toHaveLength(0);
     });
 
@@ -80,12 +80,12 @@ describe('handleMessage — device discovery (cmps)', () => {
             cmps: {
                 sw:   {p: 'switch', name: 'Relay', stat_t: 'd/relay'},
                 temp: {p: 'sensor', name: 'Temp',  stat_t: 'd/temp'},
-                cam:  {p: 'camera', name: 'Ignored'},
+                sir:  {p: 'siren', name: 'Ignored'},
             },
         }));
         expect(disc.getDiscoveredEntity('switch/dev1/sw')).toBeTruthy();
         expect(disc.getDiscoveredEntity('sensor/dev1/temp')).toBeTruthy();
-        expect(disc.getDiscoveredEntity('camera/dev1/cam')).toBe(null);   // unsupported
+        expect(disc.getDiscoveredEntity('siren/dev1/sir')).toBe(null);   // unsupported
     });
 
     it('an empty device payload removes all of that node\'s entities', () => {

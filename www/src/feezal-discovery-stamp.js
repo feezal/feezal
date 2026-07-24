@@ -246,8 +246,16 @@ const FUNCTION_CANDIDATES = {
     vacuum: ['vacuum'],
     humidifier: ['humidifier'],
     alarm_control_panel: ['alarm'],
-    number: ['number', 'value'],
+    // E149: `knob` is the concrete number editor (panel family); `value` is the
+    // read-only fallback when a family has no editable number element.
+    number: ['number', 'knob', 'value'],
     select: ['select'],
+    // E149: command-only presses (scene reuses the button element/map) and a
+    // free-text field. camera / alarm_control_panel already resolve above.
+    button: ['button'],
+    scene: ['button'],
+    text: ['input'],
+    image: ['image'],
     sensor: ['sensor', 'value', 'gauge'],
     // E109: evcc native entities. The site entity binds to the generic
     // energy-flow diagram (material family only); each loadpoint to the

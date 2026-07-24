@@ -7,6 +7,17 @@ class FeezalElementMaterialInput extends FeezalElement {
         return {
             palette: {name: 'Input', category: 'Material', color: '#4a6080', icon: 'text_fields'},
             description: 'MD3 outlined text field — subscribes to a text topic and publishes on Enter or blur.',
+            discovery: {
+                // E149: HA `text` — a free-text field. Reads current value from state_topic,
+                // publishes edits to command_topic.
+                component: 'text',
+                map: {
+                    command_topic:  'publish',
+                    state_topic:    'subscribe',
+                    name:           'label',
+                    value_template: {attr: 'message-property', transform: 'valueTemplateToPath'},
+                },
+            },
             attributes: [
                 {name: 'label',            type: 'string',    help: 'Floating label above the input.'},
                 {name: 'subscribe',        type: 'mqttTopic', help: 'Topic to read current text value from.'},

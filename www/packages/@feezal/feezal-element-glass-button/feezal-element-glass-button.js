@@ -22,6 +22,19 @@ class FeezalElementGlassButton extends FeezalElement {
             palette: {name: 'Button', category: 'Glass', color: '#7aa5c9', icon: 'auto_awesome'},
             description: 'Frosted-glass button — publishes a payload on tap. Pair with the ' +
                 'glass theme (wallpaper shines through the blur); set "degrade" on weak GPUs.',
+            discovery: {
+                // E149: HA `button` (stateless press) and `scene` (activate) both resolve
+                // to this element. A button entity carries payload_press; a scene entity
+                // carries payload_on — either one maps to the click payload, the other
+                // key is simply absent so its line is skipped.
+                component: 'button',
+                map: {
+                    command_topic: 'publish',
+                    payload_press: {attr: 'payload'},
+                    payload_on:    {attr: 'payload'},
+                    name:          'label',
+                },
+            },
             attributes: [
                 {name: 'size', type: 'select', options: ['', '2x2', '2x1'], default: '',
                     help: 'Preset size: 2x2 = square (150×150), 2x1 = wide (150×75). Empty keeps the current/manual size.'},
