@@ -2,12 +2,23 @@ import {describe, it, expect, beforeAll} from 'vitest';
 
 import {
     valueTemplateLeaf,
+    friendlyName,
     stampDiscovery,
     resolveElementTag,
     layoutGrid,
     knownComponents,
     discoveryLabel,
 } from '../src/feezal-discovery-stamp.js';
+
+// U62: a fixture that routes the entity `name` → `label` (like every E137
+// controller) and declares the `label` attribute, to exercise label
+// normalization + the z2m topic fallback.
+class LabelFixture extends HTMLElement {
+    static feezal = {
+        discovery: {map: {name: 'label', state_topic: 'subscribe'}},
+        attributes: [{name: 'label'}],
+    };
+}
 
 // A minimal registered element exercising every stamp transform.
 class StampFixture extends HTMLElement {
@@ -32,6 +43,59 @@ beforeAll(() => {
     if (!customElements.get('feezal-test-stampfixture')) {
         customElements.define('feezal-test-stampfixture', StampFixture);
     }
+    if (!customElements.get('feezal-test-labelfixture')) {
+        customElements.define('feezal-test-labelfixture', LabelFixture);
+    }
+});
+
+describe('friendlyName (U62)', () => {
+    it('strips only a trailing Homematic channel suffix', () => {
+        expect(friendlyName('OC8 Hobbyraum:14')).toBe('OC8 Hobbyraum');
+        expect(friendlyName('Küche:0')).toBe('Küche');
+        expect(friendlyName('12:30 Timer')).toBe('12:30 Timer'); // colon not at the end → kept
+    });
+    it('turns underscores into spaces and capitalizes lowercase words', () => {
+        expect(friendlyName('licht_hobbyraum')).toBe('Licht Hobbyraum');
+        expect(friendlyName('licht   hobby__raum')).toBe('Licht Hobby Raum');
+    });
+    it('leaves words that already carry an uppercase letter untouched (acronyms/units)', () => {
+        expect(friendlyName('power_kWh')).toBe('Power kWh');
+        expect(friendlyName('sensor_CO2')).toBe('Sensor CO2');
+        expect(friendlyName('WLED strip')).toBe('WLED Strip');
+    });
+    it('is idempotent for an already-friendly name', () => {
+        expect(friendlyName('Wohnzimmer Lampe')).toBe('Wohnzimmer Lampe');
+        expect(friendlyName(friendlyName('licht_hobbyraum'))).toBe('Licht Hobbyraum');
+    });
+    it('handles empty/nullish input', () => {
+        expect(friendlyName('')).toBe('');
+        expect(friendlyName(undefined)).toBe('');
+        expect(friendlyName(null)).toBe('');
+    });
+});
+
+describe('stampDiscovery — label normalization (U62)', () => {
+    const stampLabel = cfg => {
+        const el = document.createElement('feezal-test-labelfixture');
+        stampDiscovery(el, {config: cfg, component: 'switch', discovery_id: 'dev-1'});
+        return el.getAttribute('label');
+    };
+
+    it('normalizes a routed name (HM channel suffix, underscores, casing)', () => {
+        expect(stampLabel({name: 'OC8 Hobbyraum:14'})).toBe('OC8 Hobbyraum');
+        expect(stampLabel({name: 'licht_hobbyraum'})).toBe('Licht Hobbyraum');
+    });
+    it('falls back to the topic leaf when there is no name', () => {
+        expect(stampLabel({state_topic: 'zigbee2mqtt/licht_hobbyraum'})).toBe('Licht Hobbyraum');
+    });
+    it('treats a platform-only name as no name and uses the topic leaf', () => {
+        expect(stampLabel({name: 'switch', state_topic: 'zigbee2mqtt/kueche_steckdose'})).toBe('Kueche Steckdose');
+    });
+    it('leaves no label when neither a name nor a topic is available', () => {
+        const el = document.createElement('feezal-test-labelfixture');
+        stampDiscovery(el, {config: {}, component: 'switch'});
+        expect(el.hasAttribute('label')).toBe(false);
+    });
 });
 
 describe('valueTemplateLeaf', () => {

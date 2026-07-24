@@ -604,7 +604,7 @@ describe('E108 — native discovery stamps onto *-climate + wled elements', () =
             '[{"topic":"hm/status/Rolladen Wohnzimmer:0/UNREACH","property":"payload.val"}]');
         expect(el.getAttribute('payload-available')).toBe('false');
         expect(el.getAttribute('payload-unavailable')).toBe('true');
-        expect(el.getAttribute('label')).toBe('Rolladen Wohnzimmer:1');
+        expect(el.getAttribute('label')).toBe('Rolladen Wohnzimmer'); // U62: trailing :1 stripped
         expect(el.getAttribute('discovery-id')).toBe('hm-cover:MEQ0500005:1');
         expect(change).toHaveBeenCalled();
     });
@@ -668,7 +668,7 @@ describe('E108 — native discovery stamps onto *-climate + wled elements', () =
             '[{"topic":"hm/status/Deckenlampe:0/UNREACH","property":"payload.val"}]');
         expect(el.getAttribute('payload-available')).toBe('false');
         expect(el.getAttribute('payload-unavailable')).toBe('true');
-        expect(el.getAttribute('label')).toBe('Deckenlampe:3');
+        expect(el.getAttribute('label')).toBe('Deckenlampe'); // U62: trailing :3 stripped
         expect(el.getAttribute('discovery-id')).toBe('hm-light:MEQ0600006:3');
         expect(change).toHaveBeenCalled();
     });
@@ -701,7 +701,7 @@ describe('E108 — native discovery stamps onto *-climate + wled elements', () =
         ins._applyDiscovery(entity);
 
         expect(el.getAttribute('topic')).toBe('wled/abc123');
-        expect(el.getAttribute('label')).toBe('Desk strip');
+        expect(el.getAttribute('label')).toBe('Desk Strip'); // U62: per-word capitalization
         // Availability applied automatically from availability_normalized.
         expect(el.getAttribute('subscribe-availability')).toBe('wled/abc123/status');
         expect(el.getAttribute('payload-available')).toBe('online');

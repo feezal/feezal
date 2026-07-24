@@ -75,7 +75,6 @@ Work in progress — priorities and scope are not final.
 - [U59 — Style inspector gradient editor: allow themed CSS vars as gradient stops](#u59--style-inspector-gradient-editor-allow-themed-css-vars-as-gradient-stops)
 - [U60 — Editor: surface lost server connection (grace-period → blocking overlay)](#u60--editor-surface-lost-server-connection-grace-period--blocking-overlay)
 - [U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow](#u61--editor-preview-fidelity-gradientbackground-in-a-percentage-sized-views-scroll-overflow)
-- [U62 — Normalize discovered names into friendly labels on stamping](#u62--normalize-discovered-names-into-friendly-labels-on-stamping)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -1056,30 +1055,6 @@ When the editor loses its Socket.IO connection to the server, **nothing indicate
 **Ships with (once decided):** the editor overflow-paint change (guarded by view sizing mode), a TESTING.md note (percentage-sized gradient view with overflowing content → editor overflow shows the gradient, matching the viewer; fixed-size view still shows the checkerboard bounds), and coordination with B62 so the two don't diverge.
 
 **Relates:** **B62** (the sibling it split from — Issue A is the iOS tiling defect; this is the editor/viewer preview gap), `feezal-site` (the canvas-bg sync + editor checkerboard override), **U59** (gradient editor — authors these backgrounds), the fixed-vs-percentage view sizing model, E38 (responsive sizing — view/content sizing is adjacent).
-
-### U62 — Normalize discovered names into friendly labels on stamping
-
-Autodiscovery stamps an element's `label` from the discovered device/entity name — but the raw name is often ugly: a Homematic channel keeps its `:14` suffix, a zigbee2mqtt friendly name is `licht_hobbyraum`. Normalize it into a human label **once, at stamp time**, so a discovered element reads *"Licht Hobbyraum"*, not *"licht_hobbyraum"* or *"OC8 Hobbyraum:14"*.
-
-**Normalization rules (in order):**
-1. **Strip a trailing Homematic channel suffix** — `…:14` / `…:0` → drop the `:<digits>` at the end (only a trailing `:<number>`, not colons elsewhere).
-2. **Underscores → spaces** (`licht_hobbyraum` → `licht hobbyraum`); collapse runs of whitespace.
-3. **Capitalize the first letter of each word** — first letter up, **leave the rest of each word untouched** so acronyms/units survive (`kWh`, `CO2`, `WLED` stay as-is; `licht` → `Licht`).
-4. **Idempotent** — an already-friendly name (`Wohnzimmer Lampe`) passes through unchanged.
-
-**Where — one place, all sources.** The label is stamped via the shared `stampDiscovery` when a discovery map routes the entity `name` → the `label` attribute ([feezal-controller-contact.js:61](../www/packages/@feezal/feezal-controller-contact/feezal-controller-contact.js#L61), [feezal-controller-light.js:124](../www/packages/@feezal/feezal-controller-light/feezal-controller-light.js#L124), applied in [feezal-discovery-stamp.js:86](../www/src/feezal-discovery-stamp.js#L86)). Normalizing there — a shared `friendlyName(raw)` helper, ideally as a discovery-map `transform: 'friendlyName'` on the `name→label` mappings — covers **native (Homematic/WLED), Home Assistant, and zigbee2mqtt uniformly** and applies identically in the **⚡ picker and the Generate wizard** (they share `stampDiscovery`). *(Applies to labels the user asked for — also derive labels for HA auto-discovery entities, not just native.)*
-
-**zigbee2mqtt — derive from the topic when there's no good name.** z2m's HA-discovery `name` is sometimes just the platform or missing; fall back to the **last segment of the base topic** (`zigbee2mqtt/licht_hobbyraum` → `licht_hobbyraum`) and run it through `friendlyName` → **"Licht Hobbyraum"**. (Reuse the topic already parsed in `discoveryLabel`.)
-
-**Decisions / edges:**
-- **Don't clobber user edits on re-sync (N12).** Normalize only when stamping the label the *first* time (or when the label is empty / equals the un-normalized raw); never overwrite a label the author has since edited.
-- **Title-casing keeps the tail** — capitalize first letter only, don't lowercase the remainder (protects `kWh`, `LED`, `ID`, German nouns already cased).
-- **Picker rows too (optional):** `discoveryLabel` could show the normalized name for consistency, though it keeps the `source:` prefix.
-- **Scope:** label text only — not topic values, discovery ids, or the entity's internal `name`.
-
-**Ships with:** the `friendlyName` helper + unit tests (trailing `:14` stripped; underscores→spaces; per-word capitalization; acronym/unit preservation; z2m topic fallback `zigbee2mqtt/licht_hobbyraum` → "Licht Hobbyraum"; idempotency; already-edited label left alone), wired into `stampDiscovery`, and a TESTING.md note (discover a Homematic channel + a z2m device → friendly labels; re-sync doesn't clobber an edited label).
-
-**Relates:** **U58** (Generate wizard — shares `stampDiscovery`, so labels normalize there too), the **⚡ discovery picker** (the other `stampDiscovery` caller), `feezal-discovery-stamp` / the controllers' `name→label` maps (where it hooks), **E146 / E147** (z2m + meter names benefit), **N12** (re-sync — must not clobber edited labels), E108 (native recognizers supply the raw names).
 
 ### E109 — evcc integration: native discovery + energy/charging elements 💡 to refine
 

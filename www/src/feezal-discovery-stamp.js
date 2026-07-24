@@ -16,6 +16,25 @@ export function valueTemplateLeaf(raw) {
     return m ? (m[1] || m[2]) : '';
 }
 
+// U62: normalize a discovered device/entity name into a friendly, human label
+// (applied once, at stamp time — see stampDiscovery). Rules, in order:
+//   1. strip a trailing Homematic channel suffix (`…:14` / `…:0` → drop only a
+//      trailing `:<digits>`, never a colon elsewhere),
+//   2. underscores → spaces, collapse whitespace runs,
+//   3. capitalize the first letter of each *all-lowercase* word — words that
+//      already carry an uppercase letter are left entirely alone, so acronyms
+//      and units survive (`kWh`, `CO2`, `WLED` unchanged; `licht` → `Licht`),
+//   4. idempotent — an already-friendly name (`Wohnzimmer Lampe`) is unchanged.
+export function friendlyName(raw) {
+    let s = String(raw ?? '').trim();
+    if (!s) return '';
+    s = s.replace(/:\d+$/, '');                 // 1. trailing HM channel suffix
+    s = s.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();   // 2. underscores → spaces
+    // 3. capitalize the first letter only of words with no existing uppercase.
+    s = s.replace(/\S+/g, w => (/[A-Z]/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)));
+    return s;
+}
+
 // U56: derive the per-attribute discriminator for a z2m/HA discovery entity,
 // first hit wins (returns '' for single-attribute entities → label unchanged):
 //   1. value_template leaf ({{ value_json.temperature }} → "temperature")
@@ -136,6 +155,14 @@ export function stampDiscovery(el, entity) {
                 value = 'payload.' + leaf;
             }
         }
+        // U62: any value routed to `label` is normalized into a friendly human
+        // label (one place, all sources — native hm/WLED, HA, z2m). A `name`
+        // that is just the platform ("switch", "light") carries no information;
+        // skip it so the topic fallback below supplies a real label.
+        if (attrName === 'label') {
+            if (String(value) === entity.component) continue;
+            value = friendlyName(value);
+        }
         el.setAttribute(attrName, String(value));
         // alsoSet — apply companion attributes (e.g. switch colour-temp unit to
         // mired when mired discovery values are mapped).
@@ -144,6 +171,18 @@ export function stampDiscovery(el, entity) {
                 el.setAttribute(k, String(v));
             }
         }
+    }
+
+    // U62: z2m fallback — when no usable `name` produced a label (missing, or
+    // just the platform), derive one from the base topic's last segment
+    // (`zigbee2mqtt/licht_hobbyraum` → "Licht Hobbyraum") and normalize it.
+    const declaresLabel = cls.feezal.attributes?.some(a => a?.name === 'label');
+    if (declaresLabel && !el.getAttribute('label')) {
+        const topic = cfg.state_topic || cfg.position_topic || cfg.percentage_state_topic ||
+            cfg.current_temperature_topic || cfg.command_topic || '';
+        const leaf = topic ? topic.split('/').filter(Boolean).pop() || '' : '';
+        const label = friendlyName(leaf);
+        if (label) el.setAttribute('label', label);
     }
 
     // N31: canonical availability applies to EVERY element automatically —

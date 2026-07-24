@@ -123,6 +123,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [E137 — Shared MQTT device contracts: extract behavior controllers (climate / light / cover / wled) ✅ implemented](E137.md)
 - [E138 — Contact / sensor / motion / value: untangle the boolean-card taxonomy ✅ implemented](E138.md)
 - [U57 — Theme selector: richer swatch (bg chip + role dots + accent) ✅ implemented](U57.md)
+- [U62 — Normalize discovered names into friendly labels on stamping ✅ done](U62.md)
 - [E118 — `click-through` on `basic-number`, `basic-icon-value`, `basic-datetime` ✅ implemented](E118.md)
 - [E120 — Homematic cover discovery: wire Up/Down to the LEVEL set topic ✅ implemented](E120.md)
 - [E126 — Homematic discovery: switch recognizer with name word-list heuristic (+ light classification) ✅ implemented](E126.md)
