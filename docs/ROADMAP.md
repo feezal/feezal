@@ -56,6 +56,7 @@ Work in progress — priorities and scope are not final.
 - [E144 — Lock autodiscovery: Homematic BidCoS (Keymatic) + HmIP smart locks + zigbee2mqtt](#e144--lock-autodiscovery-homematic-bidcos-keymatic--hmip-smart-locks--zigbee2mqtt--keymatic--z2m-done-hmip-dld-open) 🔨 *(Keymatic + z2m done; HmIP-DLD open)*
 - [E145 — Autodiscovery support for ccu-jack's MQTT interface](#e145--autodiscovery-support-for-ccu-jacks-mqtt-interface)
 - [E150 — Discovery for profile-shaped components: `water_heater` ✅ + `lawn_mower` 🔨](#e150--discovery-for-profile-shaped-components-water_heater---lawn_mower)
+- [E151 — Gauge parity: `glass-gauge` + `metro-gauge`](#e151--gauge-parity-glass-gauge--metro-gauge)
 
 **Editor UX**
 
@@ -1189,6 +1190,20 @@ Follow-up to **E149** ✅ (which shipped the seven *pure-mapping* HA discovery c
 **🔨 `lawn_mower` — deferred (needs per-action command topics).** Unlike vacuum, HA's `lawn_mower` has **no single `command_topic`** — it exposes three *separate* command topics (`start_mowing_command_topic`, `pause_command_topic`, `dock_command_topic`) plus `activity_state_topic` (activities `mowing`/`docked`/`paused`/`error`). `circle-vacuum`'s contract publishes every action as a payload to **one** `publish-command` topic, so an alias/map reuse would leave the control buttons non-functional. Landing it properly means either (a) extending `circle-vacuum` with an optional per-action-topic command mode (three `publish-*` attributes + activity-state labels), or (b) a dedicated `lawn-mower` element. Niche — parked until asked. When done: add `lawn_mower` to `SUPPORTED_COMPONENTS` + `FUNCTION_CANDIDATES`, and either the vacuum variant or the new element with its own discovery map + tests.
 
 **Relates:** **E149** ✅ (parent — the discovery-extension work this completes), **E137** (the climate controller the alias rides), **N12** ✅ (the discovery engine), **E135** (the Homematic climate profiles that inspired the "profile not fork" framing), circle-climate (water_heater target) / circle-vacuum (lawn_mower target).
+
+### E151 — Gauge parity: `glass-gauge` + `metro-gauge`
+
+The analogue **gauge / dial** value card exists for **circle** (`circle-gauge` — arc/ring/needle looks, colour-range zones, major+minor ticks, min/max, unit, decimals, `show-value`, discovery `component: 'sensor'`), **panel** (`panel-gauge` — the instrument-panel needle) and **material** (`material-gauge`), but the **glass** and **metro** families have none — a family-parity gap (they ship only the plain `-value` numeric readout).
+
+Add:
+- **`glass-gauge`** — a frosted-glass dial mirroring the `circle-gauge` attribute contract (look, zones, ticks, min/max, unit, decimals, show-value) in the Glass design language: frost tint, `degrade`, squircle, `--feezal-glass-*` vars, N31 availability badge. Follow the family conventions (see glass-value / glass-button).
+- **`metro-gauge`** — the same contract rendered as a Metro tile (flat tile background + accent, `--feezal-metro-*` vars, E141 tile-state colour discipline).
+
+Both are **display-only views** over the same value wiring as the `-value` cards (subscribe / message-property / unit / decimals) plus the gauge geometry; discovery `component: 'sensor'`, so the ⚡ picker + Generate wizard pick them up like every other sensor card (function `gauge` is already a `sensor` candidate). Reuse the `circle-gauge` SVG/geometry helpers where practical rather than re-deriving the dial maths.
+
+**Ships with:** the two element packages (+ `www/package.json` deps, `generate-elements.js` manifest regen), the `docs/TESTING.md §6` element rows, and browser tests (value→needle-angle mapping, zone bands, tick geometry) mirroring `circle-gauge`'s.
+
+**Relates:** circle-gauge / panel-gauge / material-gauge (the existing gauges this brings to parity), **E114** (numeric-card cross-family parity), **E138** (the `-value` / `-sensor` / `-motion` taxonomy these slot into), glass-value / metro-value (the sibling readouts + the family chrome to mirror).
 
 
 ## Architecture & Infrastructure
