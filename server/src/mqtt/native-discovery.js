@@ -1240,8 +1240,125 @@ const hmSensorRecognizer = {
     reset() { this.state.devices.clear(); },
 };
 
+// ── Recognizer 8: Homematic lock (E144) ───────────────────────────────────────
+// BidCoS Keymatic (HM-Sec-Key): channelType KEYMATIC (channel :1). STATE (bool)
+// is the lock state + command; OPEN is a SEPARATE momentary "open the door"
+// datapoint (releases the latch — distinct from unlock); ERROR is an enum
+// (0 NO_ERROR / 1 CLUTCH_FAILURE / 2 MOTOR_ABORTED). Battery + availability come
+// from the :0 maintenance index (B65). Gated on channelType (absent ⇒ no
+// promotion). Sources: OpenCCU-Base rf_keymatic.xml.
+//   ⚠ VERIFY on a real Keymatic: the STATE boolean polarity (below assumes
+//     true = unlocked, false = locked). The card's payload-locked/unlocked make
+//     it a one-attribute fix if reversed.
+//   HmIP-DLD (DOOR_LOCK_TRANSCEIVER; LOCK_STATE / LOCK_TARGET_LEVEL enums) is NOT
+//     wired yet — its enum values aren't in OpenCCU-Base's config and need real-
+//     device confirmation before mapping (tracked in E144).
+const LOCK_CHANNEL_TYPES = new Set(['KEYMATIC']);
+
+const hmLockRecognizer = {
+    id: 'homematic-lock',
+    // deviceId → {deviceId, deviceName, deviceType, channels: Map<seg, chan>, batteryDp}
+    // chan = {seg, channelType, channelAddr, hasError}
+    state: {devices: new Map()},
+
+    match(topic) {
+        if (!topic.startsWith(hmPrefix + '/status/')) return null;
+        const parts = topic.split('/');
+        if (parts.length !== 4) return null;            // exactly prefix/status/seg/DP
+        // STATE (lock state), ERROR (fault), plus the :0 battery presence check.
+        if (parts[3] !== 'STATE' && parts[3] !== 'ERROR' && !HM_BATTERY_DPS.has(parts[3])) return null;
+        return {seg: parts[2], datapoint: parts[3]};
+    },
+
+    accumulate(state, parsed, value, payload) {
+        const hm = (payload && typeof payload === 'object' && payload.hm && typeof payload.hm === 'object')
+            ? payload.hm : null;
+
+        const deviceId = (hm && hm.device) ? String(hm.device)
+            : parsed.seg.replace(/:\d+$/, '');
+
+        let dev = state.devices.get(deviceId);
+        if (!dev) {
+            dev = {deviceId, deviceName: undefined, deviceType: undefined,
+                channels: new Map(), batteryDp: undefined};
+            state.devices.set(deviceId, dev);
+        }
+        if (hm) {
+            if (hm.deviceName != null) dev.deviceName = hm.deviceName;
+            if (hm.deviceType != null) dev.deviceType = hm.deviceType;
+        }
+
+        // E124 presence check: remember the observed :0 battery datapoint.
+        if (HM_BATTERY_DPS.has(parsed.datapoint) && /:0$/.test(parsed.seg)) {
+            dev.batteryDp = parsed.datapoint;
+        }
+        if (parsed.datapoint !== 'STATE' && parsed.datapoint !== 'ERROR') return dev;
+
+        let chan = dev.channels.get(parsed.seg);
+        if (!chan) {
+            chan = {seg: parsed.seg, channelType: undefined, channelAddr: undefined, hasError: false};
+            dev.channels.set(parsed.seg, chan);
+        }
+        if (hm) {
+            if (hm.channelType != null) chan.channelType = hm.channelType;
+            if (hm.channel != null) chan.channelAddr = hm.channel;
+        }
+        if (parsed.datapoint === 'ERROR') chan.hasError = true;
+        return dev;
+    },
+
+    promote(dev) {
+        const channels = [...dev.channels.values()];
+        const lock = channels.find(c => c.channelType && LOCK_CHANNEL_TYPES.has(c.channelType));
+        if (!lock) return null;
+
+        const p = hmPrefix;
+        const seg = lock.seg;
+        const writeSeg = seg !== '' ? seg : (lock.channelAddr || seg);
+        const deviceId = dev.deviceId;
+        const name = dev.deviceName
+            || (dev.deviceType ? dev.deviceType + ' ' + deviceId : deviceId);
+
+        const config = {
+            name,
+            state_topic:    hmStatus(p, seg, 'STATE'),
+            command_topic:  hmSet(p, writeSeg, 'STATE'),
+            value_template: '{{ value_json.val }}',
+            // ⚠ Keymatic STATE polarity — assumed true=unlocked / false=locked.
+            state_locked:   'false',
+            state_unlocked: 'true',
+            payload_lock:   'false',
+            payload_unlock: 'true',
+            // Keymatic OPEN — separate momentary datapoint (door release).
+            open_command_topic: hmSet(p, writeSeg, 'OPEN'),
+            payload_open:   'true',
+        };
+        // E135: the ERROR enum topic (only when observed) → fault badge/text.
+        if (lock.hasError) {
+            config.error_topic = hmStatus(p, seg, 'ERROR');
+            config.message_property_error = 'payload.val';
+        }
+
+        // Availability (:0 UNREACH) + battery (:0 LOWBAT) resolved at read time
+        // (B65) via the device→:0 maintenance index.
+        const availBase = seg !== '' ? seg : (lock.channelAddr || seg);
+
+        return {
+            discovery_id: 'hm-lock:' + deviceId,
+            component: 'lock',
+            source: 'homematic',
+            sourceLabel: 'hm',
+            name,
+            config,
+            _availResolve: {deviceId, availBase, batteryDp: dev.batteryDp || null},
+        };
+    },
+
+    reset() { this.state.devices.clear(); },
+};
+
 // ── Framework ─────────────────────────────────────────────────────────────────
-const recognizers = [hmClimateRecognizer, wledRecognizer, hmContactRecognizer, hmCoverRecognizer, hmLightRecognizer, hmSwitchRecognizer, hmSensorRecognizer];
+const recognizers = [hmClimateRecognizer, wledRecognizer, hmContactRecognizer, hmCoverRecognizer, hmLightRecognizer, hmSwitchRecognizer, hmSensorRecognizer, hmLockRecognizer];
 
 /** @type {Map<string, object>} discovery_id → promoted native entity */
 const nativeEntities = new Map();

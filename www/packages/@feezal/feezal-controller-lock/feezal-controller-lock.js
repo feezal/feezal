@@ -60,6 +60,12 @@ export const lockDiscoveryMap = {
     state_jammed:   {attr: 'payload-jammed'},
     // HA `lock` open action: payload_open published on the command topic.
     payload_open:   {attr: 'payload-open'},
+    // Native-recognizer extras (undefined for HA/z2m locks → skipped): a
+    // separate OPEN command topic (Homematic Keymatic OPEN datapoint) and a
+    // device fault topic (E135) with its own value path.
+    open_command_topic:     {attr: 'publish-open'},
+    error_topic:            {attr: 'subscribe-error'},
+    message_property_error: {attr: 'message-property-error'},
     // N31 availability + E124 battery auto-stamp from the canonical records.
     value_template: {attr: 'message-property', transform: 'valueTemplateToPath'},
     name:           'label',

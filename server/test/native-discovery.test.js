@@ -945,6 +945,54 @@ describe('homematic switch recognizer (E126)', () => {
     });
 });
 
+// ── E144: Homematic lock recognizer (Keymatic) ───────────────────────────────
+
+describe('homematic lock recognizer (E144)', () => {
+    it('promotes a KEYMATIC channel to a lock with STATE / OPEN / ERROR + :0 availability', () => {
+        const dev = 'KEQ0123456';
+        nat.handleNativeMessage('hm/status/Haustuer:1/STATE', je(true, {
+            device: dev, deviceName: 'Haustuer', deviceType: 'HM-Sec-Key',
+            channel: dev + ':1', channelName: 'Haustuer:1',
+            channelType: 'KEYMATIC', channelIndex: 1, iface: 'BidCos-RF', datapoint: 'STATE',
+        }));
+        // The ERROR datapoint is observed → the fault topic is wired.
+        nat.handleNativeMessage('hm/status/Haustuer:1/ERROR', je(0, {
+            device: dev, channel: dev + ':1', channelType: 'KEYMATIC', datapoint: 'ERROR',
+        }));
+
+        const locks = nat.getNativeEntities().filter(e => e.component === 'lock');
+        expect(locks).toHaveLength(1);
+
+        const e = nat.getNativeEntity('hm-lock:' + dev);
+        expect(e).toBeTruthy();
+        expect(e.component).toBe('lock');
+        expect(e.name).toBe('Haustuer');
+        const c = e.config;
+        expect(c.state_topic).toBe('hm/status/Haustuer:1/STATE');
+        expect(c.command_topic).toBe('hm/set/Haustuer:1/STATE');
+        expect(c.value_template).toBe('{{ value_json.val }}');
+        expect(c.state_locked).toBe('false');
+        expect(c.state_unlocked).toBe('true');
+        // Keymatic OPEN — separate momentary datapoint.
+        expect(c.open_command_topic).toBe('hm/set/Haustuer:1/OPEN');
+        expect(c.payload_open).toBe('true');
+        // E135 fault topic wired (ERROR was observed).
+        expect(c.error_topic).toBe('hm/status/Haustuer:1/ERROR');
+        expect(c.message_property_error).toBe('payload.val');
+        // Availability from the :0 maintenance channel (string fallback :1→:0).
+        expect(c.availability_normalized.entries).toEqual([
+            {topic: 'hm/status/Haustuer:0/UNREACH', property: 'payload.val'},
+        ]);
+    });
+
+    it('does NOT promote a STATE whose channelType is not KEYMATIC', () => {
+        nat.handleNativeMessage('hm/status/Something:1/STATE', je(true, {
+            device: 'X1', channel: 'X1:1', channelType: 'SHUTTER_CONTACT', channelIndex: 1, datapoint: 'STATE',
+        }));
+        expect(nat.getNativeEntities().filter(e => e.component === 'lock')).toHaveLength(0);
+    });
+});
+
 // ── E131/E132: Homematic boolean-sensor recognizer (motion + hazard classes) ─
 
 describe('homematic sensor recognizer (E131 motion, E132 hazard table)', () => {
