@@ -58,17 +58,17 @@ class FeezalElementBasicDeviceHealth extends FeezalElement {
             color: var(--primary-text-color, #222);
         }
         .head { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 14px; }
-        .head .material-icons { font-size: 18px; }
+        .head feezal-icon { font-size: 18px; }
         .list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
         .row { display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1.3; }
-        .row .material-icons { font-size: 15px; }
+        .row feezal-icon { font-size: 15px; }
         .row .dev { font-weight: 600; }
         .row .issue { opacity: 0.85; }
         .row.sabotage { color: var(--feezal-health-sabotage-color, #d32f2f); font-weight: 700; }
         .row.fault    { color: var(--feezal-health-fault-color, #f0a30a); }
         .row.battery, .row.unreach { color: var(--feezal-health-muted-color, #666); }
         .ok { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #2e7d32; opacity: 0.9; }
-        .ok .material-icons { font-size: 18px; }
+        .ok feezal-icon { font-size: 18px; }
     `];
 
     constructor() {
@@ -149,16 +149,16 @@ class FeezalElementBasicDeviceHealth extends FeezalElement {
             : issues;
         return html`
             <div class="board">
-                <div class="head"><span class="material-icons">health_and_safety</span> ${this.title || 'Device Health'}</div>
+                <div class="head"><feezal-icon name="health_and_safety"></feezal-icon> ${this.title || 'Device Health'}</div>
                 ${sample.length ? html`
                     <div class="list">
                         ${sample.map(i => html`
                             <div class="row ${i.type}">
-                                <span class="material-icons">${this._icon(i.type)}</span>
+                                <feezal-icon name="${this._icon(i.type)}"></feezal-icon>
                                 <span class="dev">${i.device}</span><span class="issue">· ${i.text}</span>
                             </div>`)}
                     </div>`
-                    : this.showOk ? html`<div class="ok"><span class="material-icons">check_circle</span> All devices OK</div>` : ''}
+                    : this.showOk ? html`<div class="ok"><feezal-icon name="check_circle"></feezal-icon> All devices OK</div>` : ''}
             </div>
         `;
     }

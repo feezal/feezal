@@ -5,6 +5,7 @@
  */
 import {describe, it, expect, beforeEach} from 'vitest';
 import '../packages/@feezal/feezal-element-basic-device-health/feezal-element-basic-device-health.js';
+import '../src/feezal-icon.js';   // real <feezal-icon> so icons render (not raw ligature text)
 import {setupFeezal, mount} from './helpers.js';
 
 let feezal;
@@ -48,6 +49,17 @@ describe('E135 — device-health board', () => {
         await el.updateComplete;
         expect(rows(el).length).toBe(0);
         expect(el.renderRoot.textContent).toContain('All devices OK');
+    });
+
+    it('renders icons via <feezal-icon>, not raw .material-icons ligature text', async () => {
+        const el = await mount('feezal-element-basic-device-health', {});
+        feezal.connection.deliver('hm/status/Haustür:0/SABOTAGE', je(true));
+        await el.updateComplete;
+        expect(el.renderRoot.querySelector('.head feezal-icon')).toBeTruthy();
+        expect(el.renderRoot.querySelector('.row feezal-icon')).toBeTruthy();
+        expect(el.renderRoot.querySelector('.material-icons')).toBeNull();
+        // the ligature name must not leak as visible heading text
+        expect(el.renderRoot.querySelector('.head').textContent).not.toContain('health_and_safety');
     });
 
     it('decodes an HmIP named fault flag', async () => {
