@@ -53,6 +53,9 @@ class FeezalElementGlassSensor extends FeezalElement {
             styles: [
                 'top', 'left', 'width', 'height',
                 {property: '--feezal-glass-active-color', type: 'color', default: 'var(--error-color, #d32f2f)', help: 'Icon/state colour while triggered. Defaults to the theme error colour.'},
+                // E140: per-state icon colour — the CLEAR side (was the
+                // unexposed frost-muted) is now overridable.
+                {property: '--feezal-glass-clear-color', type: 'color', default: 'var(--feezal-glass-muted, rgba(29,29,31,0.55))', help: 'Icon/state colour while clear (defaults to the frost muted colour).'},
                 {property: '--feezal-glass-tint', type: 'color', help: 'Frost tint (defaults from the theme).'},
                 {property: '--feezal-glass-icon-size', default: '28px', help: 'Icon font size.'},
                 {property: '--feezal-glass-font-size-state', default: '15px', help: 'State line font size.'},
@@ -88,7 +91,7 @@ class FeezalElementGlassSensor extends FeezalElement {
         .card {
             gap: 2px;
             transition: background 0.2s ease;
-            --_state-color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
+            --_state-color: var(--feezal-glass-clear-color, var(--feezal-glass-muted, rgba(29,29,31,0.55)));
         }
         /* E138: active accent — per-element --feezal-glass-active-color override
            wins, else the controller's slice colour var (set inline on the card

@@ -40,6 +40,9 @@ class FeezalElementGlassButton extends FeezalElement {
             styles: [
                 'top', 'left', 'width', 'height',
                 {property: '--feezal-glass-accent', type: 'color', default: '#ff9f0a', help: 'Icon colour in the active state.'},
+                // E140: per-state icon colour — the inactive side (was the
+                // unexposed frost-muted) is now overridable.
+                {property: '--feezal-glass-inactive-color', type: 'color', default: 'var(--feezal-glass-muted, rgba(29,29,31,0.55))', help: 'Icon colour in the inactive state (defaults to the frost muted colour).'},
                 {property: '--feezal-glass-tint', type: 'color', help: 'Frost tint (defaults from the theme).'},
                 {property: '--feezal-glass-icon-size', default: '28px', help: 'Icon font size.'},
                 {property: '--feezal-glass-font-size-label', default: '12px', help: 'Label font size.'},
@@ -71,7 +74,7 @@ class FeezalElementGlassButton extends FeezalElement {
         .card.active { background: var(--feezal-glass-on-tint, rgba(255,255,255,0.62)); }
         feezal-icon {
             font-size: var(--feezal-glass-icon-size, 28px); line-height: 1;
-            color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
+            color: var(--feezal-glass-inactive-color, var(--feezal-glass-muted, rgba(29,29,31,0.55)));
             transition: color 0.2s ease;
         }
         .card.active feezal-icon { color: var(--feezal-glass-accent, #ff9f0a); }

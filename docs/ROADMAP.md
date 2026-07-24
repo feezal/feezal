@@ -56,7 +56,6 @@ Work in progress — priorities and scope are not final.
 - [E128 — Homematic blinds: settling behaviour + `DIRECTION` indicator](#e128--homematic-blinds-settling-behaviour--direction-indicator-later--after-e127) *(later)*
 - [E135 — Homematic maintenance signals: ERROR_CODE + SABOTAGE badges, device-health board](#e135--homematic-maintenance-signals-error_code--sabotage-badges-device-health-board)
 - [E139 — "Fancy" element family: Lottie-animated device cards](#e139--fancy-element-family-lottie-animated-device-cards)
-- [E140 — Per-state icon colour: configurable CSS vars for every state-driven icon](#e140--per-state-icon-colour-configurable-css-vars-for-every-state-driven-icon)
 - [E144 — Lock autodiscovery: Homematic BidCoS (Keymatic) + HmIP smart locks + zigbee2mqtt](#e144--lock-autodiscovery-homematic-bidcos-keymatic--hmip-smart-locks--zigbee2mqtt--keymatic--z2m-done-hmip-dld-open) 🔨 *(Keymatic + z2m done; HmIP-DLD open)*
 - [E145 — Autodiscovery support for ccu-jack's MQTT interface](#e145--autodiscovery-support-for-ccu-jacks-mqtt-interface)
 - [E146 — Autodiscovery for AI-on-the-edge-device (meter reader) via Home Assistant MQTT discovery](#e146--autodiscovery-for-ai-on-the-edge-device-meter-reader-via-home-assistant-mqtt-discovery)
@@ -1279,29 +1278,6 @@ A new element family whose defining trait is **animation**: a `fancy-contact` th
 **Ships with:** N29 bundle + registration + `generate-elements`, parity-test registrations, TESTING.md §6 family section (state animations, directional transitions, position-seek, tilt tristate, theme recolour incl. per-view themes, reduced motion, editor static pose, override srcs, lazy chunk), version bumps per policy.
 
 **Relates:** E89 ✅ (Lottie machinery + lazy loader — the foundation), **E137** (controllers — the behavior layer; lock-controller extraction is the one prerequisite), **E138 ✅** (taxonomy + colour semantics the family follows), E114 (parity), E39 ✅ (splash — same lazy-chunk discipline), per-view themes ✅ (recolour must respect them), A25 ✅ (self-hosted/MIT-clean assets — the programmatic set satisfies it by construction), E113 (function × style — a new style family over existing functions, exactly that model), E135 (sabotage badge on the fancy cards too).
-
-### E140 — Per-state icon colour: configurable CSS vars for every state-driven icon
-
-Elements with a **state-driven icon** let you pick the icon per state (e.g. `*-switch` exposes `icon-on` / `icon-off`), but the icon **colour per state is not consistently configurable**. On glass-switch the ON colour is exposed (`--feezal-glass-accent`, "Icon/state colour while on") but the OFF colour is a hardcoded internal default (`--feezal-glass-muted`, not in the `styles` descriptor); metro-switch exposes only its OFF *tile* background, no per-state icon colour. So an author who sets `icon-on: bolt` / `icon-off: power_off` can't independently colour the two states.
-
-**The precedent already exists in the codebase:** `basic-icon-value` exposes one style var per variant step — `--feezal-icon-value-color-0 … -100` (default `var(--primary-text-color)`), rendered inline per bucket ([feezal-element-basic-icon-value.js:46-48,163-164](../www/packages/@feezal/feezal-element-basic-icon-value/feezal-element-basic-icon-value.js#L46-L48)). That per-state colour var is exactly the pattern every state-driven-icon element should follow; the state-driven cards just don't do it uniformly.
-
-**Goal:** every element whose icon changes with state exposes a **CSS custom property for the icon colour of each state**, listed in its `styles` descriptor (so it's editable in the style inspector), defaulting per the §5.1 theme-variable discipline (never an `--md-sys-color-*` default).
-
-**Scope — audit all families for state-driven icons:**
-- **Switch / boolean** (`*-switch`, `glass-button`, `metro-tile`): `icon-on` colour + `icon-off` colour (today only the ON/accent side is typically exposed).
-- **Contact / motion / sensor** (E137 controllers: `*-contact`, `*-motion`, `*-sensor`): active vs. clear icon colour. `feezal-controller-sensor` already carries alarm-class error-colour semantics ([feezal-controller-sensor.js:117-120](../www/packages/@feezal/feezal-controller-sensor/feezal-controller-sensor.js#L117-L120)) — reconcile the exposed colour vars with that so the controller default and the style var don't fight.
-- **Cover / lock / light / climate** and any other card whose icon carries state.
-- **Families:** material, circle, glass, metro, eink, carbon, paper — one consistent naming scheme across them (e.g. `--feezal-<family>-icon-color-on` / `-off`, or an active/clear pair for controller-backed cards).
-
-**Design notes:**
-- **Naming consistency is the point** — this is an **E114 parity** concern: the same state-driven function must expose the same colour knobs across every family, so an author moving between families finds the same controls.
-- **Defaults must stay theme-driven** — an unset per-state colour resolves to the canonical theme var it does today (active → `--primary-color`, clear/off → `--secondary-text-color`, alarm → `--error-color`), so this is purely additive: existing dashboards look identical until someone overrides a colour.
-- **Controller-backed elements:** the colour vars belong in the family view's `styles` descriptor, but the default per-state colour semantics come from the controller (E137) — keep them in sync rather than forking per element.
-
-**Ships with:** the per-family colour-var additions, patch bumps on every touched element package, `feezal-controller-parity.test.js` coverage that the state-driven cards expose the agreed colour vars, and TESTING.md notes (set a distinct on/off icon colour, verify it survives save/reload and follows per-view themes when left default).
-
-**Relates:** **E114** (parity — same knobs across families is the core requirement), **E137** (controllers own the default per-state colour semantics), §5.1 theme-variable discipline (defaults), `basic-icon-value` (the existing per-state-colour precedent to mirror), E138 (colour semantics per function), **E141** (the tile-background sibling of this item for the metro family).
 
 ### E144 — Lock autodiscovery: Homematic BidCoS (Keymatic) + HmIP smart locks + zigbee2mqtt 🔨 Keymatic + z2m done; HmIP-DLD open
 

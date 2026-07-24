@@ -56,6 +56,9 @@ class FeezalElementGlassSwitch extends FeezalElement {
             styles: [
                 'top', 'left', 'width', 'height',
                 {property: '--feezal-glass-accent', type: 'color', default: '#30d158', help: 'Icon/state colour while on.'},
+                // E140: per-state icon colour — the OFF side was previously the
+                // unexposed shared frost-muted; now overridable (defaults to it).
+                {property: '--feezal-glass-off-color', type: 'color', default: 'var(--feezal-glass-muted, rgba(29,29,31,0.55))', help: 'Icon colour while off (defaults to the frost muted colour).'},
                 {property: '--feezal-glass-tint', type: 'color', help: 'Frost tint (defaults from the theme).'},
                 {property: '--feezal-glass-icon-size', default: '28px', help: 'Icon font size.'},
                 {property: '--feezal-glass-font-size-state', default: '15px', help: 'State line font size.'},
@@ -94,7 +97,7 @@ class FeezalElementGlassSwitch extends FeezalElement {
         .card.on { background: var(--feezal-glass-on-tint, rgba(255,255,255,0.62)); }
         feezal-icon {
             font-size: var(--feezal-glass-icon-size, 28px); line-height: 1;
-            color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
+            color: var(--feezal-glass-off-color, var(--feezal-glass-muted, rgba(29,29,31,0.55)));
             transition: color 0.2s ease;
         }
         .card.on feezal-icon { color: var(--feezal-glass-accent, #30d158); }

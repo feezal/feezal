@@ -55,6 +55,9 @@ class FeezalElementGlassContact extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height',
+                // E140: per-state icon colour — the CLOSED side (was the
+                // unexposed frost-muted) is now overridable.
+                {property: '--feezal-glass-closed-color', type: 'color', default: 'var(--feezal-glass-muted, rgba(29,29,31,0.55))', help: 'Icon/state colour while closed (defaults to the frost muted colour).'},
                 {property: '--feezal-glass-open-color', type: 'color', default: 'var(--warning-color, #ff9f0a)', help: 'Icon/state colour while open.'},
                 {property: '--feezal-glass-tilt-color', type: 'color', default: 'var(--info-color, #0a84ff)', help: 'Icon/state colour while tilted.'},
                 {property: '--feezal-glass-tint', type: 'color', help: 'Frost tint (defaults from the theme).'},
@@ -88,7 +91,7 @@ class FeezalElementGlassContact extends FeezalElement {
         .card {
             gap: 2px;
             transition: background 0.2s ease;
-            --_state-color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
+            --_state-color: var(--feezal-glass-closed-color, var(--feezal-glass-muted, rgba(29,29,31,0.55)));
         }
         .card.open   { background: var(--feezal-glass-on-tint, rgba(255,255,255,0.62)); --_state-color: var(--feezal-glass-open-color, #ff9f0a); }
         .card.tilted { background: var(--feezal-glass-on-tint, rgba(255,255,255,0.62)); --_state-color: var(--feezal-glass-tilt-color, #0a84ff); }
