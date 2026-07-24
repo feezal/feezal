@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, feezalBoolean, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, feezalBoolean, dialogLabelAttribute, dialogPlaceholderLabel, html, css} from '@feezal/feezal-element';
 import {render} from 'lit';
 import {unsafeHTML} from 'lit/directives/unsafe-html.js';
 
@@ -32,6 +32,7 @@ class FeezalElementPaperDialog extends FeezalElement {
                 'Paper-styled twin of the Material Dialog — identical attributes.',
             attributes: [
                 {name: 'title',            type: 'string',    default: '',       help: 'Dialog title text.'},
+                dialogLabelAttribute,
                 {name: 'template',         textarea: true, editor: true, variables: ['msg'], help: 'HTML body of the dialog. Use ${msg.payload} and other ${msg.*} properties from the triggering MQTT message.'},
                 {name: 'icon',             type: 'string',    default: '',       help: 'Optional Material icon name shown above the message (e.g. "warning").'},
                 {name: 'subscribe',        type: 'mqttTopic',                    help: 'Topic to listen on for open/close payloads.'},
@@ -58,6 +59,7 @@ class FeezalElementPaperDialog extends FeezalElement {
 
     static properties = {
         dialogTitle:     {type: String,  reflect: true, attribute: 'title'},
+        label:           {type: String,  reflect: true},
         template:        {type: String,  reflect: true},
         icon:            {type: String,  reflect: true},
         subscribe:       {type: String,  reflect: true},
@@ -203,6 +205,7 @@ class FeezalElementPaperDialog extends FeezalElement {
 
     constructor() {
         super();
+        this.label         = '';
         this.dialogTitle   = '';
         this.template      = '';
         this.icon          = '';
@@ -421,7 +424,7 @@ class FeezalElementPaperDialog extends FeezalElement {
             return html`
                 <div class="editor-placeholder">
                     <span class="icon">web_asset</span>
-                    <span>Paper Dialog</span>
+                    <span>${dialogPlaceholderLabel('Dialog', this.label)}</span>
                 </div>
                 ${this._open ? html`
                     <div class="backdrop" @click=${() => { this._open = false; }}></div>

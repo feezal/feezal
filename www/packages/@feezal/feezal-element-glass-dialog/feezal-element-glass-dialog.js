@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, feezalBoolean, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, feezalBoolean, dialogLabelAttribute, dialogPlaceholderLabel, html, css} from '@feezal/feezal-element';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {render} from 'lit';
 import {unsafeHTML} from 'lit/directives/unsafe-html.js';
@@ -32,6 +32,7 @@ class FeezalElementGlassDialog extends FeezalElement {
                 'Supports ok/cancel buttons that each publish a configurable payload. ' +
                 'Same wiring contract as the material Dialog.',
             attributes: [
+                dialogLabelAttribute,
                 {name: 'title',            type: 'string',    default: '',       help: 'Dialog title text.'},
                 {name: 'template',         textarea: true, editor: true, variables: ['msg'], help: 'HTML body of the dialog. Use ${msg.payload} and other ${msg.*} properties from the triggering MQTT message.'},
                 {name: 'icon',             type: 'string',    default: '',       help: 'Optional Material icon name shown above the message (e.g. "warning").'},
@@ -64,6 +65,7 @@ class FeezalElementGlassDialog extends FeezalElement {
     }
 
     static properties = {
+        label:           {type: String,  reflect: true},
         dialogTitle:     {type: String,  reflect: true, attribute: 'title'},
         template:        {type: String,  reflect: true},
         icon:            {type: String,  reflect: true},
@@ -227,6 +229,7 @@ class FeezalElementGlassDialog extends FeezalElement {
 
     constructor() {
         super();
+        this.label         = '';
         this.dialogTitle   = '';
         this.template      = '';
         this.icon          = '';
@@ -483,7 +486,7 @@ class FeezalElementGlassDialog extends FeezalElement {
             return html`
                 <div class="editor-placeholder">
                     <span class="icon">chat</span>
-                    <span>Dialog</span>
+                    <span>${dialogPlaceholderLabel('Dialog', this.label)}</span>
                 </div>
                 ${this._open ? html`
                     <div class="backdrop" @click=${() => { this._open = false; }}></div>

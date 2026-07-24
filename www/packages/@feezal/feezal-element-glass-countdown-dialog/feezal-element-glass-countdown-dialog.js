@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, dialogLabelAttribute, dialogPlaceholderLabel, html, css} from '@feezal/feezal-element';
 import {svg} from 'lit';
 import {unsafeHTML} from 'lit/directives/unsafe-html.js';
 
@@ -32,6 +32,7 @@ class FeezalElementGlassCountdownDialog extends FeezalElement {
             description: 'Frosted-glass countdown modal opened by an MQTT message. ' +
                 'Auto-executes the confirm action when the timer reaches zero, or can be cancelled.',
             attributes: [
+                dialogLabelAttribute,
                 {name: 'title',           type: 'string',    default: '',                    help: 'Dialog title text.'},
                 {name: 'template',        textarea: true, editor: true, variables: ['msg', 'seconds'], help: 'Body text of the countdown dialog. Use ${seconds} for the remaining time and ${msg.*} for properties from the triggering MQTT message.'},
                 {name: 'duration',        type: 'number',    default: 10,                    help: 'Countdown duration in seconds.'},
@@ -55,6 +56,7 @@ class FeezalElementGlassCountdownDialog extends FeezalElement {
     }
 
     static properties = {
+        label:          {type: String,  reflect: true},
         dialogTitle:    {type: String,  reflect: true, attribute: 'title'},
         template:       {type: String,  reflect: true},
         duration:       {type: Number,  reflect: true},
@@ -214,6 +216,7 @@ class FeezalElementGlassCountdownDialog extends FeezalElement {
 
     constructor() {
         super();
+        this.label          = '';
         this.dialogTitle    = '';
         this.template       = 'Proceeding in ${seconds}…';
         this.duration       = 10;
@@ -353,7 +356,7 @@ class FeezalElementGlassCountdownDialog extends FeezalElement {
             return html`
                 <div class="editor-placeholder">
                     <span class="icon">timer</span>
-                    <span>Countdown Dialog</span>
+                    <span>${dialogPlaceholderLabel('Countdown Dialog', this.label)}</span>
                 </div>`;
         }
 

@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, feezalBoolean, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, feezalBoolean, dialogPlaceholderLabel, html, css} from '@feezal/feezal-element';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {render} from 'lit';
 
@@ -513,7 +513,7 @@ class FeezalElementMaterialDialogView extends FeezalElement {
             return html`
                 <div class="editor-placeholder">
                     <span class="icon">web_asset</span>
-                    <span>Dialog View</span>
+                    <span>${dialogPlaceholderLabel('Dialog', this.view)}</span>
                 </div>
                 ${this._open ? html`
                     <div class="backdrop" @click=${() => { this._open = false; }}></div>

@@ -58,11 +58,11 @@ Work in progress — priorities and scope are not final.
 - [E139 — "Fancy" element family: Lottie-animated device cards](#e139--fancy-element-family-lottie-animated-device-cards)
 - [E140 — Per-state icon colour: configurable CSS vars for every state-driven icon](#e140--per-state-icon-colour-configurable-css-vars-for-every-state-driven-icon)
 - [E141 — Metro tiles: per-state background colour vars for state-driven elements](#e141--metro-tiles-per-state-background-colour-vars-for-state-driven-elements)
-- [E142 — Dialog `label` attribute: editor-only placeholder tag to tell dialogs apart](#e142--dialog-label-attribute-editor-only-placeholder-tag-to-tell-dialogs-apart)
 - [E144 — Lock autodiscovery: Homematic BidCoS (Keymatic) + HmIP smart locks + zigbee2mqtt](#e144--lock-autodiscovery-homematic-bidcos-keymatic--hmip-smart-locks--zigbee2mqtt--keymatic--z2m-done-hmip-dld-open) 🔨 *(Keymatic + z2m done; HmIP-DLD open)*
 - [E145 — Autodiscovery support for ccu-jack's MQTT interface](#e145--autodiscovery-support-for-ccu-jacks-mqtt-interface)
 - [E146 — Autodiscovery for AI-on-the-edge-device (meter reader) via Home Assistant MQTT discovery](#e146--autodiscovery-for-ai-on-the-edge-device-meter-reader-via-home-assistant-mqtt-discovery)
 - [E147 — AI-on-the-edge meter element (glass / metro / circle): value + rate + action/status + error](#e147--ai-on-the-edge-meter-element-glass--metro--circle-value--rate--actionstatus--error)
+- [E148 — `eink-number` → `eink-value`: numeric-card naming parity](#e148--eink-number--eink-value-numeric-card-naming-parity)
 
 **Editor UX**
 
@@ -1363,27 +1363,6 @@ The **background sibling of [E140](#e140--per-state-icon-colour-configurable-css
 
 **Relates:** **E140** (the icon-colour sibling — build the two together for metro), **E114** (parity), **E137** (controllers own default per-state semantics for contact/motion/sensor), `MetroTileBase` (`--feezal-metro-accent` + `.face`), §5.1 theme-variable discipline, E129 (metro tile sizing/typography — same family chrome).
 
-### E142 — Dialog `label` attribute: editor-only placeholder tag to tell dialogs apart
-
-Dialogs are **pseudo-elements** — a small (~120×40 px) invisible placeholder on the canvas, no runtime footprint at that position. When a view has **several dialogs** they all render the identical "Dialog" chip and are impossible to tell apart in the editor. Add a **`label` attribute** whose only job is to disambiguate them on the canvas: the placeholder shows **"Dialog: &lt;label&gt;"** when set. **Editor-only — never rendered in the viewer.**
-
-**Scope: every dialog element** (all families/variants): `feezal-element-{material,glass,eink,paper}-dialog`, `-dialog-view`, and `-countdown-dialog` (the 11 `feezal-element-*dialog*` packages).
-
-**Behaviour:**
-- **Attribute:** `{name: 'label', type: 'string', default: '', help: 'Editor-only label shown on the canvas placeholder to tell multiple dialogs apart. Never shown in the viewer.'}` — reflected so it persists with the site.
-- **Placeholder:** append `: <label>` to each element's existing placeholder word — "Dialog: Confirm delete", "Dialog View: Light settings", "Countdown: Reboot" — keeping the per-element base word (the placeholder is rendered in the `if (feezal.isEditor)` branch, e.g. `<span>Dialog</span>` at [feezal-element-material-dialog.js:420-425](../www/packages/@feezal/feezal-element-material-dialog/feezal-element-material-dialog.js#L420-L425)). When `label` is empty, the placeholder is unchanged.
-- **Never in the viewer:** the label is not part of the rendered dialog anywhere — not the title bar, not an aria label, nothing. It exists purely for editor canvas identification.
-
-**Distinct from `title` (call this out in the `help`).** Dialogs already have a `title` attribute that **is** shown to users as the dialog heading ([feezal-element-material-dialog.js:24](../www/packages/@feezal/feezal-element-material-dialog/feezal-element-material-dialog.js#L24)). `label` is the opposite: never user-visible, editor-only. The help text must make the difference obvious so authors don't reach for `title` to organise their canvas (or `label` expecting it to show).
-
-**Implementation note:** the placeholder rendering is duplicated across the dialog elements — do the `label` append **once** in a shared helper (or the common dialog base, where one exists) so all 11 render it identically, rather than 11 hand-edited copies (the E106 "no N hand-rolled copies" lesson).
-
-**Possible extension (not MVP):** surface `label` wherever the editor lists/selects elements (selection chip, a future layers panel) — the same identifier is useful beyond the on-canvas placeholder. Out of scope for the first cut, which is just the placeholder text.
-
-**Ships with:** the `label` attribute on every dialog element + the shared placeholder-append helper, patch bumps on each touched package, a browser test (label set → appears in the editor placeholder, absent from the viewer render), and TESTING.md notes (per dialog element: set a label, confirm canvas shows "…: &lt;label&gt;" and the viewer shows nothing extra).
-
-**Relates:** the dialog element set (material/glass/eink/paper × dialog / dialog-view / countdown-dialog), E114 (parity — the attribute must exist identically across all of them), the dialog `title` attribute (the user-visible counterpart to contrast against), pseudo-element editor conventions (E7/swipe and other invisible placeholders could reuse the same editor-label idea later).
-
 ### E144 — Lock autodiscovery: Homematic BidCoS (Keymatic) + HmIP smart locks + zigbee2mqtt 🔨 Keymatic + z2m done; HmIP-DLD open
 
 **✅ Keymatic done (07/2026).** A native `homematic-lock` recognizer ([server/src/mqtt/native-discovery.js](../server/src/mqtt/native-discovery.js), recognizer 8) promotes **BidCoS Keymatic (`HM-Sec-Key`, channelType `KEYMATIC`)** to a `lock` record: `STATE` (bool) → state + lock/unlock command, the separate `OPEN` datapoint → the E143 `open_command_topic`/`payload-open` (door release), the `ERROR` enum (`0 NO_ERROR`/`1 CLUTCH_FAILURE`/`2 MOTOR_ABORTED`) → the E143 `error_topic` (fault badge), and battery + availability via the B65 `:0` maintenance index. The lock discovery-map (in `feezal-controller-lock`) gained `open_command_topic`/`error_topic`/`message_property_error` keys so these auto-stamp onto the circle/glass/metro lock cards. Recognizer tests added; server suite (447) green. **⚠ Still verify on a real Keymatic:** the `STATE` boolean polarity (the recognizer assumes `true`=unlocked / `false`=locked — a one-attribute fix on the card if reversed).
@@ -1485,6 +1464,18 @@ E146 makes an AI-on-the-edge meter *discoverable* — but only as a **plain valu
 **Ships with:** the `feezal-controller-aiedge` controller + glass/metro/circle views, `generate-elements` manifest + `www/package.json` registration, parity-test entries, per-package patch/version bumps, TESTING.md §6 rows (value/unit, rate + sparkline, status/action line, error badge on non-"no error", stale timestamp warning, availability offline).
 
 **Relates:** **E146** (discovery of the value sensor — this element shows the rest), **E137** (controller-first for the 3-family function), **E114** (parity — glass/metro/circle now, eink/material later), **E30** (sparkline for the rate), **N31** (availability from `connection`), the pure-MQTT principle, **U58** (a future Generate step could place these from discovered meters).
+
+### E148 — `eink-number` → `eink-value`: numeric-card naming parity
+
+The eink family's numeric readout card is named **`eink-number`** while every other styled family uses **`-value`** (`circle-value`, `glass-value`, `metro-value`, `tui-value`) — `basic-number` is the unstyled primitive that keeps its name. **E138** ✅ established the `-value` convention for family-styled numeric cards and explicitly parked eink as a documented gap ("eink keeps `eink-number` as its value card"). This closes it.
+
+**Scope:** pure rename `feezal-element-eink-number` → `feezal-element-eink-value`, palette name `Number` → `Value`; behaviour, attributes, discovery (`component: 'sensor'`) and chrome unchanged. Brings eink in line with **E114** parity so the E115 family-switcher pairs it with its siblings by function.
+
+**Rename mechanics (hard rename, no aliasing — E138/E130 precedent):** rename the package dir + `package.json` name + tag + class; update `www/package.json`, `generate-elements` manifest, any eink bundle manifest (`feezal-eink`), the parity test registration, and TESTING.md §6. Saved dashboards using `feezal-element-eink-number` break → add the row to `docs/BREAKING-CHANGES.md`'s migration table (bundle with the next breaking release; source-view search-replace is the user fix). *(No reused-name hazard here — unlike E138's glass/metro `-sensor` reuse, `eink-number` isn't repurposed, it's just retired.)*
+
+**Ships with:** the rename across all the above, version bump, BREAKING-CHANGES row, TESTING.md update.
+
+**Relates:** **E138** ✅ (established `-value`, documented this exact gap), **E114** (numeric-card parity across families), **E115** (family switch — needs the consistent function name), E132 ✅ (the earlier `-sensor`→numeric rename wave this finishes), `basic-number` (the primitive that keeps its name — the distinction being made).
 
 ## Architecture & Infrastructure
 

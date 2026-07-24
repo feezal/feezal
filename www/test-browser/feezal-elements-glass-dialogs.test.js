@@ -226,7 +226,8 @@ describe('glass-dialog-view', () => {
         feezal.isEditor = true;
         feezal.site = siteWithView('popup');
         const el = await mount('feezal-element-glass-dialog-view', {view: 'popup'});
-        expect(el.shadowRoot.querySelector('.editor-placeholder').textContent).toContain('Dialog View');
+        // E142: the dialog-view placeholder shows the bound view name ("Dialog: popup").
+        expect(el.shadowRoot.querySelector('.editor-placeholder').textContent).toContain('Dialog: popup');
 
         el._open = true;                          // inspector "Preview Dialog"
         await el.updateComplete;

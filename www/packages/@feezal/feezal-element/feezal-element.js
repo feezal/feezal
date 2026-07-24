@@ -503,6 +503,32 @@ export const publishLocalAttribute = {
 };
 
 /**
+ * E142: shared descriptor for a dialog's editor-only `label` — spread into every
+ * dialog element's `feezal.attributes` so the wording never drifts. The element
+ * declares `label: {type: String, reflect: true}` and renders its placeholder
+ * text through `dialogPlaceholderLabel()`. Distinct from a dialog's `title`,
+ * which IS shown to the user as the heading — `label` is never rendered in the
+ * viewer; it exists purely to tell multiple dialogs apart on the canvas.
+ */
+export const dialogLabelAttribute = {
+    name: 'label',
+    type: 'string',
+    default: '',
+    help: 'Editor-only label shown on the canvas placeholder to tell multiple dialogs apart (e.g. "Dialog: Confirm delete"). Never shown in the viewer — unlike "title", which is the dialog heading users see.'
+};
+
+/**
+ * E142: editor-only placeholder text for a dialog pseudo-element. Appends the
+ * disambiguating `label` when set ("Dialog" → "Dialog: Confirm delete"), else
+ * returns the base word unchanged. Used only inside the `feezal.isEditor`
+ * placeholder branch — never in the viewer.
+ */
+export function dialogPlaceholderLabel(base, label) {
+    const l = (label || '').trim();
+    return l ? `${base}: ${l}` : base;
+}
+
+/**
  * E137 — payload comparison, cross-controller shared machinery: string
  * coercion (case-insensitive) plus boolean true/false matching the HA/z2m
  * ON/OFF conventions. Single source — the copies in feezal-glass and the
