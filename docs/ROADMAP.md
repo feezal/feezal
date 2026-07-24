@@ -12,6 +12,7 @@ Work in progress — priorities and scope are not final.
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
 - [B68 — `glass-meter` + `glass-loadpoint`: card overflows the host and ignores its height](#b68--glass-meter--glass-loadpoint-card-overflows-the-host-and-ignores-its-height)
 - [B69 — `glass-meter` is overloaded: move the secondary readouts into a details popup](#b69--glass-meter-is-overloaded-move-the-secondary-readouts-into-a-details-popup)
+- [B70 — System element editor placeholders: swipe shows text not icon, mismatched chrome, inconsistent default sizes](#b70--system-element-editor-placeholders-swipe-shows-text-not-icon-mismatched-chrome-inconsistent-default-sizes)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -207,6 +208,20 @@ The shared `glassCardStyles` `.card` is `position: absolute; inset: 6px` ([feeza
 **Redesign (mirror `glass-value` / `glass-lock`).** Keep the **primary readout on the card** — icon + big value + unit (and the error badge, since a fault must stay visible) — and move the **secondary readouts** (rate ↗, status, reading-age, raw) into a **details popup** opened by the corner **⋯** button, using the shared popover infrastructure (`FeezalGlassCard` + `glassPopupStyles`, exactly as `glass-lock` `1bf2641f` and `glass-light`). The card stays display-only (no toggle); the ⋯ button only appears when there's secondary content to show. Ships with a browser test (card shows value+unit; popup lists the extra readouts) and a TESTING.md row; bundle with the **B68** width fix in one `glass-meter` change (single version bump).
 
 **Relates:** **B68** (the width bug on the same element — fix together), `glass-lock` (the tap/popup redesign precedent + `FeezalGlassCard`/`glassPopupStyles` pattern), `glass-value` (the decluttered value card this meter should resemble), E147 (the AI-on-the-edge meter this card serves).
+
+### B70 — System element editor placeholders: swipe shows text not icon, mismatched chrome, inconsistent default sizes
+
+**Reported (07/2026).** Three inconsistencies in the **System** pseudo-element editor placeholders:
+
+1. **`system-swipe` shows the word "swipe" instead of the icon.** Its placeholder renders `<span class="material-icons">swipe</span> Swipe` ([system-swipe.js:150](../www/packages/@feezal/feezal-element-system-swipe/feezal-element-system-swipe.js#L150)), but its local `.ph .material-icons` rule ([:51](../www/packages/@feezal/feezal-element-system-swipe/feezal-element-system-swipe.js#L51)) is **missing `font-family: 'Material Icons'`** — the global class can't reach shadow DOM, so the ligature renders as plain text. (Its siblings declare the font-family locally, e.g. [system-notification.js:217](../www/packages/@feezal/feezal-element-system-notification/feezal-element-system-notification.js#L217).) **Fix:** switch the placeholder to `<feezal-icon name="swipe">` (the canonical, shadow-safe path — same fix as the device-health board `6e4a02fb`), or add the missing `font-family`.
+
+2. **`system-swipe`'s placeholder chrome differs from the other System placeholders.** It hardcodes `background: #eceff1; border: 2px dashed #455a64; color: #455a64` ([system-swipe.js:45-52](../www/packages/@feezal/feezal-element-system-swipe/feezal-element-system-swipe.js#L45)), an opaque light chip; the others use theme-aware muted text (`color: var(--secondary-text-color, #777)`, no opaque background). On the canvas the swipe placeholder stands out with a different background-colour. **Fix:** align `system-swipe`'s `.ph` to the shared System placeholder style (theme-aware muted, no hardcoded `#eceff1`/`#455a64`).
+
+3. **Default sizes are inconsistent** — `system-notification`/`-pin`/`-splash` are `140×40`, `system-script`/`-swipe` are `120×40`. **Fix:** set **`defaultStyle` to `160×40` for every System element** (notification, pin, script, splash, swipe — and `system-connection-status` if it declares one).
+
+**Ships with:** the three fixes across the System element files (patch-bump each touched package), a browser assertion that `system-swipe`'s placeholder renders a `feezal-icon` (not `.material-icons` text) — mirroring the device-health test — and a TESTING.md note. Small, mechanical; good to bundle in one commit.
+
+**Relates:** device-health icon fix `6e4a02fb` (the identical shadow-DOM `.material-icons` → `feezal-icon` fix + its test), E7 (`system-swipe` origin), the System element family (notification/pin/script/splash/swipe — the shared placeholder chrome + default-size convention this unifies).
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
