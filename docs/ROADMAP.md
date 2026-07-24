@@ -8,7 +8,6 @@ Work in progress — priorities and scope are not final.
 
 **Bugs**
 - [B59 — Generate wizard: numeric zigbee power sensor becomes a contact element](#b59--generate-wizard-numeric-zigbee-power-sensor-becomes-a-contact-element)
-- [B60 — Homematic settling: `*-light` slider still jumps with WORKING + LEVEL_NOTWORKING both wired](#b60--homematic-settling-light-slider-still-jumps-with-working--level_notworking-both-wired)
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B62 — Gradient view background tiles/scrolls instead of staying put (Safari/iOS, PWA)](#b62--gradient-view-background-tilesscrolls-instead-of-staying-put-safariios-pwa)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
@@ -117,39 +116,6 @@ Work in progress — priorities and scope are not final.
 - Add a regression case to `test/feezal-discovery-stamp.test.js` (`resolveElementTag('sensor', family, 'power')` → the sensor/value/gauge tag; an unmapped-device_class `binary_sensor` → `sensor`, not `contact`) and cover the `power`/`energy` → `energy_savings_leaf` default-icon mapping.
 
 **Relates:** **U58** (the Generate wizard this surfaced in), **E113** (function × style — `resolveElementTag` is its minimal slice; the component→function mapping lives here), E114 (parity — the family must actually have the value/sensor element the corrected resolution picks), E138 (device-function taxonomy).
-
-### B60 — Homematic settling: `*-light` slider still jumps with WORKING + LEVEL_NOTWORKING both wired
-
-**Reported (07/2026).** A fully wired `glass-light` over a Homematic dimmer (`HM-LC-Dim1L-CV`, RedMatic; `LEVEL` scale 0..1). Autodiscovery wired everything correctly — **both** the `WORKING` topic (`subscribe-working`) and the settled-values topic (`subscribe-settled` = RedMatic `LEVEL_NOTWORKING`). Setting a brightness makes the slider **jump back to (near) the old value, then a moment later jump again to the set target** — instead of holding at the target through the ramp. The E127 settling machinery is meant to make exactly this case smooth.
-
-**Confirmed diagnosis (from the captured MQTT log — do NOT implement yet).** Reproduction, set target `0.22` (previous level `0.78`):
-
-| Δt | topic | payload | client-side effect |
-|---|---|---|---|
-| t0 | `hm/set/…/LEVEL` | `0.22` | element publishes → `command(0.22)`, holds slider at 0.22 |
-| t0 | `…/LEVEL` (live) | `0.775` | intermediate report, *still ≈ old value*. `settledWired` so `live()` swallows it for the slider — **but stores `_lastLive = 0.775`** |
-| **t+4s** | `…/WORKING` | `false` | **`working(false)` → `_settle(_lastLive=0.775)` → applies 0.775 → slider jumps to ≈old value** |
-| t+5s (~1s later) | `…/LEVEL_NOTWORKING` | `0.22` | `settled(0.22)` → applies 0.22 → slider jumps to target |
-
-So the two-jump symptom is fully explained by the `WORKING=false` edge calling `_settle(this._lastLive)` ([feezal-settling.js:108](../www/packages/@feezal/feezal-element/feezal-settling.js#L108)) and applying a stale live value, even though `settledWired` is true and `live()` otherwise correctly refuses to drive the display ([feezal-settling.js:70](../www/packages/@feezal/feezal-element/feezal-settling.js#L70)).
-
-**Two device-timing facts the log pins down (and that the fix must assume):**
-1. **RedMatic delivers `WORKING=false` ~1 s *before* `LEVEL_NOTWORKING`**, even though both carry the *same* device timestamp (`ts`). So at the WORKING=false edge the authoritative settled value is **not yet available** — the controller must wait for it, not fall back to `_lastLive`.
-2. **Only a single intermediate `LEVEL` is published, and it is ≈ the *old* value** (0.775 vs. old 0.78), not a value near the target. That is why the wrong jump lands on the old brightness specifically. `_lastLive` at the WORKING=false edge is therefore the *worst* possible value to apply.
-
-**Fix direction (note only, not yet implemented) — WORKING and the settled topic are mutually exclusive, not complementary.** The key insight: **when `LEVEL_NOTWORKING` (the settled topic) is present — i.e. RedMatic users — the `WORKING` datapoint should not be consulted at all.** `LEVEL_NOTWORKING` already publishes *only* settled values, so it is a complete, authoritative signal on its own; `WORKING` is only needed to synthesise settling on **non-RedMatic** Homematic MQTT interfaces (plain `hm2mqtt`/`homematic-manager`-style bridges) that expose `WORKING` but have **no** settled-values topic. The two are alternative sources for the same job, and RedMatic's is strictly better.
-
-So the fix is not "make `working(false)` behave under `settledWired`" — it is **when `settledWired` is true, ignore `working()` entirely** (the slider follows `command()` holds + `settled()` reports only). Concretely:
-- In `SettlingController`, when `settledWired`, `working()` becomes a no-op (or is never wired). The `WORKING=false`-applies-`_lastLive` path ([feezal-settling.js:108](../www/packages/@feezal/feezal-element/feezal-settling.js#L108)) then can't fire, and the stale-value jump disappears.
-- Review the **settle-timeout** reconcile ([feezal-settling.js:130-135](../www/packages/@feezal/feezal-element/feezal-settling.js#L130-L135)): under `settledWired` it should keep the commanded target and wait for the settled report, not reconcile to `_lastLive`.
-- Keep the **WORKING-only** path (no settled topic) fully intact — there `working()` and its `_lastLive` reconcile are the *only* settling signal and must stay.
-- **Consider it at the wiring layer too:** when both are discovered, `feezal-controller-light` could simply **not subscribe** `subscribe-working` (leave `workingWired` false), which is the cleanest expression of "settled wins". Autodiscovery may still populate both attributes for transparency, but the runtime should let settled win. (Decide: skip the WORKING subscription when settled is set, vs. subscribe-but-ignore — the former is simpler and avoids dead traffic.)
-
-**Secondary thing to verify while fixing:** the controller sets `this.brtLive = rawToPct(v)` on every live report under `subscribe-settled` and calls `update()` ([feezal-controller-light.js:270-276](../www/packages/@feezal/feezal-controller-light/feezal-controller-light.js#L270-L276)). Confirm the glass-light slider *position* binds to `brt` (held) and not `brtLive` (the live % readout) — if the slider ever reads `brtLive`, the intermediate 0.775 would also surface there at t0, independent of the settling bug above.
-
-**Regression test to add:** feed the SettlingController the exact captured sequence — `command(0.22)`, `live(0.775)`, `working(false)`, `settled(0.22)` with `settledWired: true` — and assert `apply` is called with `0.22` only (never `0.775`).
-
-**Relates:** **E127** ✅ (the settling controller this exercises — `SettlingController`), **E128** (blinds settling — same machinery, same `WORKING`-before-settled ordering risk on covers), **E137** (light controller owns the settling wiring), the RedMatic `LEVEL_NOTWORKING` dual-topic convention.
 
 ### B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)
 

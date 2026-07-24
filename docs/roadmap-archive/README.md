@@ -62,6 +62,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [B56 — *-climate: valve percentage stamped from the wrong datapoint (VALVE_STATE instead of VALVE) ✅ fixed](B56.md)
 - [B57 — glass-climate: Homematic mode shown as a raw number (and Auto's mode text hidden entirely) ✅ fixed](B57.md)
 - [B58 — *-climate: HmIP Manu mode ignored — `$setpoint` substitutes as a STRING in the putParamset payload ✅ fixed](B58.md)
+- [B60 — Homematic settling: `*-light` slider jumps with WORKING + LEVEL_NOTWORKING both wired ✅ fixed](B60.md)
 - [B64 — `*-switch` autodiscovery misses multi-output HmIP switch actuators (virtual-receiver grouping) ✅ fixed](B64.md)
 - [B65 — Homematic `:0` correlation (availability + battery) breaks for custom-named channels ✅ fixed](B65.md)
 

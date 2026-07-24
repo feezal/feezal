@@ -115,6 +115,19 @@ describe('SettlingController', () => {
             vi.advanceTimersByTime(5000);    // settled topic never confirmed
             expect(applied).toEqual([0.4]);
         });
+
+        it('B60: WORKING is ignored when a settled topic is wired (no stale-value jump)', () => {
+            // Reporter's real sequence (HM-LC-Dim1L-CV via RedMatic): set 0.22 from
+            // a previous 0.78. RedMatic delivers WORKING=false BEFORE LEVEL_NOTWORKING,
+            // and the only interim LEVEL report is ~the old value (0.775). Acting on
+            // the WORKING=false edge used to apply 0.775 then correct to 0.22 — a jump.
+            const s = new SettlingController({apply, settledWired: true, workingWired: true, timeoutMs: 5000});
+            s.command(0.22);      // user set → hold at target
+            s.live(0.775);        // sole interim LEVEL report ≈ old value, swallowed
+            s.working(false);     // arrives before the settled value → must be ignored now
+            s.settled(0.22);      // authoritative LEVEL_NOTWORKING
+            expect(applied).toEqual([0.22]);   // 0.775 never surfaces
+        });
     });
 
     it('dispose clears all timers', () => {

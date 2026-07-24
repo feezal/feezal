@@ -97,6 +97,16 @@ export class SettlingController {
 
     /** WORKING datapoint report. */
     working(active) {
+        // B60: when a settled-values topic (RedMatic LEVEL_NOTWORKING) is wired it
+        // is the SOLE authority — the control follows command()/settled() only, so
+        // WORKING is redundant AND harmful here. RedMatic delivers WORKING=false a
+        // moment BEFORE the settled value, and `_lastLive` at that instant is a
+        // mid-ramp (often near-old) reading; acting on the WORKING=false edge would
+        // snap the slider to that stale value and then correct when the settled
+        // value lands — the reported two-step jump. Ignore WORKING entirely in
+        // settled mode. (WORKING-only devices, with no settled topic, are
+        // unaffected and still rely on it below.)
+        if (this._settledWired) return;
         if (active) {
             this._cancelPending();
             if (!this._holding && !this._ramping) {
