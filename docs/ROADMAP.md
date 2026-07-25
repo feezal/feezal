@@ -10,7 +10,6 @@ Work in progress — priorities and scope are not final.
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B62 — Gradient view background tiles/scrolls instead of staying put (Safari/iOS, PWA)](#b62--gradient-view-background-tilesscrolls-instead-of-staying-put-safariios-pwa)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
-- [B73 — Background editor (view styles): solid + gradient colour fields should use the style-inspector var-autocomplete, not a dropdown; widen the too-small percent input](#b73--background-editor-view-styles-solid--gradient-colour-fields-should-use-the-style-inspector-var-autocomplete-not-a-dropdown-widen-the-too-small-percent-input)
 - [B74 — View theme selector: rename the default entry "Site theme (default)" → "Inherit" and drop its colour swatch](#b74--view-theme-selector-rename-the-default-entry-site-theme-default--inherit-and-drop-its-colour-swatch)
 - [B75 — Roadmap IDs leak into user-facing help texts & labels](#b75--roadmap-ids-leak-into-user-facing-help-texts--labels)
 - [B76 — `paper-slider`: invisible track (default ≈ background) + knob defaults should be `--primary-text-color`](#b76--paper-slider-invisible-track-default--background--knob-defaults-should-be---primary-text-color)
@@ -187,21 +186,6 @@ Work in progress — priorities and scope are not final.
 **Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
 
 **Relates:** **B62** (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
-
-### B73 — Background editor (view styles): solid + gradient colour fields should use the style-inspector var-autocomplete, not a dropdown; widen the too-small percent input
-
-**Reported (07/2026).** Two gripes with the **view-styles background editor** ([feezal-style-editor-background.js](../www/src/feezal-style-editor-background.js)):
-
-1. **The theme-variable picker is an extra dropdown, not the autocompleting input the rest of the style inspector uses.** **Both the SOLID background colour input and each GRADIENT stop** carry a compact **`.var-menu` quick-pick `<select>`** for canonical theme vars ([:75-77](../www/src/feezal-style-editor-background.js#L75) — "*solid + each gradient stop*"; the `THEME_VARS` list) sitting next to the colour input. Elsewhere in the **Style inspector**, a CSS-variable value is entered via an **autocompleting `var(--…)` input** (type `var(`, get theme-var suggestions inline — [feezal-sidebar-inspector-styles.js:148,326,395,442](../www/src/feezal-sidebar-inspector-styles.js#L148)). The reporter wants **both the solid colour field and the gradient stops** to use **that same autocompleting input** and **drop the extra dropdown** everywhere in this editor.
-2. **The breakpoint (stop position) percent input is too narrow to read the value.** `.stop-row .pct { width: 52px }` ([:74](../www/src/feezal-style-editor-background.js#L74)) — a stop at `100` is clipped/unreadable.
-
-**Fix.**
-- **Autocomplete instead of dropdown.** Reuse the style inspector's `var(--…)` autocomplete for **the solid colour field and every gradient stop**, and remove the `.var-menu` `<select>` from both. The stop colour input already accepts a typed literal **or** `var(--…)` and keeps it verbatim (U59), so only the **suggestion UI** changes. Best done by **extracting the var-autocomplete into a shared control/helper** (it currently lives inline in `feezal-sidebar-inspector-styles.js`) so both the style inspector and the gradient editor share one implementation — no divergent copies.
-- **Widen the percent input** so the value (up to `100`, optionally with a `%` suffix) is fully visible — e.g. `width: ~64–72px` (or let it flex), and right-align the digits.
-
-**Ships with:** the shared var-autocomplete control (or a documented reuse), the gradient-editor swap + widened `.pct`, a browser test (typing `var(` in a stop suggests theme vars and commits the pick; the percent field shows a two/three-digit value un-clipped), and a TESTING.md note on the view-styles gradient editor.
-
-**Relates:** **U59** (the gradient editor + the literal-or-`var(--…)` stop model this refines), the Style inspector `var(--…)` autocomplete ([feezal-sidebar-inspector-styles.js](../www/src/feezal-sidebar-inspector-styles.js) — the pattern to share), the canonical theme-variable set (`THEME_VARS` — the suggestions source).
 
 ### B74 — View theme selector: rename the default entry "Site theme (default)" → "Inherit" and drop its colour swatch
 

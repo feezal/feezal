@@ -81,6 +81,7 @@ class FeezalStyleEditorBackground extends LitElement {
         _gradAngle: {state: true},
         _gradShape: {state: true}, // circle | ellipse
         _stops:     {state: true}, // [{color, pos}]
+        _varAc:     {state: true}, // B73: var(--…) autocomplete dropdown state
     };
 
     constructor() {
@@ -100,6 +101,7 @@ class FeezalStyleEditorBackground extends LitElement {
         this._gradAngle = 180;
         this._gradShape = 'ellipse';
         this._stops = [{color: '#0284c7', pos: 0}, {color: '#1e293b', pos: 100}];
+        this._varAc = {open: false, target: null, value: '', matches: [], cursor: -1, pos: null};
     }
 
     static styles = css`
@@ -159,14 +161,17 @@ class FeezalStyleEditorBackground extends LitElement {
         /* gradient stops */
         .stop-row { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; flex-wrap: wrap; }
         .stop-row .stop-color { flex: 1 1 80px; min-width: 0; }
-        .stop-row .pct { width: 52px; flex: none; }
-        /* U59: compact theme-variable quick-pick (solid + each gradient stop) */
-        .var-menu {
-            flex: none; width: 40px; height: 26px; padding: 0 2px; cursor: pointer;
-            font-size: 10px; border-radius: 3px;
-            border: 1px solid var(--feezal-border, #ccc);
+        /* B73: wide enough to read a two/three-digit percentage. */
+        .stop-row .pct { width: 68px; flex: none; }
+        /* B73: var(--…) autocomplete dropdown (fixed, positioned under the input). */
+        .var-ac {
+            position: fixed; z-index: 100000; max-height: 180px; overflow-y: auto;
             background: var(--feezal-bg, #fff); color: var(--feezal-color, #333);
+            border: 1px solid var(--feezal-border, #ccc); border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.18); font-size: 11px;
         }
+        .var-ac-item { padding: 4px 8px; cursor: pointer; white-space: nowrap; }
+        .var-ac-item:hover, .var-ac-item.active { background: var(--sl-color-primary-500, #0ea5e9); color: #fff; }
         .stop-btn {
             width: 20px; height: 24px; padding: 0; border: none; background: none; cursor: pointer;
             color: var(--feezal-color, #666); font-size: 13px; border-radius: 3px; opacity: 0.6;
@@ -464,23 +469,61 @@ class FeezalStyleEditorBackground extends LitElement {
             ${this._mode === 'solid' ? this._renderSolid() : ''}
             ${this._mode === 'image' ? this._renderImage() : ''}
             ${this._mode === 'gradient' ? this._renderGradient() : ''}
+            ${this._renderVarAc()}
         `;
     }
 
-    /**
-     * U59: a compact theme-variable quick-pick. Picking an entry hands the
-     * caller `var(--…)` so a stop (or the solid colour) references the theme and
-     * re-tints on theme switch; the caller resolves it for its swatch. The
-     * select snaps back to its "var…" placeholder after each pick.
-     */
-    _varMenu(onPick) {
+    // ── B73: var(--…) autocomplete ────────────────────────────────────────────
+    // The solid colour input and each gradient stop accept a literal OR a themed
+    // `var(--…)` (kept verbatim, U59). Typing `var(` offers the canonical theme
+    // vars inline — the same autocompleting-input UX as the Style inspector,
+    // replacing the old `.var-menu` dropdown. `target` routes the committed value
+    // back: {kind:'solid'} or {kind:'stop', i}.
+    _varAcInput(e, target) {
+        const val = e.target.value;
+        const m = val.match(/var\(--([-\w]*)$/);
+        if (m) {
+            const matches = THEME_VARS.filter(v => v.startsWith('--' + m[1]));
+            if (matches.length) {
+                const r = e.target.getBoundingClientRect();
+                this._varAc = {open: true, target, value: val, matches, cursor: -1,
+                    pos: {top: r.bottom + 2, left: r.left, width: r.width}};
+                return;
+            }
+        }
+        if (this._varAc.open) this._varAc = {...this._varAc, open: false};
+    }
+
+    _varAcKeydown(e) {
+        if (!this._varAc.open) return;
+        const {matches, cursor} = this._varAc;
+        if (e.key === 'ArrowDown') { e.preventDefault(); this._varAc = {...this._varAc, cursor: Math.min(cursor + 1, matches.length - 1)}; }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); this._varAc = {...this._varAc, cursor: Math.max(cursor - 1, -1)}; }
+        else if (e.key === 'Enter' && cursor >= 0) { e.preventDefault(); this._varAcPick(matches[cursor]); }
+        else if (e.key === 'Escape') { this._varAc = {...this._varAc, open: false}; }
+    }
+
+    _varAcPick(varName) {
+        const {target, value} = this._varAc;
+        const newVal = value.replace(/var\(--([\w-]*)$/, `var(${varName})`);
+        this._varAc = {...this._varAc, open: false};
+        if (target?.kind === 'stop') this._stopChanged(target.i, {color: newVal});
+        else { this._colorText = newVal; this._emitCurrent(); }
+    }
+
+    _varAcClose() {
+        // Deferred so a dropdown click (mousedown-picked) commits before close.
+        setTimeout(() => { if (this._varAc.open) this._varAc = {...this._varAc, open: false}; }, 150);
+    }
+
+    _renderVarAc() {
+        if (!this._varAc.open || !this._varAc.pos) return '';
         return html`
-            <select class="var-menu" title="Reference a theme colour variable"
-                @change="${e => { const v = e.target.value; e.target.selectedIndex = 0; if (v) onPick(v); }}">
-                <option value="">var…</option>
-                ${THEME_VARS.map(v => html`<option value="var(${v})">${v.replace(/^--/, '').replace(/-/g, ' ')}</option>`)}
-            </select>
-        `;
+            <div class="var-ac" style="top:${this._varAc.pos.top}px; left:${this._varAc.pos.left}px; min-width:${this._varAc.pos.width}px;">
+                ${this._varAc.matches.map((v, i) => html`
+                    <div class="var-ac-item ${i === this._varAc.cursor ? 'active' : ''}"
+                        @mousedown="${e => { e.preventDefault(); this._varAcPick(v); }}">${v}</div>`)}
+            </div>`;
     }
 
     _renderSolid() {
@@ -491,14 +534,16 @@ class FeezalStyleEditorBackground extends LitElement {
         return html`
             <div class="row">
                 <sl-input size="small"
-                    placeholder="${FeezalStyleEditorBackground.DEFAULT_COLOR}"
+                    placeholder="${FeezalStyleEditorBackground.DEFAULT_COLOR}  (type var( for theme colours)"
                     .value="${this._colorText}"
+                    @sl-input="${e => this._varAcInput(e, {kind: 'solid'})}"
+                    @keydown="${e => this._varAcKeydown(e)}"
+                    @sl-blur="${() => this._varAcClose()}"
                     @sl-change="${e => { this._colorText = e.target.value; this._emitCurrent(); }}">
                 </sl-input>
                 <input type="color" class="${hex ? '' : 'unresolved'}"
                     .value="${hex || '#000000'}"
                     @input="${e => { this._colorText = e.target.value; this._emitCurrent(); }}">
-                ${this._varMenu(v => { this._colorText = v; this._emitCurrent(); })}
             </div>
         `;
     }
@@ -583,11 +628,13 @@ class FeezalStyleEditorBackground extends LitElement {
                 return html`
                 <div class="stop-row">
                     <sl-input class="stop-color" size="small" placeholder="#hex / var(--…)" .value="${s.color}"
+                        @sl-input="${e => this._varAcInput(e, {kind: 'stop', i})}"
+                        @keydown="${e => this._varAcKeydown(e)}"
+                        @sl-blur="${() => this._varAcClose()}"
                         @sl-change="${e => this._stopChanged(i, {color: e.target.value.trim() || '#000000'})}">
                     </sl-input>
                     <input type="color" class="${hex ? '' : 'unresolved'}" .value="${hex || '#000000'}"
                         @input="${e => this._stopChanged(i, {color: e.target.value})}">
-                    ${this._varMenu(v => this._stopChanged(i, {color: v}))}
                     <sl-input class="pct" size="small" type="number" min="0" max="100" .value="${String(s.pos)}"
                         @sl-change="${e => this._stopChanged(i, {pos: Math.max(0, Math.min(100, parseFloat(e.target.value) || 0))})}">
                         <span slot="suffix">%</span>

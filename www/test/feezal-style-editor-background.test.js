@@ -297,3 +297,39 @@ describe('feezal-style-editor-background — emitting', () => {
         expect(ed._stops.length).toBe(2);
     });
 });
+
+describe('B73 — var(--…) autocomplete (replaces the var-menu dropdown)', () => {
+    const fakeEv = value => ({target: {value, getBoundingClientRect: () => ({bottom: 10, left: 5, width: 100})}});
+
+    it('opens with theme-var matches when typing var(--pri', () => {
+        const ed = makeEditor(target);
+        ed._varAcInput(fakeEv('var(--pri'), {kind: 'solid'});
+        expect(ed._varAc.open).toBe(true);
+        expect(ed._varAc.matches).toContain('--primary-color');
+        expect(ed._varAc.matches).toContain('--primary-background-color');
+        expect(ed._varAc.matches.every(v => v.startsWith('--pri'))).toBe(true);
+    });
+
+    it('picking a var completes the solid colour value', () => {
+        const ed = makeEditor(target);
+        ed._varAcInput(fakeEv('var(--acc'), {kind: 'solid'});
+        ed._varAcPick('--accent-color');
+        expect(ed._colorText).toBe('var(--accent-color)');
+        expect(ed._varAc.open).toBe(false);
+    });
+
+    it('picking a var completes a gradient stop colour', () => {
+        const ed = makeEditor(target);
+        ed._varAcInput(fakeEv('var(--div'), {kind: 'stop', i: 1});
+        ed._varAcPick('--divider-color');
+        expect(ed._stops[1].color).toBe('var(--divider-color)');
+    });
+
+    it('closes when the text no longer ends with an open var(', () => {
+        const ed = makeEditor(target);
+        ed._varAcInput(fakeEv('var(--pri'), {kind: 'solid'});
+        expect(ed._varAc.open).toBe(true);
+        ed._varAcInput(fakeEv('#123456'), {kind: 'solid'});
+        expect(ed._varAc.open).toBe(false);
+    });
+});

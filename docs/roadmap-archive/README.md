@@ -73,6 +73,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [B70 — System element editor placeholders: swipe shows text not icon, mismatched chrome, inconsistent default sizes ✅ fixed](B70.md)
 - [B71 — `system-splash` appears to do nothing in the viewer (was per-view, not site-wide) ✅ fixed](B71.md)
 - [B72 — `device-health`: one list entry per entity instead of per device (ESPHome / zigbee2mqtt) ✅ fixed](B72.md)
+- [B73 — Background editor (view styles): solid + gradient colour fields should use the style-inspector var-autocomplete, not a dropdown; widen the too-small percent input ✅ fixed](B73.md)
 
 ## Near-term Improvements
 
