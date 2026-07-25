@@ -24,10 +24,29 @@ export default defineConfig({
             // this suite's denominator would misreport what these tests cover.
             // The browser config includes them; the merged report
             // (scripts/coverage-merge.mjs) unions the two.
+            //
+            // What IS listed below are the element packages a test in `test/`
+            // actually imports — several export pure helpers (`lerpColor`,
+            // `buildQrValue`, `deriveStep`, the schedule/time parsers) that are
+            // thoroughly unit-tested and were being counted as UNCOVERED,
+            // because the file was outside this include and the browser suite
+            // never calls those functions. Keep this list in step with the
+            // imports; the check is
+            //   grep -rhoE '\.\./packages/@feezal/[a-z0-9-]+' test/ | sort -u
+            // and forgetting an entry costs only what the browser suite
+            // already counts for that file in the merge.
             include: [
                 'src/**/*.js',
                 'packages/@feezal/feezal-element/*.js',
-                'packages/@feezal/feezal-controller-*/*.js'
+                'packages/@feezal/feezal-controller-*/*.js',
+                'packages/@feezal/feezal-element-basic-{icon,icon-value,image,navigation,qrcode,svg,table,template,ticker}/*.js',
+                'packages/@feezal/feezal-element-carbon-slider/*.js',
+                'packages/@feezal/feezal-element-circle-{climate,contact,cover,light,sensor,switch}/*.js',
+                'packages/@feezal/feezal-element-glass-{button,contact,cover,light,value,wled}/*.js',
+                'packages/@feezal/feezal-element-material-{dialog,dialog-view,navbar,schedule,slider,time-picker}/*.js',
+                'packages/@feezal/feezal-element-paper-{card,dialog,dialog-view}/*.js',
+                'packages/@feezal/feezal-element-system-script/*.js',
+                'packages/@feezal/feezal-icons-*/*.js'
             ],
             exclude: [...COVERAGE_EXCLUDE]
             // No coverage thresholds here — the floor is enforced once, on the

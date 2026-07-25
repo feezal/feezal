@@ -434,7 +434,12 @@ class FeezalSidebarThemes extends LitElement {
             .map(([name, props]) => {
                 const propStr = Object.entries(props)
                     .filter(([k, v]) => k && v && /^[\w-]+$/.test(k))
-                    .map(([k, v]) => `${k}:${String(v).replace(/[;"']/g, '')}`)
+                    // Strip anything that could end the declaration or the rule
+                    // block: `;` closes the declaration, `{`/`}` close the rule
+                    // itself — a value like `red;} body{display:none` otherwise
+                    // serialized into a SECOND, unintended rule that then ships
+                    // to every viewer with the site.
+                    .map(([k, v]) => `${k}:${String(v).replace(/[;{}"']/g, '')}`)
                     .join(';');
                 return propStr ? `.feezal-class-${name}{${propStr}}` : '';
             })

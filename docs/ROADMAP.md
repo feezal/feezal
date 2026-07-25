@@ -46,6 +46,7 @@ Work in progress — priorities and scope are not final.
 - [E95 — Configurable keyboard shortcuts for interactive elements](#e95--configurable-keyboard-shortcuts-for-interactive-elements)
 - [E96 — MIDI input as an element trigger (Web MIDI)](#e96--midi-input-as-an-element-trigger-web-midi-️-questionable-future) ❓
 - [E107 — Thermostat schedule elements (device week programs)](#e107--thermostat-schedule-elements-device-week-programs--blocked-by-upstream-homematic) 🚧 *(blocked by upstream — Homematic)*
+- [E155 — Glass popups: center on screen, viewport-relative width](#e155--glass-popups-center-on-screen-viewport-relative-width)
 - [E112 — Scrypted integration: camera snapshot element](#e112--scrypted-integration-camera-snapshot-element-sensors-already-work--to-refine) 💡 *(to refine)*
 - [E113 — Element taxonomy: make "function × style" explicit](#e113--element-taxonomy-make-function--style-explicit--needs-discussion) ⚠️
 - [E114 — Family parity contract: material/circle / glass / metro stay in sync](#e114--family-parity-contract-materialcircle--glass--metro-stay-in-sync--needs-discussion) ⚠️
@@ -793,6 +794,21 @@ Elements to **view and edit the week program stored *in* a thermostat** — HmIP
 **Ships with:** package(s) per element conventions, TESTING.md §6 entry (grid editing, slot limits, profile switching, write-only shadow behaviour), patch/registration per policy.
 
 **Relates:** E102 (paramset topic + VALUES/MASTER distinction, profile stamping, device matrix — this entry extends that groundwork to MASTER), material-schedule (editor UI to reuse; docs/schedule-format.md JSON contract as the shadow-format candidate), E106 (shared editor surface extraction), N31 (discovery — explicitly *not* usable for schedules, documented above), U39 (attribute-heavy inspector UX — a schedule adapter config is exactly that).
+
+### E155 — Glass popups: center on screen, viewport-relative width
+
+The 5 glass detail popovers (light / climate / cover / fan / wled) currently anchor **above/below their card** at a **fixed 200 px** width ([feezal-glass.js:95-99](../www/packages/@feezal/feezal-glass/feezal-glass.js#L95-L99) `glassPopupStyles`; `_positionDetails()` at [:180-195](../www/packages/@feezal/feezal-glass/feezal-glass.js#L180)). On large screens they're tiny; on small ones they crowd the card.
+
+**Decided (07/2026): center + viewport-relative width.**
+- **Width:** `min(70vw, 450px)` (replaces the fixed `200px`) — 70 % of the viewport, capped at ~450 px so it never gets absurdly wide on desktop. Height stays `fit-content` with the existing `max-height: 90vh`.
+- **Position:** **centered in the viewport** (modal-style) instead of card-anchored. Since `.details` is already `position: fixed`, this is pure CSS — `inset: 0; margin: auto;` (or `left/top: 50%` + `translate(-50%,-50%)`) — which lets **`_positionDetails()` be deleted entirely** (a simplification: the JS above/below/clamp math goes away). Verify the `::backdrop` dim still reads as a modal.
+- **Consideration:** on a narrow phone `70vw` (~262 px @ 375 px) is wider than today's 200 px — fine for the slider/wheel contents; if any card's controls need more, add a `min()` floor (e.g. `clamp(240px, 70vw, 450px)`) rather than per-card overrides. Confirm the brightness pill / hue wheel / mode chips still lay out at the new widths.
+
+**One shared change** in `glassPopupStyles` + the base `FeezalGlassCard` covers all five cards (the E106 shared-glass layer) — no per-element edits, and glass-wled's local `gap: 14px` override is unaffected.
+
+**Ships with:** the `glassPopupStyles` width + centering change, removal of `_positionDetails()` and its callers, TESTING.md §6 glass note (popup centered, ~70 vw capped at 450 px, contents lay out on phone + desktop, backdrop dims, editor unaffected), patch bump on `@feezal/feezal-glass` + dependent cards per policy.
+
+**Relates:** E106 ✅ (the shared `feezal-glass` layer this changes once for all five cards), E58 ✅ (glass family), glass-light / glass-climate / glass-cover / glass-fan / glass-wled (the five popover cards), the removed `_positionDetails()` (net simplification).
 
 ### U3 — Element grouping and locking 🔽 partial
 - **Lock**: prevent an element from being accidentally moved/resized ✅. Locked elements show an amber dashed outline; interact drag/resize is disabled; lock/unlock is in the right-click context menu and the `locked` attribute is persisted with the dashboard HTML.
