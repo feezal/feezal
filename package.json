@@ -11,6 +11,7 @@
     "test:browser": "npm --prefix www run test:browser",
     "test:e2e": "npm --prefix www run test:e2e",
     "test:all": "npm test && npm run test:browser && npm run test:e2e",
+    "coverage": "npm run test:coverage --prefix server && npm run test:coverage --prefix www && npm run test:browser:coverage --prefix www && node scripts/coverage-merge.mjs",
     "create-element": "node packages/create-feezal-element/index.js",
     "create-theme": "node packages/create-feezal-theme/index.js",
     "create-icons": "node packages/create-feezal-icons/index.js",

@@ -85,10 +85,17 @@ jobs:
         working-directory: www
         run: npx playwright install --with-deps chromium firefox webkit
 
-      - name: Component tests (browser matrix)
+      # A31 W1: the chromium pass runs WITH coverage (v8 browser coverage is
+      # Chromium-only — see vitest.browser.config.mjs), so it is split out of
+      # the matrix rather than added on top; firefox/webkit still run, they
+      # are there to catch engine differences, not to add covered lines.
+      - name: Component tests (chromium, with coverage)
+        run: npm run test:browser:coverage --prefix www
+
+      - name: Component tests (firefox + webkit)
         run: npm run test:browser --prefix www
         env:
-          FEEZAL_TEST_BROWSERS: chromium,firefox,webkit
+          FEEZAL_TEST_BROWSERS: firefox,webkit
 
       # FEEZAL_COVERAGE: build with inline sourcemaps and collect Chromium V8
       # coverage in the E2E harness (see www/test-e2e/harness.js).
@@ -113,12 +120,29 @@ jobs:
           path: www/coverage/
           if-no-files-found: ignore
 
+      # A31: kept as its own artifact so the merge job can restore it to the
+      # exact path scripts/coverage-merge.mjs reads.
+      - name: Upload component coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: component-coverage
+          path: www/coverage-browser/
+          if-no-files-found: ignore
+
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: www/coverage/lcov.info
           flags: frontend
+
+      - name: Upload component coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: www/coverage-browser/lcov.info
+          flags: components
 
       - name: Upload E2E coverage to Codecov
         uses: codecov/codecov-action@v5
@@ -133,3 +157,57 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: www/coverage-e2e/lcov-elements.info
           flags: elements
+
+  coverage:
+    name: Coverage (merged overall + floor)
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+
+    # A31: the three suites measure three different denominators, and www/src
+    # is driven by two of them — read separately none of them answers "how much
+    # of feezal is tested". This job merges them (union per file, summed hits)
+    # into the one number the floor is enforced against.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Restore backend coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-coverage
+          path: server/coverage
+
+      - name: Restore frontend logic coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-coverage
+          path: www/coverage
+
+      - name: Restore component coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: component-coverage
+          path: www/coverage-browser
+
+      # The don't-sink-again floor. Set a few points below the achieved figure
+      # so normal churn cannot make CI flaky; raise it when the number rises.
+      - name: Merge coverage + enforce the floor
+        run: node scripts/coverage-merge.mjs --min 60
+
+      - name: Upload merged coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: merged-coverage
+          path: coverage/
+          if-no-files-found: ignore
+
+      - name: Upload merged coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage/lcov.info
+          flags: overall

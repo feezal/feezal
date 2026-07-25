@@ -8,8 +8,10 @@
 /www/viewer-src/index.html
 /server/coverage
 /www/coverage
+/www/coverage-browser
 /www/coverage-e2e
 /www/coverage-e2e-raw
+/coverage
 /www/.vitest-attachments
 .claude/settings.local.json
 /docs/INTEGRATION-ROADMAP.md

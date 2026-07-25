@@ -1,5 +1,6 @@
 import {defineConfig} from 'vitest/config';
 import {playwright} from '@vitest/browser-playwright';
+import {COVERAGE_EXCLUDE} from './coverage-exclude.mjs';
 
 // Frontend component tests (A17 phase 3) — real web components in real
 // browsers via Vitest browser mode: shadow DOM, Lit lifecycle, ::slotted
@@ -15,6 +16,14 @@ import {playwright} from '@vitest/browser-playwright';
 // firefox/webkit need more system libraries — prefer CI for the full matrix.
 const browsers = (process.env.FEEZAL_TEST_BROWSERS || 'chromium')
     .split(',').map(s => s.trim()).filter(Boolean);
+
+// A31 W1: vitest's v8 coverage provider reads Chromium's CDP profiler, so it
+// cannot instrument firefox/webkit. A `--coverage` run is therefore pinned to
+// chromium here rather than in the npm script — that keeps the script free of
+// a cross-platform env-var prefix (no cross-env dependency), and makes the
+// constraint impossible to bypass by exporting FEEZAL_TEST_BROWSERS.
+const collectingCoverage = process.argv.includes('--coverage');
+const instances = (collectingCoverage ? ['chromium'] : browsers).map(browser => ({browser}));
 
 export default defineConfig({
     // The element smoke harness imports every element package at once; warm
@@ -57,8 +66,31 @@ export default defineConfig({
             enabled: true,
             headless: true,
             provider: playwright(),
-            instances: browsers.map(browser => ({browser})),
+            instances,
             screenshotFailures: false
+        },
+        // A31 W1 — the biggest measurement gap: 65 test files exercise the
+        // ~49k LOC of packages/@feezal/* elements (the smoke harness alone
+        // mounts every installed package), and none of it was counted because
+        // this config had no coverage block. Opt-in via `--coverage`
+        // (`npm run test:browser:coverage`) so the plain matrix run stays
+        // uninstrumented.
+        //
+        // v8 in browser mode is Chromium-only (it reads CDP coverage), so a
+        // --coverage run is pinned to chromium above. The firefox / webkit
+        // matrix keeps running without coverage — it is there to catch engine
+        // differences, not to add lines.
+        coverage: {
+            provider: 'v8',
+            reporter: ['text', 'html', 'lcov'],
+            reportsDirectory: 'coverage-browser',
+            include: [
+                'src/**/*.js',
+                'packages/@feezal/**/*.js'
+            ],
+            exclude: [...COVERAGE_EXCLUDE]
+            // No coverage thresholds here — the floor is enforced once, on the
+            // MERGED number, by scripts/coverage-merge.mjs.
         }
     }
 });

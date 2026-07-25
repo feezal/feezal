@@ -11,6 +11,7 @@
         "test": "vitest run",
         "test:coverage": "vitest run --coverage",
         "test:browser": "vitest run --config vitest.browser.config.mjs",
+        "test:browser:coverage": "vitest run --config vitest.browser.config.mjs --coverage",
         "test:e2e": "vitest run --config vitest.e2e.config.mjs",
         "coverage:e2e-report": "node --max-old-space-size=8192 scripts/e2e-coverage-report.mjs"
     },

@@ -77,7 +77,6 @@ Work in progress — priorities and scope are not final.
 - [A24 — Externalize the metro element family](#a24--externalize-the-metro-element-family-future--will-be-done-later) *(future)*
 - [A27 — i18n: editor localization + language-aware element defaults](#a27--i18n-editor-localization--language-aware-element-defaults--to-refine--needs-discussion) 💡 *(to refine)*
 - [A29 — RTL layout support (Arabic, Hebrew)](#a29--rtl-layout-support-arabic-hebrew--future) 💡 *(future)*
-- [A31 — Test coverage: reach 50%+ overall](#a31--test-coverage-reach-50-overall-measure-whats-already-tested-then-fill-gaps)
 
 
 ---
@@ -1786,39 +1785,6 @@ Right-to-left support is **a layout mode, not a translation** — which is exact
 **Explicitly future:** nothing here blocks or complicates A27's en+de work; the only present-day requirement (A27's dictionary format must not preclude RTL locales) is already met.
 
 **Relates:** **A27** (the language machinery this rides on — split out from its language list 07/2026), A25 ✅ (font self-hosting constraint), N38 (site locale — supplies the locale that flips `dir`), layout-app / tab bars / sliders (the element-internal audit surface), E38 (element scaling — the other cross-cutting element-CSS audit; coordinate if both run).
-
-### A31 — Test coverage: reach 50%+ overall (measure what's already tested, then fill gaps)
-
-**Goal: 50%+ overall coverage**, and stop the slow sink as the codebase grows. Measured 07/2026:
-
-| suite | coverage | over |
-|---|---|---|
-| **server** | **~82%** stmts / ~84% lines | `src/**` (healthy — not the problem) |
-| **www unit** | **~32%** stmts / ~34% lines | `src/**` (22.5k LOC) + one element file |
-| **www browser** (65 test files) | **0% collected** | — no coverage block in the config |
-
-**Root cause — most already-tested code isn't counted.** The sink isn't primarily missing tests; it's **measurement gaps**:
-1. **Browser tests emit no coverage.** [vitest.browser.config.mjs](../www/vitest.browser.config.mjs) has no `coverage` block, so 65 test files exercising the **48.7k LOC** of `packages/@feezal/*` elements get **zero** credit. Every new element (dozens shipped) added tested code that's invisible to the number.
-2. **www unit `include` is too narrow** ([vitest.config.mjs](../www/vitest.config.mjs) — `src/**` + `feezal-element.js` only). Yet ~15+ unit tests directly exercise `packages/@feezal/**` modules (`feezal-settling.js`, `feezal-conditions.js`, `feezal-controller-aiedge/evcc-loadpoint`, many element tests) — **their coverage is discarded** because those files aren't in `include`.
-3. **Dead weight inflates the denominator.** `monaco-slim.js`, `material-design-icons.js` (generated), `viewer-main.js` (entry) sit at 0% inside the include — untestable code dragging the ratio down.
-
-**Quick wins (config-only — likely reach ~50% before writing a single new test):**
-- **W1 — collect browser-mode coverage** (v8/istanbul in `vitest.browser.config.mjs`) and **merge all three lcovs** (server + www-unit + www-browser) into the "overall" Codecov report. Biggest single lever: it surfaces the large already-tested element surface. *(The E2E harness already collects Chromium V8 coverage — `FEEZAL_COVERAGE` — so the merge plumbing partly exists to model on.)*
-- **W2 — broaden www-unit `include`** to the pure-logic `packages/@feezal/**` modules that already have passing unit tests (controllers, `feezal-settling`, `feezal-color`, `feezal-conditions`). Zero new tests — just count what's green.
-- **W3 — exclude generated/vendored/entry files** (`monaco-slim.js`, `material-design-icons.js`, `viewer-main.js`, the Monaco loader) from the include so the ratio reflects testable code.
-
-**Targeted gap-filling (the real new tests, highest LOC × lowest coverage first) — all in `src/` editor logic:**
-- `feezal-sidebar-inspector.js` (~7%), `feezal-app-editor.js` (~10%), `feezal-sidebar-assets.js` (~10%) — extract and unit-test the **pure-logic helpers** (serialization, geometry math, clean/strip, selection bookkeeping, the visibility controller `feezal-visibility.js` ~18% from N37); leave true drag/DOM/interact paths to the browser/E2E suites.
-- `feezal-template-manager.js` / `-editor.js`, `feezal-generate-dialog.js`, `feezal-theme-select.js` (all <7%) — their data-shaping/validation functions are unit-friendly.
-- Prefer **moving logic out of DOM-heavy components into pure modules** (the `feezal-color.js`/`feezal-settling.js` pattern) so it's cheaply unit-testable — this doubles as a refactor win.
-
-**Don't-sink-again floor:** the configs deliberately say *"No coverage thresholds — CI never fails on coverage."* Once past 50%, add a **modest threshold gate** (e.g. 50%, or per-suite floors) so the number can't quietly erode again — set it a few points below the achieved value to avoid flakiness.
-
-**Sequencing:** W1–W3 first (measure honestly → probably near/over 50% immediately), reassess, then targeted tests only where the merged number still falls short, then the floor. Each step is independently shippable.
-
-**Ships with:** the config changes (browser coverage + merged lcov + include/exclude), the CI merge/upload wiring, new unit tests for the picked `src/` modules, any logic-extraction refactors, and the threshold gate once the target holds. Update the CI "coverage gate" steps accordingly.
-
-**Relates:** A17 ✅ (the logic-unit-test phase this extends), E106 ✅/E137 ✅ (the shared-controller/pure-module extraction that makes logic unit-testable — lean into it), N37 ✅ (`feezal-visibility.js` — a concrete low-coverage target), the E2E `FEEZAL_COVERAGE` harness (the browser-coverage-collection precedent to reuse), Codecov (the "overall" the goal is measured against).
 
 ## Open Questions
 

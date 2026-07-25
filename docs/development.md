@@ -119,13 +119,53 @@ The Vite config already proxies `/editor/feezal-elements.js` and all `/api/`, `/
 
 ### Running tests
 
+Four suites, each with its own vitest config:
+
 ```sh
 # From the repo root:
-npm test           # runs server tests (www has no tests yet)
+npm test              # server (node) + www logic-unit (happy-dom)
+npm run test:browser  # www component tests — real browsers via playwright
+npm run test:e2e      # full stack: server + aedes broker + headless chromium
+npm run test:all      # all of the above
 
-# Directly:
-cd server && npx vitest run
+# Per package:
+npm test --prefix server           # server/test/**       — node
+npm test --prefix www              # www/test/**          — happy-dom
+npm run test:browser --prefix www  # www/test-browser/**  — chromium (default)
 ```
+
+The browser matrix defaults to chromium; `FEEZAL_TEST_BROWSERS=chromium,firefox,webkit`
+runs all three (CI does). Binaries come from `npx playwright install <browser>`.
+On WSL chromium additionally needs `libnss3` + `libnspr4` — see the note at the
+top of `www/vitest.browser.config.mjs`.
+
+### Coverage
+
+```sh
+npm run coverage      # from the repo root: runs all three coverage suites
+                      # and prints the merged overall figure
+```
+
+Coverage is produced by three independent runs with three different
+denominators, and `www/src` is driven by two of them — so no single report
+answers "how much of feezal is tested":
+
+| report | measures |
+|---|---|
+| `server/coverage/lcov.info` | `server/src/**` |
+| `www/coverage/lcov.info` | `www/src` + the shared `packages/@feezal` logic (controllers, base, settling) |
+| `www/coverage-browser/lcov.info` | `www/src` + **every** element package |
+
+`scripts/coverage-merge.mjs` merges them — union of files, summed per-line hits,
+so a file exercised by two suites is counted once at what they jointly cover —
+writes `coverage/lcov.info` and prints the overall number. Pass `--min <pct>` to
+make it exit non-zero below a floor; CI runs it with `--min 60` in the dedicated
+`coverage` job. Each suite is also uploaded to Codecov under its own flag
+(`backend`, `frontend`, `components`, `e2e`, `elements`, `overall`).
+
+Component coverage is opt-in (`npm run test:browser:coverage --prefix www`) and
+pins chromium: vitest's v8 provider reads Chromium's CDP profiler and cannot
+instrument firefox/webkit. The plain `test:browser` run stays uninstrumented.
 
 ---
 
@@ -243,12 +283,16 @@ To build a specific tag: `docker build --build-arg GIT_REF=v1.2.0 -t feezal .`
 
 ## 6. CI (continuous integration)
 
-The **"CI"** workflow (`.github/workflows/ci.yml`) runs on every push to any branch and on every pull request:
+The **"CI"** workflow (`.github/workflows/ci.yml`) runs on every push to any branch and on every pull request, in four jobs:
 
-1. `npm install --prefix server` — server dependencies
-2. `npm test --prefix server` — vitest unit + integration tests (covering API routes, storage adapter, topic matching)
+1. **Dependency license gate** — `scripts/check-licenses.js` over the production dependency tree.
+2. **Backend** — server unit + integration tests with coverage (API routes, storage adapter, topic matching, the MQTT bridge and the native discovery recognizers).
+3. **Frontend** — www logic-unit tests with coverage; component tests in **chromium with coverage** plus a **firefox + webkit** pass without it (v8 browser coverage is Chromium-only, so the chromium run is split out of the matrix rather than added on top); then a `FEEZAL_COVERAGE=1` build and the E2E happy path, whose raw Chromium V8 dumps `scripts/e2e-coverage-report.mjs` turns into lcov.
+4. **Coverage** — downloads the other jobs' coverage artifacts, runs `scripts/coverage-merge.mjs --min 60`, and uploads the merged report. **This is the only step that can fail on coverage**; the individual suites deliberately carry no thresholds, so the floor is enforced once, on the merged number.
 
-No Vite build or lint step is run in CI — only the server-side code is tested there. The build is only run as part of the Docker release workflow.
+Every report is uploaded to Codecov under its own flag (`backend`, `frontend`, `components`, `e2e`, `elements`, `overall`).
+
+The Vite build runs in CI only as part of the E2E job (and in the Docker release workflow); there is no separate lint step.
 
 ---
 
