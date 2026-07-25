@@ -187,7 +187,7 @@ class FeezalElementSystemNotification extends FeezalElement {
                 {name: 'dedupe', type: 'boolean', default: false, help: 'Suppress a toast that is identical to the most recent visible one.'},
             ],
             restrict: {minWidth: 24, minHeight: 24},
-            defaultStyle: {width: '140px', height: '40px'},
+            defaultStyle: {width: '160px', height: '40px'},
             inspector: 'feezal-element-system-notification-inspector',
         };
     }

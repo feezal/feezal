@@ -5,6 +5,7 @@
  */
 import {describe, it, expect, beforeEach, afterEach} from 'vitest';
 import '../packages/@feezal/feezal-element-system-swipe/feezal-element-system-swipe.js';
+import '../src/feezal-icon.js';   // B70: real <feezal-icon> so the placeholder icon renders
 import {setupFeezal, mount} from './helpers.js';
 
 let feezal;
@@ -100,5 +101,14 @@ describe('E7 — swipe navigation', () => {
         setupFeezal({isEditor: true});
         const ed = await mount('feezal-element-system-swipe', {});
         expect(ed.renderRoot.textContent).toContain('Swipe');
+        // B70: the icon renders via <feezal-icon>, not a raw .material-icons ligature.
+        expect(ed.renderRoot.querySelector('.ph feezal-icon')).toBeTruthy();
+        expect(ed.renderRoot.querySelector('.material-icons')).toBeNull();
+        expect(ed.renderRoot.querySelector('.ph').textContent).not.toContain('swipe');   // no ligature text leak
+    });
+
+    it('B70: default size is 160x40', () => {
+        const ds = window.customElements.get('feezal-element-system-swipe').feezal.defaultStyle;
+        expect(ds).toEqual({width: '160px', height: '40px'});
     });
 });

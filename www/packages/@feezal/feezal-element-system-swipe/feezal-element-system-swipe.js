@@ -28,7 +28,7 @@ class FeezalElementSystemSwipe extends FeezalElement {
                 {name: 'wrap', type: 'boolean', default: true, help: 'Swiping past the last view wraps to the first (and vice-versa).'},
             ],
             styles: ['top', 'left'],
-            defaultStyle: {width: '120px', height: '40px'},
+            defaultStyle: {width: '160px', height: '40px'},
         };
     }
 
@@ -42,13 +42,15 @@ class FeezalElementSystemSwipe extends FeezalElement {
 
     static styles = [feezalBaseStyles, css`
         :host { display: block; }
+        /* B70: theme-aware placeholder chrome, matching the other System elements
+           (no hardcoded #eceff1/#455a64, no opaque background). */
         .ph {
             display: flex; align-items: center; justify-content: center; gap: 6px;
             width: 100%; height: 100%; box-sizing: border-box;
-            border: 2px dashed #455a64; border-radius: 4px; background: #eceff1;
-            font-size: 12px; color: #455a64; user-select: none;
+            border: 2px dashed var(--feezal-border, #bbb); border-radius: 6px;
+            font-size: 12px; color: var(--secondary-text-color, #777); user-select: none;
         }
-        .ph .material-icons { font-size: 16px; }
+        .ph feezal-icon { font-size: 16px; }
     `];
 
     constructor() {
@@ -147,7 +149,7 @@ class FeezalElementSystemSwipe extends FeezalElement {
 
     render() {
         if (!feezal.isEditor) return html``;   // invisible in the viewer
-        return html`<div class="ph"><span class="material-icons">swipe</span> Swipe</div>`;
+        return html`<div class="ph"><feezal-icon name="swipe"></feezal-icon> Swipe</div>`;
     }
 }
 

@@ -83,7 +83,7 @@ class FeezalElementSystemSplash extends FeezalElement {
                     help: 'Colour of the CSS spinner (defaults to the theme primary colour).'},
             ],
             restrict: {minWidth: 24, minHeight: 24},
-            defaultStyle: {width: '140px', height: '40px'},
+            defaultStyle: {width: '160px', height: '40px'},
         };
     }
 

@@ -83,7 +83,7 @@ class FeezalElementSystemScript extends FeezalElement {
                 {name: 'name', type: 'string', help: 'Script name — shown on the editor chip and used as the console log prefix.'},
             ],
             restrict: {minWidth: 24, minHeight: 24},
-            defaultStyle: {width: '120px', height: '40px'},
+            defaultStyle: {width: '160px', height: '40px'},
             inspector: 'feezal-element-system-script-inspector',
         };
     }

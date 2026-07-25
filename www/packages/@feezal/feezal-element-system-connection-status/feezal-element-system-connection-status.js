@@ -37,7 +37,10 @@ class FeezalElementSystemConnectionStatus extends LitElement {
                 {name: 'message',           type: 'string',                                default: 'Reconnecting\u2026', label: 'Message ({countdown} = elapsed seconds)'},
                 {name: 'show-countdown',    type: 'boolean',                               default: true,                 label: 'Show elapsed-time countdown'},
                 {name: 'animate',           type: 'select',  options: ['none', 'fade', 'slide'], default: 'fade',         label: 'Entry animation'}
-            ]
+            ],
+            // B70: uniform System-element placeholder size (the overlay itself is
+            // viewport-anchored — this only sizes the editor-canvas chip).
+            defaultStyle: {width: '160px', height: '40px'}
         };
     }
 

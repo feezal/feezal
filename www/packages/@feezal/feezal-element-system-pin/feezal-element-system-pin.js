@@ -28,7 +28,7 @@ class FeezalElementSystemPin extends FeezalElement {
                 {name: 'remember', type: 'boolean', default: false, help: 'Stay unlocked for the rest of the browser session (survives reload).'},
             ],
             restrict: {minWidth: 24, minHeight: 24},
-            defaultStyle: {width: '140px', height: '40px'},
+            defaultStyle: {width: '160px', height: '40px'},
         };
     }
 

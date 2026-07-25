@@ -10,7 +10,6 @@ Work in progress — priorities and scope are not final.
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B62 — Gradient view background tiles/scrolls instead of staying put (Safari/iOS, PWA)](#b62--gradient-view-background-tilesscrolls-instead-of-staying-put-safariios-pwa)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
-- [B70 — System element editor placeholders: swipe shows text not icon, mismatched chrome, inconsistent default sizes](#b70--system-element-editor-placeholders-swipe-shows-text-not-icon-mismatched-chrome-inconsistent-default-sizes)
 - [B71 — `system-splash` appears to do nothing in the viewer (no visible splash/spinner)](#b71--system-splash-appears-to-do-nothing-in-the-viewer-no-visible-splashspinner)
 - [B72 — `device-health`: one list entry per entity instead of per device (ESPHome / zigbee2mqtt)](#b72--device-health-one-list-entry-per-entity-instead-of-per-device-esphome--zigbee2mqtt)
 - [B73 — Background editor (view styles): solid + gradient colour fields should use the style-inspector var-autocomplete, not a dropdown; widen the too-small percent input](#b73--background-editor-view-styles-solid--gradient-colour-fields-should-use-the-style-inspector-var-autocomplete-not-a-dropdown-widen-the-too-small-percent-input)
@@ -190,20 +189,6 @@ Work in progress — priorities and scope are not final.
 **Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
 
 **Relates:** **B62** (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
-
-### B70 — System element editor placeholders: swipe shows text not icon, mismatched chrome, inconsistent default sizes
-
-**Reported (07/2026).** Three inconsistencies in the **System** pseudo-element editor placeholders:
-
-1. **`system-swipe` shows the word "swipe" instead of the icon.** Its placeholder renders `<span class="material-icons">swipe</span> Swipe` ([system-swipe.js:150](../www/packages/@feezal/feezal-element-system-swipe/feezal-element-system-swipe.js#L150)), but its local `.ph .material-icons` rule ([:51](../www/packages/@feezal/feezal-element-system-swipe/feezal-element-system-swipe.js#L51)) is **missing `font-family: 'Material Icons'`** — the global class can't reach shadow DOM, so the ligature renders as plain text. (Its siblings declare the font-family locally, e.g. [system-notification.js:217](../www/packages/@feezal/feezal-element-system-notification/feezal-element-system-notification.js#L217).) **Fix:** switch the placeholder to `<feezal-icon name="swipe">` (the canonical, shadow-safe path — same fix as the device-health board `6e4a02fb`), or add the missing `font-family`.
-
-2. **`system-swipe`'s placeholder chrome differs from the other System placeholders.** It hardcodes `background: #eceff1; border: 2px dashed #455a64; color: #455a64` ([system-swipe.js:45-52](../www/packages/@feezal/feezal-element-system-swipe/feezal-element-system-swipe.js#L45)), an opaque light chip; the others use theme-aware muted text (`color: var(--secondary-text-color, #777)`, no opaque background). On the canvas the swipe placeholder stands out with a different background-colour. **Fix:** align `system-swipe`'s `.ph` to the shared System placeholder style (theme-aware muted, no hardcoded `#eceff1`/`#455a64`).
-
-3. **Default sizes are inconsistent** — `system-notification`/`-pin`/`-splash` are `140×40`, `system-script`/`-swipe` are `120×40`. **Fix:** set **`defaultStyle` to `160×40` for every System element** (notification, pin, script, splash, swipe — and `system-connection-status` if it declares one).
-
-**Ships with:** the three fixes across the System element files (patch-bump each touched package), a browser assertion that `system-swipe`'s placeholder renders a `feezal-icon` (not `.material-icons` text) — mirroring the device-health test — and a TESTING.md note. Small, mechanical; good to bundle in one commit.
-
-**Relates:** device-health icon fix `6e4a02fb` (the identical shadow-DOM `.material-icons` → `feezal-icon` fix + its test), E7 (`system-swipe` origin), the System element family (notification/pin/script/splash/swipe — the shared placeholder chrome + default-size convention this unifies).
 
 ### B71 — `system-splash` appears to do nothing in the viewer (no visible splash/spinner)
 
