@@ -195,7 +195,7 @@ jobs:
       # The don't-sink-again floor. Set a few points below the achieved figure
       # so normal churn cannot make CI flaky; raise it when the number rises.
       - name: Merge coverage + enforce the floor
-        run: node scripts/coverage-merge.mjs --min 60
+        run: node scripts/coverage-merge.mjs --min 63
 
       - name: Upload merged coverage report
         if: always()

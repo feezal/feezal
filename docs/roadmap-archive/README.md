@@ -3,7 +3,7 @@
 Completed and closed roadmap items — **one file per item**, named after its ID (e.g. `U39.md`).
 Open items live in [../ROADMAP.md](../ROADMAP.md).
 
-**301 items.**
+**302 items.**
 
 ## Bugs
 
@@ -78,6 +78,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [B75 — Roadmap IDs leak into user-facing help texts & labels ✅ fixed](B75.md)
 - [B76 — `paper-slider`: invisible track (default ≈ background) + knob defaults should be `--primary-text-color` ✅ fixed](B76.md)
 - [B62 — Gradient view background tiles/scrolls instead of staying put (Safari/iOS, PWA) ✅ fixed](B62.md)
+- [B77 — Background editor: gradient-stop percent input still too small (B73 fix insufficient) ✅ fixed](B77.md)
 
 ## Near-term Improvements
 

@@ -161,8 +161,19 @@ class FeezalStyleEditorBackground extends LitElement {
         /* gradient stops */
         .stop-row { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; flex-wrap: wrap; }
         .stop-row .stop-color { flex: 1 1 80px; min-width: 0; }
-        /* B73: wide enough to read a two/three-digit percentage. */
-        .stop-row .pct { width: 68px; flex: none; }
+        /* B77: B73 widened this 52 -> 68 px and it still read as cramped,
+           because the widen was swallowed by CHROME, not by the digits: a
+           native number spinner + the °/% suffix + the field's own padding
+           eat most of 68 px. So: 92 px AND no-spin-buttons on both inputs
+           (a typed 0-100 / 0-360 value has no use for up/down arrows) —
+           together they leave room for three digits plus a legible suffix.
+
+           The selector is deliberately NOT scoped to .stop-row any more.
+           The gradient ANGLE input carries the same class but lives in
+           .row, so the old .stop-row-scoped rule never matched it — it
+           never got B73's widen at all, which is why it read even tighter
+           than the stop inputs it was reported alongside. */
+        .pct { width: 92px; flex: none; }
         /* B73: var(--…) autocomplete dropdown (fixed, positioned under the input). */
         .var-ac {
             position: fixed; z-index: 100000; max-height: 180px; overflow-y: auto;
@@ -608,7 +619,8 @@ class FeezalStyleEditorBackground extends LitElement {
                     <sl-option value="radial">radial</sl-option>
                 </sl-select>
                 ${this._gradType === 'linear' ? html`
-                    <sl-input class="pct" size="small" type="number" .value="${String(this._gradAngle)}"
+                    <sl-input class="pct" size="small" type="number" no-spin-buttons
+                        .value="${String(this._gradAngle)}"
                         @sl-change="${e => { this._gradAngle = parseFloat(e.target.value) || 0; this._emitCurrent(); }}">
                         <span slot="suffix">°</span>
                     </sl-input>
@@ -635,7 +647,8 @@ class FeezalStyleEditorBackground extends LitElement {
                     </sl-input>
                     <input type="color" class="${hex ? '' : 'unresolved'}" .value="${hex || '#000000'}"
                         @input="${e => this._stopChanged(i, {color: e.target.value})}">
-                    <sl-input class="pct" size="small" type="number" min="0" max="100" .value="${String(s.pos)}"
+                    <sl-input class="pct" size="small" type="number" min="0" max="100" no-spin-buttons
+                        .value="${String(s.pos)}"
                         @sl-change="${e => this._stopChanged(i, {pos: Math.max(0, Math.min(100, parseFloat(e.target.value) || 0))})}">
                         <span slot="suffix">%</span>
                     </sl-input>

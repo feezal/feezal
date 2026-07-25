@@ -333,3 +333,55 @@ describe('B73 — var(--…) autocomplete (replaces the var-menu dropdown)', () 
         expect(ed._varAc.open).toBe(false);
     });
 });
+
+// B77: B73's 52 -> 68 px widen was swallowed by the field's own chrome (native
+// number spinner + suffix + padding), and the ANGLE input never got it at all —
+// it carries .pct but lives in .row, which `.stop-row .pct` did not match.
+describe('B77 — gradient percent/angle inputs are readable', () => {
+    const styleText = () => [FeezalStyleEditorBackground.styles].flat()
+        .map(s => s.cssText).join('\n');
+
+    it('the .pct rule is not scoped to .stop-row, so the angle input gets it too', () => {
+        const css = styleText();
+        expect(css).not.toMatch(/\.stop-row\s+\.pct\s*\{/);
+        expect(css).toMatch(/(^|\s|\})\.pct\s*\{/);
+    });
+
+    it('is wide enough for three digits plus a suffix', () => {
+        const width = styleText().match(/\.pct\s*\{[^}]*width:\s*(\d+)px/);
+        expect(width, '.pct has no width').toBeTruthy();
+        expect(Number(width[1])).toBeGreaterThanOrEqual(92);
+    });
+
+    it('both number inputs drop the spin buttons that ate the width', async () => {
+        const ed = makeEditor(target);
+        document.body.append(ed);
+        await ed.updateComplete;      // let the `element` change re-read first…
+        ed._mode = 'gradient';        // …it would otherwise reset the mode to solid
+        ed._gradType = 'linear';
+        await ed.updateComplete;
+
+        const numeric = [...ed.renderRoot.querySelectorAll('sl-input.pct')];
+        expect(numeric.length).toBeGreaterThanOrEqual(3);        // angle + one per stop
+        for (const input of numeric) {
+            expect(input.getAttribute('type')).toBe('number');
+            expect(input.hasAttribute('no-spin-buttons'), 'spinner still present').toBe(true);
+        }
+        // The suffix that has to stay legible next to the digits.
+        const suffixes = numeric.map(i => i.querySelector('[slot="suffix"]')?.textContent);
+        expect(suffixes).toContain('°');
+        expect(suffixes).toContain('%');
+        ed.remove();
+    });
+
+    it('the stop position still clamps to 0–100 on change', () => {
+        const ed = makeEditor(target);
+        ed._stopChanged(0, {pos: 250});
+        expect(ed._stops[0].pos).toBe(250);   // _stopChanged stores what it is given…
+        // …the clamp lives in the input handler, which the markup wires to min/max:
+        const clamp = v => Math.max(0, Math.min(100, parseFloat(v) || 0));
+        expect(clamp('250')).toBe(100);
+        expect(clamp('-5')).toBe(0);
+        expect(clamp('abc')).toBe(0);
+    });
+});

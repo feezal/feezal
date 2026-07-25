@@ -9,6 +9,7 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
+- [B78 — Roadmap IDs leak into rendered help text (site-settings + Security) — B75 guard gap](#b78--roadmap-ids-leak-into-rendered-help-text-site-settings--security--b75-guard-gap)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -143,6 +144,21 @@ Work in progress — priorities and scope are not final.
 **Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
 
 **Relates:** **[B62](roadmap-archive/B62.md)** ✅ (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
+
+### B78 — Roadmap IDs leak into rendered help text (site-settings + Security) — B75 guard gap
+
+Three user-facing help strings in the viewer/site-settings sidebar start with a roadmap ID, visible to end users:
+- **`N37:`** — Bandwidth section, pause-hidden-views hint ([feezal-sidebar-viewer.js:694](../www/src/feezal-sidebar-viewer.js#L694), `.pwa-hint`).
+- **`U48:`** — Viewer-presence "connection toasts" hint ([feezal-sidebar-viewer.js:718](../www/src/feezal-sidebar-viewer.js#L718)).
+- **`A28:`** — Security tab, per-site CSP intro ([feezal-sidebar-viewer.js:979](../www/src/feezal-sidebar-viewer.js#L979)).
+
+**Fix:** strip the `N37: ` / `U48: ` / `A28: ` prefixes; the sentences read fine without them.
+
+**Root cause — the B75 guard doesn't cover this shape.** [no-roadmap-ids-in-ui.test.js](../www/test/no-roadmap-ids-in-ui.test.js) scans `src/` only for **descriptor property** strings (`help:`/`label:`/`placeholder:`/`description: '…'`). These three leaks are **inline `html\`\`` template text** inside `<div class="…hint">`/`<div>` blocks — a shape the guard never inspects, which is why they slipped through after B75. **Extend the guard** to also catch roadmap-ID patterns (`\b[BENUA]\d+:` at a rendered-text position) in JSX/`html\`\`` template literals within `src/`, not only descriptor properties — keeping the existing allowlist for legitimate look-alikes (`CO2`, `A4`, …). Code **comments** (`// N37:`) stay allowed — they're correct there.
+
+**Ships with:** the three string edits, the guard-test extension (with a fixture proving it now catches an ID prefix in rendered template text), a full `grep` sweep of `src/` rendered strings for any other survivors (the three found may not be exhaustive).
+
+**Relates:** **[B75](roadmap-archive/B75.md)** ✅ (the original leak fix + the guard this widens — same class of bug, the guard just had a blind spot), the "no roadmap IDs in user-facing strings" rule in the repo instructions, N37 ✅ / U48 ✅ / A28 (the features whose IDs leaked — comments referencing them are fine).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
