@@ -34,7 +34,6 @@ feezal/                         ← repo root
       app.js                    ← Express application factory
       build/
         elements.js             ← element discovery + module generation
-        build.js                ← legacy Rollup helper (export pipeline)
         export.js               ← static ZIP export
       ...
     dist/                       ← assembled at release time (not committed)
