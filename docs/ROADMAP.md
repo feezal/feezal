@@ -10,7 +10,6 @@ Work in progress — priorities and scope are not final.
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B62 — Gradient view background tiles/scrolls instead of staying put (Safari/iOS, PWA)](#b62--gradient-view-background-tilesscrolls-instead-of-staying-put-safariios-pwa)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
-- [B71 — `system-splash` appears to do nothing in the viewer (no visible splash/spinner)](#b71--system-splash-appears-to-do-nothing-in-the-viewer-no-visible-splashspinner)
 - [B72 — `device-health`: one list entry per entity instead of per device (ESPHome / zigbee2mqtt)](#b72--device-health-one-list-entry-per-entity-instead-of-per-device-esphome--zigbee2mqtt)
 - [B73 — Background editor (view styles): solid + gradient colour fields should use the style-inspector var-autocomplete, not a dropdown; widen the too-small percent input](#b73--background-editor-view-styles-solid--gradient-colour-fields-should-use-the-style-inspector-var-autocomplete-not-a-dropdown-widen-the-too-small-percent-input)
 - [B74 — View theme selector: rename the default entry "Site theme (default)" → "Inherit" and drop its colour swatch](#b74--view-theme-selector-rename-the-default-entry-site-theme-default--inherit-and-drop-its-colour-swatch)
@@ -189,24 +188,6 @@ Work in progress — priorities and scope are not final.
 **Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
 
 **Relates:** **B62** (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
-
-### B71 — `system-splash` appears to do nothing in the viewer (no visible splash/spinner)
-
-**Reported (07/2026).** Added a `system-splash` to a site; in the viewer **no spinner or overlay is perceptible** on load. **Refined by the reporter (07/2026): the splash only works on the view where the element is placed — it was expected to be site-wide.** That is the primary issue.
-
-**Root cause (confirmed) — the splash is a per-VIEW element, but boot cover must be site-wide.** The overlay lives inside the placed element and only runs when **its view is in the DOM** — everything is armed in `connectedCallback` ([:183-225](../www/packages/@feezal/feezal-element-system-splash/feezal-element-system-splash.js#L183)), and the viewer only mounts the **active** view's elements. So a splash placed on view B does nothing while view A (or any other view) is the one loading, and it only ever covers **its own** view's first paint — not the site's initial boot. The description says "place one per site" ([:48-50](../www/packages/@feezal/feezal-element-system-splash/feezal-element-system-splash.js#L48)) and it uses module-level place-once semantics, so **site-wide is the intended contract** — the implementation just doesn't deliver it.
-
-**Fix direction — make the splash an app/site-level concern, not a per-view element.** The overlay + hide-lifecycle must run at viewer boot regardless of which view is active. Candidate shapes (to choose during design):
-- **Site-level config, app-level render.** Treat a placed `system-splash` as declaring a **site setting** (settle-window/timeout/spinner-delay/logo/lottie/colours); the **viewer shell** (`feezal-app-viewer`) reads it and renders the overlay at the app root on boot, before/independent of the first view mount. The on-canvas element stays an editor-only config placeholder.
-- **Eager global activation.** Have the viewer scan the site for a splash element at boot and run its overlay/lifecycle globally (a static "site splash" registered once), independent of view mounting/navigation.
-
-Either way the overlay is **fixed at the app root** and the hide conditions (connection up + quiet `settle-window`, backstops) are unchanged.
-
-**Secondary (fold in while here) — invisible by default.** Even on the correct view, a fast load gives **no visible signal**: the overlay background defaults to `--feezal-splash-background` = **`--primary-background-color`** (same colour as the page — [:78-80,125](../www/packages/@feezal/feezal-element-system-splash/feezal-element-system-splash.js#L78)) and the **spinner only appears after `spinner-delay` (1000 ms)** ([:60,215-219](../www/packages/@feezal/feezal-element-system-splash/feezal-element-system-splash.js#L60)), so it fades (250 ms) before the spinner ever shows. Consider showing the spinner immediately (or a ~300 ms default), a subtly distinct default background, and an editor **"Preview splash"** affordance so it's observable at design time (today it's only a placeholder chip).
-
-**Ships with:** the app-level activation, a browser test that the overlay covers boot **regardless of which view holds the splash element** and hides on connect+settle, migration of any existing per-view splash (source-view unaffected — same element/attrs, new activation path), and TESTING.md steps. Version bump.
-
-**Relates:** E39 (`system-splash` origin — FOUC/boot cover), `feezal-app-viewer` (the shell that must host the app-level overlay), the viewer boot/connection lifecycle (`feezal.connection` `connected`/`message` events the hide rides on), **B70** (sibling System-element polish), E89 / `@feezal/feezal-lottie` (the optional boot animation path).
 
 ### B72 — `device-health`: one list entry per *entity* instead of per *device* (ESPHome / zigbee2mqtt)
 

@@ -204,3 +204,27 @@ describe('lottie boot animation (shared loader)', () => {
         expect(inst.destroyed).toBe(true);
     });
 });
+
+describe('B71 — site-wide (hoists out of a hidden view to document.body)', () => {
+    it('hoists to document.body so the overlay escapes a display:none view', async () => {
+        const view = document.createElement('div');   // stand-in for a non-active <feezal-view>
+        view.style.display = 'none';
+        document.body.appendChild(view);
+
+        const el = document.createElement('feezal-element-system-splash');
+        view.appendChild(el);                          // connectedCallback hoists it to body
+        await el.updateComplete;
+
+        expect(el.parentNode).toBe(document.body);
+        expect(view.contains(el)).toBe(false);
+        const o = el.shadowRoot.querySelector('.overlay');
+        expect(o).not.toBeNull();
+        expect(getComputedStyle(o).position).toBe('fixed');
+    });
+
+    it('does not move when already a child of document.body', async () => {
+        const el = await mount('feezal-element-system-splash', {});
+        expect(el.parentNode).toBe(document.body);
+        expect(el._portaled).toBe(false);   // no hoist needed
+    });
+});

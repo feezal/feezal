@@ -162,6 +162,7 @@ class FeezalElementSystemSplash extends FeezalElement {
         this._showSpinner = false;
 
         // Non-reactive runtime state.
+        this._portaled = false;       // B71: hoisted to document.body (site-wide)
         this._secondary = false;      // this instance lost the place-once race
         this._connectedArmed = false; // connect handler already ran once
         this._hideStarted = false;
@@ -184,6 +185,19 @@ class FeezalElementSystemSplash extends FeezalElement {
         super.connectedCallback();
         if (feezal.isEditor) {
             return;   // editor: placeholder chip only, no overlay, no timers.
+        }
+
+        // B71: site-wide, not per-view. The splash is an invisible pseudo-element,
+        // but its `position: fixed` overlay lives inside its <feezal-view>, which
+        // is `display: none` while another view is active — so a splash on a
+        // non-initial view never covered boot. Hoist the element to the app root
+        // (document.body) so the overlay escapes the view and covers the whole
+        // site regardless of which view holds it. Re-enters connectedCallback with
+        // parentNode === body; the `_portaled` guard makes that pass fall through.
+        if (!this._portaled && this.parentNode && this.parentNode !== document.body) {
+            this._portaled = true;
+            document.body.appendChild(this);
+            return;
         }
 
         // Place-once: the first splash wins, the rest no-op with a warning.

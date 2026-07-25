@@ -71,6 +71,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [B68 — `glass-meter` + `glass-loadpoint`: card overflows the host and ignores its height ✅ fixed](B68.md)
 - [B69 — `glass-meter` is overloaded: move the secondary readouts into a details popup ✅ fixed](B69.md)
 - [B70 — System element editor placeholders: swipe shows text not icon, mismatched chrome, inconsistent default sizes ✅ fixed](B70.md)
+- [B71 — `system-splash` appears to do nothing in the viewer (was per-view, not site-wide) ✅ fixed](B71.md)
 
 ## Near-term Improvements
 
