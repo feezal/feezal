@@ -10,7 +10,6 @@ Work in progress — priorities and scope are not final.
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B62 — Gradient view background tiles/scrolls instead of staying put (Safari/iOS, PWA)](#b62--gradient-view-background-tilesscrolls-instead-of-staying-put-safariios-pwa)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
-- [B69 — `glass-meter` is overloaded: move the secondary readouts into a details popup](#b69--glass-meter-is-overloaded-move-the-secondary-readouts-into-a-details-popup)
 - [B70 — System element editor placeholders: swipe shows text not icon, mismatched chrome, inconsistent default sizes](#b70--system-element-editor-placeholders-swipe-shows-text-not-icon-mismatched-chrome-inconsistent-default-sizes)
 - [B71 — `system-splash` appears to do nothing in the viewer (no visible splash/spinner)](#b71--system-splash-appears-to-do-nothing-in-the-viewer-no-visible-splashspinner)
 - [B72 — `device-health`: one list entry per entity instead of per device (ESPHome / zigbee2mqtt)](#b72--device-health-one-list-entry-per-entity-instead-of-per-device-esphome--zigbee2mqtt)
@@ -191,14 +190,6 @@ Work in progress — priorities and scope are not final.
 **Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
 
 **Relates:** **B62** (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
-
-### B69 — `glass-meter` is overloaded: move the secondary readouts into a details popup
-
-**Reported (07/2026).** The `glass-meter` card is **overloaded** — it stacks up to seven lines in one small tile (icon, value + unit, rate, error, status, reading-age, raw), which is cramped and unreadable at tile sizes ([feezal-element-glass-meter.js render](../www/packages/@feezal/feezal-element-glass-meter/feezal-element-glass-meter.js)).
-
-**Redesign (mirror `glass-value` / `glass-lock`).** Keep the **primary readout on the card** — icon + big value + unit (and the error badge, since a fault must stay visible) — and move the **secondary readouts** (rate ↗, status, reading-age, raw) into a **details popup** opened by the corner **⋯** button, using the shared popover infrastructure (`FeezalGlassCard` + `glassPopupStyles`, exactly as `glass-lock` `1bf2641f` and `glass-light`). The card stays display-only (no toggle); the ⋯ button only appears when there's secondary content to show. Ships with a browser test (card shows value+unit; popup lists the extra readouts) and a TESTING.md row; bundle with the **B68** width fix in one `glass-meter` change (single version bump).
-
-**Relates:** **B68** (the width bug on the same element — fix together), `glass-lock` (the tap/popup redesign precedent + `FeezalGlassCard`/`glassPopupStyles` pattern), `glass-value` (the decluttered value card this meter should resemble), E147 (the AI-on-the-edge meter this card serves).
 
 ### B70 — System element editor placeholders: swipe shows text not icon, mismatched chrome, inconsistent default sizes
 

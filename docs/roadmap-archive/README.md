@@ -69,6 +69,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [B64 — `*-switch` autodiscovery misses multi-output HmIP switch actuators (virtual-receiver grouping) ✅ fixed](B64.md)
 - [B65 — Homematic `:0` correlation (availability + battery) breaks for custom-named channels ✅ fixed](B65.md)
 - [B68 — `glass-meter` + `glass-loadpoint`: card overflows the host and ignores its height ✅ fixed](B68.md)
+- [B69 — `glass-meter` is overloaded: move the secondary readouts into a details popup ✅ fixed](B69.md)
 
 ## Near-term Improvements
 

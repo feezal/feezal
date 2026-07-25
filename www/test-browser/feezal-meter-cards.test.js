@@ -25,6 +25,9 @@ describe('E147 — meter cards render the AI-on-the-edge json fields', () => {
                 timestamp: '2026-07-24T10:00:00Z',
             });
             await el.updateComplete;
+            // B69: glass-meter keeps value+unit on the card but moves the rate into
+            // the ⋯ details popup — open it so the readout is in the DOM.
+            if (tag === 'feezal-element-glass-meter') { el._details = true; await el.updateComplete; }
             const t = text(el);
             expect(t).toContain('371.77');        // rounded to decimals
             expect(t).toContain('m³');             // unit
@@ -46,6 +49,7 @@ describe('E147 — meter cards render the AI-on-the-edge json fields', () => {
             const el = await mount(tag, {'subscribe-json': 'wm/json', 'subscribe-status': 'wm/status'});
             feezal.connection.deliver('wm/status', 'digitizing');
             await el.updateComplete;
+            if (tag === 'feezal-element-glass-meter') { el._details = true; await el.updateComplete; }   // B69: status is in the popup
             expect(text(el)).toContain('digitizing');
         });
     }
