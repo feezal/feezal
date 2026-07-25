@@ -42,7 +42,7 @@ export const lockAttributes = [
     {name: 'payload-jammed',   type: 'string', default: 'JAMMED',   help: 'State payload meaning jammed.'},
     // E135: optional device fault signal — Keymatic ERROR (clutch/motor) or
     // HmIP-DLD fault flags. Any non-OK value is shown as an error badge + text.
-    {name: 'subscribe-error',        type: 'mqttTopic', help: 'Optional device error/fault topic (E135). Non-OK values show a fault badge with the text.'},
+    {name: 'subscribe-error',        type: 'mqttTopic', help: 'Optional device error/fault topic. Non-OK values show a fault badge with the text.'},
     {name: 'message-property-error', type: 'string', help: 'Property path within error messages. Defaults to message-property.'},
     // E124: dedicated low-battery warning — smart locks are battery devices;
     // a weak battery is a badge, never a blackout (state keeps updating).

@@ -96,7 +96,7 @@ class FeezalElementCircleClimate extends FeezalElement {
                 {name: 'payload-available',      type: 'string', default: 'online',  help: 'Payload meaning the device is online.'},
                 {name: 'payload-unavailable',    type: 'string', default: 'offline', help: 'Payload meaning the device is offline.'},
                 // ── Discovery linkage ─────────────────────────────────────────
-                {name: 'discovery-id', type: 'string', default: '', help: 'Linked auto-discovery entity id (set automatically by N12).'},
+                {name: 'discovery-id', type: 'string', default: '', help: 'Linked auto-discovery entity id (set automatically).'},
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',

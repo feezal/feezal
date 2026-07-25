@@ -114,7 +114,7 @@ class FeezalElementCircleMotion extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
-                {property: '--feezal-motion-active-color', type: 'color', default: 'var(--accent-color)', help: 'Colour shown when motion is detected or zone is occupied. E138: the motion-slice active default is --accent-color (SensorController.activeColorVar()); override per element.'},
+                {property: '--feezal-motion-active-color', type: 'color', default: 'var(--accent-color)', help: 'Colour shown when motion is detected or zone is occupied. The motion-slice active default is --accent-color (SensorController.activeColorVar()); override per element.'},
                 {property: '--feezal-motion-text-color',   type: 'color', default: 'var(--primary-text-color)',    help: 'Label text colour.'},
                 {property: '--feezal-motion-error-color',  type: 'color', default: 'var(--error-color)', help: 'Unavailability badge colour.'},
             ],

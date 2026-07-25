@@ -110,7 +110,7 @@ class FeezalView extends LitElement {
                     type: 'select',
                     options: ['inherit', 'always', 'never'],
                     default: 'inherit',
-                    help: 'N37: pause this view’s MQTT subscriptions while it is hidden (viewer only). inherit = follow the site setting; always = pause even when the site default is off; never = keep subscribed (non-retained data, warm cache for embedded copies).'
+                    help: 'Pause this view’s MQTT subscriptions while it is hidden (viewer only). inherit = follow the site setting; always = pause even when the site default is off; never = keep subscribed (non-retained data, warm cache for embedded copies).'
                 },
                 // U41 — flow knobs; U39 conditional visibility hides them unless
                 // the view is in flow mode.

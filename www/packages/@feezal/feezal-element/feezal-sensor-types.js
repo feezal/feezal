@@ -119,7 +119,7 @@ export function sensorDeviceClassMapFor(slice = 'all') {
 // canonical `battery_low_normalized` record (both ecosystems).
 export const batteryLowAttributes = [
     {name: 'subscribe-battery-low', type: 'mqttTopic', section: 'Battery',
-        help: 'E124: optional low-battery topic. Boolean payloads compare against payload-battery-low; a numeric payload (battery percentage) compares against battery-low-threshold. Shows a warning icon — the state keeps updating. Stamped by auto-discovery (zigbee2mqtt battery sibling / Homematic :0 LOWBAT·LOW_BAT).'},
+        help: 'Optional low-battery topic. Boolean payloads compare against payload-battery-low; a numeric payload (battery percentage) compares against battery-low-threshold. Shows a warning icon — the state keeps updating. Stamped by auto-discovery (zigbee2mqtt battery sibling / Homematic :0 LOWBAT·LOW_BAT).'},
     {name: 'message-property-battery-low', type: 'string', default: 'payload', section: 'Battery', advanced: true,
         help: 'Dot-notation path within the battery message. Blank = fall back to element-level message-property.'},
     {name: 'payload-battery-low', type: 'string', default: 'true', section: 'Battery',

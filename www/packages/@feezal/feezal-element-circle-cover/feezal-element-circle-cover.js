@@ -75,7 +75,7 @@ class FeezalElementCircleCover extends FeezalElement {
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
                 // Theme-aware colour tokens. Leave blank to inherit from theme.
                 {property: '--feezal-cover-frame-color', type: 'color', default: 'var(--primary-color)',
-                    help: 'Accent: window frame, dividers, slat lines, position slider and the fully-closed panel (E123 — the theme accent, same role the primary colour plays on other Material cards).'},
+                    help: 'Accent: window frame, dividers, slat lines, position slider and the fully-closed panel (the theme accent, same role the primary colour plays on other Material cards).'},
                 {property: '--feezal-cover-panel-color', type: 'color', default: 'var(--secondary-background-color)',
                     help: 'Cover panel fill colour.'},
                 {property: '--feezal-cover-text-color',  type: 'color', default: 'var(--primary-text-color)',

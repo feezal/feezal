@@ -54,7 +54,7 @@ export function sensorAttributesFor(slice = 'all') {
         {name: 'payload-active', type: 'string', default: 'ON', help: 'Payload meaning triggered / detected / occupied.'},
         {name: 'payload-clear',  type: 'string', default: 'OFF', help: 'Payload meaning clear / vacant.'},
         {name: 'type', type: 'select', options: sensorTypesFor(slice), default: sensorDefaultTypeFor(slice),
-            help: 'E132: sensor class — picks the default per-state icons, texts and (for alarm classes like water-leak/smoke) the error-coloured active state. Overridden by icon-active/icon-clear when set.'},
+            help: 'Sensor class — picks the default per-state icons, texts and (for alarm classes like water-leak/smoke) the error-coloured active state. Overridden by icon-active/icon-clear when set.'},
         {name: 'icon-active', type: 'icon', help: 'Icon shown while triggered — overrides the type default (empty = type default).'},
         {name: 'icon-clear',  type: 'icon', help: 'Icon shown while clear — overrides the type default (empty = type default).'},
         {name: 'text-active', type: 'string', default: '', help: 'State text while triggered. Empty = the type default (e.g. "Leak!" for water-leak).'},

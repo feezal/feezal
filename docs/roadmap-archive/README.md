@@ -75,6 +75,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [B72 — `device-health`: one list entry per entity instead of per device (ESPHome / zigbee2mqtt) ✅ fixed](B72.md)
 - [B73 — Background editor (view styles): solid + gradient colour fields should use the style-inspector var-autocomplete, not a dropdown; widen the too-small percent input ✅ fixed](B73.md)
 - [B74 — View theme selector: rename the default entry "Site theme (default)" → "Inherit" and drop its colour swatch ✅ fixed](B74.md)
+- [B75 — Roadmap IDs leak into user-facing help texts & labels ✅ fixed](B75.md)
 
 ## Near-term Improvements
 

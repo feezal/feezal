@@ -33,7 +33,7 @@ class FeezalElementMaterialNavbar extends FeezalElement {
                 {name: 'show-labels', type: 'select', options: ['always', 'active', 'never'], default: 'always', help: 'When to show item labels.'},
                 {name: 'show-icons', type: 'boolean', default: true, help: 'Render item icons when provided.'},
                 {name: 'align', type: 'select', options: ['start', 'center', 'space-between'], default: 'space-between', help: 'How items distribute along the main axis.'},
-                {name: 'item-width', type: 'string', default: '', help: 'E81: item size along the bar — empty = auto (content-sized, today\'s behaviour), a CSS length (e.g. "72px") = fixed size, "equal" = all items share the bar evenly. Applies to the height in vertical orientation.'},
+                {name: 'item-width', type: 'string', default: '', help: 'Item size along the bar — empty = auto (content-sized, today\'s behaviour), a CSS length (e.g. "72px") = fixed size, "equal" = all items share the bar evenly. Applies to the height in vertical orientation.'},
                 'subscribe',
                 'publish',
                 // E117: navigation is page-local UI wiring — the published view

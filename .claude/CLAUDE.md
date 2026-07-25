@@ -166,6 +166,7 @@ These are editor UI components, not dashboard elements. Only modify these when c
 
 - **Labels**: always use the exact HTML attribute name (`name` field). Do not add a `label:` property with a friendlier display name.
 - **Help text**: add a `help:` string to show a tooltip ℹ icon next to the label in the inspector.
+- **Never put roadmap IDs** (`E##`/`N##`/`B##`/`U##`/`A##`) in **user-facing strings** — `help`, `label`, `placeholder`, element `description`. They belong in code comments / commits / the roadmap only. Enforced by `www/test/no-roadmap-ids-in-ui.test.js` (add legitimate look-alikes like `CO2`/`A4` to its allowlist).
 - Attribute names must be **kebab-case** in `feezal.attributes`. If the corresponding Lit property is camelCase, declare `attribute: 'kebab-name'` in `static properties`.
 
 ---

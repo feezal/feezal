@@ -37,7 +37,7 @@ class FeezalElementCircleSensor extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
-                {property: '--feezal-sensor-active-color', type: 'color', default: 'var(--error-color)', help: 'Colour shown when the sensor is triggered. E138: the alarm-slice active default is --error-color (SensorController.activeColorVar()); override per element.'},
+                {property: '--feezal-sensor-active-color', type: 'color', default: 'var(--error-color)', help: 'Colour shown when the sensor is triggered. The alarm-slice active default is --error-color (SensorController.activeColorVar()); override per element.'},
                 {property: '--feezal-sensor-text-color',   type: 'color', default: 'var(--primary-text-color)', help: 'Label / state text colour.'},
                 {property: '--feezal-sensor-error-color',  type: 'color', default: 'var(--error-color)', help: 'Colour for alarm-class triggered state and the unavailability badge.'},
             ],

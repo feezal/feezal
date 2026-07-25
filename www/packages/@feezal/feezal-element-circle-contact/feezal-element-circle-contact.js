@@ -16,7 +16,7 @@ class FeezalElementCircleContact extends FeezalElement {
     static get feezal() {
         return {
             palette: {name: 'Contact', category: 'Circle', color: '#1565c0', icon: 'sensor_window'},
-            description: 'Window / door / garage contact sensor. Renders the E134 circle state disc with the type ' +
+            description: 'Window / door / garage contact sensor. Renders the circle state disc with the type ' +
                 'icon and state word — primary-coloured while open, tilt colour while tilted, muted while closed. ' +
                 'For room overviews compose multiple contact elements (U32 component or repeater).',
 // E137: the discovery map is the controller package's fragment.

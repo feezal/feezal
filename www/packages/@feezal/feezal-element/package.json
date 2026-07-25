@@ -36,5 +36,5 @@
         "url": "git+https://github.com/feezal/feezal.git",
         "directory": "www/packages/@feezal/feezal-element"
     },
-    "version": "3.0.11"
+    "version": "3.0.12"
 }

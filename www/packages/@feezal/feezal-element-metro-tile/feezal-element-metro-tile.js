@@ -56,13 +56,13 @@ export class MetroTileBase extends FeezalElement {
             // E129: size tokens — settable per element here, or family-wide by
             // a theme (plain px; §5.1's canonical-var rule is colours only).
             {property: '--feezal-metro-icon-size', default: '56px',
-                help: 'E129: centre icon size. Capped by the tile height on small tiles (48cqh).'},
+                help: 'Centre icon size. Capped by the tile height on small tiles (48cqh).'},
             {property: '--feezal-metro-font-size-label', default: '13px',
-                help: 'E129: tile label font size (bottom-left).'},
+                help: 'Tile label font size (bottom-left).'},
             {property: '--feezal-metro-font-size-value', default: '38px',
-                help: 'E129: primary value font size (temperature, sensor value, position). Capped by the tile height on small tiles.'},
+                help: 'Primary value font size (temperature, sensor value, position). Capped by the tile height on small tiles.'},
             {property: '--feezal-metro-font-size-unit', default: '13px',
-                help: 'E129: secondary text size (unit, state line, badge).'},
+                help: 'Secondary text size (unit, state line, badge).'},
         ];
     }
 

@@ -40,7 +40,7 @@ class FeezalElementMaterialButton extends FeezalElement {
                 {name: 'message-property', type: 'string', default: 'payload', help: 'Dot-notation path to the state value within feedback messages. Default: payload.'},
                 {name: 'payload-active',   type: 'string', default: '1', help: 'Feedback payload meaning active (highlight on). Empty together with payload-inactive = feature off.'},
                 {name: 'payload-inactive', type: 'string', default: '0', help: 'Feedback payload meaning inactive. Any other payload leaves the state unchanged.'},
-                {name: 'disabled', type: 'boolean', default: false, help: 'Disable the button (blocks clicking/publishing). UI-only guard — the MQTT topic itself stays writable; E50 conditions can toggle this from state.'},
+                {name: 'disabled', type: 'boolean', default: false, help: 'Disable the button (blocks clicking/publishing). UI-only guard — the MQTT topic itself stays writable; conditions can toggle this from state.'},
                 {name: 'variant', type: 'select',
                     options: ['filled', 'outlined', 'text', 'elevated', 'tonal'],
                     default: 'filled',

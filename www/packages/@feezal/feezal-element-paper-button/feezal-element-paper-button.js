@@ -124,7 +124,7 @@ class FeezalElementPaperButton extends FeezalPolymerElement {
                 {name: 'payload-inactive', type: 'string', default: '0', help: 'Feedback payload meaning inactive. Any other payload leaves the state unchanged.'},
                 'raised',
                 'noink',
-                {name: 'disabled', help: 'Disable the button (blocks clicking/publishing). UI-only guard — the MQTT topic itself stays writable; E50 conditions can toggle this from state.'}
+                {name: 'disabled', help: 'Disable the button (blocks clicking/publishing). UI-only guard — the MQTT topic itself stays writable; conditions can toggle this from state.'}
             ],
             styles: [
                 'top',
