@@ -142,13 +142,20 @@ top of `www/vitest.browser.config.mjs`.
 ### Coverage
 
 ```sh
-npm run coverage      # from the repo root: runs all three coverage suites
+npm run coverage      # from the repo root: runs the three fast coverage suites
                       # and prints the merged overall figure
+
+# The E2E reports are additive (see below) and take ~10 min to produce.
+# They are picked up by the merge automatically once they exist:
+FEEZAL_COVERAGE=1 npm run build --prefix www
+FEEZAL_COVERAGE=1 npm run test:e2e --prefix www
+npm run coverage:e2e-report --prefix www
+node scripts/coverage-merge.mjs
 ```
 
-Coverage is produced by three independent runs with three different
-denominators, and `www/src` is driven by two of them — so no single report
-answers "how much of feezal is tested":
+Coverage is produced by independent runs with different denominators, and
+`www/src` is driven by several of them — so no single report answers "how much
+of feezal is tested":
 
 | report | measures | |
 |---|---|---|
@@ -162,17 +169,20 @@ answers "how much of feezal is tested":
 so a file exercised by two suites is counted once at what they jointly cover —
 writes `coverage/lcov.info` and prints the overall number.
 
-The two **additive** E2E reports are merged strictly into what the first three
-already measure: unknown files are skipped, and so are unknown line/branch keys
-within a known file. They come from Chromium V8 coverage of the *bundle* mapped
-back through sourcemaps, so their notion of which lines are executable does not
-line up exactly with vitest's direct instrumentation — merging their extra keys
-would measure a file against two different rulers and inflate the denominator.
-Restricted this way they can turn a miss into a hit and nothing else, which also
-means they are optional: the gate does not move if E2E did not run. Pass `--min <pct>` to
-make it exit non-zero below a floor; CI runs it with `--min 67` in the dedicated
-`coverage` job. Each suite is also uploaded to Codecov under its own flag
-(`backend`, `frontend`, `components`, `e2e`, `elements`, `overall`).
+The two **additive** E2E reports are merged strictly into what the three
+denominator-defining reports already measure: unknown files are skipped, and so
+are unknown line/branch keys *within* a known file. They come from Chromium V8
+coverage of the **bundle**, mapped back through sourcemaps, so their notion of
+which lines are executable does not line up exactly with vitest's direct
+instrumentation of the same file — merging their extra keys would measure a file
+against two different rulers and inflate the denominator. Restricted this way
+they can turn a miss into a hit and nothing else, which is also why they are
+optional: the floor cannot move depending on whether the slowest suite ran.
+
+Pass `--min <pct>` to make the merge exit non-zero below a floor; CI runs it with
+`--min 70` in the dedicated `coverage` job. Each report is also uploaded to
+Codecov under its own flag (`backend`, `frontend`, `components`, `e2e`,
+`elements`, `overall`).
 
 Component coverage is opt-in (`npm run test:browser:coverage --prefix www`) and
 pins chromium: vitest's v8 provider reads Chromium's CDP profiler and cannot
@@ -299,7 +309,7 @@ The **"CI"** workflow (`.github/workflows/ci.yml`) runs on every push to any bra
 1. **Dependency license gate** — `scripts/check-licenses.js` over the production dependency tree.
 2. **Backend** — server unit + integration tests with coverage (API routes, storage adapter, topic matching, the MQTT bridge and the native discovery recognizers).
 3. **Frontend** — www logic-unit tests with coverage; component tests in **chromium with coverage** plus a **firefox + webkit** pass without it (v8 browser coverage is Chromium-only, so the chromium run is split out of the matrix rather than added on top); then a `FEEZAL_COVERAGE=1` build and the E2E happy path, whose raw Chromium V8 dumps `scripts/e2e-coverage-report.mjs` turns into lcov.
-4. **Coverage** — downloads the other jobs' coverage artifacts, runs `scripts/coverage-merge.mjs --min 67`, and uploads the merged report. **This is the only step that can fail on coverage**; the individual suites deliberately carry no thresholds, so the floor is enforced once, on the merged number.
+4. **Coverage** — downloads the other jobs' coverage artifacts, runs `scripts/coverage-merge.mjs --min 70`, and uploads the merged report. **This is the only step that can fail on coverage**; the individual suites deliberately carry no thresholds, so the floor is enforced once, on the merged number.
 
 Every report is uploaded to Codecov under its own flag (`backend`, `frontend`, `components`, `e2e`, `elements`, `overall`).
 
