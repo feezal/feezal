@@ -68,6 +68,29 @@ describe('buildHealthDevices', () => {
         expect(list[0].battery).toBeTruthy();
         expect(list[0].avail).toBeTruthy();
     });
+
+    it('B72: collapses many ESPHome/z2m entities of one device by device.identifiers', () => {
+        const dev = {identifiers: ['boiler'], name: 'Boiler'};
+        const ents = [
+            {discovery_id: 'sensor/t', component: 'sensor', name: 'Boiler Temperature',
+                config: {state_topic: 'esphome/boiler/temp', device: dev, availability_normalized: {entries: [{topic: 'esphome/boiler/status'}]}}},
+            {discovery_id: 'sensor/u', component: 'sensor', name: 'Boiler Uptime',
+                config: {state_topic: 'esphome/boiler/uptime', device: dev, availability_normalized: {entries: [{topic: 'esphome/boiler/status'}]}}},
+            {discovery_id: 'binary_sensor/b', component: 'binary_sensor', name: 'Boiler Low Battery',
+                config: {state_topic: 'esphome/boiler', device: dev, battery_low_normalized: {topic: 'esphome/boiler/bat', payloadLow: true}}},
+        ];
+        const list = buildHealthDevices(ents);
+        expect(list).toHaveLength(1);
+        expect(list[0].name).toBe('Boiler');    // device.name, not an entity name
+        expect(list[0].avail).toBeTruthy();      // signals unioned across the device's entities
+        expect(list[0].battery).toBeTruthy();
+    });
+
+    it('B72: keeps distinct devices separate even when they share a name', () => {
+        const mk = id => ({discovery_id: id, component: 'binary_sensor', name: 'Sensor',
+            config: {state_topic: `z/${id}`, device: {identifiers: [id], name: 'Sensor'}, battery_low_normalized: {topic: `z/${id}/bat`, payloadLow: true}}});
+        expect(buildHealthDevices([mk('a'), mk('b')])).toHaveLength(2);
+    });
 });
 
 describe('isDeviceUnavailable', () => {

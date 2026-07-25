@@ -10,7 +10,6 @@ Work in progress — priorities and scope are not final.
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B62 — Gradient view background tiles/scrolls instead of staying put (Safari/iOS, PWA)](#b62--gradient-view-background-tilesscrolls-instead-of-staying-put-safariios-pwa)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
-- [B72 — `device-health`: one list entry per entity instead of per device (ESPHome / zigbee2mqtt)](#b72--device-health-one-list-entry-per-entity-instead-of-per-device-esphome--zigbee2mqtt)
 - [B73 — Background editor (view styles): solid + gradient colour fields should use the style-inspector var-autocomplete, not a dropdown; widen the too-small percent input](#b73--background-editor-view-styles-solid--gradient-colour-fields-should-use-the-style-inspector-var-autocomplete-not-a-dropdown-widen-the-too-small-percent-input)
 - [B74 — View theme selector: rename the default entry "Site theme (default)" → "Inherit" and drop its colour swatch](#b74--view-theme-selector-rename-the-default-entry-site-theme-default--inherit-and-drop-its-colour-swatch)
 - [B75 — Roadmap IDs leak into user-facing help texts & labels](#b75--roadmap-ids-leak-into-user-facing-help-texts--labels)
@@ -188,18 +187,6 @@ Work in progress — priorities and scope are not final.
 **Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
 
 **Relates:** **B62** (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
-
-### B72 — `device-health`: one list entry per *entity* instead of per *device* (ESPHome / zigbee2mqtt)
-
-**Reported (07/2026).** In the reworked device-health inspector checklist, **every topic from an ESPHome device creates its own list entry** — the same device appears many times. Same for zigbee2mqtt. Expected: **one entry per physical device**.
-
-**Root cause.** `buildHealthDevices` ([feezal-element-basic-device-health.js](../www/packages/@feezal/feezal-element-basic-device-health/feezal-element-basic-device-health.js), added in the overhaul `eb3ec828`) merges a device's entities **by friendly name** (`byName`). That collapses Homematic (whose entities share the channel name) but **not ESPHome/z2m**: each of a device's entities has a **distinct entity name** ("Boiler Temperature", "Boiler Uptime", "Boiler WiFi", …), and — for ESPHome especially — **every entity carries the same `availability_normalized`** (the shared `<node>/status`), so each entity becomes its own health candidate → N duplicate rows, all watching the same availability topic.
-
-**Fix — key the merge on device identity, not name.** Discovery entities already carry it: `config.device.identifiers[0]` (server `decorateBatteryLow` and `getDeviceGroups` both key on exactly this — [discovery.js:391,398,432](../server/src/mqtt/discovery.js#L391)). Change `buildHealthDevices` to group by, in order: **`config.device.identifiers[0]` → `node_id` → the shared availability/battery topic → friendly name** (the current behaviour as the last-resort fallback). Take the **device label** from `config.device.name` (friendly-name'd) when present; **union** the signals (battery / availability / fault / sabotage) across the device's entities (first of each kind wins). Alternatively/additionally, the inspector could fetch the already-device-grouped **`/api/discovery/device-groups`** endpoint instead of `/api/discovery/devices` and build one entry per group.
-
-**Ships with:** the `buildHealthDevices` dedup fix + a unit test (several ESPHome/z2m entities sharing one `device.identifiers` collapse to a single entry that unions their signals; distinct devices stay separate), patch-bump `basic-device-health`, and a TESTING.md note.
-
-**Relates:** the device-health overhaul `eb3ec828` (introduced `buildHealthDevices`; this fixes its dedup), `decorateBatteryLow` / `getDeviceGroups` in `discovery.js` (the device-identity keying to mirror + the ready-made device-grouped endpoint), E124/N31 (the per-entity battery/availability records that duplicate here).
 
 ### B73 — Background editor (view styles): solid + gradient colour fields should use the style-inspector var-autocomplete, not a dropdown; widen the too-small percent input
 

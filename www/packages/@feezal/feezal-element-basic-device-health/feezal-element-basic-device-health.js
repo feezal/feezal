@@ -36,12 +36,18 @@ function sourceOf(topic) {
 /**
  * Turn autodiscovery entities into the board's device list. Keeps only devices
  * with an actionable health signal; battery is BOOLEAN-only (a percentage-only
- * source carries no `payloadLow` and is skipped). Entities of one physical
- * device are merged by friendly name (first signal of each kind wins).
+ * source carries no `payloadLow` and is skipped).
+ *
+ * B72: one entry per physical DEVICE, not per entity. z2m/ESPHome expose many
+ * entities per device — each with a distinct name, and (ESPHome especially)
+ * each carrying the same availability — so merging by name duplicated them.
+ * Key on the device identity instead (`config.device.identifiers[0]` →
+ * `node_id` → shared availability/battery topic → friendly name), take the
+ * label from `config.device.name` when present, and union the signals.
  * Pure — unit-tested without a browser.
  */
 export function buildHealthDevices(entities) {
-    const byName = new Map();
+    const byKey = new Map();
     for (const ent of entities || []) {
         const cfg = ent.config || {};
         const bat = cfg.battery_low_normalized;
@@ -62,11 +68,19 @@ export function buildHealthDevices(entities) {
         if (!battery && !avail && !fault && !sabotage) continue;
 
         const primary = (battery || avail || fault || sabotage).topic;
-        const rawName = (ent.name && ent.name !== ent.component) ? ent.name : topicLeaf(cfg.state_topic || primary);
+        // Device label: prefer the physical device name (shared across a device's
+        // entities), else the entity name, else the topic leaf.
+        const rawName = cfg.device?.name
+            || ((ent.name && ent.name !== ent.component) ? ent.name : topicLeaf(cfg.state_topic || primary));
         const name = friendlyName(rawName) || topicLeaf(primary) || 'Device';
         const source = sourceOf(cfg.state_topic || primary);
 
-        const cur = byName.get(name);
+        // Dedup key: device identity first (z2m/ESPHome group a device's many
+        // distinct-named entities under one `device.identifiers`), else the
+        // friendly name (collapses Homematic channels that share a name).
+        const key = cfg.device?.identifiers?.[0] || ent.node_id || name;
+
+        const cur = byKey.get(key);
         if (cur) {
             if (battery && !cur.battery) cur.battery = battery;
             if (avail && !cur.avail) cur.avail = avail;
@@ -74,16 +88,15 @@ export function buildHealthDevices(entities) {
             if (sabotage && !cur.sabotage) cur.sabotage = sabotage;
             continue;
         }
-        byName.set(name, {
-            id: ent.discovery_id || ent.unique_id || name,
-            name, source,
+        byKey.set(key, {
+            id: String(key), name, source,
             ...(battery ? {battery} : {}),
             ...(avail ? {avail} : {}),
             ...(fault ? {fault} : {}),
             ...(sabotage ? {sabotage} : {}),
         });
     }
-    return [...byName.values()];
+    return [...byKey.values()];
 }
 
 /**
