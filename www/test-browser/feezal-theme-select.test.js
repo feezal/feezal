@@ -130,6 +130,27 @@ describe('U53 — feezal-theme-select', () => {
         expect(emitted[1]).toEqual({name: 'theme', value: 'feezal-theme-metro'});
     });
 
+    it('B74: the empty entry shows the emptyOption label ("Inherit") and NO swatch', async () => {
+        const view = document.createElement('feezal-view');
+        view.setAttribute('name', 'v2');
+        document.body.append(view);
+
+        const el = await mount('feezal-theme-select', {});
+        el.colors = {};
+        el.emptyOption = 'Inherit';   // what the view picker forwards (B74)
+        el.element = view;
+        await el.updateComplete;
+
+        el.shadowRoot.querySelector('.trigger').click();
+        await el.updateComplete;
+        const first = el.shadowRoot.querySelector('.option');
+        expect(first.querySelector('.option-name').textContent).toBe('Inherit');
+        expect(first.querySelector('.swatches')).toBeNull();   // no swatch for the empty entry
+        // a real theme option still renders its swatch
+        const themed = [...el.shadowRoot.querySelectorAll('.option')].find(o => o.textContent.includes('metro'));
+        expect(themed.querySelector('.swatches')).toBeTruthy();
+    });
+
     it('the × on the trigger clears back to the site theme (B50 clear affordance)', async () => {
         const view = document.createElement('feezal-view');
         view.setAttribute('theme', 'feezal-theme-metro');

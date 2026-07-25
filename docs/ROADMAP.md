@@ -10,7 +10,6 @@ Work in progress — priorities and scope are not final.
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B62 — Gradient view background tiles/scrolls instead of staying put (Safari/iOS, PWA)](#b62--gradient-view-background-tilesscrolls-instead-of-staying-put-safariios-pwa)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
-- [B74 — View theme selector: rename the default entry "Site theme (default)" → "Inherit" and drop its colour swatch](#b74--view-theme-selector-rename-the-default-entry-site-theme-default--inherit-and-drop-its-colour-swatch)
 - [B75 — Roadmap IDs leak into user-facing help texts & labels](#b75--roadmap-ids-leak-into-user-facing-help-texts--labels)
 - [B76 — `paper-slider`: invisible track (default ≈ background) + knob defaults should be `--primary-text-color`](#b76--paper-slider-invisible-track-default--background--knob-defaults-should-be---primary-text-color)
 
@@ -186,22 +185,6 @@ Work in progress — priorities and scope are not final.
 **Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
 
 **Relates:** **B62** (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
-
-### B74 — View theme selector: rename the default entry "Site theme (default)" → "Inherit" and drop its colour swatch
-
-**Reported (07/2026).** In the **view theme selector**, the default (empty) entry is labelled **"Site theme (default)"** and shows a (neutral) colour swatch chip like the real themes. The reporter wants it **renamed "Inherit"** and this special entry to **show no swatch** (a view with no theme inherits the site theme — there's no colour to preview).
-
-**Where.** The shared picker `feezal-theme-select.js` ([the ONE styled theme picker, used by both the site-theme sidebar and the view picker](../www/src/feezal-theme-select.js)):
-- The label is the `emptyOption` fallback **"Site theme (default)"** ([:234-235](../www/src/feezal-theme-select.js#L235), the B50 contract) — the view picker's empty entry (`cls === ''`).
-- That empty entry currently renders `PLACEHOLDER_SWATCHES` — a neutral chip ([:256](../www/src/feezal-theme-select.js#L256)) — in both the dropdown row and the selected-value display.
-
-**Fix.**
-1. **Rename** the view picker's empty-entry label to **"Inherit"** — set the view theme attribute descriptor's `emptyOption` (passed through at [feezal-sidebar-inspector-attributes.js:1485](../www/src/feezal-sidebar-inspector-attributes.js#L1485)), or change the `:235` fallback. **Scope it to the view picker** — confirm the site-theme sidebar doesn't rely on the same empty label (it shouldn't show an "inherit" entry).
-2. **No swatch for the empty entry.** For `cls === ''`, render **nothing** where the swatch chip goes (both the option list and the closed/selected display), instead of `PLACEHOLDER_SWATCHES` — the label sits alone, visually distinct from the real themes. Keep the real `default` theme (`cls === 'default'`) swatch untouched ([:257](../www/src/feezal-theme-select.js#L257)).
-
-**Ships with:** the label + swatch-suppression change, a browser test (the view picker's empty entry reads "Inherit" and renders no `.swatches`; a real theme still shows its chip), and a TESTING.md note. Small, contained.
-
-**Relates:** **U57** (the compound-swatch theme picker this tweaks), **U53** (the shared styled theme picker), **B50** (the `emptyOption` "(default)" contract being adjusted), the view-settings theme attribute (the descriptor that should pass `emptyOption: 'Inherit'`).
 
 ### B75 — Roadmap IDs leak into user-facing help texts & labels
 

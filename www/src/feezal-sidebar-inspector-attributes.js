@@ -792,8 +792,11 @@ class FeezalSidebarInspectorAttributes extends LitElement {
     _renderCustom(item) {
         const el = this.selectedElems?.[0] || null;
         const tag = unsafeStatic(item.component);
+        // B74: forward a descriptor's emptyOption to the custom control (e.g. the
+        // view theme picker's "Inherit" entry). Undefined is ignored by controls
+        // that don't use it.
         return staticHtml`
-            <${tag} .element="${el}"
+            <${tag} .element="${el}" .emptyOption="${item.emptyOption}"
                 @feezal-attribute-changed="${this._onCustomAttrChanged}"></${tag}>`;
     }
 

@@ -261,6 +261,9 @@ class FeezalThemeSelect extends LitElement {
     /** U57: the compound swatch — the two-tone chip carries three big role
      * dots, a divider rule and a small accent dot, all inside it. */
     _renderSwatch(cls) {
+        // B74: the empty entry ("Inherit" / no theme) has no colours to preview —
+        // render no swatch, so it reads as a plain, distinct default choice.
+        if (cls === '') return '';
         const s = this._swatchRecord(cls);
         return html`
             <span class="swatches" part="swatch">

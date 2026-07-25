@@ -91,11 +91,13 @@ class FeezalView extends LitElement {
                     // U53: rendered by the SHARED styled picker (shortened
                     // names + colour swatches — the same control as the site
                     // theme selector). Its element mount keeps the B50
-                    // contract: a leading "Site theme (default)" entry and a
-                    // × clear, both REMOVING the attribute.
+                    // contract: a leading "Inherit" entry (B74; a view with no
+                    // theme inherits the site theme) and a × clear, both
+                    // REMOVING the attribute.
                     name: 'theme',
                     type: 'custom',
                     component: 'feezal-theme-select',
+                    emptyOption: 'Inherit',
                     default: '',
                 },
                 {
