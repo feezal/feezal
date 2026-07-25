@@ -28,11 +28,33 @@ import {fileURLToPath} from 'node:url';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** Each source lcov + the repo-relative base its SF: paths resolve against. */
+/**
+ * Each source lcov + the repo-relative base its SF: paths resolve against.
+ *
+ * The first three define the denominator — between them they include every
+ * file feezal measures, minus the generated/vendored/entry files
+ * www/coverage-exclude.mjs drops.
+ *
+ * The E2E reports are `additive`: they are real coverage of the real editor
+ * and viewer (the harness collects Chromium V8 coverage behind FEEZAL_COVERAGE
+ * and scripts/e2e-coverage-report.mjs maps it back through the sourcemaps), so
+ * they should count — but they are merged for files the other suites ALREADY
+ * measure and skipped otherwise. Two reasons:
+ *   - the E2E source filter accepts any `src/<file>.js`, including the entry
+ *     and generated files W3 excludes; merging those verbatim would quietly
+ *     undo that exclusion and re-inflate the denominator,
+ *   - and an additive source can then only ever ADD hits, never move the
+ *     goalposts — so the gate cannot swing on whether E2E ran.
+ * They are optional for the same reason: E2E needs a built bundle, a broker
+ * and a browser, so a merge without it is still a valid (slightly pessimistic)
+ * overall figure rather than a hard error.
+ */
 const SOURCES = [
     {label: 'server',      file: 'server/coverage/lcov.info',         base: 'server'},
     {label: 'www unit',    file: 'www/coverage/lcov.info',            base: 'www'},
     {label: 'www browser', file: 'www/coverage-browser/lcov.info',    base: 'www'},
+    {label: 'e2e src',      file: 'www/coverage-e2e/lcov.info',          base: '.', additive: true},
+    {label: 'e2e elements', file: 'www/coverage-e2e/lcov-elements.info', base: '.', additive: true},
 ];
 
 const args = process.argv.slice(2);
@@ -91,17 +113,35 @@ function parseLcov(text, base) {
     return files;
 }
 
-/** Merge `src` into `into`, summing hit counts per line/branch/function. */
-function mergeInto(into, src) {
+/**
+ * Merge `src` into `into`, summing hit counts per line/branch/function.
+ *
+ * `additive` merges STRICTLY into what `into` already knows — unknown files are
+ * skipped, and within a known file, unknown line/branch/function keys are too.
+ * That last part matters: the E2E numbers come from Chromium V8 coverage of the
+ * BUNDLE mapped back through sourcemaps, so its notion of which lines are
+ * executable does not line up exactly with vitest's direct instrumentation of
+ * the same file. Adding its extra keys would grow the denominator with lines
+ * the other suites never counted — measuring a file against two different
+ * rulers. Restricting to the intersection makes an additive source able to turn
+ * a miss into a hit and nothing else: pessimistic where the rulers disagree,
+ * never wrong.
+ */
+function mergeInto(into, src, {additive = false} = {}) {
     for (const [file, rec] of src) {
         if (!into.has(file)) {
+            if (additive) continue;
             into.set(file, {lines: new Map(rec.lines), branches: new Map(rec.branches), fns: new Map(rec.fns)});
             continue;
         }
         const target = into.get(file);
-        for (const [k, v] of rec.lines) target.lines.set(k, (target.lines.get(k) || 0) + v);
-        for (const [k, v] of rec.branches) target.branches.set(k, (target.branches.get(k) || 0) + v);
-        for (const [k, v] of rec.fns) target.fns.set(k, (target.fns.get(k) || 0) + v);
+        const bump = (map, k, v) => {
+            if (additive && !map.has(k)) return;
+            map.set(k, (map.get(k) || 0) + v);
+        };
+        for (const [k, v] of rec.lines) bump(target.lines, k, v);
+        for (const [k, v] of rec.branches) bump(target.branches, k, v);
+        for (const [k, v] of rec.fns) bump(target.fns, k, v);
     }
 }
 
@@ -122,15 +162,28 @@ const merged = new Map();
 const perSuite = [];
 const missing = [];
 
-for (const {label, file, base} of SOURCES) {
+// Required suites first — they establish the file set (and the line keys within
+// each file) that the additive ones are then filtered against.
+for (const {label, file, base, additive} of SOURCES) {
     const abs = join(repoRoot, file);
-    if (!existsSync(abs)) { missing.push({label, file}); continue; }
+    if (!existsSync(abs)) { missing.push({label, file, additive}); continue; }
+    if (additive) continue;                      // second pass, once `merged` is built
     const parsed = parseLcov(await readFile(abs, 'utf8'), base);
     perSuite.push({label, file, ...totals(parsed), files: parsed.size});
     mergeInto(merged, parsed);
 }
+for (const {label, file, base, additive} of SOURCES) {
+    if (!additive) continue;
+    const abs = join(repoRoot, file);
+    if (!existsSync(abs)) continue;
+    const parsed = parseLcov(await readFile(abs, 'utf8'), base);
+    const counted = [...parsed.keys()].filter(f => merged.has(f)).length;
+    perSuite.push({label: label + ' *', file, ...totals(parsed), files: counted});
+    mergeInto(merged, parsed, {additive: true});
+}
 
-if (missing.length === SOURCES.length) {
+const requiredMissing = missing.filter(m => !m.additive);
+if (requiredMissing.length === SOURCES.filter(s => !s.additive).length) {
     console.error('No lcov reports found. Generate them first:\n' +
         '  npm run test:coverage --prefix server\n' +
         '  npm run test:coverage --prefix www\n' +
@@ -162,19 +215,26 @@ if (!quiet) {
         console.log(`  ${pad(s.label, 14)} ${pad(s.files, 7)} ` +
             `${pad(`${pct(s.pct)} (${s.hit}/${s.found})`, 17)} ${s.bFound ? pct((s.bHit / s.bFound) * 100) : '—'}`);
     }
-    for (const m of missing) console.log(`  ${pad(m.label, 14)} ${pad('—', 7)} not generated (${m.file})`);
+    for (const m of missing) {
+        console.log(`  ${pad(m.label + (m.additive ? ' *' : ''), 14)} ${pad('—', 7)} ` +
+            `not generated (${m.file})${m.additive ? ' — optional' : ''}`);
+    }
     console.log('  ' + '-'.repeat(56));
     console.log(`  ${pad('OVERALL', 14)} ${pad(merged.size, 7)} ` +
         `${pad(`${pct(overall.pct)} (${overall.hit}/${overall.found})`, 17)} ` +
         `${overall.bFound ? pct((overall.bHit / overall.bFound) * 100) : '—'}`);
     console.log(`\n  merged lcov -> coverage/lcov.info`);
-    if (missing.length) console.log('  NOTE: a suite is missing — the overall figure is incomplete.');
+    if (perSuite.some(s => s.label.endsWith('*')) || missing.some(m => m.additive)) {
+        console.log('  * additive: merged only into files the suites above already measure,\n' +
+            '    so it can add covered lines but never change the denominator.');
+    }
+    if (requiredMissing.length) console.log('  NOTE: a required suite is missing — the overall figure is incomplete.');
     console.log('');
 }
 
 if (min !== null) {
-    if (missing.length) {
-        console.error(`Refusing to gate on an incomplete merge (${missing.map(m => m.label).join(', ')} missing).`);
+    if (requiredMissing.length) {
+        console.error(`Refusing to gate on an incomplete merge (${requiredMissing.map(m => m.label).join(', ')} missing).`);
         process.exit(2);
     }
     if (overall.pct < min) {

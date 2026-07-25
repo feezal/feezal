@@ -130,6 +130,14 @@ jobs:
           path: www/coverage-browser/
           if-no-files-found: ignore
 
+      - name: Upload E2E coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-coverage
+          path: www/coverage-e2e/
+          if-no-files-found: ignore
+
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -191,6 +199,17 @@ jobs:
         with:
           name: component-coverage
           path: www/coverage-browser
+
+      # Additive: the E2E reports only ever turn a miss into a hit for a file
+      # the suites above already measure (see scripts/coverage-merge.mjs), so
+      # the merge stays valid — and the gate stays stable — if E2E produced
+      # nothing.
+      - name: Restore E2E coverage
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: e2e-coverage
+          path: www/coverage-e2e
 
       # The don't-sink-again floor. Set a few points below the achieved figure
       # so normal churn cannot make CI flaky; raise it when the number rises.

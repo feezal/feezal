@@ -150,15 +150,26 @@ Coverage is produced by three independent runs with three different
 denominators, and `www/src` is driven by two of them — so no single report
 answers "how much of feezal is tested":
 
-| report | measures |
-|---|---|
-| `server/coverage/lcov.info` | `server/src/**` |
-| `www/coverage/lcov.info` | `www/src` + the shared `packages/@feezal` logic (controllers, base, settling) |
-| `www/coverage-browser/lcov.info` | `www/src` + **every** element package |
+| report | measures | |
+|---|---|---|
+| `server/coverage/lcov.info` | `server/src/**` | defines the denominator |
+| `www/coverage/lcov.info` | `www/src` + the `packages/@feezal` modules unit tests drive | defines the denominator |
+| `www/coverage-browser/lcov.info` | `www/src` + **every** element package | defines the denominator |
+| `www/coverage-e2e/lcov.info` | `www/src`, from the real editor + viewer | **additive** |
+| `www/coverage-e2e/lcov-elements.info` | element packages, from the real editor + viewer | **additive** |
 
 `scripts/coverage-merge.mjs` merges them — union of files, summed per-line hits,
 so a file exercised by two suites is counted once at what they jointly cover —
-writes `coverage/lcov.info` and prints the overall number. Pass `--min <pct>` to
+writes `coverage/lcov.info` and prints the overall number.
+
+The two **additive** E2E reports are merged strictly into what the first three
+already measure: unknown files are skipped, and so are unknown line/branch keys
+within a known file. They come from Chromium V8 coverage of the *bundle* mapped
+back through sourcemaps, so their notion of which lines are executable does not
+line up exactly with vitest's direct instrumentation — merging their extra keys
+would measure a file against two different rulers and inflate the denominator.
+Restricted this way they can turn a miss into a hit and nothing else, which also
+means they are optional: the gate does not move if E2E did not run. Pass `--min <pct>` to
 make it exit non-zero below a floor; CI runs it with `--min 67` in the dedicated
 `coverage` job. Each suite is also uploaded to Codecov under its own flag
 (`backend`, `frontend`, `components`, `e2e`, `elements`, `overall`).
