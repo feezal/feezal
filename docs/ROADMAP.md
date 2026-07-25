@@ -10,7 +10,6 @@ Work in progress — priorities and scope are not final.
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B62 — Gradient view background tiles/scrolls instead of staying put (Safari/iOS, PWA)](#b62--gradient-view-background-tilesscrolls-instead-of-staying-put-safariios-pwa)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
-- [B76 — `paper-slider`: invisible track (default ≈ background) + knob defaults should be `--primary-text-color`](#b76--paper-slider-invisible-track-default--background--knob-defaults-should-be---primary-text-color)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -185,25 +184,6 @@ Work in progress — priorities and scope are not final.
 
 **Relates:** **B62** (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
 
-
-### B76 — `paper-slider`: invisible track (default ≈ background) + knob defaults should be `--primary-text-color`
-
-**Reported (07/2026).** The **`paper-slider`** ([feezal-element-paper-slider.js](../www/packages/@feezal/feezal-element-paper-slider/feezal-element-paper-slider.js)) renders badly out of the box:
-1. **No usable exposed var / invisible track.** The **track colour default resolves to ≈ `--primary-background-color`**, so the track is invisible against the page. The Style-inspector list ([:106-125](../www/packages/@feezal/feezal-element-paper-slider/feezal-element-paper-slider.js#L106)) exposes `--paper-slider-container-color` / `-bar-color` etc. but **none carry a `default`**, and none reliably drives the visible track.
-2. **Knob colour default is wrong** — both the knob and the **start knob** should default to **`var(--primary-text-color)`**.
-
-**Root cause.** The element wraps Polymer `<paper-slider>` and sets **no `--paper-slider-*` defaults of its own** — the color vars (`container-color` = track, `knob-color`, `knob-start-color`, `active-color`, …) rely entirely on **per-theme wiring, which is inconsistent**: most themes set only `--paper-slider-active-color`, and a couple map `--paper-slider-container-color` onto a `linear-gradient(var(--primary-background-color), …)` (e.g. [midnight-blue.js:35](../www/packages/@feezal/feezal-theme-midnight-blue/feezal-theme-midnight-blue.js#L35), [dark-mint.js:36](../www/packages/@feezal/feezal-theme-dark-mint/feezal-theme-dark-mint.js#L36)). On any theme that doesn't set them, the track/knob fall back to Polymer defaults or the near-background mapping → invisible track, unthemed knob.
-
-**Fix — give the element sensible, theme-var defaults** (in the wrapper's `<style> :host`, and mirror them as `default:` on the style descriptors so the inspector shows them):
-- **Track** (`--paper-slider-container-color`): a **visible** muted default — `var(--divider-color)` or `var(--secondary-background-color)` — **never `--primary-background-color`**. (Add/clarify a "track colour" descriptor with this default.)
-- **Knob + start knob** (`--paper-slider-knob-color`, `--paper-slider-knob-start-color`): **`var(--primary-text-color)`**.
-- **Active fill** (`--paper-slider-active-color`): `var(--primary-color)` (most themes already set this — the element default just guarantees it when they don't).
-
-Theme overrides keep winning (element `:host` defaults are the floor). Use the canonical theme vars per the theme-variable discipline (each with a literal hex last-resort fallback).
-
-**Ships with:** the `:host` defaults + descriptor `default`s, patch-bump `feezal-element-paper-slider`, and a TESTING.md note (slider track + knob are visible on the **default** theme with no per-element styling). Legacy paper/Polymer element — keep it minimal.
-
-**Relates:** the theme-variable discipline (canonical `--primary-text-color` / `--divider-color` / `--primary-color` + hex fallback — CLAUDE.md, element-spec §5.1), the `--paper-slider-*` theme wiring across the theme packages (the inconsistency this floors), `carbon-slider` / `material-slider` (the modern sliders — sanity-check their track/knob defaults are visible too).
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 

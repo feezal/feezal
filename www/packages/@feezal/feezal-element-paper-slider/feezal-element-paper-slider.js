@@ -10,6 +10,15 @@ class FeezalElementPaperSlider extends FeezalPolymerElement {
             <style>
                 :host {
                     overflow: visible;
+                    /* B76: give the track + knob visible, theme-aware defaults.
+                       They were unset, so the track resolved to ~the page
+                       background (invisible) and the knob was unthemed. Map to
+                       the canonical theme vars (each with a hex last-resort).
+                       Themes still control the active fill; a per-element
+                       Style-inspector value still wins (inline style beats :host). */
+                    --paper-slider-container-color: var(--divider-color, #cccccc);
+                    --paper-slider-knob-color: var(--primary-text-color, #222222);
+                    --paper-slider-knob-start-color: var(--primary-text-color, #222222);
                 }
                 paper-slider {
                     width: 100%;
@@ -108,18 +117,18 @@ class FeezalElementPaperSlider extends FeezalPolymerElement {
                 'left',
                 'width',
                 'height',
-                {'property': '--paper-slider-container-color', type: 'color'},
+                {'property': '--paper-slider-container-color', type: 'color', default: 'var(--divider-color)', help: 'Track (unfilled bar) colour.'},
                 {'property': '--paper-slider-bar-color', type: 'color'},
-                {'property': '--paper-slider-active-color', type: 'color'},
+                {'property': '--paper-slider-active-color', type: 'color', help: 'Filled (active) portion colour.'},
                 {'property': '--paper-slider-secondary-color', type: 'color'},
-                {'property': '--paper-slider-knob-color', type: 'color'},
+                {'property': '--paper-slider-knob-color', type: 'color', default: 'var(--primary-text-color)', help: 'Knob colour.'},
                 {'property': '--paper-slider-disabled-knob-color', type: 'color'},
                 {'property': '--paper-slider-pin-color', type: 'color'},
                 {'property': '--paper-slider-font-color', type: 'color'},
                 {'property': '--paper-slider-markers-color', type: 'color'},
                 {'property': '--paper-slider-disabled-active-color', type: 'color'},
                 {'property': '--paper-slider-disabled-secondary-color', type: 'color'},
-                {'property': '--paper-slider-knob-start-color', type: 'color'},
+                {'property': '--paper-slider-knob-start-color', type: 'color', default: 'var(--primary-text-color)', help: 'Range-start knob colour.'},
                 {'property': '--paper-slider-knob-start-border-color', type: 'color'},
                 {'property': '--paper-slider-pin-start-color', type: 'color'},
                 {'property': '--paper-slider-height'}

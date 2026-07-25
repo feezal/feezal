@@ -76,6 +76,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [B73 — Background editor (view styles): solid + gradient colour fields should use the style-inspector var-autocomplete, not a dropdown; widen the too-small percent input ✅ fixed](B73.md)
 - [B74 — View theme selector: rename the default entry "Site theme (default)" → "Inherit" and drop its colour swatch ✅ fixed](B74.md)
 - [B75 — Roadmap IDs leak into user-facing help texts & labels ✅ fixed](B75.md)
+- [B76 — `paper-slider`: invisible track (default ≈ background) + knob defaults should be `--primary-text-color` ✅ fixed](B76.md)
 
 ## Near-term Improvements
 
