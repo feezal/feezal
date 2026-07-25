@@ -1,6 +1,6 @@
 /* global feezal */
 import {html, css} from '@feezal/feezal-element';
-import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
+import {MetroTileBase} from '@feezal/feezal-metro';
 
 /**
  * feezal-element-metro-switch (E55)

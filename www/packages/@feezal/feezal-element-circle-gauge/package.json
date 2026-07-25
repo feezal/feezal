@@ -1,5 +1,8 @@
 {
   "name": "@feezal/feezal-element-circle-gauge",
-  "version": "3.0.2",
-  "main": "feezal-element-circle-gauge.js"
+  "version": "3.0.3",
+  "main": "feezal-element-circle-gauge.js",
+  "dependencies": {
+    "@feezal/feezal-gauge": "*"
+  }
 }

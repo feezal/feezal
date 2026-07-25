@@ -1,0 +1,6 @@
+{
+    "name": "@feezal/feezal-metro",
+    "version": "0.1.0",
+    "license": "MIT",
+    "main": "feezal-metro.js"
+}

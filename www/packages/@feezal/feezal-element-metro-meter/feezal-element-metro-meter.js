@@ -1,6 +1,6 @@
 /* global feezal */
 import {html, css} from '@feezal/feezal-element';
-import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
+import {MetroTileBase} from '@feezal/feezal-metro';
 import {AiedgeController, aiedgeAttributes, formatMeterValue} from '@feezal/feezal-controller-aiedge';
 
 /**

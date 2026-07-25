@@ -1,6 +1,6 @@
 {
     "name": "@feezal/feezal-controller-cover",
-    "version": "3.0.0",
+    "version": "3.0.1",
     "main": "feezal-controller-cover.js",
     "license": "MIT",
     "description": "E137 cover behavior controller: class + attribute fragment + discovery-map fragment (E128 settling lands here)."

@@ -1,7 +1,7 @@
 /* global feezal */
 import {html, css} from '@feezal/feezal-element';
 import {svg} from 'lit';
-import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
+import {MetroTileBase} from '@feezal/feezal-metro';
 
 /**
  * feezal-element-metro-value (E55, E138)

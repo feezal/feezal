@@ -1,0 +1,6 @@
+{
+    "name": "@feezal/feezal-gauge",
+    "version": "0.1.0",
+    "license": "MIT",
+    "main": "feezal-gauge.js"
+}

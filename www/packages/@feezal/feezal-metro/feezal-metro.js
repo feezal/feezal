@@ -1,27 +1,31 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css, publishLocalAttribute} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 
 /**
- * feezal-element-metro-tile (E55)
+ * @feezal/feezal-metro (E55, extracted E152)
  *
- * Two things in one package:
+ * Shared code for the Metro live-tile family. Intentionally NOT named
+ * `feezal-element-*` — the server's package scan treats every
+ * `feezal-element-*` directory as a dashboard element and would try to
+ * palette/bundle it (see server/src/build/elements.js `_scan()`). This is a
+ * pure code-sharing package, same precedent as `@feezal/feezal-glass`.
  *
- * 1. `MetroTileBase` — the shared base class of the Metro live-tile family:
- *    flat solid-colour tile, sharp corners, white type, the `size` grid
- *    (1x1 / 2x2 / 4x2 / 4x4), and the signature 3D Y-flip between the front
- *    (primary state + one base action) and the back (detail controls).
- *    Subclasses implement `renderFront()`, optionally `renderBack()` (null =
- *    front-only, no ⋯ affordance) and `baseAction()` (front tap). Flip state
- *    is per-client UI state — never published.
- *
- * 2. `feezal-element-metro-tile` — the generic action tile built on it:
- *    icon + label, tap publishes a payload and/or navigates to a view
- *    (start-screen-as-navigation), optional live badge from a topic.
+ * `MetroTileBase` — the shared base class of the Metro live-tile family:
+ * flat solid-colour tile, sharp corners, white type, the `size` grid
+ * (1x1 / 2x2 / 4x2 / 4x4), and the signature 3D Y-flip between the front
+ * (primary state + one base action) and the back (detail controls).
+ * Subclasses implement `renderFront()`, optionally `renderBack()` (null =
+ * front-only, no ⋯ affordance) and `baseAction()` (front tap). Flip state
+ * is per-client UI state — never published.
  *
  * Tile grid: n spans = n·unit + (n−1)·gutter with unit 70px / gutter 10px
  * (override via --feezal-metro-unit/-gutter before drop) → 70/150/310 px.
  * The `size` attribute rewrites the element's inline width/height so mixed
  * tiles align into the mosaic; manual resize still works afterwards.
+ *
+ * The generic action tile that used to live alongside this class is now the
+ * `@feezal/feezal-element-metro-button` package (E152 — naming parity with
+ * every other family's `*-button`).
  */
 
 const GRID_UNIT = 70;
@@ -277,72 +281,3 @@ export class MetroTileBase extends FeezalElement {
             </div>`;
     }
 }
-
-// ── The generic action tile ──────────────────────────────────────────────────
-
-class FeezalElementMetroTile extends MetroTileBase {
-    static get feezal() {
-        return {
-            palette: {name: 'Tile', category: 'Metro', color: '#1ba1e2', icon: 'grid_view'},
-            description: 'Generic Metro start-screen tile: icon + label, tap publishes a payload and/or navigates to a view; optional live badge from a topic.',
-            attributes: [
-                ...MetroTileBase.tileAttributes,
-                {name: 'publish', type: 'mqttTopic', help: 'Topic published on tap (empty = none).'},
-                {name: 'payload', type: 'string', default: '1', help: 'Payload published on tap.'},
-                // E117: the tap publish is button-shaped UI wiring (its
-                // navigate-to-view action is already page-local).
-                publishLocalAttribute,
-                {name: 'view', dropdown: 'views', help: 'View to navigate to on tap (empty = none).'},
-                {name: 'subscribe', type: 'mqttTopic', help: 'Optional badge topic — the payload shows top-right (live-tile count).'},
-                {name: 'message-property', type: 'string', default: 'payload',
-                    help: 'Dot-notation path to the badge value within the MQTT message. Default: payload'},
-            ],
-            styles: MetroTileBase.tileStyles,
-            restrict: {minWidth: 40, minHeight: 40},
-            defaultStyle: {width: '150px', height: '150px'},
-        };
-    }
-
-    static properties = {
-        publish: {type: String, reflect: true},
-        payload: {type: String, reflect: true},
-        publishLocal: {type: Boolean, reflect: true, attribute: 'publish-local'},
-        view:    {type: String, reflect: true},
-        _badge:  {state: true},
-    };
-
-    constructor() {
-        super();
-        this.publish = '';
-        this.payload = '1';
-        this.publishLocal = false;
-        this.view = '';
-        this._badge = '';
-    }
-
-    connectedCallback() {
-        super.connectedCallback();
-        if (this.subscribe) {
-            this.addSubscription(this.subscribe, msg => {
-                const v = this.getProperty(msg, this.messageProperty);
-                this._badge = v === null || v === undefined ? '' : String(v);
-            });
-        }
-    }
-
-    renderFront() {
-        return this.icon ? html`<feezal-icon name="${this.icon}"></feezal-icon>` : '';
-    }
-
-    renderBadge() {
-        return this._badge;
-    }
-
-    baseAction() {
-        if (this.publish) feezal.connection.pub(this.publish, this.payload, {local: this.publishLocal});   // E117
-        if (this.view && feezal.site) feezal.site.view = this.view;
-    }
-}
-
-customElements.define('feezal-element-metro-tile', FeezalElementMetroTile);
-export {FeezalElementMetroTile};

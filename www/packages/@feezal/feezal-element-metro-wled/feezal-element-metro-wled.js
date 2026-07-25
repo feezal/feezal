@@ -1,6 +1,6 @@
 /* global feezal */
 import {feezalBoolean, html, css} from '@feezal/feezal-element';
-import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
+import {MetroTileBase} from '@feezal/feezal-metro';
 // E137: the WLED behavior lives in the shared controller — this element is
 // a VIEW (Metro tile chrome: front state, back controls). The effect/palette
 // name tables are bundled once in the controller package.

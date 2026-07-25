@@ -1,9 +1,9 @@
 {
   "name": "@feezal/feezal-element-metro-value",
-  "version": "3.0.4",
+  "version": "3.0.5",
   "license": "MIT",
   "main": "feezal-element-metro-value.js",
   "dependencies": {
-    "@feezal/feezal-element-metro-tile": "*"
+    "@feezal/feezal-metro": "*"
   }
 }

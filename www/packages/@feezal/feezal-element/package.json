@@ -14,9 +14,14 @@
     "feezal": {},
     "files": [
         "feezal-element.js",
+        "feezal-color.js",
         "feezal-conditions.js",
         "feezal-friendly-name.js",
+        "feezal-hm-fault.js",
+        "feezal-movement.js",
         "feezal-polymer-element.js",
+        "feezal-sensor-types.js",
+        "feezal-settling.js",
         "feezal-topic-input.js",
         "LICENSE"
     ],
@@ -36,5 +41,5 @@
         "url": "git+https://github.com/feezal/feezal.git",
         "directory": "www/packages/@feezal/feezal-element"
     },
-    "version": "3.0.12"
+    "version": "3.0.13"
 }

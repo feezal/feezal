@@ -1,14 +1,14 @@
 /**
  * E117 (navigation/tab-bar tranche) — the shared `publish-local` descriptor on
  * every element that publishes as a navigation/selection act: material-navbar,
- * tui-menu, metro-tile, material-chip. Each threads {local: this.publishLocal}
+ * tui-menu, metro-button, material-chip. Each threads {local: this.publishLocal}
  * into pub() (paper-tabs, Polymer, already did — its descriptor was converged
  * on the shared wording).
  */
 import {describe, it, expect, beforeEach} from 'vitest';
 import '@feezal/feezal-element-material-navbar';
 import '@feezal/feezal-element-tui-menu';
-import '@feezal/feezal-element-metro-tile';
+import '@feezal/feezal-element-metro-button';
 import '@feezal/feezal-element-material-chip';
 import {setupFeezal, mount} from './helpers.js';
 
@@ -29,7 +29,7 @@ const CASES = [
         expected: {topic: 'ui/menu', payload: 'go'},
     },
     {
-        tag: 'feezal-element-metro-tile',
+        tag: 'feezal-element-metro-button',
         attrs: {publish: 'ui/tile', payload: 'tap'},
         act: el => el.baseAction(),
         expected: {topic: 'ui/tile', payload: 'tap'},

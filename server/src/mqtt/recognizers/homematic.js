@@ -576,11 +576,17 @@ const hmCoverRecognizer = {
 
     match(topic) {
         // hm/status/<seg>/LEVEL — LEVEL only (whitelisted DP; STOP is write-only).
+        // E128: WORKING, LEVEL_NOTWORKING (RedMatic) and DIRECTION are
+        // additionally OBSERVED — never promoted on their own, but their
+        // presence makes the emitted config wire the ramp-settling attributes
+        // and the travel-direction indicator. No blind guessing: only topics
+        // actually seen on the broker are wired (same rule as E127's dimmer).
         if (!topic.startsWith(hmPrefix + '/status/')) return null;
         const parts = topic.split('/');
         if (parts.length !== 4) return null;            // exactly prefix/status/seg/DP
-        if (parts[3] !== 'LEVEL') return null;
-        return {seg: parts[2], datapoint: 'LEVEL'};
+        if (parts[3] !== 'LEVEL' && parts[3] !== 'WORKING'
+            && parts[3] !== 'LEVEL_NOTWORKING' && parts[3] !== 'DIRECTION') return null;
+        return {seg: parts[2], datapoint: parts[3]};
     },
 
     accumulate(state, parsed, value, payload) {
@@ -605,7 +611,8 @@ const hmCoverRecognizer = {
         let chan = dev.channels.get(parsed.seg);
         if (!chan) {
             chan = {seg: parsed.seg, channelType: undefined, channelIndex: undefined,
-                channelAddr: undefined, channelName: undefined};
+                channelAddr: undefined, channelName: undefined,
+                hasWorking: false, hasNotWorking: false, hasDirection: false};
             dev.channels.set(parsed.seg, chan);
         }
         if (hm) {
@@ -614,6 +621,10 @@ const hmCoverRecognizer = {
             if (hm.channel != null) chan.channelAddr = hm.channel;
             if (hm.channelName != null) chan.channelName = hm.channelName;
         }
+        // E128: remember which settling / movement topics this channel publishes.
+        if (parsed.datapoint === 'WORKING') chan.hasWorking = true;
+        if (parsed.datapoint === 'LEVEL_NOTWORKING') chan.hasNotWorking = true;
+        if (parsed.datapoint === 'DIRECTION') chan.hasDirection = true;
         // Carry the just-updated channel so promote emits THIS channel's cover /
         // its HmIP group (a device can hold several independent covers).
         return {dev, chan};
@@ -650,6 +661,23 @@ const hmCoverRecognizer = {
             message_property: 'payload.val',
             message_property_position: 'payload.val',
         };
+
+        // E128: ramp settling + travel indicator — wire only topics actually
+        // observed on the broker. WORKING gates report suppression;
+        // LEVEL_NOTWORKING (RedMatic) carries settled positions only and takes
+        // over the slider; DIRECTION drives the travel-direction indicator.
+        if (chan.hasWorking) {
+            config.working_topic = hmStatus(p, readSeg, 'WORKING');
+            config.message_property_working = 'payload.val';
+        }
+        if (chan.hasNotWorking) {
+            config.settled_topic = hmStatus(p, readSeg, 'LEVEL_NOTWORKING');
+            config.message_property_settled = 'payload.val';
+        }
+        if (chan.hasDirection) {
+            config.direction_topic = hmStatus(p, readSeg, 'DIRECTION');
+            config.message_property_direction = 'payload.val';
+        }
 
         // Availability (:0 UNREACH) resolved at READ time (B65) via the
         // device→:0 maintenance index. Covers carry no battery entry (mains).
@@ -1256,7 +1284,10 @@ const hmLockRecognizer = {
         const parts = topic.split('/');
         if (parts.length !== 4) return null;            // exactly prefix/status/seg/DP
         // STATE (lock state), ERROR (fault), plus the :0 battery presence check.
-        if (parts[3] !== 'STATE' && parts[3] !== 'ERROR' && !HM_BATTERY_DPS.has(parts[3])) return null;
+        // E154: DIRECTION is additionally OBSERVED — never promoted on its own,
+        // but its presence wires the movement indicator (no blind guessing).
+        if (parts[3] !== 'STATE' && parts[3] !== 'ERROR' && parts[3] !== 'DIRECTION'
+            && !HM_BATTERY_DPS.has(parts[3])) return null;
         return {seg: parts[2], datapoint: parts[3]};
     },
 
@@ -1282,11 +1313,13 @@ const hmLockRecognizer = {
         if (HM_BATTERY_DPS.has(parsed.datapoint) && /:0$/.test(parsed.seg)) {
             dev.batteryDp = parsed.datapoint;
         }
-        if (parsed.datapoint !== 'STATE' && parsed.datapoint !== 'ERROR') return dev;
+        if (parsed.datapoint !== 'STATE' && parsed.datapoint !== 'ERROR'
+            && parsed.datapoint !== 'DIRECTION') return dev;
 
         let chan = dev.channels.get(parsed.seg);
         if (!chan) {
-            chan = {seg: parsed.seg, channelType: undefined, channelAddr: undefined, hasError: false};
+            chan = {seg: parsed.seg, channelType: undefined, channelAddr: undefined,
+                hasError: false, hasDirection: false};
             dev.channels.set(parsed.seg, chan);
         }
         if (hm) {
@@ -1294,6 +1327,7 @@ const hmLockRecognizer = {
             if (hm.channel != null) chan.channelAddr = hm.channel;
         }
         if (parsed.datapoint === 'ERROR') chan.hasError = true;
+        if (parsed.datapoint === 'DIRECTION') chan.hasDirection = true;   // E154
         return dev;
     },
 
@@ -1327,6 +1361,15 @@ const hmLockRecognizer = {
         if (lock.hasError) {
             config.error_topic = hmStatus(p, seg, 'ERROR');
             config.message_property_error = 'payload.val';
+        }
+        // E154: the DIRECTION enum (NONE / UP / DOWN / UNDEFINED) — the motor
+        // movement signal (Keymatic has no WORKING datapoint, DIRECTION plays
+        // that role). Wired only when observed. Which way the motor turns to
+        // lock is mounting-specific, so the card's payload-direction-lock /
+        // -unlock stay the one-attribute fix if the labels come out swapped.
+        if (lock.hasDirection) {
+            config.direction_topic = hmStatus(p, seg, 'DIRECTION');
+            config.message_property_direction = 'payload.val';
         }
 
         // Availability (:0 UNREACH) + battery (:0 LOWBAT) resolved at read time

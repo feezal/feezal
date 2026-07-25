@@ -43,6 +43,11 @@ class FeezalSite extends LitElement {
                scrollable canvas area (beyond the view's explicit dimensions). */
             background: var(--feezal-canvas-bg, grey);
             background-attachment: local;
+            /* B62: a gradient tiles by default (background-repeat:repeat +
+               background-size:auto), so a background-attachment:local gradient
+               repeats down a scroll area taller than the padding box. Never
+               repeat here — the editor checkerboard re-enables repeat below. */
+            background-repeat: no-repeat;
             /* Standard scrollbar-color (Chrome 121+, Firefox): thumb over canvas bg.
                When set, Chrome ignores ::-webkit-scrollbar pseudo-element rules,
                so the feezal-site rules in the global stylesheet take over instead. */
@@ -62,6 +67,23 @@ class FeezalSite extends LitElement {
             background-size: 24px 24px;
             background-position: 0 0;
             background-attachment: local;
+            background-repeat: repeat;   /* the checkerboard tile IS the point */
+        }
+        /* ── B62: gradient view backgrounds ────────────────────────────────
+           A gradient canvas background must not scroll or tile with the
+           content. The site is the scroller (overflow:auto) and its local
+           background moves with the scrolled content — on iOS Safari that
+           reads as a gradient that scrolls away and repeats. So for gradients
+           the site paints nothing and the background is left to the document
+           root mirror written by _syncViewBackground(): <html> is viewport
+           sized (html,body {height:100%} — the page itself never scrolls), so
+           the propagated root background covers the whole canvas, stays put on
+           scroll on every platform, and still fills the iOS status-bar inset
+           and the overscroll bounce, which is what the mirror was added for.
+           Viewer only — the editor keeps its checkerboard (see U61). */
+        :host(.feezal-viewer[gradient-bg]) {
+            background-image: none;
+            background-color: transparent;
         }
         :host(.dark) {
             --primary-background-color: black;
@@ -477,12 +499,30 @@ class FeezalSite extends LitElement {
                 this.style.removeProperty('--feezal-canvas-bg');
             }
 
+            // B62: a gradient must not ride the site's own scrolling `local`
+            // background — the host attribute makes the site transparent so
+            // only the (viewport-sized, non-scrolling) document root mirror
+            // below paints it. Solid colours keep the pre-B62 path.
+            const gradient = /gradient\(/i.test(bg);
+            if (!feezal.isEditor) this.toggleAttribute('gradient-bg', gradient);
+
             // Viewer: mirror the view background to the document so the iOS
             // status-bar area (black-translucent + viewport-fit=cover) and
             // overscroll bounce show the view's colour instead of white.
             if (!feezal.isEditor) {
-                document.documentElement.style.background = bg;
-                document.body.style.background = bg;
+                for (const el of [document.documentElement, document.body]) {
+                    // The shorthand resets repeat/size/attachment first.
+                    el.style.background = bg;
+                    if (gradient) {
+                        // B62: one gradient covering the viewport, never tiled.
+                        // `fixed` pins it where it is honoured; iOS ignores it
+                        // and falls back to `scroll`, which is harmless here —
+                        // the document itself does not scroll.
+                        el.style.backgroundRepeat = 'no-repeat';
+                        el.style.backgroundSize = 'cover';
+                        el.style.backgroundAttachment = 'fixed';
+                    }
+                }
             }
         };
         sync();

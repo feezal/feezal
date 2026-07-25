@@ -1,0 +1,10 @@
+{
+  "name": "@feezal/feezal-element-metro-gauge",
+  "version": "0.1.0",
+  "license": "MIT",
+  "main": "feezal-element-metro-gauge.js",
+  "dependencies": {
+    "@feezal/feezal-gauge": "*",
+    "@feezal/feezal-metro": "*"
+  }
+}

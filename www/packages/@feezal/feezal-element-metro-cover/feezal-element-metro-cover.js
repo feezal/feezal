@@ -2,10 +2,11 @@
 import {feezalBoolean, html, css} from '@feezal/feezal-element';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
-import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
+import {MetroTileBase} from '@feezal/feezal-metro';
 // E137: the cover behavior lives in the shared controller — this element
 // is a VIEW (Metro tile chrome: flip faces, flat fill front, back sliders).
 import {CoverController, coverAttributes, coverDiscoveryMap} from '@feezal/feezal-controller-cover';
+import {feezalMovementStyles, movementBadge} from '@feezal/feezal-element/feezal-movement.js';
 
 /**
  * feezal-element-metro-cover (E104)
@@ -89,6 +90,18 @@ class FeezalElementMetroCover extends MetroTileBase {
         max:              {type: Number,  reflect: true},
         slatAngle:        {type: String,  reflect: true, attribute: 'slat-angle'},
         msgPropTilt:      {type: String,  reflect: true, attribute: 'message-property-tilt'},
+        // E128: settling + travel-direction contract (declared so a live
+        // attribute edit triggers updated() -> rewireIfChanged()).
+        subscribeWorking:  {type: String, reflect: true, attribute: 'subscribe-working'},
+        msgPropWorking:    {type: String, reflect: true, attribute: 'message-property-working'},
+        subscribeSettled:  {type: String, reflect: true, attribute: 'subscribe-settled'},
+        msgPropSettled:    {type: String, reflect: true, attribute: 'message-property-settled'},
+        settleTimeout:     {type: String, reflect: true, attribute: 'settle-timeout'},
+        reportDelayMs:     {type: String, reflect: true, attribute: 'report-delay-ms'},
+        subscribeDirection: {type: String, reflect: true, attribute: 'subscribe-direction'},
+        msgPropDirection:  {type: String, reflect: true, attribute: 'message-property-direction'},
+        payloadDirectionUp:   {type: String, reflect: true, attribute: 'payload-direction-up'},
+        payloadDirectionDown: {type: String, reflect: true, attribute: 'payload-direction-down'},
         publishSlatAngle: {type: String,  reflect: true, attribute: 'publish-slat-angle'},
         slatMin:          {type: Number,  reflect: true, attribute: 'slat-min'},
         slatMax:          {type: Number,  reflect: true, attribute: 'slat-max'},
@@ -100,7 +113,7 @@ class FeezalElementMetroCover extends MetroTileBase {
         // (plain fields + host.requestUpdate) — no reactive state needed.
     };
 
-    static styles = [MetroTileBase.styles, css`
+    static styles = [MetroTileBase.styles, feezalMovementStyles, css`
         :host { --feezal-metro-cover-fill: rgba(0, 0, 0, 0.28); }
         /* Flat fill layer — spans the whole face (the .center wrapper stops
            18px above the bottom, hence the negative inset). Content sits on
@@ -132,6 +145,17 @@ class FeezalElementMetroCover extends MetroTileBase {
         this.max = 100;
         this.slatAngle = '';
         this.msgPropTilt = '';
+        // E128
+        this.subscribeWorking = '';
+        this.msgPropWorking = '';
+        this.subscribeSettled = '';
+        this.msgPropSettled = '';
+        this.settleTimeout = '';
+        this.reportDelayMs = '';
+        this.subscribeDirection = '';
+        this.msgPropDirection = '';
+        this.payloadDirectionUp = '';
+        this.payloadDirectionDown = '';
         this.publishSlatAngle = '';
         this.slatMin = 0;
         this.slatMax = 100;
@@ -192,6 +216,7 @@ class FeezalElementMetroCover extends MetroTileBase {
         const closed = eff === null ? 0 : Math.max(0, Math.min(100, 100 - eff));
         return html`
             <div class="fill" style="background: linear-gradient(to bottom, var(--feezal-metro-cover-fill) ${closed}%, transparent ${closed}%)"></div>
+            ${movementBadge(this.cover.direction, this.cover.direction === 'up' ? 'Opening' : 'Closing')}
             ${this.icon ? html`<feezal-icon name="${this.icon}"></feezal-icon>` : ''}
             ${this.showPosition ? html`
                 <div class="value">${displayPos === null ? '—' : `${Math.round(displayPos)}%`}</div>` : ''}

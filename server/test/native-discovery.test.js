@@ -523,6 +523,46 @@ describe('Homematic cover recognizer', () => {
         });
     });
 
+    it('E128: observed WORKING / LEVEL_NOTWORKING / DIRECTION topics are wired — never guessed', () => {
+        const dev = 'MEQ0500099';
+        const meta = dp => ({
+            device: dev, deviceName: 'Rolladen Bad', deviceType: 'HM-LC-Bl1-FM',
+            channel: dev + ':1', channelName: 'Rolladen Bad:1',
+            channelType: 'BLIND', channelIndex: 1, iface: 'BidCos-RF', datapoint: dp,
+        });
+
+        // LEVEL alone → no settling / movement keys in the config.
+        nat.handleNativeMessage('hm/status/Rolladen Bad:1/LEVEL', je(0.6, meta('LEVEL')));
+        let c = nat.getNativeEntity('hm-cover:' + dev + ':1').config;
+        expect(c.working_topic).toBeUndefined();
+        expect(c.settled_topic).toBeUndefined();
+        expect(c.direction_topic).toBeUndefined();
+
+        nat.handleNativeMessage('hm/status/Rolladen Bad:1/WORKING', je(true, meta('WORKING')));
+        c = nat.getNativeEntity('hm-cover:' + dev + ':1').config;
+        expect(c.working_topic).toBe('hm/status/Rolladen Bad:1/WORKING');
+        expect(c.message_property_working).toBe('payload.val');
+
+        nat.handleNativeMessage('hm/status/Rolladen Bad:1/LEVEL_NOTWORKING', je(0.6, meta('LEVEL_NOTWORKING')));
+        c = nat.getNativeEntity('hm-cover:' + dev + ':1').config;
+        expect(c.settled_topic).toBe('hm/status/Rolladen Bad:1/LEVEL_NOTWORKING');
+        expect(c.message_property_settled).toBe('payload.val');
+
+        // The blind extra: DIRECTION drives the travel indicator.
+        nat.handleNativeMessage('hm/status/Rolladen Bad:1/DIRECTION', je(1, meta('DIRECTION')));
+        c = nat.getNativeEntity('hm-cover:' + dev + ':1').config;
+        expect(c.direction_topic).toBe('hm/status/Rolladen Bad:1/DIRECTION');
+        expect(c.message_property_direction).toBe('payload.val');
+
+        // Still exactly one cover — the observations update the entity in place.
+        expect(nat.getNativeEntities().filter(e => e.component === 'cover')).toHaveLength(1);
+    });
+
+    it('E128: a DIRECTION with no channelType metadata promotes nothing', () => {
+        nat.handleNativeMessage('hm/status/Mystery:1/DIRECTION', jePlain(1));
+        expect(nat.getNativeEntities().filter(e => e.component === 'cover')).toHaveLength(0);
+    });
+
     it('HmIP BLIND_VIRTUAL_RECEIVER: a 4-output device → exactly 4 covers (first of each transmitter-gap run)', () => {
         const dev = '0022HMIPBLIND';
         const seg = i => 'Jalousieaktor:' + i;
@@ -988,6 +1028,36 @@ describe('homematic lock recognizer (E144)', () => {
     it('does NOT promote a STATE whose channelType is not KEYMATIC', () => {
         nat.handleNativeMessage('hm/status/Something:1/STATE', je(true, {
             device: 'X1', channel: 'X1:1', channelType: 'SHUTTER_CONTACT', channelIndex: 1, datapoint: 'STATE',
+        }));
+        expect(nat.getNativeEntities().filter(e => e.component === 'lock')).toHaveLength(0);
+    });
+
+    it('E154: an observed DIRECTION datapoint wires the movement topic — never guessed', () => {
+        const dev = 'KEQ0987654';
+        const meta = dp => ({
+            device: dev, deviceName: 'Haustuer', deviceType: 'HM-Sec-Key',
+            channel: dev + ':1', channelName: 'Haustuer:1',
+            channelType: 'KEYMATIC', channelIndex: 1, iface: 'BidCos-RF', datapoint: dp,
+        });
+
+        // STATE alone → no movement key in the config.
+        nat.handleNativeMessage('hm/status/Haustuer:1/STATE', je(false, meta('STATE')));
+        let c = nat.getNativeEntity('hm-lock:' + dev).config;
+        expect(c.direction_topic).toBeUndefined();
+
+        // Keymatic DIRECTION observed on the broker → wired.
+        nat.handleNativeMessage('hm/status/Haustuer:1/DIRECTION', je(0, meta('DIRECTION')));
+        c = nat.getNativeEntity('hm-lock:' + dev).config;
+        expect(c.direction_topic).toBe('hm/status/Haustuer:1/DIRECTION');
+        expect(c.message_property_direction).toBe('payload.val');
+
+        // Still exactly one lock — the observation updates the entity in place.
+        expect(nat.getNativeEntities().filter(e => e.component === 'lock')).toHaveLength(1);
+    });
+
+    it('E154: a DIRECTION on a non-KEYMATIC channel promotes nothing', () => {
+        nat.handleNativeMessage('hm/status/Rollo:1/DIRECTION', je(1, {
+            device: 'Y1', channel: 'Y1:1', channelType: 'BLIND', channelIndex: 1, datapoint: 'DIRECTION',
         }));
         expect(nat.getNativeEntities().filter(e => e.component === 'lock')).toHaveLength(0);
     });

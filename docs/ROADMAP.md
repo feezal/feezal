@@ -8,7 +8,6 @@ Work in progress — priorities and scope are not final.
 
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
-- [B62 — Gradient view background tiles/scrolls instead of staying put (Safari/iOS, PWA)](#b62--gradient-view-background-tilesscrolls-instead-of-staying-put-safariios-pwa)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
 
 **Near-term Improvements**
@@ -51,14 +50,10 @@ Work in progress — priorities and scope are not final.
 - [E114 — Family parity contract: material/circle / glass / metro stay in sync](#e114--family-parity-contract-materialcircle--glass--metro-stay-in-sync--needs-discussion) ⚠️
 - [E119 — `basic-number`: configurable placeholder before the first value](#e119--basic-number-configurable-placeholder-before-the-first-value)
 - [E125 — Homematic battery voltage (`OPERATING_VOLTAGE`)](#e125--homematic-battery-voltage-operating_voltage--future) 💡
-- [E128 — Homematic blinds: settling behaviour + `DIRECTION` indicator](#e128--homematic-blinds-settling-behaviour--direction-indicator-later--after-e127) *(later)*
 - [E139 — "Fancy" element family: Lottie-animated device cards](#e139--fancy-element-family-lottie-animated-device-cards)
 - [E144 — Lock autodiscovery: Homematic BidCoS (Keymatic) + HmIP smart locks + zigbee2mqtt](#e144--lock-autodiscovery-homematic-bidcos-keymatic--hmip-smart-locks--zigbee2mqtt--keymatic--z2m-done-hmip-dld-open) 🔨 *(Keymatic + z2m done; HmIP-DLD open)*
 - [E145 — Autodiscovery support for ccu-jack's MQTT interface](#e145--autodiscovery-support-for-ccu-jacks-mqtt-interface)
 - [E150 — Discovery for profile-shaped components: `water_heater` ✅ + `lawn_mower` 🔨](#e150--discovery-for-profile-shaped-components-water_heater---lawn_mower)
-- [E151 — Gauge parity: `glass-gauge` + `metro-gauge`](#e151--gauge-parity-glass-gauge--metro-gauge)
-- [E152 — Rename `metro-tile` → `metro-button` (naming parity)](#e152--rename-metro-tile--metro-button-naming-parity)
-- [E153 — `metro-loadpoint`: move the overloaded front controls to a 2×2 backside](#e153--metro-loadpoint-move-the-overloaded-front-controls-to-a-2×2-backside)
 
 **Editor UX**
 
@@ -82,6 +77,7 @@ Work in progress — priorities and scope are not final.
 - [A24 — Externalize the metro element family](#a24--externalize-the-metro-element-family-future--will-be-done-later) *(future)*
 - [A27 — i18n: editor localization + language-aware element defaults](#a27--i18n-editor-localization--language-aware-element-defaults--to-refine--needs-discussion) 💡 *(to refine)*
 - [A29 — RTL layout support (Arabic, Hebrew)](#a29--rtl-layout-support-arabic-hebrew--future) 💡 *(future)*
+- [A31 — Test coverage: reach 50%+ overall](#a31--test-coverage-reach-50-overall-measure-whats-already-tested-then-fill-gaps)
 
 
 ---
@@ -113,41 +109,6 @@ Work in progress — priorities and scope are not final.
 **Ships with (once diagnosed):** the chosen layer-isolation CSS fix (guarded so it doesn't regress `backdrop-filter` performance/correctness on other platforms), a TESTING.md note (glass sub-views inside `layout-app`, hover drawer entries on macOS Chrome → no artifacts), and — if no clean CSS fix exists — documentation of the solid-card fallback as the recommended setting for macOS-heavy deployments.
 
 **Relates:** the glass family (`feezal-glass` — the `backdrop-filter` source), `layout-app` (the drawer whose hover triggers it), the glass **solid-card degrade** option (the fallback + diagnostic lever), E38/performance (backdrop-filter GPU cost is already a documented glass concern), per-view themes ✅ (the theme mismatch is an aggravating input here).
-
-### B62 — Gradient view background tiles/scrolls instead of staying put (Safari/iOS, PWA)
-
-**Reported (07/2026).** A view with a **gradient background**, viewed on **Safari / iOS in PWA (installed / standalone) mode**. Scrolling down the view, the gradient background is **not sticky** — it scrolls with the content and **repeats/tiles**, which looks broken.
-
-**Analysis (do NOT fix yet).** Two feezal-side mechanisms combine with two iOS Safari limitations:
-- **The viewer mirrors the view background onto `<html>` and `<body>`.** In the viewer, `feezal-site` copies the current view's `background` shorthand verbatim onto `document.documentElement` and `document.body` ([feezal-site.js:483-486](../www/src/feezal-site.js#L483-L486)) — added so the iOS status-bar inset (`viewport-fit=cover`) and overscroll bounce show the view colour instead of white. For a gradient view that value is a `linear-gradient(...)`/`radial-gradient(...)`, set with **no** accompanying `background-size` / `background-repeat` / `background-attachment`.
-- **A gradient with those defaults tiles.** CSS gradients default to `background-repeat: repeat` and `background-size: auto` — the gradient renders at one "tile" and **repeats down** any element taller than that tile. On a scrollable page (content taller than the viewport) the body/html gradient therefore repeats as you scroll.
-- **iOS Safari ignores `background-attachment: fixed`** (long-standing) — so even if we added `fixed` to pin the gradient to the viewport, iOS would render it as `scroll`. The canonical iOS workaround is a separate `position: fixed` full-viewport backdrop layer behind the content, not `background-attachment`.
-- **The host also carries a `--feezal-canvas-bg` sync with `background-attachment: local`** ([feezal-site.js:41-45](../www/src/feezal-site.js#L41-L45)) — meant to extend the current view's background across the full scrollable area. This works in the **viewer** but is **overridden by the editor-only checkerboard rule** ([feezal-site.js:59-64](../www/src/feezal-site.js#L59-L64)) — the source of the separate editor WYSIWYG discrepancy (**Issue B** below). The core iOS defect is on the **viewer**'s `<body>`/`<html>` gradient mirror (**Issue A**).
-- **Why PWA/standalone makes it obvious:** full-screen standalone mode + iOS momentum/overscroll exposes the whole tall background with no browser chrome, so the tiling and scroll are unmistakable.
-
-**Update (07/2026) — cross-platform testing splits this into TWO distinct issues.**
-- **Viewer, Chrome/Windows:** gradient background is **sticky and correct** across the full scroll area.
-- **Viewer, Safari/iOS:** the gradient **tiles/scrolls** — **the core B62 defect** (iOS-only).
-- **Editor, both platforms (Chrome/Windows == iOS):** scrolling down reveals the **checkerboard grid** in the overflow area — a *second, separate* issue (see below), not the iOS tiling bug.
-
-**Issue A (core, iOS viewer only).** The desktop viewer renders the `<body>`/`<html>` gradient mirror correctly (root-element background propagates to the viewport and stays put); iOS Safari does not (ignores `background-attachment: fixed`, tiles on the tall scroll/overscroll). Fix targets **only** the iOS viewer path — a `position: fixed` viewport backdrop for gradient backgrounds — leaving the correct desktop viewer untouched.
-
-**Issue B → split out to [U61](#u61--editor-preview-fidelity-gradientbackground-in-a-percentage-sized-views-scroll-overflow).** The reporter's 100%-sized view showed checkerboard on scroll in the **editor** where the **viewer** fills the gradient (the editor checkerboard rule overrides the `--feezal-canvas-bg` sync). That editor/viewer preview-fidelity gap + the view-sizing decisions behind it are tracked in **U61**, not here — B62 covers only the iOS tiling defect (Issue A).
-
-*(A separate regression surfaced during the same session — the viewer would not open at all from the editor on iOS; tracked as **B63**.)*
-
-**Fix direction (note only, not yet implemented):** when the background is a **gradient**, it must be painted `no-repeat` and sized to cover the viewport, and pinned in a way iOS honours — i.e. a dedicated **`position: fixed` full-viewport backdrop layer** carrying the gradient (behind the scrolling content), rather than relying on `background-attachment` or copying the raw shorthand onto `<body>`. A solid-colour background can keep today's `local`/mirror approach; the gradient case is the one that needs the fixed backdrop. Whatever the fix, it must keep the original intent (status-bar inset + overscroll bounce show the view colour) intact and must not regress non-iOS browsers.
-
-**Established by cross-platform testing (07/2026):** desktop viewer (Chrome/Windows) = correct; iOS viewer = tiles; editor checkerboard = by-design chrome on both platforms. So the offending layer is the **viewer `<body>`/`<html>` gradient mirror** ([feezal-site.js:483-486](../www/src/feezal-site.js#L483-L486)) under iOS Safari. Remaining diagnosis is optional — the mechanism is well understood — but if convenient:
-1. **Solid vs. gradient on iOS:** set the same view to a **solid colour** — expected to be fine (confirms it's gradient-tiling specifically, not the mirror in general).
-2. **Tab vs. installed PWA on iOS:** does the tiling differ between a normal Safari tab and the Home-Screen standalone app? (Both should show it; standalone just makes it starker.)
-3. **A screen recording of the iOS scroll** — tile with a visible repeat seam vs. scroll-away-leaving-a-gap vs. only-on-overscroll-bounce — to pick the exact `position: fixed` backdrop treatment.
-4. **iOS version + device model.**
-5. **macOS Safari Web Inspector** attached to the iPhone (Develop → *device*): read computed `background-image` / `background-repeat` / `background-attachment` on `html` / `body` while scrolling — final confirmation of the mirror layer.
-
-**Ships with (once diagnosed):** the fixed-backdrop gradient layer (gradient views only) with the status-bar/overscroll intent preserved, a TESTING.md note (gradient view on iOS Safari + installed PWA → background stays put on scroll, no tiling), and a regression check that solid-colour backgrounds and non-iOS browsers are unchanged.
-
-**Relates:** `feezal-style-editor-background` / **U59** (the gradient editor that authors these backgrounds), `feezal-site` (the canvas bg + iOS body/html mirror), A18 (kiosk / wall-panel mode — iOS PWA is a primary kiosk target), the `viewport-fit=cover` / status-bar-inset work the mirror was added for, **B63** (viewer-open regression found in the same iOS session).
 
 ### B63 — "Open viewer" does nothing on Safari/iOS (regression)
 
@@ -182,7 +143,7 @@ Work in progress — priorities and scope are not final.
 
 **Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
 
-**Relates:** **B62** (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
+**Relates:** **[B62](roadmap-archive/B62.md)** ✅ (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
@@ -987,7 +948,7 @@ The embedded view sits flush against the app bar and drawer — there is no way 
 
 ### U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow
 
-**Split out of B62 (07/2026).** When a view is sized in **percentages (e.g. 100% width/height)** and its content overflows into a scroll, the **editor** paints a **checkerboard** in the overflow area, but the **viewer** paints the **view's gradient/background** there. So the editor does not faithfully preview what ships — a WYSIWYG gap. (The iOS-only gradient *tiling* defect is the separate Issue A, tracked in **B62**.)
+**Split out of [B62](roadmap-archive/B62.md) (07/2026).** When a view is sized in **percentages (e.g. 100% width/height)** and its content overflows into a scroll, the **editor** paints a **checkerboard** in the overflow area, but the **viewer** paints the **view's gradient/background** there. So the editor does not faithfully preview what ships — a WYSIWYG gap. (The iOS-only gradient *tiling* defect was the separate Issue A — fixed in **[B62](roadmap-archive/B62.md)**.)
 
 **Mechanism.** `feezal-site`'s host has a base rule `background: var(--feezal-canvas-bg); background-attachment: local` that extends the current view's background across the full scrollable area, beyond the view's own box ([feezal-site.js:41-45](../www/src/feezal-site.js#L41-L45)) — this is what the viewer uses, and why a desktop viewer fills the overflow with the gradient. But an **editor-only** rule `:host(:not(.feezal-viewer))` paints the checkerboard `background-image`, which **overrides** the canvas-bg sync ([feezal-site.js:59-64](../www/src/feezal-site.js#L59-L64)). Net: viewer overflow = gradient; editor overflow = checkerboard.
 
@@ -996,11 +957,11 @@ The embedded view sits flush against the app bar and drawer — there is no way 
 **Open decisions:**
 1. **Editor overflow paint by sizing mode.** Keep the checkerboard for **fixed-size** views (bounds are meaningful), but for **percentage-sized** views let the editor extend the view's background across the overflow — i.e. don't let the checkerboard override the `--feezal-canvas-bg` sync when the view is percentage-sized. This makes the editor match the viewer where it matters and keeps the useful bounds indicator where it helps.
 2. **View background vs. content height (deeper).** A 100%-height view whose content overflows still has a 100%-tall *box*, so its gradient (painted on the view element) doesn't cover the overflow by construction — the viewer only fills it via the separate canvas-bg sync. Should a view's background instead track its **content** height, so the gradient is continuous on the view element itself (editor and viewer alike), making the canvas-bg extension unnecessary for this case? This is the more principled fix but touches view layout/sizing semantics, so weigh it against option 1's smaller surface.
-3. **Interaction with B62's iOS fix.** Whatever backdrop approach B62 adopts for the iOS viewer (a `position: fixed` gradient layer) should be consistent with how the editor previews the overflow here — ideally one model that both the editor and every viewer platform honour.
+3. **Interaction with B62's iOS fix ✅ shipped — the model to match is now decided.** [B62](roadmap-archive/B62.md) took gradients **off** `feezal-site`'s own `background-attachment: local` canvas (a `gradient-bg` host attribute clears it in the viewer) and paints them **only** on the document root — `no-repeat` / `cover` / `fixed`, viewport-sized because `html, body { height: 100% }` means the document never scrolls. So in the viewer a gradient is a **viewport-fixed backdrop behind the whole scroll area**. Whatever the editor does here should preview that, not a second model.
 
-**Ships with (once decided):** the editor overflow-paint change (guarded by view sizing mode), a TESTING.md note (percentage-sized gradient view with overflowing content → editor overflow shows the gradient, matching the viewer; fixed-size view still shows the checkerboard bounds), and coordination with B62 so the two don't diverge.
+**Ships with (once decided):** the editor overflow-paint change (guarded by view sizing mode), a TESTING.md note (percentage-sized gradient view with overflowing content → editor overflow shows the gradient, matching the viewer; fixed-size view still shows the checkerboard bounds), and consistency with the viewer model B62 settled on (above) so the two don't diverge.
 
-**Relates:** **B62** (the sibling it split from — Issue A is the iOS tiling defect; this is the editor/viewer preview gap), `feezal-site` (the canvas-bg sync + editor checkerboard override), **U59** (gradient editor — authors these backgrounds), the fixed-vs-percentage view sizing model, E38 (responsive sizing — view/content sizing is adjacent).
+**Relates:** **[B62](roadmap-archive/B62.md)** ✅ (the sibling it split from — Issue A was the iOS tiling defect, now fixed; this is the editor/viewer preview gap), `feezal-site` (the canvas-bg sync + editor checkerboard override), **U59** (gradient editor — authors these backgrounds), the fixed-vs-percentage view sizing model, E38 (responsive sizing — view/content sizing is adjacent).
 
 ### E112 — Scrypted integration: camera snapshot element (sensors already work) 💡 to refine
 
@@ -1098,20 +1059,6 @@ HmIP battery devices publish **`OPERATING_VOLTAGE`** on the `:0` maintenance cha
 
 **Relates:** **E124** (low-battery boolean — the prerequisite), E108 ✅ (native Homematic discovery — where the recognizer lives), N31 (availability), E30 (sparkline — the natural place a voltage trend would render).
 
-### E128 — Homematic blinds: settling behaviour + `DIRECTION` indicator *(later — after E127)*
-
-Blinds/covers have **the same LEVEL ramp problem** as dimmers (position reports trail the command while the blind travels) — deliberately split from **E127** so the settling machinery ships and hardens on lights first.
-
-- **Settling:** apply E127's shared helper to the `*-cover` family's position slider unchanged — same attributes (`subscribe-working`, `message-property-working`, `subscribe-settled`, `settle-timeout`, `report-delay-ms`), same three wiring tiers, same discovery observation (`LEVEL_NOTWORKING` / `WORKING` siblings of the blind channel). Blind travel is much slower than a dimmer ramp — the cover default for `settle-timeout` needs to be generous (blinds can travel ~30–60 s; default around 60 s, still configurable).
-- **`DIRECTION` datapoint (the blind extra):** blind actuators additionally expose **`DIRECTION`** (mqtt-smarthome `{val}`; enum: none / up / down) while moving. Wire it as optional `subscribe-direction` + `message-property-direction` and render a **movement-direction indicator** on the cover card (e.g. animated ▲/▼ arrow while travelling, per family style) — also observed-only in discovery. Kept in this item, **not** in E127.
-- Tilt/slat settling: check whether the slat angle reports ramp the same way on venetian actuators; if so the helper applies to the tilt slider too — verify on real hardware during implementation.
-
-**Ships with:** cover-family attributes + help texts (patch bumps, E114 parity), recognizer update, TESTING.md notes (slow-travel timeout, direction indicator, tilt check).
-
-**Sequencing vs. E137 (controller extraction):** either order works — if E128 lands before `CoverController`, it wires E127's `SettlingController` directly (as planned above) and migrates into the controller with the rest of the cover behavior; if the extraction lands first, E128's settling + `DIRECTION` wiring is implemented *inside* `CoverController` (and every cover family gets it at once). The settling attributes end up in the controller's declared fragment either way (E137's settling decision).
-
-**Relates:** **E127** (the machinery this reuses — do first), **E137** (controller extraction — cover settling ends up inside `CoverController`; see sequencing note), E108 ✅ (recognizer), E114 (parity), E120 ✅-era cover-discovery work (same recognizer area).
-
 ### E139 — "Fancy" element family: Lottie-animated device cards
 
 A new element family whose defining trait is **animation**: a `fancy-contact` that visibly swings the window/door open and closed, a `fancy-light` whose glow breathes with the state, a `fancy-cover` whose blind actually travels. Rich vector motion as the family chrome — nothing in the palette does this today.
@@ -1125,7 +1072,7 @@ A new element family whose defining trait is **animation**: a `fancy-contact` th
 
 **Architecture:**
 - **E137 controllers are the behavior layer — fancy elements are pure views:** contact → `ContactController`, sensor → `SensorController`, climate → `ClimateController`, light → `LightController`, cover → `CoverController` (all extracted as of E137 part 5). **Lock has no controller yet** — with `fancy-lock` as a second consumer beside `circle-lock`, the E137 rule applies: **extract `feezal-controller-lock` first.** All six register in `feezal-controller-parity.test.js`.
-- **State → segment model on the E89 machinery:** shared lazy `lottie-web` chunk (fetched only when a fancy element is on a view — the established E39/E89 export discipline); per-state segments plus **directional transitions** (open→closed plays the closing segment, never a jump-cut). Two special mappings: `fancy-cover` **seeks by position** (position % → frame within the travel segment, so the blind stands where the device reports — E127/E128 settling-aware); `fancy-light` scales glow intensity with brightness. `fancy-contact` covers door/window/garage variants incl. the Homematic **tilt tristate** (three poses + transitions between all of them).
+- **State → segment model on the E89 machinery:** shared lazy `lottie-web` chunk (fetched only when a fancy element is on a view — the established E39/E89 export discipline); per-state segments plus **directional transitions** (open→closed plays the closing segment, never a jump-cut). Two special mappings: `fancy-cover` **seeks by position** (position % → frame within the travel segment, so the blind stands where the device reports — E127 / [E128](roadmap-archive/E128.md) settling-aware; the movement badge and `MovementController` from E128/[E154](roadmap-archive/E154.md) are the plain-family baseline a Lottie travel/lock-turn animation replaces here); `fancy-light` scales glow intensity with brightness. `fancy-contact` covers door/window/garage variants incl. the Homematic **tilt tristate** (three poses + transitions between all of them).
 - **Editor: static pose** (current state's first frame, no lib load — E89 pattern); `prefers-reduced-motion` freezes to poses in the viewer too.
 - **Packaging: one N29 bundle** (`@feezal/feezal-elements-fancy`) in the core workspace — the six cards share the animation set, the recolour helper and the chrome frame (E106 lesson: no six hand-rolled copies).
 
@@ -1193,41 +1140,6 @@ Follow-up to **E149** ✅ (which shipped the seven *pure-mapping* HA discovery c
 **🔨 `lawn_mower` — deferred (needs per-action command topics).** Unlike vacuum, HA's `lawn_mower` has **no single `command_topic`** — it exposes three *separate* command topics (`start_mowing_command_topic`, `pause_command_topic`, `dock_command_topic`) plus `activity_state_topic` (activities `mowing`/`docked`/`paused`/`error`). `circle-vacuum`'s contract publishes every action as a payload to **one** `publish-command` topic, so an alias/map reuse would leave the control buttons non-functional. Landing it properly means either (a) extending `circle-vacuum` with an optional per-action-topic command mode (three `publish-*` attributes + activity-state labels), or (b) a dedicated `lawn-mower` element. Niche — parked until asked. When done: add `lawn_mower` to `SUPPORTED_COMPONENTS` + `FUNCTION_CANDIDATES`, and either the vacuum variant or the new element with its own discovery map + tests.
 
 **Relates:** **E149** ✅ (parent — the discovery-extension work this completes), **E137** (the climate controller the alias rides), **N12** ✅ (the discovery engine), **E135** (the Homematic climate profiles that inspired the "profile not fork" framing), circle-climate (water_heater target) / circle-vacuum (lawn_mower target).
-
-### E151 — Gauge parity: `glass-gauge` + `metro-gauge`
-
-The analogue **gauge / dial** value card exists for **circle** (`circle-gauge` — arc/ring/needle looks, colour-range zones, major+minor ticks, min/max, unit, decimals, `show-value`, discovery `component: 'sensor'`), **panel** (`panel-gauge` — the instrument-panel needle) and **material** (`material-gauge`), but the **glass** and **metro** families have none — a family-parity gap (they ship only the plain `-value` numeric readout).
-
-Add:
-- **`glass-gauge`** — a frosted-glass dial mirroring the `circle-gauge` attribute contract (look, zones, ticks, min/max, unit, decimals, show-value) in the Glass design language: frost tint, `degrade`, squircle, `--feezal-glass-*` vars, N31 availability badge. Follow the family conventions (see glass-value / glass-button).
-- **`metro-gauge`** — the same contract rendered as a Metro tile (flat tile background + accent, `--feezal-metro-*` vars, E141 tile-state colour discipline).
-
-Both are **display-only views** over the same value wiring as the `-value` cards (subscribe / message-property / unit / decimals) plus the gauge geometry; discovery `component: 'sensor'`, so the ⚡ picker + Generate wizard pick them up like every other sensor card (function `gauge` is already a `sensor` candidate). Reuse the `circle-gauge` SVG/geometry helpers where practical rather than re-deriving the dial maths.
-
-**Ships with:** the two element packages (+ `www/package.json` deps, `generate-elements.js` manifest regen), the `docs/TESTING.md §6` element rows, and browser tests (value→needle-angle mapping, zone bands, tick geometry) mirroring `circle-gauge`'s.
-
-**Relates:** circle-gauge / panel-gauge / material-gauge (the existing gauges this brings to parity), **E114** (numeric-card cross-family parity), **E138** (the `-value` / `-sensor` / `-motion` taxonomy these slot into), glass-value / metro-value (the sibling readouts + the family chrome to mirror).
-
-### E152 — Rename `metro-tile` → `metro-button` (naming parity)
-
-`feezal-element-metro-tile` is the Metro family's **generic button/action tile** — icon + label, tap publishes a payload and/or navigates to a view, optional live badge ([metro-tile.js:283-347](../www/packages/@feezal/feezal-element-metro-tile/feezal-element-metro-tile.js#L283)). Every other family calls this the **button** (`material-button`, `glass-button`, `eink-button`, `paper-button`, `carbon-button`); "Tile" is a Metro-only misnomer. Hard-rename it to `metro-button` (E148/panel-value precedent: no alias, source-view search-replace, BREAKING-CHANGES row).
-
-**The complication — `MetroTileBase` lives in this package.** `metro-tile.js` exports **both** the concrete tile element **and** `MetroTileBase`, the shared live-tile base (size presets, the 3D Y-flip front/back, `renderFront`/`renderBack`/`baseAction`) that **~13 metro elements import** (`metro-lock`, `-light`, `-loadpoint`, `-cover`, `-climate`, `-meter`, `-motion`, `-sensor`, …). So the rename is **not** just one element:
-- **Preferred:** first **extract `MetroTileBase` into a shared `@feezal/feezal-metro` package** (mirroring `@feezal/feezal-glass` / `FeezalGlassCard`), update the ~13 importers to `@feezal/feezal-metro`, THEN rename the now-thin concrete element `metro-tile` → `metro-button`. Leaves a clean shared base, not a base hiding inside a "button" package.
-- **Minimal:** rename the package to `metro-button` and keep `MetroTileBase` exported from it, updating the ~13 `import … from '@feezal/feezal-element-metro-tile'` to `-metro-button`. Simpler, but semantically odd (the family base living in the button package).
-
-**Mechanics (per panel-value):** package dir + `package.json` name/main + `.js` file + tag + class (`FeezalElementMetroTile` → `FeezalElementMetroButton`) + palette `Tile` → `Button`; `www/package.json` dep (alphabetical), `npm install`, `generate-elements.js` regen; update the element-smoke/import refs and any `metro-tile` test references; BREAKING-CHANGES + TESTING.md rows; version bump.
-
-**Relates:** E148 / panel-value (the hard-rename precedent + mechanics), the button family (the shared naming this joins), `MetroTileBase` + `@feezal/feezal-glass` (the shared-base extraction pattern to mirror), **B70** (metro-loadpoint backside — same family base).
-
-### E153 — `metro-loadpoint`: move the overloaded front controls to a 2×2 backside
-
-The `metro-loadpoint` **front is overloaded** — the charge-mode buttons (Off / Solar / Min+Solar / Fast) sit inline under power + vehicle SoC/limit ([metro-loadpoint.js:79-80,123-126](../www/packages/@feezal/feezal-element-metro-loadpoint/feezal-element-metro-loadpoint.js#L79)), a cramped row of tiny targets on a Metro tile. It already extends `MetroTileBase` (which provides the flip/backside), so: **move the four mode buttons to the backside as a 2×2 grid, bigger** (touch-friendly), via `renderBack()` — exactly like `metro-lock`'s back buttons. The **front** keeps the primary readout (power + SoC/limit + charging state); the ⋯ flip affordance appears automatically once `renderBack()` returns content. Ships with a browser test (front shows power/SoC, backside 2×2 has the four modes and `setMode` publishes) and a TESTING.md row; version bump.
-
-**Relates:** `metro-lock` (the backside-buttons pattern to mirror), `MetroTileBase` (`renderFront`/`renderBack`/flip — the mechanism), E109 (the evcc loadpoint family this refines), glass-loadpoint (the sibling that had the same overload — see **B68**), **B69** (glass-meter overload — same "declutter into the popup/backside" theme).
-
-
-## Architecture & Infrastructure
 
 ### A7 — Git versioning for data directory 🔨 in progress
 
@@ -1874,6 +1786,39 @@ Right-to-left support is **a layout mode, not a translation** — which is exact
 **Explicitly future:** nothing here blocks or complicates A27's en+de work; the only present-day requirement (A27's dictionary format must not preclude RTL locales) is already met.
 
 **Relates:** **A27** (the language machinery this rides on — split out from its language list 07/2026), A25 ✅ (font self-hosting constraint), N38 (site locale — supplies the locale that flips `dir`), layout-app / tab bars / sliders (the element-internal audit surface), E38 (element scaling — the other cross-cutting element-CSS audit; coordinate if both run).
+
+### A31 — Test coverage: reach 50%+ overall (measure what's already tested, then fill gaps)
+
+**Goal: 50%+ overall coverage**, and stop the slow sink as the codebase grows. Measured 07/2026:
+
+| suite | coverage | over |
+|---|---|---|
+| **server** | **~82%** stmts / ~84% lines | `src/**` (healthy — not the problem) |
+| **www unit** | **~32%** stmts / ~34% lines | `src/**` (22.5k LOC) + one element file |
+| **www browser** (65 test files) | **0% collected** | — no coverage block in the config |
+
+**Root cause — most already-tested code isn't counted.** The sink isn't primarily missing tests; it's **measurement gaps**:
+1. **Browser tests emit no coverage.** [vitest.browser.config.mjs](../www/vitest.browser.config.mjs) has no `coverage` block, so 65 test files exercising the **48.7k LOC** of `packages/@feezal/*` elements get **zero** credit. Every new element (dozens shipped) added tested code that's invisible to the number.
+2. **www unit `include` is too narrow** ([vitest.config.mjs](../www/vitest.config.mjs) — `src/**` + `feezal-element.js` only). Yet ~15+ unit tests directly exercise `packages/@feezal/**` modules (`feezal-settling.js`, `feezal-conditions.js`, `feezal-controller-aiedge/evcc-loadpoint`, many element tests) — **their coverage is discarded** because those files aren't in `include`.
+3. **Dead weight inflates the denominator.** `monaco-slim.js`, `material-design-icons.js` (generated), `viewer-main.js` (entry) sit at 0% inside the include — untestable code dragging the ratio down.
+
+**Quick wins (config-only — likely reach ~50% before writing a single new test):**
+- **W1 — collect browser-mode coverage** (v8/istanbul in `vitest.browser.config.mjs`) and **merge all three lcovs** (server + www-unit + www-browser) into the "overall" Codecov report. Biggest single lever: it surfaces the large already-tested element surface. *(The E2E harness already collects Chromium V8 coverage — `FEEZAL_COVERAGE` — so the merge plumbing partly exists to model on.)*
+- **W2 — broaden www-unit `include`** to the pure-logic `packages/@feezal/**` modules that already have passing unit tests (controllers, `feezal-settling`, `feezal-color`, `feezal-conditions`). Zero new tests — just count what's green.
+- **W3 — exclude generated/vendored/entry files** (`monaco-slim.js`, `material-design-icons.js`, `viewer-main.js`, the Monaco loader) from the include so the ratio reflects testable code.
+
+**Targeted gap-filling (the real new tests, highest LOC × lowest coverage first) — all in `src/` editor logic:**
+- `feezal-sidebar-inspector.js` (~7%), `feezal-app-editor.js` (~10%), `feezal-sidebar-assets.js` (~10%) — extract and unit-test the **pure-logic helpers** (serialization, geometry math, clean/strip, selection bookkeeping, the visibility controller `feezal-visibility.js` ~18% from N37); leave true drag/DOM/interact paths to the browser/E2E suites.
+- `feezal-template-manager.js` / `-editor.js`, `feezal-generate-dialog.js`, `feezal-theme-select.js` (all <7%) — their data-shaping/validation functions are unit-friendly.
+- Prefer **moving logic out of DOM-heavy components into pure modules** (the `feezal-color.js`/`feezal-settling.js` pattern) so it's cheaply unit-testable — this doubles as a refactor win.
+
+**Don't-sink-again floor:** the configs deliberately say *"No coverage thresholds — CI never fails on coverage."* Once past 50%, add a **modest threshold gate** (e.g. 50%, or per-suite floors) so the number can't quietly erode again — set it a few points below the achieved value to avoid flakiness.
+
+**Sequencing:** W1–W3 first (measure honestly → probably near/over 50% immediately), reassess, then targeted tests only where the merged number still falls short, then the floor. Each step is independently shippable.
+
+**Ships with:** the config changes (browser coverage + merged lcov + include/exclude), the CI merge/upload wiring, new unit tests for the picked `src/` modules, any logic-extraction refactors, and the threshold gate once the target holds. Update the CI "coverage gate" steps accordingly.
+
+**Relates:** A17 ✅ (the logic-unit-test phase this extends), E106 ✅/E137 ✅ (the shared-controller/pure-module extraction that makes logic unit-testable — lean into it), N37 ✅ (`feezal-visibility.js` — a concrete low-coverage target), the E2E `FEEZAL_COVERAGE` harness (the browser-coverage-collection precedent to reuse), Codecov (the "overall" the goal is measured against).
 
 ## Open Questions
 

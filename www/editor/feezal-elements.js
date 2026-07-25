@@ -63,6 +63,7 @@ import '@feezal/feezal-element-glass-cover';
 import '@feezal/feezal-element-glass-dialog';
 import '@feezal/feezal-element-glass-dialog-view';
 import '@feezal/feezal-element-glass-fan';
+import '@feezal/feezal-element-glass-gauge';
 import '@feezal/feezal-element-glass-light';
 import '@feezal/feezal-element-glass-loadpoint';
 import '@feezal/feezal-element-glass-lock';
@@ -101,9 +102,11 @@ import '@feezal/feezal-element-material-slider';
 import '@feezal/feezal-element-material-switch';
 import '@feezal/feezal-element-material-tank';
 import '@feezal/feezal-element-material-time-picker';
+import '@feezal/feezal-element-metro-button';
 import '@feezal/feezal-element-metro-climate';
 import '@feezal/feezal-element-metro-contact';
 import '@feezal/feezal-element-metro-cover';
+import '@feezal/feezal-element-metro-gauge';
 import '@feezal/feezal-element-metro-light';
 import '@feezal/feezal-element-metro-loadpoint';
 import '@feezal/feezal-element-metro-lock';
@@ -112,7 +115,6 @@ import '@feezal/feezal-element-metro-meter';
 import '@feezal/feezal-element-metro-motion';
 import '@feezal/feezal-element-metro-sensor';
 import '@feezal/feezal-element-metro-switch';
-import '@feezal/feezal-element-metro-tile';
 import '@feezal/feezal-element-metro-value';
 import '@feezal/feezal-element-metro-wled';
 import '@feezal/feezal-element-panel-gauge';
@@ -225,6 +227,7 @@ window.feezal.elements = [
   "feezal-element-glass-dialog",
   "feezal-element-glass-dialog-view",
   "feezal-element-glass-fan",
+  "feezal-element-glass-gauge",
   "feezal-element-glass-light",
   "feezal-element-glass-loadpoint",
   "feezal-element-glass-lock",
@@ -263,9 +266,11 @@ window.feezal.elements = [
   "feezal-element-material-switch",
   "feezal-element-material-tank",
   "feezal-element-material-time-picker",
+  "feezal-element-metro-button",
   "feezal-element-metro-climate",
   "feezal-element-metro-contact",
   "feezal-element-metro-cover",
+  "feezal-element-metro-gauge",
   "feezal-element-metro-light",
   "feezal-element-metro-loadpoint",
   "feezal-element-metro-lock",
@@ -274,7 +279,6 @@ window.feezal.elements = [
   "feezal-element-metro-motion",
   "feezal-element-metro-sensor",
   "feezal-element-metro-switch",
-  "feezal-element-metro-tile",
   "feezal-element-metro-value",
   "feezal-element-metro-wled",
   "feezal-element-panel-gauge",

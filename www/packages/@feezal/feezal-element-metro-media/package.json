@@ -1,9 +1,9 @@
 {
   "name": "@feezal/feezal-element-metro-media",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "license": "MIT",
   "main": "feezal-element-metro-media.js",
   "dependencies": {
-    "@feezal/feezal-element-metro-tile": "*"
+    "@feezal/feezal-metro": "*"
   }
 }

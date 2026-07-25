@@ -2,7 +2,7 @@
 import {html, css} from '@feezal/feezal-element';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
-import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
+import {MetroTileBase} from '@feezal/feezal-metro';
 // E137: the light behavior lives in the shared controller — this element
 // is a VIEW (Metro tile chrome: flip faces, back-face sliders, state icons).
 import {LightController, lightAttributes, lightDiscoveryMap, pctToRaw, rgbToHsv} from '@feezal/feezal-controller-light';

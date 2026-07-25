@@ -1,7 +1,7 @@
 /* global feezal */
 import {html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
 import {faultBadge, feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
-import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
+import {MetroTileBase} from '@feezal/feezal-metro';
 // E137: the thermostat behavior lives in the shared controller — this element
 // is a VIEW (Metro tile chrome: temperature front, stepper + chips back).
 import {ClimateController, climateAttributes, climateDiscoveryMap} from '@feezal/feezal-controller-climate';

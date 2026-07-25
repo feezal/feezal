@@ -14,12 +14,25 @@
  * `invert`, and forwards gestures to `up()/stop()/down()/setPosition(pct)/
  * setTilt(pct)`.
  *
- * E128 (Homematic settling + DIRECTION indicator) lands INSIDE this
- * controller when its slice comes up — every cover family gets it at once.
+ * E128 landed INSIDE this controller, so every cover family got it at once:
+ *   - **ramp settling** — E127's `SettlingController`, unchanged, on the
+ *     position (and the slat/tilt angle, which ramps the same way on venetian
+ *     actuators). Blind travel is far slower than a dimmer ramp, hence the
+ *     generous `settle-timeout` default (60 s vs. the light's 5 s). Separate
+ *     mode only: the WORKING / LEVEL_NOTWORKING tiers are the Homematic
+ *     dialect this exists for, and the json (z2m/HA) path infers position from
+ *     several fields at once — routing that through a numeric settler would
+ *     change z2m behaviour for no gain.
+ *   - **`DIRECTION` indicator** — the blind extra: an optional movement
+ *     datapoint read as up / down / idle (`parseDirection`), exposed as
+ *     `direction` for the family views to render.
  *
  * E137 packaging: controller + attribute fragment + discovery.map fragment
  * as one unit; `COVER_CONSUMED_ATTRIBUTES` feeds the E114 parity derivation.
  */
+
+import {SettlingController} from '@feezal/feezal-element/feezal-settling.js';
+import {parseDirection} from '@feezal/feezal-element/feezal-movement.js';
 
 /** Shared attribute descriptors — spread into every family's `feezal.attributes`. */
 export const coverAttributes = [
@@ -53,6 +66,29 @@ export const coverAttributes = [
     {name: 'publish-slat-angle', type: 'mqttTopic', help: 'Publish: topic to publish new slat angle to (0–100).'},
     {name: 'slat-min', type: 'number', default: 0,   help: 'Device slat-angle range minimum. Incoming angles are scaled from slat-min…slat-max to 0–100 %, published angles scaled back.'},
     {name: 'slat-max', type: 'number', default: 100, help: 'Device slat-angle range maximum. Incoming angles are scaled from slat-min…slat-max to 0–100 %, published angles scaled back.'},
+    // E128: ramp settling — the same contract as the light family (E127).
+    // separate mode only; the json (z2m/HA) path is unaffected.
+    {name: 'subscribe-working', type: 'mqttTopic', section: 'Movement',
+        help: 'WORKING datapoint topic (true while the blind travels, e.g. hm/status/<blind>/WORKING). While true, position reports are suppressed instead of making the slider jump; false applies the final value. Distinct topic — not a property of the position topic.'},
+    {name: 'message-property-working', type: 'string', default: 'payload.val', section: 'Movement',
+        help: 'Property path for the WORKING topic (mqtt-smarthome publishes {"val": true} → payload.val).'},
+    {name: 'subscribe-settled', type: 'mqttTopic', section: 'Movement',
+        help: 'Settled-values topic carrying only final positions (RedMatic: …/LEVEL_NOTWORKING). When set, the slider follows THIS topic instead of the live position topic.'},
+    {name: 'message-property-settled', type: 'string', default: 'payload.val', section: 'Movement',
+        help: 'Property path for the settled topic (mqtt-smarthome: payload.val).'},
+    {name: 'settle-timeout', type: 'number', default: 60, size: 'half', section: 'Movement',
+        help: 'Seconds after a command before the slider reconciles to the last reported position. Generous by default — a blind can travel 30–60 s, far longer than a dimmer ramp.'},
+    {name: 'report-delay-ms', type: 'number', default: 100, size: 'half', section: 'Movement',
+        help: 'Only with subscribe-working: delay before showing an incoming position report — a WORKING=true arriving within the window suppresses travel jitter from changes made elsewhere (interfaces deliver WORKING up to ~100 ms late). 0 disables.'},
+    // E128: the blind extra — a movement-direction indicator on the card.
+    {name: 'subscribe-direction', type: 'mqttTopic', section: 'Movement',
+        help: 'Optional movement topic (Homematic DIRECTION: NONE / UP / DOWN / UNDEFINED). While it reports up or down, the card shows a travel-direction indicator. Purely a display signal — it never moves the blind.'},
+    {name: 'message-property-direction', type: 'string', default: 'payload.val', section: 'Movement',
+        help: 'Property path for the direction topic (mqtt-smarthome: payload.val).'},
+    {name: 'payload-direction-up',   type: 'string', default: 'UP',   size: 'half', section: 'Movement',
+        help: 'Value on the direction topic meaning "travelling up / opening". The Homematic enum index (1) is also accepted.'},
+    {name: 'payload-direction-down', type: 'string', default: 'DOWN', size: 'half', section: 'Movement',
+        help: 'Value on the direction topic meaning "travelling down / closing". The Homematic enum index (2) is also accepted. Anything else (NONE / UNDEFINED / 0) reads as idle.'},
 ];
 
 /** Shared discovery.map fragment (HA `cover` + the E108/E120 native keys). */
@@ -80,6 +116,15 @@ export const coverDiscoveryMap = {
     position_max:             {attr: 'max'},
     message_property:          {attr: 'message-property'},
     message_property_position: {attr: 'message-property-position'},
+    // E128: observed-only Homematic extras — the recognizer emits these keys
+    // ONLY for datapoints actually seen on the broker (never guessed), exactly
+    // like E127 does for the dimmer.
+    working_topic:              {attr: 'subscribe-working'},
+    message_property_working:   {attr: 'message-property-working'},
+    settled_topic:              {attr: 'subscribe-settled'},
+    message_property_settled:   {attr: 'message-property-settled'},
+    direction_topic:            {attr: 'subscribe-direction'},
+    message_property_direction: {attr: 'message-property-direction'},
     name: 'label',
 };
 
@@ -112,7 +157,14 @@ export class CoverController {
         // ── state (plain fields, E137 decided) ──
         this.position = null;   // 0–100 %, null = unknown
         this.tilt = null;       // 0–100 %, null = not configured
+        // E128: '' = idle / not wired, 'up' | 'down' while the motor runs.
+        this.direction = '';
+        this._settling = null;      // position settler (separate mode)
+        this._tiltSettling = null;  // slat-angle settler (separate mode)
     }
+
+    /** E128: true while the movement datapoint reports travel. */
+    get moving() { return this.direction !== ''; }
 
     // ── attribute access ─────────────────────────────────────────────────────
     _attr(name, fallback = '') {
@@ -120,8 +172,12 @@ export class CoverController {
         return v === null ? fallback : v;
     }
 
-    _prop(msg, specific) {
-        return this.host.getProperty(msg, this._attr(specific) || this._attr('message-property') || 'payload');
+    /** `fallback` is the descriptor default for topics whose payload shape is
+     *  fixed by the dialect (E128's mqtt-smarthome `payload.val` twins) — it
+     *  wins over the element-level message-property, which describes the
+     *  position/state payload, not these. */
+    _prop(msg, specific, fallback) {
+        return this.host.getProperty(msg, this._attr(specific) || fallback || this._attr('message-property') || 'payload');
     }
 
     get payloadMode() { return this.options.json ? this._attr('payload-mode', 'json') : 'separate'; }
@@ -131,6 +187,11 @@ export class CoverController {
     get range()       { return rangeOf(this._attr('min', '0'), this._attr('max', '100')); }
     get slatRange()   { return rangeOf(this._attr('slat-min', '0'), this._attr('slat-max', '100')); }
 
+    _num(name, fallback) {
+        const n = Number(this._attr(name, String(fallback)));
+        return Number.isFinite(n) ? n : fallback;
+    }
+
     posIn(v)      { return scaleIn(v, this.range); }
     posOut(pct)   { return scaleOut(pct, this.range); }
     tiltIn(v)     { return scaleIn(v, this.slatRange); }
@@ -138,11 +199,24 @@ export class CoverController {
 
     // ── lifecycle ────────────────────────────────────────────────────────────
     signature() {
-        return ['payload-mode', 'subscribe', 'subscribe-position', 'slat-angle']
+        return ['payload-mode', 'subscribe', 'subscribe-position', 'slat-angle',
+            'subscribe-working', 'subscribe-settled', 'subscribe-direction',
+            'settle-timeout', 'report-delay-ms']
             .map(a => this._attr(a)).join('|');
     }
 
     hostConnected() { this.wire(); }
+
+    hostDisconnected() {
+        // E128: clear pending hold/buffer timers with the subscriptions.
+        this._disposeSettling();
+    }
+
+    _disposeSettling() {
+        this._settling?.dispose();
+        this._tiltSettling?.dispose();
+        this._settling = this._tiltSettling = null;
+    }
 
     /** Call from the host's updated() to re-wire on live topic edits. */
     rewireIfChanged() {
@@ -157,6 +231,11 @@ export class CoverController {
         const update = () => this.host.requestUpdate();
         const sub = (topic, cb) => { if (topic) this.host.addSubscription(topic, cb); };
 
+        this._disposeSettling();
+        // E128: the movement indicator is a pure display signal and works in
+        // BOTH payload modes — it is its own topic, not part of the state object.
+        this._wireDirection(sub, update);
+
         if (this.payloadMode === 'json') {
             sub(this._attr('subscribe'), msg => {
                 let obj = this.host.getProperty(msg, this._attr('message-property') || 'payload');
@@ -168,13 +247,58 @@ export class CoverController {
             return;
         }
 
+        // E128: raw position reports run through the SettlingController — it
+        // decides which of them may reach the slider (hold-at-target after an
+        // own command, WORKING-gated suppression, settled-values topic).
+        const workingWired = Boolean(this._attr('subscribe-working'));
+        const settledWired = Boolean(this._attr('subscribe-settled'));
+        const timeoutMs = (Math.max(0, this._num('settle-timeout', 60)) || 60) * 1000;
+        const reportDelayMs = Math.max(0, this._num('report-delay-ms', 100) || 0);
+
+        this._settling = new SettlingController({
+            apply: v => { this.position = Math.max(0, Math.min(100, this.posIn(v))); update(); },
+            timeoutMs, reportDelayMs, workingWired, settledWired,
+        });
         sub(this._attr('subscribe-position'), msg => {
             const v = Number(this._prop(msg, 'message-property-position'));
-            if (!isNaN(v)) { this.position = Math.max(0, Math.min(100, this.posIn(v))); update(); }
+            if (!isNaN(v)) this._settling.live(v);
+        });
+
+        // Venetian slat angles ramp the same way the position does, so the same
+        // helper covers the tilt slider. The channel's WORKING datapoint covers
+        // BOTH movements, hence the shared signal below.
+        this._tiltSettling = new SettlingController({
+            apply: v => { this.tilt = Math.max(0, Math.min(100, this.tiltIn(v))); update(); },
+            timeoutMs, reportDelayMs, workingWired,
+            // LEVEL_NOTWORKING carries the position only — the tilt slider must
+            // keep following its own live topic.
+            settledWired: false,
         });
         sub(this._attr('slat-angle'), msg => {
             const v = Number(this._prop(msg, 'message-property-tilt'));
-            if (!isNaN(v)) { this.tilt = Math.max(0, Math.min(100, this.tiltIn(v))); update(); }
+            if (!isNaN(v)) this._tiltSettling.live(v);
+        });
+
+        sub(this._attr('subscribe-working'), msg => {
+            const v = this._prop(msg, 'message-property-working', 'payload.val');
+            const active = v === true || v === 'true' || v === 1 || v === '1';
+            this._settling.working(active);
+            this._tiltSettling.working(active);
+        });
+        sub(this._attr('subscribe-settled'), msg => {
+            const v = Number(this._prop(msg, 'message-property-settled', 'payload.val'));
+            if (!isNaN(v)) this._settling.settled(v);
+        });
+    }
+
+    _wireDirection(sub, update) {
+        this.direction = '';
+        sub(this._attr('subscribe-direction'), msg => {
+            const v = this._prop(msg, 'message-property-direction', 'payload.val');
+            const dir = parseDirection(v,
+                this._attr('payload-direction-up', 'UP'),
+                this._attr('payload-direction-down', 'DOWN'));
+            if (dir !== this.direction) { this.direction = dir; update(); }
         });
     }
 
@@ -241,9 +365,30 @@ export class CoverController {
         this._pub(this._attr('publish-command'), payload, {[this.jsonMap.state]: payload});
     }
 
-    up()   { this._cmd('publish-up',   this.payloadUp); }
-    stop() { this._cmd('publish-stop', this.payloadStop); }
-    down() { this._cmd('publish-down', this.payloadDown); }
+    up()   { this._cmd('publish-up',   this.payloadUp);   this._settleFromPayload(this.payloadUp); }
+    down() { this._cmd('publish-down', this.payloadDown); this._settleFromPayload(this.payloadDown); }
+    stop() {
+        this._cmd('publish-stop', this.payloadStop);
+        // E128: the blind halts mid-travel — the target is void, let reports through.
+        this._settling?.cancel();
+        this._tiltSettling?.cancel();
+    }
+
+    /**
+     * E128: Up/Down carry a numeric target on Homematic (the recognizer wires
+     * both to the LEVEL set topic with payload 1 / 0), so the slider can hold
+     * at it exactly like a position command. A non-numeric or out-of-range
+     * payload (OPEN/CLOSE on z2m, or a device sentinel) predicts nothing —
+     * leave the slider following reports.
+     */
+    _settleFromPayload(payload) {
+        if (!this._settling) return;
+        const n = Number(payload);
+        if (payload === '' || !Number.isFinite(n)) return;
+        const {min, max} = this.range;
+        if (n < Math.min(min, max) || n > Math.max(min, max)) return;
+        this._settling.command(n);
+    }
 
     /** Commit a position % (clamped/rounded; publishes the device-range raw). */
     setPosition(pos) {
@@ -251,6 +396,8 @@ export class CoverController {
         this.position = clamped;
         const raw = this.posOut(clamped);
         this._pub(this._attr('publish-position'), raw, {[this.jsonMap.position]: raw});
+        // E128: hold the slider at the target while the blind travels.
+        this._settling?.command(Number(raw));
         this.host.requestUpdate();
         return clamped;
     }
@@ -261,6 +408,7 @@ export class CoverController {
         this.tilt = clamped;
         const raw = this.tiltOut(clamped);
         this._pub(this._attr('publish-slat-angle'), raw, {[this.jsonMap.tilt]: raw});
+        this._tiltSettling?.command(Number(raw));
         this.host.requestUpdate();
         return clamped;
     }

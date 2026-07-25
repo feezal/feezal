@@ -3,7 +3,7 @@
 Completed and closed roadmap items — **one file per item**, named after its ID (e.g. `U39.md`).
 Open items live in [../ROADMAP.md](../ROADMAP.md).
 
-**256 items.**
+**300 items.**
 
 ## Bugs
 
@@ -77,6 +77,7 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [B74 — View theme selector: rename the default entry "Site theme (default)" → "Inherit" and drop its colour swatch ✅ fixed](B74.md)
 - [B75 — Roadmap IDs leak into user-facing help texts & labels ✅ fixed](B75.md)
 - [B76 — `paper-slider`: invisible track (default ≈ background) + knob defaults should be `--primary-text-color` ✅ fixed](B76.md)
+- [B62 — Gradient view background tiles/scrolls instead of staying put (Safari/iOS, PWA) ✅ fixed](B62.md)
 
 ## Near-term Improvements
 
@@ -160,6 +161,12 @@ Open items live in [../ROADMAP.md](../ROADMAP.md).
 - [E149 — Extend HA MQTT discovery to more component types ✅ done](E149.md)
 - [E7 — Swipe gesture element (`feezal-element-system-swipe`) ✅ done](E7.md)
 - [E34 — Countdown / timer element (`feezal-element-basic-countdown`) ✅ implemented](E34.md)
+- [E151 — Gauge parity: `glass-gauge` + `metro-gauge` ✅ done](E151.md)
+- [E152 — Rename `metro-tile` → `metro-button` (naming parity) ✅ done](E152.md)
+- [E153 — `metro-loadpoint`: move the overloaded front controls to a 2×2 backside ✅ done](E153.md)
+- [E128 — Homematic blinds: settling behaviour + `DIRECTION` indicator ✅ done](E128.md)
+- [E154 — `*-lock`: indicate lock movement (motor moving / direction / settling) ✅ done](E154.md)
+
 ## Editor UX
 - [E115 — Switch an element to another family (context menu) ✅ implemented](E115.md)
 

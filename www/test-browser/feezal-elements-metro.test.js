@@ -4,7 +4,7 @@
  * binding, publish contracts (incl. editor guards) and capability gating.
  */
 import {describe, it, expect, beforeEach} from 'vitest';
-import '@feezal/feezal-element-metro-tile';
+import '@feezal/feezal-element-metro-button';
 import '@feezal/feezal-element-metro-switch';
 import '@feezal/feezal-element-metro-contact';
 import '@feezal/feezal-element-metro-light';
@@ -30,9 +30,9 @@ beforeEach(() => {
     feezal = setupFeezal();
 });
 
-describe('metro-tile (base + generic tile)', () => {
+describe('metro-button (MetroTileBase + the generic action tile)', () => {
     it('the size grid writes the mosaic geometry', async () => {
-        const el = await mount('feezal-element-metro-tile', {size: '2x2'});
+        const el = await mount('feezal-element-metro-button', {size: '2x2'});
         expect(el.style.width).toBe('150px');
         expect(el.style.height).toBe('150px');
         el.setAttribute('size', '4x2');
@@ -43,7 +43,7 @@ describe('metro-tile (base + generic tile)', () => {
 
     it('tap publishes and/or navigates; badge follows the topic', async () => {
         feezal.site = {view: 'main'};
-        const el = await mount('feezal-element-metro-tile', {
+        const el = await mount('feezal-element-metro-button', {
             publish: 'cmnd/go', payload: 'x', view: 'page2', subscribe: 'stat/count',
         });
         feezal.connection.deliver('stat/count', '7');
@@ -56,7 +56,7 @@ describe('metro-tile (base + generic tile)', () => {
     });
 
     it('front-only tiles have no flip affordance', async () => {
-        const el = await mount('feezal-element-metro-tile', {});
+        const el = await mount('feezal-element-metro-button', {});
         expect(el.shadowRoot.querySelector('.flip-btn')).toBeNull();
         expect(el.shadowRoot.querySelector('.face.back')).toBeNull();
     });
@@ -64,7 +64,7 @@ describe('metro-tile (base + generic tile)', () => {
     it('never acts in the editor', async () => {
         feezal.isEditor = true;
         feezal.site = {view: 'main'};
-        const el = await mount('feezal-element-metro-tile', {publish: 'cmnd/go', view: 'page2'});
+        const el = await mount('feezal-element-metro-button', {publish: 'cmnd/go', view: 'page2'});
         el.shadowRoot.querySelector('.front').click();
         expect(feezal.connection.published).toHaveLength(0);
         expect(feezal.site.view).toBe('main');
@@ -549,7 +549,7 @@ describe('metro-media', () => {
 
 describe('E129 — metro size tokens', () => {
     const FAMILY = [
-        'feezal-element-metro-tile', 'feezal-element-metro-switch', 'feezal-element-metro-light',
+        'feezal-element-metro-button', 'feezal-element-metro-switch', 'feezal-element-metro-light',
         'feezal-element-metro-climate', 'feezal-element-metro-value', 'feezal-element-metro-sensor',
         'feezal-element-metro-media', 'feezal-element-metro-contact', 'feezal-element-metro-motion',
         'feezal-element-metro-cover', 'feezal-element-metro-wled',
@@ -567,7 +567,7 @@ describe('E129 — metro size tokens', () => {
     });
 
     it('the centre icon uses the token: default 56px, override wins', async () => {
-        const el = await mount('feezal-element-metro-tile', {icon: 'grid_view'});
+        const el = await mount('feezal-element-metro-button', {icon: 'grid_view'});
         el.style.width = '150px';
         el.style.height = '150px';   // 48cqh = 72px → the 56px default wins the min()
         await el.updateComplete;
@@ -579,7 +579,7 @@ describe('E129 — metro size tokens', () => {
     });
 
     it('label + unit tokens drive the tile label and badge', async () => {
-        const el = await mount('feezal-element-metro-tile', {label: 'Tile', subscribe: 'stat/badge'});
+        const el = await mount('feezal-element-metro-button', {label: 'Tile', subscribe: 'stat/badge'});
         el.style.width = '150px'; el.style.height = '150px';
         feezal.connection.deliver('stat/badge', '3');
         await el.updateComplete;

@@ -86,6 +86,18 @@ class FeezalElementEinkCover extends EinkBase {
         slatMax:           {type: Number,  reflect: true, attribute: 'slat-max'},
         slatAngle:         {type: String,  reflect: true, attribute: 'slat-angle'},
         msgPropTilt:       {type: String,  reflect: true, attribute: 'message-property-tilt'},
+        // E128: settling + travel-direction contract (declared so a live
+        // attribute edit triggers updated() -> rewireIfChanged()).
+        subscribeWorking:  {type: String, reflect: true, attribute: 'subscribe-working'},
+        msgPropWorking:    {type: String, reflect: true, attribute: 'message-property-working'},
+        subscribeSettled:  {type: String, reflect: true, attribute: 'subscribe-settled'},
+        msgPropSettled:    {type: String, reflect: true, attribute: 'message-property-settled'},
+        settleTimeout:     {type: String, reflect: true, attribute: 'settle-timeout'},
+        reportDelayMs:     {type: String, reflect: true, attribute: 'report-delay-ms'},
+        subscribeDirection: {type: String, reflect: true, attribute: 'subscribe-direction'},
+        msgPropDirection:  {type: String, reflect: true, attribute: 'message-property-direction'},
+        payloadDirectionUp:   {type: String, reflect: true, attribute: 'payload-direction-up'},
+        payloadDirectionDown: {type: String, reflect: true, attribute: 'payload-direction-down'},
         publishSlatAngle:  {type: String,  reflect: true, attribute: 'publish-slat-angle'},
         invert:            {type: Boolean, reflect: true},
         showPosition:      {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-position'},
@@ -137,6 +149,17 @@ class FeezalElementEinkCover extends EinkBase {
         this.slatMax = 100;
         this.slatAngle = '';
         this.msgPropTilt = '';
+        // E128
+        this.subscribeWorking = '';
+        this.msgPropWorking = '';
+        this.subscribeSettled = '';
+        this.msgPropSettled = '';
+        this.settleTimeout = '';
+        this.reportDelayMs = '';
+        this.subscribeDirection = '';
+        this.msgPropDirection = '';
+        this.payloadDirectionUp = '';
+        this.payloadDirectionDown = '';
         this.publishSlatAngle = '';
         this.invert = false;
         this.showPosition = true;
@@ -189,9 +212,23 @@ class FeezalElementEinkCover extends EinkBase {
     }
 
     /** E57 redraw dedup: everything visibly rendered, values as shown. */
+    /**
+     * E128 movement indicator, e-ink dialect: a STATIC ▲/▼ glyph top-left, not
+     * the shared pulsing badge — the family forbids animation (partial-refresh
+     * ghosting), so a transitional state is shown by drawing it, not moving it.
+     */
+    _movementGlyph() {
+        const dir = this.cover.direction;
+        if (!dir) return '';
+        return html`<span class="badge-tl" title="${dir === 'up' ? 'Opening' : 'Closing'}">${dir === 'up' ? '▲' : '▼'}</span>`;
+    }
+
     renderSignature() {
         const eff = this._effPos();
-        return [this._valueText(), eff === null ? '' : eff, this._available, this.label].join('|');
+        // The movement glyph is part of the visible state — without it in the
+        // signature the redraw dedup would swallow the indicator appearing.
+        return [this._valueText(), eff === null ? '' : eff, this._available, this.label,
+            this.cover.direction].join('|');
     }
 
     render() {
@@ -199,6 +236,7 @@ class FeezalElementEinkCover extends EinkBase {
         return html`
             <div class="card">
                 ${!this._available ? html`<span class="badge-tr" title="Device unavailable">!</span>` : ''}
+                ${this._movementGlyph()}
                 <span class="value">${this._valueText()}</span>
                 <div class="bar" title="Set position" @click="${this._barClick}">
                     <div class="fill" style="width:${eff ?? 0}%"></div>

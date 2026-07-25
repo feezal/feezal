@@ -1,6 +1,6 @@
 /* global feezal */
 import {html, css} from '@feezal/feezal-element';
-import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
+import {MetroTileBase} from '@feezal/feezal-metro';
 import {EvccLoadpointController, evccLoadpointAttributes, evccLoadpointDiscoveryMap, EVCC_MODES} from '@feezal/feezal-controller-evcc-loadpoint';
 
 const fmtPower = w => {
@@ -16,20 +16,25 @@ const fmtEnergy = wh => {
 /**
  * feezal-element-metro-loadpoint (E109)
  *
- * Metro live-tile view over the shared EvccLoadpointController. The front
- * carries the primary control — charge mode (Off / Solar / Min+Solar / Fast)
- * flat segments — plus the status line, big charge-power value and vehicle
- * SoC / limit line. A heating loadpoint (`heating`) shows a reduced, °C view
- * (vehicle SoC → current temperature, limit SoC → target). The back holds the
- * detail: session energy, vehicle title + range, min/max current and phases.
- * Same controller (and MQTT contract) as the glass / circle loadpoint cards.
+ * Metro live-tile view over the shared EvccLoadpointController. The front is
+ * the readout — status line, big charge-power value and vehicle SoC / limit
+ * line. A heating loadpoint (`heating`) shows a reduced, °C view (vehicle SoC
+ * → current temperature, limit SoC → target). The back carries the charge-mode
+ * control as a touch-friendly 2×2 grid (Off / Solar / Min+Solar / Fast) plus
+ * the detail: session energy, vehicle title + range, min/max current and
+ * phases. Same controller (and MQTT contract) as the glass / circle loadpoint
+ * cards.
+ *
+ * E153: the four mode buttons used to sit inline under the power/SoC readout,
+ * a cramped row of tiny targets on a 2×2 tile. They moved to the backside 2×2
+ * grid (the metro-lock pattern) — the ⋯ flip affordance was already there.
  */
 class FeezalElementMetroLoadpoint extends MetroTileBase {
     static get feezal() {
         return {
             palette: {name: 'Loadpoint', category: 'Metro', color: '#1ba1e2', icon: 'ev_station'},
-            description: 'Metro evcc loadpoint tile: charge-mode segments + power + vehicle SoC/limit on the front, ' +
-                'session / vehicle / current detail on the back. Heat-pump loadpoints get a reduced °C view. ' +
+            description: 'Metro evcc loadpoint tile: power + vehicle SoC/limit on the front, a 2×2 charge-mode grid ' +
+                'and session / vehicle / current detail on the back. Heat-pump loadpoints get a reduced °C view. ' +
                 'Auto-wired by evcc discovery. Same controller as the glass/circle loadpoint cards.',
             // E137: the discovery map is the controller package's fragment.
             discovery: {component: 'evcc-loadpoint', map: evccLoadpointDiscoveryMap},
@@ -76,9 +81,11 @@ class FeezalElementMetroLoadpoint extends MetroTileBase {
         .status { font-size: var(--_metro-unit-size); font-weight: 600; opacity: 0.85; text-transform: lowercase; }
         .power { font-size: min(var(--_metro-value-size), 30cqh); font-weight: 300; line-height: 1; font-variant-numeric: tabular-nums; }
         .socline { font-size: var(--_metro-unit-size); opacity: 0.85; max-width: 96%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .modes { display: flex; gap: 3px; width: 100%; margin-top: 4px; }
-        .modes .mbtn { flex: 1; min-width: 0; min-height: 28px; padding: 4px 2px; font-size: calc(var(--_metro-unit-size) * 0.85); }
-        .detail { display: flex; flex-direction: column; gap: 4px; }
+        /* E153: the modes are the backside's primary control — a touch-first
+           2×2 grid (never squeezed out), the detail list takes what is left. */
+        .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; flex: 0 0 auto; }
+        .modes .mbtn { min-width: 0; padding: 6px 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .detail { display: flex; flex-direction: column; gap: 4px; flex: 0 1 auto; min-height: 0; overflow: hidden; }
         .detail .row { display: flex; justify-content: space-between; gap: 10px; }
         .detail .k { opacity: 0.7; }
         .placeholder { text-align: center; opacity: 0.7; }
@@ -119,12 +126,7 @@ class FeezalElementMetroLoadpoint extends MetroTileBase {
         return html`
             <div class="status">${c.statusText}</div>
             <div class="power">${bigValue}</div>
-            ${socLine ? html`<div class="socline">${socLine}</div>` : ''}
-            <div class="modes">
-                ${EVCC_MODES.map(m => html`
-                    <button class="mbtn ${c.mode === m.value ? 'active' : ''}"
-                        @click="${() => c.setMode(m.value)}">${m.label}</button>`)}
-            </div>`;
+            ${socLine ? html`<div class="socline">${socLine}</div>` : ''}`;
     }
 
     renderBack() {
@@ -149,6 +151,11 @@ class FeezalElementMetroLoadpoint extends MetroTileBase {
             rows.push(html`<div class="row"><span class="k">phases</span><span>${c.phases}</span></div>`);
         }
         return html`
+            <div class="modes">
+                ${EVCC_MODES.map(m => html`
+                    <button class="mbtn ${c.mode === m.value ? 'active' : ''}"
+                        @click="${() => c.setMode(m.value)}">${m.label}</button>`)}
+            </div>
             <div class="detail">
                 ${rows.length ? rows : html`<div class="placeholder">details</div>`}
             </div>`;

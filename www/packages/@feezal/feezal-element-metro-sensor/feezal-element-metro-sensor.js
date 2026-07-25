@@ -8,7 +8,7 @@ import {sabotageBadge, faultBadge, feezalFaultStyles} from '@feezal/feezal-eleme
 // (SensorController.activeColorVar() → --error-color for every alarm-slice type):
 // a triggered fire/leak alarm is not a neutral state chip.
 import {SensorController, sensorAttributesFor, sensorDiscoveryMapFor} from '@feezal/feezal-controller-sensor';
-import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
+import {MetroTileBase} from '@feezal/feezal-metro';
 
 /**
  * feezal-element-metro-sensor (E138)

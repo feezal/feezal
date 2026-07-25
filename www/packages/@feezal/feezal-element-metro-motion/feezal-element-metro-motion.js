@@ -7,7 +7,7 @@ import {sabotageBadge, faultBadge, feezalFaultStyles} from '@feezal/feezal-eleme
 // active tile colour derives from the accent var (SensorController.activeColorVar()
 // → --accent-color for every motion-slice type).
 import {SensorController, sensorAttributesFor, sensorDiscoveryMapFor} from '@feezal/feezal-controller-sensor';
-import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
+import {MetroTileBase} from '@feezal/feezal-metro';
 
 /**
  * feezal-element-metro-motion (E55, E138)

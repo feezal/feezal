@@ -1,7 +1,8 @@
 /* global feezal */
 import {html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
 import {LockController, lockAttributes, lockDiscoveryMap} from '@feezal/feezal-controller-lock';
-import {MetroTileBase} from '@feezal/feezal-element-metro-tile';
+import {feezalMovementStyles} from '@feezal/feezal-element/feezal-movement.js';
+import {MetroTileBase} from '@feezal/feezal-metro';
 
 /**
  * feezal-element-metro-lock (E143)
@@ -56,9 +57,16 @@ class FeezalElementMetroLock extends MetroTileBase {
         subscribeError:  {type: String, reflect: true, attribute: 'subscribe-error'},
         // N31: availability + subscribe/message-property inherited from FeezalElement.
         discoveryId:     {type: String, reflect: true, attribute: 'discovery-id'},
+        // E154: movement contract (declared so a live attribute edit triggers
+        // updated() -> rewireIfChanged()).
+        subscribeDirection: {type: String, reflect: true, attribute: 'subscribe-direction'},
+        msgPropDirection:   {type: String, reflect: true, attribute: 'message-property-direction'},
+        payloadDirectionLock:   {type: String, reflect: true, attribute: 'payload-direction-lock'},
+        payloadDirectionUnlock: {type: String, reflect: true, attribute: 'payload-direction-unlock'},
+        movementTimeout:    {type: String, reflect: true, attribute: 'movement-timeout'},
     };
 
-    static styles = [feezalBatteryStyles, MetroTileBase.styles, css`
+    static styles = [feezalBatteryStyles, MetroTileBase.styles, feezalMovementStyles, css`
         :host {
             --feezal-metro-locked-color:   var(--feezal-metro-accent);
             --feezal-metro-unlocked-color: var(--warning-color, #f0a30a);
@@ -85,6 +93,12 @@ class FeezalElementMetroLock extends MetroTileBase {
         this.publishOpen = '';
         this.subscribeError = '';
         this.discoveryId = '';
+        // E154
+        this.subscribeDirection = '';
+        this.msgPropDirection = '';
+        this.payloadDirectionLock = '';
+        this.payloadDirectionUnlock = '';
+        this.movementTimeout = '';
         // E137: the behavior layer — wires/parses/publishes; this view renders.
         this.lock = new LockController(this);
     }
@@ -101,10 +115,12 @@ class FeezalElementMetroLock extends MetroTileBase {
 
     renderFront() {
         const disp = this.lock.faulted ? 'jammed' : (this.lock.state ?? 'locked');
-        const stateText = this.lock.state || 'lock';
+        // E154: the transitional text + a pulsing icon while the motor turns.
+        const stateText = this.lock.movementText || this.lock.state || 'lock';
         return html`
             ${batteryLowBadge(this.lock.batteryLow)}
-            <feezal-icon name="${STATE_ICON[disp] || 'lock'}"></feezal-icon>
+            <feezal-icon class="${this.lock.moving ? 'feezal-moving' : ''}"
+                name="${STATE_ICON[disp] || 'lock'}"></feezal-icon>
             <div class="state">${stateText}</div>
             ${this.lock.error ? html`<div class="err-line" title="${this.lock.error}">⚠ ${this.lock.error}</div>` : ''}`;
     }

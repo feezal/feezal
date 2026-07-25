@@ -4,6 +4,7 @@ import {feezalBaseStyles, feezalBoolean, html, css} from '@feezal/feezal-element
 // is a VIEW (Glass chrome: frost tile, details popup: position pill,
 // up/stop/down buttons, tilt slider).
 import {CoverController, coverAttributes, coverDiscoveryMap} from '@feezal/feezal-controller-cover';
+import {feezalMovementStyles, movementBadge} from '@feezal/feezal-element/feezal-movement.js';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
 import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard} from '@feezal/feezal-glass';
@@ -91,6 +92,18 @@ class FeezalElementGlassCover extends FeezalGlassCard {
         slatMax:           {type: Number,  reflect: true, attribute: 'slat-max'},
         slatAngle:         {type: String,  reflect: true, attribute: 'slat-angle'},
         msgPropTilt:       {type: String,  reflect: true, attribute: 'message-property-tilt'},
+        // E128: settling + travel-direction contract (declared so a live
+        // attribute edit triggers updated() -> rewireIfChanged()).
+        subscribeWorking:  {type: String, reflect: true, attribute: 'subscribe-working'},
+        msgPropWorking:    {type: String, reflect: true, attribute: 'message-property-working'},
+        subscribeSettled:  {type: String, reflect: true, attribute: 'subscribe-settled'},
+        msgPropSettled:    {type: String, reflect: true, attribute: 'message-property-settled'},
+        settleTimeout:     {type: String, reflect: true, attribute: 'settle-timeout'},
+        reportDelayMs:     {type: String, reflect: true, attribute: 'report-delay-ms'},
+        subscribeDirection: {type: String, reflect: true, attribute: 'subscribe-direction'},
+        msgPropDirection:  {type: String, reflect: true, attribute: 'message-property-direction'},
+        payloadDirectionUp:   {type: String, reflect: true, attribute: 'payload-direction-up'},
+        payloadDirectionDown: {type: String, reflect: true, attribute: 'payload-direction-down'},
         publishSlatAngle:  {type: String,  reflect: true, attribute: 'publish-slat-angle'},
         invert:            {type: Boolean, reflect: true},
         showPosition:      {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-position'},
@@ -104,7 +117,7 @@ class FeezalElementGlassCover extends FeezalGlassCard {
         _dragPos:   {state: true},   // live % while the position pill drags (null = not dragging)
     };
 
-    static styles = [feezalBaseStyles, glassCardStyles, glassPopupStyles, css`
+    static styles = [feezalBaseStyles, glassCardStyles, glassPopupStyles, feezalMovementStyles, css`
         .card {
             /* E106: deliberate override of the fragment's 12px padding — cover's
                face is tighter than the other popup cards. */
@@ -197,6 +210,17 @@ class FeezalElementGlassCover extends FeezalGlassCard {
         this.slatMax = 100;
         this.slatAngle = '';
         this.msgPropTilt = '';
+        // E128
+        this.subscribeWorking = '';
+        this.msgPropWorking = '';
+        this.subscribeSettled = '';
+        this.msgPropSettled = '';
+        this.settleTimeout = '';
+        this.reportDelayMs = '';
+        this.subscribeDirection = '';
+        this.msgPropDirection = '';
+        this.payloadDirectionUp = '';
+        this.payloadDirectionDown = '';
         this.publishSlatAngle = '';
         this.invert = false;
         this.showPosition = true;
@@ -321,6 +345,7 @@ class FeezalElementGlassCover extends FeezalGlassCard {
                 @click="${this._onCardClick}"
                 @keydown="${e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._onCardClick(); } }}">
                 ${!this._available ? html`<span class="unavail" title="Device unavailable">⚠</span>` : ''}
+                ${movementBadge(this.cover.direction, this.cover.direction === 'up' ? 'Opening' : 'Closing')}
                 <button class="flip-btn" title="Details"
                     @click="${e => { e.stopPropagation(); this.openDetails(); }}">tune</button>
                 <feezal-icon name="${this.icon || 'blinds'}"></feezal-icon>

@@ -3,6 +3,7 @@ import {FeezalElement, feezalBaseStyles, feezalBoolean, html, css} from '@feezal
 // E137: the cover behavior lives in the shared controller — this element is a
 // VIEW (window SVG, drag-to-position, up/stop/down buttons, sliders).
 import {CoverController, coverAttributes, coverDiscoveryMap} from '@feezal/feezal-controller-cover';
+import {feezalMovementStyles, movementBadge} from '@feezal/feezal-element/feezal-movement.js';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {svg, LitElement} from 'lit';
 import '@material/web/iconbutton/icon-button.js';
@@ -124,6 +125,18 @@ class FeezalElementCircleCover extends FeezalElement {
         discoveryId:           {type: String,  reflect: true, attribute: 'discovery-id'},
         msgPropPosition:       {type: String,  reflect: true, attribute: 'message-property-position'},
         msgPropTilt:           {type: String,  reflect: true, attribute: 'message-property-tilt'},
+        // E128: settling + travel-direction contract (declared so a live
+        // attribute edit triggers updated() -> rewireIfChanged()).
+        subscribeWorking:  {type: String, reflect: true, attribute: 'subscribe-working'},
+        msgPropWorking:    {type: String, reflect: true, attribute: 'message-property-working'},
+        subscribeSettled:  {type: String, reflect: true, attribute: 'subscribe-settled'},
+        msgPropSettled:    {type: String, reflect: true, attribute: 'message-property-settled'},
+        settleTimeout:     {type: String, reflect: true, attribute: 'settle-timeout'},
+        reportDelayMs:     {type: String, reflect: true, attribute: 'report-delay-ms'},
+        subscribeDirection: {type: String, reflect: true, attribute: 'subscribe-direction'},
+        msgPropDirection:  {type: String, reflect: true, attribute: 'message-property-direction'},
+        payloadDirectionUp:   {type: String, reflect: true, attribute: 'payload-direction-up'},
+        payloadDirectionDown: {type: String, reflect: true, attribute: 'payload-direction-down'},
         // Internal state — never as class fields (Lit 3 rule).
         // E137: position/tilt live on the CoverController (plain fields +
         // host.requestUpdate) — only the view-local bits stay here.
@@ -131,7 +144,7 @@ class FeezalElementCircleCover extends FeezalElement {
         _showSlider:  {state: true},   // toggle inline position slider
     };
 
-    static styles = [feezalBaseStyles, css`
+    static styles = [feezalBaseStyles, feezalMovementStyles, css`
         :host {
             display: flex;
             flex-direction: column;
@@ -290,6 +303,17 @@ class FeezalElementCircleCover extends FeezalElement {
         this.discoveryId           = '';
         this.msgPropPosition       = '';
         this.msgPropTilt           = '';
+        // E128
+        this.subscribeWorking = '';
+        this.msgPropWorking = '';
+        this.subscribeSettled = '';
+        this.msgPropSettled = '';
+        this.settleTimeout = '';
+        this.reportDelayMs = '';
+        this.subscribeDirection = '';
+        this.msgPropDirection = '';
+        this.payloadDirectionUp = '';
+        this.payloadDirectionDown = '';
         this._dragPos              = null;
         this._showSlider           = false;
         // E137: the behavior layer — wires/parses/publishes; this view renders.
@@ -510,6 +534,7 @@ class FeezalElementCircleCover extends FeezalElement {
                     </svg>
                 </div>
             ` : ''}
+            ${movementBadge(this.cover.direction, this.cover.direction === 'up' ? 'Opening' : 'Closing')}
 
             ${this._renderVisual()}
 

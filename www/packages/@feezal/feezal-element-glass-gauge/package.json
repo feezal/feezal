@@ -1,0 +1,10 @@
+{
+  "name": "@feezal/feezal-element-glass-gauge",
+  "version": "0.1.0",
+  "license": "MIT",
+  "main": "feezal-element-glass-gauge.js",
+  "dependencies": {
+    "@feezal/feezal-gauge": "*",
+    "@feezal/feezal-glass": "*"
+  }
+}

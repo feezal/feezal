@@ -123,6 +123,21 @@ export class SettlingController {
         this._settle(value);
     }
 
+    /**
+     * Abandon any hold/ramp WITHOUT applying a value — E128: the user pressed
+     * STOP, so the actuator halts somewhere between the old value and the
+     * target and the target is no longer meaningful. The next report must
+     * reach the display immediately instead of being swallowed until the
+     * timeout. (`settled()` would additionally apply a stale mid-travel value.)
+     */
+    cancel() {
+        this._holding = false;
+        this._ramping = false;
+        this._target = null;
+        this._clearTimeout();
+        this._cancelPending();
+    }
+
     dispose() {
         this._clearTimeout();
         this._cancelPending();

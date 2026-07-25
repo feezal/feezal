@@ -1,6 +1,7 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
 import {LockController, lockAttributes, lockDiscoveryMap} from '@feezal/feezal-controller-lock';
+import {feezalMovementStyles} from '@feezal/feezal-element/feezal-movement.js';
 import {svg} from 'lit';
 
 // ── Unavailability badge ─────────────────────────────────────────────────────
@@ -82,9 +83,16 @@ class FeezalElementCircleLock extends FeezalElement {
         label:                 {type: String, reflect: true},
         // N31: availability + subscribe/message-property inherited from FeezalElement.
         discoveryId:           {type: String, reflect: true, attribute: 'discovery-id'},
+        // E154: movement contract (declared so a live attribute edit triggers
+        // updated() -> rewireIfChanged()).
+        subscribeDirection: {type: String, reflect: true, attribute: 'subscribe-direction'},
+        msgPropDirection:   {type: String, reflect: true, attribute: 'message-property-direction'},
+        payloadDirectionLock:   {type: String, reflect: true, attribute: 'payload-direction-lock'},
+        payloadDirectionUnlock: {type: String, reflect: true, attribute: 'payload-direction-unlock'},
+        movementTimeout:    {type: String, reflect: true, attribute: 'movement-timeout'},
     };
 
-    static styles = [feezalBatteryStyles, feezalBaseStyles, css`
+    static styles = [feezalBatteryStyles, feezalBaseStyles, feezalMovementStyles, css`
         /* E124: low-battery badge — top-left (opposite the top-right unavail). */
         .feezal-batt-badge { top: 4px; left: 4px; bottom: auto; right: auto; }
         .err-line {
@@ -174,6 +182,12 @@ class FeezalElementCircleLock extends FeezalElement {
         this.subscribeError        = '';
         this.label                 = '';
         this.discoveryId           = '';
+        // E154
+        this.subscribeDirection = '';
+        this.msgPropDirection = '';
+        this.payloadDirectionLock = '';
+        this.payloadDirectionUnlock = '';
+        this.movementTimeout = '';
         // E137: the behavior layer \u2014 wires/parses/publishes; this view renders.
         this.lock = new LockController(this);
     }
@@ -190,15 +204,18 @@ class FeezalElementCircleLock extends FeezalElement {
     render() {
         // E135: a fault (jammed state OR an error signal) shows the jammed visual.
         const dispState = this.lock.faulted ? 'jammed' : (this.lock.state ?? 'locked');
-        const stateText = this.lock.state
-            ? this.lock.state.charAt(0).toUpperCase() + this.lock.state.slice(1)
-            : '\u2014';
+        // E154: while the motor turns, the transitional text replaces the
+        // resolved state and the disc pulses \u2014 no silent flip.
+        const stateText = this.lock.movementText
+            || (this.lock.state
+                ? this.lock.state.charAt(0).toUpperCase() + this.lock.state.slice(1)
+                : '\u2014');
 
         return html`
             ${!this._available ? html`<div class="unavail">${UNAVAIL}</div>` : ''}
             ${batteryLowBadge(this.lock.batteryLow)}
             <div class="disc-wrap">
-                <div class="disc ${dispState}">
+                <div class="disc ${dispState} ${this.lock.moving ? 'feezal-moving' : ''}">
                     <svg class="lock" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
                         ${lockSvg(dispState)}
                     </svg>

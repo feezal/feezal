@@ -1,6 +1,7 @@
 /* global feezal */
 import {feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
 import {LockController, lockAttributes, lockDiscoveryMap} from '@feezal/feezal-controller-lock';
+import {feezalMovementStyles} from '@feezal/feezal-element/feezal-movement.js';
 import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard} from '@feezal/feezal-glass';
 
 /**
@@ -70,10 +71,17 @@ class FeezalElementGlassLock extends FeezalGlassCard {
         label:           {type: String,  reflect: true},
         // N31: availability + subscribe/message-property inherited from FeezalElement.
         discoveryId:     {type: String,  reflect: true, attribute: 'discovery-id'},
+        // E154: movement contract (declared so a live attribute edit triggers
+        // updated() -> rewireIfChanged()).
+        subscribeDirection: {type: String, reflect: true, attribute: 'subscribe-direction'},
+        msgPropDirection:   {type: String, reflect: true, attribute: 'message-property-direction'},
+        payloadDirectionLock:   {type: String, reflect: true, attribute: 'payload-direction-lock'},
+        payloadDirectionUnlock: {type: String, reflect: true, attribute: 'payload-direction-unlock'},
+        movementTimeout:    {type: String, reflect: true, attribute: 'movement-timeout'},
         degrade:         {type: Boolean, reflect: true},
     };
 
-    static styles = [feezalBatteryStyles, feezalBaseStyles, glassCardStyles, glassPopupStyles, css`
+    static styles = [feezalBatteryStyles, feezalBaseStyles, glassCardStyles, glassPopupStyles, feezalMovementStyles, css`
         .card {
             gap: 4px; cursor: pointer; touch-action: manipulation;
             transition: transform 0.15s ease, background 0.2s ease;
@@ -120,6 +128,12 @@ class FeezalElementGlassLock extends FeezalGlassCard {
         this.subscribeError = '';
         this.label = '';
         this.discoveryId = '';
+        // E154
+        this.subscribeDirection = '';
+        this.msgPropDirection = '';
+        this.payloadDirectionLock = '';
+        this.payloadDirectionUnlock = '';
+        this.movementTimeout = '';
         this.degrade = false;
         this._pressTimer = null;
         this._longPressed = false;
@@ -179,6 +193,8 @@ class FeezalElementGlassLock extends FeezalGlassCard {
     _onPointerLeave() { clearTimeout(this._pressTimer); }
 
     _stateText() {
+        // E154: the transitional text wins while the motor turns.
+        if (this.lock.movementText) return this.lock.movementText;
         const s = this.lock.state;
         return s ? s.charAt(0).toUpperCase() + s.slice(1) : (feezal.isEditor ? 'Lock' : '—');
     }
@@ -215,7 +231,8 @@ class FeezalElementGlassLock extends FeezalGlassCard {
                         @click="${e => { e.stopPropagation(); this.openDetails(); }}">tune</button>` : ''}
                 ${!this._available ? html`<span class="unavail" title="Device unavailable">⚠</span>` : ''}
                 ${batteryLowBadge(this.lock.batteryLow)}
-                <feezal-icon name="${STATE_ICON[disp] || 'lock'}"></feezal-icon>
+                <feezal-icon class="${this.lock.moving ? 'feezal-moving' : ''}"
+                    name="${STATE_ICON[disp] || 'lock'}"></feezal-icon>
                 <span class="state">${this._stateText()}</span>
                 ${this.lock.error ? html`<span class="err-line" title="${this.lock.error}">⚠ ${this.lock.error}</span>` : ''}
                 ${this.label ? html`<span class="label">${this.label}</span>` : ''}

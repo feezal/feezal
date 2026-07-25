@@ -1,4 +1,4 @@
-import {describe, it, expect, vi, beforeEach} from 'vitest';
+import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 
 import '../src/feezal-site.js';
 import '../src/feezal-view.js';
@@ -256,6 +256,74 @@ describe('_syncViewBackground() — document mirroring for iOS safe areas', () =
         site.view = 'home';
         site._syncViewBackground();
         expect(document.body.style.background).not.toContain('rgb(7, 8, 9)');
+    });
+});
+
+// B62 — a gradient view background used to tile and scroll away on the iOS
+// viewer: the site's own background-attachment:local layer repeats down the
+// scroll area. Gradients now come off the site entirely and are painted by the
+// (viewport-sized, non-scrolling) document root mirror, no-repeat + cover.
+describe('_syncViewBackground() — gradient backgrounds (B62)', () => {
+    const GRADIENT = 'linear-gradient(180deg, rgb(1, 2, 3) 0%, rgb(9, 8, 7) 100%)';
+
+    function syncedSite(background, {editor = false} = {}) {
+        feezal.isEditor = editor;
+        const site = document.createElement('feezal-site');
+        feezal.views = makeViews('home');
+        feezal.views[0].style.background = background;
+        site.view = 'home';
+        site._syncViewBackground();
+        return site;
+    }
+
+    afterEach(() => {
+        for (const el of [document.documentElement, document.body]) el.style.background = '';
+    });
+
+    it('flags a gradient view so the site stops painting the canvas itself', () => {
+        const site = syncedSite(GRADIENT);
+        expect(site.hasAttribute('gradient-bg')).toBe(true);
+    });
+
+    it('paints the gradient on html/body no-repeat, covering the viewport', () => {
+        syncedSite(GRADIENT);
+        for (const el of [document.documentElement, document.body]) {
+            expect(el.style.backgroundImage).toContain('linear-gradient');
+            expect(el.style.backgroundRepeat).toBe('no-repeat');
+            expect(el.style.backgroundSize).toBe('cover');
+            expect(el.style.backgroundAttachment).toBe('fixed');
+        }
+    });
+
+    it('leaves solid colours on the pre-B62 path', () => {
+        const site = syncedSite('rgb(1, 2, 3)');
+        expect(site.hasAttribute('gradient-bg')).toBe(false);
+        expect(site.style.getPropertyValue('--feezal-canvas-bg')).toContain('rgb(1, 2, 3)');
+        // The shorthand alone — no gradient-only cover/fixed pinning.
+        expect(document.body.style.backgroundRepeat).not.toBe('no-repeat');
+        expect(document.body.style.backgroundSize).not.toBe('cover');
+        expect(document.body.style.backgroundAttachment).not.toBe('fixed');
+    });
+
+    it('drops the flag again when the view switches back to a solid colour', () => {
+        const site = syncedSite(GRADIENT);
+        expect(site.hasAttribute('gradient-bg')).toBe(true);
+        feezal.views[0].style.background = 'rgb(1, 2, 3)';
+        site._syncViewBackground();
+        expect(site.hasAttribute('gradient-bg')).toBe(false);
+    });
+
+    it('never flags in the editor — the checkerboard stays (U61)', () => {
+        const site = syncedSite(GRADIENT, {editor: true});
+        expect(site.hasAttribute('gradient-bg')).toBe(false);
+        expect(site.style.getPropertyValue('--feezal-canvas-bg')).toContain('linear-gradient');
+    });
+
+    it('recognises radial and conic gradients too', () => {
+        for (const bg of ['radial-gradient(circle, red, blue)', 'conic-gradient(red, blue)',
+            'repeating-linear-gradient(45deg, red 0 10px, blue 10px 20px)']) {
+            expect(syncedSite(bg).hasAttribute('gradient-bg'), bg).toBe(true);
+        }
     });
 });
 
