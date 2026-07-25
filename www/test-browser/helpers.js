@@ -98,3 +98,90 @@ export async function mount(tag, attributes = {}) {
     await el.updateComplete;
     return el;
 }
+
+// ─── Circle-family pointer drags ────────────────────────────────────────────
+// The circle cards (light brightness ring, cover position ring, climate
+// setpoint arc, cover fill/blind panel) are driven entirely by pointer
+// gestures on an SVG with a 0..100 viewBox centred at (50,50). That code is
+// unreachable from happy-dom, and it is where each card keeps its real
+// interaction logic — so these helpers exist to drive it for real in the
+// browser suite.
+//
+// Three quirks the helpers absorb, all of which otherwise make such a test
+// silently useless or throw:
+//   1. setPointerCapture() rejects a synthetic pointerId. Two of the three
+//      cards call it UNGUARDED, so it is stubbed on the target first.
+//   2. The cards attach their move/up listeners either to `document` or to
+//      the SVG itself. Dispatching on the SVG with bubbles:true reaches both.
+//   3. Angles are measured 0° = top, clockwise — not the atan2 convention.
+
+/** Give an element a deterministic on-screen box so client↔viewBox maths is exact. */
+export function sizeAt(el, {left = 100, top = 100, size = 200} = {}) {
+    el.style.cssText =
+        `display:block;position:fixed;left:${left}px;top:${top}px;width:${size}px;height:${size}px;`;
+    return el;
+}
+
+/** Client coords of a point on the 0..100 viewBox, by angle (0° = top, clockwise). */
+export function pointAtAngle(svg, deg, r = 40) {
+    const rect = svg.getBoundingClientRect();
+    const rad = (deg - 90) * Math.PI / 180;
+    const vx = 50 + r * Math.cos(rad);
+    const vy = 50 + r * Math.sin(rad);
+    return {
+        clientX: rect.left + (vx / 100) * rect.width,
+        clientY: rect.top + (vy / 100) * rect.height,
+    };
+}
+
+/** Client coords of a viewBox point given directly as (x, y) in 0..100. */
+export function pointAt(svg, vx, vy) {
+    const rect = svg.getBoundingClientRect();
+    return {
+        clientX: rect.left + (vx / 100) * rect.width,
+        clientY: rect.top + (vy / 100) * rect.height,
+    };
+}
+
+function stubPointerCapture(node) {
+    node.setPointerCapture = () => {};
+    node.releasePointerCapture = () => {};
+    node.hasPointerCapture = () => false;
+}
+
+const pointerEvent = (type, {clientX, clientY}) => new PointerEvent(type, {
+    bubbles: true, composed: true, cancelable: true,
+    pointerId: 1, pointerType: "mouse", isPrimary: true, button: 0, buttons: 1,
+    clientX, clientY,
+});
+
+/**
+ * Run a pointer gesture on `target`: down at the first point, a move per
+ * subsequent point, then up. Returns after the element has re-rendered.
+ */
+export async function pointerDrag(el, target, points) {
+    stubPointerCapture(target);
+    target.dispatchEvent(pointerEvent("pointerdown", points[0]));
+    await el.updateComplete;
+    for (const p of points.slice(1)) {
+        target.dispatchEvent(pointerEvent("pointermove", p));
+        await el.updateComplete;
+    }
+    target.dispatchEvent(pointerEvent("pointerup", points.at(-1)));
+    await el.updateComplete;
+    return el;
+}
+
+/** Drag around a ring/arc from one angle to another (0° = top, clockwise). */
+export async function dragAngle(el, target, fromDeg, toDeg, {r = 40, steps = 3} = {}) {
+    const points = [];
+    for (let i = 0; i <= steps; i++) {
+        points.push(pointAtAngle(target, fromDeg + ((toDeg - fromDeg) * i) / steps, r));
+    }
+    return pointerDrag(el, target, points);
+}
+
+/** A single tap at a viewBox coordinate. */
+export async function tapAt(el, target, vx, vy) {
+    return pointerDrag(el, target, [pointAt(target, vx, vy)]);
+}

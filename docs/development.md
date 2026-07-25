@@ -179,7 +179,7 @@ they can turn a miss into a hit and nothing else, which is also why they are
 optional: the floor cannot move depending on whether the slowest suite ran.
 
 Pass `--min <pct>` to make the merge exit non-zero below a floor; CI runs it with
-`--min 70` in the dedicated `coverage` job. Each report is also uploaded to
+`--min 71` in the dedicated `coverage` job. Each report is also uploaded to
 Codecov under its own flag (`backend`, `frontend`, `components`, `e2e`,
 `elements`, `overall`).
 
@@ -308,7 +308,7 @@ The **"CI"** workflow (`.github/workflows/ci.yml`) runs on every push to any bra
 1. **Dependency license gate** — `scripts/check-licenses.js` over the production dependency tree.
 2. **Backend** — server unit + integration tests with coverage (API routes, storage adapter, topic matching, the MQTT bridge and the native discovery recognizers).
 3. **Frontend** — www logic-unit tests with coverage; component tests in **chromium with coverage** plus a **firefox + webkit** pass without it (v8 browser coverage is Chromium-only, so the chromium run is split out of the matrix rather than added on top); then a `FEEZAL_COVERAGE=1` build and the E2E happy path, whose raw Chromium V8 dumps `scripts/e2e-coverage-report.mjs` turns into lcov.
-4. **Coverage** — downloads the other jobs' coverage artifacts, runs `scripts/coverage-merge.mjs --min 70`, and uploads the merged report. **This is the only step that can fail on coverage**; the individual suites deliberately carry no thresholds, so the floor is enforced once, on the merged number.
+4. **Coverage** — downloads the other jobs' coverage artifacts, runs `scripts/coverage-merge.mjs --min 71`, and uploads the merged report. **This is the only step that can fail on coverage**; the individual suites deliberately carry no thresholds, so the floor is enforced once, on the merged number.
 
 Every report is uploaded to Codecov under its own flag (`backend`, `frontend`, `components`, `e2e`, `elements`, `overall`).
 
