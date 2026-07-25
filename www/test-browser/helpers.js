@@ -143,10 +143,38 @@ export function pointAt(svg, vx, vy) {
     };
 }
 
-function stubPointerCapture(node) {
-    node.setPointerCapture = () => {};
-    node.releasePointerCapture = () => {};
-    node.hasPointerCapture = () => false;
+/**
+ * Neutralise pointer capture for the duration of a synthetic gesture.
+ *
+ * A dispatched PointerEvent carries a pointerId the browser never issued, so
+ * setPointerCapture() rejects it with NotFoundError — and two of the circle
+ * cards call it UNGUARDED, which aborts their handler before it publishes.
+ *
+ * Stubbed on Element.prototype rather than on the node under test: the cards
+ * call it on `e.currentTarget`, i.e. whichever node carries the listener, and
+ * that is not always the node the gesture is dispatched to. Stubbing only the
+ * dispatch target happened to work in chromium and threw in firefox — exactly
+ * the kind of engine difference the browser matrix exists to catch.
+ */
+function withoutPointerCapture(run) {
+    const proto = Element.prototype;
+    const saved = {
+        set: proto.setPointerCapture,
+        release: proto.releasePointerCapture,
+        has: proto.hasPointerCapture,
+    };
+    proto.setPointerCapture = () => {};
+    proto.releasePointerCapture = () => {};
+    proto.hasPointerCapture = () => false;
+    return (async () => {
+        try {
+            return await run();
+        } finally {
+            proto.setPointerCapture = saved.set;
+            proto.releasePointerCapture = saved.release;
+            proto.hasPointerCapture = saved.has;
+        }
+    })();
 }
 
 const pointerEvent = (type, {clientX, clientY}) => new PointerEvent(type, {
@@ -160,15 +188,16 @@ const pointerEvent = (type, {clientX, clientY}) => new PointerEvent(type, {
  * subsequent point, then up. Returns after the element has re-rendered.
  */
 export async function pointerDrag(el, target, points) {
-    stubPointerCapture(target);
-    target.dispatchEvent(pointerEvent("pointerdown", points[0]));
-    await el.updateComplete;
-    for (const p of points.slice(1)) {
-        target.dispatchEvent(pointerEvent("pointermove", p));
+    await withoutPointerCapture(async () => {
+        target.dispatchEvent(pointerEvent("pointerdown", points[0]));
         await el.updateComplete;
-    }
-    target.dispatchEvent(pointerEvent("pointerup", points.at(-1)));
-    await el.updateComplete;
+        for (const p of points.slice(1)) {
+            target.dispatchEvent(pointerEvent("pointermove", p));
+            await el.updateComplete;
+        }
+        target.dispatchEvent(pointerEvent("pointerup", points.at(-1)));
+        await el.updateComplete;
+    });
     return el;
 }
 
