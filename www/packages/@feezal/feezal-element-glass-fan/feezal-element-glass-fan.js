@@ -267,7 +267,6 @@ class FeezalElementGlassFan extends FeezalGlassCard {
             if (popup?.showPopover && !popup.matches(':popover-open')) {
                 try { popup.showPopover(); } catch { /* fixed+z-index fallback */ }
             }
-            this._positionDetails();
         }
     }
 

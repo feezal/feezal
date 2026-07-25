@@ -94,9 +94,18 @@ export const glassCardStyles = css`
  */
 export const glassPopupStyles = css`
     .details {
-        /* Anchored above (or below) the card by _positionDetails(). */
-        position: fixed; left: 0; top: 0; margin: 0; z-index: 99999;
-        width: 200px; height: fit-content; max-height: 90vh;
+        /* E155: centred in the viewport, modal-style, at a viewport-relative
+           width — it used to be card-anchored at a fixed 200px, which read as
+           tiny on a desktop and crowded the card on a phone. inset:0 plus
+           margin:auto centres a fixed-position box without a transform, so
+           it composites cleanly over the backdrop-filter behind it.
+
+           clamp() rather than plain min(): 70vw is only ~262px on a 375px
+           phone, narrower than the wheel/pill controls want, so 240px is the
+           floor. 450px is the cap so it never sprawls on a wide monitor.
+           This is what let _positionDetails() go away entirely. */
+        position: fixed; inset: 0; margin: auto; z-index: 99999;
+        width: clamp(240px, 70vw, 450px); height: fit-content; max-height: 90vh;
         box-sizing: border-box; padding: 16px;
         display: flex; flex-direction: column; align-items: center; gap: 16px;
         border: 1px solid var(--feezal-glass-border, rgba(255,255,255,0.55));
@@ -135,11 +144,15 @@ export const glassPopupStyles = css`
  *     doesn't also re-trigger the card),
  *   - `__outsideDown` outside-pointerdown dismiss,
  *   - `openDetails()` / `_closeDetails()` open/close (deferred listener so the
- *     opening tap isn't caught), and
- *   - `_positionDetails()` above-or-below viewport-clamped placement.
+ *     opening tap isn't caught).
  * Card-specific behaviour (subscriptions, gestures, sliders, render) stays in
  * the subclass. A subclass that overrides `disconnectedCallback()` MUST call
  * `super.disconnectedCallback()` so the document listener is removed.
+ *
+ * E155 removed `_positionDetails()`: the popover is centred by CSS now (see
+ * `glassPopupStyles`), so there is no above/below/clamp math left to run. The
+ * method is gone rather than kept as a no-op — a card still calling it would
+ * be a leftover worth surfacing as an error, not silently ignoring.
  */
 export class FeezalGlassCard extends FeezalElement {
     static properties = {
@@ -177,20 +190,4 @@ export class FeezalGlassCard extends FeezalElement {
         document.removeEventListener('pointerdown', this.__outsideDown);
     }
 
-    _positionDetails() {
-        const popup = this.renderRoot.querySelector('.details');
-        if (!popup) return;
-        const host = this.getBoundingClientRect();
-        const pw = popup.offsetWidth;
-        const ph = popup.offsetHeight;
-        const margin = 8;
-        const gap = 12;
-        let left = host.left + host.width / 2 - pw / 2;
-        left = Math.max(margin, Math.min(left, window.innerWidth - pw - margin));
-        let top = host.top - ph - gap;                       // preferred: above
-        if (top < margin) top = host.bottom + gap;           // no room -> below
-        top = Math.max(margin, Math.min(top, window.innerHeight - ph - margin));
-        popup.style.left = `${left}px`;
-        popup.style.top = `${top}px`;
-    }
 }

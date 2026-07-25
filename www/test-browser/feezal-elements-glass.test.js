@@ -213,37 +213,82 @@ describe('glass-motion', () => {
     });
 });
 
-describe('glass popup anchoring', () => {
-    it('opens above the card, clamped to the viewport near borders', async () => {
-        // Card in the middle-bottom area → popup fits above.
-        const el = await mount('feezal-element-glass-light', {
-            'subscribe-brightness': 'stat/b', 'publish-brightness': 'cmnd/b',
-        });
-        el.style.cssText = 'display:block;position:fixed;left:300px;top:400px;width:150px;height:110px;';
-        el.openDetails?.() ?? (el._details = true);
+// E155: the popover used to be anchored above/below its card at a fixed 200px
+// by _positionDetails(). It is centred in the viewport by CSS now, at a
+// viewport-relative width — so the placement no longer depends on where the
+// card sits, which is what the two cases below pin.
+describe('glass popup centring (E155)', () => {
+    const openPopup = async (tag, cardCss, attrs = {}) => {
+        const el = await mount(tag, attrs);
+        el.style.cssText = cardCss;
         el._details = true;
         await el.updateComplete;
-        el._positionDetails();
-        const popup = el.shadowRoot.querySelector('.details');
-        const top = parseFloat(popup.style.top);
-        const left = parseFloat(popup.style.left);
-        expect(top).toBeLessThan(400);                       // above the card
-        expect(top).toBeGreaterThanOrEqual(8);
-        expect(left).toBeGreaterThanOrEqual(8);
-        expect(left + popup.offsetWidth).toBeLessThanOrEqual(window.innerWidth - 8 + 1);
-        el._closeDetails?.();
+        return {el, popup: el.shadowRoot.querySelector('.details')};
+    };
 
-        // Card at the very top-left → no room above → popup goes below, x clamped.
-        const corner = await mount('feezal-element-glass-light', {
-            'subscribe-brightness': 'stat/b2', 'publish-brightness': 'cmnd/b2',
-        });
-        corner.style.cssText = 'display:block;position:fixed;left:0;top:0;width:150px;height:110px;';
-        corner._details = true;
-        await corner.updateComplete;
-        corner._positionDetails();
-        const popup2 = corner.shadowRoot.querySelector('.details');
-        expect(parseFloat(popup2.style.top)).toBeGreaterThanOrEqual(110);   // below the card
-        expect(parseFloat(popup2.style.left)).toBeGreaterThanOrEqual(8);    // clamped off the edge
+    const centred = popup => {
+        const r = popup.getBoundingClientRect();
+        // Within a pixel of the viewport centre on both axes.
+        expect(Math.abs((r.left + r.width / 2) - window.innerWidth / 2)).toBeLessThanOrEqual(1);
+        expect(Math.abs((r.top + r.height / 2) - window.innerHeight / 2)).toBeLessThanOrEqual(1);
+    };
+
+    it('centres in the viewport wherever the card is', async () => {
+        const mid = await openPopup('feezal-element-glass-light',
+            'display:block;position:fixed;left:300px;top:400px;width:150px;height:110px;',
+            {'subscribe-brightness': 'stat/b', 'publish-brightness': 'cmnd/b'});
+        centred(mid.popup);
+        mid.el._closeDetails?.();
+
+        // The old code special-cased this corner (no room above → flip below).
+        const corner = await openPopup('feezal-element-glass-light',
+            'display:block;position:fixed;left:0;top:0;width:150px;height:110px;',
+            {'subscribe-brightness': 'stat/b2', 'publish-brightness': 'cmnd/b2'});
+        centred(corner.popup);
+        corner.el._closeDetails?.();
+    });
+
+    it('sizes to ~70vw, floored at 240px and capped at 450px', async () => {
+        const {el, popup} = await openPopup('feezal-element-glass-light',
+            'display:block;position:fixed;left:10px;top:10px;width:150px;height:110px;',
+            {'subscribe-brightness': 'stat/b3', 'publish-brightness': 'cmnd/b3'});
+        const width = popup.getBoundingClientRect().width;
+        const expected = Math.min(450, Math.max(240, window.innerWidth * 0.7));
+        expect(width).toBeCloseTo(expected, 0);
+        expect(width).toBeGreaterThanOrEqual(240);           // usable on a phone
+        expect(width).toBeLessThanOrEqual(450);              // not sprawling on desktop
+        el._closeDetails?.();
+    });
+
+    it('stays within the viewport height', async () => {
+        const {el, popup} = await openPopup('feezal-element-glass-light',
+            'display:block;position:fixed;left:10px;top:10px;width:150px;height:110px;',
+            {'subscribe-brightness': 'stat/b4', 'publish-brightness': 'cmnd/b4'});
+        const r = popup.getBoundingClientRect();
+        expect(r.height).toBeLessThanOrEqual(window.innerHeight * 0.9 + 1);
+        expect(r.top).toBeGreaterThanOrEqual(0);
+        el._closeDetails?.();
+    });
+
+    it('every popover card centres — the shared layer covers all of them', async () => {
+        for (const [tag, attrs] of [
+            ['feezal-element-glass-cover', {'subscribe-position': 'stat/p'}],
+            ['feezal-element-glass-climate', {'subscribe-setpoint': 'stat/sp'}],
+        ]) {
+            const {el, popup} = await openPopup(tag,
+                'display:block;position:fixed;left:5px;top:5px;width:150px;height:110px;', attrs);
+            expect(popup, `${tag} has no .details`).toBeTruthy();
+            centred(popup);
+            el._closeDetails?.();
+        }
+    });
+
+    it('_positionDetails is gone, not left as a no-op', async () => {
+        const {el} = await openPopup('feezal-element-glass-light',
+            'display:block;position:fixed;left:10px;top:10px;width:150px;height:110px;',
+            {'subscribe-brightness': 'stat/b5', 'publish-brightness': 'cmnd/b5'});
+        expect(el._positionDetails).toBeUndefined();
+        el._closeDetails?.();
     });
 });
 
