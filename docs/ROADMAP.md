@@ -54,7 +54,6 @@ Work in progress — priorities and scope are not final.
 - [E144 — Lock autodiscovery: Homematic BidCoS (Keymatic) + HmIP smart locks + zigbee2mqtt](#e144--lock-autodiscovery-homematic-bidcos-keymatic--hmip-smart-locks--zigbee2mqtt--keymatic--z2m-done-hmip-dld-open) 🔨 *(Keymatic + z2m done; HmIP-DLD open)*
 - [E145 — Autodiscovery support for ccu-jack's MQTT interface](#e145--autodiscovery-support-for-ccu-jacks-mqtt-interface)
 - [E150 — Discovery for profile-shaped components: `water_heater` ✅ + `lawn_mower` 🔨](#e150--discovery-for-profile-shaped-components-water_heater---lawn_mower)
-- [E157 — Extend E156 cross-component discovery to the remaining on/off and numeric controls](#e157--extend-e156-cross-component-discovery-to-the-remaining-onoff-and-numeric-controls)
 
 **Editor UX**
 
@@ -144,6 +143,20 @@ Work in progress — priorities and scope are not final.
 **Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
 
 **Relates:** **[B62](roadmap-archive/B62.md)** ✅ (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
+
+### B81 — Slider discovery offers Homematic dimmers but not zigbee2mqtt light brightness/CT
+
+E156's slider←light axes work for **Homematic dimmers** but **not zigbee2mqtt lights** — a z2m lamp's brightness / colour-temp never appears in a slider's ⚡ picker.
+
+**Root cause.** `lightSettableAxes` in [feezal-discovery-fragments.js](../www/packages/@feezal/feezal-element/feezal-discovery-fragments.js) gates each axis on `when: settable('brightness_command_topic')` / `settable('color_temp_command_topic')`, where `settable = key => cfg => Boolean(cfg[key])`. That key only exists on **separate-mode** lights (Homematic dimmers emit `brightness_command_topic` = the LEVEL topic). **zigbee2mqtt lights use the JSON schema**: `schema: 'json'`, a single `command_topic`, and capability flags (`brightness: true`, `supported_color_modes`/`color_temp`) — brightness is a **key inside the JSON command**, not a separate topic. So `Boolean(cfg.brightness_command_topic)` is `false` for z2m → no axis offered.
+
+**Fix.** Make the axis `when`-guards also recognise **JSON-schema lights**: offer a brightness row when the light declares brightness capability (`schema: 'json'` + `brightness` truthy, or an explicit `brightness_command_topic`), and a colour-temp row when it declares CT (`color_temp` / `supported_color_modes` includes `color_temp`). The map **variant** must branch by schema too — a JSON light wires the slider to publish `{brightness: N}` (json payload mode, the `command_topic` + the JSON key) and read `brightness` out of the state JSON, versus the separate-mode `brightness_command_topic`/`brightness_state_topic` for Homematic. Scale still comes from `brightness_scale` (z2m 254) / mireds range as today.
+
+**Guardrail unchanged:** still settable-only — a light with no brightness capability yields no brightness row (an on/off-only z2m light is a switch match, not a slider one), and sensors are never offered.
+
+**Acceptance:** a discovered zigbee2mqtt lamp shows "*<lamp>* brightness" (and "*<lamp>* color temp" when supported) in a slider's ⚡ picker; picking it wires the JSON command/state correctly (publishes `{brightness: N}`, reads it back, right scale); Homematic dimmers keep working; on/off-only lights and sensors still excluded. Extend `www/test/feezal-discovery-cross-component.test.js` with a z2m JSON-schema light fixture.
+
+**Relates:** **[E156](roadmap-archive/E156.md)** ✅ (the slider←light-axis feature this bug is in — separate-mode only was an oversight), **E157** (rolls the same crossing out further — coordinate the JSON-schema handling so both use one fixed `lightSettableAxes`), the light discovery map (`schema`/`brightness`/`supported_color_modes` keys — the z2m shape to match), `material-light` json payload mode (the `{brightness: N}` publish contract the variant must mirror).
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
@@ -1139,34 +1152,6 @@ Follow-up to **E149** ✅ (which shipped the seven *pure-mapping* HA discovery c
 **🔨 `lawn_mower` — deferred (needs per-action command topics).** Unlike vacuum, HA's `lawn_mower` has **no single `command_topic`** — it exposes three *separate* command topics (`start_mowing_command_topic`, `pause_command_topic`, `dock_command_topic`) plus `activity_state_topic` (activities `mowing`/`docked`/`paused`/`error`). `circle-vacuum`'s contract publishes every action as a payload to **one** `publish-command` topic, so an alias/map reuse would leave the control buttons non-functional. Landing it properly means either (a) extending `circle-vacuum` with an optional per-action-topic command mode (three `publish-*` attributes + activity-state labels), or (b) a dedicated `lawn-mower` element. Niche — parked until asked. When done: add `lawn_mower` to `SUPPORTED_COMPONENTS` + `FUNCTION_CANDIDATES`, and either the vacuum variant or the new element with its own discovery map + tests.
 
 **Relates:** **E149** ✅ (parent — the discovery-extension work this completes), **E137** (the climate controller the alias rides), **N12** ✅ (the discovery engine), **E135** (the Homematic climate profiles that inspired the "profile not fork" framing), circle-climate (water_heater target) / circle-vacuum (lawn_mower target).
-
-### E157 — Extend E156 cross-component discovery to the remaining on/off and numeric controls
-
-**Follow-up to [E156](roadmap-archive/E156.md) ✅.** That item built the `discovery.accepts` mechanism (multi-component acceptance, per-component map variants, `when(config)` guards, per-axis picker rows) and applied it to the **8 `*-switch`** and **3 `*-slider`** elements — matching its own wording. The mechanism is general; the rollout was deliberately not. This item finishes it.
-
-**1. On/off controls that consume `switch` but were skipped (5).** These already declare `discovery: {component: 'switch'}` and would work identically with the existing shared fragment — the change is one import + one `accepts:` line each, no new mapping logic:
-
-| element | note |
-|---|---|
-| `material-checkbox` | |
-| `carbon-checkbox` | |
-| `paper-checkbox` | legacy Polymer, same descriptor shape |
-| `tui-checkbox` | |
-| `material-chip` | tap-to-toggle chip — verify the chip's active-state contract (E79) survives a light's `ON`/`OFF` |
-
-Reuse `switchAcceptsLight` from `@feezal/feezal-element/feezal-discovery-fragments.js` verbatim, including its **order-sensitive** map (the Homematic `alsoSet` override must stay last — see the fragment's comment).
-
-**Open question — is a checkbox the right target for a lamp at all?** A checkbox reads as "a setting", a switch as "a device". Offering every lamp in a checkbox's ⚡ picker may be noise rather than help. Decide before implementing: either extend all five, or extend only the ones that are genuinely device-shaped (chip/checkbox in a controls row) and record the reasoning.
-
-**2. `panel-knob` — a slider by another name.** It already declares `discovery: {component: 'number'}` with `state_topic`/`command_topic`/`min`/`max`, so it is exactly the shape `sliderDiscovery` serves; it should also offer **light brightness / colour-temp axes**. Simplest form: give it `sliderDiscovery` and let its existing `number` map become the `number` variant, so knob and slider stay in step by construction.
-
-**3. Read-only numeric displays — the mirror-image gap.** `material-tank` and `material-progress` have **no `discovery` descriptor at all** and only a `subscribe` (no publish). They are the exact inverse of the slider's settable-only guardrail: they should accept a **`sensor`**, and the *read* side of a `number` or a light's brightness — never a command topic. Worth its own small `readonlyNumericDiscovery` fragment rather than bending `sliderDiscovery`, so the guardrail stays legible in both directions.
-
-**Guardrail (inherited, non-negotiable):** whatever is added keeps E156's rule — a control with a write path is never offered a read-only entity, and a display is never offered something purely because it happens to expose a command topic. The existing "a sensor is never offered to a slider" test is the pattern to extend.
-
-**Ships with:** the `accepts` additions per element, the `panel-knob` consolidation, the new read-only fragment + its consumers, tests mirroring `www/test/feezal-discovery-cross-component.test.js` (per element: accepted components, the wired attributes, and the exclusions), `docs/TESTING.md` §9 additions, version bumps per policy.
-
-**Relates:** **[E156](roadmap-archive/E156.md)** ✅ (the mechanism + fragments this rolls out; its "scope note" is this item's starting point), **E114** (family parity — the skipped five are a parity gap in discovery coverage), **U56** ✅ (the per-axis row shape), **E79** (the chip's active-state contract to re-check), `panel-knob` / `material-tank` / `material-progress` (the three new consumers).
 
 ### A7 — Git versioning for data directory 🔨 in progress
 

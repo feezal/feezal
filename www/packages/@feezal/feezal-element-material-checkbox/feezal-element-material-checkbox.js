@@ -2,6 +2,8 @@
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import '@material/web/checkbox/checkbox.js';
 
+import {switchAcceptsLight} from '@feezal/feezal-element/feezal-discovery-fragments.js';
+
 class FeezalElementMaterialCheckbox extends FeezalElement {
     static get feezal() {
         return {
@@ -9,6 +11,8 @@ class FeezalElementMaterialCheckbox extends FeezalElement {
             description: 'MD3 checkbox — subscribes to a boolean topic and publishes checked state.',
             discovery: {
                 component: 'switch',
+                // E157: a lamp can be driven as a plain on/off control.
+                accepts: [switchAcceptsLight],
                 map: {
                     state_topic:   {attr: 'subscribe'},
                     command_topic: {attr: 'publish'},

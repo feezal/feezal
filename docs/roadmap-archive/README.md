@@ -247,6 +247,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [E154 — `*-lock`: indicate lock movement (motor moving / direction / settling) ✅ done](E154.md)
 - [E155 — Glass popups: center on screen, viewport-relative width ✅ done](E155.md)
 - [E156 — Cross-component discovery: `*-switch` offers lights, `*-slider` offers light axes + `number` ✅ done](E156.md)
+- [E157 — Extend E156 cross-component discovery to the remaining on/off and numeric controls ✅ done](E157.md)
 
 ## Editor UX
 

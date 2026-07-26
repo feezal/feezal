@@ -2,6 +2,8 @@
 import {FeezalElement, feezalBaseStyles, feezalBoolean, html, css} from '@feezal/feezal-element';
 import {svg} from 'lit';
 
+import {readonlyNumericDiscovery} from '@feezal/feezal-element/feezal-discovery-fragments.js';
+
 // ── Tank geometry ─────────────────────────────────────────────────────────────
 // Inner tank area: x=12, y=10, w=36, h=100  (inside a 60×130 viewBox)
 const TX = 12, TY = 10, TW = 36, TH = 100;
@@ -28,6 +30,9 @@ class FeezalElementMaterialTank extends FeezalElement {
     static get feezal() {
         return {
             palette: {name: 'Tank', category: 'Material', color: '#4a6080', icon: 'water'},
+            // E157: read-only display — accepts a sensor and the READ side of a
+            // number or a light's brightness, never a command topic.
+            discovery: readonlyNumericDiscovery,
             description: 'Fluid level / tank visualisation — an SVG fill-level indicator with animated transitions. Configurable shape, colour thresholds and optional wave animation.',
             attributes: [
                 {name: 'subscribe',       type: 'mqttTopic', help: 'Topic carrying the current fill level.'},

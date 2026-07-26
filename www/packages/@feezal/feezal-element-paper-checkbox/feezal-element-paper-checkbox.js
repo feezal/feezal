@@ -2,6 +2,12 @@ import {FeezalPolymerElement, html} from "@feezal/feezal-element/feezal-polymer-
 
 import '@polymer/paper-checkbox';
 
+import {makeSwitchAcceptsLight} from "@feezal/feezal-element/feezal-discovery-fragments.js";
+
+// E157: this element reads from `topic`, not `subscribe` (legacy Polymer
+// naming), so the shared light fragment is built with that spelling.
+const acceptsLight = makeSwitchAcceptsLight({subscribe: 'topic'});
+
 class FeezalElementPaperCheckbox extends FeezalPolymerElement {
     static get template() {
         return html`
@@ -81,6 +87,8 @@ class FeezalElementPaperCheckbox extends FeezalPolymerElement {
             },
             discovery: {
                 component: 'switch',
+                // E157: a lamp can be driven as a plain on/off control.
+                accepts: [acceptsLight],
                 map: {
                     state_topic:    'topic',
                     command_topic:  'publish',

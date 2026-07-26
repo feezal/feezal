@@ -2,6 +2,8 @@
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {svg} from 'lit';
 
+import {lightSettableAxes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
+
 /**
  * feezal-element-panel-knob (E56)
  *
@@ -54,6 +56,11 @@ class FeezalElementPanelKnob extends FeezalElement {
             defaultStyle: {width: '120px', height: '140px'},
             discovery: {
                 component: 'number',
+                // E157: a knob is a slider with a different gesture, so it
+                // drives a light's settable axes too. The `number` case keeps
+                // the map below rather than the slider's — that one drops
+                // `unit_of_measurement`, which this element displays.
+                accepts: lightSettableAxes,
                 map: {
                     state_topic:         'subscribe',
                     command_topic:       'publish',

@@ -1,6 +1,8 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 
+import {switchAcceptsLight} from '@feezal/feezal-element/feezal-discovery-fragments.js';
+
 /**
  * feezal-element-tui-checkbox (E59, renamed from tui-toggle)
  *
@@ -32,6 +34,8 @@ class FeezalElementTuiCheckbox extends FeezalElement {
             defaultStyle: {width: '180px', height: '24px'},
             discovery: {
                 component: 'switch',
+                // E157: a lamp can be driven as a plain on/off control.
+                accepts: [switchAcceptsLight],
                 map: {
                     state_topic:    'subscribe',
                     command_topic:  'publish',

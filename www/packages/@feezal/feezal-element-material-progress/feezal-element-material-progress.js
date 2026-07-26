@@ -2,10 +2,15 @@
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import '@material/web/progress/linear-progress.js';
 
+import {readonlyNumericDiscovery} from '@feezal/feezal-element/feezal-discovery-fragments.js';
+
 class FeezalElementMaterialProgress extends FeezalElement {
     static get feezal() {
         return {
             palette: {name: 'Progress', category: 'Material', color: '#4a6080', icon: 'data_usage'},
+            // E157: read-only display — accepts a sensor and the READ side of a
+            // number or a light's brightness, never a command topic.
+            discovery: readonlyNumericDiscovery,
             description: 'MD3 progress indicator — linear bar or circular ring. Subscribes to a numeric value topic.',
             attributes: [
                 {name: 'subscribe',        type: 'mqttTopic',
