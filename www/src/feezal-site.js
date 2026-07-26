@@ -70,20 +70,35 @@ class FeezalSite extends LitElement {
             background-repeat: repeat;   /* the checkerboard tile IS the point */
         }
         /* ── B62: gradient view backgrounds ────────────────────────────────
-           A gradient canvas background must not scroll or tile with the
-           content. The site is the scroller (overflow:auto) and its local
-           background moves with the scrolled content — on iOS Safari that
-           reads as a gradient that scrolls away and repeats. So for gradients
-           the site paints nothing and the background is left to the document
-           root mirror written by _syncViewBackground(): <html> is viewport
-           sized (html,body {height:100%} — the page itself never scrolls), so
-           the propagated root background covers the whole canvas, stays put on
-           scroll on every platform, and still fills the iOS status-bar inset
-           and the overscroll bounce, which is what the mirror was added for.
-           Viewer only — the editor keeps its checkerboard (see U61). */
+           MEASURED root cause (E2E, real Chromium — test-e2e/b62-sticky-
+           background.test.js): the gradient is painted by the VIEW, whose box
+           is exactly one viewport tall while its flow content is several
+           viewports tall. Its overflow is visible, so the content spills
+           outside the box that paints the background and scrolling drags that
+           one band of gradient away, revealing whatever is behind it.
+
+           Two earlier attempts re-plumbed this host, <html>/<body> and
+           background-attachment — none of which paint that band, which is why
+           both shipped green and changed nothing.
+
+           So: the SITE paints the gradient, and the view is told not to.
+           background-attachment:scroll (the default) anchors a background to
+           the element's own box rather than to the scrolled content — and this
+           host is exactly one viewport — so the result is viewport-pinned
+           WITHOUT position:fixed and without background-attachment:fixed, the
+           property iOS does not honour. Viewer only; the editor keeps its
+           checkerboard (U61 — the same overflow, seen from the editor side). */
         :host(.feezal-viewer[gradient-bg]) {
-            background-image: none;
-            background-color: transparent;
+            background-attachment: scroll;
+            background-size: cover;
+            background-repeat: no-repeat;
+        }
+        /* The band itself. The !important is required: the value it overrides
+           is an INLINE style on the view (written by the background style
+           editor), which a plain rule cannot beat. The site paints the
+           identical gradient, so nothing is lost visually. */
+        :host(.feezal-viewer[gradient-bg]) ::slotted(feezal-view) {
+            background-image: none !important;
         }
         :host(.dark) {
             --primary-background-color: black;

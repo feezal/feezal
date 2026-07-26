@@ -370,6 +370,22 @@ class FeezalElementLayoutApp extends FeezalElement {
             for (const p of ['background', 'background-color', 'background-image', 'background-size', 'background-position', 'background-repeat']) {
                 box.style.setProperty(p, view.style.getPropertyValue(p) || '');
             }
+            // B62: with a gradient, the CLONE must not paint it as well. The
+            // clone's box is one viewport tall while its flow content is
+            // several viewports tall, so the band it paints scrolls away and
+            // drags a moving seam across the identical gradient on .content
+            // underneath. .content is the scroller and is exactly one viewport,
+            // so its own background (attachment: scroll) is already
+            // viewport-pinned — the clone only has to stop competing with it.
+            // Same defect and same remedy as the site-level one in
+            // feezal-site.js; measured in test-e2e/b62-sticky-background.test.js.
+            const bg = view.style.background || view.style.backgroundColor || '';
+            if (/gradient\(/i.test(bg)) {
+                clone.style.setProperty('background-image', 'none', 'important');
+                box.style.setProperty('background-attachment', 'scroll');
+                box.style.setProperty('background-size', 'cover');
+                box.style.setProperty('background-repeat', 'no-repeat');
+            }
         }
     }
 
