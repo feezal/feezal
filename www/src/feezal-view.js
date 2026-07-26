@@ -23,6 +23,16 @@ class FeezalView extends LitElement {
     };
 
     static styles = css`
+        /* B62: a view sized width:100% with any padding used to overflow the
+           canvas by exactly the padding, which made the page pannable
+           sideways — "100% wide" has to mean "fits", padding included. The
+           flow slot was already border-box; the host was not, so the two
+           disagreed. Consequence to know about: on a view with an EXPLICIT
+           px width/height plus padding, the padding now eats into that box
+           instead of growing it. */
+        :host {
+            box-sizing: border-box;
+        }
         :host([child-position="absolute"]) ::slotted(*) {
             position: absolute;
         }
