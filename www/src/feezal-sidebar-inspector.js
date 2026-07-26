@@ -122,6 +122,49 @@ export function reorderElements(view, elements, direction) {
     return false;
 }
 
+// ── B80: absolute ↔ flow geometry hand-off ──────────────────────────────────
+// Flow lays elements out by the flex container, so their absolute offsets have
+// to come off the inline style — but they must not be LOST, or switching back
+// piles everything at 0,0. They are parked on data-abs-* instead, which
+// survives save/deploy (like data-group) and is stripped at delivery.
+const ABS_TOP = 'data-abs-top';
+const ABS_LEFT = 'data-abs-left';
+
+export function stashAbsoluteGeometry(element) {
+    const top = element.style.top;
+    const left = element.style.left;
+    // Only stash a real absolute offset; an element born in flow has none, and
+    // overwriting an existing stash with '' would destroy it.
+    if (top) element.setAttribute(ABS_TOP, top);
+    if (left) element.setAttribute(ABS_LEFT, left);
+}
+
+export function restoreAbsoluteGeometry(element) {
+    // An element that already carries inline offsets is not coming from flow.
+    if (element.style.top || element.style.left) return;
+
+    const top = element.getAttribute(ABS_TOP);
+    const left = element.getAttribute(ABS_LEFT);
+    if (top || left) {
+        if (top) element.style.top = top;
+        if (left) element.style.left = left;
+        element.removeAttribute(ABS_TOP);
+        element.removeAttribute(ABS_LEFT);
+        return;
+    }
+
+    // No stash: born in flow, or legacy HTML saved before B80. Freeze the
+    // element where it is currently RENDERED, so the switch looks like nothing
+    // moved instead of collapsing the whole view into the top-left corner.
+    const view = element.parentElement;
+    if (!view || typeof element.getBoundingClientRect !== 'function') return;
+    const r = element.getBoundingClientRect();
+    const vr = view.getBoundingClientRect();
+    if (!r.width && !r.height) return;          // not laid out (detached/hidden)
+    element.style.top = `${Math.round(r.top - vr.top)}px`;
+    element.style.left = `${Math.round(r.left - vr.left)}px`;
+}
+
 class FeezalSidebarInspector extends LitElement {
     static properties = {
         viewSelected:   {type: Boolean, notify: true},
@@ -617,6 +660,7 @@ class FeezalSidebarInspector extends LitElement {
         document.removeEventListener('keydown', this._snapKeyDown);
         document.removeEventListener('keyup', this._snapKeyUp);
         this._gridRO?.disconnect();
+        this._childPosObserver?.disconnect();
     }
 
     /**
@@ -762,6 +806,45 @@ class FeezalSidebarInspector extends LitElement {
      * (N15) after it rewrites a feezal-view's innerHTML to rebind interact.js
      * drag/resize handles on the new DOM elements.
      */
+
+    /**
+     * B80 — the view's `child-position` changed while it is on screen.
+     *
+     * The attribute alone only re-styles (the slot becomes a flex container,
+     * children become `position: relative`); every child still carries the
+     * interact.js wiring — and the inline offsets — of the OLD mode, which is
+     * what made a live switch scatter the tiles until a reload. Redo exactly
+     * what a reload does, per element, right now.
+     */
+    reinitChildPosition() {
+        const view = feezal.getView(this.view);
+        if (!view) return;
+
+        // The view-level machinery differs per mode (rubber-band select is
+        // absolute-only), so re-run that dispatch too.
+        this._disposeDragSelect();
+        switch (view.childPosition) {
+            case 'static':
+            case 'flow':
+                this._attachCanvasSelection(view);
+                break;
+            default:
+                this._initDragSelect();
+        }
+
+        for (const element of [...view.children]) {
+            if (!isCanvasElement(element)) continue;
+            // Drop the previous mode's interact.js bindings before re-init;
+            // leaving them attached means an element is draggable under two
+            // conflicting models at once.
+            try { interact(element).unset(); } catch { /* never bound */ }
+            element.feezalEditable = false;
+            element._feezalInDragSelect = false;
+            this.initElem(element);
+        }
+        this.selectElement();
+    }
+
     rebindView() {
         this._viewChanged();
     }
@@ -909,9 +992,14 @@ class FeezalSidebarInspector extends LitElement {
      * is DOM order (U33), committed to the dirty/undo pipeline on drop.
      */
     initFlow(element) {
-        // Flow tiles are laid out by the flex container — strip any legacy
-        // top/left (from absolute editing or old data) so `position: relative`
-        // doesn't offset them, and serialization stays clean.
+        // Flow tiles are laid out by the flex container, so an inline top/left
+        // left over from absolute editing would offset them off their flex slot
+        // (`position: relative`). B80: STASH those offsets rather than deleting
+        // them — switching back to absolute used to pile every element at 0,0
+        // because the originals were gone for good. The stash persists in
+        // views.html and is stripped only at viewer/export delivery, so
+        // absolute → flow → deploy → absolute round-trips losslessly.
+        stashAbsoluteGeometry(element);
         element.style.removeProperty('top');
         element.style.removeProperty('left');
         // Props the drag lift temporarily overrides — captured on start and
@@ -1167,6 +1255,23 @@ class FeezalSidebarInspector extends LitElement {
         });
 
         this.selectElement();
+        this._observeChildPosition(view);
+    }
+
+    /**
+     * B80 — re-init the canvas when the view's `child-position` flips while it
+     * is on screen.
+     *
+     * Hooked with a MutationObserver rather than from the attribute editor: the
+     * attribute can also change through the source view, undo/redo and history
+     * restore, and all of those have to re-init too. One observer covers every
+     * route into the same state change.
+     */
+    _observeChildPosition(view) {
+        this._childPosObserver?.disconnect();
+        if (!view || typeof MutationObserver !== 'function') return;
+        this._childPosObserver = new MutationObserver(() => this.reinitChildPosition());
+        this._childPosObserver.observe(view, {attributes: true, attributeFilter: ['child-position']});
     }
 
     _keyboard() {
@@ -1730,6 +1835,10 @@ class FeezalSidebarInspector extends LitElement {
     }
 
     initAbsolute(element) {
+        // B80: coming back from flow, the element has no inline top/left —
+        // restore what flow stashed, or fall back to where it is actually
+        // rendered so nothing stacks in the corner.
+        restoreAbsoluteGeometry(element);
         // Register with DragSelect (guard against double-registration on re-init after unlock)
         const ds = this.dragselect && this.dragselect[this.view];
         if (ds && !element._feezalInDragSelect) {

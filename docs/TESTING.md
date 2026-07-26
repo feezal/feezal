@@ -270,6 +270,8 @@ and palette drag-to-canvas are all automated.)
 
 ## 5. Views & navigation
 
+- [ ] **Switching a view between absolute and flow (B80)** — build a view with several elements at distinct positions in **absolute** mode, then flip **Child position → flow** in the view inspector. The tiles must lay out in the flex flow **immediately and correctly — no reload**, and none may sit off its slot (the old symptom was scattered tiles until a deploy + refresh). Drag one to reorder: flow reordering works right after the switch, without a reload. Now flip **back to absolute**: every element returns to **its original pre-flow position**, not stacked in the corner. Repeat the whole cycle with a **deploy in between** (absolute → flow → deploy → reload → absolute) — the positions must still come back, because the offsets are parked on `data-abs-*` in `views.html` rather than deleted. Check the delivered HTML contains **no `data-abs-*`**: open the **viewer** and a **static export** and search the page source. Finally, an element **created in flow** (no stashed position) must land where it was rendered when you switch to absolute — not at 0,0. *(Stash/restore, the no-stash rendered fallback, the save/deploy round trip and the delivery strip are unit-tested in `test/feezal-child-position-switch.test.js`; the live re-init is the manual part.)*
+
 - [ ] Reorder / delete views; view folders — drag into folders, nesting UI.
 - [ ] Tab bar reflects views; hidden/foldered views excluded as configured.
 - [ ] Viewer: navigate via **Navigation** element, **Navbar**, swipe (if used).

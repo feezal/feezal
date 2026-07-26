@@ -351,6 +351,14 @@ function applyRewrites(text, rewrites) {
  * self-contained ESM bundles, inlined as module scripts after the viewer
  * bundle (inline modules run from file://; src= module references don't).
  */
+// B80: the absolute↔flow geometry stash is EDITOR state. It has to survive
+// save/deploy so switching a flow view back to absolute restores the original
+// positions, but it means nothing downstream — so it is removed on the way out,
+// in every delivery path.
+function stripEditorGeometryStash(html) {
+    return String(html || '').replace(/\s+data-abs-(?:top|left)="[^"]*"/g, '');
+}
+
 function composeIndexHtml(siteName, siteHtml, connectionConfig, inlineJs, themeOverrides, userThemeCss, classes, userPkgModules = []) {
     // A closing </script> inside the bundled code would terminate the inline
     // script early — the standard escape keeps the JS semantics identical.
@@ -435,7 +443,7 @@ window.feezal = {
 </head>
 <body>
 <feezal-connection backend="mqtt"${connectionAttr}></feezal-connection>
-<feezal-app-viewer>${siteHtml}</feezal-app-viewer>
+<feezal-app-viewer>${stripEditorGeometryStash(siteHtml)}</feezal-app-viewer>
 <script>${inlineJs}<` + `/script>${userPkgScripts}
 </body>
 </html>`;

@@ -7,7 +7,7 @@ Each entry is filed under the section its **ID prefix** belongs to — `B` Bugs,
 Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastructure,
 `D` Documentation — and sorted by number within it, so a new entry has exactly one correct place.
 
-**306 items.**
+**307 items.**
 
 ## Bugs
 
@@ -85,6 +85,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B77 — Background editor: gradient-stop percent input still too small (B73 fix insufficient) ✅ fixed](B77.md)
 - [B78 — Roadmap IDs leak into rendered help text (site-settings + Security) — B75 guard gap ✅ fixed](B78.md)
 - [B79 — `glass-light` popup: brightness % shown unrounded (55.00000000000001 %) ✅ fixed](B79.md)
+- [B80 — Switching a view `absolute → flow` positions elements chaotically until reload; and `flow → absolute` loses positions ✅ fixed](B80.md)
 
 ## Near-term Improvements
 

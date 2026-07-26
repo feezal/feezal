@@ -311,7 +311,7 @@ async function createApp(config) {
             const viewerConfig = historicalViewerConfig || (config && config.viewer) || null;
             const theme = viewerConfig && viewerConfig.theme;
             // Use the historical version for preview when ?sha= was provided.
-            let themedHtml = historicalHtml || siteHtml;
+            let themedHtml = stripEditorGeometryStash(historicalHtml || siteHtml);
             if (theme && /^feezal-theme-[\w-]+$/.test(theme)) {
                 const hasClass = /<feezal-site[^>]*\bclass\s*=/.test(themedHtml);
                 if (hasClass) {
@@ -529,6 +529,14 @@ ${iconScripts}${userPkgScripts}
     });
 
     return {app, server, io};
+}
+
+// B80: the absolute↔flow geometry stash is EDITOR state. It has to survive
+// save/deploy so switching a flow view back to absolute restores the original
+// positions, but it means nothing downstream — so it is removed on the way out,
+// in every delivery path.
+function stripEditorGeometryStash(html) {
+    return String(html || '').replace(/\s+data-abs-(?:top|left)="[^"]*"/g, '');
 }
 
 module.exports = createApp;

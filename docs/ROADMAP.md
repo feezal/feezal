@@ -9,7 +9,6 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
-- [B80 — Switching a view `absolute → flow` positions elements chaotically until reload; `flow → absolute` loses positions](#b80--switching-a-view-absolute--flow-positions-elements-chaotically-until-reload-and-flow--absolute-loses-positions)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -144,20 +143,6 @@ Work in progress — priorities and scope are not final.
 **Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
 
 **Relates:** **[B62](roadmap-archive/B62.md)** ✅ (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
-
-### B80 — Switching a view `absolute → flow` positions elements chaotically until reload; and `flow → absolute` loses positions
-
-**Two coupled defects in the U41 childPosition switch:**
-
-**1. Chaotic layout until reload.** Switch a populated view from `child-position="absolute"` to `flow` and the tiles scatter; a deploy + page reload fixes them. **Root cause:** the inspector switch only flips the attribute (CSS: the slot becomes a flex container, children become `position: relative`), but does **not** re-initialize the children for the new mode. Specifically [`initFlow()`](../www/src/feezal-sidebar-inspector.js#L911) — which strips each child's leftover inline `top`/`left` so `position: relative` doesn't offset them, and rewires interact.js from absolute drag/resize to flow reorder — **runs only on view init (`_viewChanged`, i.e. reload)**, not on a live switch. So the stale `top`/`left` from absolute mode remain and, combined with `position: relative`, shove every tile off its flex slot. **Fix:** on a `childPosition` change, run the same per-element re-init the reload does (strip/stash + interact rewire) immediately, for the whole view.
-
-**2. Switching back to `absolute` loses the original positions.** `initFlow()` **destructively** `removeProperty('top'/'left')` ([feezal-sidebar-inspector.js:915-916](../www/src/feezal-sidebar-inspector.js#L915)). Already true today after any flow deploy: the absolute offsets are gone from `views.html`, so a later switch to absolute piles every element at the top-left corner, overlapping. **Fix (decided: lossless):** on `absolute → flow`, **stash** `top`/`left` into `data-abs-top`/`data-abs-left` (and clear the live inline ones so flow lays out correctly) instead of deleting them; on `flow → absolute`, **restore** from the stash. Persist the stash in `views.html` like `data-group` — stripped only at **viewer/export delivery** (so it's invisible downstream but survives deploys, making `absolute ↔ flow ↔ deploy ↔ absolute` round-trip losslessly). **Fallback** when no stash exists (element born in flow, or legacy HTML): assign sensible positions on switch-to-absolute (rendered `getBoundingClientRect`, or a cascade offset) so nothing stacks at 0,0.
-
-**Accepted edge cases** (document, don't fight): after reordering in flow then switching back, restored positions are the *pre-flow* absolute layout, not the new flow order (fine — absolute is position-based, not order-based); a `width: 50%` set in flow carries back to absolute oddly (% is view-relative there) — leave as-is.
-
-**Acceptance:** switching a populated view absolute→flow lays the tiles out correctly **immediately** (no reload); switching back to absolute restores the pre-flow positions; a full deploy round-trip preserves the stash; the viewer/export HTML contains no `data-abs-*`. Unit/e2e coverage for the switch both directions + the strip-at-delivery.
-
-**Relates:** **U41** (flow layout — the feature whose switch this fixes; `initFlow`/the flow CSS live there), **U33** (DOM-order principle — flow order is DOM order), `data-group` handling (the persist-in-`views.html`-strip-at-delivery precedent to mirror for `data-abs-*`), `_clean()` / viewer route / `export.js` (where `data-group` is stripped — add `data-abs-*` there), B35 ✅-era `_viewChanged` re-init (the reload path whose per-element init must also fire on live switch).
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
