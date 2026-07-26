@@ -270,3 +270,74 @@ describe('embedded per-view theme (B50)', () => {
         expect(mirrored?.textContent || '').toBe('');
     });
 });
+
+/**
+ * U50 — the content-area inset.
+ *
+ * The reason this is a browser test rather than a unit test: the whole risk in
+ * the item is a LAYOUT one. The content area is "flex: 1" (flex-basis 0%), so
+ * under content-box sizing the grown size is the CONTENT box and the padding
+ * is added on top — the item overflows its container by exactly the padding
+ * and "overflow: auto" becomes permanent scrollbars. Only real layout catches
+ * that, which is why the assertions measure scrollWidth against clientWidth
+ * rather than just reading the computed style back.
+ */
+describe('content inset (U50)', () => {
+    const contentOf = el => el.shadowRoot.querySelector('.content');
+    const innerOf = el => el.shadowRoot.querySelector('#content');
+
+    async function sized(padding) {
+        const el = await mount('feezal-element-layout-app', {items: ITEMS});
+        el.style.width = '800px';
+        el.style.height = '600px';
+        if (padding !== undefined) el.style.setProperty('--feezal-app-content-padding', padding);
+        await until(() => contentOf(el)?.clientWidth > 0);
+        return el;
+    }
+
+    it('defaults to no inset', async () => {
+        const el = await sized();
+        const cs = getComputedStyle(contentOf(el));
+        expect(cs.paddingTop).toBe('0px');
+        expect(cs.paddingLeft).toBe('0px');
+    });
+
+    it('applies the inset to the content area', async () => {
+        const el = await sized('16px');
+        const cs = getComputedStyle(contentOf(el));
+        expect([cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft])
+            .toEqual(['16px', '16px', '16px', '16px']);
+    });
+
+    it('does NOT overflow — no permanent scrollbars', async () => {
+        const el = await sized('24px');
+        const content = contentOf(el);
+        // scrollWidth/Height must not exceed the client box: that is exactly
+        // the content-box regression the item warns about.
+        expect(content.scrollWidth).toBeLessThanOrEqual(content.clientWidth + 1);
+        expect(content.scrollHeight).toBeLessThanOrEqual(content.clientHeight + 1);
+    });
+
+    it('shrinks the embedded area by the inset instead of pushing it out', async () => {
+        const bare = await sized();
+        const bareWidth = innerOf(bare).getBoundingClientRect().width;
+        const inset = await sized('20px');
+        const insetWidth = innerOf(inset).getBoundingClientRect().width;
+        expect(Math.round(bareWidth - insetWidth)).toBe(40);   // 20px each side
+    });
+
+    it('accepts a per-side shorthand', async () => {
+        const el = await sized('4px 12px 20px 28px');
+        const cs = getComputedStyle(contentOf(el));
+        expect([cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft])
+            .toEqual(['4px', '12px', '20px', '28px']);
+    });
+
+    it('is declared as a style knob with a 0 default', async () => {
+        const cls = customElements.get('feezal-element-layout-app');
+        const knob = cls.feezal.styles.find(s => s?.property === '--feezal-app-content-padding');
+        expect(knob).toBeTruthy();
+        expect(knob.default).toBe('0');
+        expect(knob.type).toBe('string');   // a shorthand, not a number
+    });
+});

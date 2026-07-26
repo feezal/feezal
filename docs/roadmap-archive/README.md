@@ -299,6 +299,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U47 — layout-app drawer entries: stop auto-creating views, offer "create new view" in the dropdown ✅ implemented](U47.md)
 - [U48 — Make the viewer's `Connected as "…"` toast optional ✅ implemented](U48.md)
 - [U49 — Conditions: expose the message property in the inspector ✅ implemented](U49.md)
+- [U50 — layout-app: expose the content area's inset (padding) ✅ done](U50.md)
 - [U51 — Per-view themes ✅ implemented](U51.md)
 - [U52 — Component edit mode: double-click to enter, attribute-mapping editor in the banner ✅ implemented](U52.md)
 - [U53 — View theme selector: same styled control as the site theme selector ✅ done](U53.md)

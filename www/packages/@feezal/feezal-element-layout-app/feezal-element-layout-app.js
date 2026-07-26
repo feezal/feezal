@@ -66,6 +66,7 @@ class FeezalElementLayoutApp extends FeezalElement {
                 {property: '--feezal-app-active-indicator', type: 'color', default: 'var(--secondary-background-color, rgba(2,132,199,0.16))', help: 'Active drawer entry highlight.'},
                 {property: '--feezal-app-active-color', type: 'color', default: 'var(--primary-color, #0284c7)', help: 'Active drawer entry text/icon colour.'},
                 {property: '--feezal-app-drawer-width', type: 'string', default: '220px', help: 'Expanded drawer width.'},
+                {property: '--feezal-app-content-padding', type: 'string', default: '0', help: 'Breathing room between the app bar / drawer and the embedded view. Full CSS padding shorthand, so per-side insets need no extra knobs: "16px", "8px 16px", "0 16px 24px". The embedded view\'s own background paints under it.'},
             ],
             restrict: {move: false, resize: false, minWidth: 240, minHeight: 160},
             defaultStyle: {top: '0px', left: '0px', width: '100%', height: '100%'},
@@ -155,7 +156,20 @@ class FeezalElementLayoutApp extends FeezalElement {
             box-shadow: 2px 0 12px rgba(0,0,0,0.18);
         }
         :host([autohide]:not(.narrow)) .drawer:not(:hover):not(:focus-within) .entry { opacity: 0; }
-        .content { flex: 1; min-width: 0; position: relative; overflow: auto; }
+        /* U50: the content inset. PADDING, not margin — .content carries the
+           embedded view's background, and a margin would sit outside it and
+           leave an unpainted gutter between the drawer and the view.
+
+           box-sizing is load-bearing: .content is "flex: 1" (flex-basis 0%),
+           so under content-box the grown size is the CONTENT box and the
+           padding is added on top — the item would overflow its container by
+           exactly the padding and "overflow: auto" would turn into permanent
+           scrollbars. #content's 100%/100% then resolves against the content
+           box, so the embedded view fits the inset area rather than escaping
+           it. */
+        .content { flex: 1; min-width: 0; position: relative; overflow: auto;
+            box-sizing: border-box;
+            padding: var(--feezal-app-content-padding, 0); }
         #content { width: 100%; height: 100%; }
         .ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
             color: var(--secondary-text-color, #888); font-size: 13px;
