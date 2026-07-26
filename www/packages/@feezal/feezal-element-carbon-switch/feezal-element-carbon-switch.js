@@ -2,6 +2,7 @@
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import '@carbon/web-components/es/components/toggle/toggle.js';
 
+import {switchAcceptsLight} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 class FeezalElementCarbonSwitch extends FeezalElement {
     static get feezal() {
         return {
@@ -33,6 +34,8 @@ class FeezalElementCarbonSwitch extends FeezalElement {
             defaultStyle: {width: '120px', height: '32px'},
             discovery: {
                 component: 'switch',
+                // E156: a lamp can be driven as a plain on/off switch.
+                accepts: [switchAcceptsLight],
                 map: {
                     state_topic:    'subscribe',
                     command_topic:  'publish',

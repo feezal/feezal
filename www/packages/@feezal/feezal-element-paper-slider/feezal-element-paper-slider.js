@@ -3,6 +3,7 @@ import {FeezalPolymerElement} from "@feezal/feezal-element/feezal-polymer-elemen
 
 import '@polymer/paper-slider';
 
+import {sliderDiscovery} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 class FeezalElementPaperSlider extends FeezalPolymerElement {
     static get template() {
         return html`
@@ -98,6 +99,9 @@ class FeezalElementPaperSlider extends FeezalPolymerElement {
                 name: 'Slider',
                 color: '#4a6080'
             },
+            // E156: sliders drive the settable numeric axes of other
+            // components — a light's brightness / colour temp, and `number`.
+            discovery: sliderDiscovery,
             attributes: [
                 'subscribe',
                 'messageProperty',

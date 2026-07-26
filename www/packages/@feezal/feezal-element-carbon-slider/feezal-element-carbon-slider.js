@@ -3,6 +3,7 @@ import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element
 import '@carbon/web-components/es/components/slider/slider.js';
 import {deriveStep} from './derive-step.js';
 
+import {sliderDiscovery} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 class FeezalElementCarbonSlider extends FeezalElement {
     static get feezal() {
         return {
@@ -12,6 +13,9 @@ class FeezalElementCarbonSlider extends FeezalElement {
                 color: '#393939'
             },
             description: 'IBM Carbon slider. Subscribes to an MQTT topic for the current value and publishes the numeric value on change.',
+            // E156: sliders drive the settable numeric axes of other
+            // components — a light's brightness / colour temp, and `number`.
+            discovery: sliderDiscovery,
             attributes: [
                 'subscribe',
                 {name: 'message-property', type: 'string', default: 'payload',

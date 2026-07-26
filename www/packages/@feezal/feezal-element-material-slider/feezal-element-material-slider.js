@@ -2,6 +2,7 @@
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import '@material/web/slider/slider.js';
 
+import {sliderDiscovery} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 /** B17: explicit step wins; otherwise derive from the range: (max − min) / 100.
  *  The default 0–100 range yields 1 (today's behaviour); sub-integer ranges
  *  (Homematic LEVEL 0–1) get a usable granularity instead of collapsing to
@@ -27,6 +28,9 @@ class FeezalElementMaterialSlider extends FeezalElement {
                 color: '#4a6080'
             },
             description: 'Material Design 3 slider. Subscribes to an MQTT topic for the current value and publishes the numeric value on change.',
+            // E156: sliders drive the settable numeric axes of other
+            // components — a light's brightness / colour temp, and `number`.
+            discovery: sliderDiscovery,
             attributes: [
                 'subscribe',
                 {name: 'message-property', type: 'string', default: 'payload',

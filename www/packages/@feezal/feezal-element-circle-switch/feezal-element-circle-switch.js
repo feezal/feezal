@@ -21,6 +21,7 @@
 import {FeezalElementCircleLight} from '@feezal/feezal-element-circle-light';
 import {css} from '@feezal/feezal-element';
 
+import {switchAcceptsLight} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 class FeezalElementCircleSwitch extends FeezalElementCircleLight {
     // E139: a switch/outlet has no colour or brightness — so the light card's
     // "on colour" (white on-icon, meant to sit on a colour-filled ring) reads as
@@ -48,6 +49,8 @@ class FeezalElementCircleSwitch extends FeezalElementCircleLight {
             // N31 maps availability automatically from the canonical record.
             discovery: {
                 component: 'switch',
+                // E156: a lamp can be driven as a plain on/off switch.
+                accepts: [switchAcceptsLight],
                 map: {
                     state_topic:    'subscribe-state',
                     command_topic:  'publish-state',

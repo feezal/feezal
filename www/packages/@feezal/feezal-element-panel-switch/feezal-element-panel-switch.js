@@ -2,6 +2,7 @@
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {svg} from 'lit';
 
+import {switchAcceptsLight} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 /**
  * feezal-element-panel-switch (E56, renamed from panel-toggle)
  *
@@ -79,6 +80,8 @@ class FeezalElementPanelSwitch extends FeezalElement {
             defaultStyle: {width: '72px', height: '96px'},
             discovery: {
                 component: 'switch',
+                // E156: a lamp can be driven as a plain on/off switch.
+                accepts: [switchAcceptsLight],
                 map: {
                     state_topic:    'subscribe',
                     command_topic:  'publish',

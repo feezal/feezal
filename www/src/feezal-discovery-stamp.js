@@ -89,10 +89,12 @@ export function discoveryLabel(entity) {
 //
 // Extracted verbatim from the former `_applyDiscovery` body so the picker and
 // the bulk generator wire devices byte-for-byte the same way.
-export function stampDiscovery(el, entity) {
+export function stampDiscovery(el, entity, variant = null) {
     const tagName = el.name ? 'feezal-view' : el.localName;
     const cls = window.customElements.get(tagName);
-    const discoveryMap = cls?.feezal?.discovery?.map;
+    // E156: pick the map that matches the entity's component (and the chosen
+    // axis variant, when the picker offered several rows for one entity).
+    const discoveryMap = discoveryMapFor(cls, entity, variant);
     if (!discoveryMap) return false;
 
     const cfg = entity.config || {};
@@ -283,10 +285,96 @@ export function knownComponents() {
 // `discovery.component` plus any `discovery.aliasComponents` (e.g. a climate
 // card also accepts `water_heater`, which is climate-shaped). The ⚡ per-element
 // picker and the auto-config banner match entities against this set.
-export function elementAcceptsComponent(cls, component) {
+// E156 — an element may accept entities of MORE THAN ONE component, each wired
+// through its own map. Three levels, in increasing specificity:
+//
+//   discovery: {component: 'switch', map}                 the common case
+//   discovery: {component, aliasComponents: [...], map}   E150 profile aliases
+//                                                         (same map for all)
+//   discovery: {component, map, accepts: [{component, map, when?, label?}]}
+//
+// An `accepts` variant is what lets a *-switch drive a `light` (different wiring
+// than a `switch`) and a *-slider drive one AXIS of a light. `when(config)`
+// gates a variant on the entity actually supporting it — that is how the
+// slider's "settable only" guardrail is expressed, and how a light with no
+// brightness never shows up as a brightness slider. `label` is the U56-style
+// suffix that distinguishes the resulting picker rows.
+
+/** Every component an element's discovery descriptor can consume, in order. */
+export function acceptedComponents(cls) {
     const d = cls?.feezal?.discovery;
-    if (!d || !component) return false;
-    return component === d.component || (d.aliasComponents || []).includes(component);
+    if (!d) return [];
+    return [...new Set([
+        d.component,
+        ...(d.aliasComponents || []),
+        ...(d.accepts || []).map(a => a?.component),
+    ].filter(Boolean))];
+}
+
+export function elementAcceptsComponent(cls, component) {
+    return Boolean(component) && acceptedComponents(cls).includes(component);
+}
+
+/**
+ * The `accepts` variants that apply to a given entity — component match plus
+ * the variant's own `when(config)` guard. Empty when the base map handles it.
+ */
+export function discoveryVariantsFor(cls, entity) {
+    const d = cls?.feezal?.discovery;
+    if (!d || !entity) return [];
+    const cfg = entity.config || {};
+    return (d.accepts || []).filter(a =>
+        a?.component === entity.component && (typeof a.when !== 'function' || a.when(cfg)));
+}
+
+/** The map to stamp a given entity with — an explicit variant wins. */
+export function discoveryMapFor(cls, entity, variant) {
+    if (variant?.map) return variant.map;
+    const d = cls?.feezal?.discovery;
+    if (!d) return null;
+    // A matching `accepts` variant wins — that is what wires a light through
+    // the switch's light keys instead of its switch keys. Otherwise the base
+    // map, exactly as before.
+    //
+    // Deliberately NOT "any component other than the declared one uses a
+    // variant": elements are ALSO routed cross-component by the resolver, and
+    // are expected to handle that with their single map — E149 lands a `scene`
+    // on the button element, whose one map covers both `payload_press` and
+    // `payload_on`. Withholding the base map there broke it.
+    const matched = discoveryVariantsFor(cls, entity)[0];
+    if (matched) return matched.map;
+    return d.map || null;
+}
+
+/**
+ * Expand the entity list into the rows an element's picker should offer.
+ *
+ * One entity yields one row normally — but a `light` offered to a slider
+ * yields one row PER settable axis (brightness, colour temp), the same
+ * one-entity-→-several-rows shape U56 introduced for multi-attribute sensors.
+ * Rows carry the variant so the stamp uses the matching map.
+ */
+export function discoveryCandidates(cls, entities = []) {
+    const out = [];
+    for (const entity of entities) {
+        if (!elementAcceptsComponent(cls, entity.component)) continue;
+        const variants = discoveryVariantsFor(cls, entity);
+        const base = cls?.feezal?.discovery;
+        const isBaseComponent = entity.component === base?.component ||
+            (base?.aliasComponents || []).includes(entity.component);
+        if (isBaseComponent && !variants.length) {
+            out.push({entity, variant: null, label: discoveryLabel(entity)});
+            continue;
+        }
+        for (const variant of variants) {
+            out.push({
+                entity,
+                variant,
+                label: variant.label ? `${discoveryLabel(entity)} ${variant.label}` : discoveryLabel(entity),
+            });
+        }
+    }
+    return out;
 }
 
 const defaultIsRegistered = tag => !!window.customElements?.get(tag);

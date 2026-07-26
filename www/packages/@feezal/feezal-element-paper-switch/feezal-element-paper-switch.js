@@ -2,6 +2,7 @@ import {FeezalPolymerElement, html} from "@feezal/feezal-element/feezal-polymer-
 
 import '@polymer/paper-toggle-button';
 
+import {switchAcceptsLight} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 class FeezalElementPaperSwitch extends FeezalPolymerElement {
     static get template() {
         return html`
@@ -77,6 +78,8 @@ class FeezalElementPaperSwitch extends FeezalPolymerElement {
             },
             discovery: {
                 component: 'switch',
+                // E156: a lamp can be driven as a plain on/off switch.
+                accepts: [switchAcceptsLight],
                 map: {
                     state_topic:    'subscribe',
                     command_topic:  'publish',

@@ -2,6 +2,7 @@
 import {html, css} from '@feezal/feezal-element';
 import {MetroTileBase} from '@feezal/feezal-metro';
 
+import {switchAcceptsLight} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 /**
  * feezal-element-metro-switch (E55)
  *
@@ -41,6 +42,8 @@ class FeezalElementMetroSwitch extends MetroTileBase {
             defaultStyle: {width: '150px', height: '150px'},
             discovery: {
                 component: 'switch',
+                // E156: a lamp can be driven as a plain on/off switch.
+                accepts: [switchAcceptsLight],
                 map: {
                     state_topic:    'subscribe',
                     command_topic:  'publish',

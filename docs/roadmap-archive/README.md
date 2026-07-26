@@ -7,7 +7,7 @@ Each entry is filed under the section its **ID prefix** belongs to — `B` Bugs,
 Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastructure,
 `D` Documentation — and sorted by number within it, so a new entry has exactly one correct place.
 
-**305 items.**
+**306 items.**
 
 ## Bugs
 
@@ -245,6 +245,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [E153 — `metro-loadpoint`: move the overloaded front controls to a 2×2 backside ✅ done](E153.md)
 - [E154 — `*-lock`: indicate lock movement (motor moving / direction / settling) ✅ done](E154.md)
 - [E155 — Glass popups: center on screen, viewport-relative width ✅ done](E155.md)
+- [E156 — Cross-component discovery: `*-switch` offers lights, `*-slider` offers light axes + `number` ✅ done](E156.md)
 
 ## Editor UX
 

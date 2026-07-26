@@ -2,6 +2,7 @@
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {applySizePreset, payloadMatch, glassCardStyles} from '@feezal/feezal-glass';
 
+import {switchAcceptsLight} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 /**
  * feezal-element-glass-switch (E58)
  *
@@ -21,6 +22,8 @@ class FeezalElementGlassSwitch extends FeezalElement {
             description: 'Frosted-glass switch card — tap toggles a plain on/off device. Same MQTT contract as the material switch; use the glass light card for dimmables.',
             discovery: {
                 component: 'switch',
+                // E156: a lamp can be driven as a plain on/off switch.
+                accepts: [switchAcceptsLight],
                 map: {
                     state_topic:    'subscribe',
                     command_topic:  'publish',

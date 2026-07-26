@@ -8,7 +8,8 @@ export const LIVE_APPLY_DEBOUNCE_MS = 250;
 // U58: the discovery-stamp primitives moved to a shared, headless module so
 // the ⚡ picker and the bulk Generate wizard apply identical wiring.
 // valueTemplateLeaf is re-exported here for back-compat with existing importers.
-import {stampDiscovery, valueTemplateLeaf, discoveryLabel, discoveryAttributeSuffix, elementAcceptsComponent} from './feezal-discovery-stamp.js';
+import {stampDiscovery, valueTemplateLeaf, discoveryLabel, discoveryAttributeSuffix, elementAcceptsComponent,
+    discoveryCandidates, acceptedComponents} from './feezal-discovery-stamp.js';
 export {valueTemplateLeaf};
 
 import '@shoelace-style/shoelace/dist/components/input/input.js';
@@ -1742,19 +1743,22 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         if (!el) return '';
         const tagName = el.name ? 'feezal-view' : el.localName;
         const cls = window.customElements.get(tagName);
-        const component = cls?.feezal?.discovery?.component;
-        if (!component) return '';
+        // E156: an element may accept several components (E150 aliases, and
+        // the switch←light / slider←axis crossings), so there is not always a
+        // single declared `component` — a slider has none at all.
+        if (!acceptedComponents(cls).length) return '';
 
-        // E150: also match alias components (e.g. a climate card accepts water_heater).
-        const allMatches = (this.__discoveryEntities || []).filter(e => elementAcceptsComponent(cls, e.component));
+        // One row per (entity × accepted variant): a light offered to a slider
+        // yields a brightness row AND a colour-temp row (U56's shape).
+        const allMatches = discoveryCandidates(cls, this.__discoveryEntities || []);
         if (!allMatches.length) return '';
 
         const q = (this._discoveryFilter || '').toLowerCase().trim();
         const matches = q
-            ? allMatches.filter(m => {
-                const label = this._discoveryOptionLabel(m).toLowerCase();
-                const name  = (m.name || '').toLowerCase();
-                const id    = (m.discovery_id || '').toLowerCase();
+            ? allMatches.filter(c => {
+                const label = this._discoveryOptionLabel(c).toLowerCase();
+                const name  = (c.entity.name || '').toLowerCase();
+                const id    = (c.entity.discovery_id || '').toLowerCase();
                 return label.includes(q) || name.includes(q) || id.includes(q);
             })
             : allMatches;
@@ -1787,7 +1791,9 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                                 @input="${e => { e.stopPropagation(); this._discoveryFilter = e.target.value; }}"
                                 @keydown="${e => e.stopPropagation()}">
                         </div>` : ''}
-                    ${matches.map(m => html`<sl-option value="${encodeURIComponent(m.discovery_id)}">${this._discoveryOptionLabel(m)}</sl-option>`)}
+                    ${matches.map(c => html`<sl-option
+                        value="${encodeURIComponent(c.entity.discovery_id)}\u0000${allMatches.indexOf(c)}"
+                        >${this._discoveryOptionLabel(c)}</sl-option>`)}
                     ${!matches.length ? html`<sl-option value="" disabled>No matches for \u201c${this._discoveryFilter}\u201d</sl-option>` : ''}
                 </sl-select>
                 ${linkedId ? html`<button class="dp-clear" title="Unlink device" @click="${this._onClearDiscovery}">&#x2715;</button>` : ''}
@@ -1800,21 +1806,35 @@ class FeezalSidebarInspectorAttributes extends LitElement {
     // topic(s) found in the config, falling back to the name.
     // U58: label + attribute-suffix logic now lives in the shared discovery
     // module so the ⚡ picker and the Generate wizard label devices identically.
-    _discoveryOptionLabel(entity) {
-        return discoveryLabel(entity);
+    // E156: accepts either a raw entity or a picker CANDIDATE ({entity, variant,
+    // label}). A candidate already carries its axis-suffixed label, which is what
+    // distinguishes "<lamp> brightness" from "<lamp> color temp".
+    _discoveryOptionLabel(entityOrCandidate) {
+        if (entityOrCandidate?.entity) return entityOrCandidate.label;
+        return discoveryLabel(entityOrCandidate);
     }
 
     _discoveryAttributeSuffix(entity, base) {
         return discoveryAttributeSuffix(entity, base);
     }
 
-    _onPickDiscovery(encodedId) {
-        if (!encodedId) return;
+    _onPickDiscovery(encodedValue) {
+        if (!encodedValue) return;
         // Values are percent-encoded in _renderDiscoveryPicker (see note there) to
         // survive Shoelace's space-delimited value handling — decode before lookup.
+        // E156: the row index is appended after a NUL, because one entity can
+        // appear as several rows (a light's brightness and colour-temp axes)
+        // and the id alone no longer identifies which one was picked.
+        const [encodedId, rowIndex] = String(encodedValue).split('\u0000');
         const id = decodeURIComponent(encodedId);
         const entity = (this.__discoveryEntities || []).find(e => e.discovery_id === id);
-        if (entity) this._applyDiscovery(entity);
+        if (!entity) return;
+
+        const el = this.selectedElems?.[0];
+        const cls = window.customElements.get(el?.name ? 'feezal-view' : el?.localName);
+        const rows = discoveryCandidates(cls, this.__discoveryEntities || []);
+        const row = rows[Number(rowIndex)];
+        this._applyDiscovery(entity, row && row.entity === entity ? row.variant : null);
     }
 
     _onClearDiscovery() {
@@ -1857,13 +1877,13 @@ class FeezalSidebarInspectorAttributes extends LitElement {
     // Apply a discovery entity's config to the selected element using the element's
     // feezal().discovery.map descriptor. Each entry maps a discovery config key to
     // a feezal attribute, with optional value transforms.
-    _applyDiscovery(entity) {
+    _applyDiscovery(entity, variant = null) {
         const el = this.selectedElems?.[0];
         if (!el) return;
         // U58: the stamping itself lives in the shared headless module so the
         // ⚡ picker and the bulk Generate wizard wire devices identically. The
         // inspector-specific redraw stays here.
-        if (!stampDiscovery(el, entity)) return;
+        if (!stampDiscovery(el, entity, variant)) return;
         this._rebuildItems();
         feezal.app.change();
         // Refresh a custom inspector (N6) so its fields show the applied values.

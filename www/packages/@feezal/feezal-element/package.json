@@ -16,6 +16,7 @@
         "feezal-element.js",
         "feezal-color.js",
         "feezal-conditions.js",
+        "feezal-discovery-fragments.js",
         "feezal-friendly-name.js",
         "feezal-hm-fault.js",
         "feezal-movement.js",
@@ -41,5 +42,5 @@
         "url": "git+https://github.com/feezal/feezal.git",
         "directory": "www/packages/@feezal/feezal-element"
     },
-    "version": "3.0.13"
+    "version": "3.0.14"
 }

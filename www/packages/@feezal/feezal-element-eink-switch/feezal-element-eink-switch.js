@@ -2,6 +2,7 @@
 import {feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {EinkBase, einkCardStyles, payloadMatch} from '@feezal/feezal-eink';
 
+import {switchAcceptsLight} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 /**
  * feezal-element-eink-switch (E57)
  *
@@ -23,6 +24,8 @@ class FeezalElementEinkSwitch extends EinkBase {
             description: 'E-ink switch card — tap toggles a plain on/off device, inverted block while on, 1-bit, redraw-deduped. Same MQTT contract as the glass switch.',
             discovery: {
                 component: 'switch',
+                // E156: a lamp can be driven as a plain on/off switch.
+                accepts: [switchAcceptsLight],
                 map: {
                     state_topic:    'subscribe',
                     command_topic:  'publish',
