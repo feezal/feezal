@@ -54,6 +54,7 @@ Work in progress — priorities and scope are not final.
 - [E144 — Lock autodiscovery: Homematic BidCoS (Keymatic) + HmIP smart locks + zigbee2mqtt](#e144--lock-autodiscovery-homematic-bidcos-keymatic--hmip-smart-locks--zigbee2mqtt--keymatic--z2m-done-hmip-dld-open) 🔨 *(Keymatic + z2m done; HmIP-DLD open)*
 - [E145 — Autodiscovery support for ccu-jack's MQTT interface](#e145--autodiscovery-support-for-ccu-jacks-mqtt-interface)
 - [E150 — Discovery for profile-shaped components: `water_heater` ✅ + `lawn_mower` 🔨](#e150--discovery-for-profile-shaped-components-water_heater---lawn_mower)
+- [E157 — Extend E156 cross-component discovery to the remaining on/off and numeric controls](#e157--extend-e156-cross-component-discovery-to-the-remaining-onoff-and-numeric-controls)
 
 **Editor UX**
 
@@ -1138,6 +1139,34 @@ Follow-up to **E149** ✅ (which shipped the seven *pure-mapping* HA discovery c
 **🔨 `lawn_mower` — deferred (needs per-action command topics).** Unlike vacuum, HA's `lawn_mower` has **no single `command_topic`** — it exposes three *separate* command topics (`start_mowing_command_topic`, `pause_command_topic`, `dock_command_topic`) plus `activity_state_topic` (activities `mowing`/`docked`/`paused`/`error`). `circle-vacuum`'s contract publishes every action as a payload to **one** `publish-command` topic, so an alias/map reuse would leave the control buttons non-functional. Landing it properly means either (a) extending `circle-vacuum` with an optional per-action-topic command mode (three `publish-*` attributes + activity-state labels), or (b) a dedicated `lawn-mower` element. Niche — parked until asked. When done: add `lawn_mower` to `SUPPORTED_COMPONENTS` + `FUNCTION_CANDIDATES`, and either the vacuum variant or the new element with its own discovery map + tests.
 
 **Relates:** **E149** ✅ (parent — the discovery-extension work this completes), **E137** (the climate controller the alias rides), **N12** ✅ (the discovery engine), **E135** (the Homematic climate profiles that inspired the "profile not fork" framing), circle-climate (water_heater target) / circle-vacuum (lawn_mower target).
+
+### E157 — Extend E156 cross-component discovery to the remaining on/off and numeric controls
+
+**Follow-up to [E156](roadmap-archive/E156.md) ✅.** That item built the `discovery.accepts` mechanism (multi-component acceptance, per-component map variants, `when(config)` guards, per-axis picker rows) and applied it to the **8 `*-switch`** and **3 `*-slider`** elements — matching its own wording. The mechanism is general; the rollout was deliberately not. This item finishes it.
+
+**1. On/off controls that consume `switch` but were skipped (5).** These already declare `discovery: {component: 'switch'}` and would work identically with the existing shared fragment — the change is one import + one `accepts:` line each, no new mapping logic:
+
+| element | note |
+|---|---|
+| `material-checkbox` | |
+| `carbon-checkbox` | |
+| `paper-checkbox` | legacy Polymer, same descriptor shape |
+| `tui-checkbox` | |
+| `material-chip` | tap-to-toggle chip — verify the chip's active-state contract (E79) survives a light's `ON`/`OFF` |
+
+Reuse `switchAcceptsLight` from `@feezal/feezal-element/feezal-discovery-fragments.js` verbatim, including its **order-sensitive** map (the Homematic `alsoSet` override must stay last — see the fragment's comment).
+
+**Open question — is a checkbox the right target for a lamp at all?** A checkbox reads as "a setting", a switch as "a device". Offering every lamp in a checkbox's ⚡ picker may be noise rather than help. Decide before implementing: either extend all five, or extend only the ones that are genuinely device-shaped (chip/checkbox in a controls row) and record the reasoning.
+
+**2. `panel-knob` — a slider by another name.** It already declares `discovery: {component: 'number'}` with `state_topic`/`command_topic`/`min`/`max`, so it is exactly the shape `sliderDiscovery` serves; it should also offer **light brightness / colour-temp axes**. Simplest form: give it `sliderDiscovery` and let its existing `number` map become the `number` variant, so knob and slider stay in step by construction.
+
+**3. Read-only numeric displays — the mirror-image gap.** `material-tank` and `material-progress` have **no `discovery` descriptor at all** and only a `subscribe` (no publish). They are the exact inverse of the slider's settable-only guardrail: they should accept a **`sensor`**, and the *read* side of a `number` or a light's brightness — never a command topic. Worth its own small `readonlyNumericDiscovery` fragment rather than bending `sliderDiscovery`, so the guardrail stays legible in both directions.
+
+**Guardrail (inherited, non-negotiable):** whatever is added keeps E156's rule — a control with a write path is never offered a read-only entity, and a display is never offered something purely because it happens to expose a command topic. The existing "a sensor is never offered to a slider" test is the pattern to extend.
+
+**Ships with:** the `accepts` additions per element, the `panel-knob` consolidation, the new read-only fragment + its consumers, tests mirroring `www/test/feezal-discovery-cross-component.test.js` (per element: accepted components, the wired attributes, and the exclusions), `docs/TESTING.md` §9 additions, version bumps per policy.
+
+**Relates:** **[E156](roadmap-archive/E156.md)** ✅ (the mechanism + fragments this rolls out; its "scope note" is this item's starting point), **E114** (family parity — the skipped five are a parity gap in discovery coverage), **U56** ✅ (the per-axis row shape), **E79** (the chip's active-state contract to re-check), `panel-knob` / `material-tank` / `material-progress` (the three new consumers).
 
 ### A7 — Git versioning for data directory 🔨 in progress
 
