@@ -7,7 +7,7 @@ Each entry is filed under the section its **ID prefix** belongs to — `B` Bugs,
 Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastructure,
 `D` Documentation — and sorted by number within it, so a new entry has exactly one correct place.
 
-**303 items.**
+**305 items.**
 
 ## Bugs
 
@@ -83,6 +83,8 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B75 — Roadmap IDs leak into user-facing help texts & labels ✅ fixed](B75.md)
 - [B76 — `paper-slider`: invisible track (default ≈ background) + knob defaults should be `--primary-text-color` ✅ fixed](B76.md)
 - [B77 — Background editor: gradient-stop percent input still too small (B73 fix insufficient) ✅ fixed](B77.md)
+- [B78 — Roadmap IDs leak into rendered help text (site-settings + Security) — B75 guard gap ✅ fixed](B78.md)
+- [B79 — `glass-light` popup: brightness % shown unrounded (55.00000000000001 %) ✅ fixed](B79.md)
 
 ## Near-term Improvements
 

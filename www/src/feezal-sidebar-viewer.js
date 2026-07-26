@@ -691,7 +691,7 @@ class FeezalSidebarViewer extends LitElement {
                         Pause hidden views' subscriptions
                     </sl-switch>
                     <div class="pwa-hint">
-                        N37: hidden views unsubscribe their MQTT topics after the
+                        Hidden views unsubscribe their MQTT topics after the
                         grace period below and rewire instantly when shown again
                         (retained values repaint from the cache). Per-view
                         override: the view's <code>pause-subscriptions</code>
@@ -715,7 +715,7 @@ class FeezalSidebarViewer extends LitElement {
                             Show connection toasts
                         </sl-switch>
                         <div class="pwa-hint">
-                            U48: off silences the transient <code>Connected as "…"</code> /
+                            Off silences the transient <code>Connected as "…"</code> /
                             renamed pop-ups on every viewer load (handy on a wall panel).
                             Presence and per-client commands keep working; the sticky
                             "already online in another browser" warning still shows.
@@ -976,7 +976,7 @@ class FeezalSidebarViewer extends LitElement {
             <div class="section">
                 <div class="section-label">Content-Security-Policy (per site)</div>
                 <div class="pwa-hint">
-                    A28: controls which hosts this site's <b>viewer</b> may load
+                    Controls which hosts this site's <b>viewer</b> may load
                     content from. Defaults keep today's behaviour (code locked to
                     feezal, content open). Changes apply on deploy. The editor's
                     policy stays fixed.

@@ -31,6 +31,26 @@ export {pctToRaw, kelvinToRgb, rgbToHex, rgbToHsv, hsvToRgb, parseRgb, xyToRgb};
 // E122: attribute rows that only apply to dimmable modes (hidden for a relay
 // lamp). Part of the contract, not family chrome — every family's generic
 // inspector gates identically; custom inspectors simply ignore it.
+/**
+ * B79 — clamp a computed brightness percentage to 0…100 and strip IEEE-754
+ * noise from the division.
+ *
+ * Scaling a device range produces values like `0.55 / 1 * 100` →
+ * 55.00000000000001, or `0.29` → 28.999999999999996. Views that interpolate
+ * `brt` straight into their markup then render "55.00000000000001 %".
+ *
+ * Rounded to 6 decimals: far finer than any device resolution, so a genuinely
+ * fractional percentage (a sub-integer device range, B17/B26) survives intact,
+ * while the noise is gone. Deliberately NOT rounded to an integer here — `brt`
+ * feeds `pctToRaw()` on the toggle-on restore path, and quantising it would
+ * change the value published back to the device. Integer *display* is each
+ * view's job (all of them do it now).
+ *
+ * Safe for E127 settling: the SettlingController works entirely in RAW device
+ * units (`command`/`live`/`settled` all take the raw value), never in `brt`.
+ */
+const clampPct = pct => Math.max(0, Math.min(100, Math.round(pct * 1e6) / 1e6));
+
 const DIMMABLE = {visibleWhen: {attr: 'mode', equals: ['brightness', 'brightness_ct', 'color_temp', 'rgb', 'hs']}};
 const CT_ONLY  = {visibleWhen: {attr: 'mode', equals: ['brightness_ct', 'color_temp']}};
 
@@ -204,7 +224,7 @@ export class LightController {
 
     rawToPct(v) {
         const min = this.brightnessMin, max = this.brightnessMax;
-        return max === min ? 0 : Math.max(0, Math.min(100, (v - min) / (max - min) * 100));
+        return max === min ? 0 : clampPct((v - min) / (max - min) * 100);
     }
 
     /** E77: the raw brightness value that means "off" in brightness mode —
@@ -347,7 +367,7 @@ export class LightController {
         const bri = Number(get(map.brightness));
         if (!isNaN(bri)) {
             const max = this.brightnessMax || 100;
-            this.brt = Math.max(0, Math.min(100, (bri / max) * 100));
+            this.brt = clampPct((bri / max) * 100);
             // E77: no state key in the message → derive on/off from brightness.
             if (state === undefined || state === null) this.on = bri > 0;
         }

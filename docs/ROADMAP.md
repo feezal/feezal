@@ -9,8 +9,6 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
-- [B78 — Roadmap IDs leak into rendered help text (site-settings + Security) — B75 guard gap](#b78--roadmap-ids-leak-into-rendered-help-text-site-settings--security--b75-guard-gap)
-- [B79 — `glass-light` popup: brightness % shown unrounded (55.00000000000001 %)](#b79--glass-light-popup-brightness--shown-unrounded-5500000000000001-)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -145,62 +143,6 @@ Work in progress — priorities and scope are not final.
 **Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
 
 **Relates:** **[B62](roadmap-archive/B62.md)** ✅ (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
-
-### B78 — Roadmap IDs leak into rendered help text (site-settings + Security) — B75 guard gap
-
-Three user-facing help strings in the viewer/site-settings sidebar start with a roadmap ID, visible to end users:
-- **`N37:`** — Bandwidth section, pause-hidden-views hint ([feezal-sidebar-viewer.js:694](../www/src/feezal-sidebar-viewer.js#L694), `.pwa-hint`).
-- **`U48:`** — Viewer-presence "connection toasts" hint ([feezal-sidebar-viewer.js:718](../www/src/feezal-sidebar-viewer.js#L718)).
-- **`A28:`** — Security tab, per-site CSP intro ([feezal-sidebar-viewer.js:979](../www/src/feezal-sidebar-viewer.js#L979)).
-
-**Fix:** strip the `N37: ` / `U48: ` / `A28: ` prefixes; the sentences read fine without them.
-
-**Root cause — the B75 guard doesn't cover this shape.** [no-roadmap-ids-in-ui.test.js](../www/test/no-roadmap-ids-in-ui.test.js) scans `src/` only for **descriptor property** strings (`help:`/`label:`/`placeholder:`/`description: '…'`). These three leaks are **inline `html\`\`` template text** inside `<div class="…hint">`/`<div>` blocks — a shape the guard never inspects, which is why they slipped through after B75. **Extend the guard** to also catch roadmap-ID patterns (`\b[BENUA]\d+:` at a rendered-text position) in JSX/`html\`\`` template literals within `src/`, not only descriptor properties — keeping the existing allowlist for legitimate look-alikes (`CO2`, `A4`, …). Code **comments** (`// N37:`) stay allowed — they're correct there.
-
-**Ships with:** the three string edits, the guard-test extension (with a fixture proving it now catches an ID prefix in rendered template text), a full `grep` sweep of `src/` rendered strings for any other survivors (the three found may not be exhaustive).
-
-**Relates:** **[B75](roadmap-archive/B75.md)** ✅ (the original leak fix + the guard this widens — same class of bug, the guard just had a blind spot), the "no roadmap IDs in user-facing strings" rule in the repo instructions, N37 ✅ / U48 ✅ / A28 (the features whose IDs leaked — comments referencing them are fine).
-
-
-### B79 — `glass-light` popup: brightness % shown unrounded (55.00000000000001 %)
-
-**Reported (07/2026).** The brightness pill in the `glass-light` details popup shows values like `55.00004 %` instead of `55 %`.
-
-**Cause — float scaling, and a display site that forgot to round.** `LightController.rawToPct()` returns the scaled value **unrounded** ([feezal-controller-light.js:205-208](../www/packages/@feezal/feezal-controller-light/feezal-controller-light.js#L205)):
-
-```js
-return max === min ? 0 : Math.max(0, Math.min(100, (v - min) / (max - min) * 100));
-```
-
-With a Homematic dimmer (`LEVEL` 0…1, so `brightness-max: 1`) a reported `0.55` becomes `0.55 / 1 * 100` → **55.00000000000001** in IEEE-754. Rounding is left to each view — and the popup pill interpolates the raw number ([feezal-element-glass-light.js:505](../www/packages/@feezal/feezal-element-glass-light/feezal-element-glass-light.js#L505)):
-
-```js
-<div class="pct">${this._dispBrt ?? 0} %</div>
-```
-
-**Not a drag bug.** `_vsliderApply()` already does `Math.round(...)` ([:400-403](../www/packages/@feezal/feezal-element-glass-light/feezal-element-glass-light.js#L400)), so dragging the pill always shows a clean integer. It only appears for values arriving **from MQTT** — which is why it looks intermittent.
-
-**Wider than reported — 2 of 4 families, and `glass-light` is inconsistent with itself:**
-
-| view | brightness display | rounds? |
-|---|---|---|
-| `circle-light` | ring centre readout ([:554](../www/packages/@feezal/feezal-element-circle-light/feezal-element-circle-light.js#L554)) | ✅ `Math.round` |
-| `metro-light` | tile state line ([:263](../www/packages/@feezal/feezal-element-metro-light/feezal-element-metro-light.js#L263)) | ✅ `Math.round` |
-| `glass-light` | **card face** state text ([:469](../www/packages/@feezal/feezal-element-glass-light/feezal-element-glass-light.js#L469)) | ✅ `Math.round` |
-| `glass-light` | **popup pill** ([:505](../www/packages/@feezal/feezal-element-glass-light/feezal-element-glass-light.js#L505)) | ❌ **the reported bug** |
-| `eink-light` | value block ([:248](../www/packages/@feezal/feezal-element-eink-light/feezal-element-eink-light.js#L248)) | ❌ same latent bug |
-
-So the same card rounds on its face and not in its popup, and `eink-light` has the identical defect nobody has hit yet — on an e-paper panel a jittering long number is worse than elsewhere, since it also defeats the family's `renderSignature()` redraw dedup (a new string every time the float wobbles ⇒ a needless partial refresh).
-
-**Decision needed: round centrally or per view?**
-- **Central** — round in `rawToPct()`. One fix, all families, and it kills the class. But `brt` is also the value fed back into `pctToRaw()` on publish, so rounding it changes the *published* value for sub-integer device ranges (B17/B26 territory: a 0…1 range has only 101 representable steps after rounding, which is fine, but a 0…0.5 range would quantise visibly). Would need checking against the settling logic (E127), which compares reported vs target for equality.
-- **Per view** — round at the two display sites (the reported one plus `eink-light`). Zero behavioural risk, but leaves the trap for the next family/readout, exactly as it caught `glass-light`'s own popup.
-- **Middle ground (likely best)** — keep `brt` exact for the publish/settling path and add a rounded accessor on the controller (e.g. `brtDisplay`) that every view uses for text, so there is one obvious right thing to interpolate.
-
-**Ships with:** the chosen fix, the `eink-light` site fixed alongside (do not leave a known-identical defect behind), a browser test that feeds a Homematic-style `0…1` range a value whose scaling is inexact and asserts the rendered text is a clean integer in every family, and a `docs/TESTING.md` note. Patch bumps on whatever packages change.
-
-**Relates:** **E137** ✅ (`feezal-controller-light` — where `rawToPct` lives and where a central fix would go), **E127** ✅ (settling compares reported vs target — check a central rounding does not break the equality test), **B17** ✅ / **B26** ✅ (sub-integer device ranges, the reason the scaling is float in the first place), **E114** (family parity — this is a parity gap in the display layer), `glass-light` / `eink-light` (the two unrounded sites), E57 (the e-ink redraw-dedup angle).
-
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 

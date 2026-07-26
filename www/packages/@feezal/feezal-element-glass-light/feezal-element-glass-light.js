@@ -502,7 +502,7 @@ class FeezalElementGlassLight extends FeezalGlassCard {
                         @pointerup="${this._vsliderUp}">
                         <div class="fill" style="height:${this._dispBrt ?? 0}%"></div>
                         <feezal-icon name="${this.icon || 'lightbulb'}"></feezal-icon>
-                        <div class="pct">${this._dispBrt ?? 0} %</div>
+                        <div class="pct">${Math.round(this._dispBrt ?? 0)} %</div>
                     </div>` : ''}
                 ${caps.ct ? html`
                     <input type="range" class="ct" title="Colour temperature"

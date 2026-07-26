@@ -394,7 +394,7 @@ class FeezalSidebarInspectorConditions extends LitElement {
                         <div class="field">
                             <label>property</label>
                             <sl-input size="small" autocomplete="off" placeholder="payload"
-                                title="U49: dot-path into the message to compare, e.g. val or state.temperature. Empty = the whole payload."
+                                title="Dot-path into the message to compare, e.g. val or state.temperature. Empty = the whole payload."
                                 .value="${row.property || ''}"
                                 @sl-change="${e => this._patch(i, 'property', e.target.value.trim())}"></sl-input>
                         </div>
