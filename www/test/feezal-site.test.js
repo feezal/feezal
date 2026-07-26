@@ -3,12 +3,6 @@ import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import '../src/feezal-site.js';
 import '../src/feezal-view.js';
 
-// Lit accepts either a single CSSResult or an array for `static styles`.
-function cssOfTag(tag) {
-    const styles = customElements.get(tag).styles;
-    return (Array.isArray(styles) ? styles : [styles]).map(s => s.cssText).join('\n');
-}
-
 function makeViews(...names) {
     return names.map(name => {
         const view = document.createElement('feezal-view');
@@ -265,16 +259,10 @@ describe('_syncViewBackground() — document mirroring for iOS safe areas', () =
     });
 });
 
-// B62 — a gradient view background tiled and scrolled away on the iOS viewer.
-//
-// The first fix took gradients off the site and left them to the document-root
-// mirror, on the premise that the page never scrolls so a root background is
-// already viewport-fixed. It shipped and the bug came back: the page DID
-// scroll (the site's env() padding was added to height:100% — see the
-// box-sizing test below), and iOS additionally mis-composites a root layer
-// under `background-attachment: fixed`, which is what left repaint artifacts
-// around the cards. Gradients are now painted by a real viewport-fixed
-// #backdrop element, which is what the original analysis prescribed.
+// B62 — a gradient view background used to tile and scroll away on the iOS
+// viewer: the site's own background-attachment:local layer repeats down the
+// scroll area. Gradients now come off the site entirely and are painted by the
+// (viewport-sized, non-scrolling) document root mirror, no-repeat + cover.
 describe('_syncViewBackground() — gradient backgrounds (B62)', () => {
     const GRADIENT = 'linear-gradient(180deg, rgb(1, 2, 3) 0%, rgb(9, 8, 7) 100%)';
 
@@ -297,22 +285,13 @@ describe('_syncViewBackground() — gradient backgrounds (B62)', () => {
         expect(site.hasAttribute('gradient-bg')).toBe(true);
     });
 
-    it('mirrors the gradient onto html/body no-repeat, covering the viewport', () => {
+    it('paints the gradient on html/body no-repeat, covering the viewport', () => {
         syncedSite(GRADIENT);
         for (const el of [document.documentElement, document.body]) {
             expect(el.style.backgroundImage).toContain('linear-gradient');
             expect(el.style.backgroundRepeat).toBe('no-repeat');
             expect(el.style.backgroundSize).toBe('cover');
-        }
-    });
-
-    it('never sets background-attachment: fixed on the mirror', () => {
-        // iOS ignores `fixed` AND mis-composites the root layer beneath it
-        // while an inner element scrolls — the source of the artifacts around
-        // the cards in the re-report. The fixed layer is #backdrop instead.
-        syncedSite(GRADIENT);
-        for (const el of [document.documentElement, document.body]) {
-            expect(el.style.backgroundAttachment).not.toBe('fixed');
+            expect(el.style.backgroundAttachment).toBe('fixed');
         }
     });
 
@@ -345,68 +324,6 @@ describe('_syncViewBackground() — gradient backgrounds (B62)', () => {
             'repeating-linear-gradient(45deg, red 0 10px, blue 10px 20px)']) {
             expect(syncedSite(bg).hasAttribute('gradient-bg'), bg).toBe(true);
         }
-    });
-
-    // ── the viewport-fixed backdrop (B62, second attempt) ───────────────────
-    // Layout can't be measured under happy-dom, so these pin the structure the
-    // fix depends on: the layer exists, it is gated, and it is genuinely
-    // viewport-fixed rather than relying on background-attachment.
-    describe('#backdrop', () => {
-        const css = () => cssOfTag('feezal-site');
-
-        it('is rendered, first, so the views paint over it', () => {
-            const site = document.createElement('feezal-site');
-            const markup = site.render().strings.join('');
-            expect(markup).toContain('id="backdrop"');
-            expect(markup.indexOf('id="backdrop"')).toBeLessThan(markup.indexOf('<slot'));
-        });
-
-        it('is inert until a gradient view flags the viewer', () => {
-            expect(css()).toMatch(/#backdrop\s*\{[^}]*display:\s*none/);
-            expect(css()).toMatch(/:host\(\.feezal-viewer\[gradient-bg\]\)\s*#backdrop/);
-        });
-
-        it('is position:fixed to the viewport — not background-attachment', () => {
-            const rule = /:host\(\.feezal-viewer\[gradient-bg\]\)\s*#backdrop\s*\{([^}]*)\}/
-                .exec(css())[1];
-            expect(rule).toMatch(/position:\s*fixed/);
-            expect(rule).toMatch(/inset:\s*0/);
-            expect(rule).not.toMatch(/background-attachment/);
-        });
-
-        it('does not use a negative z-index', () => {
-            // The site is not a stacking context, so z-index:-1 would drop the
-            // layer behind the <body> mirror and hide it entirely.
-            const rule = /:host\(\.feezal-viewer\[gradient-bg\]\)\s*#backdrop\s*\{([^}]*)\}/
-                .exec(css())[1];
-            expect(rule).toMatch(/z-index:\s*0/);
-            expect(rule).not.toMatch(/z-index:\s*-/);
-        });
-
-        it('never intercepts pointer events', () => {
-            const rule = /:host\(\.feezal-viewer\[gradient-bg\]\)\s*#backdrop\s*\{([^}]*)\}/
-                .exec(css())[1];
-            expect(rule).toMatch(/pointer-events:\s*none/);
-        });
-    });
-});
-
-// The regression that made the first B62 fix fail, and the sideways-pan report
-// filed with it: `width/height: 100%` plus padding must not overflow. On the
-// site the padding is the iOS safe-area inset — content-box sizing made the
-// site taller than the viewport, so the DOCUMENT scrolled and took the
-// root-propagated gradient with it. On the view it is the author's own
-// padding, which made a 100%-wide view pannable sideways.
-describe('100% + padding must not overflow (B62)', () => {
-    it('feezal-site sizes its safe-area padding inside 100%', () => {
-        const host = /:host\s*\{([^}]*)\}/.exec(cssOfTag('feezal-site'))[1];
-        expect(host).toMatch(/box-sizing:\s*border-box/);
-        // the padding this exists for is still there
-        expect(host).toMatch(/padding:\s*env\(safe-area-inset-top\)/);
-    });
-
-    it('feezal-view sizes its own padding inside 100%', () => {
-        expect(cssOfTag('feezal-view')).toMatch(/:host\s*\{[^}]*box-sizing:\s*border-box/);
     });
 });
 

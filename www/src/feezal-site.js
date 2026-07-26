@@ -37,14 +37,6 @@ class FeezalSite extends LitElement {
                devices without insets, so desktop/editor are unaffected. */
             padding: env(safe-area-inset-top) env(safe-area-inset-right)
                      env(safe-area-inset-bottom) env(safe-area-inset-left);
-            /* B62 (second attempt): WITHOUT this the env() padding above is
-               ADDED to width/height:100%, so on any device with insets the
-               site overflows the viewport by the inset sizes and the DOCUMENT
-               becomes scrollable. That is what broke the first fix: it assumed
-               "the page itself never scrolls", so a root-propagated gradient
-               would stay put — but the page did scroll, taking the gradient
-               with it. Border-box makes the padding eat into the 100% instead. */
-            box-sizing: border-box;
             margin: 0;
             /* background synced at runtime to the current view's background;
                background-attachment:local extends the color across the full
@@ -80,42 +72,18 @@ class FeezalSite extends LitElement {
         /* ── B62: gradient view backgrounds ────────────────────────────────
            A gradient canvas background must not scroll or tile with the
            content. The site is the scroller (overflow:auto) and its local
-           background moves with the scrolled content, so for gradients the
-           site paints nothing itself and #backdrop below paints instead.
-
-           The first fix left this to the document-root mirror, betting that
-           the page never scrolls so a propagated root background is already
-           viewport-fixed. Two things broke that bet on iOS: the box-sizing
-           overflow above made the page scroll after all, and iOS Safari
-           mis-composites a root background (and ignores
-           background-attachment:fixed) while an inner element scrolls —
-           which is where the repaint artifacts around the cards came from.
-           So this now does what the original analysis prescribed: a REAL
-           viewport-fixed layer, which no browser has to be trusted to
-           synthesise. Viewer only — the editor keeps its checkerboard (U61). */
+           background moves with the scrolled content — on iOS Safari that
+           reads as a gradient that scrolls away and repeats. So for gradients
+           the site paints nothing and the background is left to the document
+           root mirror written by _syncViewBackground(): <html> is viewport
+           sized (html,body {height:100%} — the page itself never scrolls), so
+           the propagated root background covers the whole canvas, stays put on
+           scroll on every platform, and still fills the iOS status-bar inset
+           and the overscroll bounce, which is what the mirror was added for.
+           Viewer only — the editor keeps its checkerboard (see U61). */
         :host(.feezal-viewer[gradient-bg]) {
             background-image: none;
             background-color: transparent;
-        }
-        #backdrop {
-            display: none;
-        }
-        :host(.feezal-viewer[gradient-bg]) #backdrop {
-            display: block;
-            position: fixed;
-            inset: 0;
-            /* z-index 0, NOT -1: the site is not a stacking context, so a
-               negative index would paint the layer behind the <body> mirror
-               and hide it. At 0 it stays inside the site's painting order,
-               and the views — which follow it in DOM order and are flex
-               items (painted like positioned boxes) — land on top. */
-            z-index: 0;
-            background: var(--feezal-canvas-bg, transparent);
-            background-repeat: no-repeat;
-            background-size: cover;
-            /* Covers the safe-area inset too, so the status-bar strip keeps
-               showing the view's colours without the mirror having to. */
-            pointer-events: none;
         }
         :host(.dark) {
             --primary-background-color: black;
@@ -228,10 +196,7 @@ class FeezalSite extends LitElement {
     }
 
     render() {
-        // B62: the viewport-fixed gradient backdrop. Inert (display:none)
-        // unless the viewer flags a gradient background, and first in DOM
-        // order so the views paint over it.
-        return html`<div id="backdrop" aria-hidden="true"></div><slot></slot>`;
+        return html`<slot></slot>`;
     }
 
     connectedCallback() {
@@ -549,14 +514,13 @@ class FeezalSite extends LitElement {
                     // The shorthand resets repeat/size/attachment first.
                     el.style.background = bg;
                     if (gradient) {
-                        // B62: one gradient, never tiled. The mirror is now
-                        // only a backstop for the overscroll-bounce strip and
-                        // the pre-hydration frame — #backdrop is what the user
-                        // actually looks at. No background-attachment: iOS
-                        // ignores `fixed` and mis-composites the root layer
-                        // under it, which is where the artifacts came from.
+                        // B62: one gradient covering the viewport, never tiled.
+                        // `fixed` pins it where it is honoured; iOS ignores it
+                        // and falls back to `scroll`, which is harmless here —
+                        // the document itself does not scroll.
                         el.style.backgroundRepeat = 'no-repeat';
                         el.style.backgroundSize = 'cover';
+                        el.style.backgroundAttachment = 'fixed';
                     }
                 }
             }
