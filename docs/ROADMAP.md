@@ -144,20 +144,6 @@ Work in progress — priorities and scope are not final.
 
 **Relates:** **[B62](roadmap-archive/B62.md)** ✅ (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
 
-### B81 — Slider discovery offers Homematic dimmers but not zigbee2mqtt light brightness/CT
-
-E156's slider←light axes work for **Homematic dimmers** but **not zigbee2mqtt lights** — a z2m lamp's brightness / colour-temp never appears in a slider's ⚡ picker.
-
-**Root cause.** `lightSettableAxes` in [feezal-discovery-fragments.js](../www/packages/@feezal/feezal-element/feezal-discovery-fragments.js) gates each axis on `when: settable('brightness_command_topic')` / `settable('color_temp_command_topic')`, where `settable = key => cfg => Boolean(cfg[key])`. That key only exists on **separate-mode** lights (Homematic dimmers emit `brightness_command_topic` = the LEVEL topic). **zigbee2mqtt lights use the JSON schema**: `schema: 'json'`, a single `command_topic`, and capability flags (`brightness: true`, `supported_color_modes`/`color_temp`) — brightness is a **key inside the JSON command**, not a separate topic. So `Boolean(cfg.brightness_command_topic)` is `false` for z2m → no axis offered.
-
-**Fix.** Make the axis `when`-guards also recognise **JSON-schema lights**: offer a brightness row when the light declares brightness capability (`schema: 'json'` + `brightness` truthy, or an explicit `brightness_command_topic`), and a colour-temp row when it declares CT (`color_temp` / `supported_color_modes` includes `color_temp`). The map **variant** must branch by schema too — a JSON light wires the slider to publish `{brightness: N}` (json payload mode, the `command_topic` + the JSON key) and read `brightness` out of the state JSON, versus the separate-mode `brightness_command_topic`/`brightness_state_topic` for Homematic. Scale still comes from `brightness_scale` (z2m 254) / mireds range as today.
-
-**Guardrail unchanged:** still settable-only — a light with no brightness capability yields no brightness row (an on/off-only z2m light is a switch match, not a slider one), and sensors are never offered.
-
-**Acceptance:** a discovered zigbee2mqtt lamp shows "*<lamp>* brightness" (and "*<lamp>* color temp" when supported) in a slider's ⚡ picker; picking it wires the JSON command/state correctly (publishes `{brightness: N}`, reads it back, right scale); Homematic dimmers keep working; on/off-only lights and sensors still excluded. Extend `www/test/feezal-discovery-cross-component.test.js` with a z2m JSON-schema light fixture.
-
-**Relates:** **[E156](roadmap-archive/E156.md)** ✅ (the slider←light-axis feature this bug is in — separate-mode only was an oversight), **E157** (rolls the same crossing out further — coordinate the JSON-schema handling so both use one fixed `lightSettableAxes`), the light discovery map (`schema`/`brightness`/`supported_color_modes` keys — the z2m shape to match), `material-light` json payload mode (the `{brightness: N}` publish contract the variant must mirror).
-
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
 Exports over `ws://`/`wss://` (the only permitted export mode) no longer bundle socket.io-client (~40 kB) — ✅ fixed by stubbing out `feezal-connection-feezal.js` in the Vite export plugin.

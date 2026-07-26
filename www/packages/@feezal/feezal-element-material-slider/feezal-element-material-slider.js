@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, numericPublishPayload, publishJsonKeyAttribute} from '@feezal/feezal-element';
 import '@material/web/slider/slider.js';
 
 import {sliderDiscovery} from '@feezal/feezal-element/feezal-discovery-fragments.js';
@@ -39,7 +39,8 @@ class FeezalElementMaterialSlider extends FeezalElement {
                 {name: 'min',      type: 'number',  help: 'Minimum value.', default: 0},
                 {name: 'max',      type: 'number',  help: 'Maximum value.', default: 100},
                 {name: 'step',     type: 'number',  help: 'Step size. Empty: derived from the range — (max − min) / 100 — so sub-integer ranges (e.g. Homematic 0–1) stay usable; 1 for the default 0–100 range. An explicit value wins.'},
-                {name: 'labeled',  type: 'boolean', help: 'Show a value label bubble above the thumb while dragging.', default: false}
+                {name: 'labeled',  type: 'boolean', help: 'Show a value label bubble above the thumb while dragging.', default: false},
+                publishJsonKeyAttribute
             ],
             styles: [
                 'top', 'left', 'width', 'height',
@@ -59,6 +60,7 @@ class FeezalElementMaterialSlider extends FeezalElement {
         max:     {type: Number,  reflect: true},
         step:    {type: Number,  reflect: true},
         labeled: {type: Boolean, reflect: true},
+        publishJsonKey: {type: String, reflect: true, attribute: 'publish-json-key'},
         _value:  {state: true}
     };
 
@@ -113,6 +115,7 @@ class FeezalElementMaterialSlider extends FeezalElement {
         // derived from the range (see effectiveStep), so sub-integer ranges
         // (Homematic LEVEL 0–1) don't collapse to two positions.
         this.labeled = false;
+        this.publishJsonKey = '';
         this._value  = 0;
     }
 
@@ -133,7 +136,7 @@ class FeezalElementMaterialSlider extends FeezalElement {
     _change(e) {
         this._value = e.target.value;
         if (this.publish) {
-            feezal.connection.pub(this.publish, String(this._value));
+            feezal.connection.pub(this.publish, numericPublishPayload(this._value, this.publishJsonKey));
         }
     }
 

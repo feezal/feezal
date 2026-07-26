@@ -69,7 +69,10 @@ describe('multi-component acceptance', () => {
     it('a slider has no base component — everything arrives via accepts', () => {
         const slider = customElements.get('feezal-test-e156-slider');
         expect(slider.feezal.discovery.component).toBeUndefined();
-        expect(acceptedComponents(slider).sort()).toEqual(['light', 'number']);
+        // E158 widened this beyond ['light', 'number'] — climate setpoints and
+        // cover positions are settable numeric axes too.
+        expect(acceptedComponents(slider).sort())
+            .toEqual(['climate', 'cover', 'light', 'number', 'water_heater']);
         expect(elementAcceptsComponent(slider, 'sensor')).toBe(false);
     });
 });

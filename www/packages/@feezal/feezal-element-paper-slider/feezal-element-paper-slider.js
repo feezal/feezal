@@ -3,6 +3,7 @@ import {FeezalPolymerElement} from "@feezal/feezal-element/feezal-polymer-elemen
 
 import '@polymer/paper-slider';
 
+import {numericPublishPayload, publishJsonKeyAttribute} from '@feezal/feezal-element';
 import {sliderDiscovery} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 class FeezalElementPaperSlider extends FeezalPolymerElement {
     static get template() {
@@ -89,6 +90,11 @@ class FeezalElementPaperSlider extends FeezalPolymerElement {
                 type: Boolean,
                 value: true,
                 reflectToAttribute: true
+            },
+            publishJsonKey: {
+                type: String,
+                value: '',
+                reflectToAttribute: true
             }
         }
     }
@@ -114,6 +120,7 @@ class FeezalElementPaperSlider extends FeezalPolymerElement {
                 {name: 'pin'},
                 {name: 'noink'},
                 {name: 'disabled'},
+                publishJsonKeyAttribute,
             ],
             baseAttribute: 'value',
             styles: [
@@ -152,11 +159,13 @@ class FeezalElementPaperSlider extends FeezalPolymerElement {
         super.connectedCallback();
         if (this.immediate) {
             this.$.slider.addEventListener('immediate-value-change', this.throttle(() => {
-                feezal.connection.pub(this.publish, this.$.slider.immediateValue);
+                feezal.connection.pub(this.publish,
+                    numericPublishPayload(this.$.slider.immediateValue, this.publishJsonKey));
             }, this.immediateThrottle));
         }
         this.$.slider.addEventListener('change', () => {
-            feezal.connection.pub(this.publish, this.$.slider.value);
+            feezal.connection.pub(this.publish,
+                numericPublishPayload(this.$.slider.value, this.publishJsonKey));
         });
         this.addSubscription(this.subscribe, msg => {
             if (!this.$.slider.dragging && !this._inThrottle) {

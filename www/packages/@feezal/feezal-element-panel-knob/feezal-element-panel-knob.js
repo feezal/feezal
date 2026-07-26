@@ -1,8 +1,8 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, numericPublishPayload, publishJsonKeyAttribute} from '@feezal/feezal-element';
 import {svg} from 'lit';
 
-import {lightSettableAxes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
+import {settableAxes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-panel-knob (E56)
@@ -43,6 +43,7 @@ class FeezalElementPanelKnob extends FeezalElement {
                 {name: 'label',   type: 'string', help: 'Engraved label under the knob.'},
                 {name: 'unit',    type: 'string', help: 'Unit shown next to the value readout.'},
                 {name: 'digits',  type: 'number', default: 0, help: 'Decimal places of the value readout.'},
+                publishJsonKeyAttribute,
             ],
             styles: [
                 'top', 'left', 'width', 'height',
@@ -56,11 +57,13 @@ class FeezalElementPanelKnob extends FeezalElement {
             defaultStyle: {width: '120px', height: '140px'},
             discovery: {
                 component: 'number',
-                // E157: a knob is a slider with a different gesture, so it
-                // drives a light's settable axes too. The `number` case keeps
-                // the map below rather than the slider's — that one drops
-                // `unit_of_measurement`, which this element displays.
-                accepts: lightSettableAxes,
+                // E157/E158: a knob is a slider with a different gesture, so it
+                // drives every settable axis a slider does — a light's
+                // brightness/colour temp, a thermostat setpoint, a blind's
+                // position. The `number` case keeps the map below rather than
+                // the slider's — that one drops `unit_of_measurement`, which
+                // this element displays.
+                accepts: settableAxes,
                 map: {
                     state_topic:         'subscribe',
                     command_topic:       'publish',
@@ -87,6 +90,7 @@ class FeezalElementPanelKnob extends FeezalElement {
         label:   {type: String,  reflect: true},
         unit:    {type: String,  reflect: true},
         digits:  {type: Number,  reflect: true},
+        publishJsonKey: {type: String, reflect: true, attribute: 'publish-json-key'},
         _value:  {state: true},
     };
 
@@ -129,6 +133,7 @@ class FeezalElementPanelKnob extends FeezalElement {
         this.label = '';
         this.unit = '';
         this.digits = 0;
+        this.publishJsonKey = '';
         this._value = null;
         this.__dragging = false;
         this.__pubTimer = null;
@@ -270,7 +275,7 @@ class FeezalElementPanelKnob extends FeezalElement {
         this.__pubTimer = null;
         if (feezal.isEditor || !this.publish || v === null) return;
         const rounded = Number(v.toFixed(Math.max(0, this.digits ?? 0)));
-        feezal.connection.pub(this.publish, String(rounded));
+        feezal.connection.pub(this.publish, numericPublishPayload(rounded, this.publishJsonKey));
     }
 
     // ── Render ────────────────────────────────────────────────────────────────

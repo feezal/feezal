@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, numericPublishPayload, publishJsonKeyAttribute} from '@feezal/feezal-element';
 import '@carbon/web-components/es/components/slider/slider.js';
 import {deriveStep} from './derive-step.js';
 
@@ -23,7 +23,8 @@ class FeezalElementCarbonSlider extends FeezalElement {
                 {name: 'publish',  type: 'mqttTopic', help: 'Topic to publish the numeric value to on change.'},
                 {name: 'min',      type: 'number',  help: 'Minimum value.', default: 0},
                 {name: 'max',      type: 'number',  help: 'Maximum value.', default: 100},
-                {name: 'step',     type: 'number',  help: 'Step size. Empty: derived from the range — (max − min) / 100 — so sub-integer ranges (e.g. Homematic 0–1) stay usable; 1 for the default 0–100 range. An explicit value wins.'}
+                {name: 'step',     type: 'number',  help: 'Step size. Empty: derived from the range — (max − min) / 100 — so sub-integer ranges (e.g. Homematic 0–1) stay usable; 1 for the default 0–100 range. An explicit value wins.'},
+                publishJsonKeyAttribute
             ],
             styles: [
                 'top', 'left', 'width', 'height',
@@ -41,6 +42,7 @@ class FeezalElementCarbonSlider extends FeezalElement {
         min:     {type: Number,  reflect: true},
         max:     {type: Number,  reflect: true},
         step:    {type: Number,  reflect: true},
+        publishJsonKey: {type: String, reflect: true, attribute: 'publish-json-key'},
         _value:  {state: true}
     };
 
@@ -95,7 +97,7 @@ class FeezalElementCarbonSlider extends FeezalElement {
     _change(e) {
         this._value = e.detail.value;
         if (this.publish) {
-            feezal.connection.pub(this.publish, String(this._value));
+            feezal.connection.pub(this.publish, numericPublishPayload(this._value, this.publishJsonKey));
         }
     }
 

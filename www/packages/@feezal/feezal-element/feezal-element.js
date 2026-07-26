@@ -529,6 +529,39 @@ export function dialogPlaceholderLabel(base, label) {
 }
 
 /**
+ * B81 — shared descriptor for a continuous control's JSON publish key.
+ *
+ * The sliders and the knob publish a bare number (`"128"`). That is right for
+ * a dedicated topic — a Homematic LEVEL set topic, an HA `set_position_topic`,
+ * a z2m `…/set/<attribute>` sub-topic — but wrong for a **JSON-schema** device
+ * (z2m lights, HA `schema: json`), which has ONE command topic that takes an
+ * object: `{"brightness": 128}`.
+ *
+ * Setting this attribute switches the control to that form. Presence IS the
+ * mode — no separate enum — because a single-value control needs exactly one
+ * key, unlike the light/cover controllers whose `payload-mode` + `json-map`
+ * pair has to carry a whole object's worth of properties.
+ */
+export const publishJsonKeyAttribute = {
+    name: 'publish-json-key',
+    type: 'string',
+    default: '',
+    help: 'Publish a JSON object instead of a bare number: the value is sent as {"<key>": value} to the publish topic. Needed for devices with a single JSON command topic (zigbee2mqtt lights, Home Assistant schema: json) — e.g. "brightness". Leave empty to publish the plain number.'
+};
+
+/**
+ * B81 — render a numeric value for publishing, honouring `publish-json-key`.
+ * Without a key the value is stringified as before (byte-for-byte the previous
+ * behaviour); with one it becomes a single-key JSON object, numeric where the
+ * value is numeric so `{"brightness": 128}` is not sent as `{"brightness": "128"}`.
+ */
+export function numericPublishPayload(value, jsonKey) {
+    if (!jsonKey) return String(value);
+    const n = Number(value);
+    return JSON.stringify({[jsonKey]: Number.isFinite(n) && value !== '' && value !== null ? n : value});
+}
+
+/**
  * E137 — payload comparison, cross-controller shared machinery: string
  * coercion (case-insensitive) plus boolean true/false matching the HA/z2m
  * ON/OFF conventions. Single source — the copies in feezal-glass and the

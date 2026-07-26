@@ -30,7 +30,7 @@ import {
     discoveryVariantsFor, stampDiscovery,
 } from '../src/feezal-discovery-stamp.js';
 import {
-    switchAcceptsLight, makeSwitchAcceptsLight, lightSettableAxes,
+    switchAcceptsLight, makeSwitchAcceptsLight, settableAxes,
     sliderDiscovery, readonlyNumericDiscovery,
 } from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
@@ -72,7 +72,7 @@ class KnobFixture extends HTMLElement {
         attributes: [{name: 'label'}],
         discovery: {
             component: 'number',
-            accepts: lightSettableAxes,
+            accepts: settableAxes,
             map: {
                 state_topic: 'subscribe', command_topic: 'publish',
                 min: 'min', max: 'max', step: 'step', name: 'label',
@@ -187,8 +187,11 @@ describe('paper-checkbox reads from `topic`, not `subscribe`', () => {
 describe('panel-knob — light axes without losing its own number map', () => {
     const knob = () => customElements.get('feezal-test-e157-knob');
 
-    it('accepts number and light', () => {
-        expect(acceptedComponents(knob()).sort()).toEqual(['light', 'number']);
+    it('accepts every settable-axis component alongside number', () => {
+        // E158 widened this from ['light', 'number'] — the knob drives a
+        // thermostat setpoint and a blind position as readily as a dimmer.
+        expect(acceptedComponents(knob()).sort())
+            .toEqual(['climate', 'cover', 'light', 'number', 'water_heater']);
     });
 
     it('keeps `unit_of_measurement` on a number entity (the slider map drops it)', () => {
@@ -301,7 +304,7 @@ describe('every rolled-out element declares the shared fragment', () => {
         ['feezal-element-tui-checkbox',      'switchAcceptsLight'],
         ['feezal-element-material-chip',     'switchAcceptsLight'],
         ['feezal-element-paper-checkbox',    'makeSwitchAcceptsLight'],
-        ['feezal-element-panel-knob',        'lightSettableAxes'],
+        ['feezal-element-panel-knob',        'settableAxes'],
         ['feezal-element-material-tank',     'readonlyNumericDiscovery'],
         ['feezal-element-material-progress', 'readonlyNumericDiscovery'],
     ];

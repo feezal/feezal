@@ -1,5 +1,5 @@
 /**
- * E156/E157 — cross-component discovery fragments.
+ * E156/E157/E158/B81 — cross-component discovery fragments.
  *
  * Discovery used to match an element only to entities whose component EQUALS
  * the element's own. That is too strict: a device of one component is often
@@ -9,7 +9,7 @@
  *
  *   switchAcceptsLight          8 *-switch, 4 *-checkbox, material-chip
  *   sliderDiscovery             3 *-slider
- *   lightSettableAxes           panel-knob (+ the sliders, via sliderDiscovery)
+ *   settableAxes                panel-knob (+ the sliders, via sliderDiscovery)
  *   readonlyNumericDiscovery    material-tank, material-progress
  *
  * The mechanism is `discovery.accepts` — see `elementAcceptsComponent` /
@@ -72,8 +72,25 @@ export const switchAcceptsLight = makeSwitchAcceptsLight();
 // as a brightness row.
 const settable = key => cfg => Boolean(cfg[key]);
 
+// B81 — a JSON-SCHEMA light (zigbee2mqtt, HA `schema: json`) has no per-axis
+// command topic at all: it has ONE `command_topic` that takes an object, and
+// brightness/colour temp are KEYS inside it. `settable('brightness_command_topic')`
+// is therefore false for every z2m lamp, which is why none of them ever showed
+// up in a slider's picker. These probes recognise the other dialect.
+const isJsonLight = cfg => cfg.schema === 'json' && Boolean(cfg.command_topic);
+// z2m advertises `brightness: true`; HA-native lights advertise capability
+// through supported_color_modes, where every mode EXCEPT `onoff` implies a
+// settable brightness. An onoff-only lamp stays excluded — it is a switch
+// match, not a slider one (the same guardrail as the separate-mode path).
+const jsonBrightness = cfg => isJsonLight(cfg) && (Boolean(cfg.brightness) ||
+    (cfg.supported_color_modes || []).some(m => m && m !== 'onoff'));
+const jsonColorTemp = cfg => isJsonLight(cfg) && (Boolean(cfg.color_temp) ||
+    (cfg.supported_color_modes || []).includes('color_temp'));
+
 /**
- * The settable numeric AXES of a light — brightness and colour temp.
+ * The settable numeric AXES of a light — brightness and colour temp, in both
+ * dialects: separate-mode (one topic per axis — Homematic) and JSON-schema
+ * (one command topic taking `{brightness: N}` — zigbee2mqtt, HA `schema: json`).
  *
  * Split out from `sliderDiscovery` (E157) because a slider is not the only
  * continuous control: `panel-knob` is the same thing with a different gesture.
@@ -112,6 +129,126 @@ export const lightSettableAxes = [
             max_mireds: {attr: 'max'},
         },
     },
+    // ── B81: the same two axes on a JSON-schema light ───────────────────────
+    // `publish-json-key` switches the control from publishing `128` to
+    // publishing `{"brightness": 128}` on the single command topic. The read
+    // side needs no new machinery — the state topic carries the whole object,
+    // so `message-property` just points into it.
+    //
+    // **Map order is load-bearing here too.** `command_topic` carries the
+    // range DEFAULTS in its `alsoSet` (the JSON schema's brightness range is
+    // 0–255, and mireds 153–500 — the control's own 0–100 default would be
+    // meaningless), and the discovered `brightness_scale` / mired keys come
+    // AFTER so a device that states its range overrides the default.
+    {
+        component: 'light',
+        label: 'brightness',
+        when: jsonBrightness,
+        map: {
+            name: 'label',
+            command_topic: {attr: 'publish', alsoSet: {
+                'publish-json-key': 'brightness',
+                'message-property': 'payload.brightness',
+                min: '0', max: '255',
+            }},
+            state_topic: 'subscribe',
+            brightness_scale: {attr: 'max'},   // z2m: 254 — must beat the 255 default
+        },
+    },
+    {
+        component: 'light',
+        label: 'color temp',
+        when: jsonColorTemp,
+        map: {
+            name: 'label',
+            command_topic: {attr: 'publish', alsoSet: {
+                'publish-json-key': 'color_temp',
+                'message-property': 'payload.color_temp',
+                min: '153', max: '500',
+            }},
+            state_topic: 'subscribe',
+            min_mireds: {attr: 'min'},
+            max_mireds: {attr: 'max'},
+        },
+    },
+];
+
+/**
+ * E158 — a thermostat's settable target temperature.
+ *
+ * Homematic TRVs and HA `climate` entities use the same key names here, so one
+ * variant covers both. `water_heater` is climate-shaped (E150) and reuses the
+ * identically-named keys, so it rides along rather than being a parity gap.
+ */
+const setpointMap = {
+    name: 'label',
+    temperature_state_topic:   'subscribe',
+    temperature_command_topic: 'publish',
+    min_temp:  {attr: 'min'},
+    max_temp:  {attr: 'max'},
+    temp_step: {attr: 'step'},
+    message_property_setpoint: 'message-property',
+};
+
+export const climateSetpointAxes = [
+    {component: 'climate', label: 'setpoint', when: settable('temperature_command_topic'), map: setpointMap},
+    {component: 'water_heater', label: 'setpoint', when: settable('temperature_command_topic'), map: setpointMap},
+];
+
+/**
+ * E158 — a blind's settable position, in both dialects.
+ *
+ * Both publish a PLAIN NUMBER, so neither needs `publish-json-key`: Homematic's
+ * `position_command_topic` takes a LEVEL, and HA's `set_position_topic` is a
+ * dedicated topic whose default template is the bare position (z2m spells it
+ * `…/set/position`).
+ *
+ * An open/close-only blind has neither key and yields no row — the inherited
+ * settable-only guardrail, and the reason this is two variants rather than one
+ * map with optional keys.
+ */
+export const coverPositionAxes = [
+    {
+        // Separate mode — Homematic reports LEVEL 0…1, so the range comes from
+        // position_min/position_max rather than being assumed 0–100.
+        component: 'cover',
+        label: 'position',
+        when: settable('position_command_topic'),
+        map: {
+            name: 'label',
+            position_state_topic:   'subscribe',
+            position_command_topic: 'publish',
+            position_min: {attr: 'min'},
+            position_max: {attr: 'max'},
+            message_property_position: 'message-property',
+        },
+    },
+    {
+        // HA / zigbee2mqtt — a dedicated set-position topic. HA's defaults are
+        // already 0–100, which is the control's own default, so no alsoSet.
+        component: 'cover',
+        label: 'position',
+        when: settable('set_position_topic'),
+        map: {
+            name: 'label',
+            position_topic:     'subscribe',
+            set_position_topic: 'publish',
+            position_closed: {attr: 'min'},
+            position_open:   {attr: 'max'},
+            position_template: {attr: 'message-property', transform: 'valueTemplateToPath'},
+        },
+    },
+];
+
+/**
+ * Every settable numeric axis a continuous control can drive, regardless of
+ * which component exposes it. `sliderDiscovery` adds the `number` entity on
+ * top; `panel-knob` takes this list and keeps its own `number` map.
+ */
+export const settableAxes = [
+    ...lightSettableAxes,
+    ...climateSetpointAxes,
+    ...coverPositionAxes,
 ];
 
 /**
@@ -121,7 +258,7 @@ export const lightSettableAxes = [
  */
 export const sliderDiscovery = {
     accepts: [
-        ...lightSettableAxes,
+        ...settableAxes,
         {
             component: 'number',
             when: settable('command_topic'),

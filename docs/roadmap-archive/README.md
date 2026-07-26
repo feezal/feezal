@@ -86,6 +86,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B78 — Roadmap IDs leak into rendered help text (site-settings + Security) — B75 guard gap ✅ fixed](B78.md)
 - [B79 — `glass-light` popup: brightness % shown unrounded (55.00000000000001 %) ✅ fixed](B79.md)
 - [B80 — Switching a view `absolute → flow` positions elements chaotically until reload; and `flow → absolute` loses positions ✅ fixed](B80.md)
+- [B81 — Slider discovery offers Homematic dimmers but not zigbee2mqtt light brightness/CT ✅ fixed](B81.md)
 
 ## Near-term Improvements
 
@@ -248,6 +249,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [E155 — Glass popups: center on screen, viewport-relative width ✅ done](E155.md)
 - [E156 — Cross-component discovery: `*-switch` offers lights, `*-slider` offers light axes + `number` ✅ done](E156.md)
 - [E157 — Extend E156 cross-component discovery to the remaining on/off and numeric controls ✅ done](E157.md)
+- [E158 — Slider discovery: climate setpoint + cover/blind level axes ✅ done](E158.md)
 
 ## Editor UX
 
