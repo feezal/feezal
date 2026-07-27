@@ -87,6 +87,8 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B79 — `glass-light` popup: brightness % shown unrounded (55.00000000000001 %) ✅ fixed](B79.md)
 - [B80 — Switching a view `absolute → flow` positions elements chaotically until reload; and `flow → absolute` loses positions ✅ fixed](B80.md)
 - [B81 — Slider discovery offers Homematic dimmers but not zigbee2mqtt light brightness/CT ✅ fixed](B81.md)
+- [B82 — `system-splash` leaves a 40px box in `<body>`: outer scrollbar + white strip ✅ fixed](B82.md)
+- [B83 — Gradient view backgrounds: detection is blind to longhand/`var()` authoring, so the B62 fix never engages ✅ fixed](B83.md)
 - [B85 — Value cards are not offered a thermostat's numeric datapoints, and humidity is never published ✅ fixed](B85.md)
 - [B86 — Discovery picker stamps nothing on selection; Generate still works (regression, cause verified) ✅ fixed](B86.md)
 

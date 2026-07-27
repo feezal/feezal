@@ -9,8 +9,7 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
-- [B82 — `system-splash` leaves a 40px box in `<body>`: outer scrollbar + white strip](#b82--system-splash-leaves-a-40px-box-in-body-outer-scrollbar--white-strip)
-- [B83 — Gradient view backgrounds: detection is blind to longhand/`var()` authoring, so the B62 fix never engages](#b83--gradient-view-backgrounds-detection-is-blind-to-longhandvar-authoring-so-the-b62-fix-never-engages)
+- [B87 — Directly-opened `/viewer/<site>` gets `#/view` appended without a trailing slash](#b87--directly-opened-viewersite-gets-view-appended-without-a-trailing-slash)
 - [B84 — `layout-app`: slim rail missing on first paint until a narrow/wide resize cycle](#b84--layout-app-slim-rail-missing-on-first-paint-until-a-narrowwide-resize-cycle)
 
 **Near-term Improvements**
@@ -18,6 +17,7 @@ Work in progress — priorities and scope are not final.
 - [N12 — Export bundle: strip mqtt.js for feezal-bridge users](#n12--export-bundle-strip-mqttjs-for-feezal-bridge-users-partial) *(partial)*
 - [N13 — Lighter MQTT client for export bundle](#n13--lighter-mqtt-client-for-export-bundle-️-tbd) ⚠️
 - [N38 — Site locale: localized number formatting (decimal separator & friends)](#n38--site-locale-localized-number-formatting-decimal-separator--friends)
+- [N39 — layout-app: header-only-on-small-screens, and active-subview label in the header](#n39--layout-app-header-only-on-small-screens-and-active-subview-label-in-the-header)
 
 **Element Ecosystem**
 - [E20 — Weather forecast (`feezal-element-material-weather`)](#e20--weather-forecast-element-feezal-element-material-weather)
@@ -115,199 +115,32 @@ Work in progress — priorities and scope are not final.
 
 **Relates:** the glass family (`feezal-glass` — the `backdrop-filter` source), `layout-app` (the drawer whose hover triggers it), the glass **solid-card degrade** option (the fallback + diagnostic lever), E38/performance (backdrop-filter GPU cost is already a documented glass concern), per-view themes ✅ (the theme mismatch is an aggravating input here).
 
-### B82 — `system-splash` leaves a 40px box in `<body>`: outer scrollbar + white strip
-
-**Reported and root-caused by the reporter (07/2026), then confirmed by measurement.** A viewer page shows a **second, outer scrollbar** that scrolls past the content into a **white strip** at the bottom. Worse in a normal iOS Safari tab than in the installed PWA. Found while chasing [B62](roadmap-archive/B62.md) and repeatedly mistaken for part of it — it is **independent**, and B62's gradient fix does not address it.
-
-**Cause — four things composing.** `feezal-element-system-splash` is a *pseudo*-element (it renders nothing once boot finishes), but it keeps a real box:
-
-1. `defaultStyle: {width: '160px', height: '40px'}` — the editor writes this as an **inline style** on placement and it is serialized into `views.html`.
-2. `:host { display: block; box-sizing: border-box; }` — unconditional. **There is no state in which the host is `display: none`.**
-3. `render()` returns an empty template once `_done` — the *content* goes, the **host box stays**. An empty `display: block` with an explicit `height: 40px` is still 40px tall.
-4. **B71 hoists the element to `document.body`** (`document.body.appendChild(this)`) so its `position: fixed` overlay can escape a `display: none` view.
-
-Net: after boot `<body>` holds `feezal-app-viewer` (one viewport) **plus a leftover 160×40 block**, so the **document** overflows by exactly the splash's height.
-
-**Measured** (E2E, real Chromium, 420×720 viewport, identical sites with and without a placed splash):
-
-| | `documentScrollsBy` | `body.scrollHeight` |
-|---|---|---|
-| without splash | **0** | 720 |
-| with splash | **40** | 760 |
-
-```
-feezal-element-system-splash
-  display: block   position: static   height: 40   top: 720
-  inlineStyle: "top: 10px; left: 10px; width: 160px; height: 40px"
-```
-
-Note `position: static`: the inline `top`/`left` are **ignored**, but `width`/`height` are **honoured**. That is the trap — a pseudo-element whose *position* is discarded while its *size* is not. The element's own description says "Pseudo-element — position/size don't matter"; they do, 40px of them.
-
-**Symptom mapping.** The 40px of document overflow is the **outer scrollbar**; the strip shows the **`<body>`** background, which is white whenever the top-level view has no inline background (e.g. a `layout-app` shell view) because the html/body mirror then writes nothing; iOS URL-bar collapse in a normal tab changes viewport height and makes the exposed strip worse. **Falsifiable check:** resize the splash on the canvas and the white strip's height changes with it.
-
-**Fix (proposed, not yet implemented).** The host must occupy **no layout space in the viewer** — the overlay is `position: fixed` and never needed a host box:
-- `:host { display: contents }` in the viewer, keeping `display: block` in the editor for the placeholder chip. `connectedCallback` already returns early for the editor, so the split is clean.
-- Prefer this over "`display: none` once `_done`": it is correct **during** boot as well, not only after.
-
-**Also check while there — the other five pseudo-elements.** `system-notification`, `-pin`, `-script`, `-swipe`, `-connection-status` share the shape (`display: block`, 160×40 default). Only `-splash` hoists to `<body>`, so only it can overflow the *document*. But in a **flow** view (`child-position="flow"`) slotted children are **flex items**, so each of these should occupy an invisible 160×40 gap in the tile grid. **Unverified — measure before fixing.** (In an *absolute* view they are `position: absolute` and harmless.)
-
-**Repro recipe** (the throwaway diagnostic was deleted rather than left failing in the suite): deploy two identical sites — a `width/height:100%` `child-position="flow"` view with a dozen tiles — one with `<feezal-element-system-splash style="top:10px;left:10px;width:160px;height:40px;">` appended. Open each viewer at 420×720, wait ~4s for the splash to reach `_done`, and read `documentElement.scrollHeight - clientHeight`. Expect `0`; the splash site gives `40`. That assertion is the regression test.
-
-**Ships with:** the `display: contents` change, the E2E regression test above, a verdict on the other five pseudo-elements, and a `docs/TESTING.md` line (place a splash on a scrolling view → no outer scrollbar, no white strip at the bottom, in the viewer and the installed PWA). Remove the "second outer scrollbar — never reproduced" caveat from the B62 checklist entry once this lands.
-
-**Relates:** **[B62](roadmap-archive/B62.md)** ✅ (found while chasing it and long conflated with it — B62 is the gradient band on `feezal-view`, this is the splash box in `<body>`; independent causes, independent fixes), **B71** (the hoist-to-body change this depends on — the fix must keep the overlay escaping hidden views), `feezal-element-system-splash`, the other `system-*` pseudo-elements, **U41** (flow layout — the flex-item question above).
-
-### B83 — Gradient view backgrounds: detection is blind to longhand/`var()` authoring, so the B62 fix never engages
-
-**Status: root cause found and verified (07/2026). Not yet fixed — implement per "The fix" below.**
-
-**Symptom as reported.** A gradient view background **scrolls away on Safari/iOS** (normal tab *and* installed PWA) while looking correct on every desktop browser.
-
-| platform | honours `background-attachment: fixed` | result |
-|---|---|---|
-| Chrome / Windows | yes | ✅ correct |
-| Chrome / macOS | yes | ✅ correct |
-| Safari / macOS | yes | ✅ correct |
-| Safari / iOS — tab **and** PWA | **no** | ❌ gradient scrolls |
-
-⚠️ **The split is not Blink-vs-WebKit and not a mobile compositing bug.** Desktop Safari is the same engine and is correct. The axis is *honours `attachment: fixed`* vs *does not*. Earlier drafts of this item hypothesised iOS asynchronous overflow-scroll compositing; that was **wrong** and is recorded here only so it is not re-derived.
-
----
-
-## Root cause (verified)
-
-**Two independent facts compose.**
-
-**1. The gradient detection is blind to how these views are actually authored.** Both sites test the *inline shorthand*:
-
-```js
-const bg = view.style.background || view.style.backgroundColor || '';
-const gradient = /gradient\(/i.test(bg);
-```
-
-— in `feezal-site._syncViewBackground()` and in `layout-app._embed()`. But the reporter's views author the gradient as **longhands** (`background-image` + `background-size: cover` + `background-attachment: fixed`), which is what a longhand-writing background editor produces.
-
-**Verified in real Chromium, not inferred.** For an element with
-`style="background-image: linear-gradient(…); background-size: cover; background-attachment: fixed"`:
-
-| getter | value |
-|---|---|
-| `el.style.background` | **`""`** |
-| `el.style.backgroundColor` | **`""`** |
-| `el.style.backgroundImage` | `linear-gradient(…)` |
-| `getComputedStyle(el).backgroundImage` | `linear-gradient(…)` |
-| **what feezal tests** | **`false`** |
-
-The shorthand getter cannot serialise a partial longhand set. Authored as `style="background: linear-gradient(…)"` the same getter *does* return the gradient — which is why the fix works in the test fixture and nowhere else.
-
-> **Consequence: the B62 fix has never engaged on the reporter's site, on any platform.** Neither the `gradient-bg` flag nor the layout-app clone-suppression can fire.
-
-**2. Desktop has been correct by accident.** The view's own inline **`background-attachment: fixed`** pins the gradient to the viewport, and every desktop browser honours it. Nothing feezal does was responsible.
-
-**iOS ignores `background-attachment: fixed`** and falls back to `scroll`, so the gradient anchors to the view's own box — measured `clientH: 761` against `scrollH: 1408` — which scrolls inside the layout-app's `.content`. The band moves: the original B62 symptom, never actually fixed.
-
-### The measurement that settled it (Safari/iOS, reading #5)
-
-| box | computed `background-image` | `attachment` | `size` | `clientH` | `scrollH` |
-|---|---|---|---|---|---|
-| `feezal-site` | **none** (`gradientBg: false`) | local | auto | 843 | 843 |
-| view `Hobbyraum` / layout-app **clone** | **the gradient** | **`fixed`** | cover | 761 | **1408** |
-| layout-app `.content` | the gradient *(copied by `_embed`)* | scroll | auto | 761 | 1408 |
-
-`site.gradientBg: false` with `--feezal-canvas-bg: var(--primary-background-color)` is the detection failing in place.
-
-### Why the E2E test is green while the bug is live
-
-`test-e2e/b62-sticky-background.test.js` samples real pixels and was genuinely red-before / green-after — but its fixture writes `background:` **shorthand**, the one form the detection *can* see. The code and the assertion were both right; the **fixture's authoring form** was wrong. **A pixel-accurate test still only tests the fixture it was given** — the fixture must come from real `views.html`, not from an assumption about how backgrounds are written.
-
----
-
-## The fix
-
-1. **Detect on the computed background, not the inline shorthand** — `getComputedStyle(view).backgroundImage`. One change covers longhands, the shorthand, **`var()` indirection**, theme-supplied backgrounds and per-view themes ([U51](roadmap-archive/U51.md)). Apply at **both** sites: `feezal-site._syncViewBackground()` **and** `layout-app._embed()`.
-   - **Value vs. detection.** `_syncViewBackground()` reuses that same string as the *value* for `--feezal-canvas-bg` and the html/body mirror. Either the computed value is good enough to paint with (a resolved gradient is) **or** split detection from value — do not silently change what gets painted.
-   - **Ordering trap.** A computed read must happen **after** theme CSS applies. `_syncViewBackground()` runs on view switches *and* from a MutationObserver — check both paths, and the layout-app embed path separately.
-2. **Nothing else should need changing.** Once detection fires, the shipped B62 logic already pins via `attachment: scroll` on a **viewport-sized** box and never relies on `fixed` — which is exactly why it should hold on iOS.
-3. **Fix the fixture, or this recurs.** Extend `test-e2e/b62-sticky-background.test.js` to cover the **longhand** form and a **`var()`** form alongside the existing shorthand. That is the real regression test for this item; the current one cannot fail for this bug.
-
-**Verification:** desktop is not sufficient — it passes today for the wrong reason. Confirm on the device, and confirm that the fix is what pins it by checking `feezal-site` (or `.content`) carries the gradient with `attachment: scroll` and the view/clone carries `background-image: none`.
-
----
-
-## Open observation — `--feezal-app-content-padding` appears to fix it on iOS
-
-**Reported (07/2026), unexplained.** Setting the [U50](roadmap-archive/U50.md) content inset on the `layout-app` element (e.g. `--feezal-app-content-padding: 50px`) makes the gradient **sticky on iOS**. Nobody predicted this and it does not follow from the root cause above, so it is recorded as an observation, **not** as a fix.
-
-**Candidate explanations, none verified — do not act on these without measuring:**
-
-- **(a) Padding changes compositing.** Giving the scroller a padding box may change how iOS promotes/rasterises that layer, so the clone's `background-attachment: fixed` starts being honoured (or its background stops being rasterised into the scrolling-contents layer). If true this is a *mechanism*, and a better one than anything else in this item.
-- **(b) The pinned layer simply becomes visible.** `.content` carries the same gradient with `attachment: scroll` on a **viewport-sized** box, which *is* correctly pinned on iOS. A 50px inset exposes that layer as a frame around the clone. The page can then read as "sticky" at a glance while the clone's band still slides in the middle — i.e. the bug is intact and only better disguised.
-- **(c) Geometry coincidence** — the inset changes `cover` sizing enough that the mismatch stops being obvious.
-
-**Discriminating experiment — set the padding to `1px`:**
-
-| result | conclusion |
-|---|---|
-| **1px also fixes it** | geometry cannot explain a one-pixel frame ⇒ **(a)**: padding flips a compositing path. Investigate *that* as the fix. |
-| **1px does nothing; only large values "work"** | **(b)/(c)**: the pinned `.content` layer is showing in the frame, the underlying defect is unchanged — and this corroborates the longhand root cause rather than contradicting it. |
-
-**Also worth one look by eye:** with 50px set, watch the **middle** of the screen rather than the edges. If the centre still slides while the frame stays put, that is (b).
-
-**And re-run the appendix probe with the padding set**, comparing the `clone` and `content` rows against the padding-0 reading. If `clone.attach` reads `fixed` in both, the difference is purely in *painting*, not in resolved CSS — which would point hard at (a).
-
-⚠️ Whatever the outcome, **this does not replace the fix above.** Even under (a), relying on a padding side effect to pin a background would be a coincidence to depend on, not a design — and it would leave every non-`layout-app` view still broken.
-
-## Also found along the way
-
-- **`var()` indirection defeats the same test.** `--feezal-canvas-bg` was `var(--primary-background-color)`; `/gradient\(/i` cannot see through it. The computed-style fix above closes this too, but it is a distinct blind spot worth a test of its own.
-- **Views carrying the gradient with `attachment: scroll`** — `Bad`, `view1`, `view2`, `Garage` — have no `fixed` to rescue them, so they should be broken **on desktop too** wherever their content overflows. Worth confirming: it would corroborate the whole account.
-- **`_embed()`'s copy list omits `background-attachment`** (`background`, `-color`, `-image`, `-size`, `-position`, `-repeat`). That is *fortunate* here — `.content` gets the default `scroll` rather than inheriting `fixed` — but it is accidental, not designed.
-- **The `layout-app` measurement trap.** On `#/Menu/<view>`, `document.querySelector('feezal-view')` returns the **shell** view, which has no background and answers `none` regardless. Two readings were wasted on it. Always target the clone: `app.renderRoot.querySelector('#content feezal-view')`.
-
----
-
-## Appendix — on-device debugging (reusable)
-
-*German UI labels in brackets; the reporter's systems are German.*
-
-1. **iPhone:** `Settings [Einstellungen]` → (iOS 18+: `Apps`) → `Safari` → at the **very bottom** `Advanced [Erweitert]` → **`Web Inspector [Web-Inspector]`** on.
-2. **Mac:** `Safari` → `Settings… [Einstellungen…]` (⌘,) → `Advanced [Erweitert]` → ☑ **`Show features for web developers [Funktionen für Web-Entwickler anzeigen]`** (Safari 17+) or ☑ **`Show Develop menu in menu bar [Menü „Entwickler“ in der Menüleiste anzeigen]`** (older). A **`Develop [Entwickler]`** menu appears.
-3. **Connect** by USB — a **data** cable, not charge-only. Unlock the iPhone; on `Trust This Computer? [Diesem Computer vertrauen?]` choose **`Trust [Vertrauen]`**.
-4. Open the page on the iPhone, leave it in the foreground, then on the Mac: **`Develop [Entwickler]` → &lt;iPhone&gt; → &lt;page&gt;**. The inspector runs on the Mac against the phone; paste probes into its console.
-5. The **installed PWA** is inspectable too (iOS 16.4+) and appears as its own entry. Wireless after the first USB session: `Develop [Entwickler]` → &lt;iPhone&gt; → **`Connect via Network [Über Netzwerk verbinden]`**.
-
-*Gotchas:* the phone must stay **unlocked with the page in the foreground** (a locked screen drops the connection mid-measurement); no device in the menu = Web Inspector off, phone locked, or a charge-only cable.
-
-**The probe that produced the decisive reading** — returns a *string*, so the console cannot collapse it, and reaches into the layout-app internals:
-
-```js
-JSON.stringify((() => {
-  const pick = el => { const cs = getComputedStyle(el); return {
-    inline: (el.getAttribute('style')||'').slice(0,90),
-    bg: cs.backgroundImage.slice(0,60), attach: cs.backgroundAttachment,
-    size: cs.backgroundSize, clientH: el.clientHeight, scrollH: el.scrollHeight }; };
-  const out = {hash: location.hash};
-  const site = document.querySelector('feezal-site');
-  out.site = {...pick(site), gradientBg: site.hasAttribute('gradient-bg'),
-              canvasVar: site.style.getPropertyValue('--feezal-canvas-bg')};
-  out.views = [...document.querySelectorAll('feezal-view')].map(v =>
-    ({name: v.getAttribute('name'), ...pick(v)}));
-  const app = document.querySelector('feezal-element-layout-app');
-  if (app && app.renderRoot) {
-    const box = app.renderRoot.querySelector('.content');
-    const clone = app.renderRoot.querySelector('#content feezal-view');
-    if (box) out.content = pick(box);
-    if (clone) out.clone = {name: clone.getAttribute('name'), ...pick(clone)};
-  }
-  return out;
-})(), null, 1)
-```
-
----
-
-**Relates:** **[B62](roadmap-archive/B62.md)** ✅ (the fix this item shows never engages on real sites — its archive entry describes a mechanism that is correct but unreachable for longhand-authored backgrounds; update it when this lands), **U61** (its option 2 — a view background tracking content height — is no longer needed to solve *this*, but the editor/viewer preview gap stands), **B82** (splash document overflow — subtract its 40px before reading scroll numbers on device), **B61** (a genuine WebKit compositing bug, unlike this one), **U51** ✅ (per-view themes — the computed-style fix picks these up too), **U59** (the gradient/background editor — check which form it writes: if it emits longhands, that is the upstream of this bug), `feezal-site._syncViewBackground()` / `layout-app._embed()`.
-
 ### B84 — `layout-app`: slim rail missing on first paint until a narrow/wide resize cycle
+
+## 🔨 Partially addressed (07/2026) — hardened, but the reported symptom was NOT reproduced
+
+**Read this before assuming the item is done.** Two real defects in `_recomputeNarrow()` were found by measurement and fixed; the reporter's exact sequence (rail missing after a plain reload, repaired by a narrow→wide cycle) **could not be reproduced**, so this may or may not close it. Please re-test.
+
+**What was measured.** Mounting the shell four ways in real Chromium:
+
+| scenario | first measurement | result |
+|---|---|---|
+| pre-sized container | 1000px | ✅ slim rail correct |
+| **container not sized yet** | **414px** | ❌ latches overlay mode, hamburger, 220px drawer |
+| inside a `display:none` view, then revealed | 0px | ✅ correct after reveal |
+| narrow → widened | 400 → 1000 | ✅ corrects |
+
+So a transient sub-breakpoint width **does** latch the wrong mode. In the harness it self-corrects once a real width arrives; on the reporter's page it evidently does not, and that gap is still unexplained.
+
+**Fixed regardless — both are defensible on their own:**
+
+1. **A zero width is no longer read as "wide".** `clientWidth > 0 && clientWidth < breakpoint` made 0 mean *not narrow*, conflating "not laid out yet" with "measured and wide" — so an element inside a hidden view answered persistent from a measurement that never happened, and could equally clear a correct narrow state. It now returns without concluding and waits for the ResizeObserver to deliver a real width.
+2. **The `narrow` class is written unconditionally.** It used to live inside `if (nowNarrow !== this._narrow)`, so a first computation that happened to equal the initial `_narrow` never established the class at all — state and DOM could disagree with nothing to re-sync them. The `_drawerOpen` side effect stays on a real transition, since in persistent mode there is no "open" to close.
+
+**Tests:** `www/test-browser/layout-app-first-paint.test.js` — the hidden-then-revealed case, the not-yet-sized recovery, a class/state sync sweep across four widths, and `autohide` (which shares the `:host([…]:not(.narrow))` gating and would break identically). These mount the shell the way the viewer does rather than sizing the host directly, which is the one case the existing suite already covered and the reason this passed CI.
+
+**If it still reproduces**, the next thing to capture is the diagnostic below on the real page *at first paint* — specifically `clientWidth` and whether `narrowClass` is set — because the harness says the correction should arrive and on your page it does not.
+
 
 **Reported (07/2026).** With **Slim rail** enabled, loading a view that should show it renders **no slim sidebar**. Narrowing the window correctly produces the hamburger; widening it again then produces the slim rail. So the end states are right — only the **initial** one is wrong, and a resize cycle repairs it.
 
@@ -410,6 +243,20 @@ The decisive fields are **`clientWidth`** and **`viewHidden`** on the first read
 
 **Relates:** **[B62](roadmap-archive/B62.md)** ✅ (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
 
+### B87 — Directly-opened `/viewer/<site>` gets `#/view` appended without a trailing slash
+
+Opening a named site's viewer **directly** — `https://<host>/viewer/App` (hand-typed, bookmarked, or externally linked) — has the address bar rewritten to `…/viewer/App#/Menu`; cosmetically it should be `…/viewer/App/#/Menu` (trailing slash between the site segment and the hash).
+
+**Cause.** The viewer page is served for the slashless path (`app.get('/viewer/:site', viewerHandler)` — [app.js:506/509](../server/src/app.js#L506)), so it loads at `/viewer/App`; then the viewer JS sets `location.hash = '/' + view` ([feezal-site.js:206](../www/src/feezal-site.js#L206),[:231](../www/src/feezal-site.js#L231); [feezal-app-viewer.js:41](../www/src/feezal-app-viewer.js#L41)), and the browser appends the hash to the current slashless path → `/viewer/App#/Menu`. **[B39](roadmap-archive/B39.md) ✅ only fixed the editor's `_view()` link builder** (the "Open viewer" button) — it never covered a URL opened directly, and its archive explicitly named the fix for exactly this: *"a server-side redirect `/viewer/:site` → `/viewer/:site/` … fixes any hand-typed or externally-linked URL too"* — which was **not** implemented.
+
+**Fix (the robust one B39 deferred): canonical trailing-slash redirect.** In `viewerHandler` (or a small guard before it), when the request path is `/viewer/<site>` **without** a trailing slash, redirect to `/viewer/<site>/` (preserving query string), then serve on the slashed form. The page then loads at `/viewer/App/` and the hash yields `/viewer/App/#/Menu`. Redirect **only** when the slash is absent (no loop); `/viewer/` (default site) already has it. Suggest **301** (canonical) — or **302** to match the existing `/` → `/editor/` redirect and avoid sticky browser-cached redirects during development; pick deliberately.
+
+**Watch-outs:** Express non-strict routing already matches both `/viewer/App` and `/viewer/App/` on the same route, so add the redirect explicitly rather than relying on routing; preserve the query string (`?sha=…` history links); confirm it doesn't interfere with the `editorAuth`-gated variant ([app.js:509](../server/src/app.js#L509)).
+
+**Acceptance:** opening `/viewer/App` 301/302-redirects to `/viewer/App/`, and the settled address bar reads `/viewer/App/#/<view>`; the default site and already-slashed URLs are unaffected; query strings survive. Add a server/e2e assertion for the redirect + the final URL shape.
+
+**Relates:** **[B39](roadmap-archive/B39.md)** ✅ (fixed the client link builder; explicitly documented *this* server-redirect as the robust alternative it left undone — this closes that gap), `viewerHandler` ([app.js](../server/src/app.js)), `feezal-site.js` hash-setting (the code that appends `#/view` to whatever base path it loaded on), A18 (kiosk — often opens the viewer URL directly, so the canonical form matters there).
+
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
 Exports over `ws://`/`wss://` (the only permitted export mode) no longer bundle socket.io-client (~40 kB) — ✅ fixed by stubbing out `feezal-connection-feezal.js` in the Vite export plugin.
@@ -480,6 +327,20 @@ Numeric elements render `21.5` everywhere; a European dashboard should show `21,
 **Ships with:** helper unit tests (locale resolution order: element attr → site attr → browser; caching; grouping flag), per-element adoption tests for the v1 scope, TESTING.md (site locale switch re-renders values; German locale shows commas in viewer AND export; per-element `decimalSeparator` still wins), and an element-spec section ("format numbers via `feezal.formatNumber`, never `toFixed` + concat").
 
 **Relates:** **A27** (i18n — consumes the site locale introduced here; keep the two aligned), E132 (the number cards in the v1 scope), **E114** (parity — number formatting must behave identically across families), basic-datetime (locale fallback), E119 (basic-number placeholder — same element, coordinate).
+
+### N39 — layout-app: header-only-on-small-screens, and active-subview label in the header
+
+Two `layout-app` header-bar options:
+
+**1. Show the header bar only on small screens.** Today the header is either always shown or fully hidden (`hide-header`). Add a third mode: **show the header only in narrow/overlay mode** (below `breakpoint`, where the drawer collapses to a hamburger) and hide it when wide (persistent drawer / rail, where the header adds nothing). Rationale: on a wide layout every nav entry is already visible in the drawer, so the bar is dead space; on a narrow layout the bar is what carries the hamburger (and, with option 2, the current-page label). Shape: extend the header control from a boolean to a **`header` select** — `always` (default, = today) · `small-only` · `never` (= today's `hide-header: true`) — rather than a second boolean that can contradict `hide-header`. Keep `hide-header` working as a deprecated alias for `header: never` so saved dashboards don't break. The narrow/wide decision reuses the existing `breakpoint` + ResizeObserver (the same measurement N36 hardened); in `small-only` the floating hamburger logic stays as-is for the narrow case.
+
+**2. Show the active subview's label in the header bar.** The header should show **which page you're on**: render the active drawer entry's label to the **right of the app title**, or — when the title (`title`/`subscribe-title`) is unset — to the right of the hamburger. The active entry is `_active`; its label comes from the `items: [{label, icon, view}]` entry (fall back to the view name when the entry has no `label`, matching the drawer's own rendering). Live-updates on navigation. Optional knob (e.g. `show-active-label`, default on) if it should be suppressible; styling via an existing/new `--feezal-app-*` var so it inherits the bar's text colour. Editor preview shows the first entry's label.
+
+**Interaction of the two:** in `small-only` mode the active-subview label is especially useful — the narrow header becomes "☰ [App title ·] Current page", giving context that the collapsed drawer no longer shows at a glance.
+
+**Ships with:** the `header` select (+ `hide-header` alias) and the active-label rendering, the `--feezal-app-*` var + help texts (no roadmap IDs in help — B75/B78), `docs/TESTING.md` layout-app rows (header hidden when wide / shown when narrow in `small-only`; active label follows navigation; label falls back to view name; title-set vs title-unset placement), patch bump + registration per policy.
+
+**Relates:** **N36** ✅ (layout-app improvements — the same element and the breakpoint/ResizeObserver machinery these reuse), **U50** (layout-app content inset — sibling `--feezal-app-*` knob work; coordinate the var set), **N30** ✅ (active-view routing — `_active` is the source of the label), B84 (first-paint rail bug — same header/rail chrome; verify the header modes don't reintroduce a first-paint race), A18 (kiosk — narrow wall panels benefit most from header-only-on-small + a current-page label), the pure-MQTT title (`subscribe-title` — the label sits beside an MQTT-driven title).
 
 ### N2b — Repeater with live canvas sub-elements *(future)*
 Each repeater child becomes individually selectable and configurable on the editor canvas. Requires a virtual sub-editor context — significantly more complex, deferred until the MVP repeater is proven useful.
@@ -1205,7 +1066,7 @@ A one-click path from "connected broker with discovered devices" to "a populated
 **Open decisions:**
 1. **Editor overflow paint by sizing mode.** Keep the checkerboard for **fixed-size** views (bounds are meaningful), but for **percentage-sized** views let the editor extend the view's background across the overflow — i.e. don't let the checkerboard override the `--feezal-canvas-bg` sync when the view is percentage-sized. This makes the editor match the viewer where it matters and keeps the useful bounds indicator where it helps.
 2. **View background vs. content height (deeper).** A 100%-height view whose content overflows still has a 100%-tall *box*, so its gradient (painted on the view element) doesn't cover the overflow by construction — the viewer only fills it via the separate canvas-bg sync. Should a view's background instead track its **content** height, so the gradient is continuous on the view element itself (editor and viewer alike), making the canvas-bg extension unnecessary for this case? This is the more principled fix but touches view layout/sizing semantics, so weigh it against option 1's smaller surface.
-3. **Interaction with B62 ✅ shipped — the model to match.** [B62](roadmap-archive/B62.md) paints a gradient on **`feezal-site`** (the scroller, which is exactly one viewport) with `background-attachment: scroll` / `cover` / `no-repeat`, and suppresses the view's own paint with `background-image: none !important` — because the view's box is one viewport tall while its content is several, so the band it used to paint scrolled away. In the viewer a gradient is therefore **pinned to the viewport with content scrolling over it**. Whatever the editor does should preview that, not a second model. *(An earlier attempt using a document-root `no-repeat`/`cover`/`fixed` mirror was reverted — do not revive it from an old copy of this paragraph.)* **But see [B83](#b83--gradient-view-backgrounds-detection-is-blind-to-longhandvar-authoring-so-the-b62-fix-never-engages):** that model is correct but has **never engaged on a real site** — the gradient detection reads the inline `background` shorthand and is blind to longhand- and `var()`-authored backgrounds, which is how these views are actually written. Desktop only looks right because the view's own `background-attachment: fixed` pins it. Whatever the editor previews here, preview the model **after** B83 lands, not the accident that currently makes desktop look correct.
+3. **Interaction with B62 ✅ shipped — the model to match.** [B62](roadmap-archive/B62.md) paints a gradient on **`feezal-site`** (the scroller, which is exactly one viewport) with `background-attachment: scroll` / `cover` / `no-repeat`, and suppresses the view's own paint with `background-image: none !important` — because the view's box is one viewport tall while its content is several, so the band it used to paint scrolled away. In the viewer a gradient is therefore **pinned to the viewport with content scrolling over it**. Whatever the editor does should preview that, not a second model. *(An earlier attempt using a document-root `no-repeat`/`cover`/`fixed` mirror was reverted — do not revive it from an old copy of this paragraph.)* **But see [B83](roadmap-archive/B83.md):** that item fixed the detection, which until then read the inline `background` shorthand and was blind to the longhand- and `var()`-authored backgrounds these views actually use — so the model described above now genuinely engages. Preview *that*, not the old accident where desktop looked right only because the view's own `background-attachment: fixed` was doing the pinning.
 
 **Ships with (once decided):** the editor overflow-paint change (guarded by view sizing mode), a TESTING.md note (percentage-sized gradient view with overflowing content → editor overflow shows the gradient, matching the viewer; fixed-size view still shows the checkerboard bounds), and consistency with the viewer model B62 settled on (above) so the two don't diverge.
 
