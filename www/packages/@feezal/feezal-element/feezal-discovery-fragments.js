@@ -18,6 +18,11 @@
  * `label` suffix (which row is which, U56-style).
  */
 
+// E160: the numeric-sensor device_class → icon table. Re-exported here so the
+// value / gauge / icon-value cards — which already import their discovery
+// fragments from this module — pull it from one place.
+export {NUMERIC_SENSOR_ICONS} from './feezal-numeric-sensor-icons.js';
+
 /**
  * A `light` offered to an on/off control: drive the lamp as plain on/off.
  *

@@ -1,6 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
-import {readonlyClimateAxes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
+import {readonlyClimateAxes, NUMERIC_SENSOR_ICONS} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-circle-value (E114 / E139)
@@ -48,6 +48,8 @@ class FeezalElementCircleValue extends FeezalElement {
                     state_topic:         {attr: 'subscribe'},
                     unit_of_measurement: {attr: 'unit'},
                     value_template:      {attr: 'message-property', transform: 'valueTemplateToPath'},
+                    // E160: stamp a device_class-appropriate icon (humidity, pressure, CO2, PM…).
+                    device_class:      {attr: 'icon', valueMap: NUMERIC_SENSOR_ICONS},
                     name:                'label',
                 },
             },

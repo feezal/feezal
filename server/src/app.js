@@ -250,6 +250,18 @@ async function createApp(config) {
     const defaultSiteName = 'default';
 
     const viewerHandler = async (req, res, next) => {
+        // B87: canonicalize a named site's viewer URL to a trailing slash. The
+        // viewer JS sets `location.hash = '/' + view`, which the browser appends
+        // to the current path — so `/viewer/App` becomes `/viewer/App#/Menu`
+        // instead of `/viewer/App/#/Menu`. Redirect the slashless form (only —
+        // no loop) to the slashed one, preserving the query string (?sha=…).
+        // The default-site route (`/viewer/`) has no `:site` param, so it is
+        // untouched, and an already-slashed request skips the redirect.
+        if (req.params.site && !req.path.endsWith('/')) {
+            const qi = req.originalUrl.indexOf('?');
+            const search = qi === -1 ? '' : req.originalUrl.slice(qi);
+            return res.redirect(301, req.path + '/' + search);
+        }
         try {
             const siteName = req.params.site || defaultSiteName;
             const {html: siteHtml, config} = await storage.getSite(siteName);

@@ -1,7 +1,7 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {applySizePreset, glassCardStyles} from '@feezal/feezal-glass';
-import {readonlyClimateAxes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
+import {readonlyClimateAxes, NUMERIC_SENSOR_ICONS} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-glass-value (E58, E138)
@@ -29,6 +29,8 @@ class FeezalElementGlassValue extends FeezalElement {
                     state_topic:         {attr: 'subscribe'},
                     unit_of_measurement: {attr: 'unit'},
                     value_template:      {attr: 'message-property', transform: 'valueTemplateToPath'},
+                    // E160: stamp a device_class-appropriate icon (humidity, pressure, CO2, PM…).
+                    device_class:      {attr: 'icon', valueMap: NUMERIC_SENSOR_ICONS},
                     name:                'label',
                 },
             },
@@ -36,7 +38,7 @@ class FeezalElementGlassValue extends FeezalElement {
                 {name: 'size', type: 'select', options: ['', '2x2', '2x1'], default: '',
                     help: 'Preset size: 2x2 = square (150×150), 2x1 = wide (150×75). Empty keeps the current/manual size.'},
                 {name: 'label',     type: 'string', help: 'Label shown under the value.'},
-                {name: 'icon',      type: 'string', default: 'thermostat', help: 'Icon name.'},
+                {name: 'icon',      type: 'string', default: 'sensors', help: 'Icon name — a neutral default; a discovered sensor gets a fitting icon from its type, and any card can override it here.'},
                 {name: 'subscribe', type: 'mqttTopic', help: 'Value topic.'},
                 {name: 'message-property', type: 'string', default: 'payload',
                     help: 'Dot-notation path to the value within the MQTT message. Default "payload" uses msg.payload; use e.g. "payload.temperature" to navigate into a JSON payload.'},
@@ -122,7 +124,7 @@ class FeezalElementGlassValue extends FeezalElement {
         super();
         this.size = '';
         this.label = '';
-        this.icon = 'thermostat';
+        this.icon = 'sensors';
         this.unit = '';
         this.decimals = '';
         this.value = '';
@@ -172,7 +174,7 @@ class FeezalElementGlassValue extends FeezalElement {
         return html`
             <div class="card">
                 ${this.subscribeAvailability && !this._available ? html`<span class="unavail" title="Device unavailable">⚠</span>` : ''}
-                <feezal-icon name="${this.icon || 'thermostat'}"></feezal-icon>
+                <feezal-icon name="${this.icon || 'sensors'}"></feezal-icon>
                 <span class="value">${this.displayValue}${this.unit ? html`<span class="unit">${this.unit}</span>` : ''}</span>
                 <span class="label">${this.label || (feezal.isEditor ? 'Value' : '')}</span>
             </div>

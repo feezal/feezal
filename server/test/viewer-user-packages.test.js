@@ -62,7 +62,7 @@ afterAll(async () => {
 
 describe('viewer page (N27)', () => {
     it('injects module scripts for used installed packages, the family bundle once, and the active theme', async () => {
-        const res = await request(app).get('/viewer/n27site');
+        const res = await request(app).get('/viewer/n27site/');   // B87: canonical trailing slash
         expect(res.status).toBe(200);
         expect(res.text).toContain('<script type="module" src="/user-elements/@feezal/feezal-element-acme-widget/index.js">');
         expect(res.text).toContain('<script type="module" src="/user-elements/@feezal/feezal-elements-metro/index.js">');
@@ -76,5 +76,33 @@ describe('viewer page (N27)', () => {
         const res = await request(app).get('/user-elements/@feezal/feezal-element-acme-widget/index.js');
         expect(res.status).toBe(200);
         expect(res.text).toBe('/* acme-widget-bundle */');
+    });
+});
+
+// B87 — a named site's viewer URL is canonicalized to a trailing slash so the
+// viewer JS appends `#/<view>` after the slash (…/viewer/App/#/Menu).
+describe('viewer URL canonical trailing slash (B87)', () => {
+    it('redirects the slashless named-site URL to the trailing-slash form', async () => {
+        const res = await request(app).get('/viewer/n27site');
+        expect(res.status).toBe(301);
+        expect(res.headers.location).toBe('/viewer/n27site/');
+    });
+
+    it('preserves the query string on redirect', async () => {
+        const res = await request(app).get('/viewer/n27site?sha=abc1234');
+        expect(res.status).toBe(301);
+        expect(res.headers.location).toBe('/viewer/n27site/?sha=abc1234');
+    });
+
+    it('serves the already-slashed URL directly (no redirect loop)', async () => {
+        const res = await request(app).get('/viewer/n27site/');
+        expect(res.status).toBe(200);
+    });
+
+    it('leaves the default-site viewer (/viewer/) untouched', async () => {
+        const res = await request(app).get('/viewer/');
+        // No :site param → no redirect; 200 (default site) or 404 if absent,
+        // never a 301 to a double slash.
+        expect(res.status).not.toBe(301);
     });
 });

@@ -182,7 +182,9 @@ describe('every value/gauge card with a picker offers the climate axes', () => {
 
     it.each(cases)('%s', pkg => {
         const src = readFileSync(join(packagesDir, pkg, `${pkg}.js`), 'utf8');
-        expect(src).toContain('import {readonlyClimateAxes}');
+        // E160: the import may carry additional named exports (NUMERIC_SENSOR_ICONS)
+        // — assert the symbol is imported from the fragments module, not an exact line.
+        expect(src).toMatch(/import \{[^}]*\breadonlyClimateAxes\b[^}]*\} from '@feezal\/feezal-element\/feezal-discovery-fragments\.js'/);
         expect(src).toContain('accepts: readonlyClimateAxes');
     });
 });

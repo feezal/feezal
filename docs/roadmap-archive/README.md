@@ -7,7 +7,7 @@ Each entry is filed under the section its **ID prefix** belongs to — `B` Bugs,
 Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastructure,
 `D` Documentation — and sorted by number within it, so a new entry has exactly one correct place.
 
-**307 items.**
+**310 items.**
 
 ## Bugs
 
@@ -91,6 +91,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B83 — Gradient view backgrounds: detection is blind to longhand/`var()` authoring, so the B62 fix never engages ✅ fixed](B83.md)
 - [B85 — Value cards are not offered a thermostat's numeric datapoints, and humidity is never published ✅ fixed](B85.md)
 - [B86 — Discovery picker stamps nothing on selection; Generate still works (regression, cause verified) ✅ fixed](B86.md)
+- [B87 — Directly-opened `/viewer/<site>` gets `#/view` appended without a trailing slash ✅ fixed](B87.md)
 
 ## Near-term Improvements
 
@@ -130,6 +131,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [N35 — basic-template: `${msg.payload}` renders `[object Object]` for JSON payloads ✅ fixed](N35.md)
 - [N36 — layout-app improvements ✅ implemented](N36.md)
 - [N37 — Pause subscriptions of hidden views (bandwidth saver) ✅ done](N37.md)
+- [N39 — layout-app: header-only-on-small-screens, and active-subview label in the header ✅ implemented](N39.md)
 
 ## Element Ecosystem
 
@@ -254,6 +256,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [E156 — Cross-component discovery: `*-switch` offers lights, `*-slider` offers light axes + `number` ✅ done](E156.md)
 - [E157 — Extend E156 cross-component discovery to the remaining on/off and numeric controls ✅ done](E157.md)
 - [E158 — Slider discovery: climate setpoint + cover/blind level axes ✅ done](E158.md)
+- [E160 — Stamp a device-class-appropriate icon on value and gauge cards ✅ implemented](E160.md)
 
 ## Editor UX
 

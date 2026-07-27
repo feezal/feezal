@@ -341,3 +341,51 @@ describe('content inset (U50)', () => {
         expect(knob.type).toBe('string');   // a shorthand, not a number
     });
 });
+
+describe('header modes + active-page label (N39)', () => {
+    it('header=small-only hides the bar when wide, shows it when narrow', async () => {
+        const el = await mount('feezal-element-layout-app', {items: ITEMS, header: 'small-only'});
+        el._narrow = false; await el.updateComplete;
+        expect(el.shadowRoot.querySelector('.bar')).toBeFalsy();   // wide → no bar
+        el._narrow = true; await el.updateComplete;
+        expect(el.shadowRoot.querySelector('.bar')).toBeTruthy();  // narrow → bar with hamburger
+        expect(el.shadowRoot.querySelector('.bar .iconbtn')).toBeTruthy();
+    });
+
+    it('header=never never renders the bar; the floating hamburger appears when narrow', async () => {
+        const el = await mount('feezal-element-layout-app', {items: ITEMS, header: 'never', 'drawer-persistent': ''});
+        el.drawerPersistent = false;
+        el._narrow = true; await el.updateComplete;
+        expect(el.shadowRoot.querySelector('.bar')).toBeFalsy();
+        expect(el.shadowRoot.querySelector('.fab-menu')).toBeTruthy();
+    });
+
+    it('hide-header stays a deprecated alias for header=never', async () => {
+        const el = await mount('feezal-element-layout-app', {items: ITEMS, 'hide-header': ''});
+        await el.updateComplete;
+        expect(el._headerMode).toBe('never');
+        expect(el.shadowRoot.querySelector('.bar')).toBeFalsy();
+    });
+
+    it('shows the active entry label in the bar, next to the title', async () => {
+        const el = await mount('feezal-element-layout-app', {items: ITEMS, title: 'My App'});
+        el._active = 'page2'; await el.updateComplete;
+        const label = el.shadowRoot.querySelector('.bar .active-label');
+        expect(label).toBeTruthy();
+        expect(label.textContent).toContain('Two');            // the page2 entry's label
+        expect(el.shadowRoot.querySelector('.bar .app-title').textContent).toBe('My App');
+    });
+
+    it('falls back to the view name when the entry has no label', async () => {
+        const items = JSON.stringify([{view: 'kitchen'}, {view: 'bath'}]);
+        const el = await mount('feezal-element-layout-app', {items});
+        el._active = 'bath'; await el.updateComplete;
+        expect(el.shadowRoot.querySelector('.bar .active-label').textContent).toContain('bath');
+    });
+
+    it('show-active-label=false suppresses the label', async () => {
+        const el = await mount('feezal-element-layout-app', {items: ITEMS, 'show-active-label': 'false'});
+        el._active = 'page1'; await el.updateComplete;
+        expect(el.shadowRoot.querySelector('.bar .active-label')).toBeFalsy();
+    });
+});

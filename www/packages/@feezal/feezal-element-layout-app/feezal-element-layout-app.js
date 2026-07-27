@@ -38,8 +38,12 @@ class FeezalElementLayoutApp extends FeezalElement {
             attributes: [
                 {name: 'items', type: 'json', default: '[]', help: 'Drawer entries [{label, icon, view}] (managed in the inspector).'},
                 {name: 'title', type: 'string', default: '', help: 'Top-bar title.'},
+                {name: 'header', type: 'select', options: ['always', 'small-only', 'never'], default: 'always',
+                    help: 'When to show the top app bar: always; only on small screens (below the breakpoint, where the drawer collapses to a hamburger); or never (a floating hamburger keeps the overlay drawer reachable).'},
+                {name: 'show-active-label', type: 'boolean', default: true,
+                    help: 'Show the current page label in the top bar — right of the title, or right of the hamburger when the title is empty.'},
                 {name: 'hide-header', type: 'boolean', default: false,
-                    help: 'Hide the top app bar (title + actions). When the drawer is in overlay mode a floating hamburger button appears over the content instead.'},
+                    help: 'Deprecated — use header = never instead. Kept so older dashboards keep working; when on it forces the bar off.'},
                 {name: 'subscribe-title', type: 'string', help: 'Optional — drive the title from an MQTT topic.'},
                 {name: 'active-view', type: 'string', help: 'Initially selected content view (defaults to the first entry).'},
                 {name: 'breakpoint', type: 'number', default: 768, help: 'Element width below which the drawer becomes an overlay.'},
@@ -76,6 +80,8 @@ class FeezalElementLayoutApp extends FeezalElement {
     static properties = {
         items:           {type: String,  reflect: true},
         title:           {type: String,  reflect: true},
+        header:          {type: String,  reflect: true},
+        showActiveLabel: {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-active-label'},
         hideHeader:      {type: Boolean, reflect: true, attribute: 'hide-header'},
         subscribeTitle:  {type: String,  reflect: true, attribute: 'subscribe-title'},
         activeView:      {type: String,  reflect: true, attribute: 'active-view'},
@@ -102,6 +108,9 @@ class FeezalElementLayoutApp extends FeezalElement {
             z-index: 2;
         }
         .bar .title { flex: 1; min-width: 0; font-size: 18px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        /* N39: current-page label — muted, inherits the bar text colour. */
+        .bar .title .active-label { font-weight: 400; opacity: 0.8; }
+        .bar .title .active-label .sep { opacity: 0.5; margin: 0 6px; }
         .bar .actions { display: flex; gap: 2px; }
         .iconbtn { border: none; background: none; color: inherit; cursor: pointer; width: 40px; height: 40px;
             border-radius: 50%; display: flex; align-items: center; justify-content: center; }
@@ -218,6 +227,8 @@ class FeezalElementLayoutApp extends FeezalElement {
         super();
         this.items = '[]';
         this.title = '';
+        this.header = 'always';
+        this.showActiveLabel = true;
         this.hideHeader = false;
         this.subscribeTitle = '';
         this.activeView = '';
@@ -489,22 +500,42 @@ class FeezalElementLayoutApp extends FeezalElement {
         buttons[next].focus();
     }
 
+    /** N39: effective header mode — `hide-header` is a deprecated alias for `never`. */
+    get _headerMode() {
+        return this.hideHeader ? 'never' : (this.header || 'always');
+    }
+
+    /** N39: is the top bar shown right now? small-only → only in narrow mode. */
+    get _showHeader() {
+        const m = this._headerMode;
+        return m === 'never' ? false : (m === 'small-only' ? this._narrow : true);
+    }
+
     render() {
         const entries = this._entries();
         const title = this._liveTitle != null ? this._liveTitle : (this.title || '');
         const showHam = this._narrow;
+        // N39: the current page's label (falls back to the view name, matching the
+        // drawer entries). In the editor `_active` is the first entry, so the
+        // preview shows a real label.
+        const activeEntry = entries.find(e => e.view === this._active);
+        const activeLabel = this.showActiveLabel && activeEntry ? (activeEntry.label || activeEntry.view) : '';
+        const showHeader = this._showHeader;
         return html`
             <div class="shell">
-                ${this.hideHeader ? '' : html`
+                ${showHeader ? html`
                     <div class="bar">
                         ${showHam ? html`<button class="iconbtn" title="Menu" @click="${() => { this._drawerOpen = !this._drawerOpen; }}"><span class="mi">menu</span></button>` : ''}
-                        <div class="title">${title}</div>
+                        <div class="title">
+                            ${title ? html`<span class="app-title">${title}</span>` : ''}
+                            ${activeLabel ? html`<span class="active-label">${title ? html`<span class="sep">·</span>` : ''}${activeLabel}</span>` : ''}
+                        </div>
                         <div class="actions">
                             ${this._actions().map(a => html`<button class="iconbtn" title="${a.icon}" @click="${() => this._doAction(a)}"><feezal-icon class="mi" name="${a.icon}"></feezal-icon></button>`)}
                         </div>
-                    </div>`}
+                    </div>` : ''}
                 <div class="body">
-                    ${this.hideHeader && showHam && !this._drawerOpen ? html`
+                    ${!showHeader && showHam && !this._drawerOpen ? html`
                         <button class="fab-menu" title="Menu" @click="${() => { this._drawerOpen = true; }}"><span class="mi">menu</span></button>` : ''}
                     <div class="drawer ${this._drawerOpen ? 'open' : ''}" role="navigation"
                         @keydown="${e => this._onDrawerKeydown(e)}">

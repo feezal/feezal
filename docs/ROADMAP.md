@@ -9,7 +9,6 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
-- [B87 — Directly-opened `/viewer/<site>` gets `#/view` appended without a trailing slash](#b87--directly-opened-viewersite-gets-view-appended-without-a-trailing-slash)
 - [B84 — `layout-app`: slim rail missing on first paint until a narrow/wide resize cycle](#b84--layout-app-slim-rail-missing-on-first-paint-until-a-narrowwide-resize-cycle)
 
 **Near-term Improvements**
@@ -17,7 +16,6 @@ Work in progress — priorities and scope are not final.
 - [N12 — Export bundle: strip mqtt.js for feezal-bridge users](#n12--export-bundle-strip-mqttjs-for-feezal-bridge-users-partial) *(partial)*
 - [N13 — Lighter MQTT client for export bundle](#n13--lighter-mqtt-client-for-export-bundle-️-tbd) ⚠️
 - [N38 — Site locale: localized number formatting (decimal separator & friends)](#n38--site-locale-localized-number-formatting-decimal-separator--friends)
-- [N39 — layout-app: header-only-on-small-screens, and active-subview label in the header](#n39--layout-app-header-only-on-small-screens-and-active-subview-label-in-the-header)
 
 **Element Ecosystem**
 - [E20 — Weather forecast (`feezal-element-material-weather`)](#e20--weather-forecast-element-feezal-element-material-weather)
@@ -58,7 +56,6 @@ Work in progress — priorities and scope are not final.
 - [E145 — Autodiscovery support for ccu-jack's MQTT interface](#e145--autodiscovery-support-for-ccu-jacks-mqtt-interface)
 - [E150 — Discovery for profile-shaped components: `water_heater` ✅ + `lawn_mower` 🔨](#e150--discovery-for-profile-shaped-components-water_heater---lawn_mower)
 - [E159 — Re-add a Paper-family app shell (`paper-app`) with full layout-app parity](#e159--re-add-a-paper-family-app-shell-paper-app-with-full-layout-app-parity)
-- [E160 — Stamp a device-class-appropriate icon on value and gauge cards](#e160--stamp-a-device-class-appropriate-icon-on-value-and-gauge-cards)
 
 **Editor UX**
 
@@ -244,20 +241,6 @@ The decisive fields are **`clientWidth`** and **`viewHidden`** on the first read
 
 **Relates:** **[B62](roadmap-archive/B62.md)** ✅ (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
 
-### B87 — Directly-opened `/viewer/<site>` gets `#/view` appended without a trailing slash
-
-Opening a named site's viewer **directly** — `https://<host>/viewer/App` (hand-typed, bookmarked, or externally linked) — has the address bar rewritten to `…/viewer/App#/Menu`; cosmetically it should be `…/viewer/App/#/Menu` (trailing slash between the site segment and the hash).
-
-**Cause.** The viewer page is served for the slashless path (`app.get('/viewer/:site', viewerHandler)` — [app.js:506/509](../server/src/app.js#L506)), so it loads at `/viewer/App`; then the viewer JS sets `location.hash = '/' + view` ([feezal-site.js:206](../www/src/feezal-site.js#L206),[:231](../www/src/feezal-site.js#L231); [feezal-app-viewer.js:41](../www/src/feezal-app-viewer.js#L41)), and the browser appends the hash to the current slashless path → `/viewer/App#/Menu`. **[B39](roadmap-archive/B39.md) ✅ only fixed the editor's `_view()` link builder** (the "Open viewer" button) — it never covered a URL opened directly, and its archive explicitly named the fix for exactly this: *"a server-side redirect `/viewer/:site` → `/viewer/:site/` … fixes any hand-typed or externally-linked URL too"* — which was **not** implemented.
-
-**Fix (the robust one B39 deferred): canonical trailing-slash redirect.** In `viewerHandler` (or a small guard before it), when the request path is `/viewer/<site>` **without** a trailing slash, redirect to `/viewer/<site>/` (preserving query string), then serve on the slashed form. The page then loads at `/viewer/App/` and the hash yields `/viewer/App/#/Menu`. Redirect **only** when the slash is absent (no loop); `/viewer/` (default site) already has it. Suggest **301** (canonical) — or **302** to match the existing `/` → `/editor/` redirect and avoid sticky browser-cached redirects during development; pick deliberately.
-
-**Watch-outs:** Express non-strict routing already matches both `/viewer/App` and `/viewer/App/` on the same route, so add the redirect explicitly rather than relying on routing; preserve the query string (`?sha=…` history links); confirm it doesn't interfere with the `editorAuth`-gated variant ([app.js:509](../server/src/app.js#L509)).
-
-**Acceptance:** opening `/viewer/App` 301/302-redirects to `/viewer/App/`, and the settled address bar reads `/viewer/App/#/<view>`; the default site and already-slashed URLs are unaffected; query strings survive. Add a server/e2e assertion for the redirect + the final URL shape.
-
-**Relates:** **[B39](roadmap-archive/B39.md)** ✅ (fixed the client link builder; explicitly documented *this* server-redirect as the robust alternative it left undone — this closes that gap), `viewerHandler` ([app.js](../server/src/app.js)), `feezal-site.js` hash-setting (the code that appends `#/view` to whatever base path it loaded on), A18 (kiosk — often opens the viewer URL directly, so the canonical form matters there).
-
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
 Exports over `ws://`/`wss://` (the only permitted export mode) no longer bundle socket.io-client (~40 kB) — ✅ fixed by stubbing out `feezal-connection-feezal.js` in the Vite export plugin.
@@ -328,20 +311,6 @@ Numeric elements render `21.5` everywhere; a European dashboard should show `21,
 **Ships with:** helper unit tests (locale resolution order: element attr → site attr → browser; caching; grouping flag), per-element adoption tests for the v1 scope, TESTING.md (site locale switch re-renders values; German locale shows commas in viewer AND export; per-element `decimalSeparator` still wins), and an element-spec section ("format numbers via `feezal.formatNumber`, never `toFixed` + concat").
 
 **Relates:** **A27** (i18n — consumes the site locale introduced here; keep the two aligned), E132 (the number cards in the v1 scope), **E114** (parity — number formatting must behave identically across families), basic-datetime (locale fallback), E119 (basic-number placeholder — same element, coordinate).
-
-### N39 — layout-app: header-only-on-small-screens, and active-subview label in the header
-
-Two `layout-app` header-bar options:
-
-**1. Show the header bar only on small screens.** Today the header is either always shown or fully hidden (`hide-header`). Add a third mode: **show the header only in narrow/overlay mode** (below `breakpoint`, where the drawer collapses to a hamburger) and hide it when wide (persistent drawer / rail, where the header adds nothing). Rationale: on a wide layout every nav entry is already visible in the drawer, so the bar is dead space; on a narrow layout the bar is what carries the hamburger (and, with option 2, the current-page label). Shape: extend the header control from a boolean to a **`header` select** — `always` (default, = today) · `small-only` · `never` (= today's `hide-header: true`) — rather than a second boolean that can contradict `hide-header`. Keep `hide-header` working as a deprecated alias for `header: never` so saved dashboards don't break. The narrow/wide decision reuses the existing `breakpoint` + ResizeObserver (the same measurement N36 hardened); in `small-only` the floating hamburger logic stays as-is for the narrow case.
-
-**2. Show the active subview's label in the header bar.** The header should show **which page you're on**: render the active drawer entry's label to the **right of the app title**, or — when the title (`title`/`subscribe-title`) is unset — to the right of the hamburger. The active entry is `_active`; its label comes from the `items: [{label, icon, view}]` entry (fall back to the view name when the entry has no `label`, matching the drawer's own rendering). Live-updates on navigation. Optional knob (e.g. `show-active-label`, default on) if it should be suppressible; styling via an existing/new `--feezal-app-*` var so it inherits the bar's text colour. Editor preview shows the first entry's label.
-
-**Interaction of the two:** in `small-only` mode the active-subview label is especially useful — the narrow header becomes "☰ [App title ·] Current page", giving context that the collapsed drawer no longer shows at a glance.
-
-**Ships with:** the `header` select (+ `hide-header` alias) and the active-label rendering, the `--feezal-app-*` var + help texts (no roadmap IDs in help — B75/B78), `docs/TESTING.md` layout-app rows (header hidden when wide / shown when narrow in `small-only`; active label follows navigation; label falls back to view name; title-set vs title-unset placement), patch bump + registration per policy.
-
-**Relates:** **N36** ✅ (layout-app improvements — the same element and the breakpoint/ResizeObserver machinery these reuse), **U50** (layout-app content inset — sibling `--feezal-app-*` knob work; coordinate the var set), **N30** ✅ (active-view routing — `_active` is the source of the label), B84 (first-paint rail bug — same header/rail chrome; verify the header modes don't reintroduce a first-paint race), A18 (kiosk — narrow wall panels benefit most from header-only-on-small + a current-page label), the pure-MQTT title (`subscribe-title` — the label sits beside an MQTT-driven title).
 
 ### N2b — Repeater with live canvas sub-elements *(future)*
 Each repeater child becomes individually selectable and configurable on the editor canvas. Requires a virtual sub-editor context — significantly more complex, deferred until the MVP repeater is proven useful.
@@ -1421,10 +1390,6 @@ That is the most expensive of the options considered and it adds to the legacy P
 **Ships with:** the element or variant, palette entry, the N6 inspector (shared or re-pointed), `www/editor/feezal-elements.js` regenerated if a new package lands, per-element notes in `docs/TESTING.md` §6, a browser test mirroring `test-browser/feezal-elements-layout-app.test.js`, and version bumps per policy.
 
 **Relates:** **[E47](roadmap-archive/E47.md)** ✅ (built `layout-app` *as* the replacement for `paper-app-layout` — read it before re-adding what it deliberately superseded), **N36** / **N30** / **B41** / **B50** / **U47** / **[U50](roadmap-archive/U50.md)** ✅ (the feature set to match), **B84** (slim-rail bug that would be inherited), **U63** (content-inset API in flux — settle it before duplicating), **E137** (the "view over shared behaviour, never fork" principle this item must answer to), **E114** (family parity — the convention pulling toward a separate element), `feezal-element-layout-app`.
-
-### E160 — Stamp a device-class-appropriate icon on value and gauge cards
-
-**Reported (07/2026):** every discovered `*-value` card shows a **temperature** icon. Pressure, CO₂ equivalent, VOC, PM2.5 and humidity should each get a fitting one.
 
 ## Cause (verified in the source)
 
