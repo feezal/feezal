@@ -322,6 +322,16 @@ const hmClimateRecognizer = {
             valve_min: valveMin,
             valve_max: valveMax,
         };
+        // B85: humidity was in the tracked-datapoint set and then never
+        // emitted, so nothing downstream could ever display it. Take it from
+        // whichever channel actually reported HUMIDITY rather than hardcoding
+        // an index: wall thermostats (HmIP-WTH/STHD, HM-TC-IT-WM-W-EU) carry
+        // it, plain eTRVs do not, and the channel differs per family.
+        const humChan = channels.find(c => c.dps && c.dps.has('HUMIDITY'));
+        if (humChan) {
+            config.humidity_state_topic = hmStatus(p, humChan.seg, 'HUMIDITY');
+            config.message_property_humidity = 'payload.val';
+        }
         if (isTRV) config.action_topic = hmStatus(p, valveChan.seg, valveDp);
 
         // E135: BidCoS TRV stuck-valve / comms fault — FAULT_REPORTING on the

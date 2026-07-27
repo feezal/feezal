@@ -92,6 +92,12 @@ describe('Homematic climate recognizer — HmIP wall thermostat (WTH-2)', () => 
         expect(c.valve_max).toBe(100);
         // Wall thermostat → no valve datapoint observed → no action_topic.
         expect(c.action_topic).toBeUndefined();
+        // B85: HUMIDITY was tracked and then never emitted, so nothing
+        // downstream could display it. It is taken from whichever channel
+        // actually reported it — here MAINTENANCE (:0), not the control
+        // channel (:1) — because the carrying channel differs per family.
+        expect(c.humidity_state_topic).toBe('hm/status/Thermostat Hobbyraum:0/HUMIDITY');
+        expect(c.message_property_humidity).toBe('payload.val');
 
         // HmIP modes (putParamset VALUES) built for the :1 channel.
         expect(c.modes).toEqual([
@@ -1180,5 +1186,30 @@ describe('E124 — climate battery is presence-checked (mains TRVs stay badge-fr
             payloadLow: true,
         });
         expect(c.availability_normalized.entries).toHaveLength(1);   // UNREACH only, unchanged
+    });
+});
+
+describe('Homematic climate recognizer — humidity (B85)', () => {
+    it('omits the humidity topic entirely for a device that never reports it', () => {
+        const dev = '000B1122334455';
+        nat.handleNativeMessage('hm/status/Heizung Bad:4/SET_TEMPERATURE', je(21, {
+            device: dev, deviceName: 'Heizung Bad', deviceType: 'HM-CC-RT-DN',
+            channel: dev + ':4', channelName: 'Heizung Bad:4',
+            channelType: 'CLIMATECONTROL_RT_TRANSCEIVER', channelIndex: 4, iface: 'BidCos-RF',
+            datapoint: 'SET_TEMPERATURE', datapointMin: 4.5, datapointMax: 30.5,
+        }));
+        nat.handleNativeMessage('hm/status/Heizung Bad:4/CONTROL_MODE', je(0, {
+            device: dev, deviceName: 'Heizung Bad', deviceType: 'HM-CC-RT-DN',
+            channel: dev + ':4', channelName: 'Heizung Bad:4',
+            channelType: 'CLIMATECONTROL_RT_TRANSCEIVER', channelIndex: 4, iface: 'BidCos-RF',
+            datapoint: 'CONTROL_MODE',
+        }));
+
+        const c = nat.getNativeEntity('hm-climate:' + dev).config;
+        expect(c.current_temperature_topic).toBeTruthy();
+        // An eTRV carries no HUMIDITY datapoint — the key must be absent, not
+        // an empty or invented topic, so no card offers a row for it.
+        expect(c.humidity_state_topic).toBeUndefined();
+        expect(c.message_property_humidity).toBeUndefined();
     });
 });
