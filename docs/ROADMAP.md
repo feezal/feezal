@@ -12,7 +12,6 @@ Work in progress — priorities and scope are not final.
 - [B82 — `system-splash` leaves a 40px box in `<body>`: outer scrollbar + white strip](#b82--system-splash-leaves-a-40px-box-in-body-outer-scrollbar--white-strip)
 - [B83 — Gradient view backgrounds: detection is blind to longhand/`var()` authoring, so the B62 fix never engages](#b83--gradient-view-backgrounds-detection-is-blind-to-longhandvar-authoring-so-the-b62-fix-never-engages)
 - [B84 — `layout-app`: slim rail missing on first paint until a narrow/wide resize cycle](#b84--layout-app-slim-rail-missing-on-first-paint-until-a-narrowwide-resize-cycle)
-- [B85 — Value cards are not offered a thermostat's numeric datapoints, and humidity is never published](#b85--value-cards-are-not-offered-a-thermostats-numeric-datapoints-and-humidity-is-never-published)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -375,48 +374,6 @@ The decisive fields are **`clientWidth`** and **`viewHidden`** on the first read
 **Ships with:** the fix, a browser test that mounts the shell **inside a hidden view and then reveals it** (the case the current suite misses — every existing test sizes the host directly, which is why this passes today), and a `docs/TESTING.md` line under the N36 block: *load a dashboard with Slim rail on a wide viewer → the rail is icon-only from the first paint, with no resize needed*.
 
 **Relates:** **N36** (slim rail + the original initial-ResizeObserver-race fix for the persistent drawer — same class of bug, second instance), **B41**/N30 (view routing — the shell's owning view may be hidden at boot, which is the suspected trigger), **[U50](roadmap-archive/U50.md)** ✅ / **U63** (the `.content` box work next door — unrelated cause, same element), `feezal-element-layout-app._recomputeNarrow()`.
-
-### B85 — Value cards are not offered a thermostat's numeric datapoints, and humidity is never published
-
-**Reported (07/2026).** Placing a `*-value` card and opening the ⚡ discovery picker, a Homematic/HmIP thermostat's **actual temperature**, **humidity** and **valve level** are expected as pickable values. None appear.
-
-**Two independent causes, one of them worse than the report suggests.**
-
-## 1. Cross-component gap — the numerics are locked inside the `climate` entity
-
-`*-value` (and `*-gauge`) declare only:
-
-```js
-discovery: { component: 'sensor', map: { state_topic: 'subscribe', … } }
-```
-
-but a Homematic thermostat is registered as a **`climate`** entity, and its numeric datapoints are keys *inside* it — `current_temperature_topic` (ACTUAL_TEMPERATURE) and, for TRVs, `action_topic` (the valve percentage), each with a `message_property_*` twin. A picker that matches only `component === 'sensor'` can never see them.
-
-This is the same shape as **[E156](roadmap-archive/E156.md)** / **[E157](roadmap-archive/E157.md)** / **[E158](roadmap-archive/E158.md)** — and specifically the *read-only* variant already built: **`readonlyNumericDiscovery`** in `@feezal/feezal-element/feezal-discovery-fragments.js`, which gives `material-tank`/`material-progress` a `sensor` + read-side-of-`number` + light-brightness accept list, with the guardrail that a display is **never** wired to a command topic.
-
-**Fix direction:** give the `*-value` / `*-gauge` family an `accepts` list with **read-only `climate` axes** — actual temperature, valve level, (humidity, once §2 lands) — one picker row per datapoint, labelled per **U56**. Reuse/extend `readonlyNumericDiscovery` rather than writing a third copy of this logic. Twelve consumers: `circle/glass/metro/eink/panel/tui-value`, `circle/glass/metro/material/panel-gauge`, `basic-icon-value`.
-
-## 2. Humidity is collected and then dropped on the floor
-
-`HUMIDITY` is in the recognizer's tracked-datapoint set (`server/src/mqtt/recognizers/homematic.js`), so it is captured — but:
-
-```
-$ grep -rn "humidity" server/src/
-(no matches)
-```
-
-**It is never written into any discovery config.** Not as a `sensor` entity, not as a key on the `climate` entity. So it is unavailable to **every** element, not just value cards — and the client-side `@feezal/feezal-controller-climate` already supports it (`options.humidity`, `this.humidity`), so a wired-up path exists with nothing feeding it. Fixing §1 alone would still leave humidity missing.
-
-**Fix direction:** emit it — either as a key on the climate entity (`humidity_state_topic` + `message_property_humidity`, matching the existing per-topic twin convention) or as a sibling `sensor` entity, or both. Decide deliberately: a key on climate feeds the climate cards' humidity display; a sibling `sensor` makes it pickable everywhere with no cross-component work at all. **Verify the datapoint's channel per device family against OpenCCU-Base** rather than from memory — HmIP wall thermostats (HmIP-WTH/STHD) carry HUMIDITY, plain eTRVs generally do not, and channel indices differ.
-
-## Worth checking at the same time
-
-- **Which other numerics are trapped the same way** — `boost_state_topic`, `min_temp`/`max_temp`, and the `cover` entity's `position_state_topic` are all read-only numbers a value card could legitimately display.
-- **The mirror-image guardrail still applies:** a display must never be handed a *command* topic. `readonlyNumericDiscovery` already asserts this structurally (no variant map contains a `*_command_topic` key); extend that assertion to the new variants.
-
-**Ships with:** the `climate` read-only accepts on the value/gauge family, the server-side humidity emission (+ a fixture test in `server/test/`), unit tests mirroring `www/test/feezal-discovery-cross-component-rollout.test.js` (accepted components, wired attributes, and the exclusions), a `docs/TESTING.md` §9 row, and version bumps per policy.
-
-**Relates:** **[E156](roadmap-archive/E156.md)** ✅ / **[E157](roadmap-archive/E157.md)** ✅ / **[E158](roadmap-archive/E158.md)** ✅ (the mechanism and the read-only fragment to extend), **U56** ✅ (per-attribute picker row labels — one row per datapoint), **E135** / **E102** ✅ (the Homematic climate profiles this reads from), **E138** (device-function taxonomy — `-value` is the numeric read-out card), **B59** (a previous "wrong card offered for a numeric reading" defect), `feezal-controller-climate` (already has humidity support waiting), OpenCCU-Base (authoritative datapoint/channel reference per the repo's Homematic rule).
 
 ### B63 — "Open viewer" does nothing on Safari/iOS (regression)
 
@@ -1585,7 +1542,7 @@ Define `NUMERIC_SENSOR_ICONS` **once** in `@feezal/feezal-element`, next to `fee
 
 **Ships with:** the shared icon table, the `device_class` mapping added to every value/gauge discovery map, unit tests (each `device_class` stamps its icon; an unknown one falls back to `sensors`; an entity with no `device_class` leaves the attribute untouched), a `docs/TESTING.md` §9 line, and version bumps per policy.
 
-**Relates:** **E132** / **E138** (`feezal-sensor-types.js` — the boolean-sensor vocabulary this mirrors; put the numeric table beside it), **B85** (thermostat datapoints not offered to value cards — the same family, and its `climate` axes will want icons too), **[B86](roadmap-archive/B86.md)** (blocks verification via the picker), **U62** ✅ (friendly labels — the same "make the stamped result presentable" concern), `feezal-icon` / the Material Symbols set (name verification).
+**Relates:** **E132** / **E138** (`feezal-sensor-types.js` — the boolean-sensor vocabulary this mirrors; put the numeric table beside it), **[B85](roadmap-archive/B85.md)** ✅ (thermostat datapoints now offered to value cards — its `climate` axes want icons too: temperature, humidity and valve rows currently get whatever the card defaults to), **[B86](roadmap-archive/B86.md)** (blocks verification via the picker), **U62** ✅ (friendly labels — the same "make the stamped result presentable" concern), `feezal-icon` / the Material Symbols set (name verification).
 
 ### A7 — Git versioning for data directory 🔨 in progress
 
