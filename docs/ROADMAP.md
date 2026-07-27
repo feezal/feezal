@@ -66,6 +66,7 @@ Work in progress — priorities and scope are not final.
 - [U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow](#u61--editor-preview-fidelity-gradientbackground-in-a-percentage-sized-views-scroll-overflow)
 - [U63 — `layout-app`: split the content inset into per-side knobs](#u63--layout-app-split-the-content-inset-into-per-side-knobs)
 - [U65 — Site-wide named colour ranges: any colour knob can be driven by a value](#u65--site-wide-named-colour-ranges-any-colour-knob-can-be-driven-by-a-value)
+- [U66 — Colour pickers cannot express transparency (no alpha slider)](#u66--colour-pickers-cannot-express-transparency-no-alpha-slider)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -1291,6 +1292,45 @@ Alternative worth weighing: a `<feezal-color-ranges>` child element holding form
 **Ships with:** the range schema + shared resolver (bands/gradient/enum, theme-var passthrough), the paired-property mechanism in `FeezalElement`, the primary-value opt-in, `<feezal-site>` storage, the site-level manager panel, the colour-control third mode with the create sentinel, the gauge `ranges` attribute accepting a named range, unit tests for the resolver, a browser test that a resolved colour actually lands on the var, an **export test that ranges survive** into a static bundle, `docs/TESTING.md` coverage, and version bumps.
 
 **Relates:** `@feezal/feezal-gauge` (`bandColor` / `parseRanges` — the existing implementation this generalises, and the first consumer to migrate), **U49** / the conditions engine (`action: style` — the overlapping mechanism to delimit), **U47** ✅ (the `＋ Create new…` sentinel pattern to copy), `feezal-sidebar-themes` / `-assets` (site-level panel precedent), `material-tank` warn/crit + the glass/metro state colours (the ad-hoc thresholds to absorb), `CLAUDE.md` §"Theme variable discipline" (band colours should prefer theme vars), **A16**/export (ranges must serialize into a static bundle).
+
+### U66 — Colour pickers cannot express transparency (no alpha slider)
+
+**Requested (07/2026):** the visual colour pickers offer no way to make an rgba colour — add a transparency slider.
+
+## Why it cannot work today
+
+Both inspectors use the **native `<input type="color">`** — `feezal-sidebar-inspector-styles.js` for style knobs and `feezal-sidebar-inspector-attributes.js` for `type: 'color'` attributes. That control is `#rrggbb` **by specification**: it has no alpha channel to expose. So this is not a missing slider, it is the wrong control.
+
+**A second, smaller defect rides along.** The attribute picker gates its swatch on
+
+```js
+/^#[0-9a-fA-F]{6}$/.test(val) ? val : '#000000'
+```
+
+so even a hand-typed `rgba(…)` or 8-digit hex in the text field leaves the swatch showing **black** — the value is fine, the preview lies about it. That regex has to widen as part of this, or alpha values will look broken even once they are supported.
+
+**The gap has already leaked into an element's public API.** `layout-app` carries `--feezal-app-drawer-overlay-opacity` as a plain 0–100 number, with its own help text telling users to reach for it *"rather than an rgba value"* — a knob that exists only because the picker cannot do this. Worth revisiting once it can, though keeping it is defensible: a dedicated opacity number is arguably clearer than an alpha channel buried in a colour.
+
+## Approach
+
+**Swap to `sl-color-picker` with `opacity`.** Shoelace is already the editor's component library, so this is a swap rather than a new dependency: it gives a real alpha slider, `format` control (hex / rgb / hsl), an eyedropper and swatches, and it is themable with the `--sl-*` vars the rest of the inspector already uses. The cost is bundle size for one more Shoelace component and a slightly larger control in a dense panel — check it still fits the sidebar before committing.
+
+*(Rejected: `<input type="color" alpha>`. The HTML spec has gained an `alpha` attribute and Chromium ships it, but cross-browser support is uneven and feezal targets Safari/iOS as a first-class viewer platform. Not worth the conditional.)*
+
+## Decisions to make
+
+1. **Output format.** `#rrggbbaa` is compact and diffs cleanly in the serialized HTML; `rgba(r,g,b,a)` is more readable in source view. Shoelace's `format` picks one — choose deliberately, and make sure the widened swatch regex accepts both, since existing dashboards may contain either.
+2. **Alpha on a *theme var* is the interesting case.** Most colour knobs default to something like `var(--primary-color)`. An alpha slider can only produce a literal, so "make the theme colour 40 % transparent" is not expressible by dragging alpha — that needs `color-mix(in srgb, var(--primary-color) 40%, transparent)`. Options: (a) dropping alpha below 100 % converts the value to a literal, silently losing theme-following — bad; (b) when the base is a `var()`, emit `color-mix(…)` instead, keeping it theme-aware; (c) keep alpha literal-only and disable the slider while the value is a var, with a hint. **(b) is the honest one** and preserves `CLAUDE.md`'s theme discipline, at the cost of generating a less obvious value.
+3. **Scope.** Both inspectors, or styles only? They use different code paths but the same control; doing one leaves the other inconsistent. Recommend both, in one pass.
+
+## Worth checking at the same time
+
+- **Does anything downstream assume 6-digit hex?** The same regex shape may exist elsewhere (colour parsing in gauges, theme swatch previews, the background/gradient editor). `grep` for `{6}` before shipping.
+- **Contrast/legibility.** A semi-transparent text or icon colour over a themed background can become unreadable; not something to police, but the picker showing its swatch over a checkerboard (as Shoelace does) helps the user see what they are choosing.
+
+**Ships with:** the `sl-color-picker` swap in both inspectors, the widened swatch/value regex, the theme-var alpha decision from above, a unit test that an alpha value round-trips through the inspector without being reset to black (the current defect), a `docs/TESTING.md` line, and a check that the control still fits the sidebar at its narrowest.
+
+**Relates:** `feezal-sidebar-inspector-styles.js` / `-attributes.js` (the two pickers), **U59** (the gradient/background editor — same colour-authoring surface, and gradients already need per-stop alpha), **[U65](#u65--site-wide-named-colour-ranges-any-colour-knob-can-be-driven-by-a-value)** (colour ranges — band colours will want alpha too, and share the picker), `layout-app`'s `--feezal-app-drawer-overlay-opacity` (the workaround this may retire), `CLAUDE.md` §"Theme variable discipline" (why decision 2 matters).
 
 ### E112 — Scrypted integration: camera snapshot element (sensors already work) 💡 to refine
 
