@@ -62,7 +62,7 @@ Work in progress — priorities and scope are not final.
 - [U23 — Custom collapsed placeholder text in the source editor](#u23--custom-collapsed-placeholder-text-in-the-source-editor-blocked-by-upstream) 🚧
 - [U38 — Topic browser sidebar panel](#u38--topic-browser-sidebar-panel)
 - [U45 — Element insertion: palette sidebar + full-screen picker](#u45--element-insertion-palette-sidebar--full-screen-picker--to-refine) 💡 *(to refine)*
-- [U58 — "Generate" button: bulk element + app scaffold wizard from discovery](#u58--generate-button-bulk-element--app-scaffold-wizard-from-discovery--to-refine) 💡
+- [U58 — "Generate" button: bulk element + app scaffold wizard from discovery](#u58--generate-button-bulk-element--app-scaffold-wizard-from-discovery--phase-①-devices--done--phase-②-app-spec-ready) 🔨
 - [U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow](#u61--editor-preview-fidelity-gradientbackground-in-a-percentage-sized-views-scroll-overflow)
 - [U63 — `layout-app`: split the content inset into per-side knobs](#u63--layout-app-split-the-content-inset-into-per-side-knobs)
 - [U65 — Site-wide named colour ranges: any colour knob can be driven by a value](#u65--site-wide-named-colour-ranges-any-colour-knob-can-be-driven-by-a-value)
@@ -1016,7 +1016,7 @@ The left palette is a poor place to *browse* a catalog that now spans many famil
 
 **Relates:** **E113** (taxonomy — the picker's information architecture), **U31** (device-first insertion — a mode *inside* this picker, not a separate tab), B42 ✅ (filter bug — fixed standalone 07/2026, subsumed here), U24 ✅ (collapsible categories), U32 ✅ (site-specific Components category — must appear in both surfaces), B20 ✅ (palette drag → snap machinery to preserve).
 
-### U58 — "Generate" button: bulk element + app scaffold wizard from discovery 🔨 Phase ① (Devices) ✅ done · Phase ② (App) pending
+### U58 — "Generate" button: bulk element + app scaffold wizard from discovery 🔨 Phase ① (Devices) ✅ done · Phase ② (App) spec ready
 
 **✅ Phase ① implemented (07/2026) — Devices mode + shared prerequisites.** The top-bar **Generate** button (`auto_awesome`, between the `#toolbar` cluster and the source-mode toggle) opens the two-tile popup ([feezal-generate-dialog.js](../www/src/feezal-generate-dialog.js)); the **App** tile renders disabled ("Coming soon" — Phase ②). **Devices** mode: pick a style family (the device-card families that ship ≥3 discovery elements — Circle / Glass / Metro / E-ink lead), tick discovered devices from a source-grouped, filterable list, and one pre-wired element per device is dropped onto the current view in a deterministic auto-grid. Append-only with a `discovery-id` dupe-guard (a device already on the view is skipped, never duplicated); family-parity gaps are skipped-and-reported (grouped by function on the result screen); id-less/unknown-component rows are filtered out. All three prerequisites landed as the shared headless module [feezal-discovery-stamp.js](../www/src/feezal-discovery-stamp.js): `stampDiscovery(el, entity)` (extracted verbatim from `_applyDiscovery`, which now delegates to it — the ⚡ picker and Generate wire devices byte-for-byte the same), `resolveElementTag(component, family, deviceClass)` (registry-checked, `binary_sensor` routed by device_class, null on parity gap — the minimal slice of **E113**), and `layoutGrid` (uniform-cell packing from `defaultStyle`, columns from view width, Devices-mode only). Unit-tested (`test/feezal-discovery-stamp.test.js`) + browser-tested (`test-browser/feezal-generate-dialog.test.js`); TESTING.md §Generate wizard. **Phase ② (App mode)** — the room/function heuristic, multi-view creation, `layout-app` wiring and the `--feezal-app-content-max-width` cap — remains open below.
 
@@ -1073,6 +1073,100 @@ A one-click path from "connected broker with discovered devices" to "a populated
 **Phasing (suggested).** Ship **① Devices** first (small: device list + family pick + bulk stamp + auto-grid; reuses proven machinery). **② App** second (the room heuristic + multi-view creation + `layout-app` wiring is the real design and risk). Both gate on **E113** for the function/family model and benefit from **E114** parity.
 
 **Risks / open questions.** The **auto-grid layout algorithm** is now the single remaining quality risk — v1 ships the deterministic uniform-cell packing described above; whether that reads well across mixed element sizes or needs size-aware packing (**E38**) is the open judgement call, mitigated by the layout being fully editable afterward. Everything else is settled (see *Decided* + *Implementation-readiness* above): deterministic-lexicon room detection with editable review (AI deferred), no hybrid room×function axis, skip-and-report on parity gaps, per-entity list unit, central width cap — plus this session's no-third-tile / flat-grid / one-family / append-only decisions.
+
+## Phase ② — App mode, implementation-ready (07/2026)
+
+### The room source now exists
+
+**[E161](roadmap-archive/E161.md) landed the missing signal.** `server/src/mqtt/discovery.js` captures `sa`/`suggested_area` onto each device **group** (`getDeviceGroups()`), explicitly *"so U58 App mode can group devices into per-area views"*, and it is served by **`GET /api/discovery/device-groups`**. The wizard currently fetches only `/api/discovery/devices` (entities), so step 1 below is a join, not new plumbing.
+
+### Decisions (round 2)
+
+| question | decision |
+|---|---|
+| room source | **area → lexicon → `Unassigned`**, and the editable review is **always** shown |
+| a non-room first entry | **no** — the app opens on the first room; nothing empty ships |
+| drawer icons | **auto-assigned** from a room/function lexicon, HA icon preferred *where usable* (see trap) |
+| drawer chrome | **`rail: auto` + `rail-breakpoint`** — overlay on phones, slim rail on tablets, full drawer on desktop |
+
+⚠️ **Icon trap, learned from [E160](roadmap-archive/E160.md):** an HA `icon` is an **MDI** name (`mdi:blur`); feezal renders **Material Symbols**. Passing it through yields a *blank* icon, not a wrong one. So "prefer the HA icon" means *prefer it when an MDI→Symbols alias resolves*, else the lexicon, else blank — reuse whatever E160 settled rather than inventing a second mapping.
+
+**Review always shown, because the guesses are the norm.** Homematic and zigbee2mqtt carry no areas, so most feezal setups land entirely on the lexicon. The review must mark which buckets came from a trusted area and which were guessed, so the user knows where to look.
+
+### Generation algorithm
+
+1. **Fetch and join.** `/api/discovery/devices` for entities, `/api/discovery/device-groups` for groups; join entity → group by device identifier to reach `group.area`.
+2. **Bucket each selected entity:** `group.area` (trusted) → room-word lexicon over device / channel / friendly name / topic (guess) → `Unassigned`.
+3. **Review screen.** Buckets with device counts; rename, merge, and reassign individual devices; guessed buckets visibly marked. **Nothing is created before confirm** — the wizard must not leave half-built views behind if the user backs out.
+4. **On confirm, in one undo snapshot:**
+   - ensure the shell view (default `Menu`) and its `layout-app`; **reuse** an existing one rather than creating a second (existing idempotency rule);
+   - per bucket, ensure a sub-view: `child-position="flow"`, `flow-justify: center`;
+   - per entity: `resolveElementTag(component, family, deviceClass)` → skip-and-report on a parity gap → create + `stampDiscovery()` → append (flow layout, **no** `layoutGrid` — that is Devices-mode only);
+   - build `items` as `[{label, icon, view}]` in bucket order and set it on the shell.
+5. **Result screen:** views created, cards placed, parity-gap skips grouped by function, and devices already present anywhere in the app (the `discovery-id` guard spans the whole app).
+
+### View naming — labels and names are not the same string
+
+The view `name` reaches the URL as `#/<view>/<embedded>` and gets percent-encoded (**B30**), so `Wohnzimmer`/`Büro` would work but read badly and are awkward to type or share. **Slugify for the `name`, keep the human string as the drawer `label`:** ASCII-folded, lowercased, hyphenated (`Büro` → `buero`/`buro` — pick a transliteration and test it against German umlauts), with a numeric suffix on collision. Collisions with **pre-existing** views merge by name per the existing rule, so slug stability matters: the same room must produce the same slug on a re-run or idempotency breaks.
+
+### What the scaffold sets on `layout-app`
+
+| attribute | value | why |
+|---|---|---|
+| `items` | generated entries | the navigation itself |
+| `rail` | `auto` | the B84 three-zone model |
+| `rail-breakpoint` | its default | overlay → rail → full drawer |
+| `--feezal-app-content-max-width` | ~a phone/tablet column | the cap this item has been waiting on |
+| `--feezal-app-content-padding` | a small inset ([U50](roadmap-archive/U50.md)) | so cards do not touch the chrome |
+| `title` | the site name | sensible, editable |
+
+`header` keeps its default — the generated app should not start in a mode the user has to discover how to undo.
+
+### Function mode — the buckets
+
+The two variants are **per-room** and **per-function**, chosen per run. Function mode must group by what a *user* recognises, not by raw discovery `component`: "windows and doors" and "smoke/water alarms" are both `binary_sensor`, and splitting or merging them wrongly is the difference between a usable app and a junk drawer.
+
+**Build the taxonomy over the classification that already exists** — do not invent a parallel one:
+
+- `FUNCTION_CANDIDATES` (component → function) in `feezal-discovery-stamp.js`;
+- `BINARY_BY_CLASS` (device_class → `motion` / `contact` / `sensor`) in the same module, including **B59**'s rule that an unmapped class defaults to `sensor`, never `contact`;
+- `MOTION_SENSOR_TYPES` / `ALARM_SENSOR_TYPES` in `feezal-sensor-types.js` — **E132/E138 already split motion from alarm**, which is exactly the distinction function mode needs.
+
+| bucket | drawn from |
+|---|---|
+| Lights | `light` |
+| Switches & sockets | `switch` |
+| Covers & blinds | `cover` |
+| Climate | `climate`, `water_heater` |
+| Windows & doors | `binary_sensor` → `contact` (door, window, garage_door, opening) |
+| Motion & presence | `binary_sensor` → `motion` (`MOTION_SENSOR_TYPES`) |
+| Alarms | `binary_sensor` → alarm classes (`ALARM_SENSOR_TYPES`: smoke, gas, moisture/water, co, tamper, …) |
+| Sensors | numeric `sensor`, plus binary sensors with no/unmapped class (B59 default) |
+| Locks | `lock` |
+| Media | `media_player` |
+| Energy | `evcc-loadpoint`, `energy-flow` |
+| Other | anything left — `fan`, `vacuum`, `humidifier`, `number`, `select`, `button`, `scene`, `text`, `image`, `camera`, `alarm_control_panel` |
+
+**A bucket appears only if it has devices** — no empty views, so a lights-only setup yields one view rather than twelve. Order follows the table (taxonomy order, per the ordering rule below), not alphabetical.
+
+**Keep the taxonomy in one place.** Function mode, **E138**'s vocabulary and the discovery resolver should not drift into three opinions about what a "contact" is; if the table above needs an entry the resolver lacks, fix the resolver rather than special-casing the wizard.
+
+### Ordering
+
+Rooms **alphabetically by label** (locale-aware compare, so umlauts sort as expected), with `Unassigned` **pinned last**. Functions in **taxonomy order** (**E138**) rather than alphabetically — `Lights, Covers, Climate, Sensors…` reads as a dashboard, `Climate, Covers, Lights…` reads as a list. Cards within a view follow the device list order, which is already source-grouped.
+
+### Testing
+
+- **Unit:** bucketing (area beats lexicon, lexicon beats unassigned), the lexicon itself (multilingual, false-positive resistance — `Bad` inside `Badezimmerlampe` yes, inside `Badminton` no), slug generation + collision suffixes + **stability across runs**.
+- **Browser:** the review screen — rename, merge, reassign, and that backing out creates nothing.
+- **E2E:** generate an app from a seeded discovery set; assert the views exist, the shell's `items` matches, cards are wired, and a **second run adds nothing**.
+
+### Still open
+
+1. **A room with one device** — still its own view, or folded into `Unassigned`? A drawer of eight single-card rooms is worse than one shared view. (Function mode has the same question for a one-device bucket, but the fixed taxonomy makes it rarer.)
+2. **Very large sites.** 200 devices across 15 rooms is a lot of generated content in one undo step; consider a cap or a warning rather than discovering the limit in the field.
+3. **Does the review screen apply to function mode too?** The buckets are deterministic there — no guessing — so it could be skipped. But it is also the only place to *deselect* a bucket, which argues for showing it in both modes with the guess-marking simply absent.
+
 
 **Relates:** **U30** (the idea this concretises — recommend subsuming), **U31** (device-first single insert — shared machinery), **U45** (element picker — sibling entry point), **E113** (function × style — the model), **E114** (parity — safe family pick), **E115** (switch family — after-the-fact restyle), **E138** (the device-function taxonomy the buckets use), **E108** ✅ (native discovery — supplies the device list), **U41** ✅ (flow layout — the sub-view layout mode App generates), **[U50](roadmap-archive/U50.md)** ✅ (layout-app content inset — candidate home for the sub-view width cap), **E38** (responsive sizing — the width-cap + auto-grid concern), `layout-app` (the app-shell element the App mode wires), U37 ✅ (welcome wizard — the other onboarding surface), U9/AI assistant (candidate room-clustering engine), **E147** (the AI-on-the-edge meter element — a candidate the wizard could place from discovered meters, deriving its json/status/connection topics from the discovered value topic).
 
