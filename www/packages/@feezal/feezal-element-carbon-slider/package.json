@@ -1,6 +1,9 @@
 {
     "name": "@feezal/feezal-element-carbon-slider",
-    "version": "3.0.4",
+    "version": "3.0.5",
     "license": "MIT",
-    "main": "feezal-element-carbon-slider.js"
+    "main": "feezal-element-carbon-slider.js",
+    "dependencies": {
+        "@carbon/web-components": "^2.58.1"
+    }
 }

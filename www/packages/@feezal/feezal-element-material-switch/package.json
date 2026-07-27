@@ -1,6 +1,9 @@
 {
-  "name": "@feezal/feezal-element-material-switch",
-  "version": "3.0.3",
-  "license": "MIT",
-  "main": "feezal-element-material-switch.js"
+    "name": "@feezal/feezal-element-material-switch",
+    "version": "3.0.4",
+    "license": "MIT",
+    "main": "feezal-element-material-switch.js",
+    "dependencies": {
+        "@material/web": "^2.4.1"
+    }
 }

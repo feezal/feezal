@@ -1,6 +1,9 @@
 {
     "name": "@feezal/feezal-element-carbon-input",
-    "version": "3.0.2",
+    "version": "3.0.3",
     "license": "MIT",
-    "main": "feezal-element-carbon-input.js"
+    "main": "feezal-element-carbon-input.js",
+    "dependencies": {
+        "@carbon/web-components": "^2.58.1"
+    }
 }

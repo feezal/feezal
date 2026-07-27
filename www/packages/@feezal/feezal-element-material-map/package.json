@@ -1,6 +1,9 @@
 {
-  "name": "@feezal/feezal-element-material-map",
-  "version": "3.0.2",
-  "license": "MIT",
-  "main": "feezal-element-material-map.js"
+    "name": "@feezal/feezal-element-material-map",
+    "version": "3.0.3",
+    "license": "MIT",
+    "main": "feezal-element-material-map.js",
+    "dependencies": {
+        "leaflet": "^1.9.4"
+    }
 }

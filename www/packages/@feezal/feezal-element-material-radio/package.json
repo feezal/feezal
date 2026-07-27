@@ -1,6 +1,9 @@
 {
-  "name": "@feezal/feezal-element-material-radio",
-  "version": "3.0.1",
-  "license": "MIT",
-  "main": "feezal-element-material-radio.js"
+    "name": "@feezal/feezal-element-material-radio",
+    "version": "3.0.2",
+    "license": "MIT",
+    "main": "feezal-element-material-radio.js",
+    "dependencies": {
+        "@material/web": "^2.4.1"
+    }
 }

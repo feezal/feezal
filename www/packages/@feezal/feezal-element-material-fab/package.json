@@ -1,6 +1,9 @@
 {
-  "name": "@feezal/feezal-element-material-fab",
-  "version": "3.0.2",
-  "license": "MIT",
-  "main": "feezal-element-material-fab.js"
+    "name": "@feezal/feezal-element-material-fab",
+    "version": "3.0.3",
+    "license": "MIT",
+    "main": "feezal-element-material-fab.js",
+    "dependencies": {
+        "@material/web": "^2.4.1"
+    }
 }

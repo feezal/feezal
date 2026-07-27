@@ -1,6 +1,9 @@
 {
     "name": "@feezal/feezal-element-circle-humidifier",
-    "version": "3.0.2",
+    "version": "3.0.3",
     "license": "MIT",
-    "main": "feezal-element-circle-humidifier.js"
+    "main": "feezal-element-circle-humidifier.js",
+    "dependencies": {
+        "@material/web": "^2.4.1"
+    }
 }

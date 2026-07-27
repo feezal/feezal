@@ -1,6 +1,9 @@
 {
-  "name": "@feezal/feezal-element-material-progress",
-  "version": "3.0.2",
-  "license": "MIT",
-  "main": "feezal-element-material-progress.js"
+    "name": "@feezal/feezal-element-material-progress",
+    "version": "3.0.3",
+    "license": "MIT",
+    "main": "feezal-element-material-progress.js",
+    "dependencies": {
+        "@material/web": "^2.4.1"
+    }
 }

@@ -1,5 +1,8 @@
 {
     "name": "@feezal/feezal-lottie",
-    "version": "0.1.0",
-    "main": "feezal-lottie.js"
+    "version": "0.1.1",
+    "main": "feezal-lottie.js",
+    "dependencies": {
+        "lottie-web": "^5.13.0"
+    }
 }

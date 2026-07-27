@@ -80,7 +80,7 @@ Work in progress — priorities and scope are not final.
 - [A24 — Externalize the metro element family](#a24--externalize-the-metro-element-family-future--will-be-done-later) *(future)*
 - [A27 — i18n: editor localization + language-aware element defaults](#a27--i18n-editor-localization--language-aware-element-defaults--to-refine) 💡 *(to refine)*
 - [A29 — RTL layout support (Arabic, Hebrew)](#a29--rtl-layout-support-arabic-hebrew--future) 💡 *(future)*
-- [A33 — Move element-only toolkit deps out of `www/package.json` into their families](#a33--move-element-only-toolkit-deps-out-of-wwwpackagejson-into-their-families)
+- [A34 — Dependency refresh + supply-chain hardening (`npm ci`, lockfile enforcement)](#a34--dependency-refresh--supply-chain-hardening-npm-ci-lockfile-enforcement)
 
 
 ---
@@ -2334,28 +2334,11 @@ Right-to-left support is **a layout mode, not a translation** — which is exact
 
 **Relates:** **A27** (the language machinery this rides on — split out from its language list 07/2026), A25 ✅ (font self-hosting constraint), N38 (site locale — supplies the locale that flips `dir`), layout-app / tab bars / sliders (the element-internal audit surface), E38 (element scaling — the other cross-cutting element-CSS audit; coordinate if both run).
 
-### A33 — Move element-only toolkit deps out of `www/package.json` into their families
+### A34 — Dependency refresh + supply-chain hardening (`npm ci`, lockfile enforcement)
 
-**Follow-up to [A32](roadmap-archive/A32.md) ✅.** A32 fixed the paper-dropdown leak and added the ratchet guard (`www/test/package-declared-deps.test.js`), which surfaced that the *same* anti-pattern exists beyond the audited Paper family — these third-party deps sit in `www/package.json` but are imported **only** by element packages, never by the app (`src/`/`editor/`):
+Split out of [A33](roadmap-archive/A33.md) ✅ (which moved the element-only toolkits into their packages). Two threads that arrived with that dependency work but are much larger and touch `server/`, the workflows and the Dockerfile — not `www/package.json` — so they are tracked here on their own.
 
-| dependency | element-only importers | move into |
-|---|---|---|
-| `@material/web` | ~17 circle/material family elements | each importing element package's `dependencies` |
-| `@carbon/web-components` | 6 carbon family elements | each carbon element package |
-| `leaflet` | the map element (`material-map`) | that package |
-| `lottie-web` | `basic-lottie`, `system-splash`, `@feezal/feezal-lottie` | those packages (the shared `feezal-lottie` for the two consumers) |
-
-They are **grandfathered** in the A32 guard so CI passes today; this item removes each from `www/package.json`, declares it in the element package(s) that import it, and **deletes the grandfather entry** (the guard's second test then confirms the list stays honest). `npm install` re-links (workspace hoists to the same `node_modules`, so resolution/bundle are unchanged — provenance, not layout), patch-bump every touched element package per policy.
-
-**Also in scope (cheap, adjacent):** prune the **stale** `www/package.json` deps A32 spotted — `html5sortable` and `flatpickr` appear to be imported nowhere (`grep` finds no importer); confirm and remove them (a separate `git grep` per dep before deletion).
-
-**Explicitly NOT in scope:** the broad `@feezal/*` internal-package under-declaration (most element packages don't declare even `@feezal/feezal-element`). That is a distinct, much larger convention question about workspace-internal deps, not the external-npm-hoisting A32/A33 target — treat separately if pursued.
-
-**Ships with:** the per-toolkit moves (declare in family packages + remove from `www/package.json` + drop the grandfather entry), the stale-dep pruning, version bumps, and a green `package-declared-deps.test.js` with an **empty** grandfather list at the end (or documented residue).
-
----
-
-## Also in scope: bring the remaining deps up to date
+## Bring the remaining deps up to date
 
 Measured with `npm outdated` in `www/` (07/2026). Two groups, and only the second needs research.
 
@@ -2410,7 +2393,7 @@ Dockerfile:15-16              npm install (server, www)
 5. **Keep carets.** With 1–4 in place, exact pinning adds churn without adding protection. If anything is pinned exactly, do it for a *specific* reason (a package with a history of bad releases), not as a blanket policy.
 6. **For feezal's own published packages**, the mirror-image concern: use npm **trusted publishing / provenance** from the release workflow rather than a long-lived token. This repo publishes ~150 `@feezal/*` packages, so it is a supply chain for *other* people too.
 
-⚠️ **Scope note.** Items 1–4 and 6 touch `server/`, the workflows and the Dockerfile — outside A33's `www/package.json` remit. If this grows, split it into its own item; it is recorded here because the question arrived with the dependency refresh.
+⚠️ **Scope note.** Items 1–4 and 6 touch `server/`, the workflows and the Dockerfile — the reason this is its own item (A34) rather than part of A33's `www/package.json` remit.
 
 **Ships with (this section):** the in-range refresh in one commit; each out-of-range major in its own commit with a changelog note in the message; `npm ci` + `ignore-scripts` evaluated and applied where they pass; and a short "dependency policy" note in `CLAUDE.md` so the next person does not have to re-derive the reasoning.
 

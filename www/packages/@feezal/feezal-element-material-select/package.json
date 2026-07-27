@@ -1,6 +1,9 @@
 {
-  "name": "@feezal/feezal-element-material-select",
-  "version": "3.0.1",
-  "license": "MIT",
-  "main": "feezal-element-material-select.js"
+    "name": "@feezal/feezal-element-material-select",
+    "version": "3.0.2",
+    "license": "MIT",
+    "main": "feezal-element-material-select.js",
+    "dependencies": {
+        "@material/web": "^2.4.1"
+    }
 }

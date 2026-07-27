@@ -1,6 +1,9 @@
 {
-  "name": "@feezal/feezal-element-material-input",
-  "version": "3.0.2",
-  "license": "MIT",
-  "main": "feezal-element-material-input.js"
+    "name": "@feezal/feezal-element-material-input",
+    "version": "3.0.3",
+    "license": "MIT",
+    "main": "feezal-element-material-input.js",
+    "dependencies": {
+        "@material/web": "^2.4.1"
+    }
 }

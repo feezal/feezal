@@ -1,6 +1,9 @@
 {
     "name": "@feezal/feezal-element-material-time-picker",
-    "version": "3.0.1",
+    "version": "3.0.2",
     "main": "feezal-element-material-time-picker.js",
-    "license": "MIT"
+    "license": "MIT",
+    "dependencies": {
+        "@material/web": "^2.4.1"
+    }
 }

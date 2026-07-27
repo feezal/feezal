@@ -1,6 +1,9 @@
 {
     "name": "@feezal/feezal-element-material-button",
-    "version": "3.0.4",
+    "version": "3.0.5",
     "license": "MIT",
-    "main": "feezal-element-material-button.js"
+    "main": "feezal-element-material-button.js",
+    "dependencies": {
+        "@material/web": "^2.4.1"
+    }
 }

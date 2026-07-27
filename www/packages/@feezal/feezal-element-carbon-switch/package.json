@@ -1,6 +1,9 @@
 {
     "name": "@feezal/feezal-element-carbon-switch",
-    "version": "3.0.3",
+    "version": "3.0.4",
     "license": "MIT",
-    "main": "feezal-element-carbon-switch.js"
+    "main": "feezal-element-carbon-switch.js",
+    "dependencies": {
+        "@carbon/web-components": "^2.58.1"
+    }
 }

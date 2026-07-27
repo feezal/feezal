@@ -26,16 +26,12 @@ import {dirname, join} from 'path';
 
 const wwwDir = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-// Pre-existing element-only deps still hoisted to www/package.json. Each is a
-// design-system toolkit / heavy widget used only by its element family; moving
-// them into those packages is A32's principle applied more widely — tracked as
-// a follow-up. NOTHING may be added here without the same follow-up intent.
-const GRANDFATHERED = new Set([
-    '@material/web',            // 17 circle/material family elements
-    '@carbon/web-components',   // 6 carbon family elements
-    'leaflet',                  // the map element
-    'lottie-web',               // basic-lottie / system-splash / feezal-lottie
-]);
+// Pre-existing element-only deps still hoisted to www/package.json. A33 moved
+// the last four design-system toolkits (@material/web, @carbon/web-components,
+// leaflet, lottie-web) into their element packages, so this list is now EMPTY —
+// the anti-pattern is fully ratcheted. NOTHING may be added here: a new
+// element-only dep must be declared in its element package, not hoisted here.
+const GRANDFATHERED = new Set([]);
 
 function walk(dir, out = []) {
     if (!existsSync(dir)) return out;

@@ -1,6 +1,9 @@
 {
-  "name": "@feezal/feezal-element-circle-fan",
-  "version": "3.0.4",
-  "license": "MIT",
-  "main": "feezal-element-circle-fan.js"
+    "name": "@feezal/feezal-element-circle-fan",
+    "version": "3.0.5",
+    "license": "MIT",
+    "main": "feezal-element-circle-fan.js",
+    "dependencies": {
+        "@material/web": "^2.4.1"
+    }
 }
