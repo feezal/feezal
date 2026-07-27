@@ -1,6 +1,6 @@
 # feezal
 
-<img src="www/favicon/apple-touch-icon.png" align="left"><br><h3>Visually build MQTT-driven apps and dashboards</h3><br><br><br><br><br>
+<img src="www/favicon/apple-touch-icon.png" align="left"><br><h3>Visually build MQTT-driven Apps and Dashboards</h3><br><br><br><br><br>
 
 [![codecov](https://codecov.io/gh/feezal/feezal/branch/master/graph/badge.svg)](https://codecov.io/gh/feezal/feezal)
 
