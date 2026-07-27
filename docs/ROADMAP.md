@@ -17,7 +17,7 @@ Work in progress — priorities and scope are not final.
 - [N38 — Site locale: localized number formatting (decimal separator & friends)](#n38--site-locale-localized-number-formatting-decimal-separator--friends)
 
 **Element Ecosystem**
-- [E20 — Weather forecast (`feezal-element-material-weather`)](#e20--weather-forecast-element-feezal-element-material-weather)
+- [E20 — Weather forecast (`feezal-element-material-weather`)](#e20--weather-forecast-element-feezal-element-material-weather--moved)
 - [E28 — Grafana integration](#e28--grafana-integration)
 - [E29 — Tile / compact state element (`feezal-element-material-tile`)](#e29--tile--compact-state-element-feezal-element-material-tile)
 - [E30 — Mini live sparkline (`feezal-element-basic-sparkline`)](#e30--mini-live-sparkline-feezal-element-basic-sparkline)
@@ -366,106 +366,9 @@ Numeric elements render `21.5` everywhere; a European dashboard should show `21,
 ### N2b — Repeater with live canvas sub-elements *(future)*
 Each repeater child becomes individually selectable and configurable on the editor canvas. Requires a virtual sub-editor context — significantly more complex, deferred until the MVP repeater is proven useful.
 
-### E20 — Weather forecast element (`feezal-element-material-weather`)
+### E20 — Weather forecast element (`feezal-element-material-weather`) → moved
 
-A wall-display-optimised weather card. Shows current conditions prominently and an N-day or N-hour forecast strip. Data is entirely MQTT-driven: each data point comes from a separate topic, making it compatible with any weather provider that publishes to MQTT (e.g. via a bridge from openweathermap, DWD, yr.no).
-
-*Inspiration (awesome-web-components, July 2026):* **XWeather** — a set of web components implementing parts of the OpenWeatherMap API — is a useful reference for the condition/icon mapping and layout, even though feezal's element stays MQTT-driven rather than calling a weather API directly (keeps it provider-agnostic and credential-free).
-
-**Visual concept:** top half — large animated SVG weather icon (sunny, partly cloudy, rainy, snowy, foggy, thunderstorm, etc.) with current temperature in a large typeface, and a secondary info row (feels-like, humidity, wind, UV index). Bottom half — a horizontal forecast strip: 5–7 slots, each with abbreviated day name, small weather icon, and high/low temperature bar.
-
-**Animated weather icons:** SVG-based inline animations (clouds drifting, sun rays rotating, rain drops falling, snow drifting). Editor mode shows static icons.
-
-**Current conditions topics:**
-
-| Attribute | Description |
-|---|---|
-| `subscribe-condition` | Weather condition string (see condition map below) |
-| `subscribe-temperature` | Current temperature |
-| `subscribe-feels-like` | Apparent temperature |
-| `subscribe-humidity` | Relative humidity (%) |
-| `subscribe-wind-speed` | Wind speed |
-| `subscribe-wind-direction` | Wind direction (degrees or cardinal string) |
-| `subscribe-uv-index` | UV index (0–11+) |
-| `subscribe-pressure` | Atmospheric pressure (hPa) |
-| `subscribe-visibility` | Visibility (km) |
-
-**Condition map** (configurable via `condition-map` JSON attribute to adapt non-standard payloads):
-`sunny`, `partlycloudy`, `cloudy`, `fog`, `rainy`, `pouring`, `snowy`, `snowy-rainy`, `hail`, `lightning`, `lightning-rainy`, `windy`, `windy-variant`, `exceptional`, `clear-night`
-
-**Forecast strip:** each of up to 7 forecast slots is configured as a JSON array topic. `subscribe-forecast` receives a JSON array payload:
-```json
-[
-  {"day": "Mon", "condition": "sunny",       "high": 24, "low": 14},
-  {"day": "Tue", "condition": "partlycloudy","high": 21, "low": 12},
-  ...
-]
-```
-
-**Display attributes:**
-
-| Attribute | Type | Default | Description |
-|---|---|---|---|
-| `unit` | `°C` \| `°F` | `°C` | Temperature unit |
-| `wind-unit` | string | `km/h` | Wind speed unit label |
-| `show-forecast` | boolean | `true` | Show forecast strip |
-| `show-feels-like` | boolean | `true` | Show apparent temperature |
-| `show-wind` | boolean | `true` | Show wind speed/direction |
-| `show-humidity` | boolean | `true` | Show humidity |
-| `show-uv` | boolean | `false` | Show UV index |
-| `show-pressure` | boolean | `false` | Show pressure |
-| `condition-map` | string | `{}` | JSON map of custom payload → standard condition string overrides |
-| `location-label` | string | `""` | Optional location name shown above the icon |
-
-**Default size:** 280×280 px (wider when forecast strip is enabled).
-
-
----
-
-## The real blocker is data supply, not rendering (07/2026)
-
-Every other element in feezal renders something a broker *already* carries: Homematic, zigbee2mqtt, ESPHome and evcc all publish themselves. **Weather does not exist on MQTT until somebody puts it there.** So E20's hard part is not the card — it is that a user who drops it onto a dashboard has nothing to subscribe to, and the element is a demo until they solve an unrelated problem first.
-
-**This must not be solved inside feezal.** Fetching REST from the element or the server would break the project's standing rule that **feezal is purely MQTT** — one transport, no second integration path, no credentials in the dashboard. The answer is an external publisher: something fetches over HTTP and publishes to MQTT, and feezal stays dumb. That is the same reasoning already recorded for the planned **astro publisher** in `docs/INTEGRATION-ROADMAP.md` §"Bridge-script bundle" — *"feeds a future astro element; keeps feezal dumb"*. A **weather publisher is that script's sibling**, and belongs in the same bundle rather than in a new mechanism.
-
-## Define the topic contract first — it is the actual deliverable
-
-The element and the publisher are two halves of one contract, and the contract is the reusable part. Specify it once:
-
-- the `subscribe-*` topics above as **plain scalar payloads**, and `subscribe-forecast` as the **JSON array** already specified;
-- **publish retained**, so a dashboard opened at 3am shows weather immediately rather than after the next poll (same reasoning as **B40**'s retained-replay work);
-- **payload shape matches the element's defaults** — plain values, not `{val, ts}` — so a copy-pasted recipe works with **zero element configuration**. The mqtt-smarthome `{val,ts,lc}` shape is more consistent with she's own conventions, but it would force every user to set `message-property: payload.val` on nine attributes before seeing anything. Recipe ergonomics win; document the alternative for users who prefer the convention.
-
-With the contract fixed, `condition-map` reverts to what it should be — an escape hatch for odd providers, not something every user must configure.
-
-## Provider analysis
-
-| provider | key needed | format | notes |
-|---|---|---|---|
-| **MET Norway / yr.no** | **no** | JSON (`locationforecast/2.0/compact`) | Best default: global, free, well-documented. **But**: requires a descriptive `User-Agent` (generic ones are blocked) and honouring `Expires` / `If-Modified-Since` — polling too eagerly gets a client throttled or banned. Attribution is required by their ToS. |
-| **DWD via Bright Sky** | **no** | JSON | The practical way to use DWD data. Raw DWD MOSMIX is KMZ/XML and miserable to parse in a small script; Bright Sky is a free JSON API over the same data. Germany-focused. |
-| **OpenWeatherMap** | yes | JSON | Simplest API, global, but needs a key and has free-tier rate limits. The "I already have a key" option rather than the default. |
-
-**Recommend shipping yr.no first** (no key, global), Bright Sky second (the DWD path users actually ask for), OWM third. **Ship the attribution line inside the script** — a copy-pasted script that quietly violates a provider's ToS is a bad thing to hand someone.
-
-**Cadence:** weather changes slowly. Poll every 10–30 minutes, honour the provider's cache headers, and publish on change plus a periodic refresh so a restarted broker re-populates.
-
-## Delivery — copy-paste now, automation later
-
-1. **Now: a copy-pastable she script per provider**, in the element's documentation. Zero infrastructure, works today, and reviewable before it runs — which matters for something that will hold an API key.
-2. **Discoverable from the editor:** the element descriptor's `links` field should point at the recipe, so a user who drops the card finds the data recipe without leaving feezal. Otherwise the best documentation in the world sits unread.
-3. **Later: Node-RED flows** as an alternative for users who do not run she — an importable flow JSON against the *same contract*. Note there are existing Node-RED weather nodes, so this may be assembly rather than authoring.
-4. **Later still:** installable via she's `PUT /she/scripts/…`, per the bundle plan.
-
-## Think bigger: this is the first "bridge recipe", not a weather special case
-
-The shape — **element ↔ canonical topic contract ↔ pluggable publisher** — recurs for every data source that is REST-only rather than MQTT-native. Weather is simply the first one to hit it. The same recipe format serves **energy prices**, **pollen / air quality**, **transit departures**, and the already-planned **astro** publisher.
-
-So the deliverable worth building is not "a weather script" but **a documented recipe format with weather as its first instance**: a canonical topic contract, one or more publisher implementations (she now, Node-RED later), and a link from the consuming element. Whether that lives in `docs/recipes/`, in `integrations/she/` (as the INTEGRATION-ROADMAP work-item 3 proposes) or in its own package is the **open question that document already records** — settle it once, since astro and weather will both land in it.
-
-**Ships with:** the topic contract (documented as the element's data spec), a yr.no she script with attribution and cache-header handling, the element's `links` entry pointing at it, and the recipe-format decision above. Bright Sky / OWM scripts and the Node-RED flow are follow-ups against the same contract.
-
-**Relates:** `docs/INTEGRATION-ROADMAP.md` §"Bridge-script bundle" (the astro/history/schedule siblings and the where-does-it-live open question this shares), **[she](https://github.com/hobbyquaker/she)** (the publisher runtime), **B40** (retained replay — why the publisher must retain), **E52** (schedule contract — the same "feezal defines the contract, she consumes it" pattern), the purely-MQTT principle (why the fetch lives outside feezal), and future REST-only elements (energy prices, air quality, transit) that would reuse the recipe format.
+**Moved to [INTEGRATION-ROADMAP.md](INTEGRATION-ROADMAP.md) §she — "Special elements".** The element spec and its data-supply half now live together there, because the interesting problem is not the card: weather is the first element whose data has **no MQTT-native source**, so it became the worked example for element-shipped **she adapter scripts**. The ID stays here so it is not reused and the element remains findable from this index.
 
 ### E28 — Grafana integration
 
