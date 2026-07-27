@@ -9,7 +9,8 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
-- [B84 — `layout-app`: slim rail missing on first paint until a narrow/wide resize cycle](#b84--layout-app-slim-rail-missing-on-first-paint-until-a-narrowwide-resize-cycle)
+- [B84 — `layout-app` drawer mode: rail missing on first paint, and no way to configure slim vs wide](#b84--layout-app-drawer-mode-rail-missing-on-first-paint-and-no-way-to-configure-slim-vs-wide)
+- [B87 — Custom inspectors silently drop attributes: `show-active-label` has no control](#b87--custom-inspectors-silently-drop-attributes-show-active-label-has-no-control)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -113,11 +114,14 @@ Work in progress — priorities and scope are not final.
 
 **Relates:** the glass family (`feezal-glass` — the `backdrop-filter` source), `layout-app` (the drawer whose hover triggers it), the glass **solid-card degrade** option (the fallback + diagnostic lever), E38/performance (backdrop-filter GPU cost is already a documented glass concern), per-view themes ✅ (the theme mismatch is an aggravating input here).
 
-### B84 — `layout-app`: slim rail missing on first paint until a narrow/wide resize cycle
+### B84 — `layout-app` drawer mode: rail missing on first paint, and no way to configure slim vs wide
 
 ## 🔨 Partially addressed (07/2026) — hardened, but the reported symptom was NOT reproduced
 
 **Read this before assuming the item is done.** Two real defects in `_recomputeNarrow()` were found by measurement and fixed; the reporter's exact sequence (rail missing after a plain reload, repaired by a narrow→wide cycle) **could not be reproduced**, so this may or may not close it. Please re-test.
+
+> **Scope note.** This entry now holds a *bug* (first paint, partially addressed) and a *feature request* (the configurable `rail` model below). They are independent: the bug can be closed on its own. Split them if the mixed state gets in the way — the only reason they share an entry is that both live in `_recomputeNarrow()`.
+
 
 **What was measured.** Mounting the shell four ways in real Chromium:
 
@@ -202,9 +206,76 @@ The decisive fields are **`clientWidth`** and **`viewHidden`** on the first read
 - Distinguish **"not measurable yet"** from **"wide"**: when `clientWidth === 0`, defer instead of concluding — re-measure when the element actually gains a box. An `IntersectionObserver`, or recomputing when the owning view becomes visible, is more reliable than one `requestAnimationFrame` at `firstUpdated()`.
 - **Check `autohide` too** — it shares the `:host([…]:not(.narrow))` gating and is likely to have the same first-paint hole.
 
-**Ships with:** the fix, a browser test that mounts the shell **inside a hidden view and then reveals it** (the case the current suite misses — every existing test sizes the host directly, which is why this passes today), and a `docs/TESTING.md` line under the N36 block: *load a dashboard with Slim rail on a wide viewer → the rail is icon-only from the first paint, with no resize needed*.
+## Requested (07/2026): make the whole drawer-mode model configurable
+
+Today the persistent drawer's presentation is fixed by two booleans and one breakpoint, and *which* presentation you get at a given width is not choosable at all. Wanted: **every combination expressible** — always slim, always wide, or slim/wide switching at a **second breakpoint**.
+
+### Three zones instead of two
+
+```
+width <  breakpoint                    →  overlay + hamburger      (unchanged)
+breakpoint ≤ width < rail-breakpoint   →  slim rail                (new middle zone)
+width ≥  rail-breakpoint               →  full drawer
+```
+
+| attribute | values | default | effect |
+|---|---|---|---|
+| `breakpoint` | number | `768` | **Unchanged** — below this the drawer is an overlay. |
+| `rail` | `off` · `slim` · `edge` · `auto` | `off` | The persistent drawer's presentation. `off` = full drawer (today's default); `slim` = icon rail; `edge` = thin edge; `auto` = width-dependent via `rail-breakpoint`. |
+| `rail-breakpoint` | number | `1024` | Only with `rail: auto`. At or above it, the full drawer; between `breakpoint` and it, the rail. |
+
+That covers every case asked for: **always slim** (`rail: slim`), **always wide** (`rail: off`), **width-dependent** (`rail: auto` + `rail-breakpoint`), and the existing thin-edge mode.
+
+### `rail` should replace `slim` + `autohide`, the way `header` replaced `hide-header`
+
+Follow the pattern already set in this element: keep the old booleans working, mark them deprecated, and map them on read (`slim` → `rail: slim`, `autohide` → `rail: edge`).
+
+This also **removes an existing ambiguity**: `slim` and `autohide` are independent booleans today, so both can be set at once, and which wins is decided only by CSS source order (`:host([autohide]:not(.narrow))` comes after the slim rule, so the 8px edge silently wins). They are mutually exclusive *presentations* and belong on one axis — the enum makes that explicit instead of accidental.
+
+### Implementation notes
+
+- **The zone must be derived, not latched.** This is the same lesson as the bug above: compute the zone from the current width every time, write the resulting state to the host unconditionally, and never conclude anything from a `clientWidth` of 0. A third zone is a third chance to latch the wrong one on first paint.
+- **The CSS cannot express two breakpoints against the element's own width**, so the resolved zone has to reach the stylesheet as host state — a `rail-state` attribute (or class) written by `_recomputeNarrow()`, which then becomes the single place the whole model is decided. Worth considering **container queries** (`@container`) as the alternative, since the element already sizes itself; that would move the thresholds into CSS but split the logic across two places.
+- **Validate the pair.** `rail-breakpoint ≤ breakpoint` collapses the middle zone to nothing; decide whether to clamp, ignore, or surface it in the inspector rather than silently rendering no rail.
+- **Orthogonal to [U64](#u64--layout-app-expanding-the-slim-rail-must-not-push-the-content).** That item governs how the rail behaves *once shown* (`slim-expand`, `slim-menu-button`); this one governs *whether and when* it is shown. Keep the two attribute groups from overlapping — and note both land on the same element, so settle the naming together.
+
+### Open question
+
+**Should `auto` be able to pick `edge` for the middle zone**, rather than always `slim`? That would need a fourth value (or a separate "what does auto collapse to" knob), and it is not clear anyone wants a thin edge at medium widths and a full drawer when wide. Left out until asked for.
+
+**Ships with:** the first-paint fix (done — see above), the `rail` / `rail-breakpoint` model with `slim`/`autohide` deprecated onto it, browser tests for each zone boundary **and** for a shell mounted inside a hidden view then revealed (the case the existing suite misses, because every other test sizes the host directly), inspector support for the new attributes, and a `docs/TESTING.md` line under the N36 block covering all three zones plus the deprecated-boolean mapping.
 
 **Relates:** **N36** (slim rail + the original initial-ResizeObserver-race fix for the persistent drawer — same class of bug, second instance), **B41**/N30 (view routing — the shell's owning view may be hidden at boot, which is the suspected trigger), **[U50](roadmap-archive/U50.md)** ✅ / **U63** (the `.content` box work next door — unrelated cause, same element), `feezal-element-layout-app._recomputeNarrow()`.
+
+### B87 — Custom inspectors silently drop attributes: `show-active-label` has no control
+
+**Reported (07/2026):** the top-bar "show current active label" switch is missing from the `layout-app` inspector, though it was supposed to exist.
+
+**It does exist — as an attribute.** `show-active-label` is declared in `feezal.attributes` (boolean, default `true`), is a reflected property, and is honoured in `render()`. It can be set from source view or over MQTT. What is missing is the **UI control**.
+
+**Cause — the general one, which is the point of this item.** `layout-app` declares `inspector: 'feezal-element-layout-app-inspector'` (N6). A custom inspector **replaces** the generic attribute panel, so it renders exactly the fields it was hand-written to render and nothing else. Adding an attribute to `feezal.attributes` therefore does **not** surface it. The inspector currently emits:
+
+```
+actions · autohide · breakpoint · drawer-persistent · entry-style
+hide-header · items · slim · subscribe-title · title
+```
+
+`show-active-label` is absent. So is `header` — the newer select intended to supersede `hide-header` — so the same gap has already happened twice in this element.
+
+**This will keep happening.** Every future attribute on any element with a custom inspector is invisible by default, and nothing fails when it is forgotten: the element works, the attribute works, only the UI is silently short. That is the worst failure shape — no error, no test, just an option nobody can find.
+
+## Fix
+
+1. **Add the missing controls** to the `layout-app` inspector: `show-active-label`, and `header` once that work settles (plus `rail` / `rail-breakpoint` from **B84** and `slim-expand` / `slim-menu-button` from **U64** when they land — four more chances to hit this).
+2. **Guard it generically.** A unit test over every element that declares `inspector:`: assert each name in `feezal.attributes` is reachable in the custom inspector, with an explicit **allow-list** for attributes deliberately hidden (managed elsewhere, legacy/deprecated, or internal). Same shape as the existing parity guards — it converts "someone remembered" into "CI fails", and would have caught both instances here.
+   - The check can be static (does the inspector source mention the name?) or behavioural (render it and look for a control bound to that name). Static is cheap and catches the real case — forgetting entirely; behavioural is stronger but needs each inspector mountable in the test env. Start static.
+3. **Consider a hybrid panel** as the deeper fix: let a custom inspector render its bespoke sections *and* fall back to the generic renderer for any declared attribute it does not claim. Then forgetting one degrades to "shown plainly" instead of "not shown at all". Bigger change; worth weighing against the guard, which is cheap and sufficient.
+
+**Worth checking at the same time:** which other elements declare `inspector:` and whether they have the same drift. `layout-app`, `material-navbar` and the device-health card are the ones to look at first.
+
+**Ships with:** the missing `layout-app` controls, the generic guard test (+ its allow-list), a `docs/TESTING.md` note under the N36 block, and a line in `CLAUDE.md`'s element-authoring checklist — *"if the element has a custom inspector, add the control there too"* — since the existing checklist covers the manifest, tests and version bump but not this.
+
+**Relates:** **N6** (the custom-inspector mechanism this is inherent to), **B84** / **U64** (each adds attributes to this very element — do not repeat the gap), **E47** / **U47** (the layout-app inspector), `CLAUDE.md` §"Creating new feezal elements" (checklist that should mention it), **A32** (the sibling "declare what you use" packaging guard — same "make CI enforce the convention" idea).
 
 ### B63 — "Open viewer" does nothing on Safari/iOS (regression)
 
