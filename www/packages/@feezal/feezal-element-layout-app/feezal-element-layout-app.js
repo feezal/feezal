@@ -261,13 +261,29 @@ class FeezalElementLayoutApp extends FeezalElement {
      * stay hidden (the burger bug).
      */
     _recomputeNarrow() {
-        const narrow = this.clientWidth > 0 && this.clientWidth < (Number(this.breakpoint) || 768);
+        const w = this.clientWidth;
+        // B84: a width of 0 means "not laid out yet", NOT "wide". The old code
+        // conflated the two, so an element inside a hidden view answered
+        // "persistent" from a measurement that never happened — and could just
+        // as easily clear a correct narrow state. Wait for a real width; the
+        // ResizeObserver delivers one as soon as the element gains a box.
+        // (drawer-persistent=false forces overlay mode regardless of width, so
+        // that case still needs no measurement.)
+        if (w === 0 && this.drawerPersistent !== false) return;
+
+        const narrow = w > 0 && w < (Number(this.breakpoint) || 768);
         const nowNarrow = narrow || this.drawerPersistent === false;
-        if (nowNarrow !== this._narrow) {
-            this._narrow = nowNarrow;
-            this.classList.toggle('narrow', nowNarrow);
-            if (!nowNarrow) this._drawerOpen = false;
-        }
+        const changed = nowNarrow !== this._narrow;
+        this._narrow = nowNarrow;
+        // B84: write the class UNCONDITIONALLY. It used to live inside the
+        // `changed` guard, so a first computation that happened to equal the
+        // initial `_narrow` never established the class at all — state and DOM
+        // could disagree with nothing to re-sync them. Idempotent now.
+        this.classList.toggle('narrow', nowNarrow);
+        // Side effect stays on a real transition: in persistent mode there is
+        // no "open" to close, and doing this every ResizeObserver tick would
+        // fight the user.
+        if (changed && !nowNarrow) this._drawerOpen = false;
     }
 
     connectedCallback() {
@@ -379,7 +395,14 @@ class FeezalElementLayoutApp extends FeezalElement {
             // viewport-pinned — the clone only has to stop competing with it.
             // Same defect and same remedy as the site-level one in
             // feezal-site.js; measured in test-e2e/b62-sticky-background.test.js.
-            const bg = view.style.background || view.style.backgroundColor || '';
+            // B83: the inline `background` shorthand getter returns '' when the
+            // background is authored as longhands (what the background editor
+            // writes) or via var()/theme CSS, so this test never fired on a
+            // real site and the clone kept painting its own scrolling band.
+            // The computed image sees every authoring form.
+            const computedImage = getComputedStyle(view).backgroundImage;
+            const bg = (computedImage && computedImage !== 'none' ? computedImage : '')
+                || view.style.background || view.style.backgroundColor || '';
             if (/gradient\(/i.test(bg)) {
                 clone.style.setProperty('background-image', 'none', 'important');
                 box.style.setProperty('background-attachment', 'scroll');
