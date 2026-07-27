@@ -69,6 +69,7 @@ Work in progress — priorities and scope are not final.
 - [U58 — "Generate" button: bulk element + app scaffold wizard from discovery](#u58--generate-button-bulk-element--app-scaffold-wizard-from-discovery--to-refine) 💡
 - [U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow](#u61--editor-preview-fidelity-gradientbackground-in-a-percentage-sized-views-scroll-overflow)
 - [U63 — `layout-app`: split the content inset into per-side knobs](#u63--layout-app-split-the-content-inset-into-per-side-knobs)
+- [U64 — `layout-app`: expanding the slim rail must not push the content](#u64--layout-app-expanding-the-slim-rail-must-not-push-the-content)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -1115,6 +1116,43 @@ Two distinct traps:
 **Ships with:** the chosen API on `.content` in `feezal-element-layout-app`, updated `help` text, browser tests extending the U50 block in `test-browser/feezal-elements-layout-app.test.js` (per-side values apply; the base still fills unset sides; **no overflow / no permanent scrollbars** — the `box-sizing` property U50 pinned), the `docs/TESTING.md` U50 entry updated rather than duplicated, and a version bump.
 
 **Relates:** **[U50](roadmap-archive/U50.md)** ✅ (the knob this splits — read its box-sizing note first: `.content` is `flex: 1`, so padding must stay inside the 100% or `overflow: auto` becomes permanent scrollbars), **B83** (an unexplained interaction — setting this padding appears to make the gradient sticky on iOS; do not let that observation quietly become the reason for a padding API), **N36** (the `--feezal-app-*` style-var family this extends), **U58** (its App mode wants a content-area `max-width` knob built next to this one — consider the two together so the content-box API is designed once).
+
+### U64 — `layout-app`: expanding the slim rail must not push the content
+
+**Requested (07/2026):** at a screen width that shows the **slim rail**, expanding it to the wide menu should **overlay** the content — the embedded view must stay exactly where it is, not shift sideways.
+
+**Cause.** The rail and the content are siblings in the same flex row: `.drawer` is `flex: 0 0 auto` and `.content` is `flex: 1`. So `width: 64px → var(--feezal-app-drawer-width, 220px)` on hover/`:focus-within` takes ~156px away from the content, which reflows and re-wraps every tile under it. The expansion is currently a **layout** change; it needs to be a **paint** change.
+
+```
+now                          wanted
+┌────┬───────────────┐       ┌────┬───────────────┐
+│rail│  content      │  rest │rail│  content      │
+├────┴──┬────────────┤       ├───────┬────────────┤
+│ menu  │ content    │  open │ menu ▓│ content    │   content unmoved,
+└───────┴────────────┘       └───────┴────────────┘   menu drawn over it
+        ↑ content pushed
+```
+
+## Approach
+
+**Keep the rail's layout footprint at its rest width and overlay only the expansion.** The rest state — which is today's layout — does not change at all; only the open state differs. That is the smaller and safer of the two shapes:
+
+- **(A) Overlay the expansion** *(recommended)* — `.drawer` stays in flow at 64px; the expanded panel is `position: absolute`, full height of the row, `left: 0`, drawn above `.content`. Needs the row to be a positioned ancestor and a `z-index` **above `.content` but below `.bar` (2) and `.scrim` (3)**.
+- **(B) Take the drawer out of flow entirely** and reserve the rail width with a gutter on `.content`. Fewer moving parts in the open state, but it changes the rest state too, and the gutter interacts with **[U50](roadmap-archive/U50.md)**'s content padding and with the embedded view's background copy (padding paints the view background under the rail; margin does not). More ways to get subtly wrong.
+
+**Apply the same to `autohide`** — it collapses to an 8px edge and expands to the full width through the identical `:host([…]:not(.narrow))` gating, so it shifts the content exactly the same way.
+
+**Secondary benefit:** the `transition: width 0.18s` currently animates a flex layout, reflowing the whole content area every frame. Once the panel is out of flow, the same animation touches only its own box.
+
+## Open questions — mostly about touch
+
+1. **Touch has no hover.** The request says "tap the menu", but the expansion is driven by `:hover` / `:focus-within`. On a tablet, tapping an entry navigates rather than dwelling, so it is unclear what currently expands the rail — confirm the actual interaction before designing around it. A slim rail on touch may need an **explicit toggle** (tap the rail edge or a chevron) rather than a hover affordance.
+2. **Dismissal.** Once it overlays content, an expanded rail that only closes on mouse-out is a trap on touch. Decide: outside-tap to close, Esc (already wired for the narrow overlay), or auto-close on entry selection. Note the narrow/overlay mode already has a **scrim** — decide whether the slim overlay gets one, and if so, whether that makes it simply *be* the overlay mode.
+3. **Does this collapse into overlay mode?** If the expanded slim rail overlays content, is dismissible, and dims what is behind it, it is behaviourally the narrow-mode drawer at a wide breakpoint. Worth checking whether the two can share one implementation instead of growing a third drawer state.
+
+**Ships with:** the overlay change for slim **and** autohide, a browser test asserting the content box does **not** move between rest and expanded (measure `.content` `getBoundingClientRect()` before/after, which is the actual complaint), the touch/dismissal decision from above, a `docs/TESTING.md` line under the N36 block, and a version bump.
+
+**Relates:** **N36** (slim rail + autohide — the modes this changes), **[U50](roadmap-archive/U50.md)** ✅ (content inset — option B would interact with it), **U63** (per-side inset knobs — same box, settle the API together), **B84** (first-paint mode selection in the same element; unrelated cause, and its `narrow`-class handling is what gates these rules), **E38** (responsive sizing — reflow-vs-repaint is the same concern), `feezal-element-layout-app`.
 
 ### E112 — Scrypted integration: camera snapshot element (sensors already work) 💡 to refine
 
