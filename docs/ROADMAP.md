@@ -78,7 +78,6 @@ Work in progress — priorities and scope are not final.
 - [A24 — Externalize the metro element family](#a24--externalize-the-metro-element-family-future--will-be-done-later) *(future)*
 - [A27 — i18n: editor localization + language-aware element defaults](#a27--i18n-editor-localization--language-aware-element-defaults--to-refine--needs-discussion) 💡 *(to refine)*
 - [A29 — RTL layout support (Arabic, Hebrew)](#a29--rtl-layout-support-arabic-hebrew--future) 💡 *(future)*
-- [A32 — Element packages must declare their own npm dependencies](#a32--element-packages-must-declare-their-own-npm-dependencies)
 
 
 ---
@@ -2069,56 +2068,6 @@ Feezal's "widgets are plain npm packages" model is better infrastructure than vi
 
 **Relates:** N29 (bundle mechanism), A20 (scaffolding/ecosystem tooling — this creates the de-facto template), rail/lcars repos (living precedent incl. PUBLISHING.md), E63 (first born-external family), A24 (metro — deferred follow-up), E106 (the glass shared-code lessons apply when consolidating families), packages sidebar + `server/src/build/install.js` (install path under test).
 
-### A32 — Element packages must declare their own npm dependencies
-
-**Spotted (07/2026)** in `www/package.json`:
-
-```json
-"@polymer/paper-dropdown-menu": "^3.2.0",
-"@polymer/paper-item": "^3.0.1",
-"@polymer/paper-listbox": "^3.0.1",
-```
-
-These are not the app's dependencies. They belong to **one workspace member**, `@feezal/feezal-element-paper-dropdown`, which is the only importer.
-
-## Audited — the scope is exactly one package
-
-Imported `@polymer/*` vs declared, across every `feezal-element-paper-*`:
-
-| package | imports | declares | |
-|---|---|---|---|
-| `paper-button` | `paper-button` | `paper-button` | ✅ |
-| `paper-checkbox` | `paper-checkbox` | `paper-checkbox` | ✅ |
-| `paper-slider` | `paper-slider`, `polymer` | `paper-slider` | ⚠️ `polymer` undeclared |
-| `paper-switch` | `paper-toggle-button` | `paper-toggle-button` | ✅ |
-| `paper-tabs` | `paper-tabs` | `paper-tabs` | ✅ |
-| **`paper-dropdown`** | **`paper-dropdown-menu`, `paper-item`, `paper-listbox`** | **none** | ❌ |
-| `paper-badge` / `-card` / `-dialog` / `-dialog-view` / `-listbox` | none | none | ✅ |
-
-So the convention is already established and followed by five of six — `paper-dropdown` is the lone exception, and its three dependencies were hoisted up to the app instead.
-
-`paper-slider`'s `@polymer/polymer` import is a lesser case: it resolves transitively through `@feezal/feezal-element` (which does declare it), so nothing breaks, but it is still an undeclared direct import.
-
-*(Checked and dismissed: `feezal-element-paper-dialog` appears to reference `@polymer/paper-dialog`, but that is a mention in a comment, not an import — the Paper-*styled* elements `badge`/`card`/`dialog`/`dialog-view`/`listbox` use no `@polymer` components at all.)*
-
-## Why it matters
-
-- **The packages are published.** `@feezal/*` element packages are versioned and released (`scripts/release.js`, lockstep majors per `CLAUDE.md`). Anyone installing `@feezal/feezal-element-paper-dropdown` on its own gets a package that **cannot resolve its own imports** — it only works inside this repo because the app happens to hoist them.
-- **Removal leaves ghosts.** If the element is ever renamed or dropped, its dependencies stay behind in `www/package.json` with nothing referencing them. That is the same class of lockfile rot that broke the Docker release before (see `www/test/package-lock-workspaces.test.js` and its `metro-tile`/`metro-occupancy` story) — this time in the forward direction.
-- **It hides the real cost of an element.** `www/package.json` should read as "what the app needs"; a per-element Polymer widget is not that.
-
-## Fix
-
-1. Move the three entries from `www/package.json` into `www/packages/@feezal/feezal-element-paper-dropdown/package.json` under `dependencies`.
-2. Add `@polymer/polymer` to `feezal-element-paper-slider`'s dependencies (or decide explicitly that inheriting it via `@feezal/feezal-element` is acceptable and note it).
-3. `npm install` in `www/` to re-link, then **rebuild and diff the bundle** — the workspace hoists to the same `node_modules`, so resolution should be unchanged; the point is provenance, not layout.
-4. Bump the touched element packages' patch versions per policy.
-
-## Guard it
-
-Add a unit test — cheap, in the spirit of the existing `package-lock-workspaces.test.js`: for every `www/packages/@feezal/*`, parse its `.js` files for bare (non-relative) import specifiers and assert each package name appears in that package's own `dependencies` (allowing what its direct dependencies re-export, e.g. `@polymer/polymer` via `@feezal/feezal-element`, if that is the decision in step 2). That converts "someone remembered" into "CI fails", and would have caught this at the commit that introduced it.
-
-**Relates:** `www/test/package-lock-workspaces.test.js` (the sibling packaging guard, and the release breakage that motivated it), **E159** (a new Paper element — build it with its dependencies declared from the start), the element-authoring steps in `CLAUDE.md` §"Creating new feezal elements" (worth adding "declare the element's own npm dependencies" to the checklist), `scripts/release.js` (publishes these packages).
 
 ### A24 — Externalize the metro element family *(future — will be done later)*
 

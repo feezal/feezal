@@ -7,7 +7,7 @@ Each entry is filed under the section its **ID prefix** belongs to — `B` Bugs,
 Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastructure,
 `D` Documentation — and sorted by number within it, so a new entry has exactly one correct place.
 
-**313 items.**
+**314 items.**
 
 ## Bugs
 
@@ -341,6 +341,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [A28 — Configurable per-site CSP: "Security" tab in Site Settings ✅ done](A28.md)
 - [A30 — Split `native-discovery.js` into per-source recognizer modules ✅ done](A30.md)
 - [A31 — Test coverage: reach 50%+ overall (measure what's already tested, then fill gaps) ✅ done](A31.md)
+- [A32 — Element packages must declare their own npm dependencies ✅ done](A32.md)
 
 ## Documentation
 

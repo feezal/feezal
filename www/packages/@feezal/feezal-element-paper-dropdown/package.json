@@ -8,7 +8,10 @@
     },
     "bundleDependencies": false,
     "dependencies": {
-        "@feezal/feezal-element": "*"
+        "@feezal/feezal-element": "*",
+        "@polymer/paper-dropdown-menu": "^3.2.0",
+        "@polymer/paper-item": "^3.0.1",
+        "@polymer/paper-listbox": "^3.0.1"
     },
     "deprecated": false,
     "description": "",
@@ -26,5 +29,5 @@
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1"
     },
-    "version": "3.0.0"
+    "version": "3.0.1"
 }

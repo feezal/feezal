@@ -78,6 +78,8 @@ New elements **must** be created as packages under `www/node_modules/@feezal/`, 
    ```
    Keep all `@feezal/feezal-element-*` entries sorted alphabetically. Without this the package is not bundled by Vite.
 
+   **Declare the element's OWN npm dependencies in ITS `package.json`, not in `www/package.json` (A32).** If the element imports a third-party package (a Polymer/Material/Carbon widget, a charting lib, …), add it to the element package's `dependencies` — the package is published and must resolve standalone; it must not lean on the app hoisting the dep. `www/package.json` should read as "what the app needs". The `www/test/package-declared-deps.test.js` ratchet fails CI when an element-only dependency is hoisted to `www/package.json`.
+
 5. **Check for a behavior controller first (E137).** If the element implements a device *function* that already has a `@feezal/feezal-controller-*` package (currently: `-sensor`, `-contact`, `-climate`), the element must be a **view over that controller** — never re-implement the function's MQTT wiring/parsing/publishing:
    - Spread the controller's attribute fragment into `feezal.attributes` (family UI metadata like `section`/`visibleWhen` may be merged per name; capability exclusions must be documented in the parity test).
    - Use the controller's discovery-map fragment: `discovery: {component: '…', map: <function>DiscoveryMap}`.
