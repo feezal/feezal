@@ -79,7 +79,7 @@ Work in progress — priorities and scope are not final.
 - [A21 — Accessibility: adopt the web-components Gold Standard for feezal elements](#a21--accessibility-adopt-the-web-components-gold-standard-for-feezal-elements)
 - [A23 — Externalize element families: own git repos + npm publish (paper, tui, panel)](#a23--externalize-element-families-own-git-repos--npm-publish-paper-tui-panel)
 - [A24 — Externalize the metro element family](#a24--externalize-the-metro-element-family-future--will-be-done-later) *(future)*
-- [A27 — i18n: editor localization + language-aware element defaults](#a27--i18n-editor-localization--language-aware-element-defaults--to-refine) 💡 *(to refine)*
+- [A27 — i18n: editor localization + language-aware element defaults](#a27--i18n-editor-localization--language-aware-element-defaults--first-step-de-ready-to-build) 💡 *(first step: de)*
 - [A29 — RTL layout support (Arabic, Hebrew)](#a29--rtl-layout-support-arabic-hebrew--future) 💡 *(future)*
 - [A34 — Dependency refresh + supply-chain hardening (`npm ci`, lockfile enforcement)](#a34--dependency-refresh--supply-chain-hardening-npm-ci-lockfile-enforcement)
 
@@ -2265,7 +2265,7 @@ Metro **stays bundled with feezal for now** (decided 07/2026) — it moves out *
 
 **Relates:** A23 (the playbook — do that first), N29, E106 (metro shares the same consolidation considerations glass had).
 
-### A27 — i18n: editor localization + language-aware element defaults 💡 to refine
+### A27 — i18n: editor localization + language-aware element defaults 💡 first step (de) ready to build
 
 feezal is English-only today — and not just the editor chrome: **element attribute defaults bake English into every dashboard** (`label-on: 'On'`, `label-off: 'Off'`, `done-label: 'Done'`, contact state texts, `labelOff: 'off'` centre text, …). A German wall tablet should say "Ein/Aus" without the user hand-setting every label on every element.
 
@@ -2347,10 +2347,48 @@ Its generated labels are **explicitly set attributes**, so they win over locale 
 - **`pt`: ship both `pt-BR` and `pt-PT`.** Brazil is the larger smart-home market and the differences are user-visible; the fallback chain makes `pt-BR → pt → en` work if only one exists.
 - **`zh`: `zh-Hans` first**, `zh-Hant` later. Both wait on the CJK font decision already recorded above.
 
-## Still open
+## First step (decided 07/2026): German element-text defaults — implementation-ready
 
-1. **What counts as a "localizable" attribute** — every `type: 'string'` with a default, or an explicit opt-in flag on the descriptor? Opt-in is more work but avoids translating things like `payload-on: 'ON'`, **which must never be localized** — it is wire protocol, not text. That distinction is the one real trap in Phase 1.
-2. **Whether the runtime carries all locales or loads one.** Inline dictionaries keep packages self-contained (the A23/A24 requirement) but ship every language to every browser. Measure the bundle cost at en+de before assuming it does not matter at twenty.
+The concrete first deliverable is **Phase 1 restricted to en + de**: a German wall tablet renders "Ein/Aus", "Offen/Geschlossen", "Fertig" without the user setting a single label, and the saved HTML stays language-independent. Small, self-contained, highest end-user value, and it **ships without waiting on N38 or the editor-chrome catalog**. The two previously-open questions are settled by it:
+
+**1. What counts as "localizable" → the presence of the i18n dict IS the opt-in.** No separate boolean flag. A descriptor that carries a `defaultI18n` map is localizable; one that does not is never touched. This makes the one real trap disappear for free: `payload-on: 'ON'` and every other wire-protocol attribute simply carries no dict, so it can never be localized. Element authors opt each display string in, one at a time, and the audit below is exactly "which descriptors get a dict".
+
+**2. Carry all locales or lazy-load → ship both inline for en+de.** The strings are single state-words; en+de across every element is a few kB, far under any threshold worth lazy-loading machinery for. Inline keeps packages self-contained (the A23/A24 requirement). Re-measure only when the language count grows — not now.
+
+### Mechanism (concrete)
+
+- **Descriptor format:** `{name: 'label-on', type: 'string', default: 'On', defaultI18n: {de: 'Ein'}}`. `default` stays the en source + final fallback; `defaultI18n` adds locales. The inspector placeholder shows the *resolved* default for the active locale.
+- **Locale source — `feezal.locale`, one global.** The viewer bootstrap sets `feezal.locale` from N38's site `locale` when present, else `navigator.language`, and dispatches a `feezal-locale-change` event on change. Because it falls back to the browser language, **German devices get German with zero configuration and this step needs nothing from N38** — when N38 lands, its attribute simply becomes the top of the chain. `resolveLocaleChain(locale)` (shared helper, §"Fallback semantics") turns `de-AT` into `de → en`.
+- **Resolution in the base class, on connect + on `feezal-locale-change`, gated by `hasAttribute`** (per the refinement above — the constructor's `this.labelOn = 'On'` is overwritten only when the author never set the attribute, so explicit values always win and nothing is materialised into the HTML):
+
+  ```js
+  // FeezalElement
+  _applyLocalizedDefaults() {
+      const chain = resolveLocaleChain(feezal.locale);
+      for (const spec of this.constructor.feezal.attributes || []) {
+          if (!spec.defaultI18n || this.hasAttribute(spec.name)) continue;
+          const val = chain.map(l => spec.defaultI18n[l]).find(v => v != null) ?? spec.default;
+          this[propOf(spec.name)] = val;
+      }
+  }
+  ```
+
+### German glossary — the first-step audit
+
+Every `type: 'string'` DISPLAY default across the element packages gets a `defaultI18n.de` (wire/payload/topic attributes get none). The confirmed core set (grep of the packages):
+
+| attribute(s) | en | de |
+|---|---|---|
+| `label-on` / `text-on` | On | Ein |
+| `label-off` / `text-off` | Off | Aus |
+| `text-open` | Open / open | Offen / offen |
+| `text-closed` | Closed / closed | Geschlossen / geschlossen |
+| `done-label` (basic-countdown) | Done | Fertig |
+| panel-switch engraved `label-on`/`label-off` | ON / OFF | EIN / AUS |
+
+`label: 'Alarm'` (alarm card title) stays "Alarm" (same in de). Climate mode words (Heat/Cool/Auto/Idle → Heizen/Kühlen/Auto/Aus) are enum-driven and are a follow-up bullet, not blocking the core state words. The audit's job is to walk every family (glass/circle/metro/eink/material/paper/panel/tui) and add `defaultI18n.de` to each display string, matching case (lower-case `open` stays lower-case `offen`, upper-case `ON` → `EIN`).
+
+**Ships with (first step):** the `defaultI18n` descriptor field honoured by the inspector placeholder; `feezal.locale` + the `feezal-locale-change` event set from the viewer (browser-language default); `resolveLocaleChain`; the base-class `_applyLocalizedDefaults` on connect + locale-change; German dicts on every display-text descriptor across all families; per-element patch bumps; unit tests (a set attribute wins over the de default; an unset one renders "Ein" under `de` and "On" under `en`; a locale change re-applies live; `payload-*` is never localized; the saved HTML is unchanged either way); and a `docs/TESTING.md` row (switch `feezal.locale`/browser lang to `de` → state texts flip, saved HTML identical). **Explicitly deferred to later A27 phases:** editor chrome (Phase 2), help texts (Phase 3), every language past de, and climate/enum mode words.
 
 **Relates:** A23/A24 (externalized element packages must carry their own translations — the inline-dict design exists because of this), A25 (no-CDN rule — any i18n lib must be bundled/self-hosted), **A29** (RTL — layout mode, deliberately split out), **N38** (site locale — the foundation attribute), E99 ✅-era label work (`label-on`/`label-off` — the attributes phase 1 localizes were introduced for exactly this localisation need, just manually), U37 (welcome wizard — early editor-chrome translation candidate), basic-datetime/clock (Intl locale pass-through).
 
