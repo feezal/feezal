@@ -9,6 +9,7 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
+- [B89 — HA discovery: nested `device` abbreviations not expanded (ESPHome device metadata lost; switch not offered)](#b89--ha-discovery-nested-device-abbreviations-not-expanded-esphome-device-metadata-lost-switch-not-offered)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -55,6 +56,7 @@ Work in progress — priorities and scope are not final.
 - [E145 — Autodiscovery support for ccu-jack's MQTT interface](#e145--autodiscovery-support-for-ccu-jacks-mqtt-interface)
 - [E150 — Discovery for profile-shaped components: `water_heater` ✅ + `lawn_mower` 🔨](#e150--discovery-for-profile-shaped-components-water_heater---lawn_mower)
 - [E159 — Re-add a Paper-family app shell (`paper-app`) with full layout-app parity](#e159--re-add-a-paper-family-app-shell-paper-app-with-full-layout-app-parity)
+- [E161 — HA discovery: consume friendly names, icons, and areas](#e161--ha-discovery-consume-friendly-names-icons-and-areas)
 
 **Editor UX**
 
@@ -78,6 +80,7 @@ Work in progress — priorities and scope are not final.
 - [A24 — Externalize the metro element family](#a24--externalize-the-metro-element-family-future--will-be-done-later) *(future)*
 - [A27 — i18n: editor localization + language-aware element defaults](#a27--i18n-editor-localization--language-aware-element-defaults--to-refine--needs-discussion) 💡 *(to refine)*
 - [A29 — RTL layout support (Arabic, Hebrew)](#a29--rtl-layout-support-arabic-hebrew--future) 💡 *(future)*
+- [A33 — Move element-only toolkit deps out of `www/package.json` into their families](#a33--move-element-only-toolkit-deps-out-of-wwwpackagejson-into-their-families)
 
 
 ---
@@ -288,6 +291,27 @@ This also **removes an existing ambiguity**: `slim` and `autohide` are independe
 **Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
 
 **Relates:** **[B62](roadmap-archive/B62.md)** ✅ (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
+
+### B89 — HA discovery: nested `device` abbreviations not expanded (ESPHome device metadata lost; switch not offered)
+
+**Reported (07/2026):** an ESPHome switch is not offered by `*-switch` (nor `*-light`) in the ⚡ discovery picker:
+
+```
+homeassistant/switch/usb-relay-02/relay/config
+{"name":"relay","stat_t":"…/status/relay","cmd_t":"…/set/relay","avty_t":"…/status",
+ "uniq_id":"ESPswitchrelay",
+ "dev":{"ids":"2cf4321a50ee","name":"Lichterkette Ida","mdl":"esp01_1m","mf":"Espressif","cns":[["mac","…"]]}}
+```
+
+**Confirmed root cause — `expandAbbrevs()` is top-level only.** [discovery.js](../server/src/mqtt/discovery.js) has the mappings (`ids`→`identifiers`, `mdl`→`model`, `mf`→`manufacturer`, `cns`→`connections`, `sa`→`suggested_area`, …) but `expandAbbrevs` only rewrites the **top-level** keys, so the abbreviated keys **inside the nested `dev` object are never expanded**. Verified by feeding the payload through `handleMessage`: the entity IS created (component `switch`, `state_topic`/`command_topic` correct — top-level `stat_t`/`cmd_t`/`avty_t` expand fine) **but `config.device.identifiers` is `undefined`** (it's `config.device.ids`), and `model`/`manufacturer`/`suggested_area` are likewise stuck under abbreviated keys. Any device with abbreviated `dev.*` keys (ESPHome's default) loses its device metadata.
+
+**Why "not offered" (to pin on repro).** The switch entity itself parses, so by the flat-picker code path it *should* appear — but **device grouping keys on `device.identifiers[0]`** (the `/api/discovery/device-groups` path and the Generate wizard), which is `undefined` here, so anything device-grouped drops or mis-buckets it. **Reproduce on the real broker and capture** whether the entity is in `/api/discovery/devices` (flat) and in the inspector's `__discoveryEntities` — that decides whether the exclusion is the device-grouping/label (most likely, downstream of the undefined identifiers) or a separate delivery gap.
+
+**Fix.** Make abbreviation expansion **recurse into nested objects/arrays** — at minimum the `device`/`dev` object, and for completeness the `availability` array entries and `cmps`/`components` sub-configs (each an abbreviated config in its own right). A recursive `expandAbbrevs` (walk objects and arrays, apply `ABBREVS[k] ?? k` at every level) is the smallest correct change; guard against rewriting *values* (only keys). Then `device.identifiers`/`model`/`manufacturer`/`suggested_area` resolve, device grouping works, and the ESPHome switch is offered.
+
+**Acceptance:** the reported ESPHome switch appears under `*-switch` in the ⚡ picker; its device groups correctly (identifiers resolved); `model`/`manufacturer`/`suggested_area` are populated on the record. A discovery unit test with an abbreviated nested `dev` (and an `availability` array + `cmps` device config) asserts full expansion.
+
+**Relates:** **E161** (friendly names / icons / areas — directly blocked by this: `dev.name`/`sa` are unreadable until nested expansion lands), **N12** ✅ / **E149** ✅ (the HA discovery engine), **E108** ✅ (native path is unaffected — this is HA-only), the `/api/discovery/device-groups` grouping + the Generate wizard (**U58**) that rely on `device.identifiers`, `server/src/mqtt/discovery.js` `expandAbbrevs`/`normalizePayload`.
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
@@ -1423,6 +1447,22 @@ That is the most expensive of the options considered and it adds to the legacy P
 
 **Relates:** **[E47](roadmap-archive/E47.md)** ✅ (built `layout-app` *as* the replacement for `paper-app-layout` — read it before re-adding what it deliberately superseded), **N36** / **N30** / **B41** / **B50** / **U47** / **[U50](roadmap-archive/U50.md)** ✅ (the feature set to match), **B84** (slim-rail bug that would be inherited), **U63** (content-inset API in flux — settle it before duplicating), **E137** (the "view over shared behaviour, never fork" principle this item must answer to), **E114** (family parity — the convention pulling toward a separate element), `feezal-element-layout-app`.
 
+### E161 — HA discovery: consume friendly names, icons, and areas
+
+HA/ESPHome/z2m MQTT discovery configs carry richer metadata than feezal uses today — a **friendly name**, an **icon**, and a device **area/suggested_area**. Consume all three.
+
+**1. Friendly names in the ⚡ picker.** A discovery config's human name (entity `name`, and the device `name` — e.g. `dev.name: "Lichterkette Ida"`) should drive the picker label so a device reads as "Lichterkette Ida — relay", not a raw topic/object-id. U62 ✅ started friendly-label normalization; this extends it to prefer the device+entity friendly names from the config (and depends on **B89**'s nested-`device`-abbreviation fix so `dev.name`/`dev.ids` are actually available on ESPHome configs).
+
+**2. Auto-stamp the icon — when feezal has it.** HA discovery carries an `icon` (`ic` abbreviated), usually a **Material Design Icons** name like `mdi:lightbulb`. feezal renders **Material Symbols** (a different vocabulary), so `mdi:*` cannot be passed through verbatim (E160 hit the same wall for `device_class`). Approach: a small **`mdi:` → Material Symbols alias table** for the common names; when the discovered icon maps to a Symbol feezal has, stamp it onto the element's `icon` attribute; otherwise **fall back to current behaviour** (the element default, or E160's `device_class` icon). Reuse E160's `NUMERIC_SENSOR_ICONS`/valueMap machinery — this is the string-value sibling (`icon` → alias-mapped) — and verify every mapped Symbol name against the installed set (an unknown name renders blank).
+
+**3. Areas → the Generate wizard (U58).** HA discovery devices can declare an **area** (`suggested_area` / `sa`, and HA area registries). Capture it on the discovery record so **U58**'s app-generator can group devices into per-area views/sub-views automatically (an ESPHome/z2m area becomes a generated App page). Not consumed by individual elements — this is metadata for the bulk generator; store it now so U58 can use it.
+
+**Scope note:** parts 1 + 2 are element/picker-facing and shippable now (on top of B89); part 3 is a data-capture step whose consumer is U58 — land the capture with 1+2, wire the usage in U58.
+
+**Ships with:** the friendly-name label preference (picker), the `mdi:`→Symbols alias table + icon stamping with graceful fallback (all discovery-mapped elements that render an icon — E160's set), the area field on the discovery record, unit tests (friendly-name label, icon alias hit/miss→fallback, area captured), TESTING.md discovery rows.
+
+**Relates:** **B89** (nested-`device` abbreviation expansion — prerequisite: `dev.name`/`dev.ids`/`sa` must be readable first), **E160** ✅ (device_class→icon: the same "map an external hint to a Material Symbol, fall back gracefully" pattern + machinery to reuse), **U62** ✅ (friendly-label normalization this extends), **U58** (Generate wizard — the area consumer), **N12** ✅ / **E149** ✅ (the HA discovery engine this enriches), the `ABBREVS`/`normalizePayload` path in `server/src/mqtt/discovery.js` (where `ic`/`sa`/`dev.*` are read).
+
 ## Cause (verified in the source)
 
 Two things combine:
@@ -2132,6 +2172,27 @@ Right-to-left support is **a layout mode, not a translation** — which is exact
 **Explicitly future:** nothing here blocks or complicates A27's en+de work; the only present-day requirement (A27's dictionary format must not preclude RTL locales) is already met.
 
 **Relates:** **A27** (the language machinery this rides on — split out from its language list 07/2026), A25 ✅ (font self-hosting constraint), N38 (site locale — supplies the locale that flips `dir`), layout-app / tab bars / sliders (the element-internal audit surface), E38 (element scaling — the other cross-cutting element-CSS audit; coordinate if both run).
+
+### A33 — Move element-only toolkit deps out of `www/package.json` into their families
+
+**Follow-up to [A32](roadmap-archive/A32.md) ✅.** A32 fixed the paper-dropdown leak and added the ratchet guard (`www/test/package-declared-deps.test.js`), which surfaced that the *same* anti-pattern exists beyond the audited Paper family — these third-party deps sit in `www/package.json` but are imported **only** by element packages, never by the app (`src/`/`editor/`):
+
+| dependency | element-only importers | move into |
+|---|---|---|
+| `@material/web` | ~17 circle/material family elements | each importing element package's `dependencies` |
+| `@carbon/web-components` | 6 carbon family elements | each carbon element package |
+| `leaflet` | the map element (`material-map`) | that package |
+| `lottie-web` | `basic-lottie`, `system-splash`, `@feezal/feezal-lottie` | those packages (the shared `feezal-lottie` for the two consumers) |
+
+They are **grandfathered** in the A32 guard so CI passes today; this item removes each from `www/package.json`, declares it in the element package(s) that import it, and **deletes the grandfather entry** (the guard's second test then confirms the list stays honest). `npm install` re-links (workspace hoists to the same `node_modules`, so resolution/bundle are unchanged — provenance, not layout), patch-bump every touched element package per policy.
+
+**Also in scope (cheap, adjacent):** prune the **stale** `www/package.json` deps A32 spotted — `html5sortable` and `flatpickr` appear to be imported nowhere (`grep` finds no importer); confirm and remove them (a separate `git grep` per dep before deletion).
+
+**Explicitly NOT in scope:** the broad `@feezal/*` internal-package under-declaration (most element packages don't declare even `@feezal/feezal-element`). That is a distinct, much larger convention question about workspace-internal deps, not the external-npm-hoisting A32/A33 target — treat separately if pursued.
+
+**Ships with:** the per-toolkit moves (declare in family packages + remove from `www/package.json` + drop the grandfather entry), the stale-dep pruning, version bumps, and a green `package-declared-deps.test.js` with an **empty** grandfather list at the end (or documented residue).
+
+**Relates:** **[A32](roadmap-archive/A32.md)** ✅ (the parent — its guard + grandfather list this drains; read its "wider finding"), `www/test/package-declared-deps.test.js` (the ratchet that gates this), `scripts/release.js` (publishes the packages that must resolve standalone), **A23/A24** (family externalization — a family that declares its own toolkit dep is one step closer to shipping standalone).
 
 ## Open Questions
 
