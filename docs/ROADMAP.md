@@ -65,6 +65,7 @@ Work in progress — priorities and scope are not final.
 - [U58 — "Generate" button: bulk element + app scaffold wizard from discovery](#u58--generate-button-bulk-element--app-scaffold-wizard-from-discovery--to-refine) 💡
 - [U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow](#u61--editor-preview-fidelity-gradientbackground-in-a-percentage-sized-views-scroll-overflow)
 - [U63 — `layout-app`: split the content inset into per-side knobs](#u63--layout-app-split-the-content-inset-into-per-side-knobs)
+- [U65 — Site-wide named colour ranges: any colour knob can be driven by a value](#u65--site-wide-named-colour-ranges-any-colour-knob-can-be-driven-by-a-value)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -1201,6 +1202,95 @@ Reuse the narrow-mode drawer wholesale — scrim, Esc, close-on-select, focus ha
 **Ships with:** the `slim-expand` and `slim-menu-button` attributes (both honoured by `slim` **and** `autohide`), the `:has(:focus-visible)` swap, the rail-top button wired to the existing overlay drawer, browser tests asserting (a) with `slim-expand: overlay` the content box does **not** move between rest and expanded — measure `.content` `getBoundingClientRect()` before/after, which is the actual complaint — (b) `push` still moves it and `never` never expands, (c) a pointer-activated entry never widens the rail while a keyboard-activated one does, and (d) the rail button opens the overlay drawer and survives `header: never` / `small-only`, a `docs/TESTING.md` line under the N36 block, and a version bump.
 
 **Relates:** **N36** (slim rail + autohide — the modes this changes), **[U50](roadmap-archive/U50.md)** ✅ (content inset — option B would interact with it), **U63** (per-side inset knobs — same box, settle the API together), **B84** (first-paint mode selection in the same element; unrelated cause, and its `narrow`-class handling is what gates these rules), **E38** (responsive sizing — reflow-vs-repaint is the same concern), `feezal-element-layout-app`.
+
+### U65 — Site-wide named colour ranges: any colour knob can be driven by a value
+
+**Requested (07/2026):** site-wide **named** colour ranges — arbitrary value→colour mappings the user creates once and reuses. Every exposed colour CSS var should offer a "value range" option alongside a literal colour or theme var, so the user decides *what* gets coloured: the icon, the text, the background, the border, anything. The range dropdown's first entry should be **"＋ Create new colour range…"** so the feature is found naturally.
+
+## This is consolidation, not a new capability
+
+Three mechanisms already colour by value, and a fourth parallel one would be the worst outcome:
+
+| today | shape | scope |
+|---|---|---|
+| `@feezal/feezal-gauge` `ranges` | `[{from, color}]` JSON, `bandColor(ranges, v, fallback)` | per gauge instance, gauges only |
+| conditions engine | `action: style` rows → any CSS property | per element, rule-per-band |
+| ad-hoc thresholds | `material-tank` warn/crit, glass state colours, computer-stats | per element, hardcoded |
+
+**Decided: absorb them over time.** Ship the shared mechanism, teach the gauge `ranges` attribute to accept a *named* range as well as inline JSON (backwards compatible — existing dashboards keep working), then deprecate tank warn/crit and the ad-hoc state colours onto it. One concept for users, one implementation to fix.
+
+## Decisions taken
+
+| question | decision |
+|---|---|
+| which number drives the colour | **the element's primary value** — elements opt in by exposing one |
+| where ranges live | **in the site HTML**, so export and the offline viewer work with no server |
+| what a range can express | **bands + gradient + enum** (see below) |
+| existing mechanisms | **absorbed over time**, gauge first |
+
+## The mechanism — how a CSS colour var gets a dynamic value
+
+The obvious idea, `--feezal-dial-fill-color: range(temp)`, *stores* fine (custom properties accept arbitrary token streams) but is unusable: the moment it is consumed in a colour context it is invalid at computed-value time and falls back. And having the runtime overwrite that property with the resolved colour would destroy the authored reference.
+
+**Proposed: a paired property.** The authored reference lives in `<var>-range`; the runtime resolves it and writes a concrete colour into `<var>` itself:
+
+```html
+<feezal-element-circle-gauge
+    style="--feezal-dial-fill-color-range: temp;
+           --feezal-dial-fill-color: #e53935;">   <!-- written at runtime -->
+```
+
+Why this shape:
+
+- **No element CSS changes.** Every element already reads `var(--x, fallback)`; it keeps doing exactly that and never learns about ranges.
+- **Theme-aware for free.** A band colour may be `var(--error-color)` rather than a hex — it is written into a custom property and resolved at use time, so ranges do not fight the theme (and `CLAUDE.md`'s theme-variable discipline still applies to the *bands* the user picks).
+- **Degrades safely.** An element that does not resolve ranges simply never has `<var>` written — no half-state.
+- **Serializes for free**, which is what makes the static export work.
+
+**Resolution lives in the base class**, not per element: `FeezalElement` watches its declared colour styles for `<var>-range`, resolves against the element's primary value, and writes `<var>` on every value change.
+
+**Elements opt in by exposing a primary value** — e.g. an optional `colorRangeValue()` returning the current number (or string, for enum ranges). An element that does not implement it does not support ranges, and **the style editor must then not offer the option** rather than offering something inert.
+
+## Range shapes
+
+```jsonc
+{"name": "temp",  "type": "bands",
+ "bands": [{"from": 0, "color": "var(--ok-color)"}, {"from": 70, "color": "#ff9800"}]}
+
+{"name": "load",  "type": "gradient", "space": "oklch",
+ "stops": [{"at": 0, "color": "#4caf50"}, {"at": 100, "color": "#e53935"}]}
+
+{"name": "mode",  "type": "enum", "default": "var(--secondary-text-color)",
+ "map": {"heat": "#e53935", "cool": "#2196f3", "off": "var(--disabled-text-color)"}}
+```
+
+- **`bands`** is deliberately the *existing* gauge shape (`from` + `color`, last match wins), so `bandColor()` becomes the shared implementation and existing gauge ranges migrate byte-for-byte.
+- **`gradient`** blends between stops. **Colour space needs deciding** — `oklch` gives perceptually even blends via `color-mix(in oklch, …)`, `srgb` is simpler and matches what people expect from hex maths. Recommend OKLCH, defaulted, overridable per range.
+- **`enum`** maps non-numeric values, which is what lets the glass/metro state colours be absorbed later. Note this makes the feature a *value→colour map* generally; the name "colour range" stays for the numeric case people will mostly use.
+
+## Storage
+
+Proposed: a JSON attribute on the site — `<feezal-site color-ranges='[…]'>` — consistent with the existing `type: 'json'` attributes (`items`, `actions`, `ranges`) and serialized automatically by the same path as everything else.
+
+Alternative worth weighing: a `<feezal-color-ranges>` child element holding formatted JSON. Better to read and to diff in source view; one more element in the tree. Decide on readability grounds, since both serialize equally well.
+
+## Editor UX
+
+- **The manager belongs with the other site-level panels** — `feezal-sidebar-themes.js` / `-assets.js` / `-packages.js` are the precedent, and colour ranges are site-wide data like themes and assets, not per-element state. *(The request said "inspector tab"; flagging the tension — a per-element tab editing site-wide data is odd, but an inspector-side entry point may still be wanted. Small decision.)*
+- **Every colour control grows a third mode:** literal colour · theme var · **value range**. Only for elements that expose a primary value.
+- **First dropdown entry is a create sentinel** — exactly the `＋ Create new view…` pattern already used in the layout-app entry dropdown (**U47**), which is proven and discoverable. Creating inline should drop the user into the manager pre-named, then return.
+- **Preview matters:** show the range as a swatch strip in the dropdown, and ideally mark where the element's current value sits, so the user can see the mapping rather than imagine it.
+
+## Open questions
+
+1. **Gradient colour space** — OKLCH (recommended) or sRGB, and per-range override or global?
+2. **What happens when a range is deleted** while elements reference it? Refuse with a usage count, or leave dangling references that fall back to the var's normal value? A usage count in the manager is worth having either way.
+3. **Renaming a range** — rewrite every reference, or treat names as immutable ids with a separate display label? Ids + labels is the safer shape and avoids a rename touching every view.
+4. **Does this subsume the conditions engine's `style` action for colours?** They will overlap. Document when to use which — ranges for value→colour, conditions for arbitrary rules — or the two grow apart.
+
+**Ships with:** the range schema + shared resolver (bands/gradient/enum, theme-var passthrough), the paired-property mechanism in `FeezalElement`, the primary-value opt-in, `<feezal-site>` storage, the site-level manager panel, the colour-control third mode with the create sentinel, the gauge `ranges` attribute accepting a named range, unit tests for the resolver, a browser test that a resolved colour actually lands on the var, an **export test that ranges survive** into a static bundle, `docs/TESTING.md` coverage, and version bumps.
+
+**Relates:** `@feezal/feezal-gauge` (`bandColor` / `parseRanges` — the existing implementation this generalises, and the first consumer to migrate), **U49** / the conditions engine (`action: style` — the overlapping mechanism to delimit), **U47** ✅ (the `＋ Create new…` sentinel pattern to copy), `feezal-sidebar-themes` / `-assets` (site-level panel precedent), `material-tank` warn/crit + the glass/metro state colours (the ad-hoc thresholds to absorb), `CLAUDE.md` §"Theme variable discipline" (band colours should prefer theme vars), **A16**/export (ranges must serialize into a static bundle).
 
 ### E112 — Scrypted integration: camera snapshot element (sensors already work) 💡 to refine
 
