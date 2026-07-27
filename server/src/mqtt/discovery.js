@@ -491,11 +491,17 @@ function getDeviceGroups() {
                 deviceId:   devId,
                 deviceName: entity.config.device.name || devId,
                 device:     entity.config.device,
+                // E161: capture the device area (`sa`/suggested_area, on the
+                // device object or top-level config) so U58's app-generator can
+                // group devices into per-area views. Not consumed by elements.
+                area:       entity.config.device.suggested_area || entity.config.suggested_area || null,
                 entities:   [],
                 elementHint: null,
             });
         }
-        groups.get(devId).entities.push(entity);
+        const group = groups.get(devId);
+        if (!group.area) group.area = entity.config.device?.suggested_area || entity.config.suggested_area || null;
+        group.entities.push(entity);
     }
 
     // Compute elementHint per group

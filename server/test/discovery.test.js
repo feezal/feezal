@@ -168,6 +168,24 @@ describe('getDeviceGroups', () => {
         disc.handleMessage('homeassistant/switch/loner/config', buf({name: 'Loner', stat_t: 'x'}));
         expect(disc.getDeviceGroups()).toHaveLength(0);
     });
+
+    // E161: capture the device area (sa/suggested_area) for U58's app-generator.
+    it('captures the device suggested_area (abbreviated `sa`) on the group', () => {
+        disc.handleMessage('homeassistant/switch/relay/config', buf({
+            name: 'Relay', stat_t: 's/relay', cmd_t: 's/relay/set',
+            dev: {ids: 'esp-kitchen', name: 'Kitchen Plug', sa: 'Kitchen'},
+        }));
+        const groups = disc.getDeviceGroups();
+        expect(groups).toHaveLength(1);
+        expect(groups[0].area).toBe('Kitchen');
+    });
+
+    it('leaves area null when no suggested_area is present', () => {
+        disc.handleMessage('homeassistant/switch/relay2/config', buf({
+            name: 'Relay2', stat_t: 's/r2', device: {identifiers: ['d2'], name: 'Plug'},
+        }));
+        expect(disc.getDeviceGroups()[0].area).toBe(null);
+    });
 });
 
 describe('N31 — canonical availability normalization', () => {

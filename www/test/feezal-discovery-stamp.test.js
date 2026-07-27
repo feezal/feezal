@@ -39,12 +39,31 @@ class StampFixture extends HTMLElement {
     };
 }
 
+// E161: mirrors the value cards' icon wiring — a device_class default (E160)
+// FOLLOWED BY the discovered mdi:* icon, whose hit must win and whose miss must
+// leave the device_class icon standing. Order is load-bearing.
+class IconFixture extends HTMLElement {
+    static feezal = {
+        discovery: {
+            map: {
+                state_topic: 'subscribe',
+                device_class: {attr: 'icon', valueMap: {humidity: 'water_drop', _default: 'sensors'}},
+                icon: {attr: 'icon', transform: 'mdiIcon'},
+            },
+        },
+        attributes: [{name: 'icon'}],
+    };
+}
+
 beforeAll(() => {
     if (!customElements.get('feezal-test-stampfixture')) {
         customElements.define('feezal-test-stampfixture', StampFixture);
     }
     if (!customElements.get('feezal-test-labelfixture')) {
         customElements.define('feezal-test-labelfixture', LabelFixture);
+    }
+    if (!customElements.get('feezal-test-iconfixture')) {
+        customElements.define('feezal-test-iconfixture', IconFixture);
     }
 });
 
@@ -255,6 +274,53 @@ describe('discoveryLabel', () => {
 
     it('leaves a single-attribute device label unadorned', () => {
         expect(discoveryLabel({component: 'switch', config: {state_topic: 'a/state'}})).toBe('a/state');
+    });
+
+    // E161: prefer the device friendly name over the raw topic.
+    it('prefers the device friendly name (ESPHome) over the MQTT topic', () => {
+        const label = discoveryLabel({
+            component: 'switch', name: 'relay',
+            config: {state_topic: 'lichterkette-ida/switch/relay/state',
+                     device: {identifiers: ['2cf'], name: 'Lichterkette Ida'}},
+        });
+        expect(label).toBe('Lichterkette Ida relay');
+    });
+
+    it('keeps the per-attribute suffix under the device name for a multi-attribute device', () => {
+        const base = {component: 'sensor',
+            config: {state_topic: 'z/sensor_1', device: {identifiers: ['0xabc'], name: 'Sensor Cellar'}}};
+        const temp = discoveryLabel({...base, config: {...base.config, value_template: '{{ value_json.temperature }}'}});
+        const humi = discoveryLabel({...base, config: {...base.config, value_template: '{{ value_json.humidity }}'}});
+        expect(temp).toBe('Sensor Cellar temperature');
+        expect(humi).toBe('Sensor Cellar humidity');
+        expect(temp).not.toBe(humi);
+    });
+});
+
+describe('E161 — mdiIcon transform (discovered icon → Material Symbol)', () => {
+    const stamp = cfg => {
+        const el = document.createElement('feezal-test-iconfixture');
+        stampDiscovery(el, {component: 'sensor', discovery_id: 'sensor/x', config: cfg});
+        return el.getAttribute('icon');
+    };
+
+    it('maps a known mdi:* icon to its Material Symbol, beating the device_class default', () => {
+        expect(stamp({state_topic: 't', device_class: 'humidity', icon: 'mdi:blur'})).toBe('blur_on');
+    });
+
+    it('falls back to the device_class icon when the mdi name is unmapped', () => {
+        expect(stamp({state_topic: 't', device_class: 'humidity', icon: 'mdi:some-unknown-thing'})).toBe('water_drop');
+    });
+
+    it('never stamps a raw mdi name (would render blank) — leaves the attribute unset', () => {
+        // unmapped icon + no device_class → nothing to stamp; the element default stands.
+        const el = document.createElement('feezal-test-iconfixture');
+        stampDiscovery(el, {component: 'sensor', discovery_id: 'sensor/x', config: {state_topic: 't', icon: 'mdi:nonexistent'}});
+        expect(el.getAttribute('icon')).toBe(null);
+    });
+
+    it('uses the discovered icon when there is no device_class at all', () => {
+        expect(stamp({state_topic: 't', icon: 'mdi:lightbulb'})).toBe('lightbulb');
     });
 });
 

@@ -260,6 +260,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [E157 — Extend E156 cross-component discovery to the remaining on/off and numeric controls ✅ done](E157.md)
 - [E158 — Slider discovery: climate setpoint + cover/blind level axes ✅ done](E158.md)
 - [E160 — Stamp a device-class-appropriate icon on value and gauge cards ✅ implemented](E160.md)
+- [E161 — HA discovery: consume friendly names, icons, and areas ✅ implemented](E161.md)
 
 ## Editor UX
 

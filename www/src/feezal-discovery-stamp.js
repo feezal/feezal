@@ -12,6 +12,9 @@
 import {friendlyName} from '@feezal/feezal-element/feezal-friendly-name.js';
 export {friendlyName};
 
+// E161: MDI (`mdi:*`) → Material Symbols alias table for the `mdiIcon` transform.
+import {MDI_TO_SYMBOLS} from './mdi-to-symbols.js';
+
 // Extract the leaf key of a HA/z2m `value_template` such as
 // "{{ value_json.temperature }}" → "temperature". E124: z2m also emits the
 // bracket form ({{ value_json["x"] }}). Returns '' for complex/unsupported
@@ -74,6 +77,17 @@ export function discoveryLabel(entity) {
         return entity.name ? entity.sourceLabel + ': ' + entity.name : entity.sourceLabel;
     }
     const cfg = entity.config || {};
+    // E161: prefer the device's friendly name ("Lichterkette Ida") over the raw
+    // MQTT topic, so a discovered device reads "Lichterkette Ida relay" rather
+    // than "esphome/…/relay/state". Requires B89's nested-`device` expansion so
+    // `dev.name` is actually available on ESPHome configs. The U56 per-attribute
+    // suffix still disambiguates one device's many entities.
+    const deviceName = cfg.device?.name;
+    if (deviceName) {
+        const nice = friendlyName(deviceName);
+        const attr = discoveryAttributeSuffix(entity, deviceName);
+        return attr ? nice + ' ' + attr : nice;
+    }
     const topic = cfg.state_topic || cfg.position_topic || cfg.percentage_state_topic ||
         cfg.current_temperature_topic || cfg.command_topic || '';
     const base = topic || entity.name || entity.discovery_id;
@@ -161,6 +175,15 @@ export function stampDiscovery(el, entity, variant = null) {
                 const leaf = valueTemplateLeaf(raw);
                 if (!leaf) continue; // complex/unsupported template — leave attribute at default
                 value = 'payload.' + leaf;
+            } else if (spec.transform === 'mdiIcon') {
+                // E161: the discovered `icon` is a Material *Design Icons* name
+                // (mdi:lightbulb); feezal renders Material *Symbols*. Map via the
+                // alias table. A name we have no alias for is SKIPPED so the E160
+                // device_class icon (or the element default) stands rather than a
+                // blank glyph — never passed through verbatim.
+                const sym = MDI_TO_SYMBOLS[String(raw).replace(/^mdi:/, '').trim()];
+                if (!sym) continue;
+                value = sym;
             }
         }
         // U62: any value routed to `label` is normalized into a friendly human

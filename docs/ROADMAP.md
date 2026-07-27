@@ -55,7 +55,6 @@ Work in progress — priorities and scope are not final.
 - [E145 — Autodiscovery support for ccu-jack's MQTT interface](#e145--autodiscovery-support-for-ccu-jacks-mqtt-interface)
 - [E150 — Discovery for profile-shaped components: `water_heater` ✅ + `lawn_mower` 🔨](#e150--discovery-for-profile-shaped-components-water_heater---lawn_mower)
 - [E159 — Re-add a Paper-family app shell (`paper-app`) with full layout-app parity](#e159--re-add-a-paper-family-app-shell-paper-app-with-full-layout-app-parity)
-- [E161 — HA discovery: consume friendly names, icons, and areas](#e161--ha-discovery-consume-friendly-names-icons-and-areas)
 
 **Editor UX**
 
@@ -1424,85 +1423,6 @@ That is the most expensive of the options considered and it adds to the legacy P
 **Ships with:** the element or variant, palette entry, the N6 inspector (shared or re-pointed), `www/editor/feezal-elements.js` regenerated if a new package lands, per-element notes in `docs/TESTING.md` §6, a browser test mirroring `test-browser/feezal-elements-layout-app.test.js`, and version bumps per policy.
 
 **Relates:** **[E47](roadmap-archive/E47.md)** ✅ (built `layout-app` *as* the replacement for `paper-app-layout` — read it before re-adding what it deliberately superseded), **N36** / **N30** / **B41** / **B50** / **U47** / **[U50](roadmap-archive/U50.md)** ✅ (the feature set to match), **B84** (slim-rail bug that would be inherited), **U63** (content-inset API in flux — settle it before duplicating), **E137** (the "view over shared behaviour, never fork" principle this item must answer to), **E114** (family parity — the convention pulling toward a separate element), `feezal-element-layout-app`.
-
-### E161 — HA discovery: consume friendly names, icons, and areas
-
-HA/ESPHome/z2m MQTT discovery configs carry richer metadata than feezal uses today — a **friendly name**, an **icon**, and a device **area/suggested_area**. Consume all three.
-
-**1. Friendly names in the ⚡ picker.** A discovery config's human name (entity `name`, and the device `name` — e.g. `dev.name: "Lichterkette Ida"`) should drive the picker label so a device reads as "Lichterkette Ida — relay", not a raw topic/object-id. U62 ✅ started friendly-label normalization; this extends it to prefer the device+entity friendly names from the config (and depends on **B89**'s nested-`device`-abbreviation fix so `dev.name`/`dev.ids` are actually available on ESPHome configs).
-
-**2. Auto-stamp the icon — when feezal has it.** HA discovery carries an `icon` (`ic` abbreviated), usually a **Material Design Icons** name like `mdi:lightbulb`. feezal renders **Material Symbols** (a different vocabulary), so `mdi:*` cannot be passed through verbatim (E160 hit the same wall for `device_class`). Approach: a small **`mdi:` → Material Symbols alias table** for the common names; when the discovered icon maps to a Symbol feezal has, stamp it onto the element's `icon` attribute; otherwise **fall back to current behaviour** (the element default, or E160's `device_class` icon). Reuse E160's `NUMERIC_SENSOR_ICONS`/valueMap machinery — this is the string-value sibling (`icon` → alias-mapped) — and verify every mapped Symbol name against the installed set (an unknown name renders blank).
-
-**3. Areas → the Generate wizard (U58).** HA discovery devices can declare an **area** (`suggested_area` / `sa`, and HA area registries). Capture it on the discovery record so **U58**'s app-generator can group devices into per-area views/sub-views automatically (an ESPHome/z2m area becomes a generated App page). Not consumed by individual elements — this is metadata for the bulk generator; store it now so U58 can use it.
-
-**Scope note:** parts 1 + 2 are element/picker-facing and shippable now (on top of B89); part 3 is a data-capture step whose consumer is U58 — land the capture with 1+2, wire the usage in U58.
-
-**Ships with:** the friendly-name label preference (picker), the `mdi:`→Symbols alias table + icon stamping with graceful fallback (all discovery-mapped elements that render an icon — E160's set), the area field on the discovery record, unit tests (friendly-name label, icon alias hit/miss→fallback, area captured), TESTING.md discovery rows.
-
-**Relates:** **B89** (nested-`device` abbreviation expansion — prerequisite: `dev.name`/`dev.ids`/`sa` must be readable first), **E160** ✅ (device_class→icon: the same "map an external hint to a Material Symbol, fall back gracefully" pattern + machinery to reuse), **U62** ✅ (friendly-label normalization this extends), **U58** (Generate wizard — the area consumer), **N12** ✅ / **E149** ✅ (the HA discovery engine this enriches), the `ABBREVS`/`normalizePayload` path in `server/src/mqtt/discovery.js` (where `ic`/`sa`/`dev.*` are read).
-
-## Cause (verified in the source)
-
-Two things combine:
-
-1. **`glass-value` hardcodes `thermostat`** — as the attribute default, as the constructor value **and** as the render fallback (`<feezal-icon name="${this.icon || 'thermostat'}">`). Any glass value card is a thermometer until the user overrides it. The other families differ: `circle-value` defaults to `''` (no icon), and the rest carry only a *palette* icon, which is unrelated to what the card renders.
-2. **The discovery map never stamps an icon.** The `*-value` map wires `state_topic` → `subscribe`, `unit_of_measurement` → `unit`, `value_template` → `message-property`, `name` → `label`. There is no `icon` mapping, so nothing ever displaces the default.
-
-## The payload already carries what is needed
-
-From the reporter's ESPHome device, every entity has a `device_class`:
-
-| entity | `device_class` | `icon` (`ic`) |
-|---|---|---|
-| PM2.5 | `pm25` | `mdi:blur` |
-| BME680 Temperature | `temperature` | — |
-| BME680 Pressure | `atmospheric_pressure` | — |
-| BME680 Humidity | `humidity` | — |
-| BME680 CO2 Equivalent | `carbon_dioxide` | — |
-| BME680 Breath VOC Equivalent | `volatile_organic_compounds_parts` | — |
-| BME680 Gas Resistance | *(none)* | `mdi:gas-cylinder` |
-| BME680 IAQ | *(none)* | `mdi:gauge` |
-
-⚠️ **Do not map `ic` straight through.** Those are **Material Design Icons** names (`mdi:blur`); feezal renders **Material Symbols** (`thermostat`, `sensors`, `co2`). The two vocabularies do not share names, so passing `ic` verbatim yields a blank icon. `device_class` is the portable signal — and it is what z2m, ESPHome and Homematic all populate. At most, `ic` could be a *last-resort* hint via a small MDI→Symbols alias table; decide whether that is worth the maintenance.
-
-## Fix
-
-**A shared `device_class` → icon table, applied declaratively.** The stamp DSL already supports exactly this — `valueMap` with a `_default` fallback — so no new mapping machinery is needed:
-
-```js
-device_class: {attr: 'icon', valueMap: NUMERIC_SENSOR_ICONS},
-```
-
-Define `NUMERIC_SENSOR_ICONS` **once** in `@feezal/feezal-element`, next to `feezal-sensor-types.js` — that module is the same idea for *boolean* sensors (E132/E138), so this is its numeric sibling and should sit beside it rather than be reinvented per family.
-
-**Proposed starting table — verify every name against the installed Material Symbols set before shipping; an unknown name renders blank:**
-
-| `device_class` | candidate |
-|---|---|
-| `temperature` | `thermostat` |
-| `humidity` | `humidity_percentage` / `water_drop` |
-| `atmospheric_pressure`, `pressure` | `compress` / `speed` |
-| `carbon_dioxide` | `co2` *(already used by the boolean table)* |
-| `volatile_organic_compounds`, `…_parts` | `air` / `science` |
-| `pm25`, `pm10`, `pm1` | `blur_on` / `airwave` |
-| `illuminance` | `light_mode` |
-| `power`, `energy`, `voltage`, `current` | `bolt` / `electric_bolt` |
-| `battery` | `battery_full` |
-| `signal_strength` | `signal_cellular_alt` |
-| `gas`, `water` | `gas_meter`, `water_drop` |
-| *(unmatched)* | `_default: 'sensors'` — neutral, never wrong |
-
-**Also decide: `glass-value`'s hardcoded `thermostat` default.** A specific-but-wrong default is worse than a neutral one — a humidity reading with a thermometer icon actively misinforms. Changing it to `sensors` (or `''`, matching `circle-value`) is the smaller, honest default, but it **changes the look of existing dashboards** that relied on it. Call it deliberately.
-
-**Scope:** the six `*-value` cards plus the five `*-gauge` cards and `basic-icon-value` — all read a numeric `sensor` and all have the same gap.
-
-## Sequencing note
-
-*(Sequencing note, now resolved: this was unverifiable through the ⚡ picker while **[B86](roadmap-archive/B86.md)** was open — picking a device stamped nothing. B86 is fixed, so the picker is a valid way to test this again.)*
-
-**Ships with:** the shared icon table, the `device_class` mapping added to every value/gauge discovery map, unit tests (each `device_class` stamps its icon; an unknown one falls back to `sensors`; an entity with no `device_class` leaves the attribute untouched), a `docs/TESTING.md` §9 line, and version bumps per policy.
-
-**Relates:** **E132** / **E138** (`feezal-sensor-types.js` — the boolean-sensor vocabulary this mirrors; put the numeric table beside it), **[B85](roadmap-archive/B85.md)** ✅ (thermostat datapoints now offered to value cards — its `climate` axes want icons too: temperature, humidity and valve rows currently get whatever the card defaults to), **[B86](roadmap-archive/B86.md)** (blocks verification via the picker), **U62** ✅ (friendly labels — the same "make the stamped result presentable" concern), `feezal-icon` / the Material Symbols set (name verification).
 
 ### A7 — Git versioning for data directory 🔨 in progress
 

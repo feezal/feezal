@@ -31,6 +31,10 @@ class FeezalElementGlassValue extends FeezalElement {
                     value_template:      {attr: 'message-property', transform: 'valueTemplateToPath'},
                     // E160: stamp a device_class-appropriate icon (humidity, pressure, CO2, PM…).
                     device_class:      {attr: 'icon', valueMap: NUMERIC_SENSOR_ICONS},
+                    // E161: a discovered mdi:* icon (mapped to a Material Symbol)
+                    // wins over the device_class default; an unmapped one is
+                    // skipped so the device_class icon above stands. Order matters.
+                    icon:              {attr: 'icon', transform: 'mdiIcon'},
                     name:                'label',
                 },
             },
