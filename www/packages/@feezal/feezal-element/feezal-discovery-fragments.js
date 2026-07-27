@@ -327,3 +327,72 @@ export const readonlyNumericDiscovery = {
         },
     ],
 };
+
+/**
+ * B85 — the read-only numerics a thermostat carries INSIDE its `climate`
+ * entity: actual temperature, humidity and (on a TRV) valve position.
+ *
+ * A `*-value` / `*-gauge` card declares `component: 'sensor'`, so it could
+ * never see these — they are keys on a `climate` entity, not entities of their
+ * own. Same crossing as the settable axes above, mirrored: every variant is
+ * gated on the READ topic and **no map here contains a command topic**, so a
+ * read-out can never be wired to something that drives the boiler.
+ *
+ * One row per datapoint, labelled per U56, so a single thermostat offers
+ * "… temperature", "… humidity" and "… valve" as separate picks.
+ */
+export const readonlyClimateAxes = [
+    {
+        component: 'climate',
+        label: 'temperature',
+        when: readable('current_temperature_topic'),
+        map: {
+            name: 'label',
+            current_temperature_topic: 'subscribe',
+            message_property_actual:   'message-property',
+            // Same C/F normalisation the climate card applies.
+            temperature_unit: {attr: 'unit', valueMap: {C: '°C', F: '°F', _default: '°C'}},
+        },
+    },
+    {
+        // E150: water_heater is climate-shaped and uses the identically named
+        // key, so its actual temperature rides along rather than being a gap.
+        component: 'water_heater',
+        label: 'temperature',
+        when: readable('current_temperature_topic'),
+        map: {
+            name: 'label',
+            current_temperature_topic: 'subscribe',
+            message_property_actual:   'message-property',
+            temperature_unit: {attr: 'unit', valueMap: {C: '°C', F: '°F', _default: '°C'}},
+        },
+    },
+    {
+        component: 'climate',
+        label: 'humidity',
+        when: readable('humidity_state_topic'),
+        map: {
+            name: 'label',
+            // No unit key exists on the entity for humidity — it is always a
+            // percentage, so the unit is set alongside the topic.
+            humidity_state_topic:      {attr: 'subscribe', alsoSet: {unit: '%'}},
+            message_property_humidity: 'message-property',
+        },
+    },
+    {
+        component: 'climate',
+        label: 'valve',
+        when: readable('action_topic'),
+        map: {
+            name: 'label',
+            // feezal repurposes HA's `action_topic` for the valve percentage
+            // (B56) — the Homematic recognizer stamps it only for TRVs.
+            action_topic:           {attr: 'subscribe', alsoSet: {unit: '%'}},
+            message_property_valve: 'message-property',
+            // Range from the device: HmIP LEVEL is 0…1, VALVE is 0…100. Cards
+            // without min/max simply ignore these.
+            valve_min: {attr: 'min'},
+            valve_max: {attr: 'max'},
+        },
+    },
+];

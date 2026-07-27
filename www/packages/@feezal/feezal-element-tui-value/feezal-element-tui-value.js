@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {readonlyClimateAxes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-tui-value (E59)
@@ -34,6 +35,11 @@ class FeezalElementTuiValue extends FeezalElement {
             defaultStyle: {width: '240px', height: '24px'},
             discovery: {
                 component: 'sensor',
+                // B85: a thermostat's actual temperature, humidity and valve
+                // position live INSIDE its climate entity, so a sensor-only
+                // picker could never see them. Read-only axes; never a
+                // command topic.
+                accepts: readonlyClimateAxes,
                 map: {
                     state_topic:         'subscribe',
                     name:                'label',

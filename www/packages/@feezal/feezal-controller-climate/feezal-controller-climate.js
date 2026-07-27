@@ -99,6 +99,10 @@ export const climateDiscoveryMap = {
     message_property_mode:            {attr: 'message-property-mode'},
     message_property_valve:           {attr: 'message-property-valve'},
     message_property_boost_remaining: {attr: 'message-property-boost-remaining'},
+    // B85: the recognizer now publishes humidity; without these two the
+    // controller's existing subscribe-humidity support had nothing feeding it.
+    humidity_state_topic:         {attr: 'subscribe-humidity'},
+    message_property_humidity:    {attr: 'message-property-humidity'},
     boost_state_topic:            {attr: 'subscribe-boost-state'},
     message_property_boost_state: {attr: 'message-property-boost-state'},
     valve_min:        {attr: 'valve-min'},

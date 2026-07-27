@@ -1,6 +1,7 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {GaugeMixin, gaugeAttributes, gaugeDiscoveryMap} from '@feezal/feezal-gauge';
+import {readonlyClimateAxes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-circle-gauge (E139)
@@ -33,7 +34,10 @@ class FeezalElementCircleGauge extends GaugeMixin(FeezalElement) {
             description: 'Circle-family gauge — a numeric value on a circular scale with three looks (arc / ring / needle), ' +
                 'configurable ticks and colour ranges. Display-only readout in the Circle design language.',
             baseAttribute: 'value',
-            discovery: {component: 'sensor', map: gaugeDiscoveryMap},
+            discovery: {component: 'sensor', map: gaugeDiscoveryMap,
+                // B85: read-only thermostat numerics (actual temperature,
+                // humidity, valve) live inside the climate entity.
+                accepts: readonlyClimateAxes},
             attributes: [
                 ...gaugeAttributes,
                 {name: 'label', type: 'string', help: 'Caption shown below the gauge.'},

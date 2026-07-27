@@ -2,6 +2,7 @@
 import {html, css} from '@feezal/feezal-element';
 import {MetroTileBase} from '@feezal/feezal-metro';
 import {GaugeMixin, gaugeAttributes, gaugeDiscoveryMap} from '@feezal/feezal-gauge';
+import {readonlyClimateAxes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-metro-gauge (E151)
@@ -25,7 +26,10 @@ class FeezalElementMetroGauge extends GaugeMixin(MetroTileBase) {
             palette: {name: 'Gauge', category: 'Metro', color: '#1ba1e2', icon: 'speed'},
             description: 'Metro gauge tile: a numeric value on a circular scale with three looks (arc / ring / needle), configurable ticks and colour ranges.',
             baseAttribute: 'value',
-            discovery: {component: 'sensor', map: gaugeDiscoveryMap},
+            discovery: {component: 'sensor', map: gaugeDiscoveryMap,
+                // B85: read-only thermostat numerics (actual temperature,
+                // humidity, valve) live inside the climate entity.
+                accepts: readonlyClimateAxes},
             attributes: [
                 ...MetroTileBase.tileAttributes,
                 ...gaugeAttributes,

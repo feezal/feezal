@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {readonlyClimateAxes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-circle-value (E114 / E139)
@@ -38,6 +39,11 @@ class FeezalElementCircleValue extends FeezalElement {
             baseAttribute: 'value',
             discovery: {
                 component: 'sensor',
+                // B85: a thermostat's actual temperature, humidity and valve
+                // position live INSIDE its climate entity, so a sensor-only
+                // picker could never see them. Read-only axes; never a
+                // command topic.
+                accepts: readonlyClimateAxes,
                 map: {
                     state_topic:         {attr: 'subscribe'},
                     unit_of_measurement: {attr: 'unit'},

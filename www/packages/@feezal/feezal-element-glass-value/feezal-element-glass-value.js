@@ -1,6 +1,7 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {applySizePreset, glassCardStyles} from '@feezal/feezal-glass';
+import {readonlyClimateAxes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-glass-value (E58, E138)
@@ -19,6 +20,11 @@ class FeezalElementGlassValue extends FeezalElement {
             baseAttribute: 'value',
             discovery: {
                 component: 'sensor',
+                // B85: a thermostat's actual temperature, humidity and valve
+                // position live INSIDE its climate entity, so a sensor-only
+                // picker could never see them. Read-only axes; never a
+                // command topic.
+                accepts: readonlyClimateAxes,
                 map: {
                     state_topic:         {attr: 'subscribe'},
                     unit_of_measurement: {attr: 'unit'},

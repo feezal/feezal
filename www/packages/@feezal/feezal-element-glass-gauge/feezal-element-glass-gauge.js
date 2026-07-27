@@ -2,6 +2,7 @@
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {applySizePreset, glassCardStyles} from '@feezal/feezal-glass';
 import {GaugeMixin, gaugeAttributes, gaugeDiscoveryMap} from '@feezal/feezal-gauge';
+import {readonlyClimateAxes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-glass-gauge (E151)
@@ -21,7 +22,10 @@ class FeezalElementGlassGauge extends GaugeMixin(FeezalElement) {
             palette: {name: 'Gauge', category: 'Glass', color: '#7aa5c9', icon: 'speed'},
             description: 'Frosted-glass gauge card — a numeric value on a circular scale with three looks (arc / ring / needle), configurable ticks and colour ranges.',
             baseAttribute: 'value',
-            discovery: {component: 'sensor', map: gaugeDiscoveryMap},
+            discovery: {component: 'sensor', map: gaugeDiscoveryMap,
+                // B85: read-only thermostat numerics (actual temperature,
+                // humidity, valve) live inside the climate entity.
+                accepts: readonlyClimateAxes},
             attributes: [
                 {name: 'size', type: 'select', options: ['', '2x2', '2x1'], default: '',
                     help: 'Preset size: 2x2 = square (150×150), 2x1 = wide (150×75). Empty keeps the current/manual size.'},
