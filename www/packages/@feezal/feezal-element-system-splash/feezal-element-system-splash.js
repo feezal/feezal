@@ -99,7 +99,21 @@ class FeezalElementSystemSplash extends FeezalElement {
     };
 
     static styles = [feezalBaseStyles, css`
+        /* The editor needs a real box for the placeholder chip below, at the
+           author's width/height. */
         :host { display: block; box-sizing: border-box; }
+
+        /* B82: in the VIEWER the host must occupy no layout space at all.
+           This is a pseudo-element that renders nothing once boot finishes, but
+           it kept a box: defaultStyle gives it 160x40, the editor writes that
+           as an inline style, and B71 hoists the element to <body>. The result
+           was <body> = one viewport of app PLUS a leftover 40px block, so the
+           document scrolled by exactly the splash's height and that strip
+           showed the body background — an outer scrollbar and a white bar.
+           display:contents removes the box while leaving the children alone;
+           the overlay is position:fixed and never needed a host box. Set from
+           connectedCallback, which already returns early for the editor. */
+        :host([viewer-inert]) { display: contents; }
 
         /* Editor placeholder chip */
         .ph {
@@ -186,6 +200,11 @@ class FeezalElementSystemSplash extends FeezalElement {
         if (feezal.isEditor) {
             return;   // editor: placeholder chip only, no overlay, no timers.
         }
+
+        // B82: drop the host's box in the viewer — see the :host([viewer-inert])
+        // note above. Set before the portal below so the element never occupies
+        // space in <body> even for a frame.
+        this.setAttribute('viewer-inert', '');
 
         // B71: site-wide, not per-view. The splash is an invisible pseudo-element,
         // but its `position: fixed` overlay lives inside its <feezal-view>, which
