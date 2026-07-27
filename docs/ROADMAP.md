@@ -9,6 +9,10 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
+- [B82 — `system-splash` leaves a 40px box in `<body>`: outer scrollbar + white strip](#b82--system-splash-leaves-a-40px-box-in-body-outer-scrollbar--white-strip)
+- [B83 — Gradient view backgrounds: detection is blind to longhand/`var()` authoring, so the B62 fix never engages](#b83--gradient-view-backgrounds-detection-is-blind-to-longhandvar-authoring-so-the-b62-fix-never-engages)
+- [B84 — `layout-app`: slim rail missing on first paint until a narrow/wide resize cycle](#b84--layout-app-slim-rail-missing-on-first-paint-until-a-narrowwide-resize-cycle)
+- [B85 — Value cards are not offered a thermostat's numeric datapoints, and humidity is never published](#b85--value-cards-are-not-offered-a-thermostats-numeric-datapoints-and-humidity-is-never-published)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -54,6 +58,8 @@ Work in progress — priorities and scope are not final.
 - [E144 — Lock autodiscovery: Homematic BidCoS (Keymatic) + HmIP smart locks + zigbee2mqtt](#e144--lock-autodiscovery-homematic-bidcos-keymatic--hmip-smart-locks--zigbee2mqtt--keymatic--z2m-done-hmip-dld-open) 🔨 *(Keymatic + z2m done; HmIP-DLD open)*
 - [E145 — Autodiscovery support for ccu-jack's MQTT interface](#e145--autodiscovery-support-for-ccu-jacks-mqtt-interface)
 - [E150 — Discovery for profile-shaped components: `water_heater` ✅ + `lawn_mower` 🔨](#e150--discovery-for-profile-shaped-components-water_heater---lawn_mower)
+- [E159 — Re-add a Paper-family app shell (`paper-app`) with full layout-app parity](#e159--re-add-a-paper-family-app-shell-paper-app-with-full-layout-app-parity)
+- [E160 — Stamp a device-class-appropriate icon on value and gauge cards](#e160--stamp-a-device-class-appropriate-icon-on-value-and-gauge-cards)
 
 **Editor UX**
 
@@ -63,6 +69,7 @@ Work in progress — priorities and scope are not final.
 - [U45 — Element insertion: palette sidebar + full-screen picker](#u45--element-insertion-palette-sidebar--full-screen-picker--to-refine) 💡 *(to refine)*
 - [U58 — "Generate" button: bulk element + app scaffold wizard from discovery](#u58--generate-button-bulk-element--app-scaffold-wizard-from-discovery--to-refine) 💡
 - [U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow](#u61--editor-preview-fidelity-gradientbackground-in-a-percentage-sized-views-scroll-overflow)
+- [U63 — `layout-app`: split the content inset into per-side knobs](#u63--layout-app-split-the-content-inset-into-per-side-knobs)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -76,6 +83,7 @@ Work in progress — priorities and scope are not final.
 - [A24 — Externalize the metro element family](#a24--externalize-the-metro-element-family-future--will-be-done-later) *(future)*
 - [A27 — i18n: editor localization + language-aware element defaults](#a27--i18n-editor-localization--language-aware-element-defaults--to-refine--needs-discussion) 💡 *(to refine)*
 - [A29 — RTL layout support (Arabic, Hebrew)](#a29--rtl-layout-support-arabic-hebrew--future) 💡 *(future)*
+- [A32 — Element packages must declare their own npm dependencies](#a32--element-packages-must-declare-their-own-npm-dependencies)
 
 
 ---
@@ -107,6 +115,308 @@ Work in progress — priorities and scope are not final.
 **Ships with (once diagnosed):** the chosen layer-isolation CSS fix (guarded so it doesn't regress `backdrop-filter` performance/correctness on other platforms), a TESTING.md note (glass sub-views inside `layout-app`, hover drawer entries on macOS Chrome → no artifacts), and — if no clean CSS fix exists — documentation of the solid-card fallback as the recommended setting for macOS-heavy deployments.
 
 **Relates:** the glass family (`feezal-glass` — the `backdrop-filter` source), `layout-app` (the drawer whose hover triggers it), the glass **solid-card degrade** option (the fallback + diagnostic lever), E38/performance (backdrop-filter GPU cost is already a documented glass concern), per-view themes ✅ (the theme mismatch is an aggravating input here).
+
+### B82 — `system-splash` leaves a 40px box in `<body>`: outer scrollbar + white strip
+
+**Reported and root-caused by the reporter (07/2026), then confirmed by measurement.** A viewer page shows a **second, outer scrollbar** that scrolls past the content into a **white strip** at the bottom. Worse in a normal iOS Safari tab than in the installed PWA. Found while chasing [B62](roadmap-archive/B62.md) and repeatedly mistaken for part of it — it is **independent**, and B62's gradient fix does not address it.
+
+**Cause — four things composing.** `feezal-element-system-splash` is a *pseudo*-element (it renders nothing once boot finishes), but it keeps a real box:
+
+1. `defaultStyle: {width: '160px', height: '40px'}` — the editor writes this as an **inline style** on placement and it is serialized into `views.html`.
+2. `:host { display: block; box-sizing: border-box; }` — unconditional. **There is no state in which the host is `display: none`.**
+3. `render()` returns an empty template once `_done` — the *content* goes, the **host box stays**. An empty `display: block` with an explicit `height: 40px` is still 40px tall.
+4. **B71 hoists the element to `document.body`** (`document.body.appendChild(this)`) so its `position: fixed` overlay can escape a `display: none` view.
+
+Net: after boot `<body>` holds `feezal-app-viewer` (one viewport) **plus a leftover 160×40 block**, so the **document** overflows by exactly the splash's height.
+
+**Measured** (E2E, real Chromium, 420×720 viewport, identical sites with and without a placed splash):
+
+| | `documentScrollsBy` | `body.scrollHeight` |
+|---|---|---|
+| without splash | **0** | 720 |
+| with splash | **40** | 760 |
+
+```
+feezal-element-system-splash
+  display: block   position: static   height: 40   top: 720
+  inlineStyle: "top: 10px; left: 10px; width: 160px; height: 40px"
+```
+
+Note `position: static`: the inline `top`/`left` are **ignored**, but `width`/`height` are **honoured**. That is the trap — a pseudo-element whose *position* is discarded while its *size* is not. The element's own description says "Pseudo-element — position/size don't matter"; they do, 40px of them.
+
+**Symptom mapping.** The 40px of document overflow is the **outer scrollbar**; the strip shows the **`<body>`** background, which is white whenever the top-level view has no inline background (e.g. a `layout-app` shell view) because the html/body mirror then writes nothing; iOS URL-bar collapse in a normal tab changes viewport height and makes the exposed strip worse. **Falsifiable check:** resize the splash on the canvas and the white strip's height changes with it.
+
+**Fix (proposed, not yet implemented).** The host must occupy **no layout space in the viewer** — the overlay is `position: fixed` and never needed a host box:
+- `:host { display: contents }` in the viewer, keeping `display: block` in the editor for the placeholder chip. `connectedCallback` already returns early for the editor, so the split is clean.
+- Prefer this over "`display: none` once `_done`": it is correct **during** boot as well, not only after.
+
+**Also check while there — the other five pseudo-elements.** `system-notification`, `-pin`, `-script`, `-swipe`, `-connection-status` share the shape (`display: block`, 160×40 default). Only `-splash` hoists to `<body>`, so only it can overflow the *document*. But in a **flow** view (`child-position="flow"`) slotted children are **flex items**, so each of these should occupy an invisible 160×40 gap in the tile grid. **Unverified — measure before fixing.** (In an *absolute* view they are `position: absolute` and harmless.)
+
+**Repro recipe** (the throwaway diagnostic was deleted rather than left failing in the suite): deploy two identical sites — a `width/height:100%` `child-position="flow"` view with a dozen tiles — one with `<feezal-element-system-splash style="top:10px;left:10px;width:160px;height:40px;">` appended. Open each viewer at 420×720, wait ~4s for the splash to reach `_done`, and read `documentElement.scrollHeight - clientHeight`. Expect `0`; the splash site gives `40`. That assertion is the regression test.
+
+**Ships with:** the `display: contents` change, the E2E regression test above, a verdict on the other five pseudo-elements, and a `docs/TESTING.md` line (place a splash on a scrolling view → no outer scrollbar, no white strip at the bottom, in the viewer and the installed PWA). Remove the "second outer scrollbar — never reproduced" caveat from the B62 checklist entry once this lands.
+
+**Relates:** **[B62](roadmap-archive/B62.md)** ✅ (found while chasing it and long conflated with it — B62 is the gradient band on `feezal-view`, this is the splash box in `<body>`; independent causes, independent fixes), **B71** (the hoist-to-body change this depends on — the fix must keep the overlay escaping hidden views), `feezal-element-system-splash`, the other `system-*` pseudo-elements, **U41** (flow layout — the flex-item question above).
+
+### B83 — Gradient view backgrounds: detection is blind to longhand/`var()` authoring, so the B62 fix never engages
+
+**Status: root cause found and verified (07/2026). Not yet fixed — implement per "The fix" below.**
+
+**Symptom as reported.** A gradient view background **scrolls away on Safari/iOS** (normal tab *and* installed PWA) while looking correct on every desktop browser.
+
+| platform | honours `background-attachment: fixed` | result |
+|---|---|---|
+| Chrome / Windows | yes | ✅ correct |
+| Chrome / macOS | yes | ✅ correct |
+| Safari / macOS | yes | ✅ correct |
+| Safari / iOS — tab **and** PWA | **no** | ❌ gradient scrolls |
+
+⚠️ **The split is not Blink-vs-WebKit and not a mobile compositing bug.** Desktop Safari is the same engine and is correct. The axis is *honours `attachment: fixed`* vs *does not*. Earlier drafts of this item hypothesised iOS asynchronous overflow-scroll compositing; that was **wrong** and is recorded here only so it is not re-derived.
+
+---
+
+## Root cause (verified)
+
+**Two independent facts compose.**
+
+**1. The gradient detection is blind to how these views are actually authored.** Both sites test the *inline shorthand*:
+
+```js
+const bg = view.style.background || view.style.backgroundColor || '';
+const gradient = /gradient\(/i.test(bg);
+```
+
+— in `feezal-site._syncViewBackground()` and in `layout-app._embed()`. But the reporter's views author the gradient as **longhands** (`background-image` + `background-size: cover` + `background-attachment: fixed`), which is what a longhand-writing background editor produces.
+
+**Verified in real Chromium, not inferred.** For an element with
+`style="background-image: linear-gradient(…); background-size: cover; background-attachment: fixed"`:
+
+| getter | value |
+|---|---|
+| `el.style.background` | **`""`** |
+| `el.style.backgroundColor` | **`""`** |
+| `el.style.backgroundImage` | `linear-gradient(…)` |
+| `getComputedStyle(el).backgroundImage` | `linear-gradient(…)` |
+| **what feezal tests** | **`false`** |
+
+The shorthand getter cannot serialise a partial longhand set. Authored as `style="background: linear-gradient(…)"` the same getter *does* return the gradient — which is why the fix works in the test fixture and nowhere else.
+
+> **Consequence: the B62 fix has never engaged on the reporter's site, on any platform.** Neither the `gradient-bg` flag nor the layout-app clone-suppression can fire.
+
+**2. Desktop has been correct by accident.** The view's own inline **`background-attachment: fixed`** pins the gradient to the viewport, and every desktop browser honours it. Nothing feezal does was responsible.
+
+**iOS ignores `background-attachment: fixed`** and falls back to `scroll`, so the gradient anchors to the view's own box — measured `clientH: 761` against `scrollH: 1408` — which scrolls inside the layout-app's `.content`. The band moves: the original B62 symptom, never actually fixed.
+
+### The measurement that settled it (Safari/iOS, reading #5)
+
+| box | computed `background-image` | `attachment` | `size` | `clientH` | `scrollH` |
+|---|---|---|---|---|---|
+| `feezal-site` | **none** (`gradientBg: false`) | local | auto | 843 | 843 |
+| view `Hobbyraum` / layout-app **clone** | **the gradient** | **`fixed`** | cover | 761 | **1408** |
+| layout-app `.content` | the gradient *(copied by `_embed`)* | scroll | auto | 761 | 1408 |
+
+`site.gradientBg: false` with `--feezal-canvas-bg: var(--primary-background-color)` is the detection failing in place.
+
+### Why the E2E test is green while the bug is live
+
+`test-e2e/b62-sticky-background.test.js` samples real pixels and was genuinely red-before / green-after — but its fixture writes `background:` **shorthand**, the one form the detection *can* see. The code and the assertion were both right; the **fixture's authoring form** was wrong. **A pixel-accurate test still only tests the fixture it was given** — the fixture must come from real `views.html`, not from an assumption about how backgrounds are written.
+
+---
+
+## The fix
+
+1. **Detect on the computed background, not the inline shorthand** — `getComputedStyle(view).backgroundImage`. One change covers longhands, the shorthand, **`var()` indirection**, theme-supplied backgrounds and per-view themes ([U51](roadmap-archive/U51.md)). Apply at **both** sites: `feezal-site._syncViewBackground()` **and** `layout-app._embed()`.
+   - **Value vs. detection.** `_syncViewBackground()` reuses that same string as the *value* for `--feezal-canvas-bg` and the html/body mirror. Either the computed value is good enough to paint with (a resolved gradient is) **or** split detection from value — do not silently change what gets painted.
+   - **Ordering trap.** A computed read must happen **after** theme CSS applies. `_syncViewBackground()` runs on view switches *and* from a MutationObserver — check both paths, and the layout-app embed path separately.
+2. **Nothing else should need changing.** Once detection fires, the shipped B62 logic already pins via `attachment: scroll` on a **viewport-sized** box and never relies on `fixed` — which is exactly why it should hold on iOS.
+3. **Fix the fixture, or this recurs.** Extend `test-e2e/b62-sticky-background.test.js` to cover the **longhand** form and a **`var()`** form alongside the existing shorthand. That is the real regression test for this item; the current one cannot fail for this bug.
+
+**Verification:** desktop is not sufficient — it passes today for the wrong reason. Confirm on the device, and confirm that the fix is what pins it by checking `feezal-site` (or `.content`) carries the gradient with `attachment: scroll` and the view/clone carries `background-image: none`.
+
+---
+
+## Open observation — `--feezal-app-content-padding` appears to fix it on iOS
+
+**Reported (07/2026), unexplained.** Setting the [U50](roadmap-archive/U50.md) content inset on the `layout-app` element (e.g. `--feezal-app-content-padding: 50px`) makes the gradient **sticky on iOS**. Nobody predicted this and it does not follow from the root cause above, so it is recorded as an observation, **not** as a fix.
+
+**Candidate explanations, none verified — do not act on these without measuring:**
+
+- **(a) Padding changes compositing.** Giving the scroller a padding box may change how iOS promotes/rasterises that layer, so the clone's `background-attachment: fixed` starts being honoured (or its background stops being rasterised into the scrolling-contents layer). If true this is a *mechanism*, and a better one than anything else in this item.
+- **(b) The pinned layer simply becomes visible.** `.content` carries the same gradient with `attachment: scroll` on a **viewport-sized** box, which *is* correctly pinned on iOS. A 50px inset exposes that layer as a frame around the clone. The page can then read as "sticky" at a glance while the clone's band still slides in the middle — i.e. the bug is intact and only better disguised.
+- **(c) Geometry coincidence** — the inset changes `cover` sizing enough that the mismatch stops being obvious.
+
+**Discriminating experiment — set the padding to `1px`:**
+
+| result | conclusion |
+|---|---|
+| **1px also fixes it** | geometry cannot explain a one-pixel frame ⇒ **(a)**: padding flips a compositing path. Investigate *that* as the fix. |
+| **1px does nothing; only large values "work"** | **(b)/(c)**: the pinned `.content` layer is showing in the frame, the underlying defect is unchanged — and this corroborates the longhand root cause rather than contradicting it. |
+
+**Also worth one look by eye:** with 50px set, watch the **middle** of the screen rather than the edges. If the centre still slides while the frame stays put, that is (b).
+
+**And re-run the appendix probe with the padding set**, comparing the `clone` and `content` rows against the padding-0 reading. If `clone.attach` reads `fixed` in both, the difference is purely in *painting*, not in resolved CSS — which would point hard at (a).
+
+⚠️ Whatever the outcome, **this does not replace the fix above.** Even under (a), relying on a padding side effect to pin a background would be a coincidence to depend on, not a design — and it would leave every non-`layout-app` view still broken.
+
+## Also found along the way
+
+- **`var()` indirection defeats the same test.** `--feezal-canvas-bg` was `var(--primary-background-color)`; `/gradient\(/i` cannot see through it. The computed-style fix above closes this too, but it is a distinct blind spot worth a test of its own.
+- **Views carrying the gradient with `attachment: scroll`** — `Bad`, `view1`, `view2`, `Garage` — have no `fixed` to rescue them, so they should be broken **on desktop too** wherever their content overflows. Worth confirming: it would corroborate the whole account.
+- **`_embed()`'s copy list omits `background-attachment`** (`background`, `-color`, `-image`, `-size`, `-position`, `-repeat`). That is *fortunate* here — `.content` gets the default `scroll` rather than inheriting `fixed` — but it is accidental, not designed.
+- **The `layout-app` measurement trap.** On `#/Menu/<view>`, `document.querySelector('feezal-view')` returns the **shell** view, which has no background and answers `none` regardless. Two readings were wasted on it. Always target the clone: `app.renderRoot.querySelector('#content feezal-view')`.
+
+---
+
+## Appendix — on-device debugging (reusable)
+
+*German UI labels in brackets; the reporter's systems are German.*
+
+1. **iPhone:** `Settings [Einstellungen]` → (iOS 18+: `Apps`) → `Safari` → at the **very bottom** `Advanced [Erweitert]` → **`Web Inspector [Web-Inspector]`** on.
+2. **Mac:** `Safari` → `Settings… [Einstellungen…]` (⌘,) → `Advanced [Erweitert]` → ☑ **`Show features for web developers [Funktionen für Web-Entwickler anzeigen]`** (Safari 17+) or ☑ **`Show Develop menu in menu bar [Menü „Entwickler“ in der Menüleiste anzeigen]`** (older). A **`Develop [Entwickler]`** menu appears.
+3. **Connect** by USB — a **data** cable, not charge-only. Unlock the iPhone; on `Trust This Computer? [Diesem Computer vertrauen?]` choose **`Trust [Vertrauen]`**.
+4. Open the page on the iPhone, leave it in the foreground, then on the Mac: **`Develop [Entwickler]` → &lt;iPhone&gt; → &lt;page&gt;**. The inspector runs on the Mac against the phone; paste probes into its console.
+5. The **installed PWA** is inspectable too (iOS 16.4+) and appears as its own entry. Wireless after the first USB session: `Develop [Entwickler]` → &lt;iPhone&gt; → **`Connect via Network [Über Netzwerk verbinden]`**.
+
+*Gotchas:* the phone must stay **unlocked with the page in the foreground** (a locked screen drops the connection mid-measurement); no device in the menu = Web Inspector off, phone locked, or a charge-only cable.
+
+**The probe that produced the decisive reading** — returns a *string*, so the console cannot collapse it, and reaches into the layout-app internals:
+
+```js
+JSON.stringify((() => {
+  const pick = el => { const cs = getComputedStyle(el); return {
+    inline: (el.getAttribute('style')||'').slice(0,90),
+    bg: cs.backgroundImage.slice(0,60), attach: cs.backgroundAttachment,
+    size: cs.backgroundSize, clientH: el.clientHeight, scrollH: el.scrollHeight }; };
+  const out = {hash: location.hash};
+  const site = document.querySelector('feezal-site');
+  out.site = {...pick(site), gradientBg: site.hasAttribute('gradient-bg'),
+              canvasVar: site.style.getPropertyValue('--feezal-canvas-bg')};
+  out.views = [...document.querySelectorAll('feezal-view')].map(v =>
+    ({name: v.getAttribute('name'), ...pick(v)}));
+  const app = document.querySelector('feezal-element-layout-app');
+  if (app && app.renderRoot) {
+    const box = app.renderRoot.querySelector('.content');
+    const clone = app.renderRoot.querySelector('#content feezal-view');
+    if (box) out.content = pick(box);
+    if (clone) out.clone = {name: clone.getAttribute('name'), ...pick(clone)};
+  }
+  return out;
+})(), null, 1)
+```
+
+---
+
+**Relates:** **[B62](roadmap-archive/B62.md)** ✅ (the fix this item shows never engages on real sites — its archive entry describes a mechanism that is correct but unreachable for longhand-authored backgrounds; update it when this lands), **U61** (its option 2 — a view background tracking content height — is no longer needed to solve *this*, but the editor/viewer preview gap stands), **B82** (splash document overflow — subtract its 40px before reading scroll numbers on device), **B61** (a genuine WebKit compositing bug, unlike this one), **U51** ✅ (per-view themes — the computed-style fix picks these up too), **U59** (the gradient/background editor — check which form it writes: if it emits longhands, that is the upstream of this bug), `feezal-site._syncViewBackground()` / `layout-app._embed()`.
+
+### B84 — `layout-app`: slim rail missing on first paint until a narrow/wide resize cycle
+
+**Reported (07/2026).** With **Slim rail** enabled, loading a view that should show it renders **no slim sidebar**. Narrowing the window correctly produces the hamburger; widening it again then produces the slim rail. So the end states are right — only the **initial** one is wrong, and a resize cycle repairs it.
+
+**Prior art — this is the second instance of a known class.** N36 already fixed exactly this shape for the *persistent drawer*: "the ResizeObserver's first delivery can race the initial layout — a transient sub-breakpoint width would flip to overlay mode and hide the persistent drawer until a manual resize", fixed by re-measuring in `requestAnimationFrame` from `firstUpdated()`. That fix is still present. **The slim rail is not covered by it**, or is defeated by something later in boot.
+
+## What was measured (browser harness, real Chromium)
+
+**It does NOT reproduce synthetically** — which narrows where to look:
+
+| scenario | `narrow` class | `_narrow` | drawer width |
+|---|---|---|---|
+| host **pre-sized** (width set before append), wide, `slim` | absent | `false` | **64px — correct** |
+| mount first, then set width | absent | `false` | 207px *(mid-transition; `.drawer` has `transition: width 0.18s`)* |
+| after narrow → wide cycle | absent | `false` | 220px *(also mid-transition)* |
+
+A pre-sized mount produces a correct rail, so nothing is wrong with the CSS or the attribute plumbing in isolation. **The defect needs the real viewer environment.** Note also that any width measured immediately after a mode flip is **mid-transition** and misleading — settle the transition before trusting a number.
+
+## Leading suspicion (code review, unverified)
+
+Two details in `_recomputeNarrow()` combine badly with a boot where the element is not yet laid out:
+
+```js
+_recomputeNarrow() {
+    const narrow = this.clientWidth > 0 && this.clientWidth < (Number(this.breakpoint) || 768);
+    const nowNarrow = narrow || this.drawerPersistent === false;
+    if (nowNarrow !== this._narrow) {            // ← everything is inside this guard
+        this._narrow = nowNarrow;
+        this.classList.toggle('narrow', nowNarrow);
+        if (!nowNarrow) this._drawerOpen = false;
+    }
+}
+```
+
+1. **`clientWidth > 0` conflates "measured as wide" with "not measurable yet".** A `layout-app` inside a `feezal-view` that is `display: none` at boot (the site toggles view visibility) has `clientWidth === 0`, so it reads as *not narrow* without any real measurement having happened.
+2. **The class is only touched on a change.** `_narrow` starts `false` and the `narrow` class starts absent, so a first computation of `false` is a no-op — the correct state is never *affirmatively* established, and if the class and the state ever drift apart nothing re-syncs them. A first delivery while hidden therefore "confirms" a state that was never measured, and the later real measurement (0 → 1000) is also a no-op because the value did not change.
+
+That is consistent with the reported behaviour: the resize cycle works precisely because it forces a genuine *transition* (`false → true → false`), which is the only path that runs the body of the guard.
+
+**Not yet confirmed** — the synthetic harness does not reproduce it, so the above is a hypothesis about the real boot sequence, not a diagnosis. Confirm before fixing.
+
+## Diagnostic — run in the real viewer
+
+Paste after a fresh load (before touching the window), then again after the narrow→wide cycle, and diff:
+
+```js
+(() => { const el = document.querySelector('feezal-element-layout-app');
+  const d = el.shadowRoot.querySelector('.drawer');
+  return JSON.stringify({slim: el.hasAttribute('slim'),
+    narrowClass: el.classList.contains('narrow'), _narrow: el._narrow,
+    clientWidth: el.clientWidth, breakpoint: el.breakpoint,
+    drawerPersistent: el.drawerPersistent,
+    viewHidden: getComputedStyle(el.closest('feezal-view')).display,
+    drawerW: d && Math.round(d.getBoundingClientRect().width)}); })()
+```
+
+The decisive fields are **`clientWidth`** and **`viewHidden`** on the first reading. `clientWidth: 0` (or a `display: none` ancestor view) confirms the suspicion above. If instead `clientWidth` is already wide and `narrowClass` is already absent while the rail is still 220px, the fault is in CSS/attribute application, not in the mode computation — a completely different fix.
+
+## Fix direction (once confirmed)
+
+- Make `_recomputeNarrow()` **idempotent**: always write `classList.toggle('narrow', nowNarrow)` rather than only on a state change, so the DOM cannot drift from the state.
+- Distinguish **"not measurable yet"** from **"wide"**: when `clientWidth === 0`, defer instead of concluding — re-measure when the element actually gains a box. An `IntersectionObserver`, or recomputing when the owning view becomes visible, is more reliable than one `requestAnimationFrame` at `firstUpdated()`.
+- **Check `autohide` too** — it shares the `:host([…]:not(.narrow))` gating and is likely to have the same first-paint hole.
+
+**Ships with:** the fix, a browser test that mounts the shell **inside a hidden view and then reveals it** (the case the current suite misses — every existing test sizes the host directly, which is why this passes today), and a `docs/TESTING.md` line under the N36 block: *load a dashboard with Slim rail on a wide viewer → the rail is icon-only from the first paint, with no resize needed*.
+
+**Relates:** **N36** (slim rail + the original initial-ResizeObserver-race fix for the persistent drawer — same class of bug, second instance), **B41**/N30 (view routing — the shell's owning view may be hidden at boot, which is the suspected trigger), **[U50](roadmap-archive/U50.md)** ✅ / **U63** (the `.content` box work next door — unrelated cause, same element), `feezal-element-layout-app._recomputeNarrow()`.
+
+### B85 — Value cards are not offered a thermostat's numeric datapoints, and humidity is never published
+
+**Reported (07/2026).** Placing a `*-value` card and opening the ⚡ discovery picker, a Homematic/HmIP thermostat's **actual temperature**, **humidity** and **valve level** are expected as pickable values. None appear.
+
+**Two independent causes, one of them worse than the report suggests.**
+
+## 1. Cross-component gap — the numerics are locked inside the `climate` entity
+
+`*-value` (and `*-gauge`) declare only:
+
+```js
+discovery: { component: 'sensor', map: { state_topic: 'subscribe', … } }
+```
+
+but a Homematic thermostat is registered as a **`climate`** entity, and its numeric datapoints are keys *inside* it — `current_temperature_topic` (ACTUAL_TEMPERATURE) and, for TRVs, `action_topic` (the valve percentage), each with a `message_property_*` twin. A picker that matches only `component === 'sensor'` can never see them.
+
+This is the same shape as **[E156](roadmap-archive/E156.md)** / **[E157](roadmap-archive/E157.md)** / **[E158](roadmap-archive/E158.md)** — and specifically the *read-only* variant already built: **`readonlyNumericDiscovery`** in `@feezal/feezal-element/feezal-discovery-fragments.js`, which gives `material-tank`/`material-progress` a `sensor` + read-side-of-`number` + light-brightness accept list, with the guardrail that a display is **never** wired to a command topic.
+
+**Fix direction:** give the `*-value` / `*-gauge` family an `accepts` list with **read-only `climate` axes** — actual temperature, valve level, (humidity, once §2 lands) — one picker row per datapoint, labelled per **U56**. Reuse/extend `readonlyNumericDiscovery` rather than writing a third copy of this logic. Twelve consumers: `circle/glass/metro/eink/panel/tui-value`, `circle/glass/metro/material/panel-gauge`, `basic-icon-value`.
+
+## 2. Humidity is collected and then dropped on the floor
+
+`HUMIDITY` is in the recognizer's tracked-datapoint set (`server/src/mqtt/recognizers/homematic.js`), so it is captured — but:
+
+```
+$ grep -rn "humidity" server/src/
+(no matches)
+```
+
+**It is never written into any discovery config.** Not as a `sensor` entity, not as a key on the `climate` entity. So it is unavailable to **every** element, not just value cards — and the client-side `@feezal/feezal-controller-climate` already supports it (`options.humidity`, `this.humidity`), so a wired-up path exists with nothing feeding it. Fixing §1 alone would still leave humidity missing.
+
+**Fix direction:** emit it — either as a key on the climate entity (`humidity_state_topic` + `message_property_humidity`, matching the existing per-topic twin convention) or as a sibling `sensor` entity, or both. Decide deliberately: a key on climate feeds the climate cards' humidity display; a sibling `sensor` makes it pickable everywhere with no cross-component work at all. **Verify the datapoint's channel per device family against OpenCCU-Base** rather than from memory — HmIP wall thermostats (HmIP-WTH/STHD) carry HUMIDITY, plain eTRVs generally do not, and channel indices differ.
+
+## Worth checking at the same time
+
+- **Which other numerics are trapped the same way** — `boost_state_topic`, `min_temp`/`max_temp`, and the `cover` entity's `position_state_topic` are all read-only numbers a value card could legitimately display.
+- **The mirror-image guardrail still applies:** a display must never be handed a *command* topic. `readonlyNumericDiscovery` already asserts this structurally (no variant map contains a `*_command_topic` key); extend that assertion to the new variants.
+
+**Ships with:** the `climate` read-only accepts on the value/gauge family, the server-side humidity emission (+ a fixture test in `server/test/`), unit tests mirroring `www/test/feezal-discovery-cross-component-rollout.test.js` (accepted components, wired attributes, and the exclusions), a `docs/TESTING.md` §9 row, and version bumps per policy.
+
+**Relates:** **[E156](roadmap-archive/E156.md)** ✅ / **[E157](roadmap-archive/E157.md)** ✅ / **[E158](roadmap-archive/E158.md)** ✅ (the mechanism and the read-only fragment to extend), **U56** ✅ (per-attribute picker row labels — one row per datapoint), **E135** / **E102** ✅ (the Homematic climate profiles this reads from), **E138** (device-function taxonomy — `-value` is the numeric read-out card), **B59** (a previous "wrong card offered for a numeric reading" defect), `feezal-controller-climate` (already has humidity support waiting), OpenCCU-Base (authoritative datapoint/channel reference per the repo's Homematic rule).
 
 ### B63 — "Open viewer" does nothing on Safari/iOS (regression)
 
@@ -938,11 +1248,55 @@ A one-click path from "connected broker with discovered devices" to "a populated
 **Open decisions:**
 1. **Editor overflow paint by sizing mode.** Keep the checkerboard for **fixed-size** views (bounds are meaningful), but for **percentage-sized** views let the editor extend the view's background across the overflow — i.e. don't let the checkerboard override the `--feezal-canvas-bg` sync when the view is percentage-sized. This makes the editor match the viewer where it matters and keeps the useful bounds indicator where it helps.
 2. **View background vs. content height (deeper).** A 100%-height view whose content overflows still has a 100%-tall *box*, so its gradient (painted on the view element) doesn't cover the overflow by construction — the viewer only fills it via the separate canvas-bg sync. Should a view's background instead track its **content** height, so the gradient is continuous on the view element itself (editor and viewer alike), making the canvas-bg extension unnecessary for this case? This is the more principled fix but touches view layout/sizing semantics, so weigh it against option 1's smaller surface.
-3. **Interaction with B62's iOS fix ✅ shipped — the model to match is now decided.** [B62](roadmap-archive/B62.md) took gradients **off** `feezal-site`'s own `background-attachment: local` canvas (a `gradient-bg` host attribute clears it in the viewer) and paints them **only** on the document root — `no-repeat` / `cover` / `fixed`, viewport-sized because `html, body { height: 100% }` means the document never scrolls. So in the viewer a gradient is a **viewport-fixed backdrop behind the whole scroll area**. Whatever the editor does here should preview that, not a second model.
+3. **Interaction with B62 ✅ shipped — the model to match.** [B62](roadmap-archive/B62.md) paints a gradient on **`feezal-site`** (the scroller, which is exactly one viewport) with `background-attachment: scroll` / `cover` / `no-repeat`, and suppresses the view's own paint with `background-image: none !important` — because the view's box is one viewport tall while its content is several, so the band it used to paint scrolled away. In the viewer a gradient is therefore **pinned to the viewport with content scrolling over it**. Whatever the editor does should preview that, not a second model. *(An earlier attempt using a document-root `no-repeat`/`cover`/`fixed` mirror was reverted — do not revive it from an old copy of this paragraph.)* **But see [B83](#b83--gradient-view-backgrounds-detection-is-blind-to-longhandvar-authoring-so-the-b62-fix-never-engages):** that model is correct but has **never engaged on a real site** — the gradient detection reads the inline `background` shorthand and is blind to longhand- and `var()`-authored backgrounds, which is how these views are actually written. Desktop only looks right because the view's own `background-attachment: fixed` pins it. Whatever the editor previews here, preview the model **after** B83 lands, not the accident that currently makes desktop look correct.
 
 **Ships with (once decided):** the editor overflow-paint change (guarded by view sizing mode), a TESTING.md note (percentage-sized gradient view with overflowing content → editor overflow shows the gradient, matching the viewer; fixed-size view still shows the checkerboard bounds), and consistency with the viewer model B62 settled on (above) so the two don't diverge.
 
 **Relates:** **[B62](roadmap-archive/B62.md)** ✅ (the sibling it split from — Issue A was the iOS tiling defect, now fixed; this is the editor/viewer preview gap), `feezal-site` (the canvas-bg sync + editor checkerboard override), **U59** (gradient editor — authors these backgrounds), the fixed-vs-percentage view sizing model, E38 (responsive sizing — view/content sizing is adjacent).
+
+### U63 — `layout-app`: split the content inset into per-side knobs
+
+**Requested (07/2026):** split `--feezal-app-content-padding` into `--feezal-app-content-padding-left` and `--feezal-app-content-padding-top`.
+
+**Rationale (inferred — confirm).** Those are the two edges that touch the shell's chrome: the **drawer** on the left and the **app bar** on top. Wanting to inset *only* against chrome, without restating the other sides, is a real need the single knob serves awkwardly.
+
+**Note what already exists.** [U50](roadmap-archive/U50.md) shipped the knob as `type: 'string'` accepting a **full CSS shorthand** precisely so per-side insets need no extra knobs — `--feezal-app-content-padding: 8px 16px 24px 32px` works today and is documented in its help text and in `docs/TESTING.md`. So this item is **not** about new capability; it is about **ergonomics and composability**: setting one edge without restating the rest, overriding a single side from a theme, and a saner inspector UX than one free-text shorthand field.
+
+## ⚠️ The two obvious implementations both break — measured, not assumed
+
+Verified in real Chromium:
+
+| build | `--…-padding` | result (T R B L) | |
+|---|---|---|---|
+| shorthand only | `16px` | `16px 16px 16px 16px` | ✅ |
+| shorthand only | `8px 16px 24px 32px` | `8px 16px 24px 32px` | ✅ *(U50 today)* |
+| shorthand **+ longhands declared, sides unset** | `16px` | **`0px 16px 16px 0px`** | ❌ |
+| shorthand **+ longhands declared, sides set** | `16px` (+top 50, +left 5) | `50px 16px 16px 5px` | ✅ |
+| nested fallbacks `var(--pt, var(--base, 0)) …` | `16px` | `50px 16px 16px 16px` | ✅ |
+| nested fallbacks | `8px 16px` | **`0px 0px 0px 0px`** | ❌ |
+
+Two distinct traps:
+
+1. **A declared longhand whose var is unset does not "fall through" to the earlier shorthand.** An unset `var()` makes the declaration *invalid at computed-value time*, which resets that side to its **initial value (0)** — silently zeroing the top and left inset for everyone already using the knob. This is the naive implementation, and it is a regression.
+2. **Nested fallbacks collapse on a multi-value base.** `padding: var(--pt, var(--base, 0)) var(--pr, var(--base, 0)) …` substitutes `8px 16px` into a single position, invalidating the whole declaration → **all padding becomes 0**. So this build only works if the base knob is restricted to a **single length**.
+
+> **Therefore: per-side knobs and a multi-value shorthand knob are mutually exclusive in pure CSS.** The API has to pick one. This is the decision the item turns on — not the plumbing.
+
+## Options
+
+- **(A) Do nothing.** The shorthand already expresses every per-side inset. Cheapest, and costs the reporter the ergonomics they asked for.
+- **(B) Per-side knobs + restrict the base to a single length** *(recommended)*. Build the padding from nested fallbacks (row 5 above). Per-side wins, base is the fallback for the rest. **Breaking:** U50's documented multi-value shorthand stops working — but U50 shipped days ago and is unlikely to have users yet, so this is the cheapest moment it will ever be to change. Update U50's `help` text and its `docs/TESTING.md` line in the same commit.
+- **(C) Per-side only**, deprecating the base knob. Cleanest API, most churn, four knobs in the inspector.
+- **(D) Resolve in JS** — read the vars and write a computed inline `padding`. Sidesteps the CSS limitation and could keep multi-value support, at the cost of runtime logic for something CSS should do.
+
+## Open questions
+
+1. **Two sides or four?** The request names only `-left` and `-top`. An asymmetric API is odd, and under option (B) all four fall out for free. Confirm whether `-right`/`-bottom` are wanted for symmetry, or deliberately omitted because only the chrome edges matter.
+2. **Precedence**, once decided, must be documented in the `help` text: per-side overrides the base for that side; the base fills the rest.
+
+**Ships with:** the chosen API on `.content` in `feezal-element-layout-app`, updated `help` text, browser tests extending the U50 block in `test-browser/feezal-elements-layout-app.test.js` (per-side values apply; the base still fills unset sides; **no overflow / no permanent scrollbars** — the `box-sizing` property U50 pinned), the `docs/TESTING.md` U50 entry updated rather than duplicated, and a version bump.
+
+**Relates:** **[U50](roadmap-archive/U50.md)** ✅ (the knob this splits — read its box-sizing note first: `.content` is `flex: 1`, so padding must stay inside the 100% or `overflow: auto` becomes permanent scrollbars), **B83** (an unexplained interaction — setting this padding appears to make the gradient sticky on iOS; do not let that observation quietly become the reason for a padding API), **N36** (the `--feezal-app-*` style-var family this extends), **U58** (its App mode wants a content-area `max-width` knob built next to this one — consider the two together so the content-box API is designed once).
 
 ### E112 — Scrypted integration: camera snapshot element (sensors already work) 💡 to refine
 
@@ -1121,6 +1475,117 @@ Follow-up to **E149** ✅ (which shipped the seven *pure-mapping* HA discovery c
 **🔨 `lawn_mower` — deferred (needs per-action command topics).** Unlike vacuum, HA's `lawn_mower` has **no single `command_topic`** — it exposes three *separate* command topics (`start_mowing_command_topic`, `pause_command_topic`, `dock_command_topic`) plus `activity_state_topic` (activities `mowing`/`docked`/`paused`/`error`). `circle-vacuum`'s contract publishes every action as a payload to **one** `publish-command` topic, so an alias/map reuse would leave the control buttons non-functional. Landing it properly means either (a) extending `circle-vacuum` with an optional per-action-topic command mode (three `publish-*` attributes + activity-state labels), or (b) a dedicated `lawn-mower` element. Niche — parked until asked. When done: add `lawn_mower` to `SUPPORTED_COMPONENTS` + `FUNCTION_CANDIDATES`, and either the vacuum variant or the new element with its own discovery map + tests.
 
 **Relates:** **E149** ✅ (parent — the discovery-extension work this completes), **E137** (the climate controller the alias rides), **N12** ✅ (the discovery engine), **E135** (the Homematic climate profiles that inspired the "profile not fork" framing), circle-climate (water_heater target) / circle-vacuum (lawn_mower target).
+
+### E159 — Re-add a Paper-family app shell (`paper-app`) with full layout-app parity
+
+**Requested (07/2026):** re-add `paper-app`, with the same features `layout-app` has.
+
+**History.** The legacy Polymer element was `feezal-element-paper-app-layout`. It was **replaced**, not lost: [E47](roadmap-archive/E47.md) built `feezal-element-layout-app` as "the modern Lit/MD3 rewrite of the legacy Polymer `feezal-element-paper-app-layout` (which had the chrome but never wired the drawer to navigation)". So the old element was **not** feature-equivalent — it had the bar and drawer but no view routing. "Re-add with the same features" therefore means building something the Paper family has **never** had, not restoring a deleted file.
+
+## What "the same features as layout-app" actually means
+
+Worth reading before estimating — this list accumulated across a dozen items, and every entry is behaviour a second implementation would have to reproduce **and keep in step**:
+
+| area | feature | from |
+|---|---|---|
+| chrome | top bar: title, hamburger, action buttons (`actions` JSON) | E47 |
+| drawer | entries `{label, icon, view}`, `entry-style` pill/list | E47 / N36 |
+| responsive | persistent vs overlay by `breakpoint`, measured on the element's **own** width via ResizeObserver | E47 / N36 |
+| responsive | scrim, Esc-to-close, floating fab hamburger when the header is hidden | N36 |
+| responsive | **slim rail** and **autohide** modes | N36 |
+| a11y / TV | arrow-key + D-pad drawer nav, Home/End, Enter/Space, focus ring | N36 |
+| content | embeds and **swaps** a named view (clone into `#content`) | E47 |
+| routing | registers as a site **view router** — URL hash `#/view/embedded`, inbound/outbound MQTT view control | N30 / B41 |
+| theming | per-view theme CSS mirrored into the shadow root so an embedded themed view renders correctly | B50 |
+| theming | embedded view's own background copied onto `.content` | N36 |
+| theming | the `--feezal-app-*` style-var family (bar, drawer, overlay opacity, active indicator, drawer width) | N36 |
+| layout | `--feezal-app-content-padding` content inset (+ its `box-sizing` trap) | [U50](roadmap-archive/U50.md) ✅ |
+| editor | custom N6 inspector: drawer-entry editor, "create new view" flow | E47 / U47 |
+
+Plus two open defects it would inherit or duplicate: **B84** (slim rail missing on first paint) and **U63** (per-side content inset).
+
+## ✅ Decided (07/2026): a real Paper element on `FeezalPolymerElement`
+
+**A genuine Paper-family element** — `feezal-element-paper-app`, extending **`FeezalPolymerElement`** like the rest of the family, not a skin over `layout-app` and not a Lit element styled to look Paper.
+
+That is the most expensive of the options considered and it adds to the legacy Polymer stack, so the consequences are recorded here **to be planned for, not discovered**:
+
+- **Behaviour drift is the main risk.** The table above is thirteen behaviours accumulated over E47/N36/N30/B41/B50/U47/U50; a fork means each future `layout-app` fix must be applied twice, and nothing enforces that. **Mitigation: a parity test**, in the spirit of `www/test-browser/feezal-controller-parity.test.js` — assert both shells expose the same attribute names, the same style-var family and the same routing contract, and fail when one gains something the other lacks. Write it **with** the element, not after.
+- **Two open defects must be fixed in both**: **B84** (slim rail missing on first paint) and **U63** (per-side content inset). Ideally settle those on `layout-app` *first*, so the Paper element is built against the finished behaviour rather than inheriting a known-broken copy.
+- **Polymer re-expression.** Framework-agnostic parts port directly (the ResizeObserver mode computation, the drawer-entry model, the embed/clone logic, the `--feezal-app-*` vars). Lit-specific machinery needs re-expressing: reactive properties → Polymer `properties` with `reflectToAttribute`, `renderRoot` → `this.$`, `html` templates → Polymer templates, and the B50 theme-CSS mirroring must target the Polymer shadow root.
+- **Watch the class of bug the Paper family already has.** `paper-checkbox` reads from `topic` rather than `subscribe` (see [E157](roadmap-archive/E157.md)); pick the attribute names deliberately so the new shell matches `layout-app`'s contract rather than inheriting legacy naming by reflex.
+- **`_syncViewBackground` / gradient detection** currently reads inline shorthand only — see **B83**. The new shell copies view backgrounds the same way `layout-app._embed()` does, so build it against B83's fix, not the current code.
+
+**Ships with:** the element or variant, palette entry, the N6 inspector (shared or re-pointed), `www/editor/feezal-elements.js` regenerated if a new package lands, per-element notes in `docs/TESTING.md` §6, a browser test mirroring `test-browser/feezal-elements-layout-app.test.js`, and version bumps per policy.
+
+**Relates:** **[E47](roadmap-archive/E47.md)** ✅ (built `layout-app` *as* the replacement for `paper-app-layout` — read it before re-adding what it deliberately superseded), **N36** / **N30** / **B41** / **B50** / **U47** / **[U50](roadmap-archive/U50.md)** ✅ (the feature set to match), **B84** (slim-rail bug that would be inherited), **U63** (content-inset API in flux — settle it before duplicating), **E137** (the "view over shared behaviour, never fork" principle this item must answer to), **E114** (family parity — the convention pulling toward a separate element), `feezal-element-layout-app`.
+
+### E160 — Stamp a device-class-appropriate icon on value and gauge cards
+
+**Reported (07/2026):** every discovered `*-value` card shows a **temperature** icon. Pressure, CO₂ equivalent, VOC, PM2.5 and humidity should each get a fitting one.
+
+## Cause (verified in the source)
+
+Two things combine:
+
+1. **`glass-value` hardcodes `thermostat`** — as the attribute default, as the constructor value **and** as the render fallback (`<feezal-icon name="${this.icon || 'thermostat'}">`). Any glass value card is a thermometer until the user overrides it. The other families differ: `circle-value` defaults to `''` (no icon), and the rest carry only a *palette* icon, which is unrelated to what the card renders.
+2. **The discovery map never stamps an icon.** The `*-value` map wires `state_topic` → `subscribe`, `unit_of_measurement` → `unit`, `value_template` → `message-property`, `name` → `label`. There is no `icon` mapping, so nothing ever displaces the default.
+
+## The payload already carries what is needed
+
+From the reporter's ESPHome device, every entity has a `device_class`:
+
+| entity | `device_class` | `icon` (`ic`) |
+|---|---|---|
+| PM2.5 | `pm25` | `mdi:blur` |
+| BME680 Temperature | `temperature` | — |
+| BME680 Pressure | `atmospheric_pressure` | — |
+| BME680 Humidity | `humidity` | — |
+| BME680 CO2 Equivalent | `carbon_dioxide` | — |
+| BME680 Breath VOC Equivalent | `volatile_organic_compounds_parts` | — |
+| BME680 Gas Resistance | *(none)* | `mdi:gas-cylinder` |
+| BME680 IAQ | *(none)* | `mdi:gauge` |
+
+⚠️ **Do not map `ic` straight through.** Those are **Material Design Icons** names (`mdi:blur`); feezal renders **Material Symbols** (`thermostat`, `sensors`, `co2`). The two vocabularies do not share names, so passing `ic` verbatim yields a blank icon. `device_class` is the portable signal — and it is what z2m, ESPHome and Homematic all populate. At most, `ic` could be a *last-resort* hint via a small MDI→Symbols alias table; decide whether that is worth the maintenance.
+
+## Fix
+
+**A shared `device_class` → icon table, applied declaratively.** The stamp DSL already supports exactly this — `valueMap` with a `_default` fallback — so no new mapping machinery is needed:
+
+```js
+device_class: {attr: 'icon', valueMap: NUMERIC_SENSOR_ICONS},
+```
+
+Define `NUMERIC_SENSOR_ICONS` **once** in `@feezal/feezal-element`, next to `feezal-sensor-types.js` — that module is the same idea for *boolean* sensors (E132/E138), so this is its numeric sibling and should sit beside it rather than be reinvented per family.
+
+**Proposed starting table — verify every name against the installed Material Symbols set before shipping; an unknown name renders blank:**
+
+| `device_class` | candidate |
+|---|---|
+| `temperature` | `thermostat` |
+| `humidity` | `humidity_percentage` / `water_drop` |
+| `atmospheric_pressure`, `pressure` | `compress` / `speed` |
+| `carbon_dioxide` | `co2` *(already used by the boolean table)* |
+| `volatile_organic_compounds`, `…_parts` | `air` / `science` |
+| `pm25`, `pm10`, `pm1` | `blur_on` / `airwave` |
+| `illuminance` | `light_mode` |
+| `power`, `energy`, `voltage`, `current` | `bolt` / `electric_bolt` |
+| `battery` | `battery_full` |
+| `signal_strength` | `signal_cellular_alt` |
+| `gas`, `water` | `gas_meter`, `water_drop` |
+| *(unmatched)* | `_default: 'sensors'` — neutral, never wrong |
+
+**Also decide: `glass-value`'s hardcoded `thermostat` default.** A specific-but-wrong default is worse than a neutral one — a humidity reading with a thermometer icon actively misinforms. Changing it to `sensors` (or `''`, matching `circle-value`) is the smaller, honest default, but it **changes the look of existing dashboards** that relied on it. Call it deliberately.
+
+**Scope:** the six `*-value` cards plus the five `*-gauge` cards and `basic-icon-value` — all read a numeric `sensor` and all have the same gap.
+
+## Sequencing note
+
+*(Sequencing note, now resolved: this was unverifiable through the ⚡ picker while **[B86](roadmap-archive/B86.md)** was open — picking a device stamped nothing. B86 is fixed, so the picker is a valid way to test this again.)*
+
+**Ships with:** the shared icon table, the `device_class` mapping added to every value/gauge discovery map, unit tests (each `device_class` stamps its icon; an unknown one falls back to `sensors`; an entity with no `device_class` leaves the attribute untouched), a `docs/TESTING.md` §9 line, and version bumps per policy.
+
+**Relates:** **E132** / **E138** (`feezal-sensor-types.js` — the boolean-sensor vocabulary this mirrors; put the numeric table beside it), **B85** (thermostat datapoints not offered to value cards — the same family, and its `climate` axes will want icons too), **[B86](roadmap-archive/B86.md)** (blocks verification via the picker), **U62** ✅ (friendly labels — the same "make the stamped result presentable" concern), `feezal-icon` / the Material Symbols set (name verification).
 
 ### A7 — Git versioning for data directory 🔨 in progress
 
@@ -1703,6 +2168,57 @@ Feezal's "widgets are plain npm packages" model is better infrastructure than vi
 **Sequencing:** pilot with **panel** (smallest, 5 elements, no theme), then tui, paper. The detection feature lands with the pilot's core-removal PR. E63 (schematic family) starts external from day one and never enters core; metro follows later as A24.
 
 **Relates:** N29 (bundle mechanism), A20 (scaffolding/ecosystem tooling — this creates the de-facto template), rail/lcars repos (living precedent incl. PUBLISHING.md), E63 (first born-external family), A24 (metro — deferred follow-up), E106 (the glass shared-code lessons apply when consolidating families), packages sidebar + `server/src/build/install.js` (install path under test).
+
+### A32 — Element packages must declare their own npm dependencies
+
+**Spotted (07/2026)** in `www/package.json`:
+
+```json
+"@polymer/paper-dropdown-menu": "^3.2.0",
+"@polymer/paper-item": "^3.0.1",
+"@polymer/paper-listbox": "^3.0.1",
+```
+
+These are not the app's dependencies. They belong to **one workspace member**, `@feezal/feezal-element-paper-dropdown`, which is the only importer.
+
+## Audited — the scope is exactly one package
+
+Imported `@polymer/*` vs declared, across every `feezal-element-paper-*`:
+
+| package | imports | declares | |
+|---|---|---|---|
+| `paper-button` | `paper-button` | `paper-button` | ✅ |
+| `paper-checkbox` | `paper-checkbox` | `paper-checkbox` | ✅ |
+| `paper-slider` | `paper-slider`, `polymer` | `paper-slider` | ⚠️ `polymer` undeclared |
+| `paper-switch` | `paper-toggle-button` | `paper-toggle-button` | ✅ |
+| `paper-tabs` | `paper-tabs` | `paper-tabs` | ✅ |
+| **`paper-dropdown`** | **`paper-dropdown-menu`, `paper-item`, `paper-listbox`** | **none** | ❌ |
+| `paper-badge` / `-card` / `-dialog` / `-dialog-view` / `-listbox` | none | none | ✅ |
+
+So the convention is already established and followed by five of six — `paper-dropdown` is the lone exception, and its three dependencies were hoisted up to the app instead.
+
+`paper-slider`'s `@polymer/polymer` import is a lesser case: it resolves transitively through `@feezal/feezal-element` (which does declare it), so nothing breaks, but it is still an undeclared direct import.
+
+*(Checked and dismissed: `feezal-element-paper-dialog` appears to reference `@polymer/paper-dialog`, but that is a mention in a comment, not an import — the Paper-*styled* elements `badge`/`card`/`dialog`/`dialog-view`/`listbox` use no `@polymer` components at all.)*
+
+## Why it matters
+
+- **The packages are published.** `@feezal/*` element packages are versioned and released (`scripts/release.js`, lockstep majors per `CLAUDE.md`). Anyone installing `@feezal/feezal-element-paper-dropdown` on its own gets a package that **cannot resolve its own imports** — it only works inside this repo because the app happens to hoist them.
+- **Removal leaves ghosts.** If the element is ever renamed or dropped, its dependencies stay behind in `www/package.json` with nothing referencing them. That is the same class of lockfile rot that broke the Docker release before (see `www/test/package-lock-workspaces.test.js` and its `metro-tile`/`metro-occupancy` story) — this time in the forward direction.
+- **It hides the real cost of an element.** `www/package.json` should read as "what the app needs"; a per-element Polymer widget is not that.
+
+## Fix
+
+1. Move the three entries from `www/package.json` into `www/packages/@feezal/feezal-element-paper-dropdown/package.json` under `dependencies`.
+2. Add `@polymer/polymer` to `feezal-element-paper-slider`'s dependencies (or decide explicitly that inheriting it via `@feezal/feezal-element` is acceptable and note it).
+3. `npm install` in `www/` to re-link, then **rebuild and diff the bundle** — the workspace hoists to the same `node_modules`, so resolution should be unchanged; the point is provenance, not layout.
+4. Bump the touched element packages' patch versions per policy.
+
+## Guard it
+
+Add a unit test — cheap, in the spirit of the existing `package-lock-workspaces.test.js`: for every `www/packages/@feezal/*`, parse its `.js` files for bare (non-relative) import specifiers and assert each package name appears in that package's own `dependencies` (allowing what its direct dependencies re-export, e.g. `@polymer/polymer` via `@feezal/feezal-element`, if that is the decision in step 2). That converts "someone remembered" into "CI fails", and would have caught this at the commit that introduced it.
+
+**Relates:** `www/test/package-lock-workspaces.test.js` (the sibling packaging guard, and the release breakage that motivated it), **E159** (a new Paper element — build it with its dependencies declared from the start), the element-authoring steps in `CLAUDE.md` §"Creating new feezal elements" (worth adding "declare the element's own npm dependencies" to the checklist), `scripts/release.js` (publishes these packages).
 
 ### A24 — Externalize the metro element family *(future — will be done later)*
 
