@@ -94,6 +94,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B86 — Discovery picker stamps nothing on selection; Generate still works (regression, cause verified) ✅ fixed](B86.md)
 - [B87 — Directly-opened `/viewer/<site>` gets `#/view` appended without a trailing slash ✅ fixed](B87.md)
 - [B88 — Custom inspectors silently drop attributes: `show-active-label` has no control ✅ done](B88.md)
+- [B89 — HA discovery: nested `device` abbreviations not expanded (ESPHome device metadata lost; switch not offered) ✅ fixed](B89.md)
 
 ## Near-term Improvements
 

@@ -96,6 +96,54 @@ describe('handleMessage — device discovery (cmps)', () => {
         disc.handleMessage('homeassistant/device/dev1/config', buf(''));
         expect(disc.getDiscoveredEntity('switch/dev1/sw')).toBe(null);
     });
+
+    // B89: ESPHome publishes an abbreviated, NESTED device object (`dev`) and a
+    // scalar `ids`. A top-level-only expansion left `device.ids` (never
+    // `device.identifiers`), so grouping / metadata / area were lost and the
+    // entity never reached the discovery picker for *-switch / *-light.
+    it('expands nested `dev` abbreviations and normalises a scalar identifier (ESPHome)', () => {
+        disc.handleMessage('homeassistant/switch/lichterkette-ida/config', buf({
+            '~': 'lichterkette-ida',
+            name: 'Lichterkette',
+            stat_t: '~/switch/relay/state',
+            cmd_t: '~/switch/relay/command',
+            avty_t: '~/status',
+            dev: {ids: '2cf4321a50ee', name: 'Lichterkette Ida', mdl: 'esp01_1m', mf: 'Espressif'},
+        }));
+        const e = disc.getDiscoveredEntity('switch/lichterkette-ida');
+        expect(e).toBeTruthy();
+        // nested KEY abbreviations expand
+        expect(e.config.device.name).toBe('Lichterkette Ida');
+        expect(e.config.device.model).toBe('esp01_1m');
+        expect(e.config.device.manufacturer).toBe('Espressif');
+        // scalar identifier normalised to an array (consumers do identifiers[0])
+        expect(e.config.device.identifiers).toEqual(['2cf4321a50ee']);
+        // nested `~` inside the device topics resolved too
+        expect(e.config.state_topic).toBe('lichterkette-ida/switch/relay/state');
+        // and the device now groups correctly (the symptom in the report)
+        const groups = disc.getDeviceGroups();
+        expect(groups).toHaveLength(1);
+        expect(groups[0].deviceId).toBe('2cf4321a50ee');
+        expect(groups[0].deviceName).toBe('Lichterkette Ida');
+    });
+
+    it('recursively resolves `~` and expands abbreviations inside `cmps` + `availability` array', () => {
+        disc.handleMessage('homeassistant/device/espdev/config', buf({
+            '~': 'esp',
+            dev: {ids: 'espdev', name: 'ESP Combo'},
+            avty: [{t: '~/status', pl_avail: 'online', pl_not_avail: 'offline'}],
+            cmps: {
+                relay: {p: 'switch', name: 'Relay', stat_t: '~/relay', cmd_t: '~/relay/set'},
+            },
+        }));
+        const e = disc.getDiscoveredEntity('switch/espdev/relay');
+        expect(e).toBeTruthy();
+        expect(e.config.device.identifiers).toEqual(['espdev']);
+        expect(e.config.state_topic).toBe('esp/relay');
+        // availability array: abbreviated keys + nested `~` both resolved
+        expect(e.config.availability_normalized.entries[0].topic).toBe('esp/status');
+        expect(e.config.availability_normalized.payloadAvailable).toBe('online');
+    });
 });
 
 describe('getDeviceGroups', () => {

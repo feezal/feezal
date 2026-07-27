@@ -9,7 +9,6 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
-- [B89 — HA discovery: nested `device` abbreviations not expanded (ESPHome device metadata lost; switch not offered)](#b89--ha-discovery-nested-device-abbreviations-not-expanded-esphome-device-metadata-lost-switch-not-offered)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -291,27 +290,6 @@ This also **removes an existing ambiguity**: `slim` and `autohide` are independe
 **Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
 
 **Relates:** **[B62](roadmap-archive/B62.md)** ✅ (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
-
-### B89 — HA discovery: nested `device` abbreviations not expanded (ESPHome device metadata lost; switch not offered)
-
-**Reported (07/2026):** an ESPHome switch is not offered by `*-switch` (nor `*-light`) in the ⚡ discovery picker:
-
-```
-homeassistant/switch/usb-relay-02/relay/config
-{"name":"relay","stat_t":"…/status/relay","cmd_t":"…/set/relay","avty_t":"…/status",
- "uniq_id":"ESPswitchrelay",
- "dev":{"ids":"2cf4321a50ee","name":"Lichterkette Ida","mdl":"esp01_1m","mf":"Espressif","cns":[["mac","…"]]}}
-```
-
-**Confirmed root cause — `expandAbbrevs()` is top-level only.** [discovery.js](../server/src/mqtt/discovery.js) has the mappings (`ids`→`identifiers`, `mdl`→`model`, `mf`→`manufacturer`, `cns`→`connections`, `sa`→`suggested_area`, …) but `expandAbbrevs` only rewrites the **top-level** keys, so the abbreviated keys **inside the nested `dev` object are never expanded**. Verified by feeding the payload through `handleMessage`: the entity IS created (component `switch`, `state_topic`/`command_topic` correct — top-level `stat_t`/`cmd_t`/`avty_t` expand fine) **but `config.device.identifiers` is `undefined`** (it's `config.device.ids`), and `model`/`manufacturer`/`suggested_area` are likewise stuck under abbreviated keys. Any device with abbreviated `dev.*` keys (ESPHome's default) loses its device metadata.
-
-**Why "not offered" (to pin on repro).** The switch entity itself parses, so by the flat-picker code path it *should* appear — but **device grouping keys on `device.identifiers[0]`** (the `/api/discovery/device-groups` path and the Generate wizard), which is `undefined` here, so anything device-grouped drops or mis-buckets it. **Reproduce on the real broker and capture** whether the entity is in `/api/discovery/devices` (flat) and in the inspector's `__discoveryEntities` — that decides whether the exclusion is the device-grouping/label (most likely, downstream of the undefined identifiers) or a separate delivery gap.
-
-**Fix.** Make abbreviation expansion **recurse into nested objects/arrays** — at minimum the `device`/`dev` object, and for completeness the `availability` array entries and `cmps`/`components` sub-configs (each an abbreviated config in its own right). A recursive `expandAbbrevs` (walk objects and arrays, apply `ABBREVS[k] ?? k` at every level) is the smallest correct change; guard against rewriting *values* (only keys). Then `device.identifiers`/`model`/`manufacturer`/`suggested_area` resolve, device grouping works, and the ESPHome switch is offered.
-
-**Acceptance:** the reported ESPHome switch appears under `*-switch` in the ⚡ picker; its device groups correctly (identifiers resolved); `model`/`manufacturer`/`suggested_area` are populated on the record. A discovery unit test with an abbreviated nested `dev` (and an `availability` array + `cmps` device config) asserts full expansion.
-
-**Relates:** **E161** (friendly names / icons / areas — directly blocked by this: `dev.name`/`sa` are unreadable until nested expansion lands), **N12** ✅ / **E149** ✅ (the HA discovery engine), **E108** ✅ (native path is unaffected — this is HA-only), the `/api/discovery/device-groups` grouping + the Generate wizard (**U58**) that rely on `device.identifiers`, `server/src/mqtt/discovery.js` `expandAbbrevs`/`normalizePayload`.
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 

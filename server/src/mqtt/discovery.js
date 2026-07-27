@@ -166,25 +166,67 @@ const entities = new Map();
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-/** Expand abbreviated keys to full key names. */
+/**
+ * Expand abbreviated keys to full key names, RECURSIVELY (B89).
+ *
+ * HA discovery abbreviates keys at every level, not just the top: ESPHome's
+ * default payload nests `dev:{ids,mdl,mf,cns,sw,sa,…}`, availability is an array
+ * of `{t,pl_avail,val_tpl}` entries, and a device config's `cmps` holds one
+ * abbreviated component config per object_id. A top-level-only expansion left
+ * `device.ids` (not `device.identifiers`), so device grouping / metadata / area
+ * were lost. Only KEYS are mapped; VALUES pass through and are recursed when
+ * they are objects or arrays (a value that happens to look like an abbreviation
+ * is never rewritten — connection tuples like `[["mac","…"]]` stay intact).
+ */
 function expandAbbrevs(obj) {
+    if (Array.isArray(obj)) return obj.map(expandAbbrevs);
     if (!obj || typeof obj !== 'object') return obj;
     const out = {};
     for (const [k, v] of Object.entries(obj)) {
-        out[ABBREVS[k] ?? k] = v;
+        const key = ABBREVS[k] ?? k;
+        if (key === 'components' && v && typeof v === 'object' && !Array.isArray(v)) {
+            // The `cmps` map is keyed by user-chosen object_ids (e.g. `sw`, which
+            // is ALSO an abbreviation for `sw_version`). Preserve those keys and
+            // only expand each component config's own keys.
+            const comps = {};
+            for (const [objId, comp] of Object.entries(v)) comps[objId] = expandAbbrevs(comp);
+            out[key] = comps;
+        } else {
+            out[key] = expandAbbrevs(v);
+        }
     }
     return out;
 }
 
-/** Replace all `~` occurrences in string values with the base topic. */
+/** Replace all `~` occurrences in string values with the base topic, recursively
+ * (nested topics inside `availability` entries / `cmps` component configs also
+ * use the `~` shorthand). Only the top-level `~` declaration key is dropped. */
 function resolveBase(obj, base) {
     if (!base) return obj;
-    const out = {};
-    for (const [k, v] of Object.entries(obj)) {
-        if (k === '~') continue;
-        out[k] = typeof v === 'string' ? v.replaceAll('~', base) : v;
+    if (Array.isArray(obj)) return obj.map(v => resolveBase(v, base));
+    if (obj && typeof obj === 'object') {
+        const out = {};
+        for (const [k, v] of Object.entries(obj)) {
+            if (k === '~') continue;
+            out[k] = resolveBase(v, base);
+        }
+        return out;
     }
-    return out;
+    return typeof obj === 'string' ? obj.replaceAll('~', base) : obj;
+}
+
+/**
+ * B89: HA allows the device `identifiers` as a scalar OR a list — ESPHome sends
+ * a bare string (`ids:"2cf…"`). Normalise to an array so consumers that key on
+ * `device.identifiers[0]` (device grouping, the Generate wizard, battery-low
+ * correlation) don't index into a string.
+ */
+function normalizeDevice(config) {
+    const dev = config?.device;
+    if (dev && typeof dev === 'object' && typeof dev.identifiers === 'string') {
+        dev.identifiers = [dev.identifiers];
+    }
+    return config;
 }
 
 /** Expand abbreviations and resolve the `~` base topic shorthand. */
@@ -192,6 +234,7 @@ function normalizePayload(raw) {
     const expanded = expandAbbrevs(raw);
     const base = expanded['~'] || '';
     const config = resolveBase(expanded, base);
+    normalizeDevice(config);
     normalizeAvailability(config, base);
     return config;
 }
@@ -318,7 +361,10 @@ function handleDeviceDiscovery(nodeId, payloadBuf) {
 
         // Merge device-level keys with component-level keys; component wins on conflict
         const merged = { ...expanded, ...compExpanded };
-        const config = resolveBase(expandAbbrevs(merged), base);
+        const config = normalizeDevice(resolveBase(expandAbbrevs(merged), base));
+        // Device-level availability (shared across components) needs the same
+        // canonical normalisation the per-component path gets via normalizePayload.
+        normalizeAvailability(config, base);
 
         const id = makeId(component, nodeId, objectId);
         entities.set(id, {
