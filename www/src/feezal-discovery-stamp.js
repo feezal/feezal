@@ -81,6 +81,25 @@ export function discoveryLabel(entity) {
     return attr ? base + ' ' + attr : base;
 }
 
+/**
+ * B86 — separator between the discovery id and the row index inside an
+ * <sl-option> value.
+ *
+ * It must satisfy three constraints at once:
+ *  - Survive HTML parsing. The previous separator was a NUL, written as a
+ *    unicode escape; a tagged template cooks that into a real NUL, Lit builds
+ *    its template by parsing an HTML string, and per spec a NUL in
+ *    attribute-value state becomes U+FFFD. The separator was destroyed before
+ *    any value was ever assigned, so every pick silently stamped nothing.
+ *  - Never occur in the id half, which is percent-encoded. encodeURIComponent
+ *    leaves only alphanumerics and -_.!~*'() unescaped, so "|" cannot appear.
+ *  - Not be a space: Shoelace treats that as a multi-value delimiter.
+ *
+ * Interpolated into the template rather than written literally, so no future
+ * separator can be mangled by the parser either.
+ */
+export const DISCOVERY_ROW_SEP = '|';
+
 // Apply a discovery entity's config onto `el` using the element class's
 // feezal().discovery.map descriptor. Pure: no selection, no inspector, no
 // undo — the caller owns feezal.app.change()/redraw. `el` may be a freshly

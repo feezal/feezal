@@ -9,7 +9,7 @@ export const LIVE_APPLY_DEBOUNCE_MS = 250;
 // the ⚡ picker and the bulk Generate wizard apply identical wiring.
 // valueTemplateLeaf is re-exported here for back-compat with existing importers.
 import {stampDiscovery, valueTemplateLeaf, discoveryLabel, discoveryAttributeSuffix, elementAcceptsComponent,
-    discoveryCandidates, acceptedComponents} from './feezal-discovery-stamp.js';
+    discoveryCandidates, acceptedComponents, DISCOVERY_ROW_SEP} from './feezal-discovery-stamp.js';
 export {valueTemplateLeaf};
 
 import '@shoelace-style/shoelace/dist/components/input/input.js';
@@ -1764,6 +1764,15 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             : allMatches;
 
         const linkedId = el.getAttribute('discovery-id') || '';
+        // B86: the select's value has to be one of the OPTION values, index and
+        // all — binding the bare id matched nothing, so Shoelace reset it to ''
+        // and a linked device never showed as selected.
+        const linkedIndex = linkedId
+            ? allMatches.findIndex(c => c.entity.discovery_id === linkedId)
+            : -1;
+        const selectValue = linkedIndex >= 0
+            ? encodeURIComponent(linkedId) + DISCOVERY_ROW_SEP + linkedIndex
+            : '';
         const showSearch = allMatches.length > 5;
         // Shoelace <sl-select> treats a space in an <sl-option> value as a value
         // delimiter (multi-value tokens), so option/select values that contain a
@@ -1777,7 +1786,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                 <span class="dp-icon" title="Auto-discovered devices (${allMatches.length})">\u26A1</span>
                 <sl-select class="dp-select" size="small" hoist
                     placeholder="Link a discovered device\u2026"
-                    value="${encodeURIComponent(linkedId)}"
+                    value="${selectValue}"
                     @sl-after-show="${() => this.renderRoot.querySelector('.dp-search')?.focus()}"
                     @sl-hide="${() => { this._discoveryFilter = ''; }}"
                     @sl-change="${e => this._onPickDiscovery(e.target.value)}">
@@ -1792,7 +1801,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                                 @keydown="${e => e.stopPropagation()}">
                         </div>` : ''}
                     ${matches.map(c => html`<sl-option
-                        value="${encodeURIComponent(c.entity.discovery_id)}\u0000${allMatches.indexOf(c)}"
+                        value="${encodeURIComponent(c.entity.discovery_id)}${DISCOVERY_ROW_SEP}${allMatches.indexOf(c)}"
                         >${this._discoveryOptionLabel(c)}</sl-option>`)}
                     ${!matches.length ? html`<sl-option value="" disabled>No matches for \u201c${this._discoveryFilter}\u201d</sl-option>` : ''}
                 </sl-select>
@@ -1825,10 +1834,17 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         // E156: the row index is appended after a NUL, because one entity can
         // appear as several rows (a light's brightness and colour-temp axes)
         // and the id alone no longer identifies which one was picked.
-        const [encodedId, rowIndex] = String(encodedValue).split('\u0000');
+        const [encodedId, rowIndex] = String(encodedValue).split(DISCOVERY_ROW_SEP);
         const id = decodeURIComponent(encodedId);
         const entity = (this.__discoveryEntities || []).find(e => e.discovery_id === id);
-        if (!entity) return;
+        if (!entity) {
+            // B86: this was a bare `return` — a pick that stamped nothing, with
+            // no error anywhere, which is what made the bug invisible. Never
+            // fail silently here again.
+            console.warn('feezal: discovery pick did not resolve to an entity',
+                {value: encodedValue, id});
+            return;
+        }
 
         const el = this.selectedElems?.[0];
         const cls = window.customElements.get(el?.name ? 'feezal-view' : el?.localName);
@@ -1879,7 +1895,10 @@ class FeezalSidebarInspectorAttributes extends LitElement {
     // a feezal attribute, with optional value transforms.
     _applyDiscovery(entity, variant = null) {
         const el = this.selectedElems?.[0];
-        if (!el) return;
+        if (!el) {
+            console.warn('feezal: discovery pick with no selected element — nothing stamped');
+            return;
+        }
         // U58: the stamping itself lives in the shared headless module so the
         // ⚡ picker and the bulk Generate wizard wire devices identically. The
         // inspector-specific redraw stays here.
