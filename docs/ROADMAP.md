@@ -1168,6 +1168,39 @@ Rooms **alphabetically by label** (locale-aware compare, so umlauts sort as expe
 3. **Does the review screen apply to function mode too?** The buckets are deterministic there — no guessing — so it could be skipped. But it is also the only place to *deselect* a bucket, which argues for showing it in both modes with the guess-marking simply absent.
 
 
+## Onboarding — the welcome tour should end by introducing Generate
+
+**Requested (07/2026).** [U37](roadmap-archive/U37.md) ✅ (`www/src/feezal-welcome-tour.js`, 13 steps) currently ends with the hands-on sequence: *"Try it: your first live element"* → *"Point it at a topic"* → *"Show the value"* → *"Deploy and watch it live"*. The natural close is: **you just did that by hand — here is how to do forty at once.**
+
+Add final step(s) spotlighting the **Generate** button and explaining the two tiles: **Devices** (bulk-place onto this view) and **App** (a whole multi-view app from your rooms or functions).
+
+### Placement — after the hands-on, as the finale
+
+Not before it. The hands-on steps teach what an element *is* and what wiring *means*; Generate only makes sense once the user has that. Ending on it also leaves them at the fastest path rather than the slowest.
+
+### The timing problem, which is the real design question
+
+**Generate needs discovered devices, and at that moment there may be none.** The broker is configured only a few steps earlier, and discovery entities arrive asynchronously — retained `homeassistant/…/config` messages land shortly after connect, native recognizers need a message per device. So the step can easily be reached with an empty device list, and demoing a feature against nothing is worse than not mentioning it.
+
+Options:
+
+- **(a) Always show it, with copy that adapts** — spotlight the button and say what it will do; if the list is empty, say so plainly ("no devices discovered yet — they appear here as your broker reports them"). The user learns the feature exists, which is the point of a tour.
+- **(b) Skip the step when nothing is discovered.** Cleanest demo, but the users most likely to hit it — fresh install, broker just configured — are exactly the ones who most need to know the feature exists.
+- **(c) Wait for the first discovered device** with a short timeout, using the same event-driven advance the hands-on steps already use (MutationObserver → here, a discovery-count poll). Best demo, most machinery, and it stalls the tour on a setup with no discovery at all.
+
+**Recommend (a)**: the tour's job is to say *this exists and here is where it lives*, not to complete the task. It also keeps the step non-interactive and cheap.
+
+### Spotlight, do not drive
+
+Follow the existing pattern: a **non-interactive spotlight** on the Generate button with a click-catcher, as U37 uses for explanatory steps — rather than opening the popup and walking its tiles. The popup is modal with its own flow and back-stack; driving it from the tour would mean the overlay and the dialog fighting over focus and dismissal. Point at it, explain it, let the user open it after the tour.
+
+### Sequencing with Phase ②
+
+**Devices mode exists; App mode does not yet.** Either ship the tour step covering only Devices now and extend it when Phase ② lands, or hold the whole step until both tiles work. A step that describes a greyed-out "Coming soon" tile is the one option to avoid — it advertises a dead end during a first-run experience.
+
+**Ships with (this section):** one or two `STEPS` entries in `feezal-welcome-tour.js` with the empty-list copy, the spotlight target, and the editor-only property U37 established (nothing reaches the viewer or export bundle) preserved; a browser test that the tour reaches the new step and that it renders with an empty device list.
+
+
 **Relates:** **U30** (the idea this concretises — recommend subsuming), **U31** (device-first single insert — shared machinery), **U45** (element picker — sibling entry point), **E113** (function × style — the model), **E114** (parity — safe family pick), **E115** (switch family — after-the-fact restyle), **E138** (the device-function taxonomy the buckets use), **E108** ✅ (native discovery — supplies the device list), **U41** ✅ (flow layout — the sub-view layout mode App generates), **[U50](roadmap-archive/U50.md)** ✅ (layout-app content inset — candidate home for the sub-view width cap), **E38** (responsive sizing — the width-cap + auto-grid concern), `layout-app` (the app-shell element the App mode wires), U37 ✅ (welcome wizard — the other onboarding surface), U9/AI assistant (candidate room-clustering engine), **E147** (the AI-on-the-edge meter element — a candidate the wizard could place from discovered meters, deriving its json/status/connection topics from the discovered value topic).
 
 ### U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow
