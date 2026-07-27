@@ -507,7 +507,21 @@ class FeezalSite extends LitElement {
         const currentView = [...feezal.views].find(v => v.getAttribute('name') === this.view);
         if (!currentView) return;
         const sync = () => {
-            const bg = currentView.style.background || currentView.style.backgroundColor || '';
+            // B83: the inline `background` SHORTHAND getter returns '' whenever
+            // the background was authored as longhands (background-image +
+            // -size + -attachment, which is what the background editor writes)
+            // or through a var()/theme rule. Detection keyed on it therefore
+            // never fired on a real site, so the whole gradient path below sat
+            // inert — B62's fix could not engage. Read the COMPUTED image,
+            // which sees every authoring form.
+            const computed = getComputedStyle(currentView);
+            const computedImage = computed.backgroundImage && computed.backgroundImage !== 'none'
+                ? computed.backgroundImage
+                : '';
+            const inlineBg = currentView.style.background || currentView.style.backgroundColor || '';
+            // Value precedence is unchanged for the inline case; the computed
+            // image is only a fallback, so nothing that worked before moves.
+            const bg = inlineBg || computedImage;
             if (bg) {
                 this.style.setProperty('--feezal-canvas-bg', bg);
             } else {
@@ -518,7 +532,10 @@ class FeezalSite extends LitElement {
             // background — the host attribute makes the site transparent so
             // only the (viewport-sized, non-scrolling) document root mirror
             // below paints it. Solid colours keep the pre-B62 path.
-            const gradient = /gradient\(/i.test(bg);
+            // Test the computed image first — `bg` may be an inline shorthand
+            // that is itself a var() reference, which no string test can see
+            // through.
+            const gradient = /gradient\(/i.test(computedImage || bg);
             if (!feezal.isEditor) this.toggleAttribute('gradient-bg', gradient);
 
             // Viewer: mirror the view background to the document so the iOS

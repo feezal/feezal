@@ -25,9 +25,27 @@ const CARDS = Array.from({length: 40}, (_, i) =>
 const GRADIENT = 'linear-gradient(180deg, rgb(11, 37, 69) 0%, rgb(42, 157, 244) 100%)';
 const SOLID = 'rgb(11, 37, 69)';
 
+// B83: the authoring FORM is the variable that mattered, and the original
+// fixture only covered the shorthand — the one form the old detection could
+// see. These are the two that shipped broken:
+//   longhand — what the background style editor actually writes, and what the
+//              reporter's views carry (note background-attachment: fixed, which
+//              is why desktop looked correct while iOS did not);
+//   var()    — a background reached through a custom property, e.g. from a theme.
+const GRADIENT_LONGHAND =
+    `background-image: ${GRADIENT}; background-size: cover; background-attachment: fixed;`;
+const GRADIENT_VAR =
+    `--demo-bg: ${GRADIENT}; background: var(--demo-bg);`;
+
 const siteHtml = background =>
     '<feezal-site><feezal-view name="main" child-position="flow" ' +
     `style="width:100%;height:100%;background:${background};">` +
+    CARDS + '</feezal-view></feezal-site>';
+
+/** Same view, but the style attribute is supplied verbatim (B83 forms). */
+const siteHtmlRaw = styleDecls =>
+    '<feezal-site><feezal-view name="main" child-position="flow" ' +
+    `style="width:100%;height:100%;${styleDecls}">` +
     CARDS + '</feezal-view></feezal-site>';
 
 // The same view reached through a layout-app drawer (#/menu/main), which is a
@@ -52,6 +70,8 @@ beforeAll(async () => {
     await deploySite(stack.baseUrl, {name: 'grad', html: siteHtml(GRADIENT)});
     await deploySite(stack.baseUrl, {name: 'solid', html: siteHtml(SOLID)});
     await deploySite(stack.baseUrl, {name: 'gradapp', html: appHtml(GRADIENT)});
+    await deploySite(stack.baseUrl, {name: 'gradlong', html: siteHtmlRaw(GRADIENT_LONGHAND)});
+    await deploySite(stack.baseUrl, {name: 'gradvar', html: siteHtmlRaw(GRADIENT_VAR)});
 }, 180_000);
 
 afterAll(async () => {
@@ -149,6 +169,43 @@ describe('B62 — the view background is pinned to the viewport', () => {
         await page.waitForTimeout(350);
 
         expect(await marginPixels(page), 'gradient moved inside the layout-app shell').toBe(atTop);
+        await page.close();
+    }, 180_000);
+
+    it('holds when the gradient is authored as LONGHANDS (B83)', async () => {
+        // The form the background style editor writes, and the one the shipped
+        // B62 fix could not see: `view.style.background` is '' for it, so the
+        // gradient flag never got set and none of the fix engaged.
+        const page = await stack.context.newPage();
+        await openScrollable(page, 'gradlong');
+        const atTop = await marginPixels(page);
+        await scrollBy(page, 900);
+        expect(await marginPixels(page), 'longhand-authored gradient moved').toBe(atTop);
+
+        // and the mechanism, not just the pixels: the site must be painting it
+        // and the view must have been silenced
+        const wired = await page.evaluate(() => {
+            const site = document.querySelector('feezal-site');
+            const view = document.querySelector('feezal-view');
+            return {
+                flagged: site.hasAttribute('gradient-bg'),
+                viewImage: getComputedStyle(view).backgroundImage,
+            };
+        });
+        expect(wired.flagged, 'gradient-bg never set — detection missed the longhand form').toBe(true);
+        expect(wired.viewImage, 'the view still paints its own band').toBe('none');
+        await page.close();
+    }, 180_000);
+
+    it('holds when the gradient arrives through a var() (B83)', async () => {
+        const page = await stack.context.newPage();
+        await openScrollable(page, 'gradvar');
+        const atTop = await marginPixels(page);
+        await scrollBy(page, 900);
+        expect(await marginPixels(page), 'var()-authored gradient moved').toBe(atTop);
+        expect(await page.evaluate(
+            () => document.querySelector('feezal-site').hasAttribute('gradient-bg')),
+        'gradient-bg never set — detection could not see through var()').toBe(true);
         await page.close();
     }, 180_000);
 
