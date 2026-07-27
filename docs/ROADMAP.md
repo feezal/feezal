@@ -9,7 +9,6 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
-- [B90 — layout-app: wide drawer entry padding, and the residual icon jump between slim and wide](#b90--layout-app-wide-drawer-entry-padding-and-the-residual-icon-jump-between-slim-and-wide)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -292,43 +291,6 @@ This also **removes an existing ambiguity**: `slim` and `autohide` are independe
 **Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
 
 **Relates:** **[B62](roadmap-archive/B62.md)** ✅ (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
-
-### B90 — layout-app: wide drawer entry padding, and the residual icon jump between slim and wide
-
-**Reported (07/2026), with screenshots.** The **wide** drawer draws its entries **inset from the drawer edge** - a visible gutter left/right (and above) of the entry pill. The **slim rail does not look inset**. Consequence: switching between slim and wide, **the icon shifts a few px sideways**.
-
-**This is not the jump that was already fixed.** [8c248f7a](https://github.com/hobbyquaker/feezal/commit/8c248f7a) addressed the **rest -> hover-expand** transition *within* the rail (the hidden label's 12px flex gap pulled the centred icon ~6.5px left; zeroed, plus glyphs pinned to 24px). This report is about the **inset itself** and about the **slim <-> wide** switch, which is a different transition.
-
-#### What the source says (read, not measured on the device)
-
-`.drawer { padding: 8px }` applies in **both** states - the slim rest rules only override the *entry* padding (`10px 0`), never the drawer's. So *"the slim menu doesn't have this padding"* is very likely an **appearance, not a fact**: at rest nothing paints a box around the icon, so the 8px is simply invisible. By construction the icon should sit at the same x in both:
-
-| state | drawer pad | entry pad | icon x |
-|---|---|---|---|
-| wide (`pill`) | 8 | 12 (left-aligned) | **20px** |
-| slim rest (`pill`) | 8 | 0, centred in the 48px content box -> +12 | **20px** |
-| wide (`list`) | **8px 0** | **16** | **16px** |
-| slim rest (`list`) | 8px 0 | 0, centred in the **64px** box -> +20 | **20px** |
-
-**`entry-style="list"` therefore has a real, source-visible 4px mismatch** - the slim rest rule (`padding: 10px 0`) is written against the pill drawer's 8px side padding, but `list` removes it. That matches *"a few px"* exactly and is the first thing to check against the reporter's configuration.
-
-Second candidate for a state-dependent shift: `.drawer { overflow-y: auto }`. A scrollbar present in one state and not the other changes the **centred** rest icon (~7px) while leaving the **left-aligned** wide icon untouched. A long nav makes this reachable at 64px but not at 220px.
-
-#### The trap - do not "just remove the padding"
-
-Removing `.drawer { padding }` (or the entry's side inset) **in the wide state alone** moves the wide icon from 20px to ~12px while the slim rest icon stays at 20px - i.e. it **creates** the very jump the report wants gone, only bigger and in the other direction. Both states are one geometry and must be recomputed together, with the invariant *asserted* rather than reasoned about.
-
-#### Measure before implementing (B62 lesson)
-
-Do not derive the fix from CSS. On the reporter's actual site, in each state, capture `drawer.getBoundingClientRect()` and the **icon's** `getBoundingClientRect().x`, plus `getComputedStyle` padding of `.drawer` and `.entry`, and record `entry-style`, `rail`, `rail-expand`, `rail-breakpoint` and whether the drawer scrolls. Also establish **which** transition is being observed: hover/focus expansion of the rail, the `rail-state` flip at the rail breakpoint (`rail: auto`), or the `rail-menu-button` overlay - the three take different CSS paths (`.drawer:hover` / `[rail-state]` / `.drawer.rail-open`) and only the last resets the entry padding explicitly.
-
-#### Open question - what should the wide entry look like?
-
-The 8px drawer padding plus the entry's 12px side inset and 24px radius **is** the MD3 pill treatment, and `entry-style="list"` already exists precisely to give flat, edge-to-edge rows with a full-width highlight. So: is the request *(a)* "the pill inset is too big / wrong, tighten it for everyone", *(b)* "make the inset a knob", or *(c)* "this dashboard wants `entry-style=list`" - and if (c), is the actual bug just the 4px `list`+slim mismatch above? **Ask before changing the pill geometry**, since it is shared by every existing dashboard.
-
-**Ships with:** whatever geometry change is agreed, a browser regression asserting the icon's x is **identical** across all three transitions **in both entry styles** (the current test only covers rest -> hover in `pill`), a `docs/TESTING.md` step, and a `feezal-element-layout-app` patch bump.
-
-**Relates:** [B84](roadmap-archive/B84.md) (rail-state derivation), [U64](roadmap-archive/U64.md) (rail expand behaviour), [8c248f7a](https://github.com/hobbyquaker/feezal/commit/8c248f7a) (the earlier, narrower icon-jump fix), `entry-style` / `rail` attributes on [feezal-element-layout-app.js](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js).
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 

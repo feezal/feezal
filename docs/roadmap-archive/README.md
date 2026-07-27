@@ -95,6 +95,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B87 — Directly-opened `/viewer/<site>` gets `#/view` appended without a trailing slash ✅ fixed](B87.md)
 - [B88 — Custom inspectors silently drop attributes: `show-active-label` has no control ✅ done](B88.md)
 - [B89 — HA discovery: nested `device` abbreviations not expanded (ESPHome device metadata lost; switch not offered) ✅ fixed](B89.md)
+- [B90 — layout-app: wide drawer entry padding, and the residual icon jump between slim and wide ✅ fixed](B90.md)
 
 ## Near-term Improvements
 

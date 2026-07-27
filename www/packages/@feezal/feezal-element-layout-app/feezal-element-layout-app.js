@@ -78,6 +78,8 @@ class FeezalElementLayoutApp extends FeezalElement {
                 {property: '--feezal-app-active-indicator', type: 'color', default: 'var(--secondary-background-color, rgba(2,132,199,0.16))', help: 'Active drawer entry highlight.'},
                 {property: '--feezal-app-active-color', type: 'color', default: 'var(--primary-color, #0284c7)', help: 'Active drawer entry text/icon colour.'},
                 {property: '--feezal-app-drawer-width', type: 'string', default: '220px', help: 'Expanded drawer width.'},
+                {property: '--feezal-app-drawer-entry-inset', type: 'string', default: '8px',
+                    help: 'Side gutter between the drawer edge and the entry rows — the space the hover/active highlight stops short of. Set "0" to let the highlight reach the drawer edge. Defaults to 8px with entry style "pill" and to 0 with "list". Applies to every drawer mode alike (full drawer, slim rail, expanded rail, overlay), so changing it never shifts the entries between modes.'},
                 {property: '--feezal-app-content-padding', type: 'string', default: '0', help: 'Breathing room between the app bar / drawer and the embedded view. Full CSS padding shorthand, so per-side insets need no extra knobs: "16px", "8px 16px", "0 16px 24px". The embedded view\'s own background paints under it.'},
             ],
             restrict: {move: false, resize: false, minWidth: 240, minHeight: 160},
@@ -112,6 +114,28 @@ class FeezalElementLayoutApp extends FeezalElement {
 
     static styles = [feezalBaseStyles, css`
         :host { display: block; box-sizing: border-box; overflow: hidden; container-type: inline-size; }
+
+        /* B90 — ONE drawer geometry, per entry style, used by every drawer mode.
+           The rail, its expanded panel and both overlays used to hardcode the
+           pill numbers, so "list" gained an 8px gutter on expand and the icon
+           moved 16 -> 19.5 -> 24px across the modes. Deriving them here is what
+           keeps the icon still: the entry always starts at --_pad-x and its icon
+           always at --_pad-x + --_epad-x, whatever mode the drawer is in.
+           --_rail-w follows from those two so the rest icon is BOTH aligned with
+           the expanded state and centred in the rail (64px for pill, as MD3). */
+        :host {
+            --_pad-x:  var(--feezal-app-drawer-entry-inset, 8px);
+            --_epad-x: 12px;
+            --_epad-y: 10px;
+            --_radius: 24px;
+            --_rail-w: calc(2 * (var(--_pad-x) + var(--_epad-x)) + 24px);
+        }
+        :host([entry-style="list"]) {
+            --_pad-x:  var(--feezal-app-drawer-entry-inset, 0px);
+            --_epad-x: 16px;
+            --_epad-y: 11px;
+            --_radius: 0;
+        }
         .shell { display: flex; flex-direction: column; width: 100%; height: 100%; box-sizing: border-box;
             background: var(--primary-background-color, #fafafa); }
         .bar {
@@ -146,11 +170,12 @@ class FeezalElementLayoutApp extends FeezalElement {
                 var(--primary-background-color, #fafafa);
             color: var(--feezal-app-drawer-color, var(--primary-text-color, #222));
             border-right: 1px solid var(--divider-color, rgba(128,128,128,0.2));
-            padding: 8px; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 2px;
+            padding: 8px var(--_pad-x); overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 2px;
         }
         .entry {
-            display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: none; background: none; cursor: pointer;
-            color: inherit; font: inherit; text-align: left; border-radius: 24px; width: 100%; box-sizing: border-box;
+            display: flex; align-items: center; gap: 12px; padding: var(--_epad-y) var(--_epad-x);
+            border: none; background: none; cursor: pointer;
+            color: inherit; font: inherit; text-align: left; border-radius: var(--_radius); width: 100%; box-sizing: border-box;
             white-space: nowrap;
         }
         .entry:hover { background: rgba(128,128,128,0.12); }
@@ -171,9 +196,10 @@ class FeezalElementLayoutApp extends FeezalElement {
             color: var(--feezal-app-active-color, var(--primary-color, #0284c7)); }
 
         /* entry-style="list": flat edge-to-edge rows — no pill radius, no side
-           inset; hover/active highlight the full drawer width. */
-        :host([entry-style="list"]) .drawer { padding: 8px 0; gap: 0; }
-        :host([entry-style="list"]) .entry { border-radius: 0; padding: 11px 16px; }
+           inset; hover/active highlight the full drawer width. The geometry
+           itself lives in the :host block above (B90); only the row spacing is
+           style-specific here. */
+        :host([entry-style="list"]) .drawer { gap: 0; }
 
         /* ── N36/B84: navigation rail (persistent mode only) ───────────────
            The presentation is derived to the rail-state host attribute by
@@ -183,16 +209,22 @@ class FeezalElementLayoutApp extends FeezalElement {
            shared. Icon-only / edge at rest, expand to icon+label on hover or
            keyboard focus (:has(:focus-visible) — a pointer must NOT expand it). */
         .drawer { transition: width 0.18s ease; }
-        :host([rail-state="slim"]) .drawer { width: 64px; }
+        :host([rail-state="slim"]) .drawer { width: var(--_rail-w); }
         :host([rail-state="edge"]) .drawer { width: 8px; padding-left: 0; padding-right: 0; }
-        /* rest: collapse entry padding + hide labels (slim) / hide entries (edge).
-           gap:0 is load-bearing — the label is still a flex item (width:0), so
-           the 12px icon↔label gap would otherwise be counted in the centred
-           layout and pull the icon ~6px left of where the expanded state puts it,
-           making the icon jump sideways on every expand. */
-        :host([rail-state="slim"]) .drawer:not(:hover):not(:has(:focus-visible)) .entry { justify-content: center; padding: 10px 0; gap: 0; }
-        :host([rail-state="slim"]) .drawer:not(:hover):not(:has(:focus-visible)) .label { opacity: 0; width: 0; }
-        :host([rail-state="edge"]) .drawer:not(:hover):not(:has(:focus-visible)) .entry { opacity: 0; }
+        /* rest: hide the labels (slim) / the whole entry (edge). The entry KEEPS
+           its normal padding and stays left-aligned (B90) — centring it made the
+           icon x depend on the rail width and on the entry style, so it landed
+           somewhere different in every mode. Left-aligned it is at
+           --_pad-x + --_epad-x in all of them, and --_rail-w is derived from
+           exactly those two, so the icon is centred in the rail as well.
+           gap:0 keeps the zero-width label's 12px flex gap out of the row.
+           :not(.rail-open) is load-bearing: these selectors are more specific
+           than the .rail-open ones below, so without it the menu-button overlay
+           kept the collapsed presentation whenever the pointer was not over the
+           drawer — i.e. always, on touch, which is what that button is for. */
+        :host([rail-state="slim"]) .drawer:not(.rail-open):not(:hover):not(:has(:focus-visible)) .entry { gap: 0; }
+        :host([rail-state="slim"]) .drawer:not(.rail-open):not(:hover):not(:has(:focus-visible)) .label { opacity: 0; width: 0; }
+        :host([rail-state="edge"]) .drawer:not(.rail-open):not(:hover):not(:has(:focus-visible)) .entry { opacity: 0; }
 
         /* U64: overlay expansion (default) — the rail is taken out of flow and
            the content reserves its rest width with a gutter, so expanding the
@@ -203,13 +235,13 @@ class FeezalElementLayoutApp extends FeezalElement {
         :host([rail-state="edge"][rail-expand="overlay"]) .drawer {
             position: absolute; top: 0; bottom: 0; left: 0; z-index: 2;
         }
-        :host([rail-state="slim"][rail-expand="overlay"]) .content { margin-left: 64px; }
+        :host([rail-state="slim"][rail-expand="overlay"]) .content { margin-left: var(--_rail-w); }
         :host([rail-state="edge"][rail-expand="overlay"]) .content { margin-left: 8px; }
         :host([rail-state="slim"][rail-expand="overlay"]) .drawer:hover,
         :host([rail-state="slim"][rail-expand="overlay"]) .drawer:has(:focus-visible),
         :host([rail-state="edge"][rail-expand="overlay"]) .drawer:hover,
         :host([rail-state="edge"][rail-expand="overlay"]) .drawer:has(:focus-visible) {
-            width: var(--feezal-app-drawer-width, 220px); padding: 8px;
+            width: var(--feezal-app-drawer-width, 220px); padding: 8px var(--_pad-x);
             box-shadow: 2px 0 12px rgba(0,0,0,0.22);
         }
 
@@ -220,7 +252,7 @@ class FeezalElementLayoutApp extends FeezalElement {
         :host([rail-state="slim"][rail-expand="push"]) .drawer:has(:focus-visible),
         :host([rail-state="edge"][rail-expand="push"]) .drawer:hover,
         :host([rail-state="edge"][rail-expand="push"]) .drawer:has(:focus-visible) {
-            width: var(--feezal-app-drawer-width, 220px); padding: 8px;
+            width: var(--feezal-app-drawer-width, 220px); padding: 8px var(--_pad-x);
             box-shadow: 2px 0 12px rgba(0,0,0,0.18);
         }
         /* rail-expand="never": no :hover/:focus rule at all — the rail never
@@ -241,11 +273,12 @@ class FeezalElementLayoutApp extends FeezalElement {
            full overlay regardless of the rest rail width. */
         :host([rail-state]) .drawer.rail-open {
             position: absolute; top: 0; bottom: 0; left: 0; z-index: 4;
-            width: var(--feezal-app-drawer-width, 220px); padding: 8px;
+            width: var(--feezal-app-drawer-width, 220px); padding: 8px var(--_pad-x);
             box-shadow: 2px 0 12px rgba(0,0,0,0.25);
         }
-        :host([rail-state]) .drawer.rail-open .entry { justify-content: flex-start; padding: 10px 12px; opacity: 1; }
-        :host([rail-state]) .drawer.rail-open .label { opacity: 1; width: auto; }
+        /* Entries/labels need no override here — the collapsed rules above
+           exclude .rail-open, so the base presentation applies (B90). */
+        :host([rail-state]) .drawer.rail-open .entry { opacity: 1; }
         /* U50: the content inset. PADDING, not margin — .content carries the
            embedded view's background, and a margin would sit outside it and
            leave an unpainted gutter between the drawer and the view.
