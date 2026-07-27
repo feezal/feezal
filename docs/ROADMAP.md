@@ -1340,7 +1340,7 @@ Three mechanisms already colour by value, and a fourth parallel one would be the
 
 | question | decision |
 |---|---|
-| which number drives the colour | **the element's primary value** — elements opt in by exposing one |
+| which number drives the colour | **defaults to the element's primary value**, but each binding may override it with its own topic + messageProperty (still editable) — see the colour-control refinement. Elements opt in by exposing a primary value = the default source. |
 | where ranges live | **in the site HTML**, so export and the offline viewer work with no server |
 | what a range can express | **bands + gradient + enum** (see below) |
 | existing mechanisms | **absorbed over time**, gauge first |
@@ -1394,9 +1394,41 @@ Alternative worth weighing: a `<feezal-color-ranges>` child element holding form
 ## Editor UX
 
 - **The manager belongs with the other site-level panels** — `feezal-sidebar-themes.js` / `-assets.js` / `-packages.js` are the precedent, and colour ranges are site-wide data like themes and assets, not per-element state. *(The request said "inspector tab"; flagging the tension — a per-element tab editing site-wide data is odd, but an inspector-side entry point may still be wanted. Small decision.)*
-- **Every colour control grows a third mode:** literal colour · theme var · **value range**. Only for elements that expose a primary value.
+- **Every colour control grows a Static / Subscribe / Range radio** — not extra widgets crammed next to the swatch. *Static* is the existing literal-colour + theme-var picker unchanged; *Subscribe* drives the colour straight from a payload; *Range* maps a value through a named range. Subscribe and Range expand the row to their own multi-line block. See "Refinement — the colour control" below.
 - **First dropdown entry is a create sentinel** — exactly the `＋ Create new view…` pattern already used in the layout-app entry dropdown (**U47**), which is proven and discoverable. Creating inline should drop the user into the manager pre-named, then return.
 - **Preview matters:** show the range as a swatch strip in the dropdown, and ideally mark where the element's current value sits, so the user can see the mapping rather than imagine it.
+
+## Refinement (07/2026) — the colour control: three modes, value source + layout
+
+Two changes, both from the request.
+
+**A colour row becomes a three-mode radio: Static · Subscribe · Range.** The literal-colour + theme-var picker a row shows today *is* Static — nothing new is crammed alongside the swatch; the radio switches the whole row.
+
+- **Static** (default) — the existing control: colour swatch → literal hex, or a `var(--theme-color)` reference. Unchanged.
+- **Subscribe** — the payload *is* the colour. Two lines:
+  1. **Topic** — a `feezal-topic-input` (autocompletion). *Not* pre-filled from the primary value — the primary value is a number, and this mode wants a topic that publishes a colour string.
+  2. **Message property** — the path holding the colour (e.g. `payload.color`).
+  The base class subscribes and writes the payload verbatim into `<var>`. Because `<var>` is resolved at use time, the payload may be a hex (`#e53935`), a CSS colour name, an `rgb()/hsl()`, **or even a theme reference** (`var(--error-color)`) — all just work. A small live swatch echoing the last received value belongs next to the input so a bad payload is visible immediately.
+- **Range** — a value maps through a named range. Three lines:
+  1. **Range** — the named-range dropdown, first entry `＋ Create new colour range…` (the U47 sentinel), each option showing its swatch strip and, ideally, a marker where the current value sits.
+  2. **Topic** — a `feezal-topic-input`, **pre-filled with the element's primary-value topic** as the editable default.
+  3. **Message property** — the property path (e.g. `payload.temperature`), **pre-filled with the element's primary-value message-property**.
+
+**The value source is a per-binding topic + messageProperty.** For Range it *defaults to the element's primary value* (relaxing U65's "always `colorRangeValue()`") but stays editable — so a gauge's fill colours by its own reading with zero config, or the user tints the border from an *outdoor* sensor while the dial shows the room. For Subscribe there is no numeric default, so both lines start empty. Everything serializes as paired custom properties on the `style` attribute, exactly like `<var>-range` today, keeping U65's elegance (no element CSS changes, serializes for free, degrades safely). The resolver opens **one** subscription per bound colour, reusing the element's existing `addSubscription` + `getProperty(msg, prop)`; when a Range binding has no topic it reads the primary value instead of subscribing. Topics/paths are ordinary MQTT strings stored verbatim (quote only if they contain whitespace). Switching modes rewrites the paired properties and restores the last Static colour when returning to Static.
+
+⚠️ This puts an MQTT binding inside the *style* editor for the first time (topics were attribute-level until now) — but the resolver, the subscription plumbing and the topic-input widget all already exist, so it is wiring, not new machinery.
+
+This also revisits the earlier "offer the option only for elements exposing a primary value" gate: that gate now applies **only to Range's auto-default** (the pre-filled topic/property). *Subscribe* is fully self-contained (topic + property + payload) and *Range with an explicit topic* needs no primary value either, so both could be offered on any colour var. Whether to open them up that far or keep the initial scope gated on a primary value for simplicity is a build-time decision — flagged, not settled.
+
+### Storage shape — alternatives for later refinement
+
+How the two dynamic modes serialize is the one real open decision (all three serialize into the `style` attribute either way). Three candidates, to pick from when this is built:
+
+- **A — explicit per-mode namespaces.** `Subscribe` → `--x-subscribe-topic` + `--x-subscribe-property`; `Range` → `--x-range` + `--x-range-topic` + `--x-range-property`. Most self-describing in source view; the resolver switches on which family is present. Slight duplication of the topic/property pair across the two namespaces.
+- **B — one shared source, range optional (recommended to evaluate first).** Both modes write `--x-source-topic` + `--x-source-property`; `Range` *additionally* writes `--x-range: <name>`. Presence of `-range` is what distinguishes the modes: absent → the payload is the colour (Subscribe); present → map through the range. One subscription path, no duplicated pair; the radio is pure UI sugar over "is a range attached?". Reads slightly less obviously in source.
+- **C — auto-detect (note as the risky option).** A single "dynamic" mode with a topic/property; the resolver treats the payload as a colour if it parses as one, else maps it through an attached range. Fewest controls, but "why did my number render as a colour / not" is an implicit-behaviour support trap — record it, likely reject.
+
+Independent of A/B/C: decide whether the **Subscribe topic may also feed a range** is just mode B falling out for free, or whether Subscribe stays deliberately range-less for clarity.
 
 ## Open questions
 
@@ -1405,7 +1437,7 @@ Alternative worth weighing: a `<feezal-color-ranges>` child element holding form
 3. **Renaming a range** — rewrite every reference, or treat names as immutable ids with a separate display label? Ids + labels is the safer shape and avoids a rename touching every view.
 4. **Does this subsume the conditions engine's `style` action for colours?** They will overlap. Document when to use which — ranges for value→colour, conditions for arbitrary rules — or the two grow apart.
 
-**Ships with:** the range schema + shared resolver (bands/gradient/enum, theme-var passthrough), the paired-property mechanism in `FeezalElement`, the primary-value opt-in, `<feezal-site>` storage, the site-level manager panel, the colour-control third mode with the create sentinel, the gauge `ranges` attribute accepting a named range, unit tests for the resolver, a browser test that a resolved colour actually lands on the var, an **export test that ranges survive** into a static bundle, `docs/TESTING.md` coverage, and version bumps.
+**Ships with:** the range schema + shared resolver (bands/gradient/enum, theme-var passthrough), the paired-property mechanism in `FeezalElement` (the storage shape chosen from A/B/C above; the primary value as the Range default source, an override/Subscribe subscription when a topic is set, and the raw-payload→`<var>` passthrough for Subscribe), the primary-value opt-in, `<feezal-site>` storage, the site-level manager panel, the colour-control **Static / Subscribe / Range radio** with the multi-line dynamic blocks (Subscribe: autocompleting `feezal-topic-input` + message-property + a live swatch of the last payload; Range: range dropdown + create sentinel + topic/property pre-filled from the primary value), the gauge `ranges` attribute accepting a named range, unit tests for the resolver, browser tests that a resolved colour lands on the var (from the primary value, from an overridden topic, and from a raw Subscribe payload), a test that Static↔Subscribe↔Range round-trips the paired properties cleanly, an **export test that ranges + subscriptions survive** into a static bundle, `docs/TESTING.md` coverage, and version bumps.
 
 **Relates:** `@feezal/feezal-gauge` (`bandColor` / `parseRanges` — the existing implementation this generalises, and the first consumer to migrate), **U49** / the conditions engine (`action: style` — the overlapping mechanism to delimit), **U47** ✅ (the `＋ Create new…` sentinel pattern to copy), `feezal-sidebar-themes` / `-assets` (site-level panel precedent), `material-tank` warn/crit + the glass/metro state colours (the ad-hoc thresholds to absorb), `CLAUDE.md` §"Theme variable discipline" (band colours should prefer theme vars), **A16**/export (ranges must serialize into a static bundle).
 
