@@ -16,6 +16,8 @@ Nothing outside the she section is committed work. This document collects the re
 3. **Auth stays delegated.** The `--trust-proxy-auth` header mechanism and the A19 "lean on the broker" direction are the two auth stories. Platform integrations plug into these (HA ingress headers, ioBroker web auth, reverse proxies) rather than growing per-platform user systems.
 4. **The static export is an integration feature too.** Several platforms have a "just serve files" slot (HA `config/www` + Webpage dashboard, ioBroker `onlyWWW` adapters, any reverse proxy). The export is the zero-server integration tier and should be mentioned in every platform's docs.
 
+5. **Neither side may become required.** feezal must stay fully usable with **no she**, and she must stay fully usable with **no feezal** — the integration is user-friendliness, never a dependency. Concretely: every capability reachable *through* an integration must have a path that does not use it; integration UI appears only when the other side is actually detected (no dead buttons on a standalone install); and no element, view or feature may be authored in a way that only works when the partner is present. **The adapter-script work below is where this rule is easiest to break** — see the note there.
+
 ---
 
 ## Cross-cutting platform work (prerequisites)
@@ -141,7 +143,7 @@ Feezal **was born as a Node-RED node**: `node-red-contrib-feezal` (Nov 2018) →
    - **History publisher** — `she.influx.getRange` → retained JSON series per topic (the history-in-payload convention consumer/producer pair with E69/E70/E30).
    - **Astro publisher** — retained sunrise/sunset/phase topics daily (feeds a future astro element; keeps feezal dumb).
    - Later: a **per-viewer credential provisioner** using she's Mosquitto dynsec API (`she.broker.*`) — a concrete enabler for A19's broker-ACL model and N24's per-client credentials.
-4. **UI level**: plain links between the two UIs (nginx example exists in she's docs). No embedding — neither side has UI extension points; don't invent them.
+4. **UI level**: plain links between the two UIs (nginx example exists in she's docs). No embedding — neither side has UI extension points; don't invent them. *Refined below in "UI integration": deep links to a specific script are the good version of this rule; embedding stays rejected.*
 
 
 ### Special elements — element-shipped adapter scripts
@@ -161,6 +163,17 @@ Feezal **was born as a Node-RED node**: `node-red-contrib-feezal` (Nov 2018) →
 - feezal needs **one new, generally useful capability: wire a whole device group into a multi-topic element**. Today a card consumes one entity; a weather card consumes eight. **[E161](roadmap-archive/E161.md)** ✅ already supplies the grouping (`getDeviceGroups()`, `/api/discovery/device-groups`) — what is missing is the picker/Generate side that says *"wire this group into this element"*. That mechanism pays off beyond weather.
 
 **3. Scripts live in the element package; parameters come from she where she already has them.** e.g. `feezal-element-material-weather/she/weather-yr.js`, keeping the element self-contained per the **A23/A24** externalization rule. **Location is not asked twice** — she already carries lat/lon in its own config (it uses them for suncalc/astro), so the script reads them from she rather than feezal prompting. feezal only collects what she cannot supply: provider choice, an API key where the provider needs one, units and poll interval.
+
+#### she is a convenience here, not a requirement
+
+Per **principle 5**, a "special" element must be **fully usable without she**. The adapter script is one way to fill its topics — not the definition of the element. That means:
+
+- **the element's contract is the discovery/MQTT shape, not the script.** Any publisher satisfying it works: a Node-RED flow, a cron job, a shell script, Home Assistant itself, or a hand-wired set of topics. The script is the convenient default, and the reason the contract is *standard HA discovery* rather than something feezal-specific is precisely so it is not the only producer;
+- **the copy-paste path stays**, for users who do not run she or who want to read the script before it runs;
+- **the deploy affordance appears only when she is detected** — a standalone feezal shows the element, its topics and the script for copying, and no button that cannot work;
+- **no element ships as "she-only".** If an element cannot be configured without deploying a script, it is mis-designed.
+
+The same applies in reverse: nothing here should require a she user to run feezal.
 
 #### The adapter-script contract
 
@@ -185,6 +198,44 @@ Requirements every element-shipped script must meet, so the deploy flow can be g
 - **Un-deploy.** Removing the element should probably offer to remove the script — but not if another dashboard still uses its topics.
 
 ---
+
+### UI integration — deep links, and sheDB views that feed a repeater
+
+**Next step for the she track (07/2026).** Two ideas, and they need separating because one refines the standing principle and the other would overturn it.
+
+#### Deep linking is in scope; embedding is still not
+
+Principle 4 above says *"plain links between the two UIs. No embedding — neither side has UI extension points; don't invent them."* **Deep linking is the good version of that principle, not an exception to it:** an element whose adapter script feezal deployed already knows the script's name, and feezal will already know she's base URL (the deploy decision above requires it). So *"open this element's adapter in she"* is a link with a better target — no embedding, no extension point, nothing invented.
+
+**Embedding stays rejected** on the original reasoning, which has not changed: neither side exposes UI extension points, and building one on both sides to host the other is a large, permanent coupling for a convenience. If that is ever revisited it should be its own decision, not a side effect of adding a link.
+
+*Research needed:* she's editor URL scheme for a named script, and whether it is stable enough to link against.
+
+#### sheDB views → repeater: the data path already works
+
+**`layout-repeater` already does this.** It *"dynamically creates one child element per item in an MQTT JSON-array payload"*, with `subscribe`, `message-property`, `child-element`, `attribute-map`, `key-field` and `preview-count`. sheDB views can already publish retained JSON to MQTT (`publish: true, retain: true`). **So the end-to-end path exists today with zero new code** — a sheDB view feeding a repeater is a configuration exercise, not a feature.
+
+What is missing is **ergonomics**, in two places:
+
+1. **Finding the topic.** Today the user must know it. she could be asked over its HTTP API (the client the deploy decision introduces), or publish an index topic.
+2. **Writing `attribute-map` by hand.** This is the real friction: the user must know the array's field names and hand-author a JSON mapping onto the child element's attributes.
+
+#### Build the mapping UX against *any* array, not against sheDB
+
+**feezal can already sample the shape without asking anyone:** the topic is retained, so subscribing yields an array whose first item's keys *are* the available fields. A mapping UI driven by that sample — pick a field, pick a child attribute — needs **no she API, no coupling, and works for every JSON-array publisher**, sheDB included.
+
+That keeps the valuable part portable and reduces the she-specific work to a thin, optional convenience: *listing* the available views so the user picks one instead of typing a topic. Same reasoning as the adapter decision above — build on the open contract, add the vendor-specific layer only where it genuinely helps. It also means this work is not blocked on the she track at all.
+
+#### Both ideas must degrade to nothing
+
+Per **principle 5**: with no she present, the deep link simply is not rendered — not a disabled button — and the repeater mapping UI works exactly as well, because it reads the retained payload rather than asking she. Neither idea may become the only way to do something.
+
+#### Open questions
+
+- **Is she's script-editor URL stable and linkable?** The whole deep-link idea rests on it.
+- **Where does the link live** — on the element (inspector), or in one "integrations" surface listing every deployed adapter and its health? The latter scales better once several elements ship adapters, and is the natural home for the *deployed / running / stale* state the section above already wants.
+- **Does she list sheDB views over HTTP**, and are view topics discoverable enough to enumerate without it?
+- **Reverse direction** — she linking back into a feezal dashboard or a specific element. Symmetrical and probably cheap, but needs a stable feezal deep-link scheme (a view is addressable via `#/<view>`; an individual element is not).
 
 ### Worked example — E20, the weather element
 
