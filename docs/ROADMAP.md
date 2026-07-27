@@ -10,7 +10,7 @@ Work in progress — priorities and scope are not final.
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
 - [B84 — `layout-app` drawer mode: rail missing on first paint, and no way to configure slim vs wide](#b84--layout-app-drawer-mode-rail-missing-on-first-paint-and-no-way-to-configure-slim-vs-wide)
-- [B87 — Custom inspectors silently drop attributes: `show-active-label` has no control](#b87--custom-inspectors-silently-drop-attributes-show-active-label-has-no-control)
+- [B88 — Custom inspectors silently drop attributes: `show-active-label` has no control](#b88--custom-inspectors-silently-drop-attributes-show-active-label-has-no-control)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -247,11 +247,21 @@ This also **removes an existing ambiguity**: `slim` and `autohide` are independe
 
 **Relates:** **N36** (slim rail + the original initial-ResizeObserver-race fix for the persistent drawer — same class of bug, second instance), **B41**/N30 (view routing — the shell's owning view may be hidden at boot, which is the suspected trigger), **[U50](roadmap-archive/U50.md)** ✅ / **U63** (the `.content` box work next door — unrelated cause, same element), `feezal-element-layout-app._recomputeNarrow()`.
 
-### B87 — Custom inspectors silently drop attributes: `show-active-label` has no control
+### B88 — Custom inspectors silently drop attributes: `show-active-label` has no control
 
 **Reported (07/2026):** the top-bar "show current active label" switch is missing from the `layout-app` inspector, though it was supposed to exist.
 
 **It does exist — as an attribute.** `show-active-label` is declared in `feezal.attributes` (boolean, default `true`), is a reflected property, and is honoured in `render()`. It can be set from source view or over MQTT. What is missing is the **UI control**.
+
+*(The reporter initially self-corrected — "my fault, I missed it" — after a stale Docker build hid the rendered label. The rendering does work; the inspector control is separately, genuinely absent. Worth keeping the two apart when re-testing.)*
+
+**Measured against the committed element**, three declared attributes have no control:
+
+| declared | exposed by the custom inspector |
+|---|---|
+| `show-active-label` | ❌ |
+| `header` | ❌ |
+| `active-view` | ❌ |
 
 **Cause — the general one, which is the point of this item.** `layout-app` declares `inspector: 'feezal-element-layout-app-inspector'` (N6). A custom inspector **replaces** the generic attribute panel, so it renders exactly the fields it was hand-written to render and nothing else. Adding an attribute to `feezal.attributes` therefore does **not** surface it. The inspector currently emits:
 
@@ -260,7 +270,7 @@ actions · autohide · breakpoint · drawer-persistent · entry-style
 hide-header · items · slim · subscribe-title · title
 ```
 
-`show-active-label` is absent. So is `header` — the newer select intended to supersede `hide-header` — so the same gap has already happened twice in this element.
+`show-active-label`, `header` and `active-view` are all absent — so the gap has already happened three times in this one element, including for `header`, the newer select intended to supersede `hide-header` (which *is* exposed).
 
 **This will keep happening.** Every future attribute on any element with a custom inspector is invisible by default, and nothing fails when it is forgotten: the element works, the attribute works, only the UI is silently short. That is the worst failure shape — no error, no test, just an option nobody can find.
 
