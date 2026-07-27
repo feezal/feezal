@@ -78,7 +78,7 @@ Work in progress — priorities and scope are not final.
 - [A21 — Accessibility: adopt the web-components Gold Standard for feezal elements](#a21--accessibility-adopt-the-web-components-gold-standard-for-feezal-elements)
 - [A23 — Externalize element families: own git repos + npm publish (paper, tui, panel)](#a23--externalize-element-families-own-git-repos--npm-publish-paper-tui-panel)
 - [A24 — Externalize the metro element family](#a24--externalize-the-metro-element-family-future--will-be-done-later) *(future)*
-- [A27 — i18n: editor localization + language-aware element defaults](#a27--i18n-editor-localization--language-aware-element-defaults--to-refine--needs-discussion) 💡 *(to refine)*
+- [A27 — i18n: editor localization + language-aware element defaults](#a27--i18n-editor-localization--language-aware-element-defaults--to-refine) 💡 *(to refine)*
 - [A29 — RTL layout support (Arabic, Hebrew)](#a29--rtl-layout-support-arabic-hebrew--future) 💡 *(future)*
 - [A33 — Move element-only toolkit deps out of `www/package.json` into their families](#a33--move-element-only-toolkit-deps-out-of-wwwpackagejson-into-their-families)
 
@@ -2276,7 +2276,7 @@ Metro **stays bundled with feezal for now** (decided 07/2026) — it moves out *
 
 **Relates:** A23 (the playbook — do that first), N29, E106 (metro shares the same consolidation considerations glass had).
 
-### A27 — i18n: editor localization + language-aware element defaults 💡 to refine — needs discussion
+### A27 — i18n: editor localization + language-aware element defaults 💡 to refine
 
 feezal is English-only today — and not just the editor chrome: **element attribute defaults bake English into every dashboard** (`label-on: 'On'`, `label-off: 'Off'`, `done-label: 'Done'`, contact state texts, `labelOff: 'off'` centre text, …). A German wall tablet should say "Ein/Aus" without the user hand-setting every label on every element.
 
@@ -2306,7 +2306,62 @@ feezal is English-only today — and not just the editor chrome: **element attri
 
 **Font-coverage constraint (ties into A25 ✅):** the vendored Roboto subsets already cover **every European language above** — latin, latin-ext (lt/et/lv/pl/cs/ro/hu/tr), cyrillic (ru/uk/bg), greek, vietnamese all shipped with the 07/2026 font vendoring. **CJK does not**: bundling Chinese/Japanese/Korean glyphs is megabytes per script (Noto Sans CJK), which collides with A25's self-hosting and the export-size goals — the realistic plan is a `system-ui` font-stack fallback for CJK locales (UI text renders in the OS font), decided and documented when zh/ja/ko land, not silently.
 
-**Open questions (refine before implementation):** exact locale fallback semantics (de-AT → de → en); whether phase 1's resolution happens in the base `FeezalElement` (a `localizedDefault(attr)` helper reading the descriptor) or at descriptor-registration time; how the AI assistant's generated labels interact with locale defaults; whether the viewer export should pin a locale or stay dynamic; editor-language persistence (localStorage vs settings).
+## Refinement (07/2026) — the open questions, answered against the code
+
+### Phase 1 is feasible, and the reason is worth knowing
+
+The design promises "serialized HTML stays locale-independent". **That holds, because descriptor `default`s are never materialised**: the inspector renders them as the input's `placeholder` (`feezal-sidebar-inspector-attributes.js`), so an untouched attribute is genuinely absent from the saved HTML. A shared dashboard really can render "On" on an English tablet and "Ein" on a German one.
+
+**But there are two sources of truth for a default, and only one of them is the descriptor.** The runtime value comes from the constructor:
+
+```js
+this.labelOn  = 'On';     // eink-light, glass-light, …
+this.labelOff = 'Off';
+this.doneLabel = 'Done';  // basic-countdown
+```
+
+The descriptor's `default` feeds the *inspector placeholder*; the constructor feeds the *rendered output*. Phase 1 has to change the second, and any design that only localises descriptors will look right in the inspector and still render English.
+
+### Where resolution happens — not the constructor
+
+Constructor-time resolution fails twice: the site locale may not be resolvable when an element is constructed, and a later locale change would not propagate.
+
+**Proposed: the base class applies localized defaults on connect, and again when the locale changes, but only for attributes the author never set.** `hasAttribute()` is a trustworthy "was this set?" signal *precisely because* defaults are never written:
+
+```js
+// FeezalElement, on connect + on locale change
+for (const spec of localizableAttributes(this.constructor)) {
+    if (!this.hasAttribute(spec.name)) this[propOf(spec)] = localizedDefault(spec, locale);
+}
+```
+
+This keeps every existing constructor untouched (English stays the in-code fallback and the final resort), materialises nothing, and is locale-reactive. The alternative — leaving properties unset and resolving in each `render()` — is more purely reactive but would touch every element's template.
+
+### Fallback semantics
+
+Plain BCP-47 truncation, most specific first, `en` last: `de-AT → de → en`, and with a script subtag `zh-Hans-CN → zh-Hans → zh → en`. One shared `resolveLocaleChain(locale)` helper so the element defaults, the editor catalog and the `Intl` call sites cannot disagree about what `pt-BR` falls back to.
+
+### Export: dynamic by default, pinned by being set
+
+No special export logic. The site `locale` attribute defaults to the browser's language, so an export with no explicit locale follows the viewing device; a site that *sets* one has it serialized and therefore pinned. The two behaviours fall out of the same attribute — worth stating in the docs, since "why does my exported dashboard change language on my colleague's laptop?" is otherwise a support question.
+
+### Editor chrome language: its own setting
+
+Follows the reporter's own framing — an editor used in English can legitimately build German dashboards. Persist it with the other editor preferences in **`<dataDir>/editor.json`** (the welcome-tour seen-marker and the discovery grace period already live there), defaulting to `navigator.language`. ⚠️ That store is **per installation, not per browser**, so two people editing the same server share one editor language; `localStorage` would be per-browser but diverges from where every other editor preference lives. Recorded as a genuine trade-off rather than a default choice.
+
+### The AI assistant
+
+Its generated labels are **explicitly set attributes**, so they win over locale defaults by the same rule as any hand-set value — no interaction to design. The real requirement is the other direction: **pass the site locale into the prompt** (`server/src/ai/prompt.js`) so a German site gets German labels generated in the first place, rather than English ones that then override the German defaults.
+
+### Variant decisions
+
+- **`pt`: ship both `pt-BR` and `pt-PT`.** Brazil is the larger smart-home market and the differences are user-visible; the fallback chain makes `pt-BR → pt → en` work if only one exists.
+- **`zh`: `zh-Hans` first**, `zh-Hant` later. Both wait on the CJK font decision already recorded above.
+
+## Still open
+
+1. **What counts as a "localizable" attribute** — every `type: 'string'` with a default, or an explicit opt-in flag on the descriptor? Opt-in is more work but avoids translating things like `payload-on: 'ON'`, **which must never be localized** — it is wire protocol, not text. That distinction is the one real trap in Phase 1.
+2. **Whether the runtime carries all locales or loads one.** Inline dictionaries keep packages self-contained (the A23/A24 requirement) but ship every language to every browser. Measure the bundle cost at en+de before assuming it does not matter at twenty.
 
 **Relates:** A23/A24 (externalized element packages must carry their own translations — the inline-dict design exists because of this), A25 (no-CDN rule — any i18n lib must be bundled/self-hosted), **A29** (RTL — layout mode, deliberately split out), **N38** (site locale — the foundation attribute), E99 ✅-era label work (`label-on`/`label-off` — the attributes phase 1 localizes were introduced for exactly this localisation need, just manually), U37 (welcome wizard — early editor-chrome translation candidate), basic-datetime/clock (Intl locale pass-through).
 
