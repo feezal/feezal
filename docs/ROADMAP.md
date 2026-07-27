@@ -419,6 +419,54 @@ A wall-display-optimised weather card. Shows current conditions prominently and 
 
 **Default size:** 280×280 px (wider when forecast strip is enabled).
 
+
+---
+
+## The real blocker is data supply, not rendering (07/2026)
+
+Every other element in feezal renders something a broker *already* carries: Homematic, zigbee2mqtt, ESPHome and evcc all publish themselves. **Weather does not exist on MQTT until somebody puts it there.** So E20's hard part is not the card — it is that a user who drops it onto a dashboard has nothing to subscribe to, and the element is a demo until they solve an unrelated problem first.
+
+**This must not be solved inside feezal.** Fetching REST from the element or the server would break the project's standing rule that **feezal is purely MQTT** — one transport, no second integration path, no credentials in the dashboard. The answer is an external publisher: something fetches over HTTP and publishes to MQTT, and feezal stays dumb. That is the same reasoning already recorded for the planned **astro publisher** in `docs/INTEGRATION-ROADMAP.md` §"Bridge-script bundle" — *"feeds a future astro element; keeps feezal dumb"*. A **weather publisher is that script's sibling**, and belongs in the same bundle rather than in a new mechanism.
+
+## Define the topic contract first — it is the actual deliverable
+
+The element and the publisher are two halves of one contract, and the contract is the reusable part. Specify it once:
+
+- the `subscribe-*` topics above as **plain scalar payloads**, and `subscribe-forecast` as the **JSON array** already specified;
+- **publish retained**, so a dashboard opened at 3am shows weather immediately rather than after the next poll (same reasoning as **B40**'s retained-replay work);
+- **payload shape matches the element's defaults** — plain values, not `{val, ts}` — so a copy-pasted recipe works with **zero element configuration**. The mqtt-smarthome `{val,ts,lc}` shape is more consistent with she's own conventions, but it would force every user to set `message-property: payload.val` on nine attributes before seeing anything. Recipe ergonomics win; document the alternative for users who prefer the convention.
+
+With the contract fixed, `condition-map` reverts to what it should be — an escape hatch for odd providers, not something every user must configure.
+
+## Provider analysis
+
+| provider | key needed | format | notes |
+|---|---|---|---|
+| **MET Norway / yr.no** | **no** | JSON (`locationforecast/2.0/compact`) | Best default: global, free, well-documented. **But**: requires a descriptive `User-Agent` (generic ones are blocked) and honouring `Expires` / `If-Modified-Since` — polling too eagerly gets a client throttled or banned. Attribution is required by their ToS. |
+| **DWD via Bright Sky** | **no** | JSON | The practical way to use DWD data. Raw DWD MOSMIX is KMZ/XML and miserable to parse in a small script; Bright Sky is a free JSON API over the same data. Germany-focused. |
+| **OpenWeatherMap** | yes | JSON | Simplest API, global, but needs a key and has free-tier rate limits. The "I already have a key" option rather than the default. |
+
+**Recommend shipping yr.no first** (no key, global), Bright Sky second (the DWD path users actually ask for), OWM third. **Ship the attribution line inside the script** — a copy-pasted script that quietly violates a provider's ToS is a bad thing to hand someone.
+
+**Cadence:** weather changes slowly. Poll every 10–30 minutes, honour the provider's cache headers, and publish on change plus a periodic refresh so a restarted broker re-populates.
+
+## Delivery — copy-paste now, automation later
+
+1. **Now: a copy-pastable she script per provider**, in the element's documentation. Zero infrastructure, works today, and reviewable before it runs — which matters for something that will hold an API key.
+2. **Discoverable from the editor:** the element descriptor's `links` field should point at the recipe, so a user who drops the card finds the data recipe without leaving feezal. Otherwise the best documentation in the world sits unread.
+3. **Later: Node-RED flows** as an alternative for users who do not run she — an importable flow JSON against the *same contract*. Note there are existing Node-RED weather nodes, so this may be assembly rather than authoring.
+4. **Later still:** installable via she's `PUT /she/scripts/…`, per the bundle plan.
+
+## Think bigger: this is the first "bridge recipe", not a weather special case
+
+The shape — **element ↔ canonical topic contract ↔ pluggable publisher** — recurs for every data source that is REST-only rather than MQTT-native. Weather is simply the first one to hit it. The same recipe format serves **energy prices**, **pollen / air quality**, **transit departures**, and the already-planned **astro** publisher.
+
+So the deliverable worth building is not "a weather script" but **a documented recipe format with weather as its first instance**: a canonical topic contract, one or more publisher implementations (she now, Node-RED later), and a link from the consuming element. Whether that lives in `docs/recipes/`, in `integrations/she/` (as the INTEGRATION-ROADMAP work-item 3 proposes) or in its own package is the **open question that document already records** — settle it once, since astro and weather will both land in it.
+
+**Ships with:** the topic contract (documented as the element's data spec), a yr.no she script with attribution and cache-header handling, the element's `links` entry pointing at it, and the recipe-format decision above. Bright Sky / OWM scripts and the Node-RED flow are follow-ups against the same contract.
+
+**Relates:** `docs/INTEGRATION-ROADMAP.md` §"Bridge-script bundle" (the astro/history/schedule siblings and the where-does-it-live open question this shares), **[she](https://github.com/hobbyquaker/she)** (the publisher runtime), **B40** (retained replay — why the publisher must retain), **E52** (schedule contract — the same "feezal defines the contract, she consumes it" pattern), the purely-MQTT principle (why the fetch lives outside feezal), and future REST-only elements (energy prices, air quality, transit) that would reuse the recipe format.
+
 ### E28 — Grafana integration
 
 Most serious smart-home users already have a Grafana instance with years of historical data in InfluxDB, TimescaleDB, or Prometheus. Feezal's MQTT elements are strong for live state but weak for time-series history and trend visualisation. Rather than re-implementing charting, feezal should embrace Grafana as a first-class data visualisation companion and make embedding and linking effortless.
