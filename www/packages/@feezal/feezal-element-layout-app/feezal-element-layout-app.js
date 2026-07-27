@@ -133,7 +133,17 @@ class FeezalElementLayoutApp extends FeezalElement {
         .body { flex: 1; min-height: 0; display: flex; position: relative; }
         .drawer {
             flex: 0 0 auto; width: var(--feezal-app-drawer-width, 220px); box-sizing: border-box;
-            background: var(--feezal-app-drawer-bg, var(--divider-color, #e0e0e0));
+            /* The drawer colour (default --divider-color) is usually SEMI-
+               TRANSPARENT. As a flex sibling that is fine — the opaque .shell
+               sits behind it. But a slim rail expands as an OVERLAY over the
+               content (U64), where a translucent colour shows the view through
+               it. Composite the drawer colour over an opaque page-background
+               backing so every mode is opaque (the narrow overlay does the same
+               via ::before). */
+            background:
+                linear-gradient(var(--feezal-app-drawer-bg, var(--divider-color, #e0e0e0)),
+                                var(--feezal-app-drawer-bg, var(--divider-color, #e0e0e0))),
+                var(--primary-background-color, #fafafa);
             color: var(--feezal-app-drawer-color, var(--primary-text-color, #222));
             border-right: 1px solid var(--divider-color, rgba(128,128,128,0.2));
             padding: 8px; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 2px;
@@ -150,7 +160,13 @@ class FeezalElementLayoutApp extends FeezalElement {
             font-weight: 600; }
         .entry .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
             color: var(--feezal-app-drawer-label-color, var(--primary-text-color, #222)); }
-        .entry feezal-icon { flex: 0 0 auto; color: var(--feezal-app-drawer-icon-color, var(--feezal-app-drawer-color, var(--primary-text-color, #222))); }
+        /* A fixed 24px nav glyph (MD3). Load-bearing for the slim rail: the rest
+           state centres the icon in the 64px rail and the expanded state left-
+           aligns it at drawer-padding + entry-padding (8 + 12 = 20px). Those two
+           positions coincide ONLY when the icon is 24px wide — inheriting the
+           16px default made the icon jump sideways on every expand. */
+        .entry feezal-icon { flex: 0 0 auto; font-size: 24px; width: 24px; height: 24px;
+            color: var(--feezal-app-drawer-icon-color, var(--feezal-app-drawer-color, var(--primary-text-color, #222))); }
         .entry.active .label, .entry.active feezal-icon {
             color: var(--feezal-app-active-color, var(--primary-color, #0284c7)); }
 
@@ -169,8 +185,12 @@ class FeezalElementLayoutApp extends FeezalElement {
         .drawer { transition: width 0.18s ease; }
         :host([rail-state="slim"]) .drawer { width: 64px; }
         :host([rail-state="edge"]) .drawer { width: 8px; padding-left: 0; padding-right: 0; }
-        /* rest: collapse entry padding + hide labels (slim) / hide entries (edge) */
-        :host([rail-state="slim"]) .drawer:not(:hover):not(:has(:focus-visible)) .entry { justify-content: center; padding: 10px 0; }
+        /* rest: collapse entry padding + hide labels (slim) / hide entries (edge).
+           gap:0 is load-bearing — the label is still a flex item (width:0), so
+           the 12px icon↔label gap would otherwise be counted in the centred
+           layout and pull the icon ~6px left of where the expanded state puts it,
+           making the icon jump sideways on every expand. */
+        :host([rail-state="slim"]) .drawer:not(:hover):not(:has(:focus-visible)) .entry { justify-content: center; padding: 10px 0; gap: 0; }
         :host([rail-state="slim"]) .drawer:not(:hover):not(:has(:focus-visible)) .label { opacity: 0; width: 0; }
         :host([rail-state="edge"]) .drawer:not(:hover):not(:has(:focus-visible)) .entry { opacity: 0; }
 
