@@ -1144,13 +1144,59 @@ now                          wanted
 
 **Secondary benefit:** the `transition: width 0.18s` currently animates a flex layout, reflowing the whole content area every frame. Once the panel is out of flow, the same animation touches only its own box.
 
-## Open questions — mostly about touch
+## Interaction — decided (07/2026), and configurable
 
-1. **Touch has no hover.** The request says "tap the menu", but the expansion is driven by `:hover` / `:focus-within`. On a tablet, tapping an entry navigates rather than dwelling, so it is unclear what currently expands the rail — confirm the actual interaction before designing around it. A slim rail on touch may need an **explicit toggle** (tap the rail edge or a chevron) rather than a hover affordance.
-2. **Dismissal.** Once it overlays content, an expanded rail that only closes on mouse-out is a trap on touch. Decide: outside-tap to close, Esc (already wired for the narrow overlay), or auto-close on entry selection. Note the narrow/overlay mode already has a **scrim** — decide whether the slim overlay gets one, and if so, whether that makes it simply *be* the overlay mode.
-3. **Does this collapse into overlay mode?** If the expanded slim rail overlays content, is dismissible, and dims what is behind it, it is behaviourally the narrow-mode drawer at a wide breakpoint. Worth checking whether the two can share one implementation instead of growing a third drawer state.
+| input | activating an entry | revealing the labels |
+|---|---|---|
+| **touch** | navigates directly, rail **does not grow at all** | tap the **hamburger at the top of the rail** → the existing **overlay drawer** |
+| **mouse** | navigates; rail stays expanded while the pointer is still over it, collapses on leave | hover the rail |
+| **keyboard / D-pad** | navigates; rail stays expanded for continued navigation | focus enters the rail |
 
-**Ships with:** the overlay change for slim **and** autohide, a browser test asserting the content box does **not** move between rest and expanded (measure `.content` `getBoundingClientRect()` before/after, which is the actual complaint), the touch/dismissal decision from above, a `docs/TESTING.md` line under the N36 block, and a version bump.
+### The knobs
+
+Everything above is opt-in-able. Two new attributes, named to sit with the existing `slim` / `autohide` / `entry-style` / `header` set:
+
+| attribute | values | default | effect |
+|---|---|---|---|
+| `slim-expand` | `overlay` · `push` · `never` | **`overlay`** | How the rail reveals labels. `overlay` draws the expanded panel **over** the content (this item's request); `push` is today's behaviour, kept for anyone who wants it; `never` makes it a pure icon rail whose only path to labels is the menu button. |
+| `slim-menu-button` | boolean | **`false`** | Shows a hamburger at the **top of the rail** that opens the existing overlay drawer. |
+
+**`slim-expand` defaults to `overlay`, which changes current behaviour.** That is deliberate — the pushing is the reported defect — but it *is* a visible change for existing dashboards, so `push` exists to restore it. Flagging rather than burying it.
+
+**`slim-menu-button` defaults to `false`** so nothing appears unbidden on existing dashboards. Note the consequence: a touch user with the defaults still has no way to read the labels, so the two knobs are really "pick one" — either `slim-expand: overlay` with hover for desktop, or the button for touch, or both. Worth deciding whether a slim rail on a touch-first dashboard should default the button **on** instead.
+
+### Deliberately NOT knobs
+
+Two behaviours are treated as fixes rather than preferences. Say if you want them configurable anyway:
+
+- **A pointer never expands the rail.** "Tap navigates, no growth" and "a mouse click must not pin it open" are the same rule; there is no coherent third option to offer. It is one selector change (below), not a mode.
+- **Keyboard focus always expands.** Making that optional would be an accessibility regression — **N36** exists to keep the drawer D-pad/keyboard navigable, and a rail whose labels are unreachable by keyboard is worse than one that pushes content.
+
+### One CSS change delivers all three inputs
+
+```css
+/* was: .drawer:focus-within */
+:host([slim]:not(.narrow)) .drawer:hover,
+:host([slim]:not(.narrow)) .drawer:has(:focus-visible) { width: …; }
+```
+
+`:focus-visible` deliberately does **not** match a `<button>` focused by mouse or touch — only by keyboard. So: no growth on tap, no focus-pinning after a mouse click (leaving `:hover` to govern it), keyboard expansion preserved.
+
+⚠️ **Supersedes an earlier draft of this item**, which proposed blurring the entry from JS on pointer activation. That cannot satisfy "must not grow at all" — the sequence would still be *focus → expand → blur → collapse*, a visible flash — and it needed `PointerEvent.pointerType` plumbing plus a rule about not blurring on keyboard. The selector needs none of it. `:has()` requires Safari 15.4+ / Chrome 105+; confirm before relying on it.
+
+### The menu button opens the OVERLAY drawer, not an expanded rail
+
+Reuse the narrow-mode drawer wholesale — scrim, Esc, close-on-select, focus handling. Material's canonical navigation-rail + modal-drawer pairing, **no third drawer state**, and an overlay never pushes content.
+
+**At the top of the rail**, not in the app bar — because **the bar is not guaranteed to exist**. With `header: never` there is none, and with `header: small-only` it is hidden *above* the breakpoint, which is exactly where a persistent slim rail lives. A bar-hosted button would be missing precisely when slim mode needs it. (Same for the deprecated `hide-header`.)
+
+**Apply both knobs to `autohide` too** — an 8px edge is even less discoverable than an icon rail.
+
+## Open question
+
+**Does the menu button make the rail redundant at some widths?** With `slim-expand: never` plus `slim-menu-button`, the rail is an icon strip whose only affordance opens the full drawer — at which point plain overlay mode is simpler. Worth checking whether those configurations should converge rather than shipping a rail that is mostly a launcher for something else.
+
+**Ships with:** the `slim-expand` and `slim-menu-button` attributes (both honoured by `slim` **and** `autohide`), the `:has(:focus-visible)` swap, the rail-top button wired to the existing overlay drawer, browser tests asserting (a) with `slim-expand: overlay` the content box does **not** move between rest and expanded — measure `.content` `getBoundingClientRect()` before/after, which is the actual complaint — (b) `push` still moves it and `never` never expands, (c) a pointer-activated entry never widens the rail while a keyboard-activated one does, and (d) the rail button opens the overlay drawer and survives `header: never` / `small-only`, a `docs/TESTING.md` line under the N36 block, and a version bump.
 
 **Relates:** **N36** (slim rail + autohide — the modes this changes), **[U50](roadmap-archive/U50.md)** ✅ (content inset — option B would interact with it), **U63** (per-side inset knobs — same box, settle the API together), **B84** (first-paint mode selection in the same element; unrelated cause, and its `narrow`-class handling is what gates these rules), **E38** (responsive sizing — reflow-vs-repaint is the same concern), `feezal-element-layout-app`.
 
