@@ -2192,6 +2192,67 @@ They are **grandfathered** in the A32 guard so CI passes today; this item remove
 
 **Ships with:** the per-toolkit moves (declare in family packages + remove from `www/package.json` + drop the grandfather entry), the stale-dep pruning, version bumps, and a green `package-declared-deps.test.js` with an **empty** grandfather list at the end (or documented residue).
 
+---
+
+## Also in scope: bring the remaining deps up to date
+
+Measured with `npm outdated` in `www/` (07/2026). Two groups, and only the second needs research.
+
+**In-range — the caret already covers these**, so it is a `npm update` + test run:
+
+| dep | current → latest |
+|---|---|
+| `@carbon/web-components` | 2.58.1 → 2.59.0 |
+| `@material/web` | 2.4.1 → 2.5.0 |
+| `dompurify` | 3.2.7 → **3.4.12** |
+| `happy-dom` | 20.10.6 → 20.11.1 |
+| `mqtt` | 5.15.1 → 5.15.2 |
+| `vitest` / `@vitest/*` | 4.1.9 → 4.1.10 |
+
+**Out of range — each needs its changelog read before the bump.** Do **not** batch these into one commit; one per commit so a regression is bisectable:
+
+| dep | jump | what to check |
+|---|---|---|
+| `vite` | 6.4.3 → **8.1.5** (two majors) | The big one. Minimum Node version, and whether `vite-plugin-monaco-editor` and `vite-plugin-static-copy` still work — a plugin break here stops the build outright. Consider 6 → 7 → 8 as two steps. |
+| `marked` | 14.0.0 → **18.0.7** (four majors) | Parser/extension API churn across majors; used by the AI chat + markdown rendering. |
+| `date-fns` | 2.30.0 → **4.4.0** (two majors) | v3 went ESM-first and renamed/reorganised exports. **Check whether `date-fns-tz` is still needed at all** — v4 introduced first-class time-zone support, so this may be one dependency fewer rather than two upgrades. |
+| `date-fns-tz` | 1.3.8 → **3.2.0** | Version-locked to the `date-fns` major; upgrade the pair together or drop it per above. |
+| `dragselect` | 2.7.4 → **3.1.2** | Constructor/options API changed between majors. Drives rubber-band multi-select on the canvas — an editor-critical path with real E2E coverage, so lean on it. |
+| `qrcode-generator` | 1.5.2 → **2.0.4** | Small surface; declared by `basic-qrcode`, not the app. |
+| `monaco-editor` | 0.55.1 → 0.56.0 | 0.x, so a minor may still break; paired with `vite-plugin-monaco-editor`, check them together. |
+| `html5sortable` | 0.13.3 → 0.14.0 | 0.x minor — but see above: this one may simply be **deleted** as unused, which beats upgrading it. |
+
+Note `date-fns`, `date-fns-tz` and `qrcode-generator` are already declared by their element packages (`basic-datetime`, `basic-qrcode`) rather than by the app — they are listed here only because they surface in the same `npm outdated` run.
+
+## Version ranges and supply-chain exposure — the question, and a finding that reframes it
+
+**Asked:** is `^5.13.0` still best practice, given npm supply-chain attacks?
+
+**The honest answer is that the range syntax is not the lever people think it is — the lockfile is.** `package-lock.json` records exact versions *and* integrity hashes for the whole transitive tree; the caret only decides what gets picked when the lock is regenerated. Pinning exact versions in `package.json` does nothing for transitive dependencies, which is where these attacks land.
+
+**But the lockfile is not being enforced here.** CI and the Docker image both run **`npm install`**, not `npm ci`:
+
+```
+.github/workflows/ci.yml:22   npm install --prefix server
+.github/workflows/ci.yml:25   npm install --prefix www
+Dockerfile:15-16              npm install (server, www)
+```
+
+`npm install` is free to move within the ranges and rewrite the lock. So today the caret **is** live in CI and in published images, and a compromised patch release would be picked up automatically. **Switching to `npm ci` is a bigger and cheaper win than any change to the range syntax**, and it makes the committed lockfile authoritative — which is presumably what everyone already assumes it is.
+
+**Recommended, roughly in order of value:**
+
+1. **`npm ci` in CI and the Dockerfile.** Reproducible, lockfile-authoritative, and faster. Requires the lockfile to be in step — the `package-lock-workspaces.test.js` guard already protects that.
+2. **Block install scripts** (`npm ci --ignore-scripts`, or `ignore-scripts=true` in `.npmrc`). Most npm compromises execute in `postinstall`; this removes the whole class. **Test first** — anything needing a native/build step at install time will need an exception.
+3. **A release-age cooldown for automated bumps.** The 2025 worm-style incidents published malicious *patch* releases from compromised maintainer accounts; not adopting anything younger than a few days defuses most of them. npm supports `minimumReleaseAge`; Renovate/Dependabot have equivalents.
+4. **`npm audit signatures`** in CI to verify registry provenance/attestations.
+5. **Keep carets.** With 1–4 in place, exact pinning adds churn without adding protection. If anything is pinned exactly, do it for a *specific* reason (a package with a history of bad releases), not as a blanket policy.
+6. **For feezal's own published packages**, the mirror-image concern: use npm **trusted publishing / provenance** from the release workflow rather than a long-lived token. This repo publishes ~150 `@feezal/*` packages, so it is a supply chain for *other* people too.
+
+⚠️ **Scope note.** Items 1–4 and 6 touch `server/`, the workflows and the Dockerfile — outside A33's `www/package.json` remit. If this grows, split it into its own item; it is recorded here because the question arrived with the dependency refresh.
+
+**Ships with (this section):** the in-range refresh in one commit; each out-of-range major in its own commit with a changelog note in the message; `npm ci` + `ignore-scripts` evaluated and applied where they pass; and a short "dependency policy" note in `CLAUDE.md` so the next person does not have to re-derive the reasoning.
+
 **Relates:** **[A32](roadmap-archive/A32.md)** ✅ (the parent — its guard + grandfather list this drains; read its "wider finding"), `www/test/package-declared-deps.test.js` (the ratchet that gates this), `scripts/release.js` (publishes the packages that must resolve standalone), **A23/A24** (family externalization — a family that declares its own toolkit dep is one step closer to shipping standalone).
 
 ## Open Questions
