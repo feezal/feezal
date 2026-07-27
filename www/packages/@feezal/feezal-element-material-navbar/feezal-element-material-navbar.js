@@ -345,6 +345,11 @@ class FeezalElementMaterialNavbarInspector extends LitElement {
                                 value="${this._attr('item-width', '')}"
                                 @sl-change="${e => this._emit('item-width', e.target.value)}"></sl-input>
                         </div>
+                        <label style="display:flex;align-items:center;gap:8px;font-size:11px">
+                            <sl-switch size="small" ?checked="${this._attr('show-icons', 'true') !== 'false'}"
+                                @sl-change="${e => this._emit('show-icons', e.target.checked)}"></sl-switch>
+                            Show item icons
+                        </label>
                     </div>
                 </div>
             </div>

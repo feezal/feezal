@@ -48,10 +48,18 @@ class FeezalElementLayoutApp extends FeezalElement {
                 {name: 'active-view', type: 'string', help: 'Initially selected content view (defaults to the first entry).'},
                 {name: 'breakpoint', type: 'number', default: 768, help: 'Element width below which the drawer becomes an overlay.'},
                 {name: 'drawer-persistent', type: 'boolean', default: true, help: 'If off, the drawer is always an overlay (hamburger at all sizes).'},
+                {name: 'rail', type: 'select', options: ['off', 'slim', 'edge', 'auto'], default: 'off',
+                    help: 'Persistent-drawer presentation above the breakpoint: off = full drawer; slim = icon-only rail; edge = thin edge; auto = a slim rail between the breakpoint and the rail breakpoint, a full drawer above it. No effect in overlay mode.'},
+                {name: 'rail-breakpoint', type: 'number', default: 1024,
+                    help: 'Only with rail = auto: at or above this element width the drawer is full; between the breakpoint and this it is a slim rail.'},
                 {name: 'slim', type: 'boolean', default: false,
-                    help: 'Persistent drawer starts as an icon-only rail and expands to icon+label on hover or keyboard focus (modern navigation rail). No effect in overlay mode.'},
+                    help: 'Deprecated — use rail = slim instead. Kept so older dashboards keep working.'},
                 {name: 'autohide', type: 'boolean', default: false,
-                    help: 'Persistent drawer/rail stays collapsed to a thin edge until you hover it or move focus into it, giving the content maximum width.'},
+                    help: 'Deprecated — use rail = edge instead. Kept so older dashboards keep working.'},
+                {name: 'rail-expand', type: 'select', options: ['overlay', 'push', 'never'], default: 'overlay',
+                    help: 'How the rail reveals labels on hover / keyboard focus: overlay = draw the expanded panel OVER the content (content stays put); push = grow in place and push the content aside; never = never expand (labels only via the rail menu button). A pointer never expands the rail — only hover and keyboard focus do.'},
+                {name: 'rail-menu-button', type: 'boolean', default: false,
+                    help: 'Show a menu button at the top of the rail that opens the full drawer as an overlay — useful on touch, where hover cannot reveal the labels.'},
                 {name: 'entry-style', type: 'select', options: ['pill', 'list'], default: 'pill',
                     help: 'Drawer entry look: "pill" = MD3 rounded chips with side inset; "list" = flat edge-to-edge rows, hover/active highlight the full drawer width.'},
                 {name: 'actions', type: 'json', default: '[]', help: 'Top-bar action buttons [{icon, publish, payload}] (managed in the inspector).'},
@@ -87,12 +95,17 @@ class FeezalElementLayoutApp extends FeezalElement {
         activeView:      {type: String,  reflect: true, attribute: 'active-view'},
         breakpoint:      {type: Number,  reflect: true},
         drawerPersistent:{type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'drawer-persistent'},
+        rail:            {type: String,  reflect: true},
+        railBreakpoint:  {type: Number,  reflect: true, attribute: 'rail-breakpoint'},
+        railExpand:      {type: String,  reflect: true, attribute: 'rail-expand'},
+        railMenuButton:  {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'rail-menu-button'},
         slim:            {type: Boolean, reflect: true},
         autohide:        {type: Boolean, reflect: true},
         entryStyle:      {type: String,  reflect: true, attribute: 'entry-style'},
         actions:         {type: String,  reflect: true},
         _active:         {state: true},
         _narrow:         {state: true},
+        _railState:      {state: true},   // B84: '' | 'slim' | 'edge' — the derived persistent-mode rail
         _drawerOpen:     {state: true},
         _liveTitle:      {state: true},
     };
@@ -146,25 +159,73 @@ class FeezalElementLayoutApp extends FeezalElement {
         :host([entry-style="list"]) .drawer { padding: 8px 0; gap: 0; }
         :host([entry-style="list"]) .entry { border-radius: 0; padding: 11px 16px; }
 
-        /* ── N36: slim navigation rail (persistent mode only) ──────────────
-           Icon-only at rest, expands to icon+label on hover or when keyboard/
-           D-pad focus enters the drawer (:focus-within works for both). */
+        /* ── N36/B84: navigation rail (persistent mode only) ───────────────
+           The presentation is derived to the rail-state host attribute by
+           _recomputeNarrow() (slim = icon rail, edge = thin edge; unset = full
+           drawer). U64 governs how the rest-to-expanded reveal behaves (overlay
+           / push / never); the rest state and the label/entry collapse are
+           shared. Icon-only / edge at rest, expand to icon+label on hover or
+           keyboard focus (:has(:focus-visible) — a pointer must NOT expand it). */
         .drawer { transition: width 0.18s ease; }
-        :host([slim]:not(.narrow)) .drawer { width: 64px; }
-        :host([slim]:not(.narrow)) .drawer:hover,
-        :host([slim]:not(.narrow)) .drawer:focus-within { width: var(--feezal-app-drawer-width, 220px); }
-        :host([slim]:not(.narrow)) .drawer:not(:hover):not(:focus-within) .entry { justify-content: center; padding: 10px 0; }
-        :host([slim]:not(.narrow)) .drawer:not(:hover):not(:focus-within) .label { opacity: 0; width: 0; }
+        :host([rail-state="slim"]) .drawer { width: 64px; }
+        :host([rail-state="edge"]) .drawer { width: 8px; padding-left: 0; padding-right: 0; }
+        /* rest: collapse entry padding + hide labels (slim) / hide entries (edge) */
+        :host([rail-state="slim"]) .drawer:not(:hover):not(:has(:focus-visible)) .entry { justify-content: center; padding: 10px 0; }
+        :host([rail-state="slim"]) .drawer:not(:hover):not(:has(:focus-visible)) .label { opacity: 0; width: 0; }
+        :host([rail-state="edge"]) .drawer:not(:hover):not(:has(:focus-visible)) .entry { opacity: 0; }
 
-        /* autohide: collapse the persistent drawer/rail to a thin edge until
-           hover/focus reveals it, maximising content width. */
-        :host([autohide]:not(.narrow)) .drawer { width: 8px; padding-left: 0; padding-right: 0; }
-        :host([autohide]:not(.narrow)) .drawer:hover,
-        :host([autohide]:not(.narrow)) .drawer:focus-within {
+        /* U64: overlay expansion (default) — the rail is taken out of flow and
+           the content reserves its rest width with a gutter, so expanding the
+           rail draws OVER the content instead of pushing it. Applied only when
+           rail-expand is overlay (the default; push keeps the old in-flow grow,
+           never never expands). */
+        :host([rail-state="slim"][rail-expand="overlay"]) .drawer,
+        :host([rail-state="edge"][rail-expand="overlay"]) .drawer {
+            position: absolute; top: 0; bottom: 0; left: 0; z-index: 2;
+        }
+        :host([rail-state="slim"][rail-expand="overlay"]) .content { margin-left: 64px; }
+        :host([rail-state="edge"][rail-expand="overlay"]) .content { margin-left: 8px; }
+        :host([rail-state="slim"][rail-expand="overlay"]) .drawer:hover,
+        :host([rail-state="slim"][rail-expand="overlay"]) .drawer:has(:focus-visible),
+        :host([rail-state="edge"][rail-expand="overlay"]) .drawer:hover,
+        :host([rail-state="edge"][rail-expand="overlay"]) .drawer:has(:focus-visible) {
+            width: var(--feezal-app-drawer-width, 220px); padding: 8px;
+            box-shadow: 2px 0 12px rgba(0,0,0,0.22);
+        }
+
+        /* U64: push expansion — the old behaviour, kept for anyone who wants it.
+           The rail stays an in-flow flex sibling and its width grows on reveal,
+           reflowing the content. */
+        :host([rail-state="slim"][rail-expand="push"]) .drawer:hover,
+        :host([rail-state="slim"][rail-expand="push"]) .drawer:has(:focus-visible),
+        :host([rail-state="edge"][rail-expand="push"]) .drawer:hover,
+        :host([rail-state="edge"][rail-expand="push"]) .drawer:has(:focus-visible) {
             width: var(--feezal-app-drawer-width, 220px); padding: 8px;
             box-shadow: 2px 0 12px rgba(0,0,0,0.18);
         }
-        :host([autohide]:not(.narrow)) .drawer:not(:hover):not(:focus-within) .entry { opacity: 0; }
+        /* rail-expand="never": no :hover/:focus rule at all — the rail never
+           grows; labels are reached only via the rail menu button (U64). */
+
+        /* U64: rail-top menu button — opens the OVERLAY drawer (reuses the
+           narrow-mode drawer wholesale). Shown when rail-menu-button is on and a
+           rail is presented; sits at the top of the rail because the app bar is
+           not guaranteed to exist (header: never / small-only). */
+        .rail-menu {
+            flex: 0 0 auto; align-self: center; margin: 4px 0 6px;
+            width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer;
+            background: none; color: var(--feezal-app-drawer-icon-color, var(--feezal-app-drawer-color, var(--primary-text-color, #222)));
+            display: flex; align-items: center; justify-content: center;
+        }
+        .rail-menu:hover { background: rgba(128,128,128,0.14); }
+        /* When the rail menu button opens the drawer, present the drawer as a
+           full overlay regardless of the rest rail width. */
+        :host([rail-state]) .drawer.rail-open {
+            position: absolute; top: 0; bottom: 0; left: 0; z-index: 4;
+            width: var(--feezal-app-drawer-width, 220px); padding: 8px;
+            box-shadow: 2px 0 12px rgba(0,0,0,0.25);
+        }
+        :host([rail-state]) .drawer.rail-open .entry { justify-content: flex-start; padding: 10px 12px; opacity: 1; }
+        :host([rail-state]) .drawer.rail-open .label { opacity: 1; width: auto; }
         /* U50: the content inset. PADDING, not margin — .content carries the
            embedded view's background, and a margin would sit outside it and
            leave an unpainted gutter between the drawer and the view.
@@ -234,6 +295,10 @@ class FeezalElementLayoutApp extends FeezalElement {
         this.activeView = '';
         this.breakpoint = 768;
         this.drawerPersistent = true;
+        this.rail = '';            // '' = unset → falls back to slim/autohide alias, else 'off'
+        this.railBreakpoint = 1024;
+        this.railExpand = 'overlay';
+        this.railMenuButton = false;
         this.slim = false;
         this.autohide = false;
         this.entryStyle = 'pill';
@@ -271,6 +336,20 @@ class FeezalElementLayoutApp extends FeezalElement {
      * effect until a resize or full reload, and the overlay hamburger could
      * stay hidden (the burger bug).
      */
+    /**
+     * B84: the persistent-drawer presentation axis — the `rail` enum, with the
+     * deprecated `slim`/`autohide` booleans mapped onto it. `rail` is '' (unset)
+     * by default so an old dashboard's boolean still wins; an explicit `rail`
+     * value (incl. 'off') overrides. Mutually exclusive by construction — the
+     * old booleans could both be set, and CSS source order decided the winner.
+     */
+    get _railMode() {
+        if (this.rail && this.rail !== '') return this.rail;   // explicit enum wins
+        if (this.autohide) return 'edge';                      // deprecated alias
+        if (this.slim) return 'slim';                          // deprecated alias
+        return 'off';
+    }
+
     _recomputeNarrow() {
         const w = this.clientWidth;
         // B84: a width of 0 means "not laid out yet", NOT "wide". The old code
@@ -291,6 +370,28 @@ class FeezalElementLayoutApp extends FeezalElement {
         // initial `_narrow` never established the class at all — state and DOM
         // could disagree with nothing to re-sync them. Idempotent now.
         this.classList.toggle('narrow', nowNarrow);
+
+        // B84: derive the persistent-mode rail presentation (three zones) EVERY
+        // time from the current width — never latched — and publish it to the
+        // stylesheet as the `rail-state` host attribute (the CSS cannot express
+        // two width breakpoints against the element's own size). Only set while
+        // persistent; overlay mode owns the whole drawer.
+        let railState = '';
+        if (!nowNarrow) {
+            const mode = this._railMode;
+            if (mode === 'slim' || mode === 'edge') {
+                railState = mode;
+            } else if (mode === 'auto') {
+                const rbp = Number(this.railBreakpoint) || 1024;
+                // rbp ≤ breakpoint collapses the middle zone → behave as full.
+                railState = (w > 0 && w < rbp && rbp > (Number(this.breakpoint) || 768)) ? 'slim' : '';
+            }
+            // 'off' → '' (full drawer, today's default)
+        }
+        this._railState = railState;
+        if (railState) this.setAttribute('rail-state', railState);
+        else this.removeAttribute('rail-state');
+
         // Side effect stays on a real transition: in persistent mode there is
         // no "open" to close, and doing this every ResizeObserver tick would
         // fight the user.
@@ -344,7 +445,9 @@ class FeezalElementLayoutApp extends FeezalElement {
         // N36: re-derive overlay mode when the config that drives it changes,
         // not only on resize — so switching drawer mode in the inspector / via
         // a deploy takes effect without a manual resize or hard reload.
-        if (changed.has('drawerPersistent') || changed.has('breakpoint')) {
+        if (changed.has('drawerPersistent') || changed.has('breakpoint') ||
+            changed.has('rail') || changed.has('railBreakpoint') ||
+            changed.has('slim') || changed.has('autohide')) {
             this._recomputeNarrow();
         }
         if (!this._initialized) return;
@@ -357,7 +460,8 @@ class FeezalElementLayoutApp extends FeezalElement {
     _select(view, closeDrawer = true) {
         if (!view) return;
         this._active = view;
-        if (closeDrawer && this._narrow) this._drawerOpen = false;
+        // U64: close the overlay on select — narrow mode OR a rail-menu overlay.
+        if (closeDrawer && this._drawerOpen) this._drawerOpen = false;
         this._embed(true);
         // N30: tell the site so it syncs the URL hash to #/<view>/<embedded>
         // and publishes the nested path on <publish>/view.
@@ -483,7 +587,8 @@ class FeezalElementLayoutApp extends FeezalElement {
      * drawer also expands a slim/autohide rail via :focus-within (CSS).
      */
     _onDrawerKeydown(e) {
-        if (e.key === 'Escape' && this._narrow && this._drawerOpen) {
+        // U64: Escape closes a narrow overlay OR a rail-menu overlay.
+        if (e.key === 'Escape' && this._drawerOpen) {
             this._drawerOpen = false;
             return;
         }
@@ -521,6 +626,11 @@ class FeezalElementLayoutApp extends FeezalElement {
         const activeEntry = entries.find(e => e.view === this._active);
         const activeLabel = this.showActiveLabel && activeEntry ? (activeEntry.label || activeEntry.view) : '';
         const showHeader = this._showHeader;
+        // U64: a rail is presented (slim/edge) — the rail-menu button opens the
+        // drawer as an overlay (`rail-open`), reusing the narrow-mode chrome.
+        const railPresented = !this._narrow && !!this._railState;
+        const railOpen = railPresented && this._drawerOpen;
+        const scrimShown = (this._narrow || railPresented) && this._drawerOpen;
         return html`
             <div class="shell">
                 ${showHeader ? html`
@@ -537,8 +647,10 @@ class FeezalElementLayoutApp extends FeezalElement {
                 <div class="body">
                     ${!showHeader && showHam && !this._drawerOpen ? html`
                         <button class="fab-menu" title="Menu" @click="${() => { this._drawerOpen = true; }}"><span class="mi">menu</span></button>` : ''}
-                    <div class="drawer ${this._drawerOpen ? 'open' : ''}" role="navigation"
+                    <div class="drawer ${this._drawerOpen ? 'open' : ''} ${railOpen ? 'rail-open' : ''}" role="navigation"
                         @keydown="${e => this._onDrawerKeydown(e)}">
+                        ${railPresented && this.railMenuButton && !this._drawerOpen ? html`
+                            <button class="rail-menu" title="Menu" @click="${() => { this._drawerOpen = true; }}"><span class="mi">menu</span></button>` : ''}
                         ${entries.length === 0
                             ? html`<div style="opacity:.6;padding:10px;font-size:12px">${feezal.isEditor ? 'Add drawer entries in the inspector →' : ''}</div>`
                             : entries.map(e => html`
@@ -550,7 +662,7 @@ class FeezalElementLayoutApp extends FeezalElement {
                                     <span class="label">${e.label || e.view}</span>
                                 </button>`)}
                     </div>
-                    ${this._narrow && this._drawerOpen ? html`<div class="scrim" @click="${() => { this._drawerOpen = false; }}"></div>` : ''}
+                    ${scrimShown ? html`<div class="scrim" @click="${() => { this._drawerOpen = false; }}"></div>` : ''}
                     <div class="content">
                         <div id="content"></div>
                         ${feezal.isEditor ? html`<div class="ph">${this._active ? `View: ${this._active}` : '(no view selected)'}</div>` : ''}
@@ -611,6 +723,30 @@ class FeezalElementLayoutAppInspector extends LitElement {
 
     _attr(n, d = '') { return this.element?.getAttribute(n) ?? d; }
     _emit(name, value) { this.dispatchEvent(new CustomEvent('feezal-attribute-changed', {bubbles: true, composed: true, detail: {name, value}})); }
+
+    /** B84: the effective rail value for the select — an explicit `rail` wins,
+     * else the deprecated slim/autohide booleans map onto it, else off. */
+    _railValue() {
+        const r = this._attr('rail');
+        if (r) return r;
+        if (this.element.hasAttribute('autohide')) return 'edge';
+        if (this.element.hasAttribute('slim')) return 'slim';
+        return 'off';
+    }
+
+    /** Picking a rail value writes `rail` and clears the deprecated booleans so
+     * the two axes can never conflict. */
+    _onRailChange(value) {
+        if (this.element.hasAttribute('slim')) this._emit('slim', false);
+        if (this.element.hasAttribute('autohide')) this._emit('autohide', false);
+        this._emit('rail', value);
+    }
+
+    /** N39: `header` supersedes the deprecated `hide-header` — clear it on pick. */
+    _onHeaderChange(value) {
+        if (this.element.hasAttribute('hide-header')) this._emit('hide-header', false);
+        this._emit('header', value);
+    }
     _viewNames() { return (window.feezal && feezal.site) ? [...feezal.site.querySelectorAll('feezal-view')].map(v => v.getAttribute('name')).filter(Boolean) : []; }
     _json(attr) { try { const r = JSON.parse(this._attr(attr, '[]')); return Array.isArray(r) ? r : []; } catch { return []; } }
 
@@ -704,11 +840,24 @@ class FeezalElementLayoutAppInspector extends LitElement {
                         <input .value="${this._attr('title')}" @change="${e => this._emit('title', e.target.value)}"></div>
                     <div class="field"><label>Subscribe title (MQTT)</label>
                         <feezal-topic-input size="small" value="${this._attr('subscribe-title')}" placeholder="mqtt/topic" @sl-change="${e => this._emit('subscribe-title', e.target.value)}"></feezal-topic-input></div>
+                    <div class="field"><label>Show top bar</label>
+                        <sl-select size="small" value="${this.element.hasAttribute('hide-header') ? 'never' : (this._attr('header') || 'always')}"
+                            @sl-change="${e => this._onHeaderChange(e.target.value)}">
+                            <sl-option value="always">always</sl-option>
+                            <sl-option value="small-only">only on small screens</sl-option>
+                            <sl-option value="never">never (floating hamburger)</sl-option>
+                        </sl-select></div>
                     <label style="display:flex;align-items:center;gap:8px;font-size:11px">
-                        <sl-switch size="small" ?checked="${this.element.hasAttribute('hide-header')}"
-                            @sl-change="${e => this._emit('hide-header', e.target.checked)}"></sl-switch>
-                        Hide top bar (floating hamburger when the drawer is an overlay)
+                        <sl-switch size="small" ?checked="${this._attr('show-active-label') !== 'false'}"
+                            @sl-change="${e => this._emit('show-active-label', e.target.checked)}"></sl-switch>
+                        Show the current page label in the bar
                     </label>
+                    <div class="field"><label>Initial view</label>
+                        <sl-select size="small" value="${this._attr('active-view') || ''}"
+                            @sl-change="${e => this._emit('active-view', e.target.value)}">
+                            <sl-option value="">(first entry)</sl-option>
+                            ${views.map(v => html`<sl-option value="${v}">${v}</sl-option>`)}
+                        </sl-select></div>
                 </div>
             </div>
 
@@ -777,16 +926,30 @@ class FeezalElementLayoutAppInspector extends LitElement {
                             @sl-change="${e => this._emit('drawer-persistent', e.target.checked)}"></sl-switch>
                         Persistent drawer when wide
                     </label>
-                    <label style="display:flex;align-items:center;gap:8px;font-size:11px">
-                        <sl-switch size="small" ?checked="${this.element.hasAttribute('slim')}"
-                            @sl-change="${e => this._emit('slim', e.target.checked)}"></sl-switch>
-                        Slim rail (icons only, expand on hover/focus)
-                    </label>
-                    <label style="display:flex;align-items:center;gap:8px;font-size:11px">
-                        <sl-switch size="small" ?checked="${this.element.hasAttribute('autohide')}"
-                            @sl-change="${e => this._emit('autohide', e.target.checked)}"></sl-switch>
-                        Autohide (collapse to a thin edge until hover/focus)
-                    </label>
+                    <div class="field"><label>Rail (persistent drawer when wide)</label>
+                        <sl-select size="small" value="${this._railValue()}"
+                            @sl-change="${e => this._onRailChange(e.target.value)}">
+                            <sl-option value="off">off — full drawer</sl-option>
+                            <sl-option value="slim">slim — icon rail</sl-option>
+                            <sl-option value="edge">edge — thin edge</sl-option>
+                            <sl-option value="auto">auto — slim, full above the rail breakpoint</sl-option>
+                        </sl-select></div>
+                    ${this._railValue() === 'auto' ? html`
+                        <div class="field"><label>Rail breakpoint (px)</label>
+                            <input type="number" .value="${this._attr('rail-breakpoint', '1024')}" @change="${e => this._emit('rail-breakpoint', e.target.value)}"></div>` : ''}
+                    ${this._railValue() !== 'off' ? html`
+                        <div class="field"><label>Rail expand</label>
+                            <sl-select size="small" value="${this._attr('rail-expand') || 'overlay'}"
+                                @sl-change="${e => this._emit('rail-expand', e.target.value)}">
+                                <sl-option value="overlay">overlay — draw over the content</sl-option>
+                                <sl-option value="push">push — push the content aside</sl-option>
+                                <sl-option value="never">never — icon rail only</sl-option>
+                            </sl-select></div>
+                        <label style="display:flex;align-items:center;gap:8px;font-size:11px">
+                            <sl-switch size="small" ?checked="${this.element.hasAttribute('rail-menu-button')}"
+                                @sl-change="${e => this._emit('rail-menu-button', e.target.checked)}"></sl-switch>
+                            Rail menu button (opens the full drawer as an overlay — for touch)
+                        </label>` : ''}
                 </div>
             </div>
 

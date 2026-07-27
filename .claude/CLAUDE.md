@@ -133,7 +133,9 @@ New elements **must** be created as packages under `www/node_modules/@feezal/`, 
    cd www && npm run build
    ```
 
-10. **Add it to the test checklist** — append the element to the appropriate category list in `docs/TESTING.md §6`, plus an "Element-specific notes" bullet for anything the generic recipe doesn't cover (custom inspector, embedded views, dialogs, per-item MQTT, pseudo-element behaviour, …). See *Test checklist maintenance* below.
+10. **If the element has a custom inspector (`inspector:`), add the control there too.** A custom inspector **replaces** the generic attribute panel, so a new `feezal.attributes` entry is invisible in the editor until you add its control to the inspector's `render()` by hand — no error, the attribute still works, only the UI is silently short (B88). The `www/test/feezal-inspector-attribute-coverage.test.js` guard fails CI when a declared attribute has no reference in the inspector; add the element to its `GUARDED` map, or allow-list an attribute that is deliberately unexposed.
+
+11. **Add it to the test checklist** — append the element to the appropriate category list in `docs/TESTING.md §6`, plus an "Element-specific notes" bullet for anything the generic recipe doesn't cover (custom inspector, embedded views, dialogs, per-item MQTT, pseudo-element behaviour, …). See *Test checklist maintenance* below.
 
 ### Element spec reference
 

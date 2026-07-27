@@ -389,3 +389,102 @@ describe('header modes + active-page label (N39)', () => {
         expect(el.shadowRoot.querySelector('.bar .active-label')).toBeFalsy();
     });
 });
+
+describe('rail model — three zones + deprecated aliases (B84)', () => {
+    const wide = async (attrs) => {
+        const el = await mount('feezal-element-layout-app', {items: ITEMS, ...attrs});
+        el.style.width = '1000px';
+        await until(() => el._narrow === false && el.clientWidth > 768);
+        await el.updateComplete;
+        return el;
+    };
+
+    it('rail=slim → rail-state="slim" when wide', async () => {
+        const el = await wide({rail: 'slim'});
+        expect(el.getAttribute('rail-state')).toBe('slim');
+    });
+
+    it('rail=edge → rail-state="edge"', async () => {
+        const el = await wide({rail: 'edge'});
+        expect(el.getAttribute('rail-state')).toBe('edge');
+    });
+
+    it('rail=off (default) → no rail-state (full drawer)', async () => {
+        const el = await wide({});
+        expect(el.hasAttribute('rail-state')).toBe(false);
+    });
+
+    it('deprecated slim → rail-state="slim"; autohide → "edge"; explicit rail wins', async () => {
+        expect((await wide({slim: ''})).getAttribute('rail-state')).toBe('slim');
+        expect((await wide({autohide: ''})).getAttribute('rail-state')).toBe('edge');
+        // explicit rail overrides a stale deprecated boolean
+        expect((await wide({slim: '', rail: 'off'})).hasAttribute('rail-state')).toBe(false);
+    });
+
+    it('rail=auto → slim in the middle zone, full above rail-breakpoint', async () => {
+        const el = await mount('feezal-element-layout-app', {items: ITEMS, rail: 'auto', 'rail-breakpoint': '1024'});
+        el.style.width = '900px';   // breakpoint(768) ≤ 900 < 1024 → slim
+        await until(() => el.clientWidth === 900);
+        el._recomputeNarrow();      // derive deterministically (RO is async)
+        expect(el.getAttribute('rail-state')).toBe('slim');
+        el.style.width = '1200px';  // ≥ 1024 → full drawer
+        await until(() => el.clientWidth === 1200);
+        el._recomputeNarrow();
+        expect(el.hasAttribute('rail-state')).toBe(false);
+    });
+
+    it('narrow overlay clears the rail-state', async () => {
+        const el = await wide({rail: 'slim'});
+        el.style.width = '400px';   // < breakpoint → overlay
+        await until(() => el._narrow === true);
+        await el.updateComplete;
+        expect(el.hasAttribute('rail-state')).toBe(false);
+        expect(el.classList.contains('narrow')).toBe(true);
+    });
+});
+
+describe('rail expansion overlays the content (U64)', () => {
+    const wideRail = async (attrs) => {
+        const el = await mount('feezal-element-layout-app', {items: ITEMS, rail: 'slim', ...attrs});
+        el.style.width = '1000px';
+        await until(() => el.getAttribute('rail-state') === 'slim');
+        await el.updateComplete;
+        return el;
+    };
+
+    it('overlay (default): drawer is out of flow and the content reserves the rest width', async () => {
+        const el = await wideRail({});
+        const drawer = el.shadowRoot.querySelector('.drawer');
+        const content = el.shadowRoot.querySelector('.content');
+        expect(getComputedStyle(drawer).position).toBe('absolute');   // out of flow → expansion overlays
+        expect(getComputedStyle(content).marginLeft).toBe('64px');     // content held at the rest rail width
+    });
+
+    it('push: drawer stays in flow (no absolute, no content margin)', async () => {
+        const el = await wideRail({'rail-expand': 'push'});
+        const drawer = el.shadowRoot.querySelector('.drawer');
+        const content = el.shadowRoot.querySelector('.content');
+        expect(getComputedStyle(drawer).position).not.toBe('absolute');
+        expect(getComputedStyle(content).marginLeft).toBe('0px');
+    });
+
+    it('rail-menu-button opens the drawer as an overlay and select closes it', async () => {
+        const el = await wideRail({'rail-menu-button': ''});
+        const btn = el.shadowRoot.querySelector('.rail-menu');
+        expect(btn).toBeTruthy();
+        btn.click();
+        await el.updateComplete;
+        expect(el._drawerOpen).toBe(true);
+        expect(el.shadowRoot.querySelector('.drawer.rail-open')).toBeTruthy();
+        expect(el.shadowRoot.querySelector('.scrim')).toBeTruthy();
+        el._select('page2');
+        await el.updateComplete;
+        expect(el._drawerOpen).toBe(false);
+    });
+
+    it('the rail-menu button survives header=never (no app bar to host it)', async () => {
+        const el = await wideRail({'rail-menu-button': '', header: 'never'});
+        expect(el.shadowRoot.querySelector('.bar')).toBeFalsy();
+        expect(el.shadowRoot.querySelector('.rail-menu')).toBeTruthy();
+    });
+});

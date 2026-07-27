@@ -145,34 +145,24 @@ describe('layout-app inspector', () => {
         expect(shell.getAttribute('title')).toBe('My Home');
     });
 
-    it('exposes slim + autohide switches that emit boolean attribute changes (N36)', async () => {
+    it('exposes the Rail select that emits `rail` (B84, replacing slim/autohide)', async () => {
         feezal.site = makeSite('main');
         const shell = document.createElement('feezal-element-layout-app');
         const inspector = await mountInspector('feezal-element-layout-app-inspector', shell);
         const emitted = [];
         inspector.addEventListener('feezal-attribute-changed', e => emitted.push({...e.detail}));
 
-        // Locate the switches by their sibling label text.
-        const labels = [...inspector.shadowRoot.querySelectorAll('label')];
-        const slimSwitch = labels.find(l => /Slim rail/.test(l.textContent))?.querySelector('sl-switch');
-        const autohideSwitch = labels.find(l => /Autohide/.test(l.textContent))?.querySelector('sl-switch');
-        expect(slimSwitch).toBeTruthy();
-        expect(autohideSwitch).toBeTruthy();
+        // The Rail select — locate it by its field label.
+        const fields = [...inspector.shadowRoot.querySelectorAll('.field')];
+        const railField = fields.find(f => /^Rail\b/.test(f.querySelector('label')?.textContent || ''));
+        const railSelect = railField?.querySelector('sl-select');
+        expect(railSelect).toBeTruthy();
 
-        // The real host handler maps a boolean value → set/remove attribute; here
-        // we assert the inspector emits the correct boolean (the actual contract).
-        slimSwitch.checked = true;
-        slimSwitch.dispatchEvent(new CustomEvent('sl-change'));
-        autohideSwitch.checked = true;
-        autohideSwitch.dispatchEvent(new CustomEvent('sl-change'));
-        slimSwitch.checked = false;
-        slimSwitch.dispatchEvent(new CustomEvent('sl-change'));
-
-        expect(emitted).toEqual([
-            {name: 'slim', value: true},
-            {name: 'autohide', value: true},
-            {name: 'slim', value: false},
-        ]);
+        // Picking a rail value emits `rail` (the deprecated slim/autohide switches
+        // are gone — the enum supersedes them).
+        railSelect.value = 'slim';
+        railSelect.dispatchEvent(new CustomEvent('sl-change'));
+        expect(emitted.some(e => e.name === 'rail' && e.value === 'slim')).toBe(true);
     });
 
     it('removes a drawer entry without touching the view', async () => {

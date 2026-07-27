@@ -7,7 +7,7 @@ Each entry is filed under the section its **ID prefix** belongs to — `B` Bugs,
 Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastructure,
 `D` Documentation — and sorted by number within it, so a new entry has exactly one correct place.
 
-**310 items.**
+**313 items.**
 
 ## Bugs
 
@@ -89,9 +89,11 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B81 — Slider discovery offers Homematic dimmers but not zigbee2mqtt light brightness/CT ✅ fixed](B81.md)
 - [B82 — `system-splash` leaves a 40px box in `<body>`: outer scrollbar + white strip ✅ fixed](B82.md)
 - [B83 — Gradient view backgrounds: detection is blind to longhand/`var()` authoring, so the B62 fix never engages ✅ fixed](B83.md)
+- [B84 — `layout-app` drawer mode: rail missing on first paint, and no way to configure slim vs wide ✅ done](B84.md)
 - [B85 — Value cards are not offered a thermostat's numeric datapoints, and humidity is never published ✅ fixed](B85.md)
 - [B86 — Discovery picker stamps nothing on selection; Generate still works (regression, cause verified) ✅ fixed](B86.md)
 - [B87 — Directly-opened `/viewer/<site>` gets `#/view` appended without a trailing slash ✅ fixed](B87.md)
+- [B88 — Custom inspectors silently drop attributes: `show-active-label` has no control ✅ done](B88.md)
 
 ## Near-term Improvements
 
@@ -317,6 +319,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U59 — Style inspector gradient editor: allow themed CSS vars as gradient stops ✅ done](U59.md)
 - [U60 — Editor: surface lost server connection (grace-period → blocking overlay) ✅ done](U60.md)
 - [U62 — Normalize discovered names into friendly labels on stamping ✅ done](U62.md)
+- [U64 — `layout-app`: expanding the slim rail must not push the content ✅ done](U64.md)
 
 ## Architecture & Infrastructure
 

@@ -9,8 +9,6 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
-- [B84 — `layout-app` drawer mode: rail missing on first paint, and no way to configure slim vs wide](#b84--layout-app-drawer-mode-rail-missing-on-first-paint-and-no-way-to-configure-slim-vs-wide)
-- [B88 — Custom inspectors silently drop attributes: `show-active-label` has no control](#b88--custom-inspectors-silently-drop-attributes-show-active-label-has-no-control)
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
@@ -67,7 +65,6 @@ Work in progress — priorities and scope are not final.
 - [U58 — "Generate" button: bulk element + app scaffold wizard from discovery](#u58--generate-button-bulk-element--app-scaffold-wizard-from-discovery--to-refine) 💡
 - [U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow](#u61--editor-preview-fidelity-gradientbackground-in-a-percentage-sized-views-scroll-overflow)
 - [U63 — `layout-app`: split the content inset into per-side knobs](#u63--layout-app-split-the-content-inset-into-per-side-knobs)
-- [U64 — `layout-app`: expanding the slim rail must not push the content](#u64--layout-app-expanding-the-slim-rail-must-not-push-the-content)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -113,8 +110,6 @@ Work in progress — priorities and scope are not final.
 **Ships with (once diagnosed):** the chosen layer-isolation CSS fix (guarded so it doesn't regress `backdrop-filter` performance/correctness on other platforms), a TESTING.md note (glass sub-views inside `layout-app`, hover drawer entries on macOS Chrome → no artifacts), and — if no clean CSS fix exists — documentation of the solid-card fallback as the recommended setting for macOS-heavy deployments.
 
 **Relates:** the glass family (`feezal-glass` — the `backdrop-filter` source), `layout-app` (the drawer whose hover triggers it), the glass **solid-card degrade** option (the fallback + diagnostic lever), E38/performance (backdrop-filter GPU cost is already a documented glass concern), per-view themes ✅ (the theme mismatch is an aggravating input here).
-
-### B84 — `layout-app` drawer mode: rail missing on first paint, and no way to configure slim vs wide
 
 ## 🔨 Partially addressed (07/2026) — hardened, but the reported symptom was NOT reproduced
 
@@ -246,33 +241,6 @@ This also **removes an existing ambiguity**: `slim` and `autohide` are independe
 **Ships with:** the first-paint fix (done — see above), the `rail` / `rail-breakpoint` model with `slim`/`autohide` deprecated onto it, browser tests for each zone boundary **and** for a shell mounted inside a hidden view then revealed (the case the existing suite misses, because every other test sizes the host directly), inspector support for the new attributes, and a `docs/TESTING.md` line under the N36 block covering all three zones plus the deprecated-boolean mapping.
 
 **Relates:** **N36** (slim rail + the original initial-ResizeObserver-race fix for the persistent drawer — same class of bug, second instance), **B41**/N30 (view routing — the shell's owning view may be hidden at boot, which is the suspected trigger), **[U50](roadmap-archive/U50.md)** ✅ / **U63** (the `.content` box work next door — unrelated cause, same element), `feezal-element-layout-app._recomputeNarrow()`.
-
-### B88 — Custom inspectors silently drop attributes: `show-active-label` has no control
-
-**Reported (07/2026):** the top-bar "show current active label" switch is missing from the `layout-app` inspector, though it was supposed to exist.
-
-**It does exist — as an attribute.** `show-active-label` is declared in `feezal.attributes` (boolean, default `true`), is a reflected property, and is honoured in `render()`. It can be set from source view or over MQTT. What is missing is the **UI control**.
-
-*(The reporter initially self-corrected — "my fault, I missed it" — after a stale Docker build hid the rendered label. The rendering does work; the inspector control is separately, genuinely absent. Worth keeping the two apart when re-testing.)*
-
-**Measured against the committed element**, three declared attributes have no control:
-
-| declared | exposed by the custom inspector |
-|---|---|
-| `show-active-label` | ❌ |
-| `header` | ❌ |
-| `active-view` | ❌ |
-
-**Cause — the general one, which is the point of this item.** `layout-app` declares `inspector: 'feezal-element-layout-app-inspector'` (N6). A custom inspector **replaces** the generic attribute panel, so it renders exactly the fields it was hand-written to render and nothing else. Adding an attribute to `feezal.attributes` therefore does **not** surface it. The inspector currently emits:
-
-```
-actions · autohide · breakpoint · drawer-persistent · entry-style
-hide-header · items · slim · subscribe-title · title
-```
-
-`show-active-label`, `header` and `active-view` are all absent — so the gap has already happened three times in this one element, including for `header`, the newer select intended to supersede `hide-header` (which *is* exposed).
-
-**This will keep happening.** Every future attribute on any element with a custom inspector is invisible by default, and nothing fails when it is forgotten: the element works, the attribute works, only the UI is silently short. That is the worst failure shape — no error, no test, just an option nobody can find.
 
 ## Fix
 
@@ -1166,22 +1134,6 @@ Two distinct traps:
 **Ships with:** the chosen API on `.content` in `feezal-element-layout-app`, updated `help` text, browser tests extending the U50 block in `test-browser/feezal-elements-layout-app.test.js` (per-side values apply; the base still fills unset sides; **no overflow / no permanent scrollbars** — the `box-sizing` property U50 pinned), the `docs/TESTING.md` U50 entry updated rather than duplicated, and a version bump.
 
 **Relates:** **[U50](roadmap-archive/U50.md)** ✅ (the knob this splits — read its box-sizing note first: `.content` is `flex: 1`, so padding must stay inside the 100% or `overflow: auto` becomes permanent scrollbars), **B83** (an unexplained interaction — setting this padding appears to make the gradient sticky on iOS; do not let that observation quietly become the reason for a padding API), **N36** (the `--feezal-app-*` style-var family this extends), **U58** (its App mode wants a content-area `max-width` knob built next to this one — consider the two together so the content-box API is designed once).
-
-### U64 — `layout-app`: expanding the slim rail must not push the content
-
-**Requested (07/2026):** at a screen width that shows the **slim rail**, expanding it to the wide menu should **overlay** the content — the embedded view must stay exactly where it is, not shift sideways.
-
-**Cause.** The rail and the content are siblings in the same flex row: `.drawer` is `flex: 0 0 auto` and `.content` is `flex: 1`. So `width: 64px → var(--feezal-app-drawer-width, 220px)` on hover/`:focus-within` takes ~156px away from the content, which reflows and re-wraps every tile under it. The expansion is currently a **layout** change; it needs to be a **paint** change.
-
-```
-now                          wanted
-┌────┬───────────────┐       ┌────┬───────────────┐
-│rail│  content      │  rest │rail│  content      │
-├────┴──┬────────────┤       ├───────┬────────────┤
-│ menu  │ content    │  open │ menu ▓│ content    │   content unmoved,
-└───────┴────────────┘       └───────┴────────────┘   menu drawn over it
-        ↑ content pushed
-```
 
 ## Approach
 
