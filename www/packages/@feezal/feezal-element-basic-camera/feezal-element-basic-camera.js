@@ -476,7 +476,10 @@ class FeezalElementBasicCamera extends FeezalElement {
             await this._webrtcIceComplete(pc);
             const res = await fetch(url, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/sdp'},
+                // Accept application/sdp (WHEP) so the gateway answers with an
+                // sdp content-type rather than json/text — a cross-origin json
+                // answer is what Chrome ORB-blocks (ERR_BLOCKED_BY_ORB).
+                headers: {'Content-Type': 'application/sdp', 'Accept': 'application/sdp'},
                 body: pc.localDescription.sdp,
             });
             if (pc !== this.__pc) return; // superseded while awaiting
