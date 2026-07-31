@@ -120,6 +120,24 @@ describe('the generated animation set', () => {
         // the handle actually animates (down→left→up choreography)
         const leverR = sash.it.find(i => i.nm === 'lever').it.find(i => i.ty === 'tr').r;
         expect(leverR.a).toBe(1);
+        // the breeze flourish lives strictly INSIDE the open clip — its trim
+        // keyframes never touch a pose frame, so the resting card stays still
+        const breeze = win.data.layers[0].shapes.find(s => s.nm === 'breeze');
+        const trims = [];
+        const walk = n => {
+            if (Array.isArray(n)) return n.forEach(walk);
+            if (!n || typeof n !== 'object') return;
+            if (n.ty === 'tm') trims.push(n);
+            Object.values(n).forEach(walk);
+        };
+        walk(breeze);
+        expect(trims.length).toBe(3);
+        for (const t of trims) {
+            for (const k of [...t.e.k, ...t.s.k]) {
+                expect(k.t).toBeGreaterThan(12);
+                expect(k.t).toBeLessThan(36);
+            }
+        }
     });
 
     it('the marquee cards carry the segment semantics the elements rely on', () => {

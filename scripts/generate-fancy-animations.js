@@ -251,8 +251,32 @@ function windowContact() {
     const sashFrame = group('sash-frame', [sashK, stroke('base', 3, 72)]);
     const glass = group('glass', [glassK, fill('active', 38)]);
     const sash = group('sash', [lever, plate, sashFrame, glass]);
+
+    // ── the breeze (E162 flourish) ──
+    // Three nearly-transparent wavy streamlines flow IN through the freshly
+    // opened window while the sash swings: open sine curves from outside
+    // right toward the opening, each dipping into the room at its tail, drawn
+    // as a travelling trim-path dash. Everything lives strictly inside the
+    // open clip (15–34) — invisible at every pose, so the resting card stays
+    // perfectly still, and the derived closing clip sucks the air back out.
+    const waveLine = ({yc, amp, flip, drop, t0, o}) => {
+        const xs = [88, 74, 60, 46, 34];
+        const dir = flip ? -1 : 1;
+        const v = xs.map((x, k) => [x,
+            yc + dir * amp * (k % 2 ? 1 : -1) + (k === xs.length - 1 ? drop : 0)]);
+        const path = {ty: 'sh', ks: st({c: false, v,
+            i: v.map(() => [4.9, 0]), o: v.map(() => [-4.9, 0])}), nm: 'wave'};
+        return group('breeze-line', [path, stroke('active', 2, o),
+            trim([[t0, 0], [t0 + 9, 100]], [[t0 + 4, 0], [t0 + 13, 100]])]);
+    };
+    const breeze = group('breeze', [
+        waveLine({yc: 39, amp: 3, flip: false, drop: 4, t0: 15, o: 22}),
+        waveLine({yc: 52, amp: 4, flip: true,  drop: 6, t0: 18, o: 28}),
+        waveLine({yc: 64, amp: 3, flip: false, drop: 4, t0: 21, o: 20}),
+    ]);
+
     return {
-        data: anim('contact-window', [layer('contact', [sash, frame], {op: 87})], 87),
+        data: anim('contact-window', [layer('contact', [breeze, sash, frame], {op: 87})], 87),
         states: {closed: [0, 1], open: [36, 37], tilted: [85, 86]},
         transitions: {'closed>open': [0, 36], 'closed>tilted': [48, 85]},
     };
