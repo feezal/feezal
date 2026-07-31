@@ -365,6 +365,26 @@ describe('detectRoom (U58 App mode)', () => {
     it('unmatched names yield null (→ the Unassigned bucket)', () => {
         expect(detectRoom(ent('xyz_relay_7'))).toBe(null);
     });
+
+    // U67: the drawer label follows the site locale (A27 Phase 1 machinery).
+    it('localizes the matched room label to the site locale, en-fallback otherwise', () => {
+        const prev = globalThis.feezal;
+        try {
+            globalThis.feezal = {...prev, locale: 'de'};
+            expect(detectRoom(ent('wohnzimmer_lampe')).label).toBe('Wohnzimmer');
+            expect(detectRoom(ent('kueche_licht')).label).toBe('Küche');
+            globalThis.feezal = {...prev, locale: 'fr'};
+            expect(detectRoom(ent('kueche_licht')).label).toBe('Cuisine');
+            // an explicit area is never translated
+            globalThis.feezal = {...prev, locale: 'de'};
+            expect(detectRoom(ent('x', {device: {suggested_area: 'Wintergarten'}})).label).toBe('Wintergarten');
+            // a locale with no dictionary entry falls back to English
+            globalThis.feezal = {...prev, locale: 'ja'};
+            expect(detectRoom(ent('wohnzimmer_lampe')).label).toBe('Living room');
+        } finally {
+            globalThis.feezal = prev;
+        }
+    });
 });
 
 describe('functionBucket + groupForApp (U58 App mode)', () => {

@@ -10,6 +10,8 @@
 // packages (the device-health inspector) derive labels identically. Re-exported
 // here so every existing importer of this module is unchanged.
 import {friendlyName} from '@feezal/feezal-element/feezal-friendly-name.js';
+// U67: localize the generated room labels via A27 Phase 1's locale machinery.
+import {localizedDefault} from '@feezal/feezal-element/feezal-locale.js';
 export {friendlyName};
 
 // E161: MDI (`mdi:*`) → Material Symbols alias table for the `mdiIcon` transform.
@@ -451,24 +453,45 @@ export function resolveElementTag(component, family, deviceClass, isRegistered =
 // Multilingual room-word lexicon. Detection tokenizes the searched strings on
 // non-letter boundaries and matches tokens exactly — plus prefix-matching for
 // words ≥5 chars, so German compounds ("Schlafzimmerfenster") still hit.
-// Labels are the sub-view names the wizard proposes (always editable).
+// `label` is the English source / final fallback; `labelI18n` (U67) localizes
+// the drawer entry the wizard proposes (A27 Phase 1 languages), resolved
+// against the site locale in detectRoom. Labels stay editable in review.
 export const ROOM_LEXICON = [
-    {label: 'Living room', icon: 'chair',        words: ['living', 'livingroom', 'wohnzimmer', 'lounge', 'salon', 'soggiorno', 'sala', 'wohnen']},
-    {label: 'Kitchen',     icon: 'kitchen',      words: ['kitchen', 'küche', 'kueche', 'cocina', 'cuisine', 'cucina', 'kuchnia', 'mutfak']},
-    {label: 'Bedroom',     icon: 'bed',          words: ['bedroom', 'schlafzimmer', 'schlafen', 'dormitorio', 'chambre', 'camera', 'sypialnia', 'quarto']},
-    {label: 'Bathroom',    icon: 'bathtub',      words: ['bathroom', 'bad', 'badezimmer', 'baño', 'bano', 'salle', 'bagno', 'łazienka', 'lazienka', 'banheiro', 'banyo', 'wc', 'toilette', 'toilet', 'gäste-wc', 'gaestewc']},
-    {label: 'Office',      icon: 'desk',         words: ['office', 'büro', 'buero', 'arbeitszimmer', 'oficina', 'bureau', 'ufficio', 'biuro', 'escritório', 'escritorio', 'ofis', 'study']},
-    {label: 'Hallway',     icon: 'meeting_room', words: ['hallway', 'hall', 'flur', 'diele', 'korridor', 'corridor', 'pasillo', 'couloir', 'corridoio', 'entrada', 'entrance', 'eingang', 'treppenhaus', 'treppe']},
-    {label: 'Kids room',   icon: 'child_care',   words: ['kinderzimmer', 'kids', 'nursery', 'children']},
-    {label: 'Dining room', icon: 'restaurant',   words: ['dining', 'esszimmer', 'comedor', 'jadalnia']},
-    {label: 'Garage',      icon: 'garage',       words: ['garage', 'garaje', 'garagem', 'garaż', 'garaz', 'carport']},
-    {label: 'Garden',      icon: 'yard',         words: ['garden', 'garten', 'jardín', 'jardin', 'giardino', 'ogród', 'ogrod', 'bahçe', 'bahce', 'outdoor', 'aussen', 'außen']},
-    {label: 'Terrace',     icon: 'deck',         words: ['terrace', 'terrasse', 'balkon', 'balcony', 'balcón', 'balcon', 'terraza', 'patio', 'taras']},
-    {label: 'Basement',    icon: 'foundation',   words: ['basement', 'keller', 'sótano', 'sotano', 'cave', 'cantina', 'piwnica', 'porão', 'porao', 'hobbyraum', 'hwr']},
-    {label: 'Attic',       icon: 'roofing',      words: ['attic', 'dachboden', 'dachgeschoss', 'ático', 'atico', 'grenier', 'strych', 'sótão', 'sotao']},
-    {label: 'Laundry',     icon: 'local_laundry_service', words: ['laundry', 'waschküche', 'waschkueche', 'waschraum', 'lavadero', 'buanderie', 'lavanderia', 'pralnia']},
-    {label: 'Guest room',  icon: 'night_shelter', words: ['guest', 'gästezimmer', 'gaestezimmer', 'gast']},
+    {label: 'Living room', icon: 'chair',        labelI18n: {de: 'Wohnzimmer', es: 'Salón', fr: 'Salon', it: 'Soggiorno', pl: 'Salon', pt: 'Sala de estar', tr: 'Oturma odası'},
+        words: ['living', 'livingroom', 'wohnzimmer', 'lounge', 'salon', 'soggiorno', 'sala', 'wohnen']},
+    {label: 'Kitchen',     icon: 'kitchen',      labelI18n: {de: 'Küche', es: 'Cocina', fr: 'Cuisine', it: 'Cucina', pl: 'Kuchnia', pt: 'Cozinha', tr: 'Mutfak'},
+        words: ['kitchen', 'küche', 'kueche', 'cocina', 'cuisine', 'cucina', 'kuchnia', 'mutfak']},
+    {label: 'Bedroom',     icon: 'bed',          labelI18n: {de: 'Schlafzimmer', es: 'Dormitorio', fr: 'Chambre', it: 'Camera da letto', pl: 'Sypialnia', pt: 'Quarto', tr: 'Yatak odası'},
+        words: ['bedroom', 'schlafzimmer', 'schlafen', 'dormitorio', 'chambre', 'camera', 'sypialnia', 'quarto']},
+    {label: 'Bathroom',    icon: 'bathtub',      labelI18n: {de: 'Badezimmer', es: 'Baño', fr: 'Salle de bain', it: 'Bagno', pl: 'Łazienka', pt: 'Banheiro', tr: 'Banyo'},
+        words: ['bathroom', 'bad', 'badezimmer', 'baño', 'bano', 'salle', 'bagno', 'łazienka', 'lazienka', 'banheiro', 'banyo', 'wc', 'toilette', 'toilet', 'gäste-wc', 'gaestewc']},
+    {label: 'Office',      icon: 'desk',         labelI18n: {de: 'Büro', es: 'Oficina', fr: 'Bureau', it: 'Ufficio', pl: 'Biuro', pt: 'Escritório', tr: 'Ofis'},
+        words: ['office', 'büro', 'buero', 'arbeitszimmer', 'oficina', 'bureau', 'ufficio', 'biuro', 'escritório', 'escritorio', 'ofis', 'study']},
+    {label: 'Hallway',     icon: 'meeting_room', labelI18n: {de: 'Flur', es: 'Pasillo', fr: 'Couloir', it: 'Corridoio', pl: 'Korytarz', pt: 'Corredor', tr: 'Koridor'},
+        words: ['hallway', 'hall', 'flur', 'diele', 'korridor', 'corridor', 'pasillo', 'couloir', 'corridoio', 'entrada', 'entrance', 'eingang', 'treppenhaus', 'treppe']},
+    {label: 'Kids room',   icon: 'child_care',   labelI18n: {de: 'Kinderzimmer', es: 'Habitación infantil', fr: "Chambre d'enfant", it: 'Cameretta', pl: 'Pokój dziecięcy', pt: 'Quarto das crianças', tr: 'Çocuk odası'},
+        words: ['kinderzimmer', 'kids', 'nursery', 'children']},
+    {label: 'Dining room', icon: 'restaurant',   labelI18n: {de: 'Esszimmer', es: 'Comedor', fr: 'Salle à manger', it: 'Sala da pranzo', pl: 'Jadalnia', pt: 'Sala de jantar', tr: 'Yemek odası'},
+        words: ['dining', 'esszimmer', 'comedor', 'jadalnia']},
+    {label: 'Garage',      icon: 'garage',       labelI18n: {de: 'Garage', es: 'Garaje', fr: 'Garage', it: 'Garage', pl: 'Garaż', pt: 'Garagem', tr: 'Garaj'},
+        words: ['garage', 'garaje', 'garagem', 'garaż', 'garaz', 'carport']},
+    {label: 'Garden',      icon: 'yard',         labelI18n: {de: 'Garten', es: 'Jardín', fr: 'Jardin', it: 'Giardino', pl: 'Ogród', pt: 'Jardim', tr: 'Bahçe'},
+        words: ['garden', 'garten', 'jardín', 'jardin', 'giardino', 'ogród', 'ogrod', 'bahçe', 'bahce', 'outdoor', 'aussen', 'außen']},
+    {label: 'Terrace',     icon: 'deck',         labelI18n: {de: 'Terrasse', es: 'Terraza', fr: 'Terrasse', it: 'Terrazza', pl: 'Taras', pt: 'Terraço', tr: 'Teras'},
+        words: ['terrace', 'terrasse', 'balkon', 'balcony', 'balcón', 'balcon', 'terraza', 'patio', 'taras']},
+    {label: 'Basement',    icon: 'foundation',   labelI18n: {de: 'Keller', es: 'Sótano', fr: 'Cave', it: 'Cantina', pl: 'Piwnica', pt: 'Porão', tr: 'Bodrum'},
+        words: ['basement', 'keller', 'sótano', 'sotano', 'cave', 'cantina', 'piwnica', 'porão', 'porao', 'hobbyraum', 'hwr']},
+    {label: 'Attic',       icon: 'roofing',      labelI18n: {de: 'Dachboden', es: 'Ático', fr: 'Grenier', it: 'Soffitta', pl: 'Strych', pt: 'Sótão', tr: 'Çatı katı'},
+        words: ['attic', 'dachboden', 'dachgeschoss', 'ático', 'atico', 'grenier', 'strych', 'sótão', 'sotao']},
+    {label: 'Laundry',     icon: 'local_laundry_service', labelI18n: {de: 'Waschküche', es: 'Lavadero', fr: 'Buanderie', it: 'Lavanderia', pl: 'Pralnia', pt: 'Lavandaria', tr: 'Çamaşır odası'},
+        words: ['laundry', 'waschküche', 'waschkueche', 'waschraum', 'lavadero', 'buanderie', 'lavanderia', 'pralnia']},
+    {label: 'Guest room',  icon: 'night_shelter', labelI18n: {de: 'Gästezimmer', es: 'Habitación de invitados', fr: "Chambre d'amis", it: 'Camera degli ospiti', pl: 'Pokój gościnny', pt: 'Quarto de hóspedes', tr: 'Misafir odası'},
+        words: ['guest', 'gästezimmer', 'gaestezimmer', 'gast']},
 ];
+
+/** The localized drawer label for a lexicon room, resolved against the site
+ * locale (U67, reusing A27 Phase 1). Falls back to the English `label`. */
+const roomLabel = room => localizedDefault({default: room.label, defaultI18n: room.labelI18n});
 
 /** The bucket every unmatched device lands in (still editable in review). */
 export const UNKNOWN_ROOM = 'Unassigned';
@@ -532,7 +555,9 @@ export function detectRoom(entity) {
     for (const room of ROOM_LEXICON) {
         for (const w of room.words) {
             if (hay.some(t => t === w || (w.length >= 5 && t.startsWith(w)))) {
-                return {label: room.label, icon: room.icon, source: 'guess'};
+                // U67: the drawer label follows the site locale; the view slug
+                // (derived from this label) then follows too — stable per locale.
+                return {label: roomLabel(room), icon: room.icon, source: 'guess'};
             }
         }
     }

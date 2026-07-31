@@ -34,6 +34,17 @@ import {stampDiscovery, resolveElementTag, layoutGrid, knownComponents, discover
 const FAMILY_ORDER = ['glass', 'metro', 'circle', 'eink', 'basic', 'material'];
 const FAMILY_LABELS = {glass: 'Glass', metro: 'Metro', circle: 'Circle', eink: 'E-ink', basic: 'Basic', material: 'Material'};
 
+// U67: is a discovery entity HA housekeeping (linkquality, last_seen, OTA
+// update, RSSI, …) rather than a device function? HA marks these
+// entity_category diagnostic|config, and z2m sets enabled_by_default:false on
+// the ones hidden by default. Such rows are dropped from the wizard so a zigbee
+// device offers only its functional entities.
+function isDiagnostic(entity) {
+    const cfg = entity?.config || {};
+    return cfg.entity_category === 'diagnostic' || cfg.entity_category === 'config' ||
+        cfg.enabled_by_default === false;
+}
+
 class FeezalGenerateDialog extends LitElement {
     static properties = {
         _stage:   {state: true},   // 'tiles' | 'devices' | 'app' | 'review' | 'result'
@@ -231,7 +242,12 @@ class FeezalGenerateDialog extends LitElement {
             if (!res.ok) throw new Error('HTTP ' + res.status);
             const data = await res.json();
             const known = new Set(knownComponents());
-            const list = (data.devices || []).filter(e => known.has(e.component));
+            // U67: drop HA housekeeping entities (z2m linkquality / last_seen /
+            // OTA update, …). HA flags them entity_category diagnostic|config
+            // (ent_cat → entity_category, expanded server-side) or
+            // enabled_by_default:false — none are a device's primary function.
+            // A multi-function device still yields one row per FUNCTIONAL entity.
+            const list = (data.devices || []).filter(e => known.has(e.component) && !isDiagnostic(e));
             // Stable per-entity key: discovery_id is unique when present; fall
             // back to a synthetic composite for the rare id-less entity.
             list.forEach((e, i) => { e.__key = e.discovery_id || `${e.component}:${this._label(e)}:${i}`; });
@@ -452,14 +468,18 @@ class FeezalGenerateDialog extends LitElement {
             shell = document.createElement('feezal-element-layout-app');
             shellView.append(shell);
             feezal.editor.initElem(shell, true);
+            // U67: the shell must fill its Menu view — the view is 100% above,
+            // but the element keeps its defaultStyle fixed size otherwise.
+            shell.style.width = '100%';
+            shell.style.height = '100%';
             shell.setAttribute('title', site.getAttribute?.('name') || 'Home');
             // B84 three-zone chrome: overlay on phones, slim rail on tablets,
             // full drawer on desktop (rail-breakpoint keeps its default).
             shell.setAttribute('rail', 'auto');
-            // tablets/phones are the target form factor — cap + centre every
-            // sub-view centrally (the U58 knob on the layout-app content area),
-            // with a small U50 inset so cards do not touch the chrome
-            shell.style.setProperty('--feezal-app-content-max-width', '520px');
+            // U67: cap the content width so cards get several columns on a big
+            // screen (520px pinned glass cards to two); still user-editable.
+            // A small U50 inset keeps cards off the chrome.
+            shell.style.setProperty('--feezal-app-content-max-width', '960px');
             shell.style.setProperty('--feezal-app-content-padding', '12px');
             createdShell = true;
         }
@@ -498,7 +518,9 @@ class FeezalGenerateDialog extends LitElement {
                 view = document.createElement('feezal-view');
                 view.setAttribute('name', slug);
                 view.setAttribute('child-position', 'flow');
-                view.setAttribute('flow-justify', 'center');
+                // U67: left-align — cards fill from the top-left as the row
+                // grows rather than floating centered.
+                view.setAttribute('flow-justify', 'start');
                 view.style.width = '100%';
                 view.style.height = '100%';
                 site.append(view);
@@ -527,8 +549,28 @@ class FeezalGenerateDialog extends LitElement {
             shell.setAttribute('active-view', items[0].view);
         }
 
+        // U67: the Menu (app shell) is the entry point, so make it the FIRST
+        // tab in the viewer, its generated sub-views next (bucket order), and
+        // push any pre-existing hand-made views to the end. Re-appending a view
+        // moves it — the established pattern in this file.
+        const genNames = new Set([shellView.getAttribute('name'),
+            ...buckets.map(b => b.slug).filter(Boolean)]);
+        const bucketViews = buckets.map(b => b.slug).filter(Boolean)
+            .map(slug => site.querySelector(`feezal-view[name="${slug}"]`)).filter(Boolean);
+        const preExisting = [...site.querySelectorAll('feezal-view')]
+            .filter(v => !genNames.has(v.getAttribute('name')));
+        const seen = new Set();
+        for (const v of [shellView, ...bucketViews, ...preExisting]) {
+            if (v && !seen.has(v)) { seen.add(v); site.append(v); }
+        }
+
         feezal.app.views = [...site.querySelectorAll('feezal-view')];
         feezal.app.change();   // the whole scaffold = one undo entry
+
+        // U67: Menu is now the first view, so it is the site/viewer default
+        // (both resolve the default as views[0]); also SELECT it in the editor
+        // so the canvas shows Menu when the result dialog closes.
+        feezal.app._setView?.(shellView.getAttribute('name'));
 
         this._result = {
             added,

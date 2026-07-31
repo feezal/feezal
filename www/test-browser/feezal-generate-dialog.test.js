@@ -21,7 +21,10 @@ function setupFeezal(view) {
         view,
         connection: fakeConnection(),   // stamped live elements may try to subscribe
         editor: {initElem() {}},
-        app: {change() { window.feezal.__changes = (window.feezal.__changes || 0) + 1; }},
+        app: {
+            change() { window.feezal.__changes = (window.feezal.__changes || 0) + 1; },
+            _setView(name) { window.feezal.__selectedView = name; },
+        },
         __changes: 0,
     };
 }
@@ -105,6 +108,25 @@ describe('feezal-generate-dialog (U58 Devices)', () => {
         expect(dlg._result.added).toBe(1);
         expect(dlg._result.skippedNoElem.map(e => e.component)).toContain('vacuum');
     });
+
+    it('U67: filters out HA diagnostic entities (z2m linkquality / last_seen / disabled)', async () => {
+        const orig = window.fetch;
+        window.fetch = async () => ({ok: true, json: async () => ({devices: [
+            {component: 'switch', discovery_id: 'd-sw', config: {command_topic: 'a/set'}},
+            {component: 'sensor', discovery_id: 'd-lq', config: {state_topic: 'a/lq', entity_category: 'diagnostic'}},
+            {component: 'sensor', discovery_id: 'd-seen', config: {state_topic: 'a/seen', entity_category: 'config'}},
+            {component: 'sensor', discovery_id: 'd-off', config: {state_topic: 'a/off', enabled_by_default: false}},
+            {component: 'sensor', discovery_id: 'd-temp', config: {state_topic: 'a/temp'}},
+        ]})});
+        try {
+            const dlg = await makeDialog();
+            await dlg._loadInto('devices');
+            const ids = dlg.__devices.map(e => e.discovery_id).sort();
+            expect(ids).toEqual(['d-sw', 'd-temp']);   // the functional entities only
+        } finally {
+            window.fetch = orig;
+        }
+    });
 });
 
 
@@ -147,7 +169,12 @@ describe('feezal-generate-dialog (U58 App mode)', () => {
         const shell = site.querySelector('feezal-element-layout-app');
         expect(shell).not.toBeNull();
         expect(shell.closest('feezal-view').getAttribute('name')).toBe('Menu');
-        expect(shell.style.getPropertyValue('--feezal-app-content-max-width')).toBe('520px');
+        // U67: wider cap (was 520px → two glass columns) + shell fills its view
+        expect(shell.style.getPropertyValue('--feezal-app-content-max-width')).toBe('960px');
+        expect(shell.style.width).toBe('100%');
+        expect(shell.style.height).toBe('100%');
+        // U67: Menu is the first view (viewer tab bar entry point)
+        expect(site.querySelector('feezal-view').getAttribute('name')).toBe('Menu');
 
         const items = JSON.parse(shell.getAttribute('items'));
         expect(items.map(i => i.view).sort()).toEqual(['kitchen', 'living-room']);
@@ -156,11 +183,38 @@ describe('feezal-generate-dialog (U58 App mode)', () => {
 
         const kitchen = site.querySelector('feezal-view[name="kitchen"]');
         expect(kitchen.getAttribute('child-position')).toBe('flow');
-        expect(kitchen.getAttribute('flow-justify')).toBe('center');
+        expect(kitchen.getAttribute('flow-justify')).toBe('start');   // U67: left-aligned
         expect(kitchen.querySelectorAll('[discovery-id]')).toHaveLength(2);
         expect(site.querySelector('feezal-view[name="living-room"]').querySelectorAll('[discovery-id]')).toHaveLength(1);
         expect(dlg._result.added).toBe(3);
         expect(window.feezal.__changes).toBe(1);   // one undo entry
+        // U67: Menu is the default (first view) AND is selected after generation
+        expect(site.querySelector('feezal-view').getAttribute('name')).toBe('Menu');
+        expect(window.feezal.__selectedView).toBe('Menu');
+    });
+
+    it('U67: Menu first, generated sub-views next, pre-existing views last', async () => {
+        // a hand-made view already on the site, before generation
+        const hand = document.createElement('feezal-view');
+        hand.setAttribute('name', 'my-dashboard');
+        site.append(hand);
+
+        const dlg = await makeDialog();
+        dlg._family = 'circle';
+        dlg._axis = 'room';
+        dlg.__devices = DEVICES();
+        dlg._checked = new Set(['d-wz', 'd-ku', 'd-x']);
+        dlg._toReview();
+        dlg._renameBucket('Unassigned', 'Kitchen');
+        dlg._generateApp();
+
+        const order = [...site.querySelectorAll('feezal-view')].map(v => v.getAttribute('name'));
+        expect(order[0]).toBe('Menu');                    // entry point first (= default)
+        expect(window.feezal.__selectedView).toBe('Menu'); // and selected after generation
+        expect(order[order.length - 1]).toBe('my-dashboard'); // pre-existing last
+        // the generated sub-views sit between, before the hand-made view
+        expect(order.indexOf('kitchen')).toBeLessThan(order.indexOf('my-dashboard'));
+        expect(order.indexOf('living-room')).toBeLessThan(order.indexOf('my-dashboard'));
     });
 
     it('re-running reuses the shell, merges same-named views and dupe-guards site-wide', async () => {
