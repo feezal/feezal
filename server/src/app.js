@@ -61,7 +61,10 @@ function configureBodyParsers(app) {
     // larger limit, parsed before the default parser (which skips bodies that
     // are already parsed).
     app.use('/api/sites/:name/pwa-icons', express.json({limit: '25mb'}));
-    const jsonParser = express.json();
+    // A big dashboard's serialized HTML (saved as JSON) blows past body-parser's
+    // 100 kb default — raise it so large sites save/load without a
+    // PayloadTooLargeError. Still bounded (self-hosted editor, trusted user).
+    const jsonParser = express.json({limit: '25mb'});
     app.use((req, res, next) => {
         if (req.method === 'POST' && /^\/api\/assets\/[^/]+\/?$/.test(req.path)) return next();
         return jsonParser(req, res, next);

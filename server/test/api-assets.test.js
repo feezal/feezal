@@ -157,3 +157,19 @@ describe('transfer (copy-on-use, unique)', () => {
         expect(html).not.toContain('/assets/global/pic.png');
     });
 });
+
+describe('JSON body limit — big sites (B96)', () => {
+    it('accepts a JSON body well over body-parser\'s old 100 kb default (POST /api/format)', async () => {
+        // A big dashboard's serialized HTML — opening the source editor POSTs it
+        // to /api/format; the 100 kb default used to 413 and the editor fell back
+        // to showing the raw one-line HTML.
+        const html = '<feezal-site>' +
+            '<feezal-view name="v"><feezal-element-basic-label></feezal-element-basic-label></feezal-view>'.repeat(2000) +
+            '</feezal-site>';
+        expect(html.length).toBeGreaterThan(100 * 1024);   // over the old default
+        const res = await request(app).post('/api/format').send({html});
+        expect(res.status).not.toBe(413);
+        expect(res.status).toBe(200);
+        expect(typeof res.body.html).toBe('string');
+    });
+});

@@ -101,6 +101,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B93 — Fan cards: default icon `mode_fan` is not a vendored glyph (glass-fan spins a broken fragment) ✅ fixed](B93.md)
 - [B94 — Generate review: room-move dropdown leaves a stale value on the row beneath ✅ fixed](B94.md)
 - [B95 — Default playlist attributes serialized onto every `<feezal-site>` ✅ fixed](B95.md)
+- [B96 — Source editor for a big site: PayloadTooLargeError + unformatted one-line HTML ✅ fixed](B96.md)
 
 ## Near-term Improvements
 
