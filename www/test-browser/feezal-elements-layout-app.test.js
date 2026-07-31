@@ -3,7 +3,7 @@
  * themable chrome style vars, embedded-view background, slim/autohide rail
  * attributes and keyboard/D-pad drawer navigation.
  */
-import {describe, it, expect, beforeEach} from 'vitest';
+import {describe, it, expect, beforeEach, vi} from 'vitest';
 import '../packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js';
 import '../src/feezal-view.js';
 import {setupFeezal, mount, until} from './helpers.js';
@@ -264,23 +264,45 @@ describe('embedded view background (N36)', () => {
         expect(visibleClone(el)).toBe(p1);
     });
 
-    it('with pause-hidden on, the layout-app destroys the old clone on switch (single clone)', async () => {
-        const site = document.createElement('div');
-        site.setAttribute('pause-hidden-subscriptions', '');   // pause on → no keep-alive
-        for (const name of ['page1', 'page2']) {
-            const v = document.createElement('feezal-view');
-            v.setAttribute('name', name);
-            site.append(v);
-        }
-        document.body.append(site);
-        feezal.site = site;
+    it('with pause-hidden on, tears down the old clone only AFTER the grace period (not immediately)', async () => {
+        vi.useFakeTimers();
+        try {
+            const site = document.createElement('div');
+            site.setAttribute('pause-hidden-subscriptions', '');
+            site.setAttribute('pause-grace-seconds', '30');
+            for (const name of ['page1', 'page2']) {
+                const v = document.createElement('feezal-view');
+                v.setAttribute('name', name);
+                site.append(v);
+            }
+            document.body.append(site);
+            feezal.site = site;
 
-        const el = await mount('feezal-element-layout-app', {items: ITEMS});
-        el._active = 'page1'; el._embed(true);
-        el._active = 'page2'; el._embed(true);
-        const clones = [...el.shadowRoot.querySelectorAll('#content feezal-view')];
-        expect(clones).toHaveLength(1);                       // old clone destroyed
-        expect(clones[0].getAttribute('name')).toBe('page2');
+            const el = await mount('feezal-element-layout-app', {items: ITEMS});
+            el._active = 'page1'; el._embed(true);
+            el._active = 'page2'; el._embed(true);
+
+            // page1 is hidden but STILL MOUNTED (grace running — no immediate unsubscribe)
+            let byName = () => Object.fromEntries([...el.shadowRoot.querySelectorAll('#content feezal-view')].map(v => [v.getAttribute('name'), v]));
+            expect(byName().page1).toBeDefined();
+            expect(byName().page1.style.display).toBe('none');
+
+            // switching back within the grace keeps the SAME clone (no re-subscribe)
+            const page1Clone = byName().page1;
+            el._active = 'page1'; el._embed(true);
+            expect(byName().page1).toBe(page1Clone);
+            vi.advanceTimersByTime(30000);                 // grace elapsed, but page1 is shown now
+            expect(byName().page1).toBe(page1Clone);        // survived (it's the active one)
+
+            // leave it hidden past the grace → torn down (unsubscribe)
+            el._active = 'page2'; el._embed(true);
+            vi.advanceTimersByTime(30000);
+            const clones = [...el.shadowRoot.querySelectorAll('#content feezal-view')];
+            expect(clones).toHaveLength(1);
+            expect(clones[0].getAttribute('name')).toBe('page2');
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });
 

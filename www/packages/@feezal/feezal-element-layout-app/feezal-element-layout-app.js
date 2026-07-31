@@ -466,6 +466,7 @@ class FeezalElementLayoutApp extends FeezalElement {
     }
     disconnectedCallback() {
         this._ro?.disconnect();
+        this._clearHideTimers();
         if (!feezal.isEditor) feezal.site?.unregisterViewRouter?.(this);
         super.disconnectedCallback();
     }
@@ -544,29 +545,24 @@ class FeezalElementLayoutApp extends FeezalElement {
         this._mounted = name;
         if (!name || !feezal.site) { content.replaceChildren(); return; }
         const view = feezal.site.querySelector(`feezal-view[name="${name}"]`);
-        if (!view) { content.replaceChildren(); return; }
-        // N40 keep-alive: unless the site pauses hidden views, keep previously
-        // visited sub-view clones MOUNTED (just hidden) so their subscriptions
-        // stay warm — switching drawer entries then never unsubscribes, matching
-        // "pause-hidden off → hidden views stay subscribed". With pause-hidden
-        // on, keep the single clone (destroy on switch) so a hidden sub-view
-        // releases its subscriptions like a hidden top-level view.
-        // N36: the embedded view must lay out as a BLOCK so its own width/height
+        if (!view) { this._clearHideTimers(); content.replaceChildren(); return; }
+        // N40 keep-alive: keep visited sub-view clones MOUNTED (display toggled)
+        // so their subscriptions stay warm across drawer switches. A hidden clone
+        // is torn down (→ its elements disconnect → unsubscribe) ONLY after the
+        // site's pause grace period, and ONLY when the site pauses hidden views —
+        // otherwise it stays warm. So a switch never unsubscribes immediately;
+        // the grace (N37, default 30s) is respected on sub-view switches too.
+        // N36: the embedded view lays out as a BLOCK so its own width/height
         // apply (inside #content, an inline feezal-view collapses).
-        let clone;
-        if (feezal.site.hasAttribute('pause-hidden-subscriptions')) {
+        let clone = [...content.children].find(c => c.__feezalViewName === name);
+        if (!clone) {
             clone = view.cloneNode(true);
-            clone.style.display = 'block';
-            content.replaceChildren(clone);
-        } else {
-            for (const child of content.children) child.style.display = 'none';
-            clone = [...content.children].find(c => c.__feezalViewName === name);
-            if (!clone) {
-                clone = view.cloneNode(true);
-                clone.__feezalViewName = name;     // JS property (survives, not serialized)
-                content.append(clone);
-            }
-            clone.style.display = 'block';
+            clone.__feezalViewName = name;     // JS property (survives, not serialized)
+            content.append(clone);
+        }
+        for (const child of [...content.children]) {
+            if (child === clone) { child.style.display = 'block'; this._cancelHide(child); }
+            else { child.style.display = 'none'; this._scheduleHide(child); }
         }
         // B50: per-view theme CSS lives in DOCUMENT stylesheets
         // (.feezal-theme-x { --vars… }) which cannot match the clone inside our
@@ -606,6 +602,53 @@ class FeezalElementLayoutApp extends FeezalElement {
                 box.style.setProperty('background-repeat', 'no-repeat');
             }
         }
+    }
+
+    // ── N40: keep-alive of hidden sub-view clones (grace-period teardown) ──────
+
+    /** A now-active clone is being shown: cancel any pending teardown. */
+    _cancelHide(clone) {
+        const t = this._hideTimers?.get(clone);
+        if (t) { clearTimeout(t); this._hideTimers.delete(clone); }
+    }
+
+    /** A now-hidden clone: keep it warm, but — when the site pauses hidden views —
+     * tear it down AFTER the pause grace period (N37), so a drawer switch never
+     * unsubscribes immediately. With pause off it stays warm indefinitely. */
+    _scheduleHide(clone) {
+        if (!this._shouldPauseView(clone.__feezalViewName)) return;   // pause off → stay warm
+        if (this._hideTimers?.has(clone)) return;                     // already scheduled
+        if (!this._hideTimers) this._hideTimers = new Map();
+        const drop = () => {
+            this._hideTimers.delete(clone);
+            if (clone.style.display !== 'none' || !clone.isConnected) return;   // shown again meanwhile
+            clone.remove();   // → disconnectedCallback on its elements → unsubscribe
+        };
+        const ms = this._pauseGraceMs();
+        if (ms <= 0) drop();
+        else this._hideTimers.set(clone, setTimeout(drop, ms));
+    }
+
+    _clearHideTimers() {
+        if (!this._hideTimers) return;
+        for (const t of this._hideTimers.values()) clearTimeout(t);
+        this._hideTimers.clear();
+    }
+
+    /** Whether a hidden clone of `name` should be paused/torn down — per-view
+     * `pause-subscriptions` tri-state over the site's `pause-hidden-subscriptions`
+     * default (mirrors FeezalVisibility._effective). */
+    _shouldPauseView(name) {
+        const v = feezal.site?.querySelector?.(`feezal-view[name="${name}"]`);
+        const mode = v?.getAttribute('pause-subscriptions');
+        if (mode === 'never') return false;
+        if (mode === 'always') return true;
+        return Boolean(feezal.site?.hasAttribute?.('pause-hidden-subscriptions'));
+    }
+
+    _pauseGraceMs() {
+        const s = Number(feezal.site?.getAttribute?.('pause-grace-seconds'));
+        return (Number.isFinite(s) && s >= 0 ? s : 30) * 1000;
     }
 
     /**
