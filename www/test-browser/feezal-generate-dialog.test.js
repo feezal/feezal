@@ -682,5 +682,35 @@ describe('feezal-generate-dialog (U58 App mode)', () => {
         expect(bg).toContain('2, 132, 199');   // #0284c7
         expect(bg).toContain('30, 41, 59');    // #1e293b
     });
+
+    it('U74: applies the theme through the themes sidebar (so it persists) when reachable', async () => {
+        const dlg = await makeDialog();
+        let selected = null;
+        const themesSidebar = {currentTheme: 'default', _selectTheme: c => { selected = c; }};
+        window.feezal.app.shadowRoot = {querySelector: sel => sel === 'feezal-sidebar-themes' ? themesSidebar : null};
+        dlg._family = 'glass';
+        dlg._axis = 'room';
+        dlg.__devices = [{component: 'switch', discovery_id: 'g', name: 'kueche_x', __area: 'Kitchen',
+            config: {state_topic: 'z/g', command_topic: 'z/g/set'}, __key: 'g'}];
+        dlg._checked = new Set(['g']);
+        dlg._toReview();
+        dlg._generateApp();
+        expect(selected).toBe('feezal-theme-midnight-blue');   // via _selectTheme → persisted
+    });
+
+    it('U74: does NOT override a theme the user already picked', async () => {
+        const dlg = await makeDialog();
+        let selected = null;
+        const themesSidebar = {currentTheme: 'feezal-theme-metro', _selectTheme: c => { selected = c; }};
+        window.feezal.app.shadowRoot = {querySelector: () => themesSidebar};
+        dlg._family = 'glass';
+        dlg._axis = 'room';
+        dlg.__devices = [{component: 'switch', discovery_id: 'g', name: 'kueche_x', __area: 'Kitchen',
+            config: {state_topic: 'z/g', command_topic: 'z/g/set'}, __key: 'g'}];
+        dlg._checked = new Set(['g']);
+        dlg._toReview();
+        dlg._generateApp();
+        expect(selected).toBe(null);   // the user's metro theme is respected
+    });
 });
 

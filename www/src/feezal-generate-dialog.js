@@ -804,6 +804,29 @@ class FeezalGenerateDialog extends LitElement {
         return name;
     }
 
+    /** U74: apply the chosen family's site theme — through the themes sidebar's
+     * `_selectTheme` so it loads the CSS AND persists (the deploy reads
+     * `themesSidebar.theme` into config.viewer.theme; a raw className is not
+     * persisted and reverts on reload). Only when the site is still on the
+     * DEFAULT theme, so a theme the user picked is never clobbered. Falls back
+     * to a plain className when the sidebar isn't reachable (e.g. tests). */
+    _applyFamilyTheme() {
+        const themeClass = FAMILY_THEME[this._family];
+        if (!themeClass) return;
+        const site = feezal.site;
+        if (!site) return;
+        const themesSidebar = feezal.app?.shadowRoot?.querySelector?.('feezal-sidebar-themes');
+        const current = themesSidebar?.currentTheme
+            || site.className.match(/feezal-theme-\S+/)?.[0] || 'default';
+        if (current && current !== 'default') return;   // respect a user-chosen theme
+        if (themesSidebar?._selectTheme) {
+            themesSidebar._selectTheme(themeClass);      // className + CSS + persistence
+        } else {
+            const base = site.className.split(' ').filter(c => !c.startsWith('feezal-theme-'));
+            site.className = [themeClass, ...base].join(' ').trim();
+        }
+    }
+
     _generateApp() {
         const site = feezal.site;
         if (!site) { this._error = 'No site.'; this.requestUpdate(); return; }
@@ -838,16 +861,13 @@ class FeezalGenerateDialog extends LitElement {
             shell.style.setProperty('--feezal-app-content-max-width', '960px');
             shell.style.setProperty('--feezal-app-content-padding', '12px');
             createdShell = true;
-
-            // U74: match the site theme to the chosen element family so the
-            // generated app looks like the family's preview (only on a fresh
-            // app — never clobber a theme the user picked for an existing one).
-            const themeClass = FAMILY_THEME[this._family];
-            if (themeClass) {
-                const base = site.className.split(' ').filter(c => !c.startsWith('feezal-theme-'));
-                site.className = [themeClass, ...base].join(' ').trim();
-            }
         }
+
+        // U74: match the site theme to the chosen element family so the app
+        // looks like the family's preview. Applied whenever the site is still on
+        // the DEFAULT theme (so it works on a reused shell too) — never clobbers
+        // a theme the user has picked.
+        this._applyFamilyTheme();
 
         // ── site-wide dupe guard: a device carded ANYWHERE is not re-added ──
         const existing = new Set(
