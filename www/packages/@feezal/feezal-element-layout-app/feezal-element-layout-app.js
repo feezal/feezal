@@ -545,12 +545,29 @@ class FeezalElementLayoutApp extends FeezalElement {
         if (!name || !feezal.site) { content.replaceChildren(); return; }
         const view = feezal.site.querySelector(`feezal-view[name="${name}"]`);
         if (!view) { content.replaceChildren(); return; }
-        const clone = view.cloneNode(true);
-        // N36: the embedded view must lay out as a block so its own width/height
-        // apply (inside #content, which is not a flex container like the site is,
-        // an inline feezal-view would collapse and swallow its background).
-        clone.style.display = 'block';
-        content.replaceChildren(clone);
+        // N40 keep-alive: unless the site pauses hidden views, keep previously
+        // visited sub-view clones MOUNTED (just hidden) so their subscriptions
+        // stay warm — switching drawer entries then never unsubscribes, matching
+        // "pause-hidden off → hidden views stay subscribed". With pause-hidden
+        // on, keep the single clone (destroy on switch) so a hidden sub-view
+        // releases its subscriptions like a hidden top-level view.
+        // N36: the embedded view must lay out as a BLOCK so its own width/height
+        // apply (inside #content, an inline feezal-view collapses).
+        let clone;
+        if (feezal.site.hasAttribute('pause-hidden-subscriptions')) {
+            clone = view.cloneNode(true);
+            clone.style.display = 'block';
+            content.replaceChildren(clone);
+        } else {
+            for (const child of content.children) child.style.display = 'none';
+            clone = [...content.children].find(c => c.__feezalViewName === name);
+            if (!clone) {
+                clone = view.cloneNode(true);
+                clone.__feezalViewName = name;     // JS property (survives, not serialized)
+                content.append(clone);
+            }
+            clone.style.display = 'block';
+        }
         // B50: per-view theme CSS lives in DOCUMENT stylesheets
         // (.feezal-theme-x { --vars… }) which cannot match the clone inside our
         // shadow root — mirror the matching rules in so the view's own theme

@@ -229,8 +229,10 @@ describe('embedded view background (N36)', () => {
         expect(el.shadowRoot.querySelector('#content feezal-view').style.display).toBe('block');
     });
 
-    it('does not rebuild the clone on a redundant re-embed of the same view (no subscribe churn)', async () => {
-        const site = document.createElement('div');
+    const visibleClone = el => [...el.shadowRoot.querySelectorAll('#content feezal-view')].find(v => v.style.display !== 'none');
+
+    it('no churn on redundant re-embed; keeps visited sub-view clones warm (mounted) when pause is off', async () => {
+        const site = document.createElement('div');   // no pause-hidden-subscriptions → keep-alive
         for (const name of ['page1', 'page2']) {
             const v = document.createElement('feezal-view');
             v.setAttribute('name', name);
@@ -242,17 +244,43 @@ describe('embedded view background (N36)', () => {
         const el = await mount('feezal-element-layout-app', {items: ITEMS});
         el._active = 'page1';
         el._embed(true);
-        const clone1 = el.shadowRoot.querySelector('#content feezal-view');
-        expect(clone1).not.toBeNull();
+        const p1 = visibleClone(el);
+        expect(p1.getAttribute('name')).toBe('page1');
 
         el._embed(true);   // SAME view, forced → must NOT tear down + rebuild the live clone
-        expect(el.shadowRoot.querySelector('#content feezal-view')).toBe(clone1);   // same node
+        expect(visibleClone(el)).toBe(p1);
 
-        el._active = 'page2';   // a DIFFERENT view → rebuilds
+        el._active = 'page2';   // switch → page1 stays MOUNTED (warm, hidden), page2 shown
         el._embed(true);
-        const clone3 = el.shadowRoot.querySelector('#content feezal-view');
-        expect(clone3).not.toBe(clone1);
-        expect(clone3.getAttribute('name')).toBe('page2');
+        const clones = [...el.shadowRoot.querySelectorAll('#content feezal-view')];
+        expect(clones).toHaveLength(2);              // page1 clone kept alive
+        expect(clones).toContain(p1);
+        expect(p1.style.display).toBe('none');       // …but hidden
+        expect(visibleClone(el).getAttribute('name')).toBe('page2');
+
+        el._active = 'page1';   // back → reuses the SAME page1 clone (no new one, no re-subscribe)
+        el._embed(true);
+        expect([...el.shadowRoot.querySelectorAll('#content feezal-view')]).toHaveLength(2);
+        expect(visibleClone(el)).toBe(p1);
+    });
+
+    it('with pause-hidden on, the layout-app destroys the old clone on switch (single clone)', async () => {
+        const site = document.createElement('div');
+        site.setAttribute('pause-hidden-subscriptions', '');   // pause on → no keep-alive
+        for (const name of ['page1', 'page2']) {
+            const v = document.createElement('feezal-view');
+            v.setAttribute('name', name);
+            site.append(v);
+        }
+        document.body.append(site);
+        feezal.site = site;
+
+        const el = await mount('feezal-element-layout-app', {items: ITEMS});
+        el._active = 'page1'; el._embed(true);
+        el._active = 'page2'; el._embed(true);
+        const clones = [...el.shadowRoot.querySelectorAll('#content feezal-view')];
+        expect(clones).toHaveLength(1);                       // old clone destroyed
+        expect(clones[0].getAttribute('name')).toBe('page2');
     });
 });
 
