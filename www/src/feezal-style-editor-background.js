@@ -3,6 +3,9 @@ import {LitElement, html, css} from 'lit';
 import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/select/select.js';
 import '@shoelace-style/shoelace/dist/components/option/option.js';
+// U66: alpha-capable swatches for the solid colour and every gradient stop
+import '@shoelace-style/shoelace/dist/components/color-picker/color-picker.js';
+import {resolveCssColor, composeThemeAlpha, normalizeHexa} from './feezal-color-util.js';
 
 /**
  * feezal-style-editor-background (N34)
@@ -122,15 +125,10 @@ class FeezalStyleEditorBackground extends LitElement {
         .row { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
         .row > sl-input, .row > sl-select { flex: 1; min-width: 0; }
         .row label { font-size: 11px; color: var(--feezal-color, #666); flex-shrink: 0; }
-        input[type=color] {
-            width: 32px; height: 28px; padding: 2px; flex-shrink: 0; cursor: pointer;
-            border: 1px solid var(--feezal-border, #ccc);
-            background: var(--feezal-bg, #fff); border-radius: 3px;
-        }
-        input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
-        input[type=color]::-webkit-color-swatch { border: none; border-radius: 2px; }
+        /* U66: alpha-capable swatch (sl-color-picker) */
+        sl-color-picker { flex-shrink: 0; }
         /* N20 pattern: unresolvable var() shows a checkerboard */
-        input[type=color].unresolved::-webkit-color-swatch {
+        sl-color-picker.unresolved::part(trigger) {
             background-image: repeating-conic-gradient(#bbb 0% 25%, #fff 0% 50%);
             background-size: 8px 8px;
         }
@@ -250,29 +248,14 @@ class FeezalStyleEditorBackground extends LitElement {
 
     /**
      * Resolve the authored colour text (or the theme default when empty) to
-     * a #rrggbb for the swatch — same idea as the inspector's N20 resolution:
-     * var()/named/rgb values are resolved against the selected element so its
-     * inherited theme variables apply. '' = unresolved (checkerboard).
+     * `#rrggbb[aa]` for the swatch (U66: alpha kept) — same idea as the
+     * inspector's N20 resolution: var()/named/rgb values are resolved against
+     * the selected element so its inherited theme variables apply.
+     * '' = unresolved (checkerboard).
      */
     _resolveHex(text) {
         const v = (text || '').trim() || FeezalStyleEditorBackground.DEFAULT_COLOR;
-        const fast = this._hexish(v);
-        if (fast) return fast;
-        const el = (this.elements && this.elements[0]) || this.element;
-        if (!el) return '';
-        let probe;
-        try {
-            probe = document.createElement('span');
-            probe.style.cssText = 'display:none!important;position:absolute';
-            probe.style.color = v;
-            if (!probe.style.color) return '';
-            (el.shadowRoot || el).appendChild(probe);
-            return this._hexish(getComputedStyle(probe).color);
-        } catch {
-            return '';
-        } finally {
-            if (probe && probe.parentNode) probe.parentNode.removeChild(probe);
-        }
+        return resolveCssColor(v, (this.elements && this.elements[0]) || this.element || this);
     }
 
     _readImageDetails(el) {
@@ -316,24 +299,6 @@ class FeezalStyleEditorBackground extends LitElement {
         return pos;
     }
 
-    _hexish(color) {
-        if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(color)) {
-            return color.length === 4 ? '#' + [...color.slice(1)].map(c => c + c).join('') : color;
-        }
-        const m = color.match(/^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
-        if (m) {
-            const hex = n => Math.min(255, parseInt(n, 10)).toString(16).padStart(2, '0');
-            return '#' + hex(m[1]) + hex(m[2]) + hex(m[3]);
-        }
-        const NAMED = {
-            black: '#000000', white: '#ffffff', red: '#ff0000', green: '#008000',
-            blue: '#0000ff', yellow: '#ffff00', cyan: '#00ffff', magenta: '#ff00ff',
-            gray: '#808080', grey: '#808080', silver: '#c0c0c0', orange: '#ffa500',
-            purple: '#800080', brown: '#a52a2a', pink: '#ffc0cb',
-        };
-        return NAMED[color.toLowerCase()] || '';
-    }
-
     /** Parse the gradients we serialise; anything else keeps the defaults. */
     _parseGradient(image) {
         let m = image.match(/^linear-gradient\(\s*([\d.]+)deg\s*,\s*(.*)\)$/);
@@ -351,19 +316,42 @@ class FeezalStyleEditorBackground extends LitElement {
         }
     }
 
+    /**
+     * Split on top-level commas only. The old lookahead regex handled one
+     * paren level (rgb()/var()) but split INSIDE nested calls — and U66's
+     * theme-alpha form `color-mix(in srgb, var(--x) 40%, transparent)` nests
+     * a var() inside a color-mix(), so stop parsing needs real depth counting.
+     */
+    _splitTopLevel(text) {
+        const parts = [];
+        let depth = 0;
+        let current = '';
+        for (const ch of text) {
+            if (ch === '(') depth++;
+            else if (ch === ')') depth--;
+            if (ch === ',' && depth === 0) {
+                parts.push(current);
+                current = '';
+            } else {
+                current += ch;
+            }
+        }
+        parts.push(current);
+        return parts;
+    }
+
     _parseStops(text) {
         const stops = [];
-        // Split on commas that are not inside parentheses (rgb()/rgba()/var()
-        // fallback stops).
-        for (const part of text.split(/,(?![^(]*\))/)) {
+        for (const part of this._splitTopLevel(text)) {
             const m = part.trim().match(/^(.+?)\s+([\d.]+)%$/);
             if (!m) return null;
-            // U59: keep the AUTHORED colour string (a `var(--…)` reference or a
-            // literal hex/named/rgb) rather than normalising to hex — so it
-            // serialises back verbatim and re-tints with the theme. Validate
-            // loosely: accept a var() or anything _hexish can resolve.
+            // U59: keep the AUTHORED colour string (a `var(--…)` reference, a
+            // color-mix(…) alpha form, or a literal hex/named/rgb) rather than
+            // normalising to hex — so it serialises back verbatim and re-tints
+            // with the theme. Validate loosely: a var()/color-mix() reference,
+            // or anything that resolves as a colour (U66: alpha forms included).
             const raw = m[1].trim();
-            if (!(/^var\(/i.test(raw) || this._hexish(raw))) return null;
+            if (!(/^(var|color-mix)\(/i.test(raw) || resolveCssColor(raw, this))) return null;
             stops.push({color: raw, pos: parseFloat(m[2])});
         }
         return stops.length >= 2 ? stops : null;
@@ -552,11 +540,23 @@ class FeezalStyleEditorBackground extends LitElement {
                     @sl-blur="${() => this._varAcClose()}"
                     @sl-change="${e => { this._colorText = e.target.value; this._emitCurrent(); }}">
                 </sl-input>
-                <input type="color" class="${hex ? '' : 'unresolved'}"
-                    .value="${hex || '#000000'}"
-                    @input="${e => { this._colorText = e.target.value; this._emitCurrent(); }}">
+                <sl-color-picker size="small" hoist opacity no-format-toggle format="hex"
+                    class="${hex ? '' : 'unresolved'}" title="Pick colour"
+                    .value="${hex}"
+                    @sl-change="${e => { this._colorText = this._composePick(this._colorText, e.target.value); this._emitCurrent(); }}">
+                </sl-color-picker>
             </div>
         `;
+    }
+
+    /**
+     * U66: what a swatch pick writes back. Keeps a var()/color-mix theme
+     * reference when only the alpha moved (→ color-mix around the var);
+     * any other pick is the literal hex(a).
+     */
+    _composePick(authored, pickedHexa) {
+        return composeThemeAlpha(authored, normalizeHexa(pickedHexa),
+            v => resolveCssColor(v, (this.elements && this.elements[0]) || this.element || this));
     }
 
     _renderImage() {
@@ -645,8 +645,10 @@ class FeezalStyleEditorBackground extends LitElement {
                         @sl-blur="${() => this._varAcClose()}"
                         @sl-change="${e => this._stopChanged(i, {color: e.target.value.trim() || '#000000'})}">
                     </sl-input>
-                    <input type="color" class="${hex ? '' : 'unresolved'}" .value="${hex || '#000000'}"
-                        @input="${e => this._stopChanged(i, {color: e.target.value})}">
+                    <sl-color-picker size="small" hoist opacity no-format-toggle format="hex"
+                        class="${hex ? '' : 'unresolved'}" title="Pick colour" .value="${hex}"
+                        @sl-change="${e => this._stopChanged(i, {color: this._composePick(s.color, e.target.value)})}">
+                    </sl-color-picker>
                     <sl-input class="pct" size="small" type="number" min="0" max="100" no-spin-buttons
                         .value="${String(s.pos)}"
                         @sl-change="${e => this._stopChanged(i, {pos: Math.max(0, Math.min(100, parseFloat(e.target.value) || 0))})}">

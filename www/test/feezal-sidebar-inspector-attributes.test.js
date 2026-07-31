@@ -67,23 +67,32 @@ describe('_toKebab() — property name to attribute name', () => {
     });
 });
 
-describe('_toCssColorHex() — normalise colors for <input type=color>', () => {
-    it('passes 6-digit hex through', () => {
-        expect(el._toCssColorHex('#a1B2c3')).toBe('#a1B2c3');
+describe('_toCssColorHex() — swatch value for the alpha-capable picker (U66)', () => {
+    it('passes 6-digit hex through (canonical lowercase)', () => {
+        expect(el._toCssColorHex('#a1B2c3')).toBe('#a1b2c3');
     });
 
     it('expands 3-digit hex', () => {
         expect(el._toCssColorHex('#abc')).toBe('#aabbcc');
     });
 
-    it('converts rgb()/rgba() triplets', () => {
-        expect(el._toCssColorHex('rgb(255, 0, 16)')).toBe('#ff0010');
-        expect(el._toCssColorHex('rgba(0, 128, 255, 0.5)')).toBe('#0080ff');
+    it('KEEPS alpha: rgba() and 8-digit hex become #rrggbbaa', () => {
+        // the old 6-digit gate dropped the alpha and lied about the value
+        expect(el._toCssColorHex('rgba(0, 128, 255, 0.5)')).toBe('#0080ff80');
+        expect(el._toCssColorHex('#0080ff80')).toBe('#0080ff80');
+        expect(el._toCssColorHex('#abcd')).toBe('#aabbccdd');
     });
 
-    it('falls back to black for empty or unparseable values', () => {
-        expect(el._toCssColorHex('')).toBe('#000000');
-        expect(el._toCssColorHex('tomato')).toBe('#000000');
+    it('collapses fully-opaque alpha back to 6 digits', () => {
+        expect(el._toCssColorHex('rgb(255, 0, 16)')).toBe('#ff0010');
+        expect(el._toCssColorHex('#ff0010ff')).toBe('#ff0010');
+    });
+
+    it('returns "" (empty trigger + checkerboard) instead of lying black', () => {
+        // '#000000' for an unresolvable value showed a BLACK swatch for a
+        // perfectly good value the environment just can't resolve — the
+        // original U66 defect. Empty means "unresolved", never "black".
+        expect(el._toCssColorHex('')).toBe('');
     });
 });
 

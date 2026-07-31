@@ -3,7 +3,9 @@ import {LitElement, html, css} from 'lit';
 import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/select/select.js';
 import '@shoelace-style/shoelace/dist/components/option/option.js';
+import '@shoelace-style/shoelace/dist/components/color-picker/color-picker.js';
 import {LIVE_APPLY_DEBOUNCE_MS} from './feezal-sidebar-inspector-attributes.js';
+import {resolveCssColor, composeThemeAlpha, normalizeHexa} from './feezal-color-util.js';
 // N34: built-in per-property style editors (editor bundle only — the viewer
 // never loads the inspector, so declaring an editor tag in a viewer-bundled
 // descriptor is just a string there).
@@ -109,13 +111,13 @@ class FeezalSidebarInspectorStyles extends LitElement {
         .field.half { width: calc(50% - 2px); }
         .row { display: flex; align-items: flex-end; gap: 4px; margin-bottom: 4px; }
         .row sl-input, .row sl-select { flex: 1; }
-        /* Background/border follow the inherited feezal dark-mode vars so the
-           surround around the native swatch isn't a bright box in dark mode. */
-        .row input[type=color] { width: 36px; height: 32px; padding: 2px; border: 1px solid var(--feezal-border, #ccc); background: var(--feezal-bg, #fff); border-radius: 3px; cursor: pointer; flex-shrink: 0; }
-        .row input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
-        .row input[type=color]::-webkit-color-swatch { border: none; border-radius: 2px; }
-        /* N20: a var() colour that can't be resolved shows a checkerboard so the author knows */
-        .row input[type=color].unresolved::-webkit-color-swatch {
+        /* U66: sl-color-picker replaces the native input[type=color] — the
+           native control is #rrggbb by spec and cannot express alpha. */
+        .row sl-color-picker { flex-shrink: 0; }
+        /* N20: a var() colour that can't be resolved shows a checkerboard so
+           the author knows (the picker's own empty-trigger is transparent, so
+           the checkerboard shows through it). */
+        .row sl-color-picker.unresolved::part(trigger) {
             background-image: repeating-conic-gradient(#bbb 0% 25%, #fff 0% 50%);
             background-size: 8px 8px;
         }
@@ -334,10 +336,14 @@ class FeezalSidebarInspectorStyles extends LitElement {
                             </sl-input>
                         `}
                         ${item.color ? html`
-                            <input type="color"
+                            <sl-color-picker size="small" hoist opacity no-format-toggle format="hex"
                                 class="${colorHex ? '' : 'unresolved'}"
-                                .value="${colorHex || '#000000'}"
-                                @input="${e => this._colorInput(e, idx)}">
+                                title="Pick colour"
+                                .value="${colorHex}"
+                                @click="${e => e.stopPropagation()}"
+                                @sl-input="${e => this._colorPicked(e, idx, false)}"
+                                @sl-change="${e => this._colorPicked(e, idx, true)}">
+                            </sl-color-picker>
                         ` : ''}
                         ${item.custom ? html`
                             <button class="remove-btn" title="Remove property"
@@ -453,23 +459,16 @@ class FeezalSidebarInspectorStyles extends LitElement {
     }
 
     /**
-     * Resolve a CSS colour value to a `#rrggbb` hex for the native colour swatch.
-     * Handles `var(--x)`, `var(--x, fallback)`, `color-mix(…)`, rgb/named colours by
-     * resolving them against the selected element's computed styles (N20).
-     * Returns '' when the value cannot be resolved to an opaque colour.
+     * Resolve a CSS colour value to `#rrggbb[aa]` for the swatch (U66: alpha
+     * is kept — 8 digits when translucent). Handles `var(--x)`,
+     * `var(--x, fallback)`, `color-mix(…)`, rgb/named colours by resolving
+     * them against the selected element's computed styles (N20).
+     * Returns '' when the value cannot be resolved at all.
      */
     _toColorHex(item) {
         const value = this._effectiveColorValue(item);
         if (!value) return '';
-        const v = String(value).trim();
-        // Fast path: already a hex literal.
-        const hexMatch = v.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
-        if (hexMatch) return v.length === 4
-            ? '#' + [...v.slice(1)].map(c => c + c).join('')
-            : v.toLowerCase();
-        // Anything else (var(), color-mix(), rgb(), named) → resolve via a probe
-        // in the element's shadow root so its custom properties resolve correctly.
-        return this._resolveColor(v);
+        return this._resolveColor(String(value).trim());
     }
 
     /**
@@ -491,45 +490,33 @@ class FeezalSidebarInspectorStyles extends LitElement {
     }
 
     _resolveColor(value) {
-        const el = this.selectedElems && this.selectedElems[0];
-        if (!el) return '';
         // Resolve inside the element's shadow root so its `:host`-defined
         // --feezal-* custom properties (and inherited theme vars) apply — a
-        // light-DOM child would NOT see the :host vars.
-        const root = el.shadowRoot || el;
-        let probe;
-        try {
-            probe = document.createElement('span');
-            probe.style.cssText = 'display:none!important;position:absolute';
-            probe.style.color = value;
-            if (!probe.style.color) return '';   // browser rejected the value
-            root.appendChild(probe);
-            return this._rgbToHex(getComputedStyle(probe).color);
-        } catch {
-            return '';
-        } finally {
-            if (probe && probe.parentNode) probe.parentNode.removeChild(probe);
-        }
+        // light-DOM child would NOT see the :host vars (U66: shared util).
+        const el = this.selectedElems && this.selectedElems[0];
+        return el ? resolveCssColor(value, el) : '';
     }
 
-    _rgbToHex(rgb) {
-        const m = rgb && rgb.match(/rgba?\(([^)]+)\)/i);
-        if (!m) return '';
-        const parts = m[1].split(/[,\s/]+/).map(s => parseFloat(s)).filter(n => !isNaN(n));
-        if (parts.length < 3) return '';
-        const [r, g, b, a] = parts;
-        if (a === 0) return '';   // fully transparent = unresolved var with no fallback
-        const hex = n => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
-        return '#' + hex(r) + hex(g) + hex(b);
-    }
-
-    _colorInput(e, idx) {
+    /**
+     * U66: a pick in the alpha-capable swatch. sl-input applies live while
+     * dragging (no history), sl-change flushes with one undo step — the same
+     * split the text inputs use. When the authored value is a theme var and
+     * only the alpha moved, the var is kept and the alpha expressed as
+     * color-mix(…) so the knob keeps following the theme (composeThemeAlpha).
+     */
+    _colorPicked(e, idx, history) {
         const item = this.items[idx];
-        this.selectedElems.forEach(el => {
-            el.style.setProperty(item.property, e.target.value);
-        });
-        this.items = this.items.map((it, i) => i === idx ? {...it, value: e.target.value, mixed: false} : it);
-        feezal.app.change();
+        if (!item) return;
+        const authored = (item.value || '').trim() || String(item.default || '').trim();
+        const value = composeThemeAlpha(authored, normalizeHexa(e.target.value),
+            v => this._resolveColor(v));
+        this.selectedElems.forEach(el => el.style.setProperty(item.property, value));
+        this.items = this.items.map((it, i) => i === idx ? {...it, value, mixed: false} : it);
+        // The live (sl-input) path has usually already applied this exact
+        // value by the time sl-change fires — the checkpoint must not be
+        // gated on "did anything change now" or drags would never land in
+        // the history.
+        if (history) feezal.app.change();
     }
 
     _blur(e, idx) {

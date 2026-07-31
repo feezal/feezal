@@ -177,12 +177,16 @@ describe('feezal-style-editor-background — reading', () => {
         expect(ed._colorText).toBe('');
     });
 
-    it('keeps a var() colour as raw text and resolves hex/named values for the swatch', () => {
+    it('keeps a var() colour as raw text and resolves literal values for the swatch', () => {
         target.style.setProperty('background-color', 'var(--primary-background-color)');
         const ed = makeEditor(target);
         expect(ed._colorText).toBe('var(--primary-background-color)');
         expect(ed._resolveHex('#abc')).toBe('#aabbcc');
-        expect(ed._resolveHex('red')).toBe('#ff0000');
+        // U66: alpha forms resolve too (the old 6-digit parser dropped them)
+        expect(ed._resolveHex('rgba(255, 0, 0, 0.5)')).toBe('#ff000080');
+        // named/var values go through a real computed-style probe now (the
+        // hardcoded name table is gone) — happy-dom can't compute styles, so
+        // names are covered in test-browser/u66-color-alpha.test.js instead.
     });
 
     it('reads an inline background SHORTHAND through the expanded longhands', () => {

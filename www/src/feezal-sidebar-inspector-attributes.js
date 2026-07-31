@@ -17,6 +17,9 @@ import '@shoelace-style/shoelace/dist/components/textarea/textarea.js';
 import '@shoelace-style/shoelace/dist/components/select/select.js';
 import '@shoelace-style/shoelace/dist/components/option/option.js';
 import '@shoelace-style/shoelace/dist/components/checkbox/checkbox.js';
+// U66: alpha-capable colour swatch (the native input[type=color] cannot do rgba)
+import '@shoelace-style/shoelace/dist/components/color-picker/color-picker.js';
+import {resolveCssColor, normalizeHexa} from './feezal-color-util.js';
 import './feezal-template-editor.js';
 // U53: the shared styled theme picker — mounted via the N6 custom hook for
 // feezal-view's `theme` attribute (and by the themes sidebar for the site).
@@ -54,7 +57,7 @@ class FeezalEditableList extends LitElement {
         li { display: flex; align-items: center; gap: 4px; padding: 4px 0; }
         li.drop-target { box-shadow: inset 0 2px 0 var(--sl-color-primary-600, #0284c7); }
         li input, li select { flex: 1; min-width: 0; padding: 4px; background: var(--feezal-bg, white); color: var(--feezal-color, inherit); border: 1px solid var(--feezal-border, #ccc); border-radius: 3px; font-size: 12px; box-sizing: border-box; }
-        li input[type=color] { flex: 0 0 28px; padding: 1px; height: 26px; cursor: pointer; }
+        li sl-color-picker { flex: 0 0 auto; }
         .del { background: none; border: none; cursor: pointer; color: #c62828; font-size: 16px; padding: 0 4px; }
         .drag { cursor: move; color: var(--feezal-color, #999); opacity: 0.6; padding: 0 2px; user-select: none; }
         .fallback-hint { font-size: 10px; color: #e65100; margin-top: 2px; }
@@ -142,11 +145,16 @@ class FeezalEditableList extends LitElement {
                 </select>`;
         }
         if (field.type === 'color') {
+            // U66: alpha-capable swatch; the value resolves (hex/rgba/names/
+            // var(--…)) instead of gating on 6-digit hex, so the swatch no
+            // longer lies black about a perfectly valid rgba() or var().
             return html`
                 <input .value="${val}" placeholder="${field.placeholder ?? field.key}" autocomplete="off"
                     @change="${e => set(e.target.value)}">
-                <input type="color" title="Pick colour" .value="${/^#[0-9a-fA-F]{6}$/.test(val) ? val : '#000000'}"
-                    @change="${e => set(e.target.value)}">`;
+                <sl-color-picker size="small" hoist opacity no-format-toggle format="hex"
+                    title="Pick colour" .value="${resolveCssColor(val, this)}"
+                    @sl-change="${e => set(normalizeHexa(e.target.value))}">
+                </sl-color-picker>`;
         }
         return html`
             <input type="${field.type === 'number' ? 'number' : 'text'}"
@@ -412,10 +420,11 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         /* ── Colour attribute ──────────────────────────────────────── */
         .color-wrap { display: flex; align-items: flex-end; gap: 4px; }
         .color-wrap sl-input { flex: 1; }
-        .color-wrap input[type=color] {
-            width: 36px; height: 32px; padding: 2px; flex-shrink: 0;
-            border: 1px solid var(--feezal-border, #ccc); border-radius: 3px;
-            cursor: pointer; background: var(--feezal-bg, #fff);
+        .color-wrap sl-color-picker { flex-shrink: 0; }
+        /* U66: unresolvable value → checkerboard through the empty trigger */
+        .color-wrap sl-color-picker.unresolved::part(trigger) {
+            background-image: repeating-conic-gradient(#bbb 0% 25%, #fff 0% 50%);
+            background-size: 8px 8px;
         }
         /* ── Icon attribute picker (N19) ───────────────────────────────── */
         .material-icons {
@@ -891,6 +900,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         }
 
         if (elem.color) {
+            const swatch = this._toCssColorHex(mixed ? '' : value);
             return html`
                 <div class="color-wrap">
                     <sl-input .label="${labelAttr}" size="small"
@@ -902,10 +912,12 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                         @sl-change="${e => this._flushChange(e.target.value, idx)}">
                         ${labelSlot}
                     </sl-input>
-                    <input type="color"
+                    <sl-color-picker size="small" hoist opacity no-format-toggle format="hex"
                         title="Pick colour"
-                        .value="${this._toCssColorHex(mixed ? '' : value)}"
-                        @input="${e => this._change(e.target.value, idx, true)}">
+                        class="${!swatch && value && !mixed ? 'unresolved' : ''}"
+                        .value="${swatch}"
+                        @sl-change="${e => this._change(normalizeHexa(e.target.value), idx, true)}">
+                    </sl-color-picker>
                 </div>
             `;
         }
@@ -1081,17 +1093,15 @@ class FeezalSidebarInspectorAttributes extends LitElement {
     }
 
     // ── Color helper ──────────────────────────────────────────────────────────
+    /**
+     * U66: the attribute swatch's value — any CSS colour (hex incl. 4/8-digit,
+     * rgb()/rgba() with alpha kept, names, var(--…) resolved against the
+     * selected element). '' when unresolvable, which shows as an EMPTY
+     * trigger + checkerboard instead of the old lying-black `#000000`.
+     */
     _toCssColorHex(value) {
-        if (!value) return '#000000';
-        if (/^#[0-9a-fA-F]{6}$/.test(value)) return value;
-        if (/^#[0-9a-fA-F]{3}$/.test(value)) {
-            const [, r, g, b] = value.match(/^#(.)(.)(.)$/);
-            return `#${r}${r}${g}${g}${b}${b}`;
-        }
-        // Try rgb()/rgba()
-        const m = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-        if (m) return '#' + [m[1], m[2], m[3]].map(n => Number(n).toString(16).padStart(2, '0')).join('');
-        return '#000000';
+        if (!value) return '';
+        return resolveCssColor(value, this.selectedElems?.[0] || this);
     }
 
     // ── MQTT topic autocomplete ───────────────────────────────────────────────
