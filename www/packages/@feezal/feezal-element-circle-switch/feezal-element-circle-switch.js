@@ -2,58 +2,58 @@
 /**
  * feezal-element-circle-switch (E121)
  *
- * Smart plug / outlet card: material-light's card chrome and centre power
- * button WITHOUT the brightness ring — implemented as a thin subclass of
- * FeezalElementCircleLight locked to its on_off mode (E122), so there is
- * exactly one rendering/publishing code path for "big round power button".
+ * Switch / smart-plug card for the Circle family: a large round power button
+ * that subscribes to an on/off state topic and publishes on tap. Same MQTT
+ * contract as feezal-element-glass-switch / feezal-element-metro-switch
+ * (subscribe / publish / payload-on / payload-off + availability).
  *
- * Differences from the light:
- *   - own palette entry (Outlet, power icon) — discoverability for "smart
- *     plug" without knowing it is technically a light in on_off mode;
- *   - attribute surface reduced to the on/off + availability contract (no
- *     brightness/CT/colour/effect/white attrs, no mode select);
- *   - generic attribute inspector (the light's custom E35 inspector is not
- *     inherited — nothing capability-shaped remains to configure).
+ * B92: this used to be a thin subclass of feezal-element-circle-light locked
+ * to on_off mode (E122), driving the LightController. But that controller
+ * reads/writes the light's `subscribe-state` / `publish-state` topics, while
+ * the shared `switchAcceptsLight` discovery fragment (a lamp offered as a plain
+ * switch) — and the native `switch` component — stamp `subscribe` / `publish`,
+ * exactly like glass/metro-switch. The two never met: a discovered outlet had
+ * `publish` set but the controller published to an empty `publish-state`, so
+ * nothing went out (glass-switch, publishing to `publish`, worked). Decoupling
+ * to a plain switch that reads/writes `subscribe` / `publish` fixes it and
+ * aligns all three switch families on one contract. Legacy instances that
+ * still carry `subscribe-state` / `publish-state` keep working (see the wiring
+ * fallbacks below).
  *
- * Styling reuses the --feezal-light-* tokens so outlets and lights follow the
- * same theme mapping automatically.
+ * The power-button visual reuses the light card's on_off render and its
+ * --feezal-light-* theme tokens, so outlets and lights follow the same theme
+ * mapping; --feezal-light-on-color is re-pointed to the primary colour (E139:
+ * a switch has no colour ring, so ON must read as clearly coloured/active).
  */
-import {FeezalElementCircleLight} from '@feezal/feezal-element-circle-light';
-import {css} from '@feezal/feezal-element';
-
+import {FeezalElement, feezalBaseStyles, html, css, payloadMatch} from '@feezal/feezal-element';
 import {switchAcceptsLight} from '@feezal/feezal-element/feezal-discovery-fragments.js';
-class FeezalElementCircleSwitch extends FeezalElementCircleLight {
-    // E139: a switch/outlet has no colour or brightness — so the light card's
-    // "on colour" (white on-icon, meant to sit on a colour-filled ring) reads as
-    // a plain grey power button when ON. Re-point --feezal-light-on-color to the
-    // accent/primary colour so ON is clearly COLOURED (active), OFF stays muted —
-    // consistent with the other Circle cards. Inherits the rest of the light's
-    // styles; overriding stylesheet wins by source order, an inline Style-inspector
-    // value still wins over this.
-    static styles = [FeezalElementCircleLight.styles, css`
-        :host { --feezal-light-on-color: var(--primary-color); }
-    `];
+import {svg} from 'lit';
 
+// Arc geometry (matches feezal-element-circle-light so the button footprint is
+// identical): the power disc fills the brightness ring's outer footprint.
+const CX = 50;
+const CY = 50;
+const TRACK_R = 40;
+const RING_W  = 7;
+const POWER_R = TRACK_R + RING_W / 2;
+
+class FeezalElementCircleSwitch extends FeezalElement {
     static get feezal() {
         return {
-            // E130: palette name aligned with glass-switch/metro-switch — the
-            // tag stays feezal-element-circle-switch (the material-switch
-            // tag belongs to the MD3 toggle control; zero dashboard breakage).
             palette: {name: 'Switch', category: 'Circle', color: '#1565c0', icon: 'power'},
             description: 'Switch / smart-plug card — a large round power button that subscribes to an ' +
-                'on/off state topic and publishes on tap. Same look and theme tokens as the Material ' +
-                'light card, without any dimming controls.',
-            // E130: same discovery contract as glass-switch/metro-switch —
-            // wired to this card's separate-mode attrs (subscribe-state /
-            // publish-state; the state read falls back to message-property).
-            // N31 maps availability automatically from the canonical record.
+                'on/off state topic and publishes on tap. Same MQTT contract as the glass/metro switch, ' +
+                'with the Circle light card\'s look and theme tokens.',
+            // E130 / B92: same discovery contract as glass-switch / metro-switch
+            // — a native `switch`, or a `light` offered as a plain on/off switch
+            // (switchAcceptsLight), both stamp subscribe / publish. N31 maps
+            // availability automatically from the canonical record.
             discovery: {
                 component: 'switch',
-                // E156: a lamp can be driven as a plain on/off switch.
                 accepts: [switchAcceptsLight],
                 map: {
-                    state_topic:    'subscribe-state',
-                    command_topic:  'publish-state',
+                    state_topic:    'subscribe',
+                    command_topic:  'publish',
                     payload_on:     'payload-on',
                     payload_off:    'payload-off',
                     value_template: {attr: 'message-property', transform: 'valueTemplateToPath'},
@@ -61,16 +61,12 @@ class FeezalElementCircleSwitch extends FeezalElementCircleLight {
                 },
             },
             attributes: [
-                {name: 'payload-mode', type: 'select', options: ['separate', 'json'], default: 'separate', help: 'separate = dedicated on/off state topic; json = single topic carrying a JSON object.'},
-                {name: 'subscribe', type: 'mqttTopic', help: 'JSON mode: base topic carrying the state JSON object. Separate mode: on/off state topic (fallback for subscribe-state). Also serves as base for dynamic attribute overrides via `<subscribe>/#`.'},
-                {name: 'publish',   type: 'mqttTopic', help: 'json mode: command topic (usually …/set) that accepts a partial JSON object.'},
-                {name: 'json-map',  type: 'string', default: '', help: 'json mode: optional JSON string overriding the default property→key map.'},
-                {name: 'message-property', type: 'string', default: 'payload', help: 'Property path within message payloads (dot-notation).'},
-                {name: 'subscribe-state',   type: 'mqttTopic', help: 'Separate mode: on/off state topic. Falls back to `subscribe` when empty.'},
-                {name: 'message-property-state', type: 'string', default: 'payload', help: 'Property path for the on/off state topic. Defaults to message-property.'},
-                {name: 'publish-state',     type: 'mqttTopic', help: 'Topic to publish on/off.'},
-                {name: 'payload-on',        type: 'string', default: 'on',  help: 'Payload representing "on".'},
-                {name: 'payload-off',       type: 'string', default: 'off', help: 'Payload representing "off".'},
+                {name: 'subscribe', type: 'mqttTopic', help: 'On/off state topic.'},
+                {name: 'message-property', type: 'string', default: 'payload',
+                    help: 'Property path within message payloads (dot-notation). Default: payload'},
+                {name: 'publish', type: 'mqttTopic', help: 'Topic to publish payload-on / payload-off to on tap.'},
+                {name: 'payload-on',  type: 'string', default: 'on',  help: 'Payload published for / matched against the ON state. Default: on'},
+                {name: 'payload-off', type: 'string', default: 'off', help: 'Payload published for / matched against the OFF state. Default: off'},
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability. When unavailable a small badge is shown; the control stays usable.'},
                 {name: 'payload-available',      type: 'string', default: 'online',  help: 'Payload meaning the device is available.'},
                 {name: 'payload-unavailable',    type: 'string', default: 'offline', help: 'Payload meaning the device is unavailable.'},
@@ -80,7 +76,7 @@ class FeezalElementCircleSwitch extends FeezalElementCircleLight {
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
-                // Shared with material-light so both follow one theme mapping.
+                // Shared with the Circle light so both follow one theme mapping.
                 {property: '--feezal-light-on-color',      type: 'color', default: 'var(--primary-color)', help: 'Power-button colour while ON (active). Defaults to the accent/primary colour.'},
                 {property: '--feezal-light-off-color',     type: 'color', default: 'var(--secondary-text-color)', help: 'Power-button colour while OFF (muted).'},
                 {property: '--feezal-light-surface-color', type: 'color', default: 'var(--primary-background-color)'},
@@ -92,11 +88,167 @@ class FeezalElementCircleSwitch extends FeezalElementCircleLight {
         };
     }
 
+    static properties = {
+        publish:     {type: String, reflect: true},
+        payloadOn:   {type: String, reflect: true, attribute: 'payload-on'},
+        payloadOff:  {type: String, reflect: true, attribute: 'payload-off'},
+        // N31: availability inherited from FeezalElement.
+        label:       {type: String, reflect: true},
+        labelOff:    {type: String, attribute: 'label-off'},
+        discoveryId: {type: String, reflect: true, attribute: 'discovery-id'},
+        _on:         {state: true},
+    };
+
+    static styles = [feezalBaseStyles, css`
+        :host {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 6px;
+            box-sizing: border-box;
+            overflow: hidden;
+            gap: 4px;
+            position: relative;
+
+            /* E139: a switch has no colour ring, so ON must read as clearly
+               coloured (active) rather than the light card's white-on-colour. */
+            --feezal-light-on-color:      var(--primary-color);
+            --feezal-light-off-color:     var(--secondary-text-color);
+            --feezal-light-surface-color: var(--primary-background-color);
+            --feezal-light-text-color:    var(--primary-text-color);
+            --feezal-light-error-color:   var(--error-color);
+        }
+        .unavail {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 18px;
+            height: 18px;
+            color: var(--feezal-light-error-color);
+            opacity: 0.8;
+            pointer-events: none;
+            z-index: 2;
+        }
+        .unavail svg { width: 100%; height: 100%; display: block; }
+        .ring-wrap { width: 100%; flex-shrink: 0; }
+        svg {
+            width: 100%;
+            display: block;
+            aspect-ratio: 1;
+            overflow: visible;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+        .label {
+            font-size: 11px; opacity: 0.65; text-align: center;
+            color: var(--feezal-light-text-color);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;
+        }
+    `];
+
     constructor() {
         super();
-        // E122's switch-only mode IS this element. Not offered as an
-        // attribute — an outlet has no other mode.
-        this.mode = 'on_off';
+        this.publish     = '';
+        this.payloadOn   = 'on';
+        this.payloadOff  = 'off';
+        this.label       = '';
+        this.labelOff    = 'off';
+        this.discoveryId = '';
+        this._on         = false;
+    }
+
+    // Device cards manage the primary subscription manually; suppress the base
+    // path (availability wiring is separate and stays active — N31).
+    _subscribe() { /* intentionally empty — see connectedCallback */ }
+
+    connectedCallback() {
+        super.connectedCallback();
+        this._wireSubscriptions();
+    }
+
+    // B92: the state topic is `subscribe`, but a legacy instance discovered by
+    // the previous (light-controller) build carries `subscribe-state` — honour
+    // it so saved dashboards keep working.
+    _stateTopic()   { return this.subscribe || this.getAttribute('subscribe-state') || ''; }
+    _commandTopic() { return this.publish   || this.getAttribute('publish-state')   || ''; }
+
+    _wireSignature() {
+        return `${this._stateTopic()}`;
+    }
+
+    updated(changed) {
+        super.updated(changed);
+        if (this.isConnected && this.__wireSig !== undefined && this._wireSignature() !== this.__wireSig) {
+            this._unsubscribe();
+            this._wireSubscriptions();
+        }
+    }
+
+    _wireSubscriptions() {
+        this.__wireSig = this._wireSignature();
+        const topic = this._stateTopic();
+        if (topic) {
+            this.addSubscription(topic, msg => {
+                const v = this.getProperty(msg, this.messageProperty);
+                this._on = payloadMatch(v, this.payloadOn);
+            });
+        }
+    }
+
+    toggle() {
+        if (feezal.isEditor) return;
+        this._on = !this._on;
+        const topic = this._commandTopic();
+        if (topic) feezal.connection.pub(topic, this._on ? this.payloadOn : this.payloadOff);
+    }
+
+    // E122: on_off render — no ring, just a large centre power button filling
+    // the ring's footprint (relay lamps / plugs have no level). Ported from
+    // feezal-element-circle-light so outlets and lights look identical.
+    _svgContent() {
+        const isOn   = this._on;
+        const accent = 'var(--feezal-light-on-color)';
+        const trackC = 'var(--feezal-light-off-color)';
+        return svg`
+            <circle cx="${CX}" cy="${CY}" r="${POWER_R}"
+                fill="var(--feezal-light-surface-color)"
+                stroke="${isOn ? accent : trackC}" stroke-width="1.5"
+                pointer-events="none"/>
+            ${isOn ? svg`
+                <circle cx="${CX}" cy="${CY}" r="${POWER_R - 1.5}"
+                    fill="${accent}" opacity="0.14" pointer-events="none"/>
+            ` : ''}
+            <text x="${CX}" y="${CY - (isOn ? 0 : 4)}" text-anchor="middle"
+                dominant-baseline="middle" font-size="22"
+                fill="${isOn ? accent : trackC}" pointer-events="none">⏻</text>
+            ${!isOn ? svg`
+                <text x="${CX}" y="${CY + 16}" text-anchor="middle"
+                    dominant-baseline="middle" font-size="9"
+                    opacity="0.55" fill="var(--feezal-light-off-color)"
+                    pointer-events="none">${this.labelOff || 'off'}</text>
+            ` : ''}`;
+    }
+
+    render() {
+        const showUnavail = this.subscribeAvailability && !this._available;
+        return html`
+            ${showUnavail ? html`
+                <div class="unavail" title="Device unavailable">
+                    <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M24 8.98C20.93 5.9 16.69 4 12 4c-1.69 0-3.32.25-4.86.71l2.5 2.5c.77-.14 1.55-.21 2.36-.21 3.42 0 6.7 1.21 9.32 3.42L24 8.98zM2.81 2.81L1.39 4.22l2.05 2.05C2.2 6.92 1.05 7.86 0 8.98l1.68 1.43c.93-.78 1.94-1.45 3.01-2L6.4 9.83c-1.2.55-2.31 1.3-3.28 2.21L4.81 13.46C5.96 12.38 7.4 11.62 9 11.27l2.16 2.16c-1.3.18-2.5.74-3.46 1.59L12 19.51l1.94-1.94 5.84 5.84 1.41-1.41L2.81 2.81zM12 16.5l-1.41-1.41L12 13.68c.5 0 .96.06 1.42.13l1.71 1.71c-.99-.65-2.18-1.02-3.13-1.02z"/>
+                    </svg>
+                </div>
+            ` : ''}
+            <div class="ring-wrap">
+                <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"
+                    style="cursor:${feezal.isEditor ? 'default' : 'pointer'}"
+                    @pointerdown="${() => this.toggle()}">
+                    ${this._svgContent()}
+                </svg>
+            </div>
+            ${this.label ? html`<div class="label">${this.label}</div>` : ''}`;
     }
 }
 
