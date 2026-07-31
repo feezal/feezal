@@ -49,6 +49,14 @@ export function makeSwitchAcceptsLight({subscribe = 'subscribe'} = {}) {
             state_command_topic: 'publish',
             command_topic: 'publish',
             value_template: {attr: 'message-property', transform: 'valueTemplateToPath'},
+            // The native dialect of the same thing: Homematic relay lights
+            // (E122/E126 switch-only mode) carry message_property(_state):
+            // 'payload.val' instead of a value_template. Without these keys a
+            // switch card kept its 'payload' default and never parsed state.
+            // Both map to the one path a switch reads by; the state-specific
+            // key comes later so it wins when the two differ.
+            message_property:       'message-property',
+            message_property_state: 'message-property',
 
             // ── Homematic-style dimmer: on/off IS the LEVEL value (E77/E126) ──
             // The light card toggles on with the 1.005 OLD_LEVEL sentinel to restore

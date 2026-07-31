@@ -112,6 +112,31 @@ describe('a light offered to a switch', () => {
         });
     });
 
+    it('wires a Homematic relay light (E122 switch-only) incl. the native message_property dialect', () => {
+        // The hm recognizer classifies a switch actuator channel named with a
+        // light word as component `light` in relay mode — its record carries
+        // message_property: 'payload.val' and NO value_template. The crossing
+        // map must translate that dialect too, or the switch card keeps the
+        // 'payload' default and never parses state.
+        const el = stamp('feezal-test-e156-switch', entity('light', {
+            name: 'Licht Terrasse',
+            payload_mode: 'separate',
+            state_topic: 'hm/status/Terrasse/STATE',
+            state_command_topic: 'hm/set/Terrasse/STATE',
+            supported_color_modes: ['onoff'],
+            payload_on: 'true', payload_off: 'false',
+            message_property: 'payload.val',
+            message_property_state: 'payload.val',
+        }));
+        expect(attrs(el)).toMatchObject({
+            subscribe: 'hm/status/Terrasse/STATE',
+            publish: 'hm/set/Terrasse/STATE',
+            'payload-on': 'true',
+            'payload-off': 'false',
+            'message-property': 'payload.val',
+        });
+    });
+
     it('a plain switch entity still uses the switch map', () => {
         const el = stamp('feezal-test-e156-switch', entity('switch', {
             name: 'Steckdose', state_topic: 'stat/plug', command_topic: 'cmnd/plug',
