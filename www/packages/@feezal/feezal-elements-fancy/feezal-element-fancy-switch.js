@@ -22,12 +22,16 @@ class FeezalElementFancySwitch extends FeezalElementFancyLight {
             palette: {name: 'Switch', category: 'Fancy', color: '#7a5c9e', icon: 'toggle_on'},
             description: 'Animated switch card — the knob slides with overshoot, switching on celebrates ' +
                 'with a radial flash and a confetti burst, switching off shrinks down. Tap toggles.',
+            // Same discovery contract as circle-switch — wired to the
+            // controller's separate-mode attrs (subscribe-state / publish-state;
+            // in separate mode `toggle()` publishes ONLY to publish-state,
+            // `publish` is the json-mode command topic).
             discovery: {
                 component: 'switch',
                 accepts: [switchAcceptsLight],
                 map: {
-                    state_topic:    'subscribe',
-                    command_topic:  'publish',
+                    state_topic:    'subscribe-state',
+                    command_topic:  'publish-state',
                     payload_on:     'payload-on',
                     payload_off:    'payload-off',
                     value_template: {attr: 'message-property', transform: 'valueTemplateToPath'},
@@ -35,12 +39,17 @@ class FeezalElementFancySwitch extends FeezalElementFancyLight {
                 },
             },
             attributes: [
-                {name: 'subscribe', type: 'mqttTopic', help: 'Switch state topic.'},
+                {name: 'payload-mode', type: 'select', options: ['separate', 'json'], default: 'separate', help: 'separate = dedicated on/off state topic; json = single topic carrying a JSON object.'},
+                {name: 'subscribe', type: 'mqttTopic', help: 'JSON mode: base topic carrying the state JSON object. Separate mode: on/off state topic (fallback for subscribe-state). Also serves as base for dynamic attribute overrides via `<subscribe>/#`.'},
+                {name: 'publish', type: 'mqttTopic', help: 'json mode: command topic (usually …/set) that accepts a partial JSON object.'},
+                {name: 'json-map', type: 'string', default: '', help: 'json mode: optional JSON string overriding the default property→key map.'},
                 {name: 'message-property', type: 'string', default: 'payload',
                     help: 'Dot-notation path to the value within the MQTT message. Default "payload" uses msg.payload.'},
+                {name: 'subscribe-state', type: 'mqttTopic', help: 'Separate mode: on/off state topic. Falls back to `subscribe` when empty.'},
+                {name: 'message-property-state', type: 'string', default: 'payload', help: 'Property path for the on/off state topic. Defaults to message-property.'},
+                {name: 'publish-state', type: 'mqttTopic', help: 'Separate mode: command topic a tap publishes on/off to.'},
                 {name: 'payload-on',  type: 'string', default: 'ON',  help: 'Payload value meaning on (also published on tap).'},
                 {name: 'payload-off', type: 'string', default: 'OFF', help: 'Payload value meaning off (also published on tap).'},
-                {name: 'publish', type: 'mqttTopic', help: 'Command topic a tap publishes to.'},
                 ...fancyCommonAttributes,
                 {name: 'label-on',  type: 'string', default: 'On', defaultI18n: {de: 'Ein'},
                     help: 'Displayed state text while on. Display only — NOT the MQTT payload (payload-on).'},
@@ -55,6 +64,13 @@ class FeezalElementFancySwitch extends FeezalElementFancyLight {
             defaultStyle: {width: '140px', height: '150px'},
             restrict: {minWidth: 80, minHeight: 90},
         };
+    }
+
+    constructor() {
+        super();
+        // E122's switch-only mode IS this element (the circle-switch
+        // precedent) — not offered as an attribute.
+        this.mode = 'on_off';
     }
 
     animationKey() { return 'switch'; }

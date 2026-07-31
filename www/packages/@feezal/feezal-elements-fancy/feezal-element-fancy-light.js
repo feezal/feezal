@@ -42,6 +42,15 @@ class FeezalElementFancyLight extends FancyBase {
         payloadOff: {type: String, reflect: true, attribute: 'payload-off'},
         publish:    {type: String, reflect: true},
         mode:       {type: String, reflect: true},
+        // separate-mode state set — reflected so live topic/mode edits reach
+        // updated() → rewireIfChanged() (the controller reads via getAttribute)
+        payloadMode:    {type: String, reflect: true, attribute: 'payload-mode'},
+        jsonMap:        {type: String, reflect: true, attribute: 'json-map'},
+        onOffSource:    {type: String, reflect: true, attribute: 'on-off-source'},
+        subscribeState: {type: String, reflect: true, attribute: 'subscribe-state'},
+        msgProp:        {type: String, reflect: true, attribute: 'message-property'},
+        msgPropState:   {type: String, reflect: true, attribute: 'message-property-state'},
+        publishState:   {type: String, reflect: true, attribute: 'publish-state'},
         labelOn:    {type: String, attribute: 'label-on'},
         labelOff:   {type: String, attribute: 'label-off'},
     };
@@ -57,6 +66,13 @@ class FeezalElementFancyLight extends FancyBase {
         this.payloadOff = 'OFF';
         this.publish = '';
         this.mode = '';
+        this.payloadMode = '';
+        this.jsonMap = '';
+        this.onOffSource = '';
+        this.subscribeState = '';
+        this.msgProp = '';
+        this.msgPropState = '';
+        this.publishState = '';
         this.labelOn = 'On';
         this.labelOff = 'Off';
         this.light = new LightController(this);
