@@ -54,6 +54,16 @@ describe('_playlistEntries()', () => {
         const site = makeSite();
         expect(site._playlistEntries()).toEqual([]);
     });
+
+    it('a default site materialises NO playlist-* attributes (defaults are not serialized)', async () => {
+        const site = makeSite();
+        await site.updateComplete;
+        for (const a of ['playlist', 'playlist-enabled', 'playlist-dwell', 'playlist-resume', 'playlist-transition']) {
+            expect(site.hasAttribute(a), `unexpected ${a} on a default site`).toBe(false);
+        }
+        // …while the inline fallbacks still apply.
+        expect(site._playlistEntries()).toEqual([]);
+    });
 });
 
 describe('rotation', () => {

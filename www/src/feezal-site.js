@@ -135,11 +135,14 @@ class FeezalSite extends LitElement {
 
     constructor() {
         super();
-        this.playlist = '';
+        // N26: playlist config is left UNSET so its reflected attributes never
+        // materialise on a default site (a reflected property with a default
+        // value writes that default into the DOM — playlist="" / dwell="10" /
+        // resume="60" / transition="none" on every site). The viewer logic
+        // supplies the same defaults inline (`… || 10`, `… || 60`, `… || ''`),
+        // so an unset property behaves identically. `playlistEnabled` stays a
+        // real `false` — a Boolean reflect drops it from the DOM anyway.
         this.playlistEnabled = false;
-        this.playlistDwell = 10;
-        this.playlistResume = 60;
-        this.playlistTransition = 'none';
         // N30 — registered "view routers" (layout-app shells that embed and
         // swap sub-views). Empty on a plain site → every code path below
         // reduces to the pre-N30 single-level behaviour.
