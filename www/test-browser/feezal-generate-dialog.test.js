@@ -251,6 +251,47 @@ describe('feezal-generate-dialog (U58 Devices)', () => {
             expect(dlg._reviewBuckets().some(b => b.label === 'Wintergarten')).toBe(true);
         });
     });
+
+    describe('room-move dropdown DOM sync (keyed rows)', () => {
+        const selectFor = (dlg, key) =>
+            dlg.renderRoot.querySelector(`.row[data-key="${key}"] select.r-move`);
+
+        // Two devices in one room + one in another. Moving the top device out via
+        // its dropdown must NOT leave its (user-changed) <select> value on the
+        // device that shifts up into its slot — the classic unkeyed-list DOM reuse
+        // where Lit's .value dirty-check skips the equal-valued sibling.
+        async function twoInKitchen() {
+            const dlg = await makeDialog();
+            dlg._family = 'circle';
+            dlg._axis = 'room';
+            dlg.__devices = [
+                {component: 'switch', discovery_id: 'd-x', name: 'kueche_x', __area: 'Kitchen',
+                    config: {state_topic: 'z/x', command_topic: 'z/x/set'}, __key: 'd-x'},
+                {component: 'switch', discovery_id: 'd-y', name: 'kueche_y', __area: 'Kitchen',
+                    config: {state_topic: 'z/y', command_topic: 'z/y/set'}, __key: 'd-y'},
+                {component: 'light', discovery_id: 'd-l', name: 'wohnzimmer_l', __area: 'Living room',
+                    config: {state_topic: 'z/l', command_topic: 'z/l/set'}, __key: 'd-l'},
+            ];
+            dlg._toReview();
+            await dlg.updateComplete;
+            return dlg;
+        }
+
+        it('moving the top device leaves the row beneath with the right value', async () => {
+            const dlg = await twoInKitchen();
+            const xSel = selectFor(dlg, 'd-x');
+            xSel.value = 'Living room';                        // user picks a new room…
+            xSel.dispatchEvent(new Event('change'));           // …→ _onReassignChange moves d-x
+            await dlg.updateComplete;
+
+            // d-y shifted up into d-x's old slot — its dropdown must still read Kitchen
+            expect(selectFor(dlg, 'd-y').value).toBe('Kitchen');
+            // and d-x now sits under Living room
+            expect(selectFor(dlg, 'd-x').value).toBe('Living room');
+            expect(dlg._assign.get('d-x').label).toBe('Living room');
+            expect(dlg._assign.get('d-y').label).toBe('Kitchen');
+        });
+    });
 });
 
 

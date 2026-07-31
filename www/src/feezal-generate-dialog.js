@@ -1,5 +1,6 @@
 /* global feezal */
 import {LitElement, html, css} from 'lit';
+import {repeat} from 'lit/directives/repeat.js';
 
 import '@shoelace-style/shoelace/dist/components/dialog/dialog.js';
 import '@shoelace-style/shoelace/dist/components/button/button.js';
@@ -920,7 +921,7 @@ class FeezalGenerateDialog extends LitElement {
                 sub-view in the app drawer.
             </div>
             <div class="dev-body groups">
-                ${buckets.map(b => {
+                ${repeat(buckets, b => b.label, b => {
                     const on = checkedIn(b);
                     return html`
                     <div class="bucket">
@@ -937,7 +938,7 @@ class FeezalGenerateDialog extends LitElement {
                             ${b.guessed && isRoom && b.label !== UNKNOWN_ROOM
                                 ? html`<span class="r-badge" title="Room guessed from the device name — no explicit area">guessed</span>` : ''}
                         </div>
-                        ${b.entities.map(e => html`
+                        ${repeat(b.entities, e => e.__key, e => html`
                             <div class="row" data-key="${e.__key}"
                                 @pointerdown="${ev => this._selPress(ev, e.__key)}">
                                 <sl-checkbox ?checked="${this._checked.has(e.__key)}"></sl-checkbox>

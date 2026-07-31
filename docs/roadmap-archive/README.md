@@ -99,6 +99,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B91 — Glass cards: badge/details-button placement is inconsistent across the family ✅ fixed](B91.md)
 - [B92 — circle-switch never publishes on tap (autodiscovered RedMatic switch); glass-switch works ✅ fixed](B92.md)
 - [B93 — Fan cards: default icon `mode_fan` is not a vendored glyph (glass-fan spins a broken fragment) ✅ fixed](B93.md)
+- [B94 — Generate review: room-move dropdown leaves a stale value on the row beneath ✅ fixed](B94.md)
 
 ## Near-term Improvements
 
