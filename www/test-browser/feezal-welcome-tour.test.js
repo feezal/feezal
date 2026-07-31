@@ -85,7 +85,7 @@ describe('welcome tour (U37)', () => {
         const bottom = parseFloat(spot.style.top) + parseFloat(spot.style.height);
         expect(bottom).toBeGreaterThan(430);
         // all sidebar steps carry the extend
-        for (const id of ['inspector', 'theme', 'broker', 'broker-status', 'wire-topic', 'template-content']) {
+        for (const id of ['inspector', 'theme', 'wire-topic', 'template-content']) {
             expect(STEPS.find(s => s.id === id).extend).toBeDefined();
         }
     });
@@ -119,7 +119,7 @@ describe('welcome tour (U37)', () => {
         expect(tour.shadowRoot.querySelector('.spotlight .glow')).not.toBe(glow);
     });
 
-    it('Next/Back walk the steps; sidebar steps switch the tab (U41: theme before broker)', async () => {
+    it('Next/Back walk the steps; sidebar steps switch the tab', async () => {
         tour.start();
         tour._path = 'explore';
         await tour.updateComplete;
@@ -127,15 +127,12 @@ describe('welcome tour (U37)', () => {
         await tour.updateComplete;
         expect(fakeEditor.sidebarVisible).toBe(true);
         expect(fakeEditor.sidebar).toBe('inspector');
-        tour._goto(STEPS.findIndex(s => s.id === 'theme'));
+        tour._next();  // inspector → theme
         await tour.updateComplete;
         expect(fakeEditor.sidebar).toBe('themes');
-        tour._next();  // theme → broker settings
-        await tour.updateComplete;
-        expect(fakeEditor.sidebar).toBe('viewer');
         tour._back();
         await tour.updateComplete;
-        expect(tour._step).toBe(STEPS.findIndex(s => s.id === 'theme'));
+        expect(tour._current().id).toBe('inspector');
     });
 
     it('non-interactive steps block clicks, interactive steps do not', async () => {
@@ -143,7 +140,7 @@ describe('welcome tour (U37)', () => {
         tour._path = 'explore';
         await tour.updateComplete;
         expect(tour.shadowRoot.querySelector('.click-catcher')).not.toBeNull();
-        tour._goto(STEPS.findIndex(s => s.id === 'broker'));
+        tour._goto(STEPS.findIndex(s => s.id === 'theme'));   // interactive step
         await tour.updateComplete;
         expect(tour.shadowRoot.querySelector('.click-catcher')).toBeNull();
     });
@@ -154,11 +151,10 @@ describe('welcome tour (U37)', () => {
         expect(dropStep.target(fakeEditor)).toBe(targets['#palette']);
     });
 
-    it('U41: broker step body does not tell the user to type a protocol prefix', () => {
-        const broker = STEPS.find(s => s.id === 'broker');
-        expect(broker.body).not.toContain('mqtt://');
-        expect(STEPS.findIndex(s => s.id === 'theme'))
-            .toBeLessThan(STEPS.findIndex(s => s.id === 'broker'));
+    it('the broker-connection steps are gone from the tour (handled by the connect dialog)', () => {
+        for (const id of ['broker', 'broker-status', 'deploy']) {
+            expect(STEPS.some(s => s.id === id)).toBe(false);
+        }
     });
 
     it('Skip persists the seen-flag and hides the tour', async () => {
@@ -239,11 +235,10 @@ describe('welcome tour (U37)', () => {
         expect(snippet.querySelector('.copy-hint').textContent).toBe('Copied!');
     });
 
-    it('step order: broker → status → deploy → hands-on (deploy follows the connection entry)', () => {
+    it('step order: theme precedes the hands-on drop, and wiring precedes content', () => {
         const idx = id => STEPS.findIndex(s => s.id === id);
-        expect(idx('broker')).toBeLessThan(idx('broker-status'));
-        expect(idx('broker-status')).toBeLessThan(idx('deploy'));
-        expect(idx('deploy')).toBeLessThan(idx('drop-template'));
+        expect(idx('theme')).toBeLessThan(idx('drop-template'));
+        expect(idx('drop-template')).toBeLessThan(idx('wire-topic'));
         expect(idx('wire-topic')).toBeLessThan(idx('template-content'));
     });
 
@@ -282,18 +277,18 @@ describe('welcome tour (U73) — fork + autogenerate branch', () => {
         expect(tour._steps().some(s => s.id === 'discovery-wait')).toBe(false);
     });
 
-    it('choosing "autogenerate" skips the UI/hands-on steps and goes to the broker', async () => {
+    it('choosing "autogenerate" skips the UI/hands-on steps and goes straight to discovery', async () => {
         tour.start();
         tour._goto(idInSteps('fork'));
         tour._choosePath('auto');
         await tour.updateComplete;
         expect(tour._path).toBe('auto');
-        expect(tour._current().id).toBe('broker');
+        expect(tour._current().id).toBe('discovery-wait');   // no broker steps anymore
         const ids = tour._steps().map(s => s.id);
-        expect(ids).toEqual(['welcome', 'terminology', 'fork', 'broker', 'broker-status',
-            'deploy', 'discovery-wait', 'generate', 'finale']);
+        expect(ids).toEqual(['welcome', 'terminology', 'fork', 'discovery-wait', 'generate', 'finale']);
         expect(ids).not.toContain('palette');
         expect(ids).not.toContain('drop-template');
+        expect(ids).not.toContain('broker');
     });
 
     it('discovery-wait advances to Generate once devices are discovered', async () => {

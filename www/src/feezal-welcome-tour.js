@@ -99,38 +99,11 @@ const STEPS = [
         prepare: ed => { ed.sidebarVisible = true; ed._setSidebar('themes'); },
         interactive: true,
     },
-    {
-        id: 'broker',
-        title: 'Connect your MQTT broker',
-        body: 'Pick the protocol, enter your broker\'s hostname or IP and port (e.g. 192.168.1.10 : 1883), and add credentials below if your broker needs them. You can do it now — the tour waits.',
-        // Whole Connection form: protocol select, host/port, credentials, TLS.
-        target: ed => inShadow(ed.shadowRoot, 'feezal-sidebar-viewer', 'sl-tab-panel[name="connection"]')
-            ?? ed.shadowRoot.querySelector('#sidebar-panels'),
-        extend: ed => ed.shadowRoot.querySelector('#menu-right'),
-        prepare: ed => {
-            ed.sidebarVisible = true;
-            ed._setSidebar('viewer');
-            inShadow(ed.shadowRoot, 'feezal-sidebar-viewer', 'sl-tab-group')?.show?.('connection');
-        },
-        interactive: true,
-    },
-    {
-        id: 'broker-status',
-        title: 'Watch the connection status',
-        body: 'This indicator shows whether the feezal server reaches your broker. It updates after you deploy — the next step. If it stays red afterwards, re-check protocol, host, port and credentials.',
-        target: ed => inShadow(ed.shadowRoot, 'feezal-sidebar-viewer', '.bridge-status')
-            ?? ed.shadowRoot.querySelector('#sidebar-panels'),
-        extend: ed => ed.shadowRoot.querySelector('#menu-right'),
-        prepare: ed => { ed.sidebarVisible = true; ed._setSidebar('viewer'); },
-        interactive: true,
-    },
-    {
-        id: 'deploy',
-        title: 'Deploy to apply the connection',
-        body: 'The editor is your workshop — nothing reaches the server until you Deploy. Hit Deploy now: it saves the dashboard AND applies the broker connection you just entered (the status indicator should turn green). The ▾ menu next to it opens the live viewer.',
-        target: ed => ed.shadowRoot.querySelector('#btn-deploy-wrap'),
-        interactive: true,
-    },
+    // NOTE: the broker-connection steps (connect broker / connection status /
+    // deploy-to-apply) were removed — the MQTT broker is now configured up front
+    // by the first-run connect dialog (feezal-connect-dialog), which runs before
+    // this tour whenever no host is set. The explore path's `finish` and the auto
+    // path's `finale` still cover Deploy.
     {
         id: 'drop-template',
         title: 'Try it: your first live element',
@@ -422,14 +395,15 @@ class FeezalWelcomeTour extends LitElement {
     }
 
     /** U73 — the steps visible for the current fork path. Before a path is
-     * chosen only the shared prefix (welcome/terminology/fork) shows; after,
-     * the path's own steps plus the shared broker/deploy steps. */
+     * chosen only the shared prefix (welcome/terminology/fork) shows; after, the
+     * chosen path's own steps. (Broker/deploy steps were removed — the connect
+     * dialog handles the broker up front, so no shared post-fork steps remain.) */
     _steps() {
         return STEPS.filter(s => {
             if (ALWAYS.has(s.id)) return true;
             if (EXPLORE_ONLY.has(s.id)) return this._path === 'explore';
             if (AUTO_ONLY.has(s.id)) return this._path === 'auto';
-            return this._path !== null;   // shared (broker/status/deploy) — after the fork
+            return this._path !== null;   // (no steps land here anymore)
         });
     }
 

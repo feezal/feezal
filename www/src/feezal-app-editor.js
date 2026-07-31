@@ -15,6 +15,7 @@ import '@shoelace-style/shoelace/dist/components/button/button.js';
 import {loadMonaco, syncMonacoStyles} from './feezal-monaco-loader.js';
 import {viewFromHash} from './hash-view.js';
 import './feezal-welcome-tour.js';
+import './feezal-connect-dialog.js';
 
 import './feezal-menu.js';
 import './feezal-palette.js';
@@ -618,6 +619,7 @@ class FeezalAppEditor extends LitElement {
         :host(.dark) feezal-capacitor-dialog,
         :host(.dark) feezal-export-dialog,
         :host(.dark) feezal-generate-dialog,
+        :host(.dark) feezal-connect-dialog,
         :host(.dark) feezal-connection-overlay,
         :host(.dark) feezal-ai-chat {
             --feezal-bg:     #2e2e2e;
@@ -656,6 +658,7 @@ class FeezalAppEditor extends LitElement {
         /* Same panel color as the #viewdialog/#deletedialog family above */
         :host(.dark) feezal-capacitor-dialog,
         :host(.dark) feezal-export-dialog,
+        :host(.dark) feezal-connect-dialog,
         :host(.dark) feezal-generate-dialog {
             --sl-panel-background-color: #2e2e2e;
             --sl-panel-border-color: #3d3d3d;
@@ -1417,6 +1420,7 @@ class FeezalAppEditor extends LitElement {
             ` : ''}
 
             <feezal-welcome-tour .editor="${this}"></feezal-welcome-tour>
+            <feezal-connect-dialog @feezal-connect-closed="${() => this._maybeAutoStartTour()}"></feezal-connect-dialog>
         `;
     }
 
@@ -1523,10 +1527,26 @@ class FeezalAppEditor extends LitElement {
             }).catch(() => { /* serverless — localStorage fallback covers it */ });
         };
         this.addEventListener('tour-finished', this._onTourFinished);
-        // Auto-start on first use only: seen-flag unset AND the site carries
-        // no elements yet (fresh install / blank canvas). Deferred so the
-        // server-injected site markup and the first render are settled.
-        setTimeout(() => this._maybeAutoStartTour(), 800);
+        // First-run: offer MQTT broker setup when no host is configured, THEN
+        // (after the dialog closes / is skipped) the welcome tour. Deferred so
+        // the server-injected site markup and the first render are settled.
+        setTimeout(() => this._maybeFirstRunSetup(), 800);
+    }
+
+    /** No broker host configured yet? Offer the connect dialog first — the tour
+     * starts once it closes (via the feezal-connect-closed handler). Otherwise go
+     * straight to the tour. Runs on every open with no host (skippable). */
+    _maybeFirstRunSetup() {
+        if (this._sourceMode) return;
+        const vs = this.shadowRoot.querySelector('feezal-sidebar-viewer');
+        const c = vs?.connection || {};
+        let host = c._host || '';
+        if (!host && c.uri) { try { host = new URL(c.uri).hostname || ''; } catch { /* unparseable */ } }
+        if (!host) {
+            this.shadowRoot.querySelector('feezal-connect-dialog')?.open();
+            return;   // the tour runs when the dialog closes
+        }
+        this._maybeAutoStartTour();
     }
 
     // ── U37 — welcome tour ────────────────────────────────────────────────────
