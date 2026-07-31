@@ -2,7 +2,11 @@
 import {FeezalElement, html, css} from '@feezal/feezal-element';
 import {currentLocale, resolveLocaleChain} from '@feezal/feezal-element/feezal-locale.js';
 
-import {utcToZonedTime, format} from 'date-fns-tz';
+// A34: date-fns v4 has first-class time zones via @date-fns/tz (TZDate
+// carries its zone; format() reads the date's own clock) - this replaced
+// the version-locked date-fns-tz pairing.
+import {format} from 'date-fns';
+import {TZDate} from '@date-fns/tz';
 import {be, de, enGB, enUS, es, fr, hr, hu, it, nl, pl, ru} from 'date-fns/locale';
 
 const locales = {be, de, enGB, enUS, es, fr, hr, hu, it, nl, pl, ru};
@@ -123,7 +127,7 @@ class FeezalElementBasicDatetime extends FeezalElement {
 
     _update() {
         this._formatedValue = format(
-            utcToZonedTime(new Date(), this.timezone),
+            new TZDate(Date.now(), this.timezone),
             this.format,
             {locale: locales[this.locale]}
         );
