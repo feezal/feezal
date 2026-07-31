@@ -202,7 +202,12 @@ class FeezalGenerateDialog extends LitElement {
         }
 
         /* ── U78: room-review stage ─────────────────────────────────────── */
-        .room-list { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 10px; }
+        /* Reserve a stable height so the dialog does not shrink as rooms are
+           removed. min-height (not a fixed height + overflow) is deliberate: the
+           per-row icon picker opens an absolutely-positioned popup, which an
+           overflow:auto scroll container would clip. */
+        .room-list { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 10px;
+            min-height: 46vh; }
         .room-row {
             display: flex; align-items: center; gap: 8px;
             padding: 4px 6px; border-radius: 8px;
