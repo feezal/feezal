@@ -38,7 +38,6 @@ class FeezalElementFancyLock extends FancyBase {
 
     static properties = {
         subscribe:       {type: String, reflect: true},
-        msgProp:         {type: String, reflect: true, attribute: 'message-property'},
         publish:         {type: String, reflect: true},
         payloadLocked:   {type: String, reflect: true, attribute: 'payload-locked'},
         payloadUnlocked: {type: String, reflect: true, attribute: 'payload-unlocked'},
@@ -59,7 +58,6 @@ class FeezalElementFancyLock extends FancyBase {
     constructor() {
         super();
         this.subscribe = '';
-        this.msgProp = '';
         this.publish = '';
         this.payloadLocked = 'LOCKED';
         this.payloadUnlocked = 'UNLOCKED';

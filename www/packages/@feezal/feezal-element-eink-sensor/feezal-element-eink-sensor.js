@@ -51,7 +51,6 @@ class FeezalElementEinkSensor extends EinkBase {
     static properties = {
         type:       {type: String, reflect: true},
         subscribe:  {type: String, reflect: true},
-        msgProp:    {type: String, reflect: true, attribute: 'message-property'},
         payloadActive: {type: String, reflect: true, attribute: 'payload-active'},
         payloadClear:  {type: String, reflect: true, attribute: 'payload-clear'},
         iconActive: {type: String, reflect: true, attribute: 'icon-active'},
@@ -78,7 +77,6 @@ class FeezalElementEinkSensor extends EinkBase {
         super();
         this.type = 'generic'; // E138: alarm-slice default type
         this.subscribe = '';
-        this.msgProp = '';
         this.payloadActive = 'ON';
         this.payloadClear = 'OFF';
         this.iconActive = '';

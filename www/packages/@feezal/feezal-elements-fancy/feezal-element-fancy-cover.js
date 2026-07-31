@@ -35,7 +35,6 @@ class FeezalElementFancyCover extends FancyBase {
 
     static properties = {
         subscribe:       {type: String, reflect: true},
-        msgProp:         {type: String, reflect: true, attribute: 'message-property'},
         publishPosition: {type: String, reflect: true, attribute: 'publish-position'},
         publishCommand:  {type: String, reflect: true, attribute: 'publish-command'},
         positionMin:     {type: Number, reflect: true, attribute: 'position-min'},
@@ -49,7 +48,6 @@ class FeezalElementFancyCover extends FancyBase {
     constructor() {
         super();
         this.subscribe = '';
-        this.msgProp = '';
         this.publishPosition = '';
         this.publishCommand = '';
         this.cover = new CoverController(this);

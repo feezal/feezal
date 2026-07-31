@@ -43,12 +43,15 @@ class FeezalElementFancyLight extends FancyBase {
         publish:    {type: String, reflect: true},
         mode:       {type: String, reflect: true},
         // separate-mode state set — reflected so live topic/mode edits reach
-        // updated() → rewireIfChanged() (the controller reads via getAttribute)
+        // updated() → rewireIfChanged() (the controller reads via getAttribute).
+        // message-property is NOT re-declared here: FeezalElement already binds
+        // that attribute, and a second property on the same attribute makes the
+        // two reflections fight — the base default overwrote discovery-stamped
+        // paths like payload.val.
         payloadMode:    {type: String, reflect: true, attribute: 'payload-mode'},
         jsonMap:        {type: String, reflect: true, attribute: 'json-map'},
         onOffSource:    {type: String, reflect: true, attribute: 'on-off-source'},
         subscribeState: {type: String, reflect: true, attribute: 'subscribe-state'},
-        msgProp:        {type: String, reflect: true, attribute: 'message-property'},
         msgPropState:   {type: String, reflect: true, attribute: 'message-property-state'},
         publishState:   {type: String, reflect: true, attribute: 'publish-state'},
         labelOn:    {type: String, attribute: 'label-on'},
@@ -70,7 +73,6 @@ class FeezalElementFancyLight extends FancyBase {
         this.jsonMap = '';
         this.onOffSource = '';
         this.subscribeState = '';
-        this.msgProp = '';
         this.msgPropState = '';
         this.publishState = '';
         this.labelOn = 'On';

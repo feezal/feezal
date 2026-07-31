@@ -37,7 +37,6 @@ class FeezalElementFancyContact extends FancyBase {
 
     static properties = {
         subscribe:     {type: String, reflect: true},
-        msgProp:       {type: String, reflect: true, attribute: 'message-property'},
         payloadOpen:   {type: String, reflect: true, attribute: 'payload-open'},
         payloadClosed: {type: String, reflect: true, attribute: 'payload-closed'},
         payloadTilted: {type: String, reflect: true, attribute: 'payload-tilted'},
@@ -56,7 +55,6 @@ class FeezalElementFancyContact extends FancyBase {
     constructor() {
         super();
         this.subscribe = '';
-        this.msgProp = '';
         this.payloadOpen = 'ON';
         this.payloadClosed = 'OFF';
         this.payloadTilted = '';

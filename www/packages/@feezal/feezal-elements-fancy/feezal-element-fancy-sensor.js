@@ -35,7 +35,6 @@ class FeezalElementFancySensor extends FancyBase {
 
     static properties = {
         subscribe:      {type: String, reflect: true},
-        msgProp:        {type: String, reflect: true, attribute: 'message-property'},
         payloadActive:  {type: String, reflect: true, attribute: 'payload-active'},
         payloadClear:   {type: String, reflect: true, attribute: 'payload-clear'},
         type:           {type: String, reflect: true},
@@ -52,7 +51,6 @@ class FeezalElementFancySensor extends FancyBase {
     constructor() {
         super();
         this.subscribe = '';
-        this.msgProp = '';
         this.payloadActive = 'ON';
         this.payloadClear = 'OFF';
         this.type = 'water-leak';
