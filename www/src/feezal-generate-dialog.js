@@ -369,14 +369,13 @@ class FeezalGenerateDialog extends LitElement {
             selection: () => this._checked,
             commit: s => { this._checked = s; },
         });
-        // U75: a SECOND range/drag helper driving the review row SELECTION (the
-        // highlight the bulk "move to room" acts on) — separate from _checked so
-        // clicking a row no longer toggles its include checkbox.
+        // U75: the review row SELECTION (the highlight the bulk "move to room"
+        // acts on) — separate from _checked so clicking a row no longer toggles
+        // its include checkbox. Explorer/Finder semantics (plain = replace,
+        // Shift = range, Ctrl/Cmd = toggle) via _selAnchor; NOT a RangeSelect
+        // (that is toggle+drag, which is the CHECKBOX layer's model).
         this._selected = new Set();
-        this._selReview = new RangeSelect({
-            selection: () => this._selected,
-            commit: s => { this._selected = s; },
-        });
+        this._selAnchor = null;
     }
 
     disconnectedCallback() {
@@ -688,16 +687,23 @@ class FeezalGenerateDialog extends LitElement {
         return this._stage === 'review' ? this._orderedReviewKeys() : this._orderedEligibleKeys();
     }
 
-    // Pointer press on a row: apply the range/drag rule and arm a drag so the
-    // press action paints onto any row the pointer then crosses. U75: in the
-    // review the gesture drives the row SELECTION (_selReview); in the device
-    // list it drives the CHECKBOXES (_sel).
-    _selPress(ev, key) {
+    // Pointer press on a CHECKBOX (or, in the device list, the whole row — the
+    // row IS the checkbox there): toggle/range the include state via _sel and arm
+    // a drag so the press action paints onto every checkbox the pointer crosses.
+    // This is the U68 shift+drag multi-check the review lost when the row-select
+    // layer (U75) swallowed the gesture — the checkbox now drives it directly.
+    _checkboxPress(ev, key) {
         ev.preventDefault();                       // no focus/selection flicker
-        const sel = this._stage === 'review' ? this._selReview : this._sel;
-        this._activeSel = sel;
-        sel.press(ev, key, this._currentOrder());
+        ev.stopPropagation();                      // don't also start a row selection
+        this._activeSel = this._sel;
+        this._sel.press(ev, key, this._currentOrder());
         this.requestUpdate();
+        this._armDrag();
+    }
+
+    // Arm the window-level drag that paints the active gesture onto any row the
+    // pointer crosses (checkbox layer only — the row-select layer has no drag).
+    _armDrag() {
         if (this._dragMove) return;                // already armed this gesture
         this._dragMove = e => {
             const row = this.renderRoot.elementFromPoint(e.clientX, e.clientY)?.closest?.('.row[data-key]');
@@ -713,6 +719,39 @@ class FeezalGenerateDialog extends LitElement {
         if (this._dragMove) window.removeEventListener('pointermove', this._dragMove);
         if (this._dragUp) window.removeEventListener('pointerup', this._dragUp);
         this._dragMove = this._dragUp = null;
+    }
+
+    // U75/refresh: press on a review ROW BODY drives the SELECTION highlight (for
+    // the bulk "move to room" bar) with Explorer/Finder semantics:
+    //   plain click     → select only this row (clear the rest)
+    //   Shift+click     → contiguous range from the anchor (replaces selection)
+    //   Ctrl/Cmd+click  → toggle this row in/out, keeping the rest
+    // No drag-paint here — that belongs to the checkbox layer.
+    _rowPress(ev, key) {
+        ev.preventDefault();
+        const order = this._orderedReviewKeys();
+        let next;
+        if (ev.shiftKey && this._selAnchor && order.includes(this._selAnchor)) {
+            next = new Set(this._rangeKeys(order, this._selAnchor, key));   // keep the anchor
+        } else if (ev.metaKey || ev.ctrlKey) {
+            next = new Set(this._selected);
+            next.has(key) ? next.delete(key) : next.add(key);
+            this._selAnchor = key;
+        } else {
+            next = new Set([key]);
+            this._selAnchor = key;
+        }
+        this._selected = next;
+        this.requestUpdate();
+    }
+
+    /** The keys in `order` from `aKey` to `bKey` inclusive (either direction). */
+    _rangeKeys(order, aKey, bKey) {
+        const a = order.indexOf(aKey);
+        const b = order.indexOf(bKey);
+        if (a === -1 || b === -1) return [bKey];
+        const [lo, hi] = a < b ? [a, b] : [b, a];
+        return order.slice(lo, hi + 1);
     }
 
     // Toggle every generatable (non-gap) row in a group.
@@ -888,7 +927,7 @@ class FeezalGenerateDialog extends LitElement {
     }
 
     // ── U75: review row selection (highlight) + bulk operations ──────────────
-    _clearSelection() { this._selected = new Set(); this._selReview.reset(); }
+    _clearSelection() { this._selected = new Set(); this._selAnchor = null; }
 
     /** Set _checked on/off for every selected row (bulk check/uncheck). */
     _bulkCheck(on) {
@@ -999,16 +1038,6 @@ class FeezalGenerateDialog extends LitElement {
         this.renderRoot.querySelector('.newroom')?.hide();
         this._newRoomFor = null;
         this._newRoomName = '';
-    }
-
-    // ── U75: single-row toggle of the include checkbox (checkbox click only).
-    // The <sl-checkbox> is display-only (pointer-events:none); a wrapper span
-    // owns the click + stops it reaching the row's selection gesture — the same
-    // proven pattern as the bucket-header toggle. ──
-    _toggleChecked(key) {
-        const next = new Set(this._checked);
-        next.has(key) ? next.delete(key) : next.add(key);
-        this._checked = next;
     }
 
     /** Unique view name (the buckets may collide with non-view names only). */
@@ -1493,9 +1522,8 @@ class FeezalGenerateDialog extends LitElement {
                         </div>
                         ${repeat(b.entities, e => e.__key, e => html`
                             <div class="row ${this._selected.has(e.__key) ? 'selected' : ''}" data-key="${e.__key}"
-                                @pointerdown="${ev => this._selPress(ev, e.__key)}">
-                                <span class="cb-hit" @pointerdown="${ev => ev.stopPropagation()}"
-                                    @click="${ev => { ev.stopPropagation(); this._toggleChecked(e.__key); }}">
+                                @pointerdown="${ev => this._rowPress(ev, e.__key)}">
+                                <span class="cb-hit" @pointerdown="${ev => this._checkboxPress(ev, e.__key)}">
                                     <sl-checkbox ?checked="${this._checked.has(e.__key)}" style="pointer-events:none"></sl-checkbox>
                                 </span>
                                 <span class="r-label">${this._label(e)}</span>
@@ -1564,7 +1592,7 @@ class FeezalGenerateDialog extends LitElement {
         const on = this._checked.has(entity.__key);
         return html`
             <div class="row" data-key="${entity.__key}"
-                @pointerdown="${ev => this._selPress(ev, entity.__key)}">
+                @pointerdown="${ev => this._checkboxPress(ev, entity.__key)}">
                 <sl-checkbox ?checked="${on}"></sl-checkbox>
                 <span class="r-label">${this._label(entity)}</span>
                 <span class="r-badge">${entity.component}</span>

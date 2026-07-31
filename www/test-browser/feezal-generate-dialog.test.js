@@ -342,18 +342,58 @@ describe('feezal-generate-dialog (U58 Devices)', () => {
             expect(dlg._checked.has('d-a')).toBe(true);   // all checked by default
             expect(dlg._selected.size).toBe(0);           // nothing selected
 
-            // clicking the checkbox unchecks WITHOUT selecting the row
-            dlg.renderRoot.querySelector('.row[data-key="d-a"] .cb-hit').click();
+            // pressing the checkbox unchecks WITHOUT selecting the row
+            dlg.renderRoot.querySelector('.row[data-key="d-a"] .cb-hit')
+                .dispatchEvent(new PointerEvent('pointerdown', {bubbles: true}));
+            dlg._endDrag();
             await dlg.updateComplete;
             expect(dlg._checked.has('d-a')).toBe(false);
             expect(dlg._selected.has('d-a')).toBe(false);
 
             // pressing the row body selects WITHOUT changing the checkbox
-            dlg._selPress({preventDefault() {}, shiftKey: false}, 'd-b');
-            dlg._endDrag();
+            dlg._rowPress({preventDefault() {}}, 'd-b');
             await dlg.updateComplete;
             expect(dlg._selected.has('d-b')).toBe(true);
             expect(dlg._checked.has('d-b')).toBe(true);   // unchanged
+        });
+
+        it('restores Shift/drag multi-check on the review CHECKBOXES (drives _checked, not _selected)', async () => {
+            const dlg = await review([dev('d-a', 'Kitchen'), dev('d-b', 'Kitchen'), dev('d-c', 'Kitchen')]);
+            dlg._checked = new Set();                                         // start all unchecked
+            // Shift-range check via the checkbox layer
+            dlg._checkboxPress({preventDefault() {}, stopPropagation() {}}, 'd-a');          // check a, anchor a
+            dlg._checkboxPress({preventDefault() {}, stopPropagation() {}, shiftKey: true}, 'd-c'); // range a..c ON
+            dlg._endDrag();
+            expect(new Set(dlg._checked)).toEqual(new Set(['d-a', 'd-b', 'd-c']));
+            expect(dlg._selected.size).toBe(0);                              // row selection untouched
+
+            // drag-paint uncheck across the checkboxes
+            dlg._checkboxPress({preventDefault() {}, stopPropagation() {}}, 'd-a');          // uncheck a, drag off
+            dlg._sel.paint('d-b');
+            dlg._endDrag();
+            expect(dlg._checked.has('d-a')).toBe(false);
+            expect(dlg._checked.has('d-b')).toBe(false);
+            expect(dlg._selected.size).toBe(0);
+        });
+
+        it('row selection is Explorer/Finder-style: plain replaces, Shift ranges, Ctrl toggles', async () => {
+            const dlg = await review([dev('d-a', 'Kitchen'), dev('d-b', 'Kitchen'), dev('d-c', 'Kitchen')]);
+
+            dlg._rowPress({preventDefault() {}}, 'd-a');                      // plain → only a
+            expect([...dlg._selected]).toEqual(['d-a']);
+            dlg._rowPress({preventDefault() {}}, 'd-b');                      // plain again → REPLACES (only b)
+            expect([...dlg._selected]).toEqual(['d-b']);
+
+            dlg._rowPress({preventDefault() {}, shiftKey: true}, 'd-c');      // Shift from anchor b → b..c
+            expect(new Set(dlg._selected)).toEqual(new Set(['d-b', 'd-c']));
+
+            dlg._rowPress({preventDefault() {}, ctrlKey: true}, 'd-a');       // Ctrl adds a, keeps the rest
+            expect(new Set(dlg._selected)).toEqual(new Set(['d-a', 'd-b', 'd-c']));
+            dlg._rowPress({preventDefault() {}, metaKey: true}, 'd-b');       // Cmd removes b
+            expect(new Set(dlg._selected)).toEqual(new Set(['d-a', 'd-c']));
+
+            // the checkboxes were never touched by row selection
+            expect(new Set(dlg._checked)).toEqual(new Set(['d-a', 'd-b', 'd-c']));
         });
 
         it('bulk-moves every selected row to a room, then clears the selection', async () => {
