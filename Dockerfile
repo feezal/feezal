@@ -12,8 +12,11 @@ WORKDIR /build
 RUN apk add --no-cache git && \
     git clone --depth 1 --branch "${GIT_REF}" https://github.com/feezal/feezal.git .
 
-RUN cd server; npm install --loglevel=info; cd ..
-RUN cd www; npm install --loglevel=info; cd ..
+# A34: lockfile-authoritative, scriptless installs - the committed
+# package-lock.json is what ships, and no dependency runs code at
+# install time (the postinstall attack class).
+RUN cd server; npm ci --ignore-scripts --loglevel=info; cd ..
+RUN cd www; npm ci --ignore-scripts --loglevel=info; cd ..
 RUN node scripts/generate-elements.js
 RUN cd www; npm run build; cd ..
 #RUN npm install --loglevel=info

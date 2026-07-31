@@ -19,13 +19,20 @@ jobs:
           node-version: '24'
 
       - name: Install server dependencies
-        run: npm install --prefix server
+        run: npm ci --ignore-scripts --prefix server
 
       - name: Install www dependencies
-        run: npm install --prefix www
+        run: npm ci --ignore-scripts --prefix www
 
       - name: Check production dependency licenses
         run: node scripts/check-licenses.js
+
+      # A34: verify registry signatures/attestations for the whole tree —
+      # a tampered tarball (registry-level compromise) fails the gate.
+      - name: Verify dependency signatures
+        run: |
+          npm audit signatures --prefix server
+          npm audit signatures --prefix www
 
   backend:
     name: Backend (unit + integration)
@@ -39,7 +46,7 @@ jobs:
           node-version: '24'
 
       - name: Install server dependencies
-        run: npm install --prefix server
+        run: npm ci --ignore-scripts --prefix server
 
       - name: Tests with coverage gate
         run: npm run test:coverage --prefix server
@@ -73,10 +80,10 @@ jobs:
       # The E2E suite spawns the real server and resolves aedes/adm-zip
       # through the server workspace.
       - name: Install server dependencies
-        run: npm install --prefix server
+        run: npm ci --ignore-scripts --prefix server
 
       - name: Install www dependencies
-        run: npm install --prefix www
+        run: npm ci --ignore-scripts --prefix www
 
       - name: Logic-unit tests with coverage gate
         run: npm run test:coverage --prefix www

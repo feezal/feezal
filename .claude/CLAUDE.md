@@ -228,6 +228,17 @@ Build output goes to `www/dist/`. The chunk-size warning for chunks >500 kB is e
 
 ---
 
+## Dependency policy (A34)
+
+- **The lockfile is the pin, not the range syntax.** `package.json` keeps carets (`^`); `package-lock.json` records the exact tree + integrity hashes. Pinning exact versions in `package.json` adds churn without protecting transitive deps — pin exactly only for a *specific* reason (a package with a history of bad releases), never as blanket policy.
+- **CI and the Docker image install with `npm ci --ignore-scripts`** — the committed lockfile is authoritative (an out-of-sync lock fails the install; `package-lock-workspaces.test.js` guards it), and no dependency executes code at install time (the `postinstall` attack class). If a new dependency genuinely needs an install script, that's an explicit, argued exception — not a revert of the flag.
+- **CI verifies registry provenance** with `npm audit signatures` (license-gate job).
+- **When regenerating a lockfile** (adding/updating deps), prefer a **release-age cooldown**: `npm install --before="$(date -d '7 days ago' -Iseconds)"` skips releases younger than a week — the window in which compromised-maintainer patch releases get caught and unpublished. Not automated; use it for routine refreshes.
+- **Publishing `@feezal/*` packages** uses npm **trusted publishing** (OIDC, provenance attested) from `publish-feezal-element.yml` — no long-lived token. Keep it that way.
+- Major-version bumps: **one dependency per commit** with a changelog note in the message, so a regression is bisectable.
+
+---
+
 ## Roadmap maintenance
 
 - Open items live in `docs/ROADMAP.md`.
