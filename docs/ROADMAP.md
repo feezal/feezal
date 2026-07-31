@@ -1489,6 +1489,26 @@ That is the most expensive of the options considered and it adds to the legacy P
 - **Motion character** — overshoot/bounce, secondary motion (particles, sparkles, drips), not just eased transforms of the same rectangles.
 - **Illustration** — objects that look like the thing (a bulb with filament and rays, a radiator with shimmer, a window with glass and frame depth), not abstract geometry.
 
+## Motion hierarchy (decided 07/2026, from the reporter) — WHEN to animate, not just how
+
+Fancy must not mean busy. Three tiers, strictly:
+
+1. **Rest = still.** A dashboard that is just being shown, with all values stable, animates **nothing**. No idle loops, no ambient motion.
+2. **Value changes = decent, short.** A data-driven change plays a brief, restrained flourish and returns to stillness — a temperature rose, the thermometer glyph does a short rise animation, done. Not-too-fancy is the spec here.
+3. **User interaction = the really fancy tier.** The showpieces are reserved for moments the user *caused*:
+   - switching a light on → the bulb transforms off→on with sparkle;
+   - operating a lock → an **animated key turns while the command is in flight**, and when the device *reports back* (subscribe confirmation / HmIP settling — the E127/E128 machinery, given a visual form) → a confirmation flourish (sparkle, spotlight). This is command→working→confirmed **choreography**, not a single clip: the controllers' settling state is what drives it, so the animation is honest about what the device actually did.
+
+**Plus the popup tier (glass precedent):** elements with complex multiple controls hide them behind a **popup**, exactly like the glass family — and the popup open/close transitions are themselves really fancy animated (this is user interaction, tier 3).
+
+### Consequences
+
+- **The E139 built-ins get re-audited against tier 1**: the light's breathing loop and the climate heat waves are rest-state loops — they go (a heating thermostat is a *stable state*, not an event). **Open question:** the alarm sensor's pulse while triggered — an active alarm arguably *wants* ambient attention; decide whether alarm-active is the one deliberate tier-1 exception.
+- **The segment model grows event semantics**: change-flourishes (played once on a value delta), interaction transitions, a *working* loop (bounded by the settling window), a *confirmed* flourish, popup open/close clips. The player already handles clips + completion chaining; the new part is what TRIGGERS them.
+- **Tier 2 needs chatter protection**, or it silently re-creates idle motion: a temperature ticking 0.1° every ten seconds must not flourish every ten seconds. Minimum-delta and/or cooldown per element (sane defaults, not knobs-first).
+- **Commands without confirmation** (no state topic wired, or settling timeout): the working animation must resolve anyway — fall to the optimistic end state after the settling window, no eternal key-turning.
+- `prefers-reduced-motion` freezes **all** tiers, as today.
+
 ## The licensing landscape for ready-made animations (researched, verify before vendoring)
 
 | source | license | shippable in core? |
