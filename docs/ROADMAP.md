@@ -69,6 +69,7 @@ Work in progress — priorities and scope are not final.
 - [U63 — `layout-app`: split the content inset into per-side knobs](#u63--layout-app-split-the-content-inset-into-per-side-knobs)
 - [U72 — Generate wizard: order the cards within a view by function (room mode) or name (function mode)](#u72--generate-wizard-order-the-cards-within-a-view-by-function-room-mode-or-name-function-mode)
 - [U73 — Welcome wizard: fork into "explore the editor" vs "just autogenerate an app"](#u73--welcome-wizard-fork-into-explore-the-editor-vs-just-autogenerate-an-app)
+- [U74 — Generate wizard: set a family-matched theme so the app looks like the family screenshot](#u74--generate-wizard-set-a-family-matched-theme-so-the-app-looks-like-the-family-screenshot)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -1179,6 +1180,26 @@ Independent of A/B/C: decide whether the **Subscribe topic may also feed a range
 **Ships with:** the fork step + two branches, the tour-overlay/dialog hand-off, the empty-discovery bail-out, browser tests (the fork routes correctly; the autogenerate path advances only once discovery has entities; the finale appears after the result stage), a `docs/TESTING.md` update to the U37 tour section, and U37's editor-only property preserved (nothing reaches the viewer/export bundle).
 
 **Relates:** **U37** ✅ (the tour this restructures — `feezal-welcome-tour.js`), **U58** ✅ (the App generator the autogenerate path lands in — this **supersedes** its §Onboarding single-step plan), **U67**–**U71** ✅ (the current Generate wizard), the MQTT connection tab (`feezal-sidebar-viewer`) + `/api/discovery/devices` (the discovery wait), the open-viewer action + Deploy → Export (the finale), **A18** (kiosk / first-run onboarding is where this matters most).
+
+### U74 — Generate wizard: set a family-matched theme so the app looks like the family screenshot
+
+**Requested (07/2026).** The App generator should apply a **site theme that matches the chosen element family**, so a generated app looks like its U71 screenshot rather than the fresh-install default:
+
+| family | site theme | extra |
+|---|---|---|
+| **Glass** | `feezal-theme-midnight-blue` (the reporter's "midnight-dark" — the dark base the frost shines against) | set **each generated sub-view's background to the default gradient** wallpaper (what makes the frosted cards read) |
+| **Metro** | `feezal-theme-metro` | — |
+| **Circle** | `feezal-theme-gruvbox-light` | — |
+
+The other families (eink / basic / material) keep the default for now — add their theme when a screenshot exists (pairs with **U71**).
+
+**Grounding.** `_generateApp` in `feezal-generate-dialog.js` builds the shell + sub-views; on confirm it would also **(a)** set the site theme — a theme is a **class on `<feezal-site>`** (`pkgToClass` in `feezal-theme-select.js`), persisted as `config.theme`; reuse the theme sidebar's apply path so it saves + repaints — and **(b)** for glass, set each created sub-view's `background` / `background-image` to the **default gradient** (the `feezal-theme-glass` wallpaper gradient — pin the exact value at build; a per-view background already lives as the style-inspector `background`, so write the same inline form). Only the sub-views the run creates are touched; a re-run must not clobber a background the user has since changed.
+
+**Decisions to make:** whether setting the theme **overrides an existing site theme** on every generate (the request implies yes — "set site theme to X" to match the screenshots) or only when the app shell is freshly created; and whether the glass sub-view gradient is a one-time stamp (editable afterwards) — recommend yes, like every other generated default. Fold into the one-undo-snapshot scaffold.
+
+**Ships with:** the per-family theme map + the glass sub-view gradient in `_generateApp`, reuse of the theme apply/persist path, a browser test (glass → the `feezal-theme-midnight-blue` class on the site + sub-views carry the gradient; metro → `feezal-theme-metro`; circle → `feezal-theme-gruvbox-light`), and a `docs/TESTING.md` line in the Generate-wizard §.
+
+**Relates:** **U58** ✅ / **U67** ✅ / **U69** ✅ (the App generator this refines), **U71** ✅ (the family screenshots the output should match — same three families), `feezal-theme-{midnight-blue, metro, gruvbox-light, glass}`, `feezal-theme-select.js` (`pkgToClass` + the apply path), the view-background style (`feezal-sidebar-inspector-styles.js`), `_generateApp`.
 
 ### E112 — Scrypted integration: camera snapshot element (sensors already work) 💡 to refine
 
