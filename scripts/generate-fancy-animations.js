@@ -202,9 +202,9 @@ function windowContact() {
         return [r1(CAM.x + (x - CAM.x) * t), r1(CAM.y + (y - CAM.y) * t)];
     };
     const rad = d => (d * Math.PI) / 180;
-    // sash edges — a slim gap to the frame (Rahmen inner stroke edge ≈ 16.25,
-    // sash outer stroke edge ≈ 17.5): reads as one window, split by a divider
-    const [E0, E1] = [19, 81];
+    // sash edges — 1px gap to the frame (Rahmen inner stroke edge 16.25,
+    // sash outer stroke edge 17.25): one window, split by a hairline divider
+    const [E0, E1] = [18.75, 81.25];
     // swing: hinge = the vertical sash edge at x=E0 (nailed to the frame)
     const OPEN = ([x, y]) => proj([E0 + (x - E0) * Math.cos(rad(SWING_DEG)), y,
         (x - E0) * Math.sin(rad(SWING_DEG))]);
@@ -214,8 +214,9 @@ function windowContact() {
     const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 
     const frame = group('frame', [rect(50, 50, 72, 72, 2), stroke('base', 4.5)]);
+    // glass reaches under the sash stroke (inner stroke edge 20.25) — no gap
     const SASH  = [[E0, E0], [E1, E0], [E1, E1], [E0, E1]];
-    const GLASS = [[22.5, 22.5], [77.5, 22.5], [77.5, 77.5], [22.5, 77.5]];
+    const GLASS = [[20, 20], [80, 20], [80, 80], [20, 80]];
     const sashK = polyKf([[0, SASH], [12, SASH], [36, SASH.map(OPEN)], [47, SASH.map(OPEN)],
         [48, SASH], [62, SASH], [85, SASH.map(TILT)]]);
     const glassK = polyKf([[0, GLASS], [12, GLASS], [36, GLASS.map(OPEN)], [47, GLASS.map(OPEN)],
@@ -244,7 +245,10 @@ function windowContact() {
     const plate = group('plate', [ellipse(0, 0, 5, 5), fill('base')],
         tr({p: handleP, s: hold([sxOpen, syOpen], [sxTilt, syTilt])}));
 
-    const sashFrame = group('sash-frame', [sashK, stroke('base', 3)]);
+    // Flügel stroke dimmed to 72 % — reads as a slightly lighter shade than
+    // the Rahmen (and the handle, which stays full base = the Rahmen tone)
+    // without leaving the two-tone palette contract
+    const sashFrame = group('sash-frame', [sashK, stroke('base', 3, 72)]);
     const glass = group('glass', [glassK, fill('active', 38)]);
     const sash = group('sash', [lever, plate, sashFrame, glass]);
     return {
