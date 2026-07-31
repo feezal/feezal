@@ -166,6 +166,28 @@ These are editor UI components, not dashboard elements. Only modify these when c
 
 ---
 
+## Editor dark-mode discipline (Shoelace dialogs / buttons / inputs) — DO NOT SKIP
+
+**This bug has been shipped repeatedly.** Any NEW editor dialog / panel that uses Shoelace `sl-button`, `sl-input`, `sl-select`, `sl-switch`, etc. MUST wire up dark mode, or hovering a button/input flashes **white** and the panel/dropdown renders light. Shoelace only themes the *resting* state; the editor's dark tokens are injected from `feezal-app-editor.js` via `:host(.dark) <your-component> { … }` blocks. Every time you add such a component, do ALL of the following:
+
+1. **Register the component tag in the dark-token blocks in `feezal-app-editor.js`** (search for `:host(.dark) feezal-generate-dialog` and add your tag to the same selector lists). Those blocks supply `--feezal-bg/-border/-color`, the `--sl-color-neutral-*` + `--sl-input-*` tokens, `--sl-panel-background-color` (dialog/dropdown surface), and `--feezal-btn-hover*`.
+2. **Inputs: theme the hover/focus background too.** Add `--sl-input-background-color-hover` and `--sl-input-background-color-focus` (Shoelace does NOT derive them from the resting bg). Without this, inputs go white on hover/focus in dark mode.
+3. **Default `sl-button` hover** (the `#1` repeat offender): a non-primary `sl-button` hovers to a light Shoelace neutral. Add this rule **inside your component's own `static styles`** (it targets a `::part` in the button's shadow, so it can't be set from the app-shell):
+   ```css
+   sl-button[variant='default']::part(base):hover {
+       background-color: var(--feezal-btn-hover, var(--sl-color-primary-50, #f0f9ff));
+       border-color: var(--feezal-btn-hover-border, var(--sl-color-primary-300, #7dd3fc));
+       color: var(--feezal-btn-hover-color, var(--sl-color-primary-700, #0369a1));
+   }
+   ```
+   (`variant` reflects to an attribute, so buttons with no explicit `variant` still match.)
+4. **Input sizing**: size inputs with `--sl-input-height-medium` / `--sl-input-font-size-medium`, NEVER by overriding `sl-input::part(input) { height }` — that pushes the text to the top instead of centering it.
+5. **Dropdowns** (`sl-select`): use `hoist` so the menu isn't clipped by the dialog body, and confirm the menu inherits `--sl-panel-background-color` in dark mode.
+
+Reference implementation to copy from: `feezal-generate-dialog.js` + `feezal-connect-dialog.js` (both carry the button-hover rule) and their `:host(.dark)` blocks in `feezal-app-editor.js`. When in doubt, diff your new component against those. **Verify hover in dark mode before committing** — you cannot see the running editor, so re-read the CSS and confirm every interactive Shoelace control has a dark hover/focus path.
+
+---
+
 ## Attribute descriptors in built-in elements
 
 - **Labels**: always use the exact HTML attribute name (`name` field). Do not add a `label:` property with a friendlier display name.

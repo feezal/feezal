@@ -1580,8 +1580,20 @@ class FeezalAppEditor extends LitElement {
     async _pollBridgeStatus() {
         try {
             const r = await fetch('/api/bridge/status');
-            if (r.ok) this._bridge = await r.json();
+            if (r.ok) { this._bridge = await r.json(); return this._bridge; }
         } catch { /* server unreachable — keep the last state */ }
+        return this._bridge;
+    }
+
+    /** First-run connect dialog is shown ONLY when there is no broker configured
+     * OR the configured broker failed to connect — never when it is connected
+     * (nor while it is still connecting, to avoid flashing the dialog). Decided
+     * from the server↔broker bridge status (authoritative), not the sidebar's
+     * connection object which is populated asynchronously after getSite. */
+    _shouldShowConnect(b) {
+        const configured = Boolean(b && b.uri);
+        const failed = Boolean(b && b.uri && !b.connected && b.lastError);
+        return !configured || failed;
     }
 
     /** Top-bar MQTT dot: {cls, label} from the bridge status (+ a yellow
@@ -1603,16 +1615,20 @@ class FeezalAppEditor extends LitElement {
                 ?.querySelector('sl-tab-group')?.show?.('connection'));
     }
 
-    /** No broker host configured yet? Offer the connect dialog first — the tour
-     * starts once it closes (via the feezal-connect-closed handler). Otherwise go
-     * straight to the tour. Runs on every open with no host (skippable). */
-    _maybeFirstRunSetup() {
+    /** No broker configured (or the configured broker failed)? Offer the connect
+     * dialog first — the tour starts once it closes (via the feezal-connect-closed
+     * handler). Otherwise (connected, or still connecting) go straight to the
+     * tour. Decided from the bridge status, giving a fresh connection a few
+     * seconds to settle so the dialog never flashes over a working broker. */
+    async _maybeFirstRunSetup() {
         if (this._sourceMode) return;
-        const vs = this.shadowRoot.querySelector('feezal-sidebar-viewer');
-        const c = vs?.connection || {};
-        let host = c._host || '';
-        if (!host && c.uri) { try { host = new URL(c.uri).hostname || ''; } catch { /* unparseable */ } }
-        if (!host) {
+        let b = await this._pollBridgeStatus();
+        // Wait out a still-connecting bridge (has a uri, not connected, no error).
+        for (let i = 0; i < 6 && b && b.uri && !b.connected && !b.lastError; i++) {
+            await new Promise(r => setTimeout(r, 800));
+            b = await this._pollBridgeStatus();
+        }
+        if (this._shouldShowConnect(b)) {
             this.shadowRoot.querySelector('feezal-connect-dialog')?.open();
             return;   // the tour runs when the dialog closes
         }

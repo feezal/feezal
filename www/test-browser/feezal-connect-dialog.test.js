@@ -88,15 +88,35 @@ describe('feezal-connect-dialog', () => {
         expect(sw.disabled).toBe(true);
     });
 
-    it('wss:// direct warns each viewer must trust the cert; bridge points at the server CA', async () => {
+    it('shows the TLS certificate section only for mqtts:// / wss://', async () => {
+        const el = await dialog();
+        el._protocol = 'mqtt'; await el.updateComplete;
+        expect(el.renderRoot.textContent).not.toMatch(/TLS certificates/);
+        el._protocol = 'wss'; await el.updateComplete;
+        expect(el.renderRoot.textContent).toMatch(/TLS certificates/);
+        expect(el.renderRoot.querySelector('#ca-file-input')).not.toBeNull();       // CA upload
+        // Paste PEM opens the textarea for that cert type
+        el._pasteFor = 'ca'; await el.updateComplete;
+        expect(el.renderRoot.querySelector('sl-textarea')).not.toBeNull();
+    });
+
+    it('the connection status row renders at the top (before the Broker section)', async () => {
+        const el = await dialog();
+        await el.updateComplete;
+        const text = el.renderRoot.textContent;
+        expect(text.indexOf('Connection status')).toBeLessThan(text.indexOf('Broker'));
+    });
+
+    it('wss:// direct warns each viewer must trust the cert; both modes offer TLS cert upload', async () => {
         const el = await dialog();
         el._protocol = 'wss'; el._viaServer = false;
         await el.updateComplete;
         expect(el.renderRoot.textContent).toMatch(/trust the broker's TLS certificate/i);
+        expect(el.renderRoot.textContent).toMatch(/TLS certificates/);       // upload section present
 
         el._viaServer = true;
         await el.updateComplete;
-        expect(el.renderRoot.textContent).toMatch(/feezal server.*must trust/i);
+        expect(el.renderRoot.textContent).toMatch(/TLS certificates/);       // still offered in bridge mode
     });
 
     it('Save writes the connection to the sidebar, deploys, and closes with reason "saved"', async () => {

@@ -6,6 +6,7 @@ import '@shoelace-style/shoelace/dist/components/option/option.js';
 import '@shoelace-style/shoelace/dist/components/button/button.js';
 import '@shoelace-style/shoelace/dist/components/switch/switch.js';
 import '@shoelace-style/shoelace/dist/components/spinner/spinner.js';
+import '@shoelace-style/shoelace/dist/components/textarea/textarea.js';
 
 /**
  * First-run MQTT broker setup. Shown before the welcome tour whenever the site
@@ -36,6 +37,10 @@ class FeezalConnectDialog extends LitElement {
         _bridge: {state: true},     // server↔broker status {connected, uri, lastError} | null
         _testing: {state: true},    // a test is in flight (yellow "connecting")
         _testUri: {state: true},
+        _certStatus: {state: true}, // {ca, caCn, cert, key} | null — TLS cert presence
+        _pasteFor: {state: true},   // null | 'ca' | 'cert' | 'key' — which PEM paste box is open
+        _pemText: {state: true},
+        _certBusy: {state: true},
     };
 
     static styles = css`
@@ -79,8 +84,32 @@ class FeezalConnectDialog extends LitElement {
         .status .uri { opacity: .75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
         .status-error { color: #e06666; font-size: 13px; margin-top: 4px; word-break: break-word; }
 
+        /* TLS cert rows (mirrors the Connection sidebar). */
+        .cert-info-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 14px; }
+        .cert-label { color: var(--feezal-color, #333); }
+        .cert-badge-ok { color: #2e9d4f; font-weight: 700; }
+        .cert-badge-none { opacity: .55; font-size: 13px; }
+        .cert-cn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .8; }
+        .cert-remove-btn {
+            border: none; background: none; cursor: pointer; opacity: .55;
+            color: var(--feezal-color, #333); font-size: 15px; line-height: 1; padding: 2px 6px; border-radius: 4px;
+        }
+        .cert-remove-btn:hover { opacity: 1; background: rgba(214,69,69,0.12); color: #d64545; }
+        .cert-actions { display: flex; gap: 6px; margin: 4px 0; flex-wrap: wrap; }
+        .cert-save-row { display: flex; justify-content: flex-end; margin-top: 6px; }
+        input[type=file] { display: none; }
+
         .footer { display: flex; gap: 8px; align-items: center; }
         .footer .spacer { flex: 1; }
+
+        /* Default (non-primary) sl-button hover — draw from the editor dark
+           tokens instead of Shoelace's light neutral, which reads white in dark
+           mode. (Same fix as feezal-generate-dialog; keep the two in sync.) */
+        sl-button[variant='default']::part(base):hover {
+            background-color: var(--feezal-btn-hover, var(--sl-color-primary-50, #f0f9ff));
+            border-color: var(--feezal-btn-hover-border, var(--sl-color-primary-300, #7dd3fc));
+            color: var(--feezal-btn-hover-color, var(--sl-color-primary-700, #0369a1));
+        }
     `;
 
     constructor() {
@@ -97,6 +126,10 @@ class FeezalConnectDialog extends LitElement {
         this._testing = false;
         this._testUri = '';
         this._pollTimer = null;
+        this._certStatus = null;
+        this._pasteFor = null;
+        this._pemText = '';
+        this._certBusy = false;
     }
 
     disconnectedCallback() {
@@ -137,8 +170,11 @@ class FeezalConnectDialog extends LitElement {
         this._saving = false;
         this._testing = false;
         this._testUri = '';
+        this._pasteFor = null;
+        this._pemText = '';
         this.requestUpdate();
         this._startPoll();
+        this._loadCertStatus();
         this.updateComplete.then(() => this.renderRoot.querySelector('sl-dialog')?.show());
     }
 
@@ -220,6 +256,116 @@ class FeezalConnectDialog extends LitElement {
         this._apply(() => { this._saving = false; this._close('saved'); });
     }
 
+    // ── TLS certs (same endpoints + behaviour as the Connection sidebar) ──────
+    async _loadCertStatus() {
+        try {
+            const site = window.feezal?.siteName || 'default';
+            const r = await fetch(`/api/sites/${encodeURIComponent(site)}/certs`);
+            if (r.ok) this._certStatus = await r.json();
+        } catch { /* no dataDir — ignore */ }
+    }
+
+    async _uploadPem(pem, type = 'ca') {
+        this._certBusy = true;
+        try {
+            const site = window.feezal?.siteName || 'default';
+            const r = await fetch(`/api/sites/${encodeURIComponent(site)}/certs`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({type, pem}),
+            });
+            if (r.ok) { this._pasteFor = null; this._pemText = ''; await this._loadCertStatus(); }
+        } catch { /* ignore */ }
+        this._certBusy = false;
+    }
+
+    async _removeCert(type) {
+        this._certBusy = true;
+        try {
+            const site = window.feezal?.siteName || 'default';
+            await fetch(`/api/sites/${encodeURIComponent(site)}/certs/${type}`, {method: 'DELETE'});
+            await this._loadCertStatus();
+        } catch { /* ignore */ }
+        this._certBusy = false;
+    }
+
+    _handleFileUpload(e, type = 'ca') {
+        const file = e.target.files[0];
+        if (!file) return;
+        file.text().then(text => this._uploadPem(text, type));
+        e.target.value = '';
+    }
+
+    // One mTLS cert row (type 'cert'|'key'): status badge + upload/paste/remove.
+    _mtlsRow(type, label, accept) {
+        const present = this._certStatus?.[type];
+        return html`
+            <div class="cert-info-row">
+                <span class="cert-label">${label}</span>
+                ${present ? html`
+                    <span class="cert-badge-ok">✓</span>
+                    <button class="cert-remove-btn" title="Remove ${label.toLowerCase()}" @click="${() => this._removeCert(type)}">✕</button>
+                ` : html`
+                    <span class="cert-badge-none">none</span>
+                    <sl-button size="small" ?loading="${this._certBusy}"
+                        @click="${() => this.renderRoot.querySelector(`#${type}-file-input`).click()}">Upload</sl-button>
+                    <sl-button size="small" variant="text"
+                        @click="${() => { this._pasteFor = this._pasteFor === type ? null : type; }}">
+                        ${this._pasteFor === type ? 'Cancel' : 'Paste'}</sl-button>
+                `}
+            </div>
+            <input id="${type}-file-input" type="file" accept="${accept}" @change="${e => this._handleFileUpload(e, type)}">
+        `;
+    }
+
+    // Shared PEM paste box — open for at most one cert type at a time.
+    _pasteArea(type) {
+        if (this._pasteFor !== type) return '';
+        return html`
+            <sl-textarea size="small" rows="5" placeholder="-----BEGIN ...-----&#10;..."
+                .value="${this._pemText}" @sl-input="${e => this._pemText = e.target.value}"></sl-textarea>
+            <div class="cert-save-row">
+                <sl-button size="small" variant="primary"
+                    ?disabled="${!this._pemText.includes('-----BEGIN ')}" ?loading="${this._certBusy}"
+                    @click="${() => this._uploadPem(this._pemText, type)}">Save</sl-button>
+            </div>
+        `;
+    }
+
+    /** The TLS section — CA + client cert/key, shown only for mqtts:// / wss://. */
+    _tlsSection() {
+        const hasCa = this._certStatus?.ca;
+        return html`
+            <div class="section">TLS certificates</div>
+            <div class="cert-info-row">
+                <span class="cert-label">CA certificate</span>
+                ${hasCa ? html`
+                    <span class="cert-badge-ok">✓</span>
+                    <span class="cert-cn" title="${this._certStatus.caCn || ''}">${this._certStatus.caCn || 'CA certificate'}</span>
+                    <button class="cert-remove-btn" title="Remove CA certificate" @click="${() => this._removeCert('ca')}">✕</button>
+                ` : html`
+                    <span class="cert-badge-none">none</span>
+                    <sl-button size="small" ?loading="${this._certBusy}"
+                        @click="${() => this.renderRoot.querySelector('#ca-file-input').click()}">Upload file</sl-button>
+                    <sl-button size="small" variant="text"
+                        @click="${() => { this._pasteFor = this._pasteFor === 'ca' ? null : 'ca'; }}">
+                        ${this._pasteFor === 'ca' ? 'Cancel' : 'Paste PEM'}</sl-button>
+                    <input id="ca-file-input" type="file" accept=".pem,.crt,.cer,.ca" @change="${e => this._handleFileUpload(e, 'ca')}">
+                `}
+            </div>
+            ${this._pasteArea('ca')}
+            <div class="section" style="margin-top:12px">Client certificate <span class="muted">(mTLS, optional)</span></div>
+            ${this._mtlsRow('cert', 'Certificate', '.pem,.crt,.cer')}
+            ${this._pasteArea('cert')}
+            ${this._mtlsRow('key', 'Private key', '.pem,.key')}
+            ${this._pasteArea('key')}
+            <p class="hint">
+                ${this._bridgeMode
+                    ? html`Used by the <b>Feezal server</b> (bridge mode). The private key never leaves the server.`
+                    : html`Direct viewers need the certificate in each device's OS trust store — this uploads it for the <b>Feezal server</b> (used when testing here and in bridge mode).`}
+            </p>
+        `;
+    }
+
     /** Connection-status row (dot + label + error), with a yellow "connecting"
      *  state while a test is establishing. Same shape as the Connection sidebar. */
     _statusRow() {
@@ -252,9 +398,12 @@ class FeezalConnectDialog extends LitElement {
         return html`
             <sl-dialog label="Connect your MQTT broker" @sl-request-close="${e => { if (e.detail.source === 'overlay') e.preventDefault(); }}">
                 <p class="intro">
-                    feezal talks to your smart home over MQTT. Point it at your broker to start —
+                    Feezal talks to your smart home over MQTT. Point it at your broker to start —
                     you can change this anytime in the Connection sidebar, or <b>skip</b> for now.
                 </p>
+
+                <div class="section">Connection status</div>
+                ${this._statusRow()}
 
                 <div class="section">Broker</div>
                 <div class="row">
@@ -273,7 +422,7 @@ class FeezalConnectDialog extends LitElement {
                 <p class="hint">
                     Prefer <b>ws://</b> or <b>wss://</b> — browsers can only open MQTT over WebSockets, so those
                     connect directly from the dashboard. <b>mqtt://</b> / <b>mqtts://</b> work only through the
-                    feezal server (bridge mode).
+                    Feezal server (bridge mode).
                 </p>
 
                 <div class="section">Authentication <span class="muted">(if your broker needs it)</span></div>
@@ -304,17 +453,12 @@ class FeezalConnectDialog extends LitElement {
                         <strong>This editor is served over HTTPS</strong>, so a direct viewer must use <b>wss://</b> —
                         browsers block <b>ws://</b> from an https:// page. Switch the protocol to wss://, or use bridge mode.
                     </p>` : ''}
-                ${this._isTls ? html`
+                ${this._isTls && !this._bridgeMode ? html`
                     <p class="hint">
-                        ${this._bridgeMode
-                            ? html`With a self-signed / private-CA broker, the <b>feezal server</b> must trust its certificate —
-                                add the CA under <b>Connection → TLS</b> in the sidebar.`
-                            : html`With <b>wss://</b>, every browser and device that opens the dashboard must
-                                <b>trust the broker's TLS certificate</b> — install a self-signed certificate on each of them first.`}
+                        With <b>wss://</b>, every browser and device that opens the dashboard must
+                        <b>trust the broker's TLS certificate</b> — install a self-signed certificate on each of them first.
                     </p>` : ''}
-
-                <div class="section">Connection status</div>
-                ${this._statusRow()}
+                ${this._isTls ? this._tlsSection() : ''}
 
                 <div slot="footer" class="footer">
                     <sl-button variant="text" ?disabled="${this._saving}" @click="${() => this._close('skipped')}">Skip for now</sl-button>
