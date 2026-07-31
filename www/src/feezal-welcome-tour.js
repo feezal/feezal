@@ -56,6 +56,20 @@ const STEPS = [
         // No target — centred card like the welcome page.
     },
     {
+        // U73 — the fork: pick a path. The two choice buttons set `_path`, which
+        // then filters the step list (see `_steps()`); there is no plain "Next".
+        id: 'fork',
+        title: 'How would you like to start?',
+        body: 'Two ways in — pick one (you can always do the other later):',
+        fork: [
+            {path: 'explore', label: 'Place a few elements myself',
+                hint: 'A short hands-on tour: drag an element, wire it to an MQTT topic, deploy, and watch it go live.'},
+            {path: 'auto', label: 'Autogenerate an app from my devices',
+                hint: 'Connect your broker and let feezal build a whole dashboard from the devices it discovers.'},
+        ],
+        // No target — centred card.
+    },
+    {
         id: 'palette',
         title: 'Element palette',
         body: 'These are the building blocks of your dashboard — buttons, gauges, lights, charts and more, grouped by family. Drag any of them onto the canvas. The search box filters the list.',
@@ -165,7 +179,43 @@ const STEPS = [
         target: ed => ed.shadowRoot.querySelector('#btn-deploy-wrap'),
         interactive: true,
     },
+
+    // ── U73 autogenerate branch ────────────────────────────────────────────────
+    {
+        id: 'discovery-wait',
+        title: 'Connecting and discovering your devices',
+        body: 'Feezal is connecting to your broker and listening for the devices it announces (Home Assistant discovery, zigbee2mqtt, Homematic/RedMatic, …). As soon as some show up, the app generator opens automatically.',
+        // No spotlight target — a centred waiting card. Interactive so the user
+        // can still reach the editor while it polls.
+        interactive: true,
+        advance: 'discovery',
+        bailout: true,
+    },
+    {
+        id: 'generate',
+        title: 'Generate your app',
+        // Suspended: the Generate dialog owns the screen — the tour renders no
+        // card/dim here (it would sit on top of the modal). Resumes at the
+        // finale once the dialog reaches its result stage.
+        body: '',
+        suspend: true,
+        advance: 'generate',
+    },
+    {
+        id: 'finale',
+        title: 'Your app is ready',
+        body: 'Deploy to publish it, then the ▾ menu next to Deploy → View opens it in the viewer. To run it on a wall tablet or share it, use Deploy → Export for a self-contained bundle you can open straight from a file or host anywhere.\n\nReplay this tour anytime from Editor Settings.',
+        target: ed => ed.shadowRoot.querySelector('#btn-deploy-wrap'),
+        interactive: true,
+    },
 ];
+
+// U73 — which fork path each step belongs to (steps not listed show in BOTH
+// paths once a path is chosen; welcome/terminology/fork show always).
+const EXPLORE_ONLY = new Set(['palette', 'canvas', 'inspector', 'theme',
+    'drop-template', 'wire-topic', 'template-content', 'finish']);
+const AUTO_ONLY = new Set(['discovery-wait', 'generate', 'finale']);
+const ALWAYS = new Set(['welcome', 'terminology', 'fork']);
 
 const PAD = 6; // cutout padding around the target rect
 
@@ -175,6 +225,7 @@ class FeezalWelcomeTour extends LitElement {
         _active: {state: true},
         _step: {state: true},
         _rect: {state: true},
+        _path: {state: true},   // U73: 'explore' | 'auto' | null (before the fork)
     };
 
     static styles = css`
@@ -321,6 +372,19 @@ class FeezalWelcomeTour extends LitElement {
             font-weight: 600;
             color: var(--sl-color-primary-600, #0284c7);
         }
+        /* U73 fork choices + discovery bail-out */
+        .fork { display: flex; flex-direction: column; gap: 8px; margin: 0 0 12px; }
+        .fork-choice {
+            display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+            padding: 10px 12px; text-align: left; cursor: pointer;
+            border: 1px solid var(--sl-color-primary-400, #38bdf8); border-radius: 8px;
+            background: var(--feezal-bg, #fff); color: var(--feezal-color, #333);
+        }
+        .fork-choice:hover { background: color-mix(in srgb, var(--sl-color-primary-500, #0ea5e9) 12%, transparent); }
+        .fork-label { font-weight: 600; font-size: 13px; color: var(--sl-color-primary-600, #0284c7); }
+        .fork-hint { font-size: 12px; opacity: 0.75; line-height: 1.4; }
+        .bailout { margin: 0 0 12px; }
+        .bailout button.link { opacity: 0.75; }
         .controls { display: flex; align-items: center; gap: 8px; }
         .dots { display: flex; gap: 4px; flex: 1; }
         .dot {
@@ -353,8 +417,23 @@ class FeezalWelcomeTour extends LitElement {
         this._active = false;
         this._step = 0;
         this._rect = null;
+        this._path = null;
         this._onResize = () => this._measure();
     }
+
+    /** U73 — the steps visible for the current fork path. Before a path is
+     * chosen only the shared prefix (welcome/terminology/fork) shows; after,
+     * the path's own steps plus the shared broker/deploy steps. */
+    _steps() {
+        return STEPS.filter(s => {
+            if (ALWAYS.has(s.id)) return true;
+            if (EXPLORE_ONLY.has(s.id)) return this._path === 'explore';
+            if (AUTO_ONLY.has(s.id)) return this._path === 'auto';
+            return this._path !== null;   // shared (broker/status/deploy) — after the fork
+        });
+    }
+
+    _current() { return this._steps()[this._step]; }
 
     disconnectedCallback() {
         super.disconnectedCallback();
@@ -366,6 +445,7 @@ class FeezalWelcomeTour extends LitElement {
     start() {
         if (this._active) return;
         this._active = true;
+        this._path = null;                    // U73: re-choose the path each run
         this.setAttribute('data-active', '');
         this._goto(0);
         window.addEventListener('resize', this._onResize);
@@ -386,16 +466,21 @@ class FeezalWelcomeTour extends LitElement {
     _teardown() {
         window.removeEventListener('resize', this._onResize);
         clearInterval(this._trackTimer);
+        clearInterval(this._pollTimer);       // U73: discovery/generate polling
+        this._pollTimer = null;
         this._watcher?.disconnect();
         this._watcher = null;
     }
 
     _goto(index) {
-        if (index < 0 || index >= STEPS.length) return;
+        const steps = this._steps();
+        if (index < 0 || index >= steps.length) return;
         this._watcher?.disconnect();
         this._watcher = null;
+        clearInterval(this._pollTimer);
+        this._pollTimer = null;
         this._step = index;
-        const step = STEPS[index];
+        const step = steps[index];
         step.prepare?.(this.editor);
         // Measure after the prepare-triggered re-render settled.
         this.editor?.updateComplete?.then(() => requestAnimationFrame(() => this._measure()));
@@ -403,15 +488,24 @@ class FeezalWelcomeTour extends LitElement {
         if (step.advance === 'drop') this._watchDrop();
         if (step.advance === 'subscribe') this._watchSubscribe();
         if (step.advance === 'template') this._watchTemplate();
+        if (step.advance === 'discovery') this._watchDiscovery();
+        if (step.advance === 'generate') this._watchGenerate();
         this._copied = false;
     }
 
-    _next() { STEPS[this._step + 1] ? this._goto(this._step + 1) : this.stop(); }
+    _next() { this._steps()[this._step + 1] ? this._goto(this._step + 1) : this.stop(); }
     _back() { this._goto(this._step - 1); }
+
+    // U73 — the fork buttons pick a path, then advance into it.
+    _choosePath(path) {
+        this._path = path;
+        this._goto(this._step + 1);
+    }
 
     _measure() {
         if (!this._active || !this.editor) return;
-        const step = STEPS[this._step];
+        const step = this._current();
+        if (!step) return;
         const target = step.target?.(this.editor);
         const r = target?.getBoundingClientRect();
         this._rect = (r && r.width > 0 && r.height > 0)
@@ -478,6 +572,54 @@ class FeezalWelcomeTour extends LitElement {
         this._watcher.observe(el, {childList: true, subtree: true, characterData: true});
     }
 
+    // ── U73 autogenerate progression ───────────────────────────────────────────
+
+    /** The Generate dialog element (in the editor's shadow root). */
+    _genDialog() { return this.editor?.shadowRoot?.querySelector('feezal-generate-dialog'); }
+
+    /** Poll discovery; advance to the Generate step once any device shows up. */
+    _watchDiscovery() {
+        const poll = async () => {
+            try {
+                const res = await fetch('/api/discovery/devices');
+                if (!res.ok) return;
+                const data = await res.json();
+                const n = (Array.isArray(data) ? data : data.devices || []).length;
+                if (n > 0) { clearInterval(this._pollTimer); this._pollTimer = null; this._next(); }
+            } catch { /* server not reachable yet — keep polling */ }
+        };
+        poll();
+        this._pollTimer = setInterval(poll, 2500);
+    }
+
+    /** Open the Generate dialog at the App tile and hand the screen to it;
+     * resume at the finale once it reaches the result stage, or bail to the
+     * editor if the user closes it without generating. */
+    _watchGenerate() {
+        const gen = this._genDialog();
+        if (!gen) { this._next(); return; }   // no dialog (shouldn't happen) — skip to finale
+        gen.open();
+        gen.updateComplete?.then(() => gen._chooseApp?.());
+        this._genResultSeen = false;
+        this._pollTimer = setInterval(() => {
+            const open = gen.shadowRoot?.querySelector('sl-dialog')?.open;
+            if (gen._stage === 'result') this._genResultSeen = true;
+            if (!open) {   // dialog closed
+                clearInterval(this._pollTimer);
+                this._pollTimer = null;
+                if (this._genResultSeen) this._next();   // app created → finale
+                else this.stop();                        // backed out → land in the editor
+            }
+        }, 300);
+    }
+
+    /** U73 — bail out of the discovery wait (no devices) into the editor. */
+    _bailToEditor() {
+        clearInterval(this._pollTimer);
+        this._pollTimer = null;
+        this.stop();
+    }
+
     /** Copy the step snippet to the clipboard with a brief "Copied!" confirmation. */
     async _copySnippet(snippet) {
         try {
@@ -528,21 +670,35 @@ class FeezalWelcomeTour extends LitElement {
 
     render() {
         if (!this._active) return html``;
-        const step = STEPS[this._step];
+        const steps = this._steps();
+        const step = steps[this._step];
+        if (!step) return html``;
+        // U73: the Generate step hands the whole screen to the modal dialog —
+        // render nothing so the tour overlay never sits on top of it.
+        if (step.suspend) return html``;
         const r = this._rect;
-        const waiting = step.advance && this._watcher;
+        const waiting = step.advance && (this._watcher || this._pollTimer);
+        const isLast = this._step === steps.length - 1;
         return html`
             ${r
                 ? html`<div class="spotlight" style="left:${r.left}px; top:${r.top}px; width:${r.width}px; height:${r.height}px;">${keyed(this._step, html`<div class="glow"></div>`)}</div>`
                 : html`<div class="backdrop-full"></div>`}
-            ${step.interactive ? '' : html`<div class="click-catcher"></div>`}
+            ${step.interactive || step.fork ? '' : html`<div class="click-catcher"></div>`}
             <div class="card" style="${this._cardStyle()}">
                 <h3>${step.title}</h3>
-                <p>${step.body}</p>
+                ${step.body ? html`<p>${step.body}</p>` : ''}
                 ${step.terms ? html`
                     <dl class="terms">
                         ${step.terms.map(t => html`<dt>${t.term}</dt><dd>${t.def}</dd>`)}
                     </dl>` : ''}
+                ${step.fork ? html`
+                    <div class="fork">
+                        ${step.fork.map(f => html`
+                            <button class="fork-choice" @click="${() => this._choosePath(f.path)}">
+                                <span class="fork-label">${f.label}</span>
+                                <span class="fork-hint">${f.hint}</span>
+                            </button>`)}
+                    </div>` : ''}
                 ${step.snippet ? html`
                     <button class="snippet" title="Click to copy"
                         @click="${() => this._copySnippet(step.snippet)}">
@@ -550,15 +706,16 @@ class FeezalWelcomeTour extends LitElement {
                         <span class="copy-hint">${this._copied ? 'Copied!' : 'Copy'}</span>
                     </button>` : ''}
                 ${waiting ? html`<p class="waiting">Waiting — the tour continues automatically…</p>` : ''}
+                ${step.bailout ? html`
+                    <p class="bailout"><button class="link" @click="${() => this._bailToEditor()}">No devices yet? Skip to the editor →</button></p>` : ''}
                 <div class="controls">
                     <div class="dots">
-                        ${STEPS.map((_, i) => html`<span class="dot ${i === this._step ? 'on' : ''}"></span>`)}
+                        ${steps.map((_, i) => html`<span class="dot ${i === this._step ? 'on' : ''}"></span>`)}
                     </div>
                     <button class="link" @click="${() => this.stop()}">Skip tour</button>
                     ${this._step > 0 ? html`<button @click="${this._back}">Back</button>` : ''}
-                    <button class="primary" @click="${this._next}">
-                        ${this._step === STEPS.length - 1 ? 'Done' : 'Next'}
-                    </button>
+                    ${step.fork ? '' : html`
+                        <button class="primary" @click="${this._next}">${isLast ? 'Done' : 'Next'}</button>`}
                 </div>
             </div>
         `;

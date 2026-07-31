@@ -73,6 +73,7 @@ describe('welcome tour (U37)', () => {
 
     it('sidebar steps extend the spotlight up to the sidebar tab switcher', async () => {
         tour.start();
+        tour._path = 'explore';   // U73: past the fork, the hands-on path
         tour._goto(STEPS.findIndex(s => s.id === 'inspector'));
         await tour.updateComplete;
         const spot = tour.shadowRoot.querySelector('.spotlight');
@@ -91,6 +92,7 @@ describe('welcome tour (U37)', () => {
 
     it('the palette step shows the spotlight cutout', async () => {
         tour.start();
+        tour._path = 'explore';
         tour._goto(STEPS.findIndex(s => s.id === 'palette'));
         await tour.updateComplete;
         expect(fakeEditor.paletteVisible).toBe(true);   // step prepare ran
@@ -103,6 +105,7 @@ describe('welcome tour (U37)', () => {
 
     it('spotlight carries the glow ring with arrive + breathe animations, re-created per step', async () => {
         tour.start();
+        tour._path = 'explore';
         await tour.updateComplete;
         expect(tour.shadowRoot.querySelector('.glow')).toBeNull();   // welcome page: no cutout
         tour._goto(STEPS.findIndex(s => s.id === 'palette'));
@@ -118,6 +121,7 @@ describe('welcome tour (U37)', () => {
 
     it('Next/Back walk the steps; sidebar steps switch the tab (U41: theme before broker)', async () => {
         tour.start();
+        tour._path = 'explore';
         await tour.updateComplete;
         tour._goto(STEPS.findIndex(s => s.id === 'inspector'));
         await tour.updateComplete;
@@ -136,6 +140,7 @@ describe('welcome tour (U37)', () => {
 
     it('non-interactive steps block clicks, interactive steps do not', async () => {
         tour.start();
+        tour._path = 'explore';
         await tour.updateComplete;
         expect(tour.shadowRoot.querySelector('.click-catcher')).not.toBeNull();
         tour._goto(STEPS.findIndex(s => s.id === 'broker'));
@@ -170,6 +175,7 @@ describe('welcome tour (U37)', () => {
         document.body.append(view);
         feezal.view = view;
         tour.start();
+        tour._path = 'explore';
         const dropIdx = STEPS.findIndex(s => s.advance === 'drop');
         tour._goto(dropIdx);
         await tour.updateComplete;
@@ -183,6 +189,7 @@ describe('welcome tour (U37)', () => {
         const el = document.createElement('feezal-element-basic-template');
         document.body.append(el);
         tour.start();
+        tour._path = 'explore';
         const wireIdx = STEPS.findIndex(s => s.advance === 'subscribe');
         tour._exerciseEl = el;
         tour._goto(wireIdx);
@@ -198,6 +205,7 @@ describe('welcome tour (U37)', () => {
         el.setAttribute('subscribe', 'stat/temp');
         document.body.append(el);
         tour.start();
+        tour._path = 'explore';
         const tplIdx = STEPS.findIndex(s => s.advance === 'template');
         tour._exerciseEl = el;
         tour._goto(tplIdx);
@@ -217,6 +225,7 @@ describe('welcome tour (U37)', () => {
             configurable: true,
         });
         tour.start();
+        tour._path = 'explore';
         tour._goto(STEPS.findIndex(s => s.id === 'template-content'));
         await tour.updateComplete;
 
@@ -240,10 +249,126 @@ describe('welcome tour (U37)', () => {
 
     it('finishing the last step ends the tour and sets the seen-flag', async () => {
         tour.start();
-        tour._goto(STEPS.length - 1);
+        tour._path = 'explore';
+        tour._goto(tour._steps().length - 1);   // the explore path's last step (finish)
         await tour.updateComplete;
         tour._next();   // "Done"
         expect(tour.hasAttribute('data-active')).toBe(false);
         expect(localStorage.getItem('feezalTourSeen')).toBe('1');
+    });
+});
+
+describe('welcome tour (U73) — fork + autogenerate branch', () => {
+    const idInSteps = id => tour._steps().findIndex(s => s.id === id);
+
+    it('a fork step sits right after terminology, with two path choices and no Next', async () => {
+        tour.start();
+        tour._next();   // welcome → terminology
+        tour._next();   // → fork
+        await tour.updateComplete;
+        expect(tour._current().id).toBe('fork');
+        const choices = tour.shadowRoot.querySelectorAll('.fork-choice');
+        expect(choices).toHaveLength(2);
+        expect(tour.shadowRoot.querySelector('button.primary')).toBeNull();   // no Next on the fork
+    });
+
+    it('choosing "explore" reveals the hands-on steps (palette next)', async () => {
+        tour.start();
+        tour._goto(idInSteps('fork'));
+        tour._choosePath('explore');
+        await tour.updateComplete;
+        expect(tour._path).toBe('explore');
+        expect(tour._current().id).toBe('palette');
+        expect(tour._steps().some(s => s.id === 'discovery-wait')).toBe(false);
+    });
+
+    it('choosing "autogenerate" skips the UI/hands-on steps and goes to the broker', async () => {
+        tour.start();
+        tour._goto(idInSteps('fork'));
+        tour._choosePath('auto');
+        await tour.updateComplete;
+        expect(tour._path).toBe('auto');
+        expect(tour._current().id).toBe('broker');
+        const ids = tour._steps().map(s => s.id);
+        expect(ids).toEqual(['welcome', 'terminology', 'fork', 'broker', 'broker-status',
+            'deploy', 'discovery-wait', 'generate', 'finale']);
+        expect(ids).not.toContain('palette');
+        expect(ids).not.toContain('drop-template');
+    });
+
+    it('discovery-wait advances to Generate once devices are discovered', async () => {
+        let n = 0;
+        const orig = window.fetch;
+        window.fetch = async url => {
+            if (String(url).includes('/api/discovery/devices')) {
+                return {ok: true, json: async () => ({devices: n++ >= 1 ? [{discovery_id: 'x'}] : []})};
+            }
+            return {ok: false, json: async () => ({})};
+        };
+        // a stub generate dialog so the Generate step doesn't blow up
+        targets['feezal-generate-dialog'] = {
+            open() {}, _chooseApp() {}, _stage: 'app',
+            updateComplete: Promise.resolve(true),
+            shadowRoot: {querySelector: () => ({open: true})},
+        };
+        try {
+            tour.start();
+            tour._goto(idInSteps('fork'));
+            tour._choosePath('auto');
+            tour._goto(tour._steps().findIndex(s => s.id === 'discovery-wait'));
+            await until(() => tour._current()?.id === 'generate', {timeout: 8000});
+            expect(tour._current().id).toBe('generate');
+        } finally {
+            window.fetch = orig;
+            delete targets['feezal-generate-dialog'];
+        }
+    });
+
+    it('the discovery-wait bail-out lands the user in the editor', async () => {
+        window.fetch = async () => ({ok: true, json: async () => ({devices: []})});
+        tour.start();
+        tour._goto(idInSteps('fork'));
+        tour._choosePath('auto');
+        tour._goto(tour._steps().findIndex(s => s.id === 'discovery-wait'));
+        await tour.updateComplete;
+        const bail = tour.shadowRoot.querySelector('.bailout button');
+        expect(bail).not.toBeNull();
+        bail.click();
+        expect(tour.hasAttribute('data-active')).toBe(false);
+        expect(localStorage.getItem('feezalTourSeen')).toBe('1');
+    });
+
+    it('the Generate step is suspended (renders nothing) and opens the dialog at the App tile', async () => {
+        let opened = false, choseApp = false;
+        const gen = {
+            open() { opened = true; }, _chooseApp() { choseApp = true; }, _stage: 'app',
+            updateComplete: Promise.resolve(true),
+            shadowRoot: {querySelector: () => ({open: true})},
+        };
+        targets['feezal-generate-dialog'] = gen;
+        try {
+            tour.start();
+            tour._path = 'auto';
+            tour._goto(tour._steps().findIndex(s => s.id === 'generate'));
+            await gen.updateComplete;
+            await tour.updateComplete;
+            expect(opened).toBe(true);
+            expect(choseApp).toBe(true);
+            // suspended: no card/overlay while the dialog owns the screen
+            expect(tour.shadowRoot.querySelector('.card')).toBeNull();
+            expect(tour.shadowRoot.querySelector('.backdrop-full')).toBeNull();
+        } finally {
+            delete targets['feezal-generate-dialog'];
+        }
+    });
+
+    it('the finale (auto path) points at Deploy for view + export', async () => {
+        tour.start();
+        tour._path = 'auto';
+        tour._goto(tour._steps().findIndex(s => s.id === 'finale'));
+        await tour.updateComplete;
+        expect(tour._current().id).toBe('finale');
+        expect(tour.shadowRoot.querySelector('.card p').textContent).toMatch(/export/i);
+        expect(tour.shadowRoot.querySelector('.spotlight')).not.toBeNull();   // spotlights deploy
     });
 });
