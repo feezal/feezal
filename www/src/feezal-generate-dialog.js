@@ -105,7 +105,10 @@ class FeezalGenerateDialog extends LitElement {
         /* Fixed-height scroll area so the popup keeps its size while filtering
            (the loading / empty / list states all live inside it). */
         .dev-body { height: 46vh; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
-        .groups { }
+        /* no text selection: shift-click is range-select, not text-select. */
+        .groups { user-select: none; -webkit-user-select: none; }
+        .hint { font-size: 11px; opacity: .55; padding: 1px 4px 6px; }
+        .hint b { font-weight: 700; opacity: .85; }
         .group-hd {
             display: flex; align-items: center; gap: 8px; position: sticky; top: 0;
             background: var(--feezal-dialog-bg, #fff); padding: 8px 2px 4px;
@@ -192,6 +195,7 @@ class FeezalGenerateDialog extends LitElement {
         this._family = 'glass';
         this._filter = '';
         this._checked = new Set();
+        this._anchorKey = null;   // last plain-clicked row — the shift-range anchor
         this._axis = 'room';
         this._assign = new Map();
         this._result = null;
@@ -204,6 +208,7 @@ class FeezalGenerateDialog extends LitElement {
         this._error = null;
         this._filter = '';
         this._checked = new Set();
+        this._anchorKey = null;
         this._result = null;
         // Default the family to the first available one.
         const fams = this._availableFamilies();
@@ -306,6 +311,39 @@ class FeezalGenerateDialog extends LitElement {
         const next = new Set(this._checked);
         next.has(key) ? next.delete(key) : next.add(key);
         this._checked = next;
+    }
+
+    // The selectable (non-gap) row keys in visible order across all groups —
+    // the sequence a shift-click range runs over.
+    _orderedEligibleKeys() {
+        const keys = [];
+        for (const [, entities] of this._grouped()) {
+            for (const e of entities) if (this._tagFor(e)) keys.push(e.__key);
+        }
+        return keys;
+    }
+
+    // Row click. A plain click toggles the row and becomes the range anchor; a
+    // Shift+click sets every selectable row between the anchor and this row
+    // (inclusive) to the anchor's state — so shift-click FILLS a range when the
+    // anchor is checked and CLEARS one when it isn't. The anchor is kept so the
+    // range endpoint can be moved with another shift-click.
+    _rowClick(ev, key) {
+        if (ev.shiftKey && this._anchorKey && this._anchorKey !== key) {
+            const order = this._orderedEligibleKeys();
+            const a = order.indexOf(this._anchorKey);
+            const b = order.indexOf(key);
+            if (a !== -1 && b !== -1) {
+                const [lo, hi] = a < b ? [a, b] : [b, a];
+                const on = this._checked.has(this._anchorKey);
+                const next = new Set(this._checked);
+                for (let i = lo; i <= hi; i++) on ? next.add(order[i]) : next.delete(order[i]);
+                this._checked = next;
+                return;   // keep the anchor — the user can re-shift-click a new endpoint
+            }
+        }
+        this._toggle(key);
+        this._anchorKey = key;
     }
 
     // Toggle every generatable (non-gap) row in a group.
@@ -743,8 +781,10 @@ class FeezalGenerateDialog extends LitElement {
     _renderGroups() {
         const groups = this._grouped();
         if (!groups.length) return html`<div class="empty">No matching devices.</div>`;
+        const totalEligible = groups.reduce((n, [, es]) => n + es.filter(e => this._tagFor(e)).length, 0);
         return html`
             <div class="groups">
+                ${totalEligible > 1 ? html`<div class="hint">Tip: hold <b>Shift</b> and click to select a range.</div>` : ''}
                 ${groups.map(([name, entities]) => {
                     const eligible = entities.filter(e => this._tagFor(e));
                     const someOn = eligible.some(e => this._checked.has(e.__key));
@@ -779,7 +819,7 @@ class FeezalGenerateDialog extends LitElement {
         }
         const on = this._checked.has(entity.__key);
         return html`
-            <div class="row" @click="${() => this._toggle(entity.__key)}">
+            <div class="row" @click="${ev => this._rowClick(ev, entity.__key)}">
                 <sl-checkbox ?checked="${on}"></sl-checkbox>
                 <span class="r-label">${this._label(entity)}</span>
                 <span class="r-badge">${entity.component}</span>

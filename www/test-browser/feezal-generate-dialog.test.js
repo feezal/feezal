@@ -127,6 +127,48 @@ describe('feezal-generate-dialog (U58 Devices)', () => {
             window.fetch = orig;
         }
     });
+
+    describe('shift-click range select', () => {
+        const dev = (id, name) => ({component: 'switch', discovery_id: id,
+            config: {command_topic: id + '/set', device: {name}}, __key: id});
+        const sel = dlg => new Set(dlg._checked);
+        async function dialogWith4() {
+            const dlg = await makeDialog();
+            dlg._family = 'circle';   // circle-switch is registered, so all four are eligible
+            // labels AAA..DDD sort to a stable visible order a,b,c,d
+            dlg.__devices = [dev('d-a', 'AAA'), dev('d-b', 'BBB'), dev('d-c', 'CCC'), dev('d-d', 'DDD')];
+            return dlg;
+        }
+
+        it('plain click then Shift+click fills the range (anchor checked)', async () => {
+            const dlg = await dialogWith4();
+            dlg._rowClick({shiftKey: false}, 'd-a');           // check a, anchor = a
+            expect(sel(dlg)).toEqual(new Set(['d-a']));
+            dlg._rowClick({shiftKey: true}, 'd-d');            // a..d all checked
+            expect(sel(dlg)).toEqual(new Set(['d-a', 'd-b', 'd-c', 'd-d']));
+        });
+
+        it('works upward too (Shift+click a row above the anchor)', async () => {
+            const dlg = await dialogWith4();
+            dlg._rowClick({shiftKey: false}, 'd-d');
+            dlg._rowClick({shiftKey: true}, 'd-a');
+            expect(sel(dlg)).toEqual(new Set(['d-a', 'd-b', 'd-c', 'd-d']));
+        });
+
+        it('Shift+click CLEARS a range when the anchor is unchecked', async () => {
+            const dlg = await dialogWith4();
+            dlg._checked = new Set(['d-a', 'd-b', 'd-c', 'd-d']);
+            dlg._rowClick({shiftKey: false}, 'd-b');           // uncheck b, anchor = b (off)
+            dlg._rowClick({shiftKey: true}, 'd-d');            // b..d cleared
+            expect(sel(dlg)).toEqual(new Set(['d-a']));
+        });
+
+        it('a Shift+click with no prior anchor is just a toggle', async () => {
+            const dlg = await dialogWith4();
+            dlg._rowClick({shiftKey: true}, 'd-c');
+            expect(sel(dlg)).toEqual(new Set(['d-c']));
+        });
+    });
 });
 
 
