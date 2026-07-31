@@ -10,6 +10,8 @@ import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
 // live in the shared feezal-theme-select component (also mounted by the view
 // inspector for the per-view `theme` attribute — one control, two mounts).
 import {pkgToClass, pkgToLabel, DEFAULT_SWATCHES, sampleThemeColors} from './feezal-theme-select.js';
+// U65: the Ranges tab hosts the site-wide colour-range manager.
+import './feezal-sidebar-color-ranges.js';
 
 /** Common CSS property names for autocomplete in the class prop editor. */
 const CSS_PROP_NAMES = [
@@ -334,11 +336,25 @@ class FeezalSidebarThemes extends LitElement {
             }
         };
         document.addEventListener('pointerdown', this._onDocPointer, true);
+
+        // U65: the styles inspector's Range dropdown sentinel ("＋ Create new
+        // colour range…") lands here — show the Ranges tab with the create
+        // form open, pre-named. app-editor switches the sidebar itself.
+        this._onOpenRanges = e => {
+            this.shadowRoot?.querySelector('sl-tab-group')?.show?.('ranges');
+            this.updateComplete.then(() => {
+                const manager = this.shadowRoot?.querySelector('feezal-sidebar-color-ranges');
+                manager?.refresh?.();
+                if (e.detail?.create) manager?.startCreate?.(e.detail.name || '');
+            });
+        };
+        window.addEventListener('feezal-open-color-ranges', this._onOpenRanges);
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         document.removeEventListener('pointerdown', this._onDocPointer, true);
+        window.removeEventListener('feezal-open-color-ranges', this._onOpenRanges);
     }
 
     /** Toggle a collapsible section and persist its open/close state. */
@@ -855,6 +871,7 @@ class FeezalSidebarThemes extends LitElement {
             <sl-tab-group>
                 <sl-tab slot="nav" panel="theme">Theme</sl-tab>
                 <sl-tab slot="nav" panel="classes">Classes${classCount ? ` · ${classCount}` : ''}</sl-tab>
+                <sl-tab slot="nav" panel="ranges">Ranges</sl-tab>
 
                 <sl-tab-panel name="theme">
             <div class="section">
@@ -992,6 +1009,11 @@ class FeezalSidebarThemes extends LitElement {
                             <button class="new-class-btn" @click="${() => this._addClass()}">+ New class</button>
                         </div>
                     </div>
+                </sl-tab-panel>
+
+                <sl-tab-panel name="ranges">
+                    <!-- U65: site-wide named colour ranges (value→colour maps) -->
+                    <feezal-sidebar-color-ranges></feezal-sidebar-color-ranges>
                 </sl-tab-panel>
             </sl-tab-group>
             ${this._valAutoState ? html`

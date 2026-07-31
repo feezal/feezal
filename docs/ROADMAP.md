@@ -65,8 +65,6 @@ Work in progress — priorities and scope are not final.
 - [U58 — "Generate" button: bulk element + app scaffold wizard from discovery](#u58--generate-button-bulk-element--app-scaffold-wizard-from-discovery--phase-①-devices--done--phase-②-app-spec-ready) 🔨
 - [U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow](#u61--editor-preview-fidelity-gradientbackground-in-a-percentage-sized-views-scroll-overflow)
 - [U63 — `layout-app`: split the content inset into per-side knobs](#u63--layout-app-split-the-content-inset-into-per-side-knobs)
-- [U65 — Site-wide named colour ranges: any colour knob can be driven by a value](#u65--site-wide-named-colour-ranges-any-colour-knob-can-be-driven-by-a-value)
-- [U66 — Colour pickers cannot express transparency (no alpha slider)](#u66--colour-pickers-cannot-express-transparency-no-alpha-slider)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -1282,106 +1280,6 @@ Reuse the narrow-mode drawer wholesale — scrim, Esc, close-on-select, focus ha
 
 **Relates:** **N36** (slim rail + autohide — the modes this changes), **[U50](roadmap-archive/U50.md)** ✅ (content inset — option B would interact with it), **U63** (per-side inset knobs — same box, settle the API together), **B84** (first-paint mode selection in the same element; unrelated cause, and its `narrow`-class handling is what gates these rules), **E38** (responsive sizing — reflow-vs-repaint is the same concern), `feezal-element-layout-app`.
 
-### U65 — Site-wide named colour ranges: any colour knob can be driven by a value
-
-**Requested (07/2026):** site-wide **named** colour ranges — arbitrary value→colour mappings the user creates once and reuses. Every exposed colour CSS var should offer a "value range" option alongside a literal colour or theme var, so the user decides *what* gets coloured: the icon, the text, the background, the border, anything. The range dropdown's first entry should be **"＋ Create new colour range…"** so the feature is found naturally.
-
-## This is consolidation, not a new capability
-
-Three mechanisms already colour by value, and a fourth parallel one would be the worst outcome:
-
-| today | shape | scope |
-|---|---|---|
-| `@feezal/feezal-gauge` `ranges` | `[{from, color}]` JSON, `bandColor(ranges, v, fallback)` | per gauge instance, gauges only |
-| conditions engine | `action: style` rows → any CSS property | per element, rule-per-band |
-| ad-hoc thresholds | `material-tank` warn/crit, glass state colours, computer-stats | per element, hardcoded |
-
-**Decided: absorb them over time.** Ship the shared mechanism, teach the gauge `ranges` attribute to accept a *named* range as well as inline JSON (backwards compatible — existing dashboards keep working), then deprecate tank warn/crit and the ad-hoc state colours onto it. One concept for users, one implementation to fix.
-
-## Decisions taken
-
-| question | decision |
-|---|---|
-| which number drives the colour | **defaults to the element's primary value**, but each binding may override it with its own topic + messageProperty (still editable) — see the colour-control refinement. Elements opt in by exposing a primary value = the default source. |
-| where ranges live | **in the site HTML**, so export and the offline viewer work with no server |
-| what a range can express | **bands + gradient + enum** (see below) |
-| existing mechanisms | **absorbed over time**, gauge first |
-
-## The mechanism — how a CSS colour var gets a dynamic value
-
-The obvious idea, `--feezal-dial-fill-color: range(temp)`, *stores* fine (custom properties accept arbitrary token streams) but is unusable: the moment it is consumed in a colour context it is invalid at computed-value time and falls back. And having the runtime overwrite that property with the resolved colour would destroy the authored reference.
-
-**Proposed: a paired property.** The authored reference lives in `<var>-range`; the runtime resolves it and writes a concrete colour into `<var>` itself:
-
-```html
-<feezal-element-circle-gauge
-    style="--feezal-dial-fill-color-range: temp;
-           --feezal-dial-fill-color: #e53935;">   <!-- written at runtime -->
-```
-
-Why this shape:
-
-- **No element CSS changes.** Every element already reads `var(--x, fallback)`; it keeps doing exactly that and never learns about ranges.
-- **Theme-aware for free.** A band colour may be `var(--error-color)` rather than a hex — it is written into a custom property and resolved at use time, so ranges do not fight the theme (and `CLAUDE.md`'s theme-variable discipline still applies to the *bands* the user picks).
-- **Degrades safely.** An element that does not resolve ranges simply never has `<var>` written — no half-state.
-- **Serializes for free**, which is what makes the static export work.
-
-**Resolution lives in the base class**, not per element: `FeezalElement` watches its declared colour styles for `<var>-range`, resolves against the element's primary value, and writes `<var>` on every value change.
-
-**Elements opt in by exposing a primary value** — e.g. an optional `colorRangeValue()` returning the current number (or string, for enum ranges). An element that does not implement it does not support ranges, and **the style editor must then not offer the option** rather than offering something inert.
-
-## Range shapes
-
-```jsonc
-{"name": "temp",  "type": "bands",
- "bands": [{"from": 0, "color": "var(--ok-color)"}, {"from": 70, "color": "#ff9800"}]}
-
-{"name": "load",  "type": "gradient", "space": "oklch",
- "stops": [{"at": 0, "color": "#4caf50"}, {"at": 100, "color": "#e53935"}]}
-
-{"name": "mode",  "type": "enum", "default": "var(--secondary-text-color)",
- "map": {"heat": "#e53935", "cool": "#2196f3", "off": "var(--disabled-text-color)"}}
-```
-
-- **`bands`** is deliberately the *existing* gauge shape (`from` + `color`, last match wins), so `bandColor()` becomes the shared implementation and existing gauge ranges migrate byte-for-byte.
-- **`gradient`** blends between stops. **Colour space needs deciding** — `oklch` gives perceptually even blends via `color-mix(in oklch, …)`, `srgb` is simpler and matches what people expect from hex maths. Recommend OKLCH, defaulted, overridable per range.
-- **`enum`** maps non-numeric values, which is what lets the glass/metro state colours be absorbed later. Note this makes the feature a *value→colour map* generally; the name "colour range" stays for the numeric case people will mostly use.
-
-## Storage
-
-Proposed: a JSON attribute on the site — `<feezal-site color-ranges='[…]'>` — consistent with the existing `type: 'json'` attributes (`items`, `actions`, `ranges`) and serialized automatically by the same path as everything else.
-
-Alternative worth weighing: a `<feezal-color-ranges>` child element holding formatted JSON. Better to read and to diff in source view; one more element in the tree. Decide on readability grounds, since both serialize equally well.
-
-## Editor UX
-
-- **The manager belongs with the other site-level panels** — `feezal-sidebar-themes.js` / `-assets.js` / `-packages.js` are the precedent, and colour ranges are site-wide data like themes and assets, not per-element state. *(The request said "inspector tab"; flagging the tension — a per-element tab editing site-wide data is odd, but an inspector-side entry point may still be wanted. Small decision.)*
-- **Every colour control grows a Static / Subscribe / Range radio** — not extra widgets crammed next to the swatch. *Static* is the existing literal-colour + theme-var picker unchanged; *Subscribe* drives the colour straight from a payload; *Range* maps a value through a named range. Subscribe and Range expand the row to their own multi-line block. See "Refinement — the colour control" below.
-- **First dropdown entry is a create sentinel** — exactly the `＋ Create new view…` pattern already used in the layout-app entry dropdown (**U47**), which is proven and discoverable. Creating inline should drop the user into the manager pre-named, then return.
-- **Preview matters:** show the range as a swatch strip in the dropdown, and ideally mark where the element's current value sits, so the user can see the mapping rather than imagine it.
-
-## Refinement (07/2026) — the colour control: three modes, value source + layout
-
-Two changes, both from the request.
-
-**A colour row becomes a three-mode radio: Static · Subscribe · Range.** The literal-colour + theme-var picker a row shows today *is* Static — nothing new is crammed alongside the swatch; the radio switches the whole row.
-
-- **Static** (default) — the existing control: colour swatch → literal hex, or a `var(--theme-color)` reference. Unchanged.
-- **Subscribe** — the payload *is* the colour. Two lines:
-  1. **Topic** — a `feezal-topic-input` (autocompletion). *Not* pre-filled from the primary value — the primary value is a number, and this mode wants a topic that publishes a colour string.
-  2. **Message property** — the path holding the colour (e.g. `payload.color`).
-  The base class subscribes and writes the payload verbatim into `<var>`. Because `<var>` is resolved at use time, the payload may be a hex (`#e53935`), a CSS colour name, an `rgb()/hsl()`, **or even a theme reference** (`var(--error-color)`) — all just work. A small live swatch echoing the last received value belongs next to the input so a bad payload is visible immediately.
-- **Range** — a value maps through a named range. Three lines:
-  1. **Range** — the named-range dropdown, first entry `＋ Create new colour range…` (the U47 sentinel), each option showing its swatch strip and, ideally, a marker where the current value sits.
-  2. **Topic** — a `feezal-topic-input`, **pre-filled with the element's primary-value topic** as the editable default.
-  3. **Message property** — the property path (e.g. `payload.temperature`), **pre-filled with the element's primary-value message-property**.
-
-**The value source is a per-binding topic + messageProperty.** For Range it *defaults to the element's primary value* (relaxing U65's "always `colorRangeValue()`") but stays editable — so a gauge's fill colours by its own reading with zero config, or the user tints the border from an *outdoor* sensor while the dial shows the room. For Subscribe there is no numeric default, so both lines start empty. Everything serializes as paired custom properties on the `style` attribute, exactly like `<var>-range` today, keeping U65's elegance (no element CSS changes, serializes for free, degrades safely). The resolver opens **one** subscription per bound colour, reusing the element's existing `addSubscription` + `getProperty(msg, prop)`; when a Range binding has no topic it reads the primary value instead of subscribing. Topics/paths are ordinary MQTT strings stored verbatim (quote only if they contain whitespace). Switching modes rewrites the paired properties and restores the last Static colour when returning to Static.
-
-⚠️ This puts an MQTT binding inside the *style* editor for the first time (topics were attribute-level until now) — but the resolver, the subscription plumbing and the topic-input widget all already exist, so it is wiring, not new machinery.
-
-This also revisits the earlier "offer the option only for elements exposing a primary value" gate: that gate now applies **only to Range's auto-default** (the pre-filled topic/property). *Subscribe* is fully self-contained (topic + property + payload) and *Range with an explicit topic* needs no primary value either, so both could be offered on any colour var. Whether to open them up that far or keep the initial scope gated on a primary value for simplicity is a build-time decision — flagged, not settled.
-
 ### Storage shape — alternatives for later refinement
 
 How the two dynamic modes serialize is the one real open decision (all three serialize into the `style` attribute either way). Three candidates, to pick from when this is built:
@@ -1402,45 +1300,6 @@ Independent of A/B/C: decide whether the **Subscribe topic may also feed a range
 **Ships with:** the range schema + shared resolver (bands/gradient/enum, theme-var passthrough), the paired-property mechanism in `FeezalElement` (the storage shape chosen from A/B/C above; the primary value as the Range default source, an override/Subscribe subscription when a topic is set, and the raw-payload→`<var>` passthrough for Subscribe), the primary-value opt-in, `<feezal-site>` storage, the site-level manager panel, the colour-control **Static / Subscribe / Range radio** with the multi-line dynamic blocks (Subscribe: autocompleting `feezal-topic-input` + message-property + a live swatch of the last payload; Range: range dropdown + create sentinel + topic/property pre-filled from the primary value), the gauge `ranges` attribute accepting a named range, unit tests for the resolver, browser tests that a resolved colour lands on the var (from the primary value, from an overridden topic, and from a raw Subscribe payload), a test that Static↔Subscribe↔Range round-trips the paired properties cleanly, an **export test that ranges + subscriptions survive** into a static bundle, `docs/TESTING.md` coverage, and version bumps.
 
 **Relates:** `@feezal/feezal-gauge` (`bandColor` / `parseRanges` — the existing implementation this generalises, and the first consumer to migrate), **U49** / the conditions engine (`action: style` — the overlapping mechanism to delimit), **U47** ✅ (the `＋ Create new…` sentinel pattern to copy), `feezal-sidebar-themes` / `-assets` (site-level panel precedent), `material-tank` warn/crit + the glass/metro state colours (the ad-hoc thresholds to absorb), `CLAUDE.md` §"Theme variable discipline" (band colours should prefer theme vars), **A16**/export (ranges must serialize into a static bundle).
-
-### U66 — Colour pickers cannot express transparency (no alpha slider)
-
-**Requested (07/2026):** the visual colour pickers offer no way to make an rgba colour — add a transparency slider.
-
-## Why it cannot work today
-
-Both inspectors use the **native `<input type="color">`** — `feezal-sidebar-inspector-styles.js` for style knobs and `feezal-sidebar-inspector-attributes.js` for `type: 'color'` attributes. That control is `#rrggbb` **by specification**: it has no alpha channel to expose. So this is not a missing slider, it is the wrong control.
-
-**A second, smaller defect rides along.** The attribute picker gates its swatch on
-
-```js
-/^#[0-9a-fA-F]{6}$/.test(val) ? val : '#000000'
-```
-
-so even a hand-typed `rgba(…)` or 8-digit hex in the text field leaves the swatch showing **black** — the value is fine, the preview lies about it. That regex has to widen as part of this, or alpha values will look broken even once they are supported.
-
-**The gap has already leaked into an element's public API.** `layout-app` carries `--feezal-app-drawer-overlay-opacity` as a plain 0–100 number, with its own help text telling users to reach for it *"rather than an rgba value"* — a knob that exists only because the picker cannot do this. Worth revisiting once it can, though keeping it is defensible: a dedicated opacity number is arguably clearer than an alpha channel buried in a colour.
-
-## Approach
-
-**Swap to `sl-color-picker` with `opacity`.** Shoelace is already the editor's component library, so this is a swap rather than a new dependency: it gives a real alpha slider, `format` control (hex / rgb / hsl), an eyedropper and swatches, and it is themable with the `--sl-*` vars the rest of the inspector already uses. The cost is bundle size for one more Shoelace component and a slightly larger control in a dense panel — check it still fits the sidebar before committing.
-
-*(Rejected: `<input type="color" alpha>`. The HTML spec has gained an `alpha` attribute and Chromium ships it, but cross-browser support is uneven and feezal targets Safari/iOS as a first-class viewer platform. Not worth the conditional.)*
-
-## Decisions to make
-
-1. **Output format.** `#rrggbbaa` is compact and diffs cleanly in the serialized HTML; `rgba(r,g,b,a)` is more readable in source view. Shoelace's `format` picks one — choose deliberately, and make sure the widened swatch regex accepts both, since existing dashboards may contain either.
-2. **Alpha on a *theme var* is the interesting case.** Most colour knobs default to something like `var(--primary-color)`. An alpha slider can only produce a literal, so "make the theme colour 40 % transparent" is not expressible by dragging alpha — that needs `color-mix(in srgb, var(--primary-color) 40%, transparent)`. Options: (a) dropping alpha below 100 % converts the value to a literal, silently losing theme-following — bad; (b) when the base is a `var()`, emit `color-mix(…)` instead, keeping it theme-aware; (c) keep alpha literal-only and disable the slider while the value is a var, with a hint. **(b) is the honest one** and preserves `CLAUDE.md`'s theme discipline, at the cost of generating a less obvious value.
-3. **Scope.** Both inspectors, or styles only? They use different code paths but the same control; doing one leaves the other inconsistent. Recommend both, in one pass.
-
-## Worth checking at the same time
-
-- **Does anything downstream assume 6-digit hex?** The same regex shape may exist elsewhere (colour parsing in gauges, theme swatch previews, the background/gradient editor). `grep` for `{6}` before shipping.
-- **Contrast/legibility.** A semi-transparent text or icon colour over a themed background can become unreadable; not something to police, but the picker showing its swatch over a checkerboard (as Shoelace does) helps the user see what they are choosing.
-
-**Ships with:** the `sl-color-picker` swap in both inspectors, the widened swatch/value regex, the theme-var alpha decision from above, a unit test that an alpha value round-trips through the inspector without being reset to black (the current defect), a `docs/TESTING.md` line, and a check that the control still fits the sidebar at its narrowest.
-
-**Relates:** `feezal-sidebar-inspector-styles.js` / `-attributes.js` (the two pickers), **U59** (the gradient/background editor — same colour-authoring surface, and gradients already need per-stop alpha), **[U65](#u65--site-wide-named-colour-ranges-any-colour-knob-can-be-driven-by-a-value)** (colour ranges — band colours will want alpha too, and share the picker), `layout-app`'s `--feezal-app-drawer-overlay-opacity` (the workaround this may retire), `CLAUDE.md` §"Theme variable discipline" (why decision 2 matters).
 
 ### E112 — Scrypted integration: camera snapshot element (sensors already work) 💡 to refine
 

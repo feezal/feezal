@@ -6,6 +6,11 @@ import '@shoelace-style/shoelace/dist/components/option/option.js';
 import '@shoelace-style/shoelace/dist/components/color-picker/color-picker.js';
 import {LIVE_APPLY_DEBOUNCE_MS} from './feezal-sidebar-inspector-attributes.js';
 import {resolveCssColor, composeThemeAlpha, normalizeHexa} from './feezal-color-util.js';
+// U65: colour bindings — Static / Subscribe / Range modes on every colour row
+import '@feezal/feezal-element/feezal-topic-input.js';
+import {getSiteColorRanges, rangeSwatchGradient, cssQuote, cssUnquote,
+    SOURCE_TOPIC_SUFFIX, SOURCE_PROPERTY_SUFFIX, RANGE_SUFFIX}
+    from '@feezal/feezal-element/feezal-color-ranges.js';
 // N34: built-in per-property style editors (editor bundle only — the viewer
 // never loads the inspector, so declaring an editor tag in a viewer-bundled
 // descriptor is just a string there).
@@ -184,6 +189,32 @@ class FeezalSidebarInspectorStyles extends LitElement {
         .field.mixed sl-input::part(base),
         .field.mixed sl-select::part(combobox) { opacity: 0.75; }
 
+        /* ── U65: colour-binding mode (Static · Subscribe · Range) ───────── */
+        .mode-row { display: flex; gap: 0; margin: 2px 0 4px; }
+        .mode-row button {
+            font-size: 10px; padding: 2px 8px; cursor: pointer;
+            border: 1px solid var(--feezal-border, #ccc); background: none;
+            color: var(--feezal-color, #777); line-height: 1.4;
+        }
+        .mode-row button:first-child { border-radius: 3px 0 0 3px; }
+        .mode-row button:last-child { border-radius: 0 3px 3px 0; }
+        .mode-row button + button { border-left: none; }
+        .mode-row button.active {
+            background: var(--sl-color-primary-600, #0284c7);
+            border-color: var(--sl-color-primary-600, #0284c7); color: #fff;
+        }
+        .bind-block {
+            border-left: 2px solid var(--sl-color-primary-600, #0284c7);
+            padding: 4px 0 2px 8px; margin-bottom: 6px;
+            display: flex; flex-direction: column; gap: 4px;
+        }
+        .bind-block feezal-topic-input, .bind-block sl-input, .bind-block sl-select { width: 100%; }
+        .range-strip {
+            display: inline-block; width: 42px; height: 10px; border-radius: 2px;
+            vertical-align: middle; margin-right: 6px;
+            background-color: var(--feezal-bg-sub, #eee);
+        }
+
         /* ── N34: custom style-group editor host ───────────────────── */
         .group-field { margin-top: 4px; }
         .group-label {
@@ -208,11 +239,15 @@ class FeezalSidebarInspectorStyles extends LitElement {
         requestAnimationFrame(() => this._collectCssVars());
         this._onClassesChanged = () => this.requestUpdate();
         document.addEventListener('feezal-classes-changed', this._onClassesChanged);
+        // U65: manager edits → refresh the Range dropdowns
+        this._onRangesChanged = () => this.requestUpdate();
+        document.addEventListener('feezal-color-ranges-changed', this._onRangesChanged);
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         document.removeEventListener('feezal-classes-changed', this._onClassesChanged);
+        document.removeEventListener('feezal-color-ranges-changed', this._onRangesChanged);
     }
 
     _collectCssVars() {
@@ -350,6 +385,7 @@ class FeezalSidebarInspectorStyles extends LitElement {
                                 @click="${() => this._removeStyle(idx)}">×</button>
                         ` : ''}
                     </div>
+                    ${item.color && item.property.startsWith('--') ? this._renderColorBinding(item) : ''}
                 </div>
             `; })}
             </div>
@@ -396,6 +432,142 @@ class FeezalSidebarInspectorStyles extends LitElement {
                     </sl-select>
                 ` : html`<div class="classes-empty">No classes defined yet</div>`}
             </div>        `;
+    }
+
+    // ── U65: colour-binding modes (Static · Subscribe · Range) ────────────
+    // A colour CUSTOM property (--x) can be driven by MQTT: paired
+    // `--x-source-topic` / `--x-source-property` / `--x-range` properties on
+    // the inline style (storage shape B — the range name's presence is what
+    // distinguishes Range from Subscribe). Only custom properties qualify —
+    // a plain CSS property (background, color) cannot carry paired
+    // declarations, so those rows stay Static-only.
+
+    _bindingState(item) {
+        const el = this.selectedElems?.[0];
+        if (!el) return {mode: 'static'};
+        const s = el.style;
+        const topicRaw = s.getPropertyValue(item.property + SOURCE_TOPIC_SUFFIX);
+        const rangeRaw = s.getPropertyValue(item.property + RANGE_SUFFIX);
+        if (!topicRaw && !rangeRaw) return {mode: 'static'};
+        return {
+            mode: rangeRaw ? 'range' : 'subscribe',
+            topic: cssUnquote(topicRaw),
+            property: cssUnquote(s.getPropertyValue(item.property + SOURCE_PROPERTY_SUFFIX)),
+            range: cssUnquote(rangeRaw),
+        };
+    }
+
+    _renderColorBinding(item) {
+        const binding = this._bindingState(item);
+        const ranges = getSiteColorRanges();
+        const modes = [['static', 'Static'], ['subscribe', 'Subscribe'], ['range', 'Range']];
+        return html`
+            <div class="mode-row">
+                ${modes.map(([mode, label]) => html`
+                    <button class="${binding.mode === mode ? 'active' : ''}"
+                        title="${mode === 'static' ? 'A fixed colour or theme var'
+                            : mode === 'subscribe' ? 'The MQTT payload IS the colour (hex, rgb(), a colour name, or var(--…))'
+                            : 'Map a value through a named site colour range'}"
+                        @click="${() => this._setColorMode(item, mode)}">${label}</button>
+                `)}
+            </div>
+            ${binding.mode === 'subscribe' ? html`
+                <div class="bind-block">
+                    <feezal-topic-input size="small" label="topic" .value="${binding.topic || ''}"
+                        @sl-change="${e => this._setBinding(item, SOURCE_TOPIC_SUFFIX, e.target.value)}">
+                    </feezal-topic-input>
+                    <sl-input size="small" label="message-property" placeholder="payload"
+                        autocomplete="off" .value="${binding.property || ''}"
+                        @sl-change="${e => this._setBinding(item, SOURCE_PROPERTY_SUFFIX, e.target.value)}">
+                    </sl-input>
+                </div>
+            ` : ''}
+            ${binding.mode === 'range' ? html`
+                <div class="bind-block">
+                    <sl-select size="small" label="range" placeholder="pick a range…"
+                        .value="${binding.range || ''}"
+                        @sl-change="${e => this._onRangePicked(item, e)}">
+                        <sl-option value="__create__">＋ Create new colour range…</sl-option>
+                        ${ranges.map(r => html`
+                            <sl-option value="${r.name}">
+                                <span class="range-strip" style="background-image: ${rangeSwatchGradient(r)}"></span>${r.name}
+                            </sl-option>
+                        `)}
+                    </sl-select>
+                    <feezal-topic-input size="small" label="topic" .value="${binding.topic || ''}"
+                        @sl-change="${e => this._setBinding(item, SOURCE_TOPIC_SUFFIX, e.target.value)}">
+                    </feezal-topic-input>
+                    <sl-input size="small" label="message-property" placeholder="payload"
+                        autocomplete="off" .value="${binding.property || ''}"
+                        @sl-change="${e => this._setBinding(item, SOURCE_PROPERTY_SUFFIX, e.target.value)}">
+                    </sl-input>
+                </div>
+            ` : ''}
+        `;
+    }
+
+    _setColorMode(item, mode) {
+        const p = item.property;
+        this.selectedElems.forEach(el => {
+            if (mode === 'static') {
+                // Back to Static: drop the binding; the var keeps its current
+                // (last static or last resolved) colour.
+                el.style.removeProperty(p + SOURCE_TOPIC_SUFFIX);
+                el.style.removeProperty(p + SOURCE_PROPERTY_SUFFIX);
+                el.style.removeProperty(p + RANGE_SUFFIX);
+            } else if (mode === 'subscribe') {
+                // Subscribe wants a topic that publishes a COLOUR — the
+                // primary-value topic is a number, so both lines start empty.
+                el.style.setProperty(p + SOURCE_TOPIC_SUFFIX, cssQuote(''));
+                el.style.removeProperty(p + SOURCE_PROPERTY_SUFFIX);
+                el.style.removeProperty(p + RANGE_SUFFIX);
+            } else {
+                // Range defaults its source to the element's PRIMARY value —
+                // editable, so a border can tint from an outdoor sensor while
+                // the dial shows the room.
+                if (!cssUnquote(el.style.getPropertyValue(p + SOURCE_TOPIC_SUFFIX))) {
+                    el.style.setProperty(p + SOURCE_TOPIC_SUFFIX, cssQuote(el.getAttribute('subscribe') || ''));
+                }
+                const primaryProp = el.getAttribute('message-property') || '';
+                if (primaryProp && !el.style.getPropertyValue(p + SOURCE_PROPERTY_SUFFIX)) {
+                    el.style.setProperty(p + SOURCE_PROPERTY_SUFFIX, cssQuote(primaryProp));
+                }
+                if (!el.style.getPropertyValue(p + RANGE_SUFFIX)) {
+                    el.style.setProperty(p + RANGE_SUFFIX, cssQuote(getSiteColorRanges()[0]?.name || ''));
+                }
+            }
+            el._colorBindings?.rewire?.();
+        });
+        feezal.app.change();
+        this.requestUpdate();
+    }
+
+    _setBinding(item, suffix, value) {
+        const v = String(value ?? '').trim();
+        this.selectedElems.forEach(el => {
+            if (!v && suffix !== SOURCE_TOPIC_SUFFIX) {
+                // topic stays present (it is the binding marker) — the others
+                // simply disappear when cleared
+                el.style.removeProperty(item.property + suffix);
+            } else {
+                el.style.setProperty(item.property + suffix, cssQuote(v));
+            }
+            el._colorBindings?.rewire?.();
+        });
+        feezal.app.change();
+        this.requestUpdate();
+    }
+
+    _onRangePicked(item, e) {
+        const v = e.target.value;
+        if (v === '__create__') {
+            // U47 sentinel: jump to the manager (Themes sidebar → Ranges) with
+            // the create form open; the selection snaps back meanwhile.
+            e.target.value = this._bindingState(item).range || '';
+            window.dispatchEvent(new CustomEvent('feezal-open-color-ranges', {detail: {create: true}}));
+            return;
+        }
+        this._setBinding(item, RANGE_SUFFIX, v);
     }
 
     // ── CSS var autocomplete ──────────────────────────────────────────────

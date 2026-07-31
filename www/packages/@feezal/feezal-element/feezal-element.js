@@ -1,6 +1,7 @@
 /* global feezal */
 import {LitElement, html, css} from 'lit';
 import {FeezalConditions} from './feezal-conditions.js';
+import {ColorBindings} from './feezal-color-ranges.js';
 
 /**
  * Shared base styles — identical to the Polymer dom-module 'feezal-style-element'.
@@ -92,6 +93,9 @@ export class FeezalElement extends LitElement {
         this.dynamicSubscriptions = false;
         this.visible = false;
         this._conditions = new FeezalConditions(this);
+        // U65: colour bindings — `--x-source-topic` (+ optional `--x-range`)
+        // pairs on the inline style drive a concrete colour into `--x`.
+        this._colorBindings = new ColorBindings(this);
         // N31 availability defaults (payload values = HA defaults)
         this.subscribeAvailability = '';
         this.availabilityMode = 'all';
@@ -117,6 +121,9 @@ export class FeezalElement extends LitElement {
         if (this.visible || !this.dynamicSubscriptions) {
             this._subscribe();
             this._conditions.connect();
+            // U65: colour bindings follow the primary subscription's gating
+            // (visibility, N37 pause, editor MQTT prevention).
+            this._colorBindings.connect();
         }
         // N31: availability is independent of the primary-subscription
         // machinery (elements overriding _subscribe with an empty body still
@@ -137,6 +144,7 @@ export class FeezalElement extends LitElement {
         this._unsubscribe();
         this._unsubscribeAvailability();
         this._conditions.disconnect();
+        this._colorBindings.disconnect();
     }
 
     /**
@@ -161,6 +169,7 @@ export class FeezalElement extends LitElement {
         this._unsubscribe();
         this._unsubscribeAvailability();
         this._conditions.disconnect();
+        this._colorBindings.disconnect();
     }
 
     updated(changed) {
@@ -168,9 +177,11 @@ export class FeezalElement extends LitElement {
             if (this.visible) {
                 this._subscribe();
                 this._conditions.connect();
+                this._colorBindings.connect();
             } else {
                 this._unsubscribe();
                 this._conditions.disconnect();
+                this._colorBindings.disconnect();
             }
         }
 

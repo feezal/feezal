@@ -7,7 +7,7 @@ Each entry is filed under the section its **ID prefix** belongs to — `B` Bugs,
 Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastructure,
 `D` Documentation — and sorted by number within it, so a new entry has exactly one correct place.
 
-**314 items.**
+**328 items.**
 
 ## Bugs
 
@@ -323,6 +323,8 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U60 — Editor: surface lost server connection (grace-period → blocking overlay) ✅ done](U60.md)
 - [U62 — Normalize discovered names into friendly labels on stamping ✅ done](U62.md)
 - [U64 — `layout-app`: expanding the slim rail must not push the content ✅ done](U64.md)
+- [U65 — Site-wide named colour ranges: any colour knob can be driven by a value ✅ done](U65.md)
+- [U66 — Colour pickers cannot express transparency (no alpha slider) ✅ done](U66.md)
 
 ## Architecture & Infrastructure
 

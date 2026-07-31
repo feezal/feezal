@@ -1,5 +1,6 @@
 /* global feezal */
 import {feezalBoolean, html} from '@feezal/feezal-element';
+import {findColorRange, resolveRangeColor} from '@feezal/feezal-element/feezal-color-ranges.js';
 import {svg} from 'lit';
 
 /**
@@ -47,9 +48,23 @@ export function arcPath(fromDeg, toDeg, r) {
 
 export const clampInt = (v, lo, hi) => Math.max(lo, Math.min(hi, parseInt(v, 10) || 0));
 
-/** Parse the `ranges` attribute → sorted [{from:Number, color:String}]. */
+/** A `ranges` value that is a NAMED site range (U65), not inline JSON. */
+const isRangeName = raw =>
+    typeof raw === 'string' && raw.trim() && !raw.trim().startsWith('[');
+
+/**
+ * Parse the `ranges` attribute → sorted [{from:Number, color:String}].
+ * U65: a bare NAME references a site-wide range (`<feezal-site color-ranges>`)
+ * — a `bands` range yields its bands (needle zones render); gradient/enum
+ * ranges have no band geometry, so they yield [] here and only colour the
+ * fill via bandColor().
+ */
 export function parseRanges(raw) {
     if (!raw) return [];
+    if (isRangeName(raw)) {
+        const range = findColorRange(raw.trim());
+        return range?.type === 'bands' ? range.bands.map(b => ({...b})) : [];
+    }
     try {
         const a = typeof raw === 'string' ? JSON.parse(raw) : raw;
         if (!Array.isArray(a)) return [];
@@ -60,8 +75,15 @@ export function parseRanges(raw) {
     } catch { return []; }
 }
 
-/** The colour band `v` sits in, or `fallback` when no band matches. */
+/**
+ * The colour band `v` sits in, or `fallback` when no band matches.
+ * U65: with a named range, ANY range type resolves — a gradient range gives
+ * the gauge a smoothly blending fill, an enum matches stringy values.
+ */
 export function bandColor(ranges, v, fallback = 'var(--feezal-dial-fill-color)') {
+    if (isRangeName(ranges)) {
+        return resolveRangeColor(findColorRange(String(ranges).trim()), v) || fallback;
+    }
     let c = fallback;
     for (const b of parseRanges(ranges)) if (v >= b.from) c = b.color;
     return c;
@@ -100,8 +122,9 @@ export const gaugeAttributes = [
     {name: 'tick-labels', type: 'boolean', default: false,
         help: 'Show the numeric scale value at each major tick.'},
     {name: 'ranges', type: 'string', default: '',
-        help: 'JSON colour bands, e.g. [{"from":0,"color":"#4caf50"},{"from":70,"color":"#ff9800"},{"from":90,"color":"#e53935"}]. ' +
-            'arc/ring: the fill takes the band the value sits in. needle: the scale is drawn as coloured zones. Empty = single colour.'},
+        help: 'JSON colour bands, e.g. [{"from":0,"color":"#4caf50"},{"from":70,"color":"#ff9800"},{"from":90,"color":"#e53935"}] — ' +
+            'or the NAME of a site-wide colour range (Themes sidebar → Ranges). ' +
+            'arc/ring: the fill takes the band the value sits in. needle: the scale is drawn as coloured zones (bands-type ranges only). Empty = single colour.'},
 ];
 
 /** Discovery map fragment — every family gauge is a `sensor` view. */

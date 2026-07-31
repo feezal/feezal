@@ -1433,6 +1433,12 @@ class FeezalAppEditor extends LitElement {
 
         window.addEventListener('hashchange', this._onHashChange);
 
+        // U65: the styles inspector's "＋ Create new colour range…" sentinel —
+        // switch the sidebar to Themes; the themes panel selects its Ranges
+        // tab and opens the create form itself (it listens for the same event).
+        this._onOpenColorRanges = () => this._setSidebar('themes');
+        window.addEventListener('feezal-open-color-ranges', this._onOpenColorRanges);
+
         // Listen for OS colour-scheme changes (only applies when no manual override)
         this._darkMq = window.matchMedia('(prefers-color-scheme: dark)');
         this._darkMqHandler = e => {
@@ -1671,6 +1677,7 @@ class FeezalAppEditor extends LitElement {
     disconnectedCallback() {
         super.disconnectedCallback();
         window.removeEventListener('hashchange', this._onHashChange);
+        window.removeEventListener('feezal-open-color-ranges', this._onOpenColorRanges);
         this._darkMq?.removeEventListener('change', this._darkMqHandler);
         document.removeEventListener('copy',  this._onDocCopy);
         document.removeEventListener('paste', this._onDocPaste);
