@@ -6,7 +6,7 @@
  */
 import {describe, it, expect, beforeAll, afterAll} from 'vitest';
 import {createRequire} from 'module';
-import {mkdtemp, rm} from 'fs/promises';
+import {mkdtemp, rm, mkdir, writeFile, readFile, access} from 'fs/promises';
 import {tmpdir} from 'os';
 import {join} from 'path';
 import request from 'supertest';
@@ -27,10 +27,11 @@ function buildTestApp(storage) {
 
 let dataDir;
 let app;
+let storage;
 
 beforeAll(async () => {
     dataDir = await mkdtemp(join(tmpdir(), 'feezal-api-test-'));
-    const storage = new FilesystemStorage(dataDir);
+    storage = new FilesystemStorage(dataDir);
     app = buildTestApp(storage);
 });
 
@@ -92,6 +93,44 @@ describe('POST /api/sites/:name/clone', () => {
         const res = await request(app).post('/api/sites/original2/clone').send({newName: 'copy2'});
         expect(res.status).toBe(200);
         expect(res.body.name).toBe('copy2');
+    });
+});
+
+describe('POST /api/sites — inherit the current site\'s MQTT connection', () => {
+    const CONN = {protocol: 'wss', host: 'broker.example', port: 8883,
+        username: 'u', password: 'p', tls: true, protocolVersion: 5};
+
+    it('seeds config.connection AND copies the TLS certs from fromSite', async () => {
+        // a source site with a saved connection + a cert file on disk
+        await storage.saveSite('conn-src', {html: '', config: {connection: CONN, theme: 'x'}});
+        await mkdir(join(dataDir, 'sites', 'conn-src', 'certs'), {recursive: true});
+        await writeFile(join(dataDir, 'sites', 'conn-src', 'certs', 'ca.pem'), 'PEM-DATA', 'utf8');
+
+        const res = await request(app).post('/api/sites').send({name: 'conn-child', fromSite: 'conn-src'});
+        expect(res.status).toBe(201);
+
+        const {config} = await storage.getSite('conn-child');
+        expect(config.connection).toEqual(CONN);   // connection inherited verbatim
+        expect(config.theme).toBeUndefined();       // but NOT the rest of the config (only the connection)
+        // the cert file was copied
+        expect(await readFile(join(dataDir, 'sites', 'conn-child', 'certs', 'ca.pem'), 'utf8')).toBe('PEM-DATA');
+    });
+
+    it('a plain new site (no fromSite) inherits nothing', async () => {
+        await request(app).post('/api/sites').send({name: 'plain-new'});
+        const {config} = await storage.getSite('plain-new');
+        expect(config.connection).toBeUndefined();
+        let hasCerts = true;
+        try { await access(join(dataDir, 'sites', 'plain-new', 'certs')); } catch { hasCerts = false; }
+        expect(hasCerts).toBe(false);
+    });
+
+    it('a fromSite without certs still seeds the connection (no cert copy)', async () => {
+        await storage.saveSite('conn-src2', {html: '', config: {connection: CONN}});
+        const res = await request(app).post('/api/sites').send({name: 'conn-child2', fromSite: 'conn-src2'});
+        expect(res.status).toBe(201);
+        const {config} = await storage.getSite('conn-child2');
+        expect(config.connection).toEqual(CONN);
     });
 });
 

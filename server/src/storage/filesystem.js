@@ -190,6 +190,18 @@ class FilesystemStorage extends StorageAdapter {
         await fs.rm(this._sitePath(name), {recursive: true, force: true});
     }
 
+    /**
+     * Copy the TLS cert files (N8/A14: <site>/certs/) from one site to another,
+     * used when a new site inherits the current site's MQTT connection. No-op
+     * when the source has no certs. The dest certs dir is gitignored either way.
+     */
+    async copyCerts(fromSite, toSite) {
+        const from = path.join(this._sitePath(fromSite), 'certs');
+        const to = path.join(this._sitePath(toSite), 'certs');
+        try { await fs.access(from); } catch { return; }   // no certs to copy
+        await fs.cp(from, to, {recursive: true});
+    }
+
     async cloneSite(name, newName) {
         await fs.cp(this._sitePath(name), this._sitePath(newName), {recursive: true});
         // Give the clone its own independent git history (drop the source's .git).

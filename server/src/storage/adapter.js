@@ -56,6 +56,18 @@ class StorageAdapter {
     }
 
     /**
+     * Copy TLS cert files from one site to another (for a new site inheriting the
+     * current site's MQTT connection). Optional — adapters without on-disk certs
+     * may no-op. Callers guard with `typeof storage.copyCerts === 'function'`.
+     * @param {string} fromSite
+     * @param {string} toSite
+     * @returns {Promise<void>}
+     */
+    async copyCerts(fromSite, toSite) { // eslint-disable-line no-unused-vars
+        // optional
+    }
+
+    /**
      * Rename a site.
      * @param {string} name
      * @param {string} newName

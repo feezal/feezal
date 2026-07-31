@@ -169,7 +169,7 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
 
     // Create a new site
     router.post('/sites', async (req, res) => {
-        const {name} = req.body;
+        const {name, fromSite} = req.body;
         if (!name) {
             return res.status(400).json({error: 'name is required'});
         }
@@ -178,7 +178,23 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
         }
 
         try {
-            await storage.saveSite(name, {html: '', config: {}});
+            // Seed the new site's MQTT connection from the current site so it
+            // connects to the same broker out of the box — copy config.connection
+            // (broker/port/protocol/credentials/TLS options) and the TLS cert
+            // FILES (N8/A14 — they live in <site>/certs, not in the config). The
+            // views start empty; only the connection is inherited.
+            const config = {};
+            const seed = fromSite && isValidSiteName(fromSite) && fromSite !== name;
+            if (seed) {
+                const from = await storage.getSite(fromSite);
+                if (from && from.config && from.config.connection) {
+                    config.connection = from.config.connection;
+                }
+            }
+            await storage.saveSite(name, {html: '', config});
+            if (seed && typeof storage.copyCerts === 'function') {
+                try { await storage.copyCerts(fromSite, name); } catch { /* certs optional */ }
+            }
             res.status(201).json({name});
         } catch (err) {
             res.status(500).json({error: err.message});

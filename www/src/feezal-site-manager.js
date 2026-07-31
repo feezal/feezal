@@ -261,7 +261,9 @@ class FeezalSiteManager extends LitElement {
             const r = await fetch('/api/sites', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({name})
+                // Seed the new site's MQTT connection (broker/port/protocol/creds/
+                // TLS + certs) from the current site so it connects out of the box.
+                body: JSON.stringify({name, fromSite: feezal.siteName})
             });
             if (!r.ok) throw new Error(await r.text());
             this._closeNewDialog();
