@@ -944,6 +944,43 @@ describe('feezal-generate-dialog (U80 new-site App flow)', () => {
         expect(sessionStorage.getItem('feezal:generateAppState')).toBeNull();            // consumed
     });
 
+    it('the deferred result screen skips the family screen, shows progress, and unlocks the viewer link only after deploy', async () => {
+        let deployDone = null;
+        window.feezal.app._deploy = cb => { window.feezal.__deployed = true; deployDone = cb; };  // hold the callback
+        window.fetch = async url => String(url).includes('/api/discovery/devices')
+            ? {ok: true, json: async () => ({devices: [{discovery_id: 'd', component: 'switch', name: 'kueche_x',
+                config: {state_topic: 'z/d', command_topic: 'z/d/set'}}]})}
+            : {ok: true, json: async () => ({groups: []})};
+        const dlg = await makeDialog();
+        dlg._autoFlow = true;
+        await dlg._resumeGenerate({
+            family: 'circle', axis: 'room',
+            rooms: [{label: 'Kitchen', icon: 'countertops', order: 0}],
+            checked: ['d'],
+            assign: [['d', {label: 'Kitchen', icon: 'countertops'}]],
+            bucketMeta: [['Kitchen', {order: 0}]],
+        });
+        await dlg.updateComplete;
+
+        // Never re-showed the family/setup screen — went straight to the result.
+        expect(dlg._stage).toBe('result');
+        // Deploy started but not finished → working state: progress + DISABLED link.
+        expect(dlg._genPhase).toBe('deploying');
+        expect(dlg.renderRoot.querySelector('.gen-progress')).not.toBeNull();
+        expect(dlg.renderRoot.querySelector('.viewer-link.disabled')).not.toBeNull();
+        expect(dlg.renderRoot.querySelector('a.viewer-link')).toBeNull();                 // no live link yet
+        expect(dlg.renderRoot.querySelector('.footer sl-button[disabled]')).not.toBeNull();
+
+        // Finish the deploy → done: the real (enabled) viewer link appears.
+        deployDone();
+        await dlg.updateComplete;
+        expect(dlg._genPhase).toBe('done');
+        expect(dlg.renderRoot.querySelector('.viewer-link.disabled')).toBeNull();
+        const link = dlg.renderRoot.querySelector('a.viewer-link');
+        expect(link).not.toBeNull();
+        expect(link.getAttribute('href')).toBe('/viewer/kitchen/');
+    });
+
     it('resumeNewSiteApp opens at the App setup in auto-deploy mode', async () => {
         window.fetch = async url => String(url).includes('/api/discovery/devices')
             ? {ok: true, json: async () => ({devices: [{discovery_id: 'x', component: 'switch', name: 'k', config: {}}]})}

@@ -663,6 +663,9 @@ class FeezalAppEditor extends LitElement {
             --feezal-btn-hover-color: rgba(255,255,255,0.95);
         }
         :host(.dark) feezal-generate-dialog {
+            /* Review row selection highlight — dark blue instead of the light
+               #cfe5fb, which was unreadable on the dark dialog. */
+            --feezal-sel-bg:      rgba(2,132,199,0.32);
             --feezal-tile-border: #3d3d3d;
             --feezal-tile-bg:     #262626;
             --feezal-tile-hover:  #333a44;
@@ -2238,7 +2241,7 @@ class FeezalAppEditor extends LitElement {
         window.open(base + hash, 'feezal-' + feezal.siteName);
     }
 
-    _deploy() {
+    _deploy(done) {
         // U32: an open component edit is committed first, so the pseudo-view is
         // gone and the template carries the edits before serialization.
         if (this._componentEdit) this._commitComponentEdit();
@@ -2296,6 +2299,7 @@ class FeezalAppEditor extends LitElement {
                 const history = this.shadowRoot.querySelector('feezal-sidebar-history');
                 if (history) history._load();
             }, 800);
+            done?.();   // let a caller (e.g. the generate wizard) know the deploy finished
         });
     }
 

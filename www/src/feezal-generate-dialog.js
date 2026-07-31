@@ -309,7 +309,21 @@ class FeezalGenerateDialog extends LitElement {
         }
         .viewer-link:hover { background: var(--sl-color-primary-500, #0ea5e9); }
         .viewer-link .material-icons { font-size: 18px; }
+        /* U80: the viewer link stays disabled until the initial deploy lands. */
+        .viewer-link.disabled {
+            background: var(--feezal-badge-bg, #e5e7eb); color: var(--secondary-text-color, #6b7280);
+            cursor: default; pointer-events: none;
+        }
+        .viewer-link.disabled sl-spinner { font-size: 15px; --track-width: 2px; }
         .viewer-hint { font-size: 12px; opacity: .7; margin: 8px 0 0; }
+        /* U80: deferred-flow progress checklist on the result screen. */
+        .gen-progress { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 14px; }
+        .gp-step { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+        .gp-step sl-spinner { font-size: 18px; --track-width: 2px; }
+        .gp-step .material-icons { font-size: 20px; }
+        .gp-step.done .material-icons { color: var(--sl-color-success-600, #16a34a); }
+        .gp-step.pending { opacity: .5; }
+        .gp-step.pending .material-icons { color: var(--secondary-text-color, #9ca3af); }
         .skip-block { margin-top: 10px; font-size: 13px; }
         .skip-block h4 { margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; opacity: .7; }
         .skip-block ul { margin: 0; padding-left: 18px; opacity: .85; }
@@ -358,6 +372,7 @@ class FeezalGenerateDialog extends LitElement {
         this._newSiteName = '';
         this._pendingNewSite = null;   // name captured at step 1, created only at generate
         this._creatingSite = false;
+        this._genPhase = null;         // deferred-flow progress: discovering|generating|deploying|done
         this._autoFlow = false;
         this._newRoomFor = null;
         this._newRoomName = '';
@@ -395,6 +410,7 @@ class FeezalGenerateDialog extends LitElement {
         this._autoFlow = false;
         this._pendingNewSite = null;
         this._creatingSite = false;
+        this._genPhase = null;
         this._newRoomFor = null;
         this._result = null;
         // Default the family to the first available one.
@@ -561,19 +577,39 @@ class FeezalGenerateDialog extends LitElement {
     }
 
     /** Restore the review selection on the new site, then generate + auto-deploy.
-     * Discovery is re-fetched here (the fresh site's bridge may still be
-     * connecting — _loadInto polls), then the saved assignment/checked state is
-     * re-applied by device key and the app is generated. */
+     * The site was already created (before the reload), so we skip straight to
+     * the RESULT screen and show live progress there — the family/setup screen is
+     * NOT re-shown. Discovery is re-fetched (the fresh site's bridge may still be
+     * connecting — we poll), the saved selection is re-applied by device key, the
+     * app is generated, and the viewer link unlocks once the deploy finishes. */
     async _resumeGenerate(state) {
         this._family = state.family;
         this._axis = state.axis;
         this._rooms = state.rooms;
-        await this._loadInto('app');   // polls until the new site's discovery is ready
-        if (this._stage !== 'app') return;   // user navigated away mid-poll
+        this._result = null;
+        this._genPhase = 'discovering';
+        this._stage = 'result';        // land on the last dialog, in a working state
+        this.requestUpdate();
+
+        // Poll discovery on the fresh site (its bridge is still connecting; the
+        // retained-config burst arrives a moment later). Does NOT touch _stage.
+        let list = [];
+        const maxAttempts = 12;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try { list = await this._fetchDevices('app'); } catch { list = []; }
+            if (this._stage !== 'result') return;      // dialog closed mid-poll
+            if (list.length || attempt === maxAttempts) break;
+            await new Promise(r => setTimeout(r, 2000));
+        }
+        this.__devices = list;
+
         this._checked = new Set(state.checked || []);
         this._assign = new Map(state.assign || []);
         this._bucketMeta = new Map(state.bucketMeta || []);
-        this._generateApp();
+
+        this._genPhase = 'generating';
+        this.requestUpdate();
+        this._generateApp();           // builds, sets _result, then drives 'deploying' → 'done'
     }
 
     /** One discovery fetch → the filtered, keyed, area-joined device list. */
@@ -1262,7 +1298,16 @@ class FeezalGenerateDialog extends LitElement {
         };
         // U80: on the switch-to-new-site flow, publish the freshly generated app
         // automatically so the viewer link on the result screen works at once.
-        if (this._autoFlow) feezal.app?._deploy?.();
+        if (this._autoFlow) {
+            if (this._genPhase) {
+                // Deferred-create flow: track the deploy so the result screen can
+                // keep the viewer link disabled until it's actually live.
+                this._genPhase = 'deploying';
+                feezal.app?._deploy?.(() => { this._genPhase = 'done'; this.requestUpdate(); });
+            } else {
+                feezal.app?._deploy?.();
+            }
+        }
         this._stage = 'result';
         this.requestUpdate();
     }
@@ -1300,7 +1345,7 @@ class FeezalGenerateDialog extends LitElement {
         if (this._stage === 'app') return 'Generate — App';
         if (this._stage === 'rooms') return 'Generate — App: rooms';
         if (this._stage === 'review') return `Generate — App: ${this._axis === 'room' ? 'devices' : 'functions'}`;
-        if (this._stage === 'result') return 'Generate — Done';
+        if (this._stage === 'result') return (this._genPhase && this._genPhase !== 'done') ? 'Generate — Building your app' : 'Generate — Done';
         return 'Generate';
     }
 
@@ -1599,8 +1644,37 @@ class FeezalGenerateDialog extends LitElement {
             </div>`;
     }
 
+    /** Deferred new-site flow: the live progress checklist shown on the result
+     * screen while the app is still being discovered / generated / deployed. */
+    _renderGenProgress() {
+        const order = ['discovering', 'generating', 'deploying'];
+        const cur = order.indexOf(this._genPhase);   // -1 once 'done'
+        const stepState = key => {
+            if (this._genPhase === 'done') return 'done';
+            const i = order.indexOf(key);
+            return i < cur ? 'done' : i === cur ? 'active' : 'pending';
+        };
+        const step = (key, label) => {
+            const st = key ? stepState(key) : 'done';   // null key = the pre-reload "site created"
+            return html`<div class="gp-step ${st}">
+                ${st === 'active' ? html`<sl-spinner></sl-spinner>`
+                    : st === 'done' ? html`<span class="material-icons">check_circle</span>`
+                    : html`<span class="material-icons">radio_button_unchecked</span>`}
+                <span>${label}${st === 'active' ? '…' : ''}</span>
+            </div>`;
+        };
+        return html`
+            <div class="gen-progress">
+                ${step(null, 'New site created')}
+                ${step('discovering', 'Discovering your devices')}
+                ${step('generating', 'Generating the app')}
+                ${step('deploying', 'Publishing to the new site')}
+            </div>`;
+    }
+
     _renderResult() {
         const r = this._result || {added: 0, skippedNoElem: [], skippedDupe: []};
+        const working = Boolean(this._genPhase) && this._genPhase !== 'done';
         // Group the parity gaps by component for a compact report.
         const byComp = {};
         for (const e of r.skippedNoElem) byComp[e.component] = (byComp[e.component] || 0) + 1;
@@ -1611,6 +1685,23 @@ class FeezalGenerateDialog extends LitElement {
                 ${r.createdShell ? html`app shell created on “${r.view}”.` : html`wired into the existing app on “${r.view}”.`}</span>`
             : html`<span>Added <b>${r.added}</b> element${r.added === 1 ? '' : 's'} to “${r.view}”.</span>`;
         const viewerUrl = feezal.siteName === 'default' ? '/viewer/' : '/viewer/' + encodeURIComponent(feezal.siteName) + '/';
+        // While the deferred new-site app is still being built, show the progress
+        // checklist and keep the viewer link DISABLED until the deploy lands.
+        if (working) {
+            return html`
+                ${this._renderGenProgress()}
+                <div class="viewer-cta">
+                    <span class="viewer-link disabled" aria-disabled="true">
+                        <sl-spinner></sl-spinner> Preparing “${feezal.siteName}”…
+                    </span>
+                    <p class="viewer-hint">The viewer opens as soon as the first deploy finishes.</p>
+                </div>
+                <div slot="footer" class="footer">
+                    <span class="spacer"></span>
+                    <sl-button variant="primary" loading disabled>Working…</sl-button>
+                </div>
+            `;
+        }
         return html`
             <div class="result-ok">
                 <span class="material-icons">check_circle</span>
