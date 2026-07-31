@@ -88,4 +88,9 @@ describe('E149 — resolveElementTag routing', () => {
     it('returns null for a family with no matching element (parity gap)', () => {
         expect(resolveElementTag('button', 'glass', undefined, isReg)).toBe(null);
     });
+    it('camera falls back to basic-camera for every family (no parity-gap skip)', () => {
+        expect(resolveElementTag('camera', 'glass', undefined, isReg)).toBe('feezal-element-basic-camera');
+        expect(resolveElementTag('camera', 'metro', undefined, isReg)).toBe('feezal-element-basic-camera');
+        expect(resolveElementTag('camera', 'eink', undefined, isReg)).toBe('feezal-element-basic-camera');
+    });
 });

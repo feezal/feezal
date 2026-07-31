@@ -443,8 +443,19 @@ export function resolveElementTag(component, family, deviceClass, isRegistered =
         const tag = `feezal-element-${family}-${fn}`;
         if (isRegistered(tag)) return tag;
     }
+    for (const tag of CROSS_FAMILY_FALLBACK[component] || []) {
+        if (isRegistered(tag)) return tag;
+    }
     return null;
 }
+
+// Components whose element exists in ONE family only fall back to that
+// concrete tag when the chosen family ships none — a discovered Frigate/HA
+// camera must not become a parity-gap skip just because the user picked
+// glass/metro/…: the camera surface IS feezal-element-basic-camera.
+const CROSS_FAMILY_FALLBACK = {
+    camera: ['feezal-element-basic-camera'],
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // U58 Phase ② — App mode: room detection + bucket grouping (pure, testable)
