@@ -1,6 +1,6 @@
 {
     "name": "@feezal/feezal-elements-fancy",
-    "version": "3.0.13",
+    "version": "3.0.14",
     "main": "index.js",
     "license": "MIT",
     "keywords": ["feezal", "feezal-element", "feezal-elements", "mqtt", "dashboard", "lottie", "animated"],
@@ -8,7 +8,8 @@
         "type": "elements",
         "elements": [
             "feezal-element-fancy-switch",
-            "feezal-element-fancy-contact"
+            "feezal-element-fancy-contact",
+            "feezal-element-fancy-sensor"
         ]
     }
 }

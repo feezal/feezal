@@ -195,17 +195,34 @@ describe('viewer: the lottie lifecycle', () => {
         expect(el.shadowRoot.textContent).toContain('Jammed');
     });
 
-    it('sensor (alarm slice): triggering enters the pulse loop, E138 error tone var', async () => {
+    it('sensor (alarm slice): per-type CSS pose, NO lottie, triggers on alarm with the E138 error tone', async () => {
         const el = await mount('feezal-element-fancy-sensor',
             {subscribe: 'stat/leak', type: 'water-leak'});
         expect(el.activeToneVar()).toBe('--error-color');
-        await until(() => factory.instances.length === 1);
-        const inst = factory.last;
-        inst.calls.length = 0;
+        // The sensor animates via per-type CSS poses, not lottie — no instance
+        // is ever created (its animationKey() is null).
+        await new Promise(r => setTimeout(r, 30));
+        expect(factory.instances.length).toBe(0);
+        // the pose is the hero and stays visible (no anim layer to swap in)
+        expect(el.shadowRoot.querySelector('.pose').hidden).toBe(false);
+        // per-type pose, clear at rest
+        expect(el.shadowRoot.querySelector('.pose .sp.t-water-leak')).toBeTruthy();
+        expect(el.shadowRoot.querySelector('.sp.on')).toBeNull();
+
         feezal.connection.deliver('stat/leak', 'ON');
         await el.updateComplete;
-        expect(inst.loop).toBe(true);
-        expect(inst.calls[0]).toEqual(['playSegments', [10, 70]]);
+        expect(el.shadowRoot.querySelector('.sp.on')).toBeTruthy();          // triggered
+        expect(el.shadowRoot.querySelector('.sp .wave')).toBeTruthy();       // the leak ripples
+        expect(el.shadowRoot.textContent).toContain('Leak!');
+    });
+
+    it('sensor: each alarm type renders its OWN pose class', async () => {
+        for (const [type, cls] of [['smoke', 't-smoke'], ['gas', 't-gas'], ['co', 't-co'],
+            ['vibration', 't-vibration'], ['tamper', 't-tamper'], ['generic', 't-generic']]) {
+            const el = await mount('feezal-element-fancy-sensor', {subscribe: 'stat/s', type});
+            expect(el.shadowRoot.querySelector(`.pose .sp.${cls}`), type).toBeTruthy();
+            el.remove();
+        }
     });
 
     it('climate: heating when the setpoint is above actual — the waves loop', async () => {

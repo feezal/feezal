@@ -126,13 +126,12 @@ const CASES = [
     {tag: 'feezal-element-glass-lock',       consumed: LOCK_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-metro-lock',       consumed: LOCK_CONSUMED_ATTRIBUTES},
     // E139 fancy slice — the animated family is pure views over the shared
-    // controllers; all six cards carry the full contracts.
-    {tag: 'feezal-element-fancy-light',    consumed: LIGHT_CONSUMED_ATTRIBUTES},
+    // controllers. Only the ENABLED cards (registered by the package's index.js:
+    // switch — not a controller adopter — plus contact + sensor) are asserted
+    // here; light/cover/climate/lock stay disabled (E164) and their tags are not
+    // registered, so add them back alongside their index.js imports when re-enabled.
     {tag: 'feezal-element-fancy-contact',  consumed: CONTACT_CONSUMED_ATTRIBUTES},
-    {tag: 'feezal-element-fancy-cover',    consumed: COVER_CONSUMED_ATTRIBUTES},
-    {tag: 'feezal-element-fancy-climate',  consumed: CLIMATE_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-fancy-sensor',   consumed: SENSOR_CONSUMED_ATTRIBUTES},
-    {tag: 'feezal-element-fancy-lock',     consumed: LOCK_CONSUMED_ATTRIBUTES},
     // E147 meter slice — circle/glass/metro adopt the AI-on-the-edge controller.
     {tag: 'feezal-element-circle-meter',   consumed: AIEDGE_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-glass-meter',      consumed: AIEDGE_CONSUMED_ATTRIBUTES},
