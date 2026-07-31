@@ -1,4 +1,4 @@
-import {describe, it, expect, beforeEach} from 'vitest';
+import {describe, it, expect, beforeEach, afterEach} from 'vitest';
 
 // Real circle elements so resolveElementTag/_availableFamilies see a genuine
 // registered family (each declares a discovery descriptor).
@@ -753,6 +753,93 @@ describe('feezal-generate-dialog (U58 App mode)', () => {
         expect(site.querySelectorAll('feezal-view[name="System"]')).toHaveLength(1);
         expect(site.querySelectorAll('feezal-element-system-splash')).toHaveLength(1);
         expect(site.querySelectorAll('feezal-element-system-connection-status')).toHaveLength(1);
+    });
+});
+
+// ── U80: the App generator always creates a NEW site ─────────────────────────
+describe('feezal-generate-dialog (U80 new-site App flow)', () => {
+    let origFetch;
+    beforeEach(() => {
+        document.body.innerHTML = '';
+        setupFeezal(null);
+        window.feezal.siteName = 'kitchen';
+        window.feezal.site = document.createElement('div');
+        window.feezal.app.views = [];
+        window.feezal.app._deploy = () => { window.feezal.__deployed = true; };
+        window.feezal.__deployed = false;
+        sessionStorage.removeItem('feezal:generateAppSite');
+        origFetch = window.fetch;
+    });
+    afterEach(() => { window.fetch = origFetch; });
+
+    it('_nextSiteName returns the first free siteN', async () => {
+        window.fetch = async () => ({ok: true, json: async () => ({sites: ['default', 'site1', 'site3']})});
+        const dlg = await makeDialog();
+        expect(await dlg._nextSiteName()).toBe('site2');
+    });
+
+    it('the App tile asks for a new site name, prefilled with siteN', async () => {
+        window.fetch = async () => ({ok: true, json: async () => ({sites: []})});
+        const dlg = await makeDialog();
+        await dlg._chooseAppOnNewSite();
+        expect(dlg._stage).toBe('newsite');
+        expect(dlg._newSiteName).toBe('site1');
+    });
+
+    it('creating the site POSTs {name, fromSite}, flags the resume, and navigates', async () => {
+        let posted = null;
+        window.fetch = async (url, opts) => {
+            if (url === '/api/sites' && opts?.method === 'POST') { posted = JSON.parse(opts.body); return {ok: true, json: async () => ({})}; }
+            return {ok: true, json: async () => ({sites: []})};
+        };
+        const dlg = await makeDialog();
+        let navUrl = null;
+        dlg._navigateTo = u => { navUrl = u; };
+        dlg._newSiteName = 'site1';
+        await dlg._confirmNewSite();
+        expect(posted).toEqual({name: 'site1', fromSite: 'kitchen'});
+        expect(sessionStorage.getItem('feezal:generateAppSite')).toBe('site1');
+        expect(navUrl).toBe('/editor/?/site1/');
+    });
+
+    it('a duplicate name errors without navigating', async () => {
+        window.fetch = async () => ({ok: false, status: 409, json: async () => ({})});
+        const dlg = await makeDialog();
+        let navigated = false;
+        dlg._navigateTo = () => { navigated = true; };
+        dlg._newSiteName = 'site1';
+        await dlg._confirmNewSite();
+        expect(dlg._error).toMatch(/already exists/i);
+        expect(navigated).toBe(false);
+        expect(sessionStorage.getItem('feezal:generateAppSite')).toBeNull();
+    });
+
+    it('resumeNewSiteApp opens at the App setup in auto-deploy mode', async () => {
+        window.fetch = async () => ({ok: true, json: async () => ({devices: []})});
+        const dlg = await makeDialog();
+        dlg.resumeNewSiteApp();
+        expect(dlg._autoFlow).toBe(true);
+        expect(dlg._stage).toBe('app');   // _loadInto sets the stage synchronously
+    });
+
+    it('the auto-flow deploys after generating and shows a prominent viewer link', async () => {
+        window.fetch = async () => ({ok: true, json: async () => ({devices: []})});
+        const dlg = await makeDialog();
+        dlg._autoFlow = true;
+        dlg._family = 'circle';
+        dlg._axis = 'room';
+        dlg.__devices = [{component: 'switch', discovery_id: 'd', name: 'kueche_x', __area: 'Kitchen',
+            config: {state_topic: 'z/d', command_topic: 'z/d/set'}, __key: 'd'}];
+        dlg._checked = new Set(['d']);
+        dlg._toReview();
+        dlg._generateApp();
+
+        expect(window.feezal.__deployed).toBe(true);
+        expect(dlg._stage).toBe('result');
+        await dlg.updateComplete;
+        const link = dlg.renderRoot.querySelector('.viewer-link');
+        expect(link).not.toBeNull();
+        expect(link.getAttribute('href')).toBe('/viewer/kitchen/');
     });
 });
 

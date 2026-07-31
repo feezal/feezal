@@ -87,11 +87,13 @@ function isDiagnostic(entity) {
 
 class FeezalGenerateDialog extends LitElement {
     static properties = {
-        _stage:   {state: true},   // 'tiles' | 'devices' | 'app' | 'review' | 'result'
+        _stage:   {state: true},   // 'tiles' | 'newsite' | 'devices' | 'app' | 'rooms' | 'review' | 'result'
         _loading: {state: true},
         _error:   {state: true},
         _family:  {state: true},
         _filter:  {state: true},
+        _newSiteName: {state: true},  // U80: name for the new site the App generator creates
+        _autoFlow:    {state: true},  // U80: resumed on the fresh new site → auto-deploy + viewer link
         _checked: {state: true},   // Set<string> of entity keys
         _axis:    {state: true},   // App mode: 'room' | 'function'
         _assign:  {state: true},   // App review: Map<entityKey, {label, icon}>
@@ -277,8 +279,25 @@ class FeezalGenerateDialog extends LitElement {
         }
 
         /* ── result stage ───────────────────────────────────────────────── */
+        /* U80: new-site name prompt */
+        .newsite { display: flex; flex-direction: column; gap: 10px; padding: 8px 0; }
+        .newsite p { margin: 0; font-size: 13px; }
+        .newsite sl-input { width: 100%; }
+        .newsite-err { color: var(--sl-color-danger-600, #dc2626); font-size: 12.5px; }
+        .newsite-hint { font-size: 12px; opacity: .7; }
+
         .result-ok { display: flex; align-items: center; gap: 10px; font-size: 15px; margin: 6px 0 14px; }
         .result-ok .material-icons { color: var(--sl-color-success-600, #16a34a); font-size: 26px; }
+        /* U80: prominent viewer link on the result screen */
+        .viewer-cta { margin: 4px 0 6px; }
+        .viewer-link {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 10px 16px; border-radius: 8px; text-decoration: none; font-weight: 600;
+            background: var(--sl-color-primary-600, #0284c7); color: #fff;
+        }
+        .viewer-link:hover { background: var(--sl-color-primary-500, #0ea5e9); }
+        .viewer-link .material-icons { font-size: 18px; }
+        .viewer-hint { font-size: 12px; opacity: .7; margin: 8px 0 0; }
         .skip-block { margin-top: 10px; font-size: 13px; }
         .skip-block h4 { margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; opacity: .7; }
         .skip-block ul { margin: 0; padding-left: 18px; opacity: .85; }
@@ -324,6 +343,8 @@ class FeezalGenerateDialog extends LitElement {
         this._assign = new Map();
         this._rooms = null;
         this._result = null;
+        this._newSiteName = '';
+        this._autoFlow = false;
         this._newRoomFor = null;
         this._newRoomName = '';
         this.__devices = [];
@@ -357,6 +378,7 @@ class FeezalGenerateDialog extends LitElement {
         this._sel.reset();
         this._clearSelection();
         this._rooms = null;
+        this._autoFlow = false;
         this._newRoomFor = null;
         this._result = null;
         // Default the family to the first available one.
@@ -385,6 +407,72 @@ class FeezalGenerateDialog extends LitElement {
     async _chooseDevices() { await this._loadInto('devices'); }
 
     async _chooseApp() { await this._loadInto('app'); }
+
+    // ── U80: the App generator always creates a NEW site ──────────────────────
+    // The App tile first asks for the new site's name (prefilled siteN), creates
+    // it (inheriting the current site's broker connection), then switches the
+    // editor to it; the wizard resumes there and auto-deploys at the end.
+
+    /** Next free "siteN" name (site1, site2, …). */
+    async _nextSiteName() {
+        let names = [];
+        try {
+            const res = await fetch('/api/sites');
+            if (res.ok) { const data = await res.json(); names = data.sites || data || []; }
+        } catch { /* offline — fall through to site1 */ }
+        const taken = new Set(names.map(n => String(n).toLowerCase()));
+        let i = 1;
+        while (taken.has('site' + i)) i++;
+        return 'site' + i;
+    }
+
+    async _chooseAppOnNewSite() {
+        this._error = null;
+        this._newSiteName = await this._nextSiteName();
+        this._stage = 'newsite';
+        this.updateComplete.then(() => this.renderRoot.querySelector('.newsite sl-input')?.focus?.());
+    }
+
+    async _confirmNewSite() {
+        const name = String(this._newSiteName || '').trim();
+        if (!name) return;
+        if (!/^[^/\\]+$/.test(name)) { this._error = 'A site name cannot contain / or \\.'; this.requestUpdate(); return; }
+        this._error = null;
+        this._creatingSite = true;
+        this.requestUpdate();
+        try {
+            const res = await fetch('/api/sites', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name, fromSite: feezal.siteName}),
+            });
+            if (!res.ok) {
+                this._error = res.status === 409 ? 'A site with that name already exists.' : 'Could not create the site.';
+                this._creatingSite = false;
+                this.requestUpdate();
+                return;
+            }
+            // Resume the App generator on the new site after the reload (loadViews
+            // in the inspector picks this up and calls resumeNewSiteApp()).
+            sessionStorage.setItem('feezal:generateAppSite', name);
+            this._navigateTo(`/editor/?/${encodeURIComponent(name)}/`);
+        } catch {
+            this._error = 'Could not reach the server.';
+            this._creatingSite = false;
+            this.requestUpdate();
+        }
+    }
+
+    /** Full-page navigation to switch the editor to another site (seam for tests). */
+    _navigateTo(url) { window.location.href = url; }
+
+    /** Called by the editor after it switches to the freshly-created site: open
+     * the wizard straight at the App setup and mark the auto-deploy flow. */
+    resumeNewSiteApp() {
+        this.open();
+        this._autoFlow = true;
+        this._chooseApp();
+    }
 
     async _loadInto(stage) {
         this._stage = stage;
@@ -1015,6 +1103,9 @@ class FeezalGenerateDialog extends LitElement {
             skippedNoElem: [],
             skippedDupe,
         };
+        // U80: on the switch-to-new-site flow, publish the freshly generated app
+        // automatically so the viewer link on the result screen works at once.
+        if (this._autoFlow) feezal.app?._deploy?.();
         this._stage = 'result';
         this.requestUpdate();
     }
@@ -1023,6 +1114,7 @@ class FeezalGenerateDialog extends LitElement {
         return html`
             <sl-dialog label="${this._dialogTitle()}" @sl-request-close="${e => { if (e.detail.source === 'overlay') e.preventDefault(); }}">
                 ${this._stage === 'tiles' ? this._renderTiles()
+                    : this._stage === 'newsite' ? this._renderNewSite()
                     : this._stage === 'devices' ? this._renderDevices()
                     : this._stage === 'app' ? this._renderApp()
                     : this._stage === 'rooms' ? this._renderRooms()
@@ -1046,12 +1138,34 @@ class FeezalGenerateDialog extends LitElement {
     }
 
     _dialogTitle() {
+        if (this._stage === 'newsite') return 'Generate — App: new site';
         if (this._stage === 'devices') return 'Generate — Devices';
         if (this._stage === 'app') return 'Generate — App';
         if (this._stage === 'rooms') return 'Generate — App: rooms';
         if (this._stage === 'review') return `Generate — App: ${this._axis === 'room' ? 'devices' : 'functions'}`;
         if (this._stage === 'result') return 'Generate — Done';
         return 'Generate';
+    }
+
+    _renderNewSite() {
+        return html`
+            <div class="newsite">
+                <p>The App generator builds your dashboard on a <b>new site</b> — your current site stays untouched. Name it (you'll land in the editor on it, and it deploys automatically at the end):</p>
+                <sl-input label="New site name" autofocus value="${this._newSiteName}"
+                    ?disabled="${this._creatingSite}"
+                    @sl-input="${e => { this._newSiteName = e.target.value; }}"
+                    @keydown="${e => { if (e.key === 'Enter') { e.preventDefault(); this._confirmNewSite(); } }}"></sl-input>
+                ${this._error ? html`<p class="newsite-err">${this._error}</p>` : ''}
+                <p class="newsite-hint">It inherits this site's MQTT broker connection, so your discovered devices are ready right away.</p>
+            </div>
+            <div slot="footer" class="footer">
+                <sl-button variant="text" @click="${() => { this._stage = 'tiles'; }}" ?disabled="${this._creatingSite}">Back</sl-button>
+                <span class="spacer"></span>
+                <sl-button @click="${this._close}" ?disabled="${this._creatingSite}">Cancel</sl-button>
+                <sl-button variant="primary" ?loading="${this._creatingSite}"
+                    ?disabled="${!this._newSiteName.trim() || this._creatingSite}"
+                    @click="${this._confirmNewSite}">Create &amp; continue</sl-button>
+            </div>`;
     }
 
     _renderTiles() {
@@ -1062,10 +1176,10 @@ class FeezalGenerateDialog extends LitElement {
                     <span class="t-title">Devices</span>
                     <span class="t-sub">One pre-wired element per discovered device, dropped onto the current view in a grid.</span>
                 </button>
-                <button class="tile" @click="${this._chooseApp}">
+                <button class="tile" @click="${this._chooseAppOnNewSite}">
                     <span class="material-icons">dashboard</span>
                     <span class="t-title">App</span>
-                    <span class="t-sub">A Menu view with per-room (or per-function) sub-views wired into a navigation app.</span>
+                    <span class="t-sub">A Menu view with per-room (or per-function) sub-views wired into a navigation app — created as a new site.</span>
                 </button>
             </div>
         `;
@@ -1338,11 +1452,23 @@ class FeezalGenerateDialog extends LitElement {
                     (${r.views.join(', ')})` : 'existing views'} —
                 ${r.createdShell ? html`app shell created on “${r.view}”.` : html`wired into the existing app on “${r.view}”.`}</span>`
             : html`<span>Added <b>${r.added}</b> element${r.added === 1 ? '' : 's'} to “${r.view}”.</span>`;
+        const viewerUrl = feezal.siteName === 'default' ? '/viewer/' : '/viewer/' + encodeURIComponent(feezal.siteName) + '/';
         return html`
             <div class="result-ok">
                 <span class="material-icons">check_circle</span>
                 ${summary}
             </div>
+            ${r.app ? html`
+                <div class="viewer-cta">
+                    <a class="viewer-link" href="${viewerUrl}" target="_blank" rel="noopener">
+                        <span class="material-icons">open_in_new</span>
+                        Open “${feezal.siteName}” in the viewer
+                    </a>
+                    <p class="viewer-hint">
+                        ${this._autoFlow ? 'Deployed automatically. ' : ''}This opens the live dashboard in a new tab —
+                        add it to a wall tablet's home screen, or use Deploy → Export for a self-contained bundle.
+                    </p>
+                </div>` : ''}
             ${r.skippedDupe.length ? html`
                 <div class="skip-block">
                     <h4>Already on this view (${r.skippedDupe.length})</h4>

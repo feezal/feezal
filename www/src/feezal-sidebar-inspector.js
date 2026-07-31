@@ -759,6 +759,17 @@ class FeezalSidebarInspector extends LitElement {
 
         feezal.site.view = navView;
         feezal.site.updateVisibility();
+
+        // U80: the App generator creates a NEW site and switches the editor to
+        // it; resume the wizard here (straight at the App setup, auto-deploy at
+        // the end). Guarded so it fires once, only on the just-created site.
+        try {
+            if (sessionStorage.getItem('feezal:generateAppSite') === feezal.siteName) {
+                sessionStorage.removeItem('feezal:generateAppSite');
+                feezal.app.updateComplete?.then?.(() =>
+                    feezal.app.shadowRoot?.querySelector('feezal-generate-dialog')?.resumeNewSiteApp?.());
+            }
+        } catch { /* sessionStorage unavailable — no resume */ }
     }
 
     updated(changed) {
