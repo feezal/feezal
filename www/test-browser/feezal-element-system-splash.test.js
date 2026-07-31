@@ -60,6 +60,21 @@ afterEach(() => {
     __setLottieFactoryForTests(null);
 });
 
+describe('defaults', () => {
+    it('settle-window 500 / timeout 1s / spinner-delay 0 (descriptor + runtime)', () => {
+        const cls = customElements.get('feezal-element-system-splash');
+        const def = Object.fromEntries(cls.feezal.attributes.map(a => [a.name, a.default]));
+        expect(def['settle-window']).toBe(500);
+        expect(def['timeout']).toBe(1);
+        expect(def['spinner-delay']).toBe(0);
+
+        const el = document.createElement('feezal-element-system-splash');
+        expect(el._settleMs()).toBe(500);
+        expect(el._timeoutMs()).toBe(1000);   // seconds → ms
+        expect(el._spinnerDelayMs()).toBe(0);
+    });
+});
+
 describe('viewer overlay + settle window', () => {
     it('renders a full-screen overlay immediately in the viewer', async () => {
         const el = await mount('feezal-element-system-splash', {});

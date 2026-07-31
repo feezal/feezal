@@ -49,15 +49,15 @@ class FeezalElementSystemSplash extends FeezalElement {
                 'unstyled-content and boot jitter. Pseudo-element — position/size don\'t matter; place ' +
                 'one per site. Optional logo, CSS spinner (after a delay) or a Lottie boot animation.',
             attributes: [
-                {name: 'settle-window', type: 'number', default: 400, min: 0,
+                {name: 'settle-window', type: 'number', default: 500, min: 0,
                     help: 'Milliseconds of MQTT silence (no message on any topic) after connect that count ' +
                         'as "settled". Retained state arrives in a burst right after subscribe; a short quiet ' +
                         'window means the initial values are in. Every message resets this timer.'},
-                {name: 'timeout', type: 'number', default: 3, min: 0,
+                {name: 'timeout', type: 'number', default: 1, min: 0,
                     help: 'Fallback in seconds — a hard cap so the splash never hangs. Counts from connect ' +
                         '(in case messages keep streaming and the quiet window never opens) and, if the ' +
                         'connection never establishes, from page load.'},
-                {name: 'spinner-delay', type: 'number', default: 1000, min: 0,
+                {name: 'spinner-delay', type: 'number', default: 0, min: 0,
                     help: 'Milliseconds before the spinner appears. Fast loads see only a clean colour flash; ' +
                         'the spinner shows only if the wait exceeds this delay. Ignored when a Lottie ' +
                         'animation is set (that shows immediately and replaces the spinner).'},
@@ -166,9 +166,9 @@ class FeezalElementSystemSplash extends FeezalElement {
 
     constructor() {
         super();
-        this.settleWindow = 400;
-        this.timeout = 3;
-        this.spinnerDelay = 1000;
+        this.settleWindow = 500;
+        this.timeout = 1;
+        this.spinnerDelay = 0;
         this.logo = '';
         this.lottie = '';
         this._fading = false;
@@ -364,9 +364,9 @@ class FeezalElementSystemSplash extends FeezalElement {
 
     // ── Numeric guards ───────────────────────────────────────────────────────
 
-    _settleMs()      { return this._num(this.settleWindow, 400); }
-    _timeoutMs()     { return this._num(this.timeout, 3) * 1000; }
-    _spinnerDelayMs() { return this._num(this.spinnerDelay, 1000); }
+    _settleMs()      { return this._num(this.settleWindow, 500); }
+    _timeoutMs()     { return this._num(this.timeout, 1) * 1000; }
+    _spinnerDelayMs() { return this._num(this.spinnerDelay, 0); }
 
     _num(v, def) {
         const n = Number(v);
