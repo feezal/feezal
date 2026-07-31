@@ -82,14 +82,47 @@ export class FeezalVisibility {
 
     _dbg(...args) { if (window.feezalMqttDebugOn?.()) console.debug('%c[lazy]%c', 'color:#a60;font-weight:600', 'color:inherit', ...args); }
 
+    /** N30/N40: the names of views that are EMBEDDED sub-views of a layout-app /
+     * layout-view — i.e. shown only as a CLONE inside a router, never as their
+     * own top-level `feezal-view` (the site routes them into the router). Their
+     * top-level instance is a display:none TEMPLATE, so it must always be paused
+     * — otherwise its elements subscribe in parallel with the visible clone
+     * (double subscriptions). Read from the routers' serialized attributes so it
+     * works at build time, before the router elements upgrade. */
+    _embeddedViewNames() {
+        const names = new Set();
+        try {
+            for (const app of this.site.querySelectorAll('feezal-element-layout-app')) {
+                let items = [];
+                try { items = JSON.parse(app.getAttribute('items') || '[]'); } catch { items = []; }
+                for (const it of Array.isArray(items) ? items : []) if (it?.view) names.add(it.view);
+            }
+            for (const lv of this.site.querySelectorAll('feezal-element-layout-view')) {
+                const v = lv.getAttribute('view');
+                if (v) names.add(v);
+            }
+        } catch { /* querySelectorAll unavailable (test stub) — no embedded views */ }
+        return names;
+    }
+
     /** Re-evaluate every view (called on each active-view change). */
     update() {
         this._dbg(`update() — active view = "${String(this.site.view ?? '')}"`);
+        const embedded = this._embeddedViewNames();
         for (const view of this.site.querySelectorAll('feezal-view')) {
             const name = view.getAttribute('name');
             if (this._visible(view)) {
                 this._dbg(`view "${name}": VISIBLE → resume (seen)`);
                 this._seen.add(view); this._resume(view); continue;
+            }
+            // A layout-app/-view sub-view template is shown only as a clone inside
+            // its router — its top-level instance never renders, so always pause it
+            // (independent of lazy/pause config) so it doesn't double-subscribe
+            // with the visible clone.
+            if (embedded.has(name)) {
+                this._dbg(`view "${name}": embedded sub-view template → pauseNow (always)`);
+                this._pauseNow(view);
+                continue;
             }
             // N40: a view never shown yet, under an effective lazy policy, is
             // paused IMMEDIATELY (no grace) so it only subscribes on first reveal.

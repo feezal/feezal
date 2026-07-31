@@ -228,6 +228,32 @@ describe('embedded view background (N36)', () => {
         // and the clone is a block so it lays out with its own size/background
         expect(el.shadowRoot.querySelector('#content feezal-view').style.display).toBe('block');
     });
+
+    it('does not rebuild the clone on a redundant re-embed of the same view (no subscribe churn)', async () => {
+        const site = document.createElement('div');
+        for (const name of ['page1', 'page2']) {
+            const v = document.createElement('feezal-view');
+            v.setAttribute('name', name);
+            site.append(v);
+        }
+        document.body.append(site);
+        feezal.site = site;
+
+        const el = await mount('feezal-element-layout-app', {items: ITEMS});
+        el._active = 'page1';
+        el._embed(true);
+        const clone1 = el.shadowRoot.querySelector('#content feezal-view');
+        expect(clone1).not.toBeNull();
+
+        el._embed(true);   // SAME view, forced → must NOT tear down + rebuild the live clone
+        expect(el.shadowRoot.querySelector('#content feezal-view')).toBe(clone1);   // same node
+
+        el._active = 'page2';   // a DIFFERENT view → rebuilds
+        el._embed(true);
+        const clone3 = el.shadowRoot.querySelector('#content feezal-view');
+        expect(clone3).not.toBe(clone1);
+        expect(clone3.getAttribute('name')).toBe('page2');
+    });
 });
 
 describe('embedded per-view theme (B50)', () => {

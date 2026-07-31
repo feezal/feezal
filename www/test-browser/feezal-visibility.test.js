@@ -71,6 +71,26 @@ afterEach(() => {
 });
 
 describe('N37 — FeezalVisibility', () => {
+    it('always pauses a layout-app embedded sub-view template (regardless of lazy/pause)', async () => {
+        makeSite({pause: false, lazy: false});          // no pause AND no lazy policy
+        const a = addView('a');                          // the active shell view
+        const layout = document.createElement('feezal-element-layout-app');
+        layout.setAttribute('items', JSON.stringify([{view: 'b'}, {label: 'C', view: 'c'}]));
+        a.append(layout);                                // its sub-views b, c are embedded
+        const b = addView('b');                          // top-level TEMPLATE for the embedded sub-view
+        const chipB = addChip(b, 'stat/b');
+        await chipB.updateComplete;
+        const full = subs();
+        expect(full).toBeGreaterThan(0);                 // chip subscribed on mount (no controller yet)
+
+        attach(new FeezalVisibility(site));
+        expect(vis._paused.has(b)).toBe(true);           // embedded template paused immediately…
+        expect(chipB.__n37Paused).toBe(true);
+        expect(subs()).toBeLessThan(full);               // …and its topics unsubscribed
+        // 'a' (the shell) is the active view and stays subscribed.
+        expect(vis._paused.has(a)).toBe(false);
+    });
+
     it('pauses a hidden view after the grace period and resumes instantly on show', async () => {
         makeSite({grace: '5'});
         const a = addView('a');

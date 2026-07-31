@@ -533,7 +533,14 @@ class FeezalElementLayoutApp extends FeezalElement {
         if (!content) return;
         if (feezal.isEditor) { content.replaceChildren(); return; }   // editor uses the .ph placeholder overlay
         const name = this._active;
-        if (!force && name === this._mounted) return;
+        // Skip a redundant re-embed of the SAME view that is ALREADY mounted:
+        // replaceChildren() below would tear down the live clone (disconnecting
+        // its elements → unsubscribe) and rebuild it, causing subscribe →
+        // unsubscribe → subscribe churn when _embed(true) fires several times on
+        // init (items + activeView in updated(), plus N30 hash routing). `force`
+        // no longer re-clones an already-shown view — the source view is
+        // immutable in the viewer, and the editor path returned above.
+        if (name === this._mounted && content.firstElementChild) return;
         this._mounted = name;
         if (!name || !feezal.site) { content.replaceChildren(); return; }
         const view = feezal.site.querySelector(`feezal-view[name="${name}"]`);
