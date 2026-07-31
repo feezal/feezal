@@ -5,6 +5,8 @@ import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/select/select.js';
 import '@shoelace-style/shoelace/dist/components/option/option.js';
 import '@shoelace-style/shoelace/dist/components/color-picker/color-picker.js';
+import '@shoelace-style/shoelace/dist/components/dialog/dialog.js';
+import '@shoelace-style/shoelace/dist/components/button/button.js';
 import {parseColorRanges, rangeSwatchGradient, RANGE_SUFFIX}
     from '@feezal/feezal-element/feezal-color-ranges.js';
 import {resolveCssColor, normalizeHexa} from './feezal-color-util.js';
@@ -32,6 +34,7 @@ class FeezalSidebarColorRanges extends LitElement {
         _collapsed: {state: true},   // Set of collapsed range names
         _renaming:  {state: true},   // name of the range being renamed inline
         _creating:  {state: true},   // {name, type} | null — the new-range form
+        _dlgConfirm: {state: true},  // {message, resolve} | null — styled confirm
     };
 
     static styles = css`
@@ -79,6 +82,21 @@ class FeezalSidebarColorRanges extends LitElement {
         sl-input::part(base), sl-select::part(combobox) { background: var(--feezal-bg, #fff); border-color: var(--feezal-border, #ccc); color: var(--feezal-color, #333); }
         sl-input::part(input) { background: var(--feezal-bg, #fff); color: var(--sl-input-color, #333); }
         sl-color-picker { flex-shrink: 0; }
+
+        /* Confirm dialog — same editor-chrome pattern as the assets sidebar:
+           panel colours follow --feezal-bg/--feezal-border, which
+           feezal-app-editor swaps in dark mode, so no class toggle needed. */
+        sl-dialog {
+            --sl-panel-background-color: var(--feezal-bg, #fff);
+            --sl-panel-border-color: var(--feezal-border, #e0e0e0);
+            --sl-z-index-dialog: 10000;
+        }
+        sl-dialog::part(panel) { color: var(--feezal-color, #333); }
+        sl-dialog sl-button[variant="default"]::part(base) {
+            background: var(--feezal-bg-sub, #f5f5f5);
+            border-color: var(--feezal-border, #d0d0d0);
+            color: var(--feezal-color, #333);
+        }
     `;
 
     constructor() {
@@ -87,6 +105,7 @@ class FeezalSidebarColorRanges extends LitElement {
         this._collapsed = new Set();
         this._renaming = null;
         this._creating = null;
+        this._dlgConfirm = null;
     }
 
     connectedCallback() {
@@ -165,10 +184,22 @@ class FeezalSidebarColorRanges extends LitElement {
         this._commit();
     }
 
-    _delete(name) {
+    /** Styled confirm (assets-sidebar pattern) — never the browser's own. */
+    _confirm(message) {
+        return new Promise(resolve => {
+            this._dlgConfirm = {message, resolve};
+        });
+    }
+
+    _closeConfirm(answer) {
+        this._dlgConfirm?.resolve(answer);
+        this._dlgConfirm = null;
+    }
+
+    async _delete(name) {
         const used = this._usages(name).length;
         if (used > 0 &&
-            !confirm(`"${name}" is used by ${used} element${used === 1 ? '' : 's'}. ` +
+            !await this._confirm(`"${name}" is used by ${used} element${used === 1 ? '' : 's'}. ` +
                 'Their colours will keep the last resolved value. Delete anyway?')) return;
         this._ranges = this._ranges.filter(r => r.name !== name);
         this._commit();
@@ -396,6 +427,16 @@ class FeezalSidebarColorRanges extends LitElement {
             ` : html`
                 <button class="new-btn" @click="${() => this.startCreate()}">+ New colour range</button>
             `}
+
+            <sl-dialog label="Delete colour range"
+                ?open="${!!this._dlgConfirm}"
+                @sl-request-close="${() => this._closeConfirm(false)}">
+                <p style="margin:0">${this._dlgConfirm?.message ?? ''}</p>
+                <sl-button slot="footer" variant="default"
+                    @click="${() => this._closeConfirm(false)}">Cancel</sl-button>
+                <sl-button slot="footer" variant="danger"
+                    @click="${() => this._closeConfirm(true)}">Delete</sl-button>
+            </sl-dialog>
         `;
     }
 }

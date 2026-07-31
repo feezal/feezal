@@ -81,10 +81,37 @@ describe('manager panel — <feezal-site color-ranges> is the source of truth', 
         expect(feezal.app.changed).toBe(1);
     });
 
-    it('deleting the last range removes the attribute entirely', async () => {
+    it('deleting an unused range needs no confirmation; the last one removes the attribute', async () => {
         const manager = await mountManager([RANGES[0]]);
-        manager._delete('temp');
+        await manager._delete('temp');
+        expect(manager._dlgConfirm).toBe(null);   // no dialog for an unused range
         expect(feezal.site.hasAttribute('color-ranges')).toBe(false);
+    });
+
+    it('deleting a USED range asks via a styled sl-dialog — never the browser confirm', async () => {
+        const manager = await mountManager();
+        const bound = document.createElement('div');
+        bound.style.setProperty('--x-range', 'temp');
+        feezal.site.append(bound);
+
+        // Cancel keeps the range
+        let done = manager._delete('temp');
+        await manager.updateComplete;
+        const dialog = manager.shadowRoot.querySelector('sl-dialog');
+        expect(dialog.open).toBe(true);
+        expect(dialog.textContent).toContain('used by 1 element');
+        manager.shadowRoot.querySelector('sl-button[variant="default"]').click();
+        await done;
+        expect(JSON.parse(feezal.site.getAttribute('color-ranges')).map(r => r.name))
+            .toContain('temp');
+
+        // Delete removes it
+        done = manager._delete('temp');
+        await manager.updateComplete;
+        manager.shadowRoot.querySelector('sl-button[variant="danger"]').click();
+        await done;
+        expect(JSON.parse(feezal.site.getAttribute('color-ranges')).map(r => r.name))
+            .not.toContain('temp');
     });
 
     it('rename rewrites every reference — style pairs AND gauge attributes', async () => {
