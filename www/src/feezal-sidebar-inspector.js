@@ -2235,11 +2235,14 @@ class FeezalSidebarInspector extends LitElement {
             }
             el.replaceWith(swapped);          // in place — preserves DOM order / grouping
             this.initElem(swapped, true);     // applies the target family's defaultStyle
-            // Preserve geometry + generic inline CSS; drop the source family's
-            // --feezal-* chrome overrides (adopting the target look is the point).
+            // Preserve position + generic inline CSS; drop the source family's
+            // --feezal-* chrome overrides (adopting the target look is the
+            // point) AND its width/height — families differ in proportions, so
+            // the twin starts at its own defaultStyle size (the old size is
+            // deliberately not remembered for switching back).
             for (let i = 0; i < el.style.length; i++) {
                 const p = el.style[i];
-                if (p.startsWith('--feezal-')) continue;
+                if (p.startsWith('--feezal-') || p === 'width' || p === 'height') continue;
                 swapped.style.setProperty(p, el.style.getPropertyValue(p));
             }
             newSel.push(swapped);

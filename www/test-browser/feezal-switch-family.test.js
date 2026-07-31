@@ -2,8 +2,9 @@
  * E115 — Switch element family (context menu). Drives the inspector's switch
  * logic on a bare-prototype receiver (like feezal-editor-drag-restrict), with
  * the interact/selection side-effects stubbed, so the transform itself — tag
- * swap, shared-attribute intersection, discovery-id + geometry carry, orphan
- * drop, family-target discovery — is asserted directly.
+ * swap, shared-attribute intersection, discovery-id + position carry (size
+ * resets to the twin's default), orphan drop, family-target discovery — is
+ * asserted directly.
  */
 import {describe, it, expect, beforeEach} from 'vitest';
 
@@ -95,9 +96,13 @@ describe('E115 — Switch family transform', () => {
         expect(swapped.getAttribute('publish')).toBe('set/lamp');
         expect(swapped.getAttribute('discovery-id')).toBe('dev-9');
         expect(swapped.hasAttribute('glass-only-orphan')).toBe(false);
-        // geometry preserved, family chrome var dropped
+        // position preserved, family chrome var dropped — and width/height
+        // deliberately NOT carried: the twin starts at its own defaultStyle
+        // size (initElem is stubbed here, so cleared means empty)
         expect(swapped.style.left).toBe('10px');
-        expect(swapped.style.width).toBe('120px');
+        expect(swapped.style.top).toBe('20px');
+        expect(swapped.style.width).toBe('');
+        expect(swapped.style.height).toBe('');
         expect(swapped.style.getPropertyValue('--feezal-glass-accent')).toBe('');
         // one undo entry, reselected, and the drop was reported (not silent)
         expect(changes).toBe(1);
