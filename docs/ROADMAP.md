@@ -66,6 +66,7 @@ Work in progress — priorities and scope are not final.
 - [U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow](#u61--editor-preview-fidelity-gradientbackground-in-a-percentage-sized-views-scroll-overflow)
 - [U63 — `layout-app`: split the content inset into per-side knobs](#u63--layout-app-split-the-content-inset-into-per-side-knobs)
 - [U72 — Generate wizard: order the cards within a view by function (room mode) or name (function mode)](#u72--generate-wizard-order-the-cards-within-a-view-by-function-room-mode-or-name-function-mode)
+- [U73 — Welcome wizard: fork into "explore the editor" vs "just autogenerate an app"](#u73--welcome-wizard-fork-into-explore-the-editor-vs-just-autogenerate-an-app)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -1129,6 +1130,25 @@ Independent of A/B/C: decide whether the **Subscribe topic may also feed a range
 **Ships with:** the two-line sort in `_generateApp`, a browser test asserting card order within a room follows the function taxonomy (and alphabetical within a function bucket), and a `docs/TESTING.md` line under the Generate-wizard §.
 
 **Relates:** **U58** ✅ / **U67** ✅ / **U69** ✅ (the App generator this refines), **E138** (the `FN_TAXONOMY` function taxonomy the room order reuses — keep them one order, not two), `functionBucket` / `_generateApp`.
+
+### U73 — Welcome wizard: fork into "explore the editor" vs "just autogenerate an app"
+
+**Requested (07/2026).** [U37](roadmap-archive/U37.md) ✅ (`www/src/feezal-welcome-tour.js`) is one linear hands-on sequence. Add a branch after the basics so a first-run user picks their path:
+
+1. **After the terminology / basics steps, a fork asks:** *"Place a few elements yourself"* (explore the editor) **or** *"Just autogenerate an app from your devices"*.
+2. **Explore path** — the existing hands-on sequence (palette → canvas → inspector → first live element → point-at-topic → deploy), unchanged, ending with the spotlight on **Generate** the U58 note already planned.
+3. **Autogenerate path** — skip the manual element steps. Guide only the **MQTT connection** (broker/port/protocol/credentials + Deploy to connect), then **wait until the connection is established AND devices are discovered** (poll `/api/discovery/devices`; show "connecting… / discovering your devices…"), then **open the Generate → App flow** so the user lands directly in the wizard (axis + family → review → generate).
+4. **After the app is created, a final step** points the user to the **viewer** (open-viewer action) and mentions the **export** functions (static bundle for a wall tablet / sharing).
+
+**This revisits the U58 onboarding decisions** (recorded in [U58](roadmap-archive/U58.md) §Onboarding, which planned a single spotlight *finale*). Two of them flip for the autogenerate path, deliberately:
+- **Wait for discovery** (the note recommended "always show, don't wait"). The autogenerate path is only useful once devices exist, so here the tour DOES wait (the note's option c) — with a spinner + honest copy and a **bail-out** ("no devices yet? skip to the editor") so a broker with no discovery never traps the user.
+- **Drive, don't just spotlight** (the note said "spotlight, do not drive"). The whole point is to land the user IN the generate flow, so the tour opens the Generate dialog at the App tile. Manage the tour-overlay ↔ modal-dialog interaction the note warned about: **suspend the tour spotlight while the dialog owns the screen, resume for the final step once the result stage shows** (the dialog already tracks its `_stage`). The simple spotlight finale stays right for the *explore* branch.
+
+**Design / grounding.** The tour is a linear `STEPS` array today — branching needs a small router (a step names its next, or the fork sets a `path` the list filters on). The MQTT-connect steps already exist (Connect broker / connection status / Deploy). The Generate dialog opens via `feezal-generate-dialog.open()` → drive it to the App tile (`_chooseApp`). The discovery wait reuses a discovery-count poll (the same event-driven advance the hands-on steps use). The finale reuses the open-viewer action + points at Deploy → Export.
+
+**Ships with:** the fork step + two branches, the tour-overlay/dialog hand-off, the empty-discovery bail-out, browser tests (the fork routes correctly; the autogenerate path advances only once discovery has entities; the finale appears after the result stage), a `docs/TESTING.md` update to the U37 tour section, and U37's editor-only property preserved (nothing reaches the viewer/export bundle).
+
+**Relates:** **U37** ✅ (the tour this restructures — `feezal-welcome-tour.js`), **U58** ✅ (the App generator the autogenerate path lands in — this **supersedes** its §Onboarding single-step plan), **U67**–**U71** ✅ (the current Generate wizard), the MQTT connection tab (`feezal-sidebar-viewer`) + `/api/discovery/devices` (the discovery wait), the open-viewer action + Deploy → Export (the finale), **A18** (kiosk / first-run onboarding is where this matters most).
 
 ### E112 — Scrypted integration: camera snapshot element (sensors already work) 💡 to refine
 
