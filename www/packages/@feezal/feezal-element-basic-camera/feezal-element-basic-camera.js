@@ -26,6 +26,7 @@ class FeezalElementBasicCamera extends FeezalElement {
                 {label: 'go2rtc (RTSP → WebRTC/HLS/MJPEG gateway)', url: 'https://github.com/AlexxIT/go2rtc'},
                 {label: 'MediaMTX (RTSP → WebRTC/HLS gateway)',     url: 'https://github.com/bluenviron/mediamtx'},
                 {label: 'Frigate (NVR with MQTT events + snapshots)', url: 'https://frigate.video'},
+                {label: 'Scrypted (NVR — copy the camera RTSP rebroadcast URL)', url: 'https://www.scrypted.app'},
             ],
             discovery: {
                 component: 'camera',
@@ -44,7 +45,7 @@ class FeezalElementBasicCamera extends FeezalElement {
                 },
             },
             attributes: [
-                {name: 'src',            type: 'string',    default: '',       help: 'Camera feed URL (MJPEG stream, HLS playlist, image URL, or WHEP endpoint URL for webrtc — e.g. go2rtc `http://host:1984/api/webrtc?src=cam` or MediaMTX `http://host:8889/cam/whep`). Unused for type mqtt-image.'},
+                {name: 'src',            type: 'string',    default: '',       help: 'Camera feed URL (MJPEG stream, HLS playlist, image URL, or WHEP endpoint URL for webrtc — e.g. go2rtc `http://host:1984/api/webrtc?src=cam` or MediaMTX `http://host:8889/cam/whep`). Unused for type mqtt-image. From Scrypted: open the camera and, in its Streams settings (the Rebroadcast plugin), copy the RTSP rebroadcast URL (`rtsp://<scrypted-host>:<port>/<id>`). Browsers cannot play RTSP, so add that URL as a source in a go2rtc or MediaMTX gateway and paste the browser URL it produces (WebRTC-WHEP / HLS / MJPEG) here — set `type` to match.'},
                 {name: 'subscribe',      type: 'mqttTopic',                    help: 'type mqtt-image: topic whose PAYLOAD is the image (binary → data URL, or raw base64). Other types: a message overrides the src URL. Also serves as base for dynamic attribute overrides via `<subscribe>/#`.'},
                 {name: 'type',           type: 'select',    options: ['mjpeg', 'hls', 'image', 'webrtc', 'mqtt-image'], default: 'mjpeg',
                     help: 'Feed type. mjpeg = multipart stream via <img>; hls = HLS video; image = URL with optional auto-refresh; webrtc = WHEP low-latency video; mqtt-image = the subscribe topic\'s payloads ARE the images.'},
