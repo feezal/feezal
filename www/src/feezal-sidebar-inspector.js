@@ -1129,7 +1129,9 @@ class FeezalSidebarInspector extends LitElement {
             });
             ds.subscribe('dragstart', ({event}) => {
                 if (event && event.target && event.target.tagName !== 'FEEZAL-VIEW') {
-                    ds.break();
+                    // dragselect v3: break() is gone - the continue flag skips
+                    // the current gesture and auto-resets on Interaction:end.
+                    ds.continue = true;
                 } else {
                     // A real rubber-band drag is starting.
                     this._dsDidDrag = true;

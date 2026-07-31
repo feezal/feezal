@@ -200,7 +200,7 @@
         "@feezal/feezal-theme-tui": "*",
         "@shoelace-style/shoelace": "^2.20.1",
         "dompurify": "3.4.7",
-        "dragselect": "^2.7.2",
+        "dragselect": "^3.1.2",
         "interactjs": "^1.10.27",
         "lit": "^3.2.0",
         "marked": "^14.1.4",
