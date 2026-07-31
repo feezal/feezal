@@ -212,11 +212,17 @@ async function buildFilteredBundle(wwwDir, siteHtml, theme, logger) {
                     output: {
                         format: 'iife',
                         name: '_feezal',
-                        inlineDynamicImports: true,
+                        // NB: no inlineDynamicImports here — Rolldown (Vite 8)
+                        // disables code splitting for a single-entry iife build
+                        // anyway and warns that the option is ignored.
                         entryFileNames: '[name].js'
                     },
                     onwarn(w) {
-                        if (w.code !== 'CIRCULAR_DEPENDENCY') {
+                        // EMPTY_IMPORT_META: Vite's preload helper guards
+                        // `if (import.meta.resolve)`; in iife output import.meta
+                        // becomes undefined and the guard just falls through —
+                        // expected, not worth a log line.
+                        if (w.code !== 'CIRCULAR_DEPENDENCY' && w.code !== 'EMPTY_IMPORT_META') {
                             logger.debug(`export: rollup ${w.code}: ${w.message}`);
                         }
                     }
