@@ -344,6 +344,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U75 — Generate review: checkbox is checkbox-only; multi-row select + bulk "move to room" ✅ done](U75.md)
 - [U76 — Room heuristic: broaden the lexicon + compound / umlaut-robust matching ✅ done](U76.md)
 - [U77 — Room heuristic: cluster recurring name-tokens into candidate zones (data-driven) ✅ done](U77.md)
+- [U78 — Generate wizard: a room-review step before the device review ✅ done](U78.md)
 
 ## Architecture & Infrastructure
 
