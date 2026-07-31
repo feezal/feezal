@@ -7,6 +7,9 @@ import '../packages/@feezal/feezal-element-circle-light/feezal-element-circle-li
 import '../packages/@feezal/feezal-element-circle-climate/feezal-element-circle-climate.js';
 // U74: a real glass element so the glass family is available (family-theme test).
 import '../packages/@feezal/feezal-element-glass-switch/feezal-element-glass-switch.js';
+// The hidden "System" view's chrome elements.
+import '../packages/@feezal/feezal-element-system-splash/feezal-element-system-splash.js';
+import '../packages/@feezal/feezal-element-system-connection-status/feezal-element-system-connection-status.js';
 
 import '../src/feezal-generate-dialog.js';
 import {fakeConnection} from './helpers.js';
@@ -22,6 +25,7 @@ function setupFeezal(view) {
     window.feezal = {
         elements: CIRCLE_PKGS,
         view,
+        isEditor: true,                 // the Generate wizard runs in the editor
         connection: fakeConnection(),   // stamped live elements may try to subscribe
         editor: {initElem() {}},
         app: {
@@ -711,6 +715,44 @@ describe('feezal-generate-dialog (U58 App mode)', () => {
         dlg._toReview();
         dlg._generateApp();
         expect(selected).toBe(null);   // the user's metro theme is respected
+    });
+
+    it('adds a hidden "System" view with splash + connection-status, not in the drawer', async () => {
+        const dlg = await makeDialog();
+        dlg._family = 'circle';
+        dlg._axis = 'room';
+        dlg.__devices = DEVICES();
+        dlg._checked = new Set(['d-wz', 'd-ku', 'd-x']);
+        dlg._toReview();
+        dlg._generateApp();
+
+        const sys = site.querySelector('feezal-view[name="System"]');
+        expect(sys).not.toBeNull();
+        expect(sys.querySelector('feezal-element-system-splash')).not.toBeNull();
+        expect(sys.querySelector('feezal-element-system-connection-status')).not.toBeNull();
+
+        // NOT wired into the drawer
+        const shell = site.querySelector('feezal-element-layout-app');
+        const items = JSON.parse(shell.getAttribute('items'));
+        expect(items.map(i => i.view)).not.toContain('System');
+        // …and it's not the active view either
+        expect(shell.getAttribute('active-view')).not.toBe('System');
+    });
+
+    it('re-running does not duplicate the System view or its elements', async () => {
+        const dlg = await makeDialog();
+        dlg._family = 'circle';
+        dlg._axis = 'room';
+        dlg.__devices = DEVICES();
+        dlg._checked = new Set(['d-wz', 'd-ku', 'd-x']);
+        dlg._toReview();
+        dlg._generateApp();
+        dlg._toReview();
+        dlg._generateApp();   // second run
+
+        expect(site.querySelectorAll('feezal-view[name="System"]')).toHaveLength(1);
+        expect(site.querySelectorAll('feezal-element-system-splash')).toHaveLength(1);
+        expect(site.querySelectorAll('feezal-element-system-connection-status')).toHaveLength(1);
     });
 });
 

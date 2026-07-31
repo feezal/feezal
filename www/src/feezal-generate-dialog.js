@@ -31,6 +31,13 @@ const FAMILY_THEME = {
 // left the editor/renderer reading nothing until the user re-edited it).
 const GLASS_GRADIENT = 'linear-gradient(180deg, #0284c7 0%, #1e293b 100%)';
 
+// A generated app also gets a hidden "System" view (not in the drawer) holding
+// the site-wide chrome elements — a boot splash and a connection-status
+// overlay. Both hoist themselves to <body> in the viewer, so they work from an
+// always-inactive view.
+const SYSTEM_VIEW = 'System';
+const SYSTEM_ELEMENTS = ['feezal-element-system-splash', 'feezal-element-system-connection-status'];
+
 // U71: bundled family preview screenshots (A25 self-hosted — Vite emits each as
 // a hashed asset in the editor chunk, not inlined). Drop a `<family>.png` into
 // ./family-shots and add it here to illustrate that family; families without an
@@ -947,6 +954,28 @@ class FeezalGenerateDialog extends LitElement {
             }
         }
 
+        // An extra hidden "System" view (NOT wired into the drawer) holding the
+        // splash + connection-status chrome. Both hoist themselves to <body> in
+        // the viewer, so they work from this always-inactive view. Created once,
+        // merged by name on a re-run.
+        let systemView = site.querySelector(`feezal-view[name="${SYSTEM_VIEW}"]`);
+        if (!systemView) {
+            systemView = document.createElement('feezal-view');
+            systemView.setAttribute('name', SYSTEM_VIEW);
+            systemView.setAttribute('child-position', 'flow');
+            systemView.setAttribute('flow-justify', 'start');
+            systemView.style.width = '100%';
+            systemView.style.height = '100%';
+            site.append(systemView);
+            for (const tag of SYSTEM_ELEMENTS) {
+                if (!customElements.get(tag)) continue;   // belt & braces
+                const el = document.createElement(tag);
+                systemView.append(el);
+                feezal.editor.initElem(el, true);
+            }
+            createdViews.push(SYSTEM_VIEW);
+        }
+
         shell.setAttribute('items', JSON.stringify(items));
         if (!shell.getAttribute('active-view') && items.length) {
             shell.setAttribute('active-view', items[0].view);
@@ -956,14 +985,16 @@ class FeezalGenerateDialog extends LitElement {
         // tab in the viewer, its generated sub-views next (bucket order), and
         // push any pre-existing hand-made views to the end. Re-appending a view
         // moves it — the established pattern in this file.
-        const genNames = new Set([shellView.getAttribute('name'),
+        const genNames = new Set([shellView.getAttribute('name'), SYSTEM_VIEW,
             ...buckets.map(b => b.slug).filter(Boolean)]);
         const bucketViews = buckets.map(b => b.slug).filter(Boolean)
             .map(slug => site.querySelector(`feezal-view[name="${slug}"]`)).filter(Boolean);
         const preExisting = [...site.querySelectorAll('feezal-view')]
             .filter(v => !genNames.has(v.getAttribute('name')));
         const seen = new Set();
-        for (const v of [shellView, ...bucketViews, ...preExisting]) {
+        // Menu first, generated sub-views next, the hidden System view after
+        // them, pre-existing hand-made views last.
+        for (const v of [shellView, ...bucketViews, systemView, ...preExisting]) {
             if (v && !seen.has(v)) { seen.add(v); site.append(v); }
         }
 

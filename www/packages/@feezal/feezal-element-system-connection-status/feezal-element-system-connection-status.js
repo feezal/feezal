@@ -64,6 +64,9 @@ class FeezalElementSystemConnectionStatus extends LitElement {
             display: block;
             overflow: visible;
         }
+        /* Portaled into <body> in the viewer (see connectedCallback): the host
+           must occupy no box, only its position:fixed overlay paints. */
+        :host([viewer-inert]) { display: contents; }
 
         /* ── Editor placeholder ── */
         .editor-placeholder {
@@ -178,10 +181,29 @@ class FeezalElementSystemConnectionStatus extends LitElement {
         this._elapsed         = 0;
         this._ticker          = null;
         this._showTimer       = null;
+        this._portaled        = false;
     }
 
     connectedCallback() {
         super.connectedCallback();
+        // Editor: placeholder chip only (render() gates on feezal.isEditor).
+        if (feezal.isEditor) return;
+
+        // The overlay is position:fixed, but it lives inside its <feezal-view>,
+        // which is display:none while another view is active — so a
+        // connection-status on a non-active view (e.g. a hidden "System" view)
+        // would never appear. Hoist the element to document.body so the overlay
+        // escapes the view and covers the whole site regardless of which view
+        // holds it, mirroring the splash element (B71/B82). `viewer-inert` drops
+        // the host box first; re-enters connectedCallback with parentNode ===
+        // body, where the `_portaled` guard falls through to the wiring below.
+        this.setAttribute('viewer-inert', '');
+        if (!this._portaled && this.parentNode && this.parentNode !== document.body) {
+            this._portaled = true;
+            document.body.appendChild(this);
+            return;
+        }
+
         this._onConnected    = () => this._handleConnected();
         this._onDisconnected = () => this._handleDisconnected();
 
