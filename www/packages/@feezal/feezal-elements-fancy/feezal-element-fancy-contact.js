@@ -17,9 +17,17 @@ class FeezalElementFancyContact extends FancyBase {
             palette: {name: 'Contact', category: 'Fancy', color: '#7a5c9e', icon: 'sensor_door'},
             description: 'Animated contact card — the window/door/garage swings open and closed ' +
                 '(window includes the tilt state). Flat duotone vector animation, theme-recoloured.',
-            discovery: {component: 'binary_sensor', map: contactDiscoveryMap},
+            // Type is pinned to window for now (E164): discovery always stamps
+            // window regardless of device_class, and the fragment's type select
+            // is narrowed per-name (the E137 merge rule) — door/garage/generic
+            // variants return when they meet the fancy bar.
+            discovery: {component: 'binary_sensor', map: {...contactDiscoveryMap,
+                device_class: {attr: 'type', valueMap: {_default: 'window'}}}},
             attributes: [
-                ...contactAttributes,
+                ...contactAttributes.map(a => a.name === 'type'
+                    ? {...a, options: ['window'],
+                        help: 'Opening type — restricted to window for now; door/garage variants are being reworked.'}
+                    : a),
                 ...fancyCommonAttributes,
                 {name: 'text-open',   type: 'string', default: '', defaultI18n: {de: 'Offen'}, help: 'State word while open. Blank = "Open".'},
                 {name: 'text-closed', type: 'string', default: '', defaultI18n: {de: 'Geschlossen'}, help: 'State word while closed. Blank = "Closed".'},

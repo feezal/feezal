@@ -6,7 +6,15 @@
  * E137 controllers.
  */
 import {describe, it, expect, beforeEach, afterEach} from 'vitest';
-import '../packages/@feezal/feezal-elements-fancy/index.js';
+// Element files imported directly — index.js only registers the RELEASED
+// cards (switch, contact; E164), but the disabled ones stay tested.
+import '../packages/@feezal/feezal-elements-fancy/feezal-element-fancy-light.js';
+import '../packages/@feezal/feezal-elements-fancy/feezal-element-fancy-switch.js';
+import '../packages/@feezal/feezal-elements-fancy/feezal-element-fancy-contact.js';
+import '../packages/@feezal/feezal-elements-fancy/feezal-element-fancy-cover.js';
+import '../packages/@feezal/feezal-elements-fancy/feezal-element-fancy-climate.js';
+import '../packages/@feezal/feezal-elements-fancy/feezal-element-fancy-sensor.js';
+import '../packages/@feezal/feezal-elements-fancy/feezal-element-fancy-lock.js';
 import {FANCY_BASE_SLOT, FANCY_ACTIVE_SLOT}
     from '../packages/@feezal/feezal-elements-fancy/animations.js';
 import {__setLottieFactoryForTests} from '@feezal/feezal-lottie';

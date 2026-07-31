@@ -55,6 +55,7 @@ Work in progress — priorities and scope are not final.
 - [E159 — Re-add a Paper-family app shell (`paper-app`) with full layout-app parity](#e159--re-add-a-paper-family-app-shell-paper-app-with-full-layout-app-parity)
 - [E162 — Fancy family, take two: actually fancy — ready-made Lottie art over generated geometry](#e162--fancy-family-take-two-actually-fancy--ready-made-lottie-art-over-generated-geometry)
 - [E163 — Camera element upgrade: `basic-camera` (hard rename), HA-card parity, Frigate/Scrypted events](#e163--camera-element-upgrade-basic-camera-hard-rename-ha-card-parity-frigatescrypted-events)
+- [E164 — Fancy family: finish and re-enable the disabled cards](#e164--fancy-family-finish-and-re-enable-the-disabled-cards)
 
 **Editor UX**
 
@@ -1553,6 +1554,23 @@ Per camera, the last N events (ring buffer, memory-bounded): time, class chip (p
 **Ships with:** the hard rename + BREAKING-CHANGES.md entry + palette/manifest updates; the parity knobs (aspect, fit, live-on-demand, chips); the `mqtt-image` source type (binary + base64); the event list section; the native Frigate recognizer + tests (sample topic captures → camera records); TESTING.md §6 rewrite for the element; version bumps. Scrypted arrives via E112's plugin route — no code here beyond `mqtt-image`.
 
 **Relates:** **E64** (absorbed half: payload images; keeps filmstrip/vision extras), **E112** (the Scrypted answer — plugin route, base64 LastImage), **E108** ✅ (recognizer framework for Frigate), **E32** (generic event/logbook sibling), **E113** (function-vs-style — the argument for `basic`), `docs/BREAKING-CHANGES.md` (E152 rename precedent), N31 (availability via `frigate/available`), U58 (Generate wizard consumes the camera records), A18 (kiosk/wall panels — the prime consumer), pure-MQTT principle (bounds: stills/events yes, clip playback no).
+
+### E164 — Fancy family: finish and re-enable the disabled cards
+
+**Context (07/2026).** For the upcoming release only the two cards that meet the E162 bar ship user-visible: **fancy-switch** (confetti proof piece) and **fancy-contact** (perspective Dreh-Kipp window with handle choreography and breeze). The other five — **light, cover, climate, sensor, lock** — are E139-era first drafts and are **disabled**: not imported in the bundle's index.js, dropped from the package.json feezal.elements manifest (→ unregistered, invisible to palette, discovery and Generate). fancy-contact's type is **pinned to window** (select narrowed per-name, discovery valueMap stamps window regardless of device_class) — the door/garage/generic variants are drafts too. Files and test coverage stay in place.
+
+**Done means, per card:** brought to the proof-piece bar the switch and window set —
+- artwork with material/perspective quality (the window's camera-projection treatment, not flat boxes);
+- choreographed state transitions (the handle-turns-BEFORE-the-sash-moves class of sequencing — e.g. the lock's key turning before the shackle, cover slats tilting before travel);
+- a flourish moment on user interaction (breeze/confetti class), tier-boundaries per the E162 hierarchy (rest = still);
+- settling-driven confirmation where the device reports back (lock: key turns → holds → sparkle on the reported state; cover: travel follows the reported position, already seek-based);
+- editor pose mirroring the final look per state.
+
+Also: the contact card's **door / garagedoor / generic** variants reworked to the window's standard (door with handle + perspective swing; garage with slat roll).
+
+**Re-enable mechanism** (the disable is deliberately shallow): restore the imports in feezal-elements-fancy/index.js, restore the manifest entries in its package.json, un-pin the contact type (drop the per-name options override and the discovery valueMap pin), run scripts/generate-elements.js, update TESTING.md §6 and bump the package.
+
+**Relates:** E139 ✅ (the family), E162 (motion hierarchy, packs, the quality bar), fancy-switch + the window in fancy-contact (reference implementations).
 
 ### Consequences
 

@@ -5,10 +5,10 @@
  * and the family frame (see fancy-shared.js and package.json's
  * feezal.elements manifest).
  */
-import './feezal-element-fancy-light.js';
+// E164: only switch and contact meet the release bar — the other five cards
+// (light, cover, climate, sensor, lock) are DISABLED for now: not imported
+// (→ never registered → invisible to palette, discovery and Generate) and
+// dropped from the feezal.elements manifest above. Their files and tests
+// stay; re-enable by restoring the imports + manifest entries.
 import './feezal-element-fancy-switch.js';
 import './feezal-element-fancy-contact.js';
-import './feezal-element-fancy-cover.js';
-import './feezal-element-fancy-climate.js';
-import './feezal-element-fancy-sensor.js';
-import './feezal-element-fancy-lock.js';

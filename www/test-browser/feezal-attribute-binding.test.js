@@ -11,7 +11,15 @@
  * plus one end-to-end parse through the stamped path.
  */
 import {describe, it, expect, beforeEach} from 'vitest';
-import '../packages/@feezal/feezal-elements-fancy/index.js';
+// Direct element-file imports: index.js only registers the released fancy
+// cards (E164), but the binding regression must keep covering all of them.
+import '../packages/@feezal/feezal-elements-fancy/feezal-element-fancy-light.js';
+import '../packages/@feezal/feezal-elements-fancy/feezal-element-fancy-switch.js';
+import '../packages/@feezal/feezal-elements-fancy/feezal-element-fancy-contact.js';
+import '../packages/@feezal/feezal-elements-fancy/feezal-element-fancy-cover.js';
+import '../packages/@feezal/feezal-elements-fancy/feezal-element-fancy-climate.js';
+import '../packages/@feezal/feezal-elements-fancy/feezal-element-fancy-sensor.js';
+import '../packages/@feezal/feezal-elements-fancy/feezal-element-fancy-lock.js';
 import '../packages/@feezal/feezal-element-eink-contact/feezal-element-eink-contact.js';
 import '../packages/@feezal/feezal-element-eink-motion/feezal-element-eink-motion.js';
 import '../packages/@feezal/feezal-element-eink-sensor/feezal-element-eink-sensor.js';
