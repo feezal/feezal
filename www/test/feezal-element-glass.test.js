@@ -110,10 +110,11 @@ describe('glass-contact', () => {
         });
         deliver('door/availability', {state: 'offline'});
         await el.updateComplete;
-        expect(el.renderRoot.querySelector('.unavail')).not.toBeNull();
+        // B91: the availability badge lives in the shared top-right tray.
+        expect(el.renderRoot.querySelector('.glass-badge-tray .glass-unavail')).not.toBeNull();
         deliver('door/availability', 'online');
         await el.updateComplete;
-        expect(el.renderRoot.querySelector('.unavail')).toBeNull();
+        expect(el.renderRoot.querySelector('.glass-unavail')).toBeNull();
     });
 });
 
