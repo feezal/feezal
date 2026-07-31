@@ -618,6 +618,7 @@ class FeezalAppEditor extends LitElement {
         :host(.dark) feezal-capacitor-dialog,
         :host(.dark) feezal-export-dialog,
         :host(.dark) feezal-generate-dialog,
+        :host(.dark) feezal-connection-overlay,
         :host(.dark) feezal-ai-chat {
             --feezal-bg:     #2e2e2e;
             --feezal-bg-sub: #262626;

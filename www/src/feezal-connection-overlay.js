@@ -156,9 +156,12 @@ class FeezalConnectionOverlay extends LitElement {
             position: absolute; inset: 0; background: rgba(0,0,0,0.55);
             display: flex; align-items: center; justify-content: center; pointer-events: auto;
         }
+        /* Editor chrome — themed via the --feezal-* palette the editor shell
+           propagates into its children in dark mode (NOT the dashboard theme
+           vars: those follow the site theme, not the editor dark-mode toggle). */
         .modal {
-            background: var(--primary-background-color);
-            color: var(--primary-text-color);
+            background: var(--feezal-bg, #fff);
+            color: var(--feezal-color, #1d1d1f);
             border-radius: 10px; padding: 24px 28px; max-width: 420px; width: calc(100% - 48px);
             box-shadow: 0 12px 48px rgba(0,0,0,0.4); text-align: center;
         }
@@ -168,12 +171,15 @@ class FeezalConnectionOverlay extends LitElement {
         .actions { display: flex; gap: 10px; justify-content: center; }
         .actions button {
             font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
-            padding: 8px 16px; border-radius: 6px; border: 1px solid var(--divider-color);
-            background: var(--secondary-background-color); color: var(--primary-text-color);
+            padding: 8px 16px; border-radius: 6px; border: 1px solid var(--feezal-border, #d0d0d0);
+            background: var(--feezal-bg-sub, #f2f2f2); color: var(--feezal-color, #1d1d1f);
         }
+        .actions button:hover { background: var(--feezal-btn-hover, rgba(0,0,0,0.06)); }
         .actions button.primary {
-            background: var(--primary-color); border-color: var(--primary-color); color: #fff;
+            background: var(--sl-color-primary-600, #0284c7);
+            border-color: var(--sl-color-primary-600, #0284c7); color: #fff;
         }
+        .actions button.primary:hover { background: var(--sl-color-primary-500, #0ea5e9); }
         .toast {
             position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
             padding: 8px 16px; font-size: 13px; font-weight: 600; color: #fff;

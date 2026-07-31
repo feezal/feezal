@@ -47,6 +47,20 @@ describe('feezal-connection-overlay (U60)', () => {
         expect(el._state).toBe('grace');
     });
 
+    it('the modal follows the editor palette vars (dark mode), not the dashboard theme', async () => {
+        // The editor shell propagates its dark palette via --feezal-* custom
+        // properties; the modal must consume THOSE (regression: it used the
+        // dashboard theme vars and stayed light in editor dark mode).
+        const el = await mountOverlay(conn);
+        el.style.setProperty('--feezal-bg', 'rgb(46, 46, 46)');
+        el.style.setProperty('--feezal-color', 'rgb(230, 230, 230)');
+        conn.dispatchEvent(new Event('disconnected'));
+        await until(() => q(el, '.modal'));
+        const cs = getComputedStyle(q(el, '.modal'));
+        expect(cs.backgroundColor).toBe('rgb(46, 46, 46)');
+        expect(cs.color).toBe('rgb(230, 230, 230)');
+    });
+
     it('escalates to a blocking modal (Retry + Reload) after the grace period', async () => {
         const el = await mountOverlay(conn);
         conn.dispatchEvent(new Event('disconnected'));
