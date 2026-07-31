@@ -161,7 +161,13 @@ the live path needs a real feezal container with the socket mounted:
 - [ ] Per-view override: a view with `pause-subscriptions="never"` keeps receiving while hidden (non-retained data survives; a layout-app/dialog clone of it stamped later starts with the last-seen retained-origin values — warm cache); `always` pauses the view even when the site default is off.
 - [ ] The **editor** is unaffected — all views stay subscribed there regardless of the settings.
 - [ ] Availability badges (N31) pause/resume together with the element's data subscriptions.
-*(Controller + element pause/resume machinery, grace, `never`/`always`, and the stamped-into-paused precondition are browser-tested: `test-browser/feezal-visibility.test.js`.)*
+
+**Lazy view subscriptions (N40)** — a separate site setting with the same shape as Pause:
+- [ ] Site Settings → Viewer → **Bandwidth**: enable *Lazy view subscriptions* → deploy. In the **viewer** (MQTT client / server log): a view subscribes its topics **only when first shown** — an initially-hidden view holds **no** subscriptions at load, and a view you never open never subscribes. Revealing it subscribes (retained values repaint from the cache); the **active** view at load subscribes eagerly.
+- [ ] **Composes with Pause:** with both on, a view is fully on-demand — nothing until first shown (lazy), dropped again after the grace on a later hide (pause). With **only Lazy** on, a view stays subscribed (warm) once first shown; with **only Pause** on, it is the plain N37 behaviour.
+- [ ] Per-view override: `lazy-subscriptions="never"` keeps a view eagerly subscribed from load even when the site default is on (non-retained data); `always` defers even when the site default is off. `inherit` follows the site setting.
+- [ ] The **editor** is unaffected — all views stay subscribed there.
+*(Controller + element pause/resume machinery, grace, `never`/`always`, the stamped-into-paused precondition, and the N40 lazy immediate-pause / reveal / compose-with-pause cases are browser-tested: `test-browser/feezal-visibility.test.js`.)*
 
 ### PWA (A9 Tier 1) — real-device installs
 The toggle, manifest/service-worker routes, icon pipeline (crop, maskable,

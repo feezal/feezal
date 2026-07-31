@@ -141,6 +141,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [N37 — Pause subscriptions of hidden views (bandwidth saver) ✅ done](N37.md)
 - [N38 — Site locale: localized number formatting (decimal separator & friends) ✅ done](N38.md)
 - [N39 — layout-app: header-only-on-small-screens, and active-subview label in the header ✅ implemented](N39.md)
+- [N40 — Lazy view subscriptions: subscribe a view's topics only when it is first shown ✅ done](N40.md)
 
 ## Element Ecosystem
 
