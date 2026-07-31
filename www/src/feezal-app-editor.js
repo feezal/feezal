@@ -2341,7 +2341,11 @@ class FeezalAppEditor extends LitElement {
         // already ends in a slash — match it for named sites too).
         const base = feezal.siteName === 'default' ? '/viewer/' : '/viewer/' + feezal.siteName + '/';
         const hash = window.location.hash || '';
-        window.open(base + hash, 'feezal-' + feezal.siteName);
+        // Named target reuses the site's viewer tab instead of spawning a new
+        // one each click; focus() surfaces it (a background reuse otherwise
+        // looks like nothing happened).
+        const w = window.open(base + hash, 'feezal-' + feezal.siteName);
+        if (w) { try { w.focus(); } catch { /* focusing a cross-origin/blocked window may throw */ } }
     }
 
     _deploy(done) {
