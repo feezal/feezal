@@ -387,6 +387,30 @@ describe('detectRoom (U58 App mode)', () => {
     });
 });
 
+describe('detectRoom — U76 compound / umlaut-robust matching', () => {
+    const ent = name => ({component: 'switch', name, config: {state_topic: 'x/' + name}});
+
+    it('matches a room word inside a compound (Gästetoilette → Bathroom)', () => {
+        expect(detectRoom(ent('Gästetoilette Licht')).label).toBe('Bathroom');
+        expect(detectRoom(ent('gaestetoilette_licht')).label).toBe('Bathroom');   // ASCII spelling too
+    });
+
+    it('folds umlaut and ASCII spellings to the same room', () => {
+        expect(detectRoom(ent('küche')).label).toBe('Kitchen');
+        expect(detectRoom(ent('kueche')).label).toBe('Kitchen');
+    });
+
+    it('prefers the longer / more specific stem when several match', () => {
+        // "wohnzimmer" (Living, 10) beats nothing else here; the compound still resolves.
+        expect(detectRoom(ent('Wohnzimmerlampe')).label).toBe('Living room');
+    });
+
+    it('keeps the short-word guard and does not substring an ambiguous stem', () => {
+        expect(detectRoom(ent('badge_reader'))).toBe(null);          // bad ⊄ badge
+        expect(detectRoom(ent('ipcamera_hof'))).toBe(null);          // camera not substring-matched
+    });
+});
+
 describe('functionBucket + groupForApp (U58 App mode)', () => {
     it('routes binary_sensor by device_class', () => {
         expect(functionBucket({component: 'binary_sensor', config: {device_class: 'window'}}).label).toBe('Windows & doors');
@@ -408,6 +432,51 @@ describe('functionBucket + groupForApp (U58 App mode)', () => {
         const fns = groupForApp(entities, 'function');
         expect(fns.map(b => b.label)).toEqual(['Lights', 'Switches & sockets']);   // taxonomy order
         expect(fns[0].entities).toHaveLength(2);
+    });
+});
+
+describe('groupForApp — U77 data-driven zone clustering', () => {
+    // Fictional nonsense tokens stand in for custom zone labels a lexicon can't
+    // hold (a nickname / person / pet / wing) — they only need to recur.
+    const ent = name => ({component: 'switch', name, config: {state_topic: 'x/' + name}});
+
+    it('clusters unassigned devices that share a recurring name token', () => {
+        const es = [ent('Wuzzle Deckenlicht'), ent('wuzzle_steckdose'),
+            ent('Frobby Lampe'), ent('frobby_schalter'), ent('xyz_relay')];
+        const rooms = groupForApp(es, 'room');
+        const labels = rooms.map(b => b.label);
+        expect(labels).toContain('Wuzzle');
+        expect(labels).toContain('Frobby');
+        expect(rooms.find(b => b.label === 'Wuzzle').entities).toHaveLength(2);
+        expect(labels).toContain(UNKNOWN_ROOM);                 // the loner stays Unassigned
+    });
+
+    it('marks a clustered bucket as detected', () => {
+        const rooms = groupForApp([ent('wuzzle_a'), ent('wuzzle_b')], 'room');
+        expect(rooms.find(b => b.label === 'Wuzzle').detected).toBe(true);
+    });
+
+    it('never clusters device / function / brand tokens', () => {
+        const es = [ent('zigbee_sensor_eins'), ent('zigbee_sensor_zwei'), ent('zigbee_light_drei')];
+        expect(groupForApp(es, 'room').map(b => b.label)).toEqual([UNKNOWN_ROOM]);
+    });
+
+    it('a token on a single device does not form a zone', () => {
+        const rooms = groupForApp([ent('solo_geraet'), ent('kueche_licht')], 'room');
+        expect(rooms.map(b => b.label).sort()).toEqual(['Kitchen', UNKNOWN_ROOM]);
+    });
+
+    it('trusted area and lexicon room both win over clustering', () => {
+        const es = [
+            {component: 'switch', name: 'wuzzle_a', __area: 'Studio', config: {state_topic: 'x/1'}},
+            ent('wuzzle_wohnzimmer'),   // carries a room word → Living room
+            ent('wuzzle_b'),            // the only leftover 'wuzzle' → too few to cluster
+        ];
+        const labels = groupForApp(es, 'room').map(b => b.label);
+        expect(labels).toContain('Studio');        // area wins
+        expect(labels).toContain('Living room');   // lexicon wins over cluster
+        expect(labels).toContain(UNKNOWN_ROOM);     // lone leftover, no zone
+        expect(labels).not.toContain('Wuzzle');
     });
 });
 

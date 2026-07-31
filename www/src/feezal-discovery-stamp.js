@@ -541,26 +541,58 @@ const FN_BINARY_BY_CLASS = {
 const tokenize = s => String(s || '').toLowerCase().split(/[^a-zäöüáéíóúàèìòùâêîôûãõçłńśźżığş]+/).filter(Boolean);
 
 /**
+ * Canonical fold for matching (U76): lowercase, German umlaut → digraph
+ * (ä→ae ö→oe ü→ue ß→ss), strip remaining diacritics AND all separators, so
+ * `Gäste-WC` / `gaestewc` and `Küche` / `kueche` collapse to one string. One
+ * lexicon spelling then covers both the umlaut and the ASCII form. Shared by
+ * the room matcher below and the U77 zone clusterer.
+ */
+export function foldToken(s) {
+    const map = {ä: 'ae', ö: 'oe', ü: 'ue', ß: 'ss', æ: 'ae', ø: 'o', å: 'a'};
+    return String(s || '').toLowerCase()
+        .replace(/[äöüßæøå]/g, c => map[c])
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9]+/g, '');
+}
+
+// U76: the lexicon words, pre-folded once (detectRoom runs per entity).
+const ROOM_LEXICON_FOLDED = ROOM_LEXICON.map(room => ({
+    room, words: [...new Set(room.words.map(foldToken).filter(Boolean))],
+}));
+
+// U76: stems that are legitimate whole words but dangerous as substrings —
+// matched only as a whole token or prefix, never mid-word. `camera` (Italian
+// "room") is also a webcam device word, so an `ipcamera` must not read Bedroom.
+const AMBIGUOUS_STEMS = new Set(['camera']);
+
+/**
  * Room detection for one entity. Resolution: a joined device-group area
  * (`entity.__area`, from /api/discovery/device-groups) or the entity's own
  * `device.suggested_area` is TRUSTED and wins verbatim; otherwise the lexicon
- * is matched over the label, entity name and state topic (a GUESS). Returns
- * {label, icon, source: 'area'|'guess'} or null (→ UNKNOWN_ROOM bucket).
+ * is matched (U76: canonical fold + prefix + bounded substring) over the label,
+ * entity name and state topic (a GUESS). Returns {label, icon, source:
+ * 'area'|'guess'} or null (→ UNKNOWN_ROOM bucket).
  */
 export function detectRoom(entity) {
     const cfg = entity?.config || {};
     const area = entity?.__area || cfg.device?.suggested_area;
     if (area) return {label: String(area), icon: 'meeting_room', source: 'area'};
-    const hay = tokenize([discoveryLabel(entity), entity?.name, cfg.state_topic].join(' '));
-    for (const room of ROOM_LEXICON) {
-        for (const w of room.words) {
-            if (hay.some(t => t === w || (w.length >= 5 && t.startsWith(w)))) {
-                // U67: the drawer label follows the site locale; the view slug
-                // (derived from this label) then follows too — stable per locale.
-                return {label: roomLabel(room), icon: room.icon, source: 'guess'};
-            }
+    const tokens = tokenize([discoveryLabel(entity), entity?.name, cfg.state_topic].join(' ')).map(foldToken);
+    // U76: prefer the LONGEST (most specific) matching stem, so a short generic
+    // word in an early lexicon entry can't beat a specific word in a later one.
+    let best = null, bestLen = 0;
+    for (const {room, words} of ROOM_LEXICON_FOLDED) {
+        for (const w of words) {
+            const hit = tokens.some(t =>
+                t === w                                          // whole token
+                || (w.length >= 5 && t.startsWith(w))            // prefix (Schlafzimmerfenster)
+                || (w.length >= 6 && !AMBIGUOUS_STEMS.has(w) && t.includes(w)));  // compound (…toilette)
+            if (hit && w.length > bestLen) { best = room; bestLen = w.length; }
         }
     }
+    // U67: the drawer label follows the site locale; the view slug (derived from
+    // this label) then follows too — stable per locale.
+    if (best) return {label: roomLabel(best), icon: best.icon, source: 'guess'};
     return null;
 }
 
@@ -590,25 +622,143 @@ export function slugifyViewName(label) {
     return s || 'view';
 }
 
+// ── U77: data-driven zone clustering ────────────────────────────────────────
+// The lexicon only knows dictionary room words. People also label devices with
+// custom zones a lexicon can never hold — a nickname, a person's/pet's name, a
+// floor or wing. Those recur across many devices (Homematic AND zigbee both
+// concatenate the human label), so a name token shared by ≥ N devices is very
+// likely a zone. This runs ONLY over what detectRoom left Unassigned, and only
+// suggests — the review lets the user rename/merge/dismiss.
+
+const MIN_ZONE_DEVICES = 2;   // a token must recur on at least this many devices
+
+// Every folded lexicon word — a token that IS a room word is handled by the
+// lexicon, never re-clustered.
+const ROOM_WORDS_FOLDED = new Set(ROOM_LEXICON_FOLDED.flatMap(r => r.words));
+
+// Device / function / measurement / brand / global-prefix nouns (folded) —
+// these recur on many devices for reasons that are NOT a zone, so they must
+// never seed a cluster. Multilingual, deliberately broad; the review is the
+// safety net for anything that slips through.
+const DEVICE_STOPWORDS = new Set([
+    // light
+    'light', 'lights', 'lamp', 'lampe', 'lampen', 'licht', 'leuchte', 'birne', 'bulb', 'spot', 'strip', 'led',
+    // switch / socket
+    'switch', 'schalter', 'steckdose', 'socket', 'plug', 'outlet', 'relais', 'relay', 'actor', 'aktor', 'actuator',
+    // sensor / measurement
+    'sensor', 'sensors', 'melder', 'temperatur', 'temperature', 'temp', 'humidity', 'feuchte', 'feuchtigkeit',
+    'luftfeuchte', 'brightness', 'helligkeit', 'lux', 'illuminance', 'power', 'leistung', 'energy', 'energie',
+    'current', 'voltage', 'battery', 'batterie', 'akku', 'pressure', 'luftdruck', 'consumption', 'meter',
+    // cover / blind
+    'cover', 'rollo', 'rolladen', 'rollladen', 'jalousie', 'jalousette', 'blind', 'blinds', 'shutter', 'markise', 'raffstore',
+    // climate
+    'climate', 'thermostat', 'heizung', 'heizkoerper', 'heating', 'hvac', 'klima', 'radiator', 'ventil', 'valve',
+    // contact / opening
+    'contact', 'kontakt', 'fenster', 'window', 'tuer', 'door', 'tor', 'gate', 'reed',
+    // motion / presence
+    'motion', 'bewegung', 'bewegungsmelder', 'presence', 'praesenz', 'pir', 'occupancy',
+    // controls
+    'button', 'taster', 'knopf', 'dimmer', 'remote', 'fernbedienung', 'scene', 'szene',
+    // generic
+    'device', 'geraet', 'geraete', 'channel', 'kanal', 'node', 'entity', 'status', 'state', 'zustand',
+    'set', 'cmd', 'command', 'config', 'smart', 'home', 'haus', 'house', 'flat', 'wohnung', 'my',
+    // colours / modes
+    'rgb', 'rgbw', 'rgbww', 'white', 'warm', 'cold', 'color', 'colour',
+    // brand / platform
+    'zigbee', 'zigbee2mqtt', 'deconz', 'conbee', 'zwave', 'hmip', 'homematic', 'ccu', 'redmatic', 'mqtt',
+    'tasmota', 'shelly', 'esphome', 'tuya', 'sonoff', 'ikea', 'tradfri', 'hue', 'philips', 'osram', 'aqara',
+    'xiaomi', 'wled', 'fibaro', 'lidl', 'ledvance',
+]);
+
+/** Is a folded token a plausible zone label (not a number, room word, device
+ * word, or too short)? */
+function isZoneCandidate(t) {
+    return !!t && t.length >= 3 && !/^\d+$/.test(t)
+        && !ROOM_WORDS_FOLDED.has(t) && !DEVICE_STOPWORDS.has(t);
+}
+
+/**
+ * Cluster the Unassigned leftovers by recurring name tokens (U77). Returns a
+ * Map<entity, {label, icon}> for the entities that landed in a zone; entities
+ * absent from the map stay Unassigned. Each entity joins its most-frequent
+ * qualifying token (ties → the longer token). Client-side only.
+ */
+export function clusterZones(entities) {
+    const out = new Map();
+    const list = entities || [];
+    if (list.length < MIN_ZONE_DEVICES) return out;
+
+    // Per entity: folded-token → first original spelling (for a pretty label).
+    const perEntity = list.map(e => {
+        const orig = tokenize([discoveryLabel(e), e?.name].join(' '));
+        const folds = new Map();
+        for (const o of orig) {
+            const f = foldToken(o);
+            if (isZoneCandidate(f) && !folds.has(f)) folds.set(f, o);
+        }
+        return {e, folds};
+    });
+
+    // Document frequency: how many distinct devices carry each token.
+    const df = new Map();
+    for (const {folds} of perEntity) for (const f of folds.keys()) df.set(f, (df.get(f) || 0) + 1);
+    const qualifying = new Set([...df].filter(([, n]) => n >= MIN_ZONE_DEVICES).map(([f]) => f));
+    if (!qualifying.size) return out;
+
+    for (const {e, folds} of perEntity) {
+        let best = null, bestN = 0;
+        for (const [f, orig] of folds) {
+            if (!qualifying.has(f)) continue;
+            const n = df.get(f);
+            if (n > bestN || (n === bestN && best && orig.length > best.length)) { best = orig; bestN = n; }
+        }
+        if (best) out.set(e, {label: titleCaseToken(best), icon: 'label'});
+    }
+    return out;
+}
+
+/** Titlecase a single name token for a zone label ('ida' → 'Ida'). */
+function titleCaseToken(s) {
+    const t = String(s || '');
+    return t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
+}
+
 /**
  * Group entities into App-mode buckets on one axis ('room' | 'function').
- * Returns [{label, icon, order, guessed, entities}] — rooms locale-sorted
- * with UNKNOWN_ROOM pinned last, functions in taxonomy order. A room bucket
- * is `guessed` unless at least one entity carried a TRUSTED area.
+ * Returns [{label, icon, order, guessed, detected, entities}] — rooms
+ * locale-sorted with UNKNOWN_ROOM pinned last, functions in taxonomy order. A
+ * room bucket is `guessed` unless at least one entity carried a TRUSTED area;
+ * a `detected` bucket is a U77 frequency cluster.
  */
 export function groupForApp(entities, axis) {
     const buckets = new Map();
-    for (const entity of entities || []) {
-        const b = axis === 'function'
-            ? {...functionBucket(entity), source: 'taxonomy'}
-            : (detectRoom(entity) || {label: UNKNOWN_ROOM, icon: 'inventory_2', source: 'none'});
+    const add = (b, entity) => {
         if (!buckets.has(b.label)) {
-            buckets.set(b.label, {label: b.label, icon: b.icon, order: b.order ?? null, guessed: axis !== 'function', entities: []});
+            buckets.set(b.label, {label: b.label, icon: b.icon, order: b.order ?? null,
+                guessed: axis !== 'function', detected: false, entities: []});
         }
         const bucket = buckets.get(b.label);
         bucket.entities.push(entity);
         if (b.source === 'area') bucket.guessed = false;
+        if (b.source === 'cluster') bucket.detected = true;
+    };
+
+    if (axis === 'function') {
+        for (const entity of entities || []) add({...functionBucket(entity), source: 'taxonomy'}, entity);
+    } else {
+        // Precedence: trusted area > lexicon room > U77 cluster > Unassigned.
+        const unresolved = [];
+        for (const entity of entities || []) {
+            const r = detectRoom(entity);
+            if (r) add(r, entity); else unresolved.push(entity);
+        }
+        const clusters = clusterZones(unresolved);
+        for (const entity of unresolved) {
+            const c = clusters.get(entity);
+            add(c ? {...c, source: 'cluster'} : {label: UNKNOWN_ROOM, icon: 'inventory_2', source: 'none'}, entity);
+        }
     }
+
     const arr = [...buckets.values()];
     if (axis === 'function') {
         return arr.sort((a, b) => (a.order ?? 99) - (b.order ?? 99) || a.label.localeCompare(b.label));
