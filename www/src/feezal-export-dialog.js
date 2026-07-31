@@ -31,15 +31,24 @@ class FeezalExportDialog extends LitElement {
     };
 
     static styles = css`
-        sl-dialog { --width: 520px; --sl-z-index-dialog: 20002; }
+        sl-dialog { --width: 560px; --sl-z-index-dialog: 20002; }
+        /* Open at a stable size: the body reserves room up front so the dialog
+           doesn't pop small (spinner only) and then jump taller once the report
+           lands. Content stacks from the top; the loading state fills+centres. */
+        sl-dialog::part(body) {
+            min-height: 380px;
+            display: flex;
+            flex-direction: column;
+        }
         sl-button[variant='default']::part(base):hover {
             background-color: var(--feezal-btn-hover, var(--sl-color-primary-50, #f0f9ff));
             border-color: var(--feezal-btn-hover-border, var(--sl-color-primary-300, #7dd3fc));
             color: var(--feezal-btn-hover-color, var(--sl-color-primary-700, #0369a1));
         }
         .loading {
-            display: flex; align-items: center; gap: 12px;
-            font-size: 13px; color: var(--feezal-color, #555);
+            flex: 1;
+            display: flex; align-items: center; justify-content: center; gap: 12px;
+            font-size: 13px; color: var(--feezal-color, #555); text-align: center;
         }
         .totals {
             display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
@@ -47,7 +56,12 @@ class FeezalExportDialog extends LitElement {
         }
         .totals b { font-size: 16px; }
         .totals .est { font-size: 11px; opacity: 0.6; }
-        .rows { margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
+        .rows {
+            margin-top: 10px; display: flex; flex-direction: column; gap: 7px;
+            /* Scroll the list rather than growing the dialog past the viewport
+               when a site pulls in many packages. */
+            max-height: 46vh; overflow-y: auto; padding-right: 4px;
+        }
         .row { font-size: 12px; }
         .row .line {
             display: flex; justify-content: space-between; gap: 10px;

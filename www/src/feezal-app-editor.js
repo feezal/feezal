@@ -994,10 +994,6 @@ class FeezalAppEditor extends LitElement {
                             @click="${this._openConnectionSettings}">
                             <span class="mqtt-dot-inner"></span>
                         </button>`; })()}
-                    <button id="btn-view" title="Open the viewer in a new tab" @click="${this._view}">
-                        <span class="material-icons">tv</span>
-                        View
-                    </button>
                     <div id="btn-deploy-wrap">
                         <button id="btn-deploy-main"
                             class="${this.changes ? 'has-changes' : ''}"
@@ -1015,12 +1011,12 @@ class FeezalAppEditor extends LitElement {
                             <span class="material-icons">arrow_drop_down</span>
                         </button>
                     </div>
+                    <button id="btn-view" title="Open the viewer in a new tab" @click="${this._view}">
+                        <span class="material-icons">tv</span>
+                        View
+                    </button>
                     ${this._actionMenuPos ? html`
                         <div class="action-menu" style="left:${this._actionMenuPos.x}px;top:${this._actionMenuPos.y}px">
-                            <div class="action-menu-item" @click="${() => { this._actionMenuPos = null; this._deploy(); }}">
-                                <span class="material-icons">upload_file</span> Save
-                            </div>
-                            <div class="action-menu-sep"></div>
                             <div class="action-menu-item" @click="${() => { this._actionMenuPos = null; this._export(); }}">
                                 <span class="material-icons">download</span> Export
                             </div>
