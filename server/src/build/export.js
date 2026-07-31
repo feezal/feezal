@@ -30,7 +30,9 @@ function bucketForModuleId(id) {
     const p = String(id).replace(/^\0/, '').replace(/\\/g, '/');
     // Feezal packages by name — matches both node_modules/@feezal/… and the
     // workspace real path packages/@feezal/… (Vite resolves the symlink).
-    const feezalPkg = p.match(/@feezal\/(feezal-(?:element|theme|icons)-[a-z0-9-]+)\//);
+    // `elements?`/`themes?` so bundle packages (plural, e.g. feezal-elements-fancy —
+    // one package shipping several elements) get their own row, not the core catch-all.
+    const feezalPkg = p.match(/@feezal\/(feezal-(?:elements?|themes?|icons)-[a-z0-9-]+)\//);
     if (feezalPkg) return '@feezal/' + feezalPkg[1];
     if (/@feezal\/feezal-element\//.test(p)) return '@feezal/feezal-element (runtime)';
     const dep = p.match(/node_modules\/((?:@[^/]+\/)?[^/]+)/);
@@ -870,7 +872,7 @@ async function exportBundleReport(wwwDir, siteName, {html: siteHtml, config}, lo
     // Copy — the cached report must stay pristine across calls.
     const out = {
         ...report,
-        elemCount: report.buckets.filter(b => /^@feezal\/feezal-element-/.test(b.name)).length,
+        elemCount: report.buckets.filter(b => /^@feezal\/feezal-elements?-/.test(b.name)).length,
         buckets: report.buckets.map(bucket => ({...bucket})),
     };
 

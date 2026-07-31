@@ -445,6 +445,13 @@ describe('bundle size report (U34)', () => {
                 .toBe('@feezal/feezal-icons-fa');
         });
 
+        it('gives plural bundle packages their own bucket, not "feezal core"', () => {
+            // feezal-elements-fancy is one package shipping several elements;
+            // Vite resolves the workspace symlink so the id has no node_modules/.
+            expect(bucketForModuleId('/w/packages/@feezal/feezal-elements-fancy/feezal-element-fancy-sensor.js'))
+                .toBe('@feezal/feezal-elements-fancy');
+        });
+
         it('separates the shared element runtime from the element packages', () => {
             expect(bucketForModuleId('/w/packages/@feezal/feezal-element/feezal-element.js'))
                 .toBe('@feezal/feezal-element (runtime)');
