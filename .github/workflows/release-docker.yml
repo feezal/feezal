@@ -136,9 +136,11 @@ jobs:
           fi
 
           # A22: changelog grouped by conventional-commit category —
-          # Features first, then Fixes, Docs, Chore (incl. test/ci/refactor/
-          # build/style/perf; the chore(release) tagging commit filtered),
-          # and a trailing Other bucket so unprefixed commits never vanish.
+          # Features first, then Fixes, and a trailing Other bucket so
+          # unprefixed commits never vanish. docs/chore/test/ci/refactor/
+          # build/style/perf commits are deliberately OMITTED from the
+          # release notes (release noise); the Full Changelog compare link
+          # still covers them.
           # A26: each line is "subject<TAB>shorthash" — the grouping greps
           # still match the subject (line start); render() appends the commit
           # link and links word-bounded roadmap IDs (B12, E120, …) to their
@@ -177,15 +179,16 @@ jobs:
             fi
           }
 
-          # grep -E has no lookahead — build Other by exclusion.
+          # grep -E has no lookahead — build Other by exclusion. The excluded
+          # prefixes NOT rendered as a section (docs, chore, test, ci,
+          # refactor, build, style, perf) stay excluded here too, so they
+          # are dropped from the notes rather than resurfacing under Other.
           OTHER=$(printf '%s\n' "${SUBJECTS}" \
             | grep -Ev '^(feat|fix|docs|chore|test|ci|refactor|build|style|perf)[:(!]' \
             | render || true)
           COMMITS=$(
             section "Features" '^feat[:(!]'
             section "Fixes"    '^fix[:(!]'
-            section "Docs"     '^docs[:(!]'
-            section "Chore"    '^(chore|test|ci|refactor|build|style|perf)[:(!]'
             if [ -n "${OTHER}" ]; then printf '### Other\n\n%s\n\n' "${OTHER}"; fi
           )
 
