@@ -127,10 +127,15 @@ describe('manager panel — <feezal-site color-ranges> is the source of truth', 
         expect(feezal.app.changed).toBe(1);
     });
 
-    it('deleting an unused range needs no confirmation; the last one removes the attribute', async () => {
+    it('EVERY delete confirms — even an unused range (the × is tiny); the last one removes the attribute', async () => {
         const manager = await mountManager([RANGES[0]]);
-        await manager._delete('temp');
-        expect(manager._dlgConfirm).toBe(null);   // no dialog for an unused range
+        const done = manager._delete('temp');
+        await manager.updateComplete;
+        const dialog = manager.shadowRoot.querySelector('sl-dialog');
+        expect(dialog.open).toBe(true);                       // asks even with 0 usages
+        expect(dialog.textContent).toContain('Delete the colour range "temp"?');
+        manager.shadowRoot.querySelector('sl-button[variant="danger"]').click();
+        await done;
         expect(feezal.site.hasAttribute('color-ranges')).toBe(false);
     });
 

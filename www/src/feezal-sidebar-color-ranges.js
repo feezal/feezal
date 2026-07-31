@@ -197,10 +197,14 @@ class FeezalSidebarColorRanges extends LitElement {
     }
 
     async _delete(name) {
+        // ALWAYS confirm — the × is tiny and deletion is destructive; only
+        // the message depends on whether anything references the range.
         const used = this._usages(name).length;
-        if (used > 0 &&
-            !await this._confirm(`"${name}" is used by ${used} element${used === 1 ? '' : 's'}. ` +
-                'Their colours will keep the last resolved value. Delete anyway?')) return;
+        const message = used > 0
+            ? `"${name}" is used by ${used} element${used === 1 ? '' : 's'}. ` +
+              'Their colours will keep the last resolved value. Delete anyway?'
+            : `Delete the colour range "${name}"?`;
+        if (!await this._confirm(message)) return;
         this._ranges = this._ranges.filter(r => r.name !== name);
         this._commit();
     }
