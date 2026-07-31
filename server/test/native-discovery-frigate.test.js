@@ -53,4 +53,22 @@ describe('E163 — Frigate camera entities', () => {
         nat.handleNativeMessage('frigate/available', buf('online'));
         expect(nat.getNativeEntities().filter(e => e.source === 'frigate')).toHaveLength(0);
     });
+
+    it('learns a camera from the retained toggle states alone (no detection yet)', () => {
+        // A fresh server start on a quiet system sees only the retained
+        // per-camera config toggles — no object snapshot exists before the
+        // first detection. frigate/<cam>/<toggle>/state must promote.
+        nat.handleNativeMessage('frigate/terrasse/motion/state', buf('ON'));
+        nat.handleNativeMessage('frigate/terrasse/detect/state', buf('ON'));
+        nat.handleNativeMessage('frigate/terrasse/snapshots/state', buf('ON'));
+
+        const cam = byId('frigate:terrasse');
+        expect(cam).toBeTruthy();
+        expect(cam.component).toBe('camera');
+        // no class seen yet → person assumed for the feed topic
+        expect(cam.config.topic).toBe('frigate/terrasse/person/snapshot');
+        // toggle segments are NOT object classes — only the motion chip exists
+        const chipTopics = cam.config.chips.map(c => c.subscribe);
+        expect(chipTopics).toEqual(['frigate/terrasse/motion']);
+    });
 });

@@ -44,6 +44,11 @@ const frigateRecognizer = {
         if (parts.length === 4 && parts[3] === 'snapshot' && parts[2] !== 'motion') {
             return {cam, obj: parts[2]};
         }
+        // frigate/<cam>/<toggle>/state — retained per-camera config toggles
+        // (motion/detect/enabled/snapshots/…). The STEADY-STATE signal: object
+        // snapshots only exist after a detection, so a fresh server start on a
+        // quiet system would otherwise discover no cameras at all.
+        if (parts.length === 4 && parts[3] === 'state') return {cam};
         return null;
     },
 
