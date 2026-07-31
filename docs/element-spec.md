@@ -216,6 +216,7 @@ attributes: [
         type:     'string',       // Control type — see table below
         options:  ['a', 'b'],     // Required when type is 'select'
         default:  '',             // Default value shown as placeholder in inspector
+        defaultI18n: {de: '…'},   // A27: locale-aware DISPLAY default (see §3.2.3)
         help:     'Tooltip text shown next to the attribute label.',
         tooltip:  'HTML title on the input field.',
         min:      0,              // For type:'number' inputs
@@ -285,6 +286,20 @@ Attribute-heavy elements (dual-mode climate/cover cards, …) get a flat wall of
 **Multi-select** (U17): grouping/visibility operate on the already-intersected attribute set, evaluated against the primary element's values.
 
 **Reference:** `glass-climate` — `payload-mode` gates the json vs separate topic sets via `visibleWhen`, the `message-property-*` twins are `advanced`, and Setpoint/Display/Availability sections tidy the rest.
+
+### 3.2.3 Locale-aware display defaults — `defaultI18n` (A27)
+
+A descriptor whose default is **display text** (state words like `label-on`, `text-open`, `done-label`) may carry an inline locale dictionary:
+
+```js
+{name: 'label-on', type: 'string', default: 'On', defaultI18n: {de: 'Ein'}}
+```
+
+- **The dict's presence IS the opt-in.** A descriptor without one is never localized — so `payload-*` and every other wire-protocol attribute simply carries no dict and can never be touched. Never add a dict to a payload/topic attribute.
+- `default` stays the **en source string and final fallback**; resolution walks the BCP-47 chain (`de-AT → de → en`, shared `resolveLocaleChain`). The locale comes from `feezal.locale` → the `<feezal-site locale>` attribute → the browser (`currentLocale()` in `@feezal/feezal-element/feezal-locale.js`).
+- The base class applies the resolved default **on connect and on `feezal-locale-change`**, only when the author never set the attribute — explicit values always win, and nothing is materialised into the saved HTML (a shared dashboard renders "On" on an English tablet and "Ein" on a German one).
+- **The backing Lit property must NOT `reflect`.** Lit reflects constructor defaults on the first update, which bakes `text-on="On"` into every saved dashboard and destroys the has-the-author-set-this signal. Declare `{type: String, attribute: 'label-on'}` — attribute → property sync is all that is needed. (The base class heals pre-existing baked defaults: an attribute whose value equals the en default is treated as reflection junk, removed, and localized.)
+- Keep dicts small and inline (en + de today) — element packages stay self-contained (A23/A24); no central catalog.
 
 ### 3.3 `styles`
 
@@ -564,6 +579,22 @@ connectedCallback() {
 - The global `message-property` acts as a site-wide default; per-topic attributes override it per channel.
 - Place each `message-property-<suffix>` descriptor immediately after its `subscribe-<suffix>` in the attributes array for clarity.
 - Add `message-property` to every element that subscribes, even simple single-topic ones.
+
+### 4.4b Number formatting — always `formatNumber`, never `toFixed` + concat (N38)
+
+Any numeric value an element **displays** goes through the shared helper:
+
+```js
+import {formatNumber} from '@feezal/feezal-element/feezal-locale.js';
+
+formatNumber(value, {digits: 1, grouping: this.grouping});   // "21,5" on a German site
+```
+
+- The **site locale** (Site Settings → Site → Locale, default: the viewer's browser language) drives the decimal separator and grouping — `Intl.NumberFormat`, one cached formatter per (locale, digits, grouping).
+- `digits` = fixed fraction; omit it to keep the payload's own precision. **`grouping` is a per-element opt-in attribute** (default off — `1234 W` reads better than `1.234 W` on a wall panel); declare it as a `boolean` attribute named `grouping` where the element shows standalone numerics.
+- Non-numeric payloads pass through untouched — `formatNumber('unknown')` is `'unknown'`, never `'NaN'`.
+- Per-element overrides stay authoritative (`basic-number`'s explicit `decimal-separator`, `basic-datetime`'s `locale`).
+- Elements that **cache** their formatted string (instead of formatting in `render()`) must implement `_localeChanged()` to re-format — the base class calls it on `feezal-locale-change`.
 
 ### 4.5 Availability (N31) — free for every element
 

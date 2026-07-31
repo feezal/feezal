@@ -1,5 +1,6 @@
 /* global feezal */
 import {feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
+import {formatNumber} from '@feezal/feezal-element/feezal-locale.js';
 import {faultBadge, feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
 // E137: the thermostat behavior lives in the shared controller — this element
 // is a VIEW (glass chrome: frost card + Apple-Home details popup).
@@ -365,7 +366,9 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
     }
 
     _fmt(v) {
-        return v === null || v === undefined ? '—' : `${v}${this.unit}`;
+        // N38: localized separator via the site locale (21,5° on a German dashboard)
+        if (v === null || v === undefined) return '—';
+        return `${isNaN(+v) ? v : formatNumber(+v)}${this.unit}`;
     }
 
 

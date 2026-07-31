@@ -2,6 +2,7 @@
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {applySizePreset, glassCardStyles} from '@feezal/feezal-glass';
 import {readonlyClimateAxes, NUMERIC_SENSOR_ICONS} from '@feezal/feezal-element/feezal-discovery-fragments.js';
+import {formatNumber} from '@feezal/feezal-element/feezal-locale.js';
 
 /**
  * feezal-element-glass-value (E58, E138)
@@ -48,6 +49,8 @@ class FeezalElementGlassValue extends FeezalElement {
                     help: 'Dot-notation path to the value within the MQTT message. Default "payload" uses msg.payload; use e.g. "payload.temperature" to navigate into a JSON payload.'},
                 {name: 'unit',      type: 'string', help: 'Unit rendered after the value (e.g. °C).'},
                 {name: 'decimals',  type: 'number', min: 0, max: 6, help: 'Round numeric values to this many decimals. Empty = show the payload as-is.'},
+                {name: 'grouping', type: 'boolean', default: false,
+                    help: 'Format the value with thousands separators per the site locale (1.234 / 1,234). Off by default.'},
                 {name: 'degrade',   type: 'boolean', default: false,
                     help: 'Replace the live backdrop blur with a semi-opaque solid card — no per-frame GPU cost (weak wall-tablet hardware).'},
                 // B67: opt-in availability — a badge appears while unavailable
@@ -76,6 +79,7 @@ class FeezalElementGlassValue extends FeezalElement {
         icon:     {type: String, reflect: true},
         unit:     {type: String, reflect: true},
         decimals: {type: String, reflect: true},
+        grouping: {type: Boolean, reflect: true},
         value:    {type: String, reflect: true},
         _value:   {state: true},
         degrade:  {type: Boolean, reflect: true},
@@ -131,6 +135,7 @@ class FeezalElementGlassValue extends FeezalElement {
         this.icon = 'sensors';
         this.unit = '';
         this.decimals = '';
+        this.grouping = false;
         this.value = '';
         this._value = null;
         this.degrade = false;
@@ -165,13 +170,16 @@ class FeezalElementGlassValue extends FeezalElement {
     get displayValue() {
         const raw = this._value ?? this.value;
         if (raw === null || raw === undefined || raw === '') {
-            return feezal.isEditor ? '21.5' : '—';
+            // N38: the editor sample localizes too, so the canvas previews the site locale
+            return feezal.isEditor ? formatNumber(21.5, {digits: 1}) : '—';
         }
         const n = Number(raw);
         if (this.decimals !== '' && this.decimals !== null && Number.isFinite(n)) {
-            return n.toFixed(Math.max(0, Math.min(6, Number(this.decimals) || 0)));
+            return formatNumber(n, {digits: Math.max(0, Math.min(6, Number(this.decimals) || 0)), grouping: this.grouping});
         }
-        return typeof raw === 'object' ? JSON.stringify(raw) : String(raw);
+        if (typeof raw === 'object') return JSON.stringify(raw);
+        // N38: numeric payloads localize even without a decimals setting
+        return Number.isFinite(n) ? formatNumber(n, {grouping: this.grouping}) : String(raw);
     }
 
     render() {

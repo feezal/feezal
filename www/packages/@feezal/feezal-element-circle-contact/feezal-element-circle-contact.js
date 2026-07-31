@@ -26,9 +26,9 @@ class FeezalElementCircleContact extends FeezalElement {
                 // controller package (incl. the E124 battery trio). `type` is
                 // spread through as-is (E138: window / door / generic / garage).
                 ...contactAttributes,
-                {name: 'text-open',   type: 'string', default: '', help: 'State word while open. Blank = "Open".'},
-                {name: 'text-tilted', type: 'string', default: '', help: 'State word while tilted. Blank = "Tilted". Window type only.'},
-                {name: 'text-closed', type: 'string', default: '', help: 'State word while closed. Blank = "Closed".'},
+                {name: 'text-open',   type: 'string', default: '', defaultI18n: {de: 'Offen'}, help: 'State word while open. Blank = "Open".'},
+                {name: 'text-tilted', type: 'string', default: '', defaultI18n: {de: 'Gekippt'}, help: 'State word while tilted. Blank = "Tilted". Window type only.'},
+                {name: 'text-closed', type: 'string', default: '', defaultI18n: {de: 'Geschlossen'}, help: 'State word while closed. Blank = "Closed".'},
                 {name: 'label',                  type: 'string',    default: '',      help: 'Optional card label shown below the disc.'},
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability.'},
                 {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
@@ -53,9 +53,9 @@ class FeezalElementCircleContact extends FeezalElement {
         payloadClosed:         {type: String,  reflect: true, attribute: 'payload-closed'},
         payloadTilted:         {type: String,  reflect: true, attribute: 'payload-tilted'},
         type:                  {type: String,  reflect: true},
-        textOpen:              {type: String,  reflect: true, attribute: 'text-open'},
-        textTilted:            {type: String,  reflect: true, attribute: 'text-tilted'},
-        textClosed:            {type: String,  reflect: true, attribute: 'text-closed'},
+        textOpen:              {type: String,  attribute: 'text-open'},
+        textTilted:            {type: String,  attribute: 'text-tilted'},
+        textClosed:            {type: String,  attribute: 'text-closed'},
         // E124 — dedicated low-battery warning
         subscribeBatteryLow:   {type: String,  reflect: true, attribute: 'subscribe-battery-low'},
         msgPropBatteryLow:     {type: String,  reflect: true, attribute: 'message-property-battery-low'},

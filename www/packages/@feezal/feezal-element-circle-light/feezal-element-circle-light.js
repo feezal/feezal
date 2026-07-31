@@ -76,7 +76,7 @@ class FeezalElementCircleLight extends FeezalElement {
                 {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path for availability topic. Defaults to message-property.'},
                 // Label
                 {name: 'label', type: 'string', default: '', help: 'Optional label shown below the circle.'},
-                {name: 'label-off', type: 'string', default: 'off', help: 'Displayed centre text while the light is off (localise, e.g. "aus"). Display only — NOT the MQTT payload (payload-off) and NOT the card label.'}
+                {name: 'label-off', type: 'string', default: 'off', defaultI18n: {de: 'aus'}, help: 'Displayed centre text while the light is off (localise, e.g. "aus"). Display only — NOT the MQTT payload (payload-off) and NOT the card label.'}
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
@@ -153,7 +153,7 @@ class FeezalElementCircleLight extends FeezalElement {
         msgPropWarmWhite:   {type: String, reflect: true, attribute: 'message-property-warm-white'},
         msgPropColdWhite:   {type: String, reflect: true, attribute: 'message-property-cold-white'},
         label:              {type: String, reflect: true},
-        labelOff:           {type: String, reflect: true, attribute: 'label-off'},
+        labelOff:           {type: String, attribute: 'label-off'},
         // E137: light state lives on the LightController (plain fields +
         // host.requestUpdate) — only the drag preview stays element-local.
         _dragBrt:   {state: true},   // live brightness during ring drag (null = not dragging)

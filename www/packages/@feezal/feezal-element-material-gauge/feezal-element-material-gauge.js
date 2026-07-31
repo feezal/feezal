@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {formatNumber} from '@feezal/feezal-element/feezal-locale.js';
 import {svg} from 'lit';
 
 /**
@@ -38,6 +39,8 @@ class FeezalElementMaterialGauge extends FeezalElement {
                 {name: 'label',  type: 'string', help: 'Caption shown below the gauge.'},
                 {name: 'color',  type: 'color',  help: 'Arc fill colour. Defaults to the theme primary colour.', default: ''},
                 {name: 'digits', type: 'number', help: 'Decimal places for the displayed value.', default: 0},
+                {name: 'grouping', type: 'boolean', default: false,
+                    help: 'Format the value with thousands separators per the site locale (1.234 / 1,234). Off by default.'},
                 {name: 'thickness', type: 'number', help: 'Arc stroke width in SVG units (1–40).', default: 12}
             ],
             styles: [
@@ -55,6 +58,7 @@ class FeezalElementMaterialGauge extends FeezalElement {
         label:     {type: String, reflect: true},
         color:     {type: String, reflect: true},
         digits:    {type: Number, reflect: true},
+        grouping:  {type: Boolean, reflect: true},
         thickness: {type: Number, reflect: true},
         _value:    {state: true}
     };
@@ -86,6 +90,7 @@ class FeezalElementMaterialGauge extends FeezalElement {
         this.label     = '';
         this.color     = '';
         this.digits    = 0;
+        this.grouping  = false;
         this.thickness = 12;
         this._value    = null;
     }
@@ -142,7 +147,7 @@ class FeezalElementMaterialGauge extends FeezalElement {
 
         const formatted = isEditor ? '—' : (
             value === null || value === undefined ? '—'
-            : Number(value).toFixed(Math.max(0, this.digits || 0))
+            : formatNumber(value, {digits: Math.max(0, this.digits || 0), grouping: this.grouping})   // N38
         );
 
         return svg`

@@ -7,7 +7,7 @@ Each entry is filed under the section its **ID prefix** belongs to — `B` Bugs,
 Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastructure,
 `D` Documentation — and sorted by number within it, so a new entry has exactly one correct place.
 
-**328 items.**
+**329 items.**
 
 ## Bugs
 
@@ -135,6 +135,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [N35 — basic-template: `${msg.payload}` renders `[object Object]` for JSON payloads ✅ fixed](N35.md)
 - [N36 — layout-app improvements ✅ implemented](N36.md)
 - [N37 — Pause subscriptions of hidden views (bandwidth saver) ✅ done](N37.md)
+- [N38 — Site locale: localized number formatting (decimal separator & friends) ✅ done](N38.md)
 - [N39 — layout-app: header-only-on-small-screens, and active-subview label in the header ✅ implemented](N39.md)
 
 ## Element Ecosystem

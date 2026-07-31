@@ -1,6 +1,6 @@
 {
     "name": "@feezal/feezal-element-circle-climate",
-    "version": "3.0.24",
+    "version": "3.0.25",
     "license": "MIT",
     "main": "feezal-element-circle-climate.js",
     "dependencies": {

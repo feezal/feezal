@@ -1,6 +1,7 @@
 /* global feezal */
 import {html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
 import {faultBadge, feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
+import {formatNumber} from '@feezal/feezal-element/feezal-locale.js';
 import {MetroTileBase} from '@feezal/feezal-metro';
 // E137: the thermostat behavior lives in the shared controller — this element
 // is a VIEW (Metro tile chrome: temperature front, stepper + chips back).
@@ -207,9 +208,9 @@ class FeezalElementMetroClimate extends MetroTileBase {
         return html`
             ${batteryLowBadge(this.climate.batteryLow)}
             ${faultBadge(this.climate.error)}
-            <div class="current">${current === null ? '—' : `${current}${this.unit}`}</div>
+            <div class="current">${current === null ? '—' : `${formatNumber(current)}${this.unit}`}</div>
             ${offEntry ? html`<div class="setpoint">${offEntry.label}</div>`
-                : (this.climate.setpoint !== null ? html`<div class="setpoint">→ ${this.climate.setpoint}${this.unit}</div>` : '')}`;
+                : (this.climate.setpoint !== null ? html`<div class="setpoint">→ ${formatNumber(this.climate.setpoint)}${this.unit}</div>` : '')}`;
     }
 
     renderBack() {
@@ -224,7 +225,7 @@ class FeezalElementMetroClimate extends MetroTileBase {
             <div class="stepper">
                 <button class="mbtn" @click="${() => this._stepSetpoint(-1)}">−</button>
                 <span class="val">${offEntry ? offEntry.label
-                    : (this.climate.setpoint === null ? '—' : `${this.climate.setpoint}${this.unit}`)}</span>
+                    : (this.climate.setpoint === null ? '—' : `${formatNumber(this.climate.setpoint)}${this.unit}`)}</span>
                 <button class="mbtn" @click="${() => this._stepSetpoint(1)}">+</button>
             </div>
             ${hasModes ? html`

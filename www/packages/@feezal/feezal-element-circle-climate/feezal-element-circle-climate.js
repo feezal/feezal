@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
+import {formatNumber} from '@feezal/feezal-element/feezal-locale.js';
 import {faultBadge, feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
 // E137: the thermostat behavior lives in the shared controller — this element
 // is a VIEW (Circle chrome: the arc setpoint slider + chips/valve/humidity).

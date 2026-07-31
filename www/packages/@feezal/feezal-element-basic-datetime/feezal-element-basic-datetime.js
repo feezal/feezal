@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, html, css} from '@feezal/feezal-element';
+import {currentLocale, resolveLocaleChain} from '@feezal/feezal-element/feezal-locale.js';
 
 import {utcToZonedTime, format} from 'date-fns-tz';
 import {be, de, enGB, enUS, es, fr, hr, hu, it, nl, pl, ru} from 'date-fns/locale';
@@ -71,6 +72,13 @@ class FeezalElementBasicDatetime extends FeezalElement {
     }
 
     static getLocale() {
+        // N38: the SITE locale is the primary fallback (it serializes with
+        // the dashboard); the browser languages remain behind it. Map BCP-47
+        // to the date-fns keys ('en-GB' → 'enGB', 'de' → 'de').
+        for (const l of resolveLocaleChain(currentLocale())) {
+            const key = l.replace('-', '');
+            if (Object.keys(locales).includes(key)) return key;
+        }
         if (navigator.languages) {
             const languages = [...new Set(navigator.languages.reduce((acc, cur) => {
                 return cur.includes('-')

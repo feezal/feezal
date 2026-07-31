@@ -3,6 +3,7 @@ import {html, css} from '@feezal/feezal-element';
 import {svg} from 'lit';
 import {MetroTileBase} from '@feezal/feezal-metro';
 import {readonlyClimateAxes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
+import {formatNumber} from '@feezal/feezal-element/feezal-locale.js';
 
 /**
  * feezal-element-metro-value (E55, E138)
@@ -24,6 +25,8 @@ class FeezalElementMetroValue extends MetroTileBase {
                     help: 'Dot-notation path to the value within the MQTT message. Default: payload'},
                 {name: 'unit',   type: 'string', help: 'Unit shown after the value.'},
                 {name: 'digits', type: 'number', default: '', help: 'Fixed decimal places for numeric payloads. Empty = as received.'},
+                {name: 'grouping', type: 'boolean', default: false,
+                    help: 'Format the value with thousands separators per the site locale (1.234 / 1,234). Off by default.'},
                 {name: 'points', type: 'number', default: 30, min: 2, max: 200, help: 'Trend buffer length (values kept for the back-side graph).'},
                 // B67: opt-in availability — a ! badge appears while unavailable.
                 {name: 'subscribe-availability', type: 'mqttTopic', section: 'Availability', help: 'Topic reporting device availability — a ! badge appears while unavailable.'},
@@ -53,6 +56,7 @@ class FeezalElementMetroValue extends MetroTileBase {
     static properties = {
         unit:    {type: String, reflect: true},
         digits:  {type: Number, reflect: true},
+        grouping: {type: Boolean, reflect: true},
         points:  {type: Number, reflect: true},
         _values: {state: true},
     };
@@ -68,6 +72,7 @@ class FeezalElementMetroValue extends MetroTileBase {
         super();
         this.unit = '';
         this.digits = null;
+        this.grouping = false;
         this.points = 30;
         this._values = [];
     }
@@ -85,10 +90,11 @@ class FeezalElementMetroValue extends MetroTileBase {
     }
 
     _format(v) {
+        // N38: localized separator via the site locale; grouping opt-in
         if (this.digits !== null && this.digits !== undefined && this.digits !== '' && !isNaN(Number(v))) {
-            return Number(v).toFixed(Number(this.digits));
+            return formatNumber(v, {digits: Number(this.digits), grouping: this.grouping});
         }
-        return String(v);
+        return isNaN(Number(v)) || v === '' || v === null ? String(v) : formatNumber(v, {grouping: this.grouping});
     }
 
     // B67: availability badge (top-right ! while unavailable).

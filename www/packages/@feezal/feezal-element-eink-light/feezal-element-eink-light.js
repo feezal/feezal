@@ -54,8 +54,8 @@ class FeezalElementEinkLight extends EinkBase {
                 {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
                 {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
                 {name: 'label', type: 'string', help: 'Label line (rendered uppercase).'},
-                {name: 'label-on',  type: 'string', default: 'On',  help: 'Displayed state word while the light is on (localise, e.g. "Ein"). Display only — NOT the MQTT payload (payload-on) and NOT the card title (label).'},
-                {name: 'label-off', type: 'string', default: 'Off', help: 'Displayed state word while the light is off (localise, e.g. "Aus"). Display only — NOT the MQTT payload (payload-off) and NOT the card title (label).'},
+                {name: 'label-on',  type: 'string', default: 'On', defaultI18n: {de: 'Ein'},  help: 'Displayed state word while the light is on (localise, e.g. "Ein"). Display only — NOT the MQTT payload (payload-on) and NOT the card title (label).'},
+                {name: 'label-off', type: 'string', default: 'Off', defaultI18n: {de: 'Aus'}, help: 'Displayed state word while the light is off (localise, e.g. "Aus"). Display only — NOT the MQTT payload (payload-off) and NOT the card title (label).'},
             ],
             styles: [
                 'top', 'left', 'width', 'height',
@@ -106,8 +106,8 @@ class FeezalElementEinkLight extends EinkBase {
         publishHs:           {type: String, reflect: true, attribute: 'publish-hs'},
         // N31: availability inherited from FeezalElement.
         label:               {type: String, reflect: true},
-        labelOn:             {type: String, reflect: true, attribute: 'label-on'},
-        labelOff:            {type: String, reflect: true, attribute: 'label-off'},
+        labelOn:             {type: String, attribute: 'label-on'},
+        labelOff:            {type: String, attribute: 'label-off'},
         discoveryId:         {type: String, reflect: true, attribute: 'discovery-id'},
     };
 

@@ -14,7 +14,6 @@ Work in progress — priorities and scope are not final.
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
 - [N12 — Export bundle: strip mqtt.js for feezal-bridge users](#n12--export-bundle-strip-mqttjs-for-feezal-bridge-users-partial) *(partial)*
 - [N13 — Lighter MQTT client for export bundle](#n13--lighter-mqtt-client-for-export-bundle-️-tbd) ⚠️
-- [N38 — Site locale: localized number formatting (decimal separator & friends)](#n38--site-locale-localized-number-formatting-decimal-separator--friends)
 
 **Element Ecosystem**
 - [E20 — Weather forecast (`feezal-element-material-weather`)](#e20--weather-forecast-element-feezal-element-material-weather--moved)
@@ -76,7 +75,7 @@ Work in progress — priorities and scope are not final.
 - [A21 — Accessibility: adopt the web-components Gold Standard for feezal elements](#a21--accessibility-adopt-the-web-components-gold-standard-for-feezal-elements)
 - [A23 — Externalize element families: own git repos + npm publish (paper, tui, panel)](#a23--externalize-element-families-own-git-repos--npm-publish-paper-tui-panel)
 - [A24 — Externalize the metro element family](#a24--externalize-the-metro-element-family-future--will-be-done-later) *(future)*
-- [A27 — i18n: editor localization + language-aware element defaults](#a27--i18n-editor-localization--language-aware-element-defaults--first-step-de-ready-to-build) 💡 *(first step: de)*
+- [A27 — i18n: editor localization + language-aware element defaults 🔨 first step (de) ✅ shipped · phases 2–3 open](#a27--i18n-editor-localization--language-aware-element-defaults--first-step-de--shipped--phases-23-open)
 - [A29 — RTL layout support (Arabic, Hebrew)](#a29--rtl-layout-support-arabic-hebrew--future) 💡 *(future)*
 - [A34 — Dependency refresh + supply-chain hardening (`npm ci`, lockfile enforcement)](#a34--dependency-refresh--supply-chain-hardening-npm-ci-lockfile-enforcement)
 - [A35 — Theme-var discipline, part 2: family design tokens still default to fixed colours](#a35--theme-var-discipline-part-2-family-design-tokens-still-default-to-fixed-colours)
@@ -343,24 +342,6 @@ client.json_send('my/topic', payload);
 - Reconnect behaviour parity with mqtt.js
 
 **Expected export bundle savings:** ~300 kB minified / ~93 kB gzip (from ~400 kB to ~100 kB total).
-
-### N38 — Site locale: localized number formatting (decimal separator & friends)
-
-Numeric elements render `21.5` everywhere; a European dashboard should show `21,5`. Today only `basic-number` can — via its per-element `decimalSeparator` attribute with hand-rolled string replacement — and configuring a separator on every element of a 40-value wall panel is not a feature.
-
-**Decided (07/2026, discussed): a site `locale`, not a separator toggle.** `Intl.NumberFormat` derives the separator (and grouping, ordering, everything else) correctly from a locale, and a locale is the **same primitive A27 needs** for language-aware label defaults and editor localization — one setting, three consumers, no config debt to unwind later.
-
-- **Setting:** a `locale` attribute on `<feezal-site>` (BCP-47; serializes with the site, travels into exports). **Default: empty = browser locale** (`navigator.language`) — zero-config correctness; a German browser shows `1,5` immediately. This deliberately changes what unconfigured European dashboards render (that IS the fix); explicit per-element settings keep winning.
-- **Mechanism:** a shared helper in `@feezal/feezal-element` — `feezal.formatNumber(value, {digits, grouping})` — reading the site locale, caching one `Intl.NumberFormat` per (locale, options). Elements adopt it in place of `toFixed()`/concat. Per-element overrides stay authoritative: `basic-number.decimalSeparator`, `basic-datetime.locale` (which additionally gains the site locale as its FALLBACK instead of the browser default it hardcodes today).
-- **Grouping (decided): supported, per-element opt-in** — a `grouping` boolean attribute (default off) on the value-display elements; the separator localizes always, but `1234 W` on a wall panel often reads better ungrouped than `1.234 W`.
-- **V1 adoption scope (decided): the value-display surfaces** — `basic-number`, the glass/metro number cards (E132's renames), `material-gauge`, `material-tank`, climate setpoint/actual readouts (all three families), `material-computer-stats`. Slider value labels, input elements and inspector previews follow later.
-- **UX:** Site Settings → Site tab, one select showing locales **by example** — *Automatic (browser language)*, `1,234.56 — English`, `1.234,56 — Deutsch`, `1 234,56 — Français`, … — with a live preview line; a free-text BCP-47 input behind "custom". Nobody types `de-DE` unless they want to.
-
-**A27 relation (explicit):** this item **introduces the site `locale` attribute; A27 consumes it** — its phase-1 language-aware element defaults ("Ein/Aus") and editor-chrome localization key off the same attribute (editor language may still deserve its own editor-level setting — an editor used in English can build German dashboards; note in A27). Ship this first: it is small, self-contained, and hands A27 its foundation.
-
-**Ships with:** helper unit tests (locale resolution order: element attr → site attr → browser; caching; grouping flag), per-element adoption tests for the v1 scope, TESTING.md (site locale switch re-renders values; German locale shows commas in viewer AND export; per-element `decimalSeparator` still wins), and an element-spec section ("format numbers via `feezal.formatNumber`, never `toFixed` + concat").
-
-**Relates:** **A27** (i18n — consumes the site locale introduced here; keep the two aligned), E132 (the number cards in the v1 scope), **E114** (parity — number formatting must behave identically across families), basic-datetime (locale fallback), E119 (basic-number placeholder — same element, coordinate).
 
 ### N2b — Repeater with live canvas sub-elements *(future)*
 Each repeater child becomes individually selectable and configurable on the editor canvas. Requires a virtual sub-editor context — significantly more complex, deferred until the MVP repeater is proven useful.
@@ -2119,11 +2100,14 @@ Metro **stays bundled with feezal for now** (decided 07/2026) — it moves out *
 
 **Relates:** A23 (the playbook — do that first), N29, E106 (metro shares the same consolidation considerations glass had).
 
-### A27 — i18n: editor localization + language-aware element defaults 💡 first step (de) ready to build
+### A27 — i18n: editor localization + language-aware element defaults 🔨 first step (de) ✅ shipped · phases 2–3 open
 
 feezal is English-only today — and not just the editor chrome: **element attribute defaults bake English into every dashboard** (`label-on: 'On'`, `label-off: 'Off'`, `done-label: 'Done'`, contact state texts, `labelOff: 'off'` centre text, …). A German wall tablet should say "Ein/Aus" without the user hand-setting every label on every element.
 
 **Foundation decided (07/2026): the site `locale` attribute lands in N38** (localized number formatting) — this item consumes that same attribute for its language-aware defaults rather than introducing a second setting. Open sub-question to settle here: whether the *editor chrome* language follows the site locale or gets its own editor-level setting (an editor used in English can legitimately build German dashboards).
+
+**First step SHIPPED (07/2026)** — with [N38](roadmap-archive/N38.md) ✅, which supplied the locale foundation in the same stroke. What landed: the `defaultI18n` descriptor field + `localizedDefault`/`resolveLocaleChain` in `@feezal/feezal-element/feezal-locale.js`; `_applyLocalizedDefaults` in the base class (on connect + `feezal-locale-change`, authored-attributes-win); the inspector placeholder shows the locale-resolved default; German dicts on every display-text descriptor across the families (glass/eink/metro/circle/panel switch·light·contact·wled state words, countdown's `done-label` — 24 dicts, 13 elements, case-matched per family). One refinement beyond the plan, discovered by test: the display-text properties were REFLECTED, and Lit reflects constructor defaults on first render — so `hasAttribute` was not the trustworthy authored-signal the refinement assumed, and saved dashboards already carried baked `text-on="On"` junk. The properties no longer reflect, and the base class heals the baked junk (attribute value === en default → treated as reflection junk, removed, localized; anything else the author typed wins). **Still open here: Phase 2 (editor chrome), Phase 3 (help texts), climate/enum mode words, every language past de.**
+
 
 **Proposed scope split (phased — the phases are independently shippable):**
 

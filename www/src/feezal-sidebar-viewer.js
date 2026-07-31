@@ -601,6 +601,9 @@ class FeezalSidebarViewer extends LitElement {
                         @sl-change="${e => this._setSite('publish', e.target.value)}">
                     </sl-input>
 
+                    <div class="section-label">Locale</div>
+                    ${this._renderLocale()}
+
                     <div class="section-label">Progressive Web App</div>
                     <sl-switch id="pwa-switch" size="small" ?checked="${this.pwa}"
                         @sl-change="${e => this._setPwa(e.target.checked)}">
@@ -840,6 +843,63 @@ class FeezalSidebarViewer extends LitElement {
         this.site = {...this.site, [key]: value};
         this._applySite();
         feezal.app.change(true);
+    }
+
+    // ── N38: site locale — number formatting (and A27 language defaults) ─────
+
+    /** Locales offered "by example" — the number IS the label, so nobody has
+     * to know that `1.234,56` means picking `de`. Endonyms via DisplayNames. */
+    static get LOCALE_CHOICES() {
+        return ['en-US', 'en-GB', 'de', 'fr', 'es', 'it', 'nl', 'pt', 'pt-BR',
+            'pl', 'cs', 'sv', 'da', 'nb', 'fi', 'tr', 'hu', 'ru', 'uk'];
+    }
+
+    _localeExample(locale) {
+        try {
+            const number = new Intl.NumberFormat(locale, {minimumFractionDigits: 2}).format(1234.56);
+            const name = new Intl.DisplayNames([locale], {type: 'language'}).of(locale);
+            return `${number} — ${name}`;
+        } catch {
+            return locale;
+        }
+    }
+
+    _renderLocale() {
+        const value = this.site.locale || '';
+        const choices = FeezalSidebarViewer.LOCALE_CHOICES;
+        const isCustom = value && !choices.includes(value);
+        const effective = value || navigator.language || 'en';
+        return html`
+            <sl-select size="small" label="Number & language locale"
+                help-text="Empty = each viewer's browser language. Setting one pins it — it serializes with the site and travels into exports."
+                .value="${isCustom ? '__custom__' : value}"
+                @sl-change="${e => {
+                    const v = e.target.value;
+                    if (v === '__custom__') {
+                        this.site = {...this.site, localeCustom: true};
+                        return;
+                    }
+                    this.site = {...this.site, localeCustom: false};
+                    this._setLocale(v);
+                }}">
+                <sl-option value="">Automatic (browser language)</sl-option>
+                ${choices.map(l => html`<sl-option value="${l}">${this._localeExample(l)}</sl-option>`)}
+                <sl-option value="__custom__">Custom…</sl-option>
+            </sl-select>
+            ${isCustom || this.site.localeCustom ? html`
+                <sl-input size="small" label="Custom locale (BCP-47)" placeholder="e.g. de-AT"
+                    .value="${isCustom ? value : ''}"
+                    @sl-change="${e => this._setLocale(e.target.value.trim())}">
+                </sl-input>
+            ` : ''}
+            <div class="pwa-hint">Preview: ${this._localeExample(effective)}</div>
+        `;
+    }
+
+    _setLocale(value) {
+        this._setSite('locale', value);
+        // Elements re-render their numbers and re-resolve language defaults.
+        document.dispatchEvent(new CustomEvent('feezal-locale-change'));
     }
 
     // ── A28: per-site CSP (Security tab) ─────────────────────────────────────

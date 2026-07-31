@@ -3,6 +3,7 @@ import {FeezalElement, feezalBaseStyles, feezalBoolean, html, css} from '@feezal
 import {svg} from 'lit';
 
 import {readonlyNumericDiscovery} from '@feezal/feezal-element/feezal-discovery-fragments.js';
+import {formatNumber} from '@feezal/feezal-element/feezal-locale.js';
 
 // ── Tank geometry ─────────────────────────────────────────────────────────────
 // Inner tank area: x=12, y=10, w=36, h=100  (inside a 60×130 viewBox)
@@ -49,6 +50,8 @@ class FeezalElementMaterialTank extends FeezalElement {
                 {name: 'show-value',      type: 'boolean',   default: true,  help: 'Show the numeric value inside the tank.'},
                 {name: 'show-percent',    type: 'boolean',   default: false, help: 'Show percentage instead of raw value.'},
                 {name: 'decimals',        type: 'number',    default: 0,     help: 'Decimal places for the value label.'},
+                {name: 'grouping', type: 'boolean', default: false,
+                    help: 'Format the value with thousands separators per the site locale (1.234 / 1,234). Off by default.'},
                 {name: 'label',           type: 'string',    default: '',    help: 'Optional label below the tank.'},
             ],
             styles: [
@@ -76,6 +79,7 @@ class FeezalElementMaterialTank extends FeezalElement {
         showValue:     {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-value'},
         showPercent:   {type: Boolean, reflect: true, attribute: 'show-percent'},
         decimals:      {type: Number,  reflect: true},
+        grouping:      {type: Boolean, reflect: true, converter: feezalBoolean},
         label:         {type: String,  reflect: true},
         _value:  {state: true},  // raw value or null
     };
@@ -128,6 +132,7 @@ class FeezalElementMaterialTank extends FeezalElement {
         this.showValue     = true;
         this.showPercent   = false;
         this.decimals      = 0;
+        this.grouping      = false;
         this.label         = '';
         this._value        = null;
     }

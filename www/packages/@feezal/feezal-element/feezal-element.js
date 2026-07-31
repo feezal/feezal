@@ -2,6 +2,14 @@
 import {LitElement, html, css} from 'lit';
 import {FeezalConditions} from './feezal-conditions.js';
 import {ColorBindings} from './feezal-color-ranges.js';
+import {formatNumber, localizedDefault} from './feezal-locale.js';
+
+// N38: the shared number formatter, reachable as feezal.formatNumber for
+// scripts/templates; elements import it directly.
+if (typeof window !== 'undefined') {
+    window.feezal = window.feezal || {};
+    window.feezal.formatNumber = formatNumber;
+}
 
 /**
  * Shared base styles — identical to the Polymer dom-module 'feezal-style-element'.
@@ -118,6 +126,19 @@ export class FeezalElement extends LitElement {
             return;
         }
         this.__n37Paused = false;
+        // A27: locale-aware display defaults — applied before first render,
+        // re-applied on locale change, and ONLY for attributes the author
+        // never set (hasAttribute is trustworthy because defaults are never
+        // materialised into the HTML).
+        this._applyLocalizedDefaults();
+        this._onLocaleChange = () => {
+            this._applyLocalizedDefaults();
+            // Elements that CACHE formatted output (rather than formatting in
+            // render()) re-format via this hook; everything else just re-renders.
+            this._localeChanged?.();
+            this.requestUpdate();
+        };
+        document.addEventListener('feezal-locale-change', this._onLocaleChange);
         if (this.visible || !this.dynamicSubscriptions) {
             this._subscribe();
             this._conditions.connect();
@@ -170,6 +191,50 @@ export class FeezalElement extends LitElement {
         this._unsubscribeAvailability();
         this._conditions.disconnect();
         this._colorBindings.disconnect();
+        if (this._onLocaleChange) {
+            document.removeEventListener('feezal-locale-change', this._onLocaleChange);
+            this._onLocaleChange = null;
+        }
+    }
+
+    // ── A27: locale-aware display defaults ───────────────────────────────────
+
+    /** The Lit property behind a kebab-case attribute name. */
+    _propForAttribute(attr) {
+        for (const [prop, opts] of this.constructor.elementProperties ?? []) {
+            const a = opts.attribute === undefined ? prop.toLowerCase() : opts.attribute;
+            if (a === attr) return prop;
+        }
+        return null;
+    }
+
+    /**
+     * Overwrite constructor defaults with the locale's, for every descriptor
+     * carrying a `defaultI18n` dict — the dict's presence IS the opt-in, so
+     * wire-protocol attributes (payload-*) can never be localized. Explicitly
+     * set attributes always win, and nothing is written into the HTML: a
+     * shared dashboard renders "On" on an English tablet and "Ein" on a
+     * German one.
+     *
+     * Legacy healing: these display-text properties USED to be reflected, and
+     * Lit reflects constructor defaults on first render — so dashboards saved
+     * before A27 carry baked `text-on="On"` junk that is indistinguishable
+     * from authorship by presence alone. An attribute whose value EQUALS the
+     * en default is therefore treated as that junk: removed (the next save is
+     * clean) and localized. The one thing this makes inexpressible —
+     * deliberately pinning the literal en default on a localized site — is a
+     * no-op wish in every real case; type anything else and it wins.
+     */
+    _applyLocalizedDefaults() {
+        for (const spec of this.constructor.feezal?.attributes || []) {
+            if (!spec || typeof spec !== 'object' || !spec.defaultI18n) continue;
+            if (this.hasAttribute(spec.name)) {
+                if (this.getAttribute(spec.name) !== (spec.default ?? '')) continue;   // authored → wins
+                this.removeAttribute(spec.name);   // pre-A27 reflection junk → heal
+            }
+            const prop = this._propForAttribute(spec.name);
+            if (prop) this[prop] = localizedDefault(spec);
+        }
     }
 
     updated(changed) {

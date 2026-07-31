@@ -607,6 +607,8 @@ class FeezalSidebarInspector extends LitElement {
                                 pageTitle: attr('page-title'),
                                 subscribe: attr('subscribe'),
                                 publish: attr('publish'),
+                                locale: attr('locale'),                          // N38: '' = browser language
+
                                 playlist: attr('playlist'),                      // N26
                                 playlistEnabled: feezal.site.hasAttribute('playlist-enabled'),
                                 playlistDwell: attr('playlist-dwell'),

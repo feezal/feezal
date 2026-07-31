@@ -1,6 +1,7 @@
 /* global feezal */
 import {feezalBoolean, html} from '@feezal/feezal-element';
 import {findColorRange, resolveRangeColor} from '@feezal/feezal-element/feezal-color-ranges.js';
+import {formatNumber} from '@feezal/feezal-element/feezal-locale.js';
 import {svg} from 'lit';
 
 /**
@@ -114,6 +115,8 @@ export const gaugeAttributes = [
     {name: 'max', type: 'number', default: 100, help: 'Scale maximum (arc end).'},
     {name: 'unit', type: 'string', help: 'Unit shown after / below the value.'},
     {name: 'decimals', type: 'number', min: 0, max: 6, help: 'Round the value to this many decimals. Empty = show the payload as-is.'},
+    {name: 'grouping', type: 'boolean', default: false,
+        help: 'Format the value with thousands separators per the site locale (1.234 / 1,234). Off by default — plain digits often read better on a wall panel.'},
     {name: 'show-value', type: 'boolean', default: true, help: 'Show the numeric value in the centre.'},
     {name: 'ticks', type: 'number', default: 0, min: 0, max: 24,
         help: 'Number of major tick divisions around the scale (0 = none).'},
@@ -151,6 +154,7 @@ export const GaugeMixin = Base => class extends Base {
         unit:       {type: String, reflect: true},
         decimals:   {type: String, reflect: true},
         showValue:  {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-value'},
+        grouping:   {type: Boolean, reflect: true, converter: feezalBoolean},
         ticks:      {type: String, reflect: true},
         minorTicks: {type: String, reflect: true, attribute: 'minor-ticks'},
         tickLabels: {type: Boolean, reflect: true, attribute: 'tick-labels'},
@@ -166,6 +170,7 @@ export const GaugeMixin = Base => class extends Base {
         this.max = '100';
         this.unit = '';
         this.decimals = '';
+        this.grouping = false;
         this.showValue = true;
         this.ticks = '0';
         this.minorTicks = '0';
@@ -219,12 +224,15 @@ export const GaugeMixin = Base => class extends Base {
     get _displayText() {
         const v = this._num ?? (feezal.isEditor ? this._sample : null);
         if (v === null) return '—';
+        // N38: localized rendering — the site locale drives the decimal
+        // separator (21,5 on a German dashboard); grouping is per-element
+        // opt-in.
         const d = this.decimals;
         if (d !== '' && d !== null && d !== undefined) {
-            return Number(v).toFixed(Math.max(0, Math.min(6, Number(d) || 0)));
+            return formatNumber(v, {digits: Math.max(0, Math.min(6, Number(d) || 0)), grouping: this.grouping});
         }
         // No explicit decimals: show integers cleanly, else up to 1 dp.
-        return Number.isInteger(v) ? String(v) : String(Math.round(v * 10) / 10);
+        return formatNumber(Number.isInteger(v) ? v : Math.round(v * 10) / 10, {grouping: this.grouping});
     }
     _bandColor(v) {
         return bandColor(this.ranges, v);

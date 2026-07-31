@@ -20,6 +20,8 @@ import '@shoelace-style/shoelace/dist/components/checkbox/checkbox.js';
 // U66: alpha-capable colour swatch (the native input[type=color] cannot do rgba)
 import '@shoelace-style/shoelace/dist/components/color-picker/color-picker.js';
 import {resolveCssColor, normalizeHexa} from './feezal-color-util.js';
+// A27: locale-resolved defaults for placeholders
+import {localizedDefault} from '@feezal/feezal-element/feezal-locale.js';
 import './feezal-template-editor.js';
 // U53: the shared styled theme picker — mounted via the N6 custom hook for
 // feezal-view's `theme` attribute (and by the themes sidebar for the site).
@@ -1492,7 +1494,11 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                 section: attrSpec.section || '',
                 advanced: Boolean(attrSpec.advanced),
                 visibleWhen: attrSpec.visibleWhen || null,
-                default: attrSpec.default,
+                // A27: the placeholder shows the LOCALE-RESOLVED default —
+                // a German editor sees "Ein" greyed out where the runtime
+                // would render "Ein" (descriptors without a defaultI18n dict
+                // pass through unchanged).
+                default: localizedDefault(attrSpec),
                 // B50: dropdowns may declare an explicit "unset" entry (e.g. the
                 // view theme's "Site theme (default)") — selecting it removes
                 // the attribute, exactly like the × clear.
