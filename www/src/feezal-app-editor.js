@@ -1463,6 +1463,13 @@ class FeezalAppEditor extends LitElement {
     connectedCallback() {
         super.connectedCallback();
 
+        // window.name survives navigation: if this tab once showed the viewer
+        // (named 'feezal-<site>' by the View button) and was then navigated to
+        // the editor, View's named-target window.open would match THIS tab and
+        // replace the editor with the viewer. Clear the leftover name — a tab
+        // with an empty name can never be a named target.
+        if (/^feezal-/.test(window.name)) window.name = '';
+
         // Apply dark mode root vars immediately so Shoelace dropdowns look correct from the start.
         this._syncDarkModeRoot();
 
