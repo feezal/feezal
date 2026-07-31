@@ -58,6 +58,52 @@ describe('manager panel — <feezal-site color-ranges> is the source of truth', 
         return manager;
     }
 
+    it('REGRESSION: mounted before the site exists (editor boot), lists after siteReady', async () => {
+        // The reload sequence: the themes sidebar (and the manager inside its
+        // Ranges tab) connect at editor boot, BEFORE the site HTML is loaded.
+        // The manager's connect-time read finds nothing — siteReady() must
+        // re-read once the site is here, or a reload lists no ranges even
+        // though they are right there on <feezal-site> (the reported bug).
+        await import('../src/feezal-sidebar-themes.js');
+        feezal.themes = [];
+        feezal.ready = false;
+        feezal.site = null;
+        const sidebar = document.createElement('feezal-sidebar-themes');
+        document.body.append(sidebar);
+        await sidebar.updateComplete;
+        const manager = sidebar.shadowRoot.querySelector('feezal-sidebar-color-ranges');
+        expect(manager._ranges).toEqual([]);          // boot: nothing yet — correct
+
+        // …the site loads (with ranges), the inspector calls siteReady()
+        mountSite();
+        feezal.ready = true;
+        sidebar.siteReady({});
+        await sidebar.updateComplete;
+        await manager.updateComplete;
+        expect(manager._ranges.map(r => r.name)).toEqual(['temp', 'mode']);
+        expect(manager.shadowRoot.querySelectorAll('.card').length).toBe(2);
+        sidebar.remove();
+    });
+
+    it('re-reads when the Ranges tab is shown (source-view edits of the attribute)', async () => {
+        await import('../src/feezal-sidebar-themes.js');
+        mountSite();
+        feezal.themes = [];
+        feezal.ready = true;
+        const sidebar = document.createElement('feezal-sidebar-themes');
+        document.body.append(sidebar);
+        await sidebar.updateComplete;
+        const manager = sidebar.shadowRoot.querySelector('feezal-sidebar-color-ranges');
+
+        // the attribute changes behind the manager's back (source view)
+        feezal.site.setAttribute('color-ranges', JSON.stringify([RANGES[0]]));
+        sidebar.shadowRoot.querySelector('sl-tab-group')
+            .dispatchEvent(new CustomEvent('sl-tab-show', {detail: {name: 'ranges'}}));
+        await manager.updateComplete;
+        expect(manager._ranges.map(r => r.name)).toEqual(['temp']);
+        sidebar.remove();
+    });
+
     it('lists the site ranges with type + swatch strip', async () => {
         const manager = await mountManager();
         const cards = manager.shadowRoot.querySelectorAll('.card');

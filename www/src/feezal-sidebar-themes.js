@@ -831,6 +831,12 @@ class FeezalSidebarThemes extends LitElement {
         this.themes = feezal.themes || [];
         this._fetchUserThemes().then(() => this._syncUserThemeLink(this.currentTheme));
 
+        // U65: the colour-range manager read `color-ranges` at ITS connect,
+        // which happens at editor boot — before the site HTML exists — so a
+        // reload listed nothing. Re-read now that the site is here.
+        this.updateComplete.then(() =>
+            this.shadowRoot?.querySelector('feezal-sidebar-color-ranges')?.refresh?.());
+
         // Restore CSS classes (U25). Definitions now live in a <style
         // id="feezal-classes"> block inside <feezal-site> (saved in views.html).
         // Legacy sites stored them in viewer.json — adopt those once and
@@ -868,7 +874,13 @@ class FeezalSidebarThemes extends LitElement {
 
         const classCount = Object.keys(this._classes).length;
         return html`
-            <sl-tab-group>
+            <sl-tab-group @sl-tab-show="${e => {
+                // U65: the site attribute may have changed outside the manager
+                // (source view, AI assistant) — re-read whenever the tab opens.
+                if (e.detail.name === 'ranges') {
+                    this.shadowRoot?.querySelector('feezal-sidebar-color-ranges')?.refresh?.();
+                }
+            }}">
                 <sl-tab slot="nav" panel="theme">Theme</sl-tab>
                 <sl-tab slot="nav" panel="classes">Classes${classCount ? ` · ${classCount}` : ''}</sl-tab>
                 <sl-tab slot="nav" panel="ranges">Ranges</sl-tab>
