@@ -88,7 +88,7 @@ export const glassCardStyles = css`
        glassBadgeTray(); it sits over the card's own content, so keep top-right
        card content clear (the value cards' unit stays lower). */
     .glass-badge-tray {
-        position: absolute; top: 6px; right: 8px; z-index: 4;
+        position: absolute; top: 4px; right: 8px; z-index: 4;
         display: flex; align-items: center; gap: 4px;
         pointer-events: none;
     }
@@ -114,8 +114,11 @@ export const glassCardStyles = css`
         color: var(--error-color);
         display: inline-flex; align-items: center; justify-content: center;
         /* the "signal off" glyph fills its whole 24-viewBox edge to edge, so it
-           reads heavier than the other icons — size it smaller to match. */
-        width: 12px; height: 12px;
+           reads heavier than the other icons — size it smaller to match; the
+           -2px nudge lifts it level with the details/tune icon, whose optical
+           centre sits higher than this glyph's. */
+        width: 10px; height: 10px;
+        transform: translateY(-2px);
     }
     .glass-unavail svg { width: 100%; height: 100%; display: block; }
 `;
