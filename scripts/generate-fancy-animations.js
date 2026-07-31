@@ -217,10 +217,12 @@ function windowContact() {
     // glass reaches under the sash stroke (inner stroke edge 20.25) — no gap
     const SASH  = [[E0, E0], [E1, E0], [E1, E1], [E0, E1]];
     const GLASS = [[20, 20], [80, 20], [80, 80], [20, 80]];
-    const sashK = polyKf([[0, SASH], [12, SASH], [36, SASH.map(OPEN)], [47, SASH.map(OPEN)],
-        [48, SASH], [62, SASH], [85, SASH.map(TILT)]]);
-    const glassK = polyKf([[0, GLASS], [12, GLASS], [36, GLASS.map(OPEN)], [47, GLASS.map(OPEN)],
-        [48, GLASS], [62, GLASS], [85, GLASS.map(TILT)]]);
+    // timeline: 0–12 handle, 12–36 swing, 36–66 breeze tail (sash holds),
+    // open pose 66 · 78–92 handle, 92–115 kipp, tilted pose 115
+    const sashK = polyKf([[0, SASH], [12, SASH], [36, SASH.map(OPEN)], [77, SASH.map(OPEN)],
+        [78, SASH], [92, SASH], [115, SASH.map(TILT)]]);
+    const glassK = polyKf([[0, GLASS], [12, GLASS], [36, GLASS.map(OPEN)], [77, GLASS.map(OPEN)],
+        [78, GLASS], [92, GLASS], [115, GLASS.map(TILT)]]);
 
     // ── the handle, INSIDE the projection ──
     // Pivot travels with the sash; lever length and plate radii foreshorten
@@ -233,32 +235,38 @@ function windowContact() {
     const syOpen = r1(dist(OPEN([75.5, 47.5]), OPEN([75.5, 52.5])) * 20);
     const sxTilt = r1(dist(TILT([73, 50]), TILT([78, 50])) * 20);
     const syTilt = r1(dist(TILT([75.5, 47.5]), TILT([75.5, 52.5])) * 20);
-    const handleP = kf([[0, HP], [12, HP], [36, pOpen], [47, pOpen],
-        [48, HP], [62, HP], [85, pTilt]]);
+    const handleP = kf([[0, HP], [12, HP], [36, pOpen], [77, pOpen],
+        [78, HP], [92, HP], [115, pTilt]]);
     const hold = (open, tilt, rest = [100, 100]) => kf([[0, rest], [12, rest], [36, open],
-        [47, open], [48, rest], [62, rest], [85, tilt]]);
+        [77, open], [78, rest], [92, rest], [115, tilt]]);
     // lever local axes: y = length, x = thickness (scale applies BEFORE the
     // rotation, so the same pair works for the 90° and 180° positions)
-    const leverR = kf([[0, 0], [12, 90], [47, 90], [48, 0], [62, 180], [85, 180]]);
+    const leverR = kf([[0, 0], [12, 90], [77, 90], [78, 0], [92, 180], [115, 180]]);
     const lever = group('lever', [rect(0, 5.5, 2.8, 10, 1.4), fill('base')],
         tr({p: handleP, r: leverR, s: hold([syOpen, lenOpen], [sxTilt, lenTilt])}));
     const plate = group('plate', [ellipse(0, 0, 5, 5), fill('base')],
         tr({p: handleP, s: hold([sxOpen, syOpen], [sxTilt, syTilt])}));
 
-    // Flügel stroke dimmed to 72 % — reads as a slightly lighter shade than
-    // the Rahmen (and the handle, which stays full base = the Rahmen tone)
-    // without leaving the two-tone palette contract
-    const sashFrame = group('sash-frame', [sashK, stroke('base', 3, 72)]);
+    // Flügel stroke: base at 72 % OVER a solid surface underlay — reads as a
+    // slightly lighter shade than the Rahmen (and the handle, which stays
+    // full base) yet is fully OPAQUE, so the sash visibly covers the Rahmen
+    // where it swings across it instead of shining through.
+    const sashFrame = group('sash-frame', [sashK, stroke('base', 3, 72), stroke('surface', 3)]);
     const glass = group('glass', [glassK, fill('active', 38)]);
     const sash = group('sash', [lever, plate, sashFrame, glass]);
 
     // ── the breeze (E162 flourish) ──
-    // Three nearly-transparent wavy streamlines flow IN through the freshly
-    // opened window while the sash swings: open sine curves from outside
-    // right toward the opening, each dipping into the room at its tail, drawn
-    // as a travelling trim-path dash. Everything lives strictly inside the
-    // open clip (15–34) — invisible at every pose, so the resting card stays
-    // perfectly still, and the derived closing clip sucks the air back out.
+    // Three nearly-transparent wavy streamlines fly right→left IN through the
+    // freshly opened window: open sine curves from outside toward the
+    // opening, each dipping into the room at its tail, drawn as travelling
+    // trim-path dashes with LINEAR easing (a steady glide, not a dart). The
+    // open clip carries a 30-frame breeze tail after the sash has settled, so
+    // the air keeps flowing visibly — but every pose is still invisible-clean,
+    // and the derived closing clip sucks the air back out.
+    const LIN = {i: {x: [0.833], y: [0.833]}, o: {x: [0.167], y: [0.167]}};
+    // Soft edges without renderer-fragile blur effects: three concentric
+    // strokes on the same path (wide faint halo → slim core) share one trim,
+    // so the wisp has no sharp border. Core opacities ≈ 10 % — barely there.
     const waveLine = ({yc, amp, flip, drop, t0, o}) => {
         const xs = [88, 74, 60, 46, 34];
         const dir = flip ? -1 : 1;
@@ -266,19 +274,22 @@ function windowContact() {
             yc + dir * amp * (k % 2 ? 1 : -1) + (k === xs.length - 1 ? drop : 0)]);
         const path = {ty: 'sh', ks: st({c: false, v,
             i: v.map(() => [4.9, 0]), o: v.map(() => [-4.9, 0])}), nm: 'wave'};
-        return group('breeze-line', [path, stroke('active', 2, o),
-            trim([[t0, 0], [t0 + 9, 100]], [[t0 + 4, 0], [t0 + 13, 100]])]);
+        return group('breeze-line', [path,
+            stroke('active', 5.5, Math.round(o * 0.35)),
+            stroke('active', 3.2, Math.round(o * 0.6)),
+            stroke('active', 1.6, o),
+            trim([[t0, 0, {e: LIN}], [t0 + 22, 100]], [[t0 + 8, 0, {e: LIN}], [t0 + 30, 100]])]);
     };
     const breeze = group('breeze', [
-        waveLine({yc: 39, amp: 3, flip: false, drop: 4, t0: 15, o: 22}),
-        waveLine({yc: 52, amp: 4, flip: true,  drop: 6, t0: 18, o: 28}),
-        waveLine({yc: 64, amp: 3, flip: false, drop: 4, t0: 21, o: 20}),
+        waveLine({yc: 39, amp: 3, flip: false, drop: 4, t0: 15, o: 10}),
+        waveLine({yc: 52, amp: 4, flip: true,  drop: 6, t0: 24, o: 13}),
+        waveLine({yc: 64, amp: 3, flip: false, drop: 4, t0: 33, o: 9}),
     ]);
 
     return {
-        data: anim('contact-window', [layer('contact', [breeze, sash, frame], {op: 87})], 87),
-        states: {closed: [0, 1], open: [36, 37], tilted: [85, 86]},
-        transitions: {'closed>open': [0, 36], 'closed>tilted': [48, 85]},
+        data: anim('contact-window', [layer('contact', [breeze, sash, frame], {op: 117})], 117),
+        states: {closed: [0, 1], open: [66, 67], tilted: [115, 116]},
+        transitions: {'closed>open': [0, 66], 'closed>tilted': [78, 115]},
     };
 }
 
@@ -410,7 +421,8 @@ const kfx = frames => ({a: 1, k: frames.map(([t, s, opts], i, arr) => ({
 }))});
 
 const stroke = (slotOrRgba, w, o = 100) => ({ty: 'st',
-    c: st(Array.isArray(slotOrRgba) ? slotOrRgba : (slotOrRgba === 'active' ? ACTIVE : BASE)),
+    c: st(Array.isArray(slotOrRgba) ? slotOrRgba
+        : (slotOrRgba === 'active' ? ACTIVE : slotOrRgba === 'surface' ? SURFACE : BASE)),
     o: typeof o === 'object' ? o : st(o), w: st(w), lc: 2, lj: 2, bm: 0, nm: 'stroke'});
 
 /** Trim-path animator — the draw-on technique (ring wipes, tick draw). */

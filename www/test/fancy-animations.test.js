@@ -132,10 +132,12 @@ describe('the generated animation set', () => {
         };
         walk(breeze);
         expect(trims.length).toBe(3);
+        // strictly inside the open clip: after the handle turn (12), gone
+        // before the held open pose (66)
         for (const t of trims) {
             for (const k of [...t.e.k, ...t.s.k]) {
                 expect(k.t).toBeGreaterThan(12);
-                expect(k.t).toBeLessThan(36);
+                expect(k.t).toBeLessThan(66);
             }
         }
     });

@@ -114,6 +114,8 @@ class FeezalElementFancyContact extends FancyBase {
             return svg`<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
                 <rect x="14" y="14" width="72" height="72" rx="2" stroke-width="4.5" style="${baseStroke}"/>
                 <path class="tone-active" d="${q.glass}" opacity="0.38"/>
+                <path d="${q.sash}" stroke-width="3"
+                    style="fill: none; stroke: var(--primary-background-color)"/>
                 <path d="${q.sash}" stroke-width="3" stroke-opacity="0.72" style="${baseStroke}"/>
                 <ellipse class="tone-base" cx="${q.hx}" cy="${q.hy}" rx="${q.pr[0]}" ry="${q.pr[1]}"/>
                 <g transform="translate(${q.hx} ${q.hy}) rotate(${q.deg}) scale(${q.ls[0]} ${q.ls[1]})">
