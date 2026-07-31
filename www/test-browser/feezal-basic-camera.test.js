@@ -141,3 +141,41 @@ describe('configurable buttons (E163 refinement — every knob optional)', () =>
         expect(img.src).toBe('http://cam/stream');
     });
 });
+
+describe('pause-when-hidden (stop the feed off-screen)', () => {
+    it('tears the feed + refresh timer down while hidden and restores when shown', async () => {
+        const el = await mount('feezal-element-basic-camera', {
+            'type': 'image', 'src': 'http://cam/still.jpg', 'refresh': '5', 'pause-when-hidden': '',
+        });
+        await el.updateComplete;
+        expect(el.shadowRoot.querySelector('img.feed')).not.toBeNull();
+        expect(el.__refreshTimer).not.toBeNull();
+
+        // Drive the observer deterministically — the live IntersectionObserver
+        // would otherwise race the assertions with its own async callback.
+        el._stopVisibilityWatch();
+        el.__intersecting = false;
+        el._recomputeVisibility();
+        await el.updateComplete;
+        expect(el._streamPaused).toBe(true);
+        expect(el.shadowRoot.querySelector('img.feed')).toBeNull();      // feed dropped
+        expect(el.shadowRoot.querySelector('.placeholder')).not.toBeNull();
+        expect(el.__refreshTimer).toBeNull();                            // timer stopped
+
+        el.__intersecting = true;
+        el._recomputeVisibility();
+        await el.updateComplete;
+        expect(el._streamPaused).toBe(false);
+        expect(el.shadowRoot.querySelector('img.feed')).not.toBeNull();  // feed back
+        expect(el.__refreshTimer).not.toBeNull();
+    });
+
+    it('wires no observer unless pause-when-hidden is set', async () => {
+        const el = await mount('feezal-element-basic-camera', {
+            'type': 'image', 'src': 'http://cam/still.jpg',
+        });
+        await el.updateComplete;
+        expect(el.__io).toBeNull();
+        expect(el.shadowRoot.querySelector('img.feed')).not.toBeNull();
+    });
+});

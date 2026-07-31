@@ -55,6 +55,8 @@ class FeezalElementBasicCamera extends FeezalElement {
                 {name: 'show-controls',  type: 'boolean',   default: false,    help: 'Show native video controls (hls / webrtc types).'},
                 {name: 'label',          type: 'string',    default: '',       help: 'Optional overlay label shown at the bottom of the feed.'},
                 {name: 'muted',          type: 'boolean',   default: true,     help: 'Mute video audio (hls / webrtc types).'},
+                {name: 'pause-when-hidden', type: 'boolean', default: false,
+                    help: 'Stop the feed while the camera is off-screen — its view is hidden, it is scrolled out of sight, or the browser tab is in the background — and resume when it shows again. Frees the bandwidth and CPU a live mjpeg / hls / webrtc stream keeps using otherwise. Viewer only; the editor always shows the live feed.'},
                 {name: 'chips', type: 'json', default: '[]', section: 'Chips',
                     help: 'State chips over the feed: [{"subscribe":"frigate/cam/person","label":"Person","show":"nonzero"}]. Fields: subscribe, label, message-property (default payload), show = always | nonzero (hidden while 0/off/empty).'},
                 {name: 'show-fullscreen-button', type: 'boolean', default: false, section: 'Buttons',
@@ -107,6 +109,7 @@ class FeezalElementBasicCamera extends FeezalElement {
         showControls:   {type: Boolean, reflect: true, attribute: 'show-controls'},
         label:          {type: String,  reflect: true},
         muted:          {type: Boolean, reflect: true, converter: feezalBoolean},
+        pauseWhenHidden: {type: Boolean, reflect: true, attribute: 'pause-when-hidden'},
         chips:          {type: String,  attribute: 'chips'},
         showFullscreenButton: {type: Boolean, reflect: true, attribute: 'show-fullscreen-button'},
         showRefreshButton:    {type: Boolean, reflect: true, attribute: 'show-refresh-button'},
@@ -130,6 +133,7 @@ class FeezalElementBasicCamera extends FeezalElement {
         _chipValues: {state: true},
         _events:     {state: true},
         _thumbs:     {state: true},
+        _streamPaused: {state: true},   // pause-when-hidden: feed torn down while off-screen
     };
 
     static styles = [feezalBaseStyles, css`
@@ -232,6 +236,7 @@ class FeezalElementBasicCamera extends FeezalElement {
         this.showControls = false;
         this.label        = '';
         this.muted        = true;
+        this.pauseWhenHidden = false;
         this.chips        = '[]';
         this.showFullscreenButton = false;
         this.showRefreshButton    = false;
@@ -255,6 +260,7 @@ class FeezalElementBasicCamera extends FeezalElement {
         this._chipValues  = {};
         this._events      = [];
         this._thumbs      = {};
+        this._streamPaused = false;
         // non-reactive
         this.__refreshTimer = null;
         this.__cacheBuster  = 0;
@@ -262,6 +268,9 @@ class FeezalElementBasicCamera extends FeezalElement {
         this.__stream       = null;   // webrtc: MediaStream (shared by inline feed + popup)
         this.__webrtcRetry  = null;   // webrtc: reconnect timer
         this.__popupClosing = false;  // popup-animation: shrink in progress
+        this.__io           = null;   // pause-when-hidden: IntersectionObserver
+        this.__intersecting = true;   // last observed on-screen state
+        this.__onDocVisibility = () => this._recomputeVisibility();
         this.__popupKeydown = e => {
             if (e.key === 'Escape') this._closePopup();
         };
@@ -275,7 +284,21 @@ class FeezalElementBasicCamera extends FeezalElement {
         super.connectedCallback();
         this._activeSrc = this.src;
         this._wireSubscriptions();
-        if (this.type === 'image' && this.refresh > 0) {
+        this._startRefreshTimer();
+        this._startVisibilityWatch();
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        this._stopRefreshTimer();
+        this._stopVisibilityWatch();
+        this._webrtcClose();
+        document.removeEventListener('keydown', this.__popupKeydown);
+    }
+
+    _startRefreshTimer() {
+        this._stopRefreshTimer();
+        if (this.type === 'image' && this.refresh > 0 && !this._streamPaused) {
             this.__refreshTimer = setInterval(() => {
                 this.__cacheBuster = Date.now();
                 this.requestUpdate();
@@ -283,14 +306,47 @@ class FeezalElementBasicCamera extends FeezalElement {
         }
     }
 
-    disconnectedCallback() {
-        super.disconnectedCallback();
+    _stopRefreshTimer() {
         if (this.__refreshTimer) {
             clearInterval(this.__refreshTimer);
             this.__refreshTimer = null;
         }
-        this._webrtcClose();
-        document.removeEventListener('keydown', this.__popupKeydown);
+    }
+
+    // ── pause-when-hidden ──────────────────────────────────────────────────────
+    // Watch on-screen state (IntersectionObserver) plus tab visibility and tear
+    // the live feed down while off-screen. Viewer-only: the editor always shows
+    // the feed so the element stays designable on the canvas.
+
+    _startVisibilityWatch() {
+        if (this.__io || feezal.isEditor || !this.pauseWhenHidden) return;
+        if (typeof IntersectionObserver === 'undefined') return;
+        this.__intersecting = true;
+        this.__io = new IntersectionObserver(entries => {
+            this.__intersecting = entries[entries.length - 1].isIntersecting;
+            this._recomputeVisibility();
+        });
+        this.__io.observe(this);
+        document.addEventListener('visibilitychange', this.__onDocVisibility);
+        this._recomputeVisibility();
+    }
+
+    _stopVisibilityWatch() {
+        if (this.__io) {
+            this.__io.disconnect();
+            this.__io = null;
+        }
+        document.removeEventListener('visibilitychange', this.__onDocVisibility);
+    }
+
+    _recomputeVisibility() {
+        const paused = this.__intersecting === false || document.hidden;
+        if (paused === this._streamPaused) return;
+        this._streamPaused = paused;
+        // The reactive change re-renders (feed src goes empty → mjpeg/hls/image
+        // stop) and updated() (re)negotiates webrtc; only the timer is manual.
+        if (paused) this._stopRefreshTimer();
+        else this._startRefreshTimer();
     }
 
     /** Live topic/config edits rewire (glass-switch pattern). */
@@ -438,7 +494,7 @@ class FeezalElementBasicCamera extends FeezalElement {
         if (this.__webrtcRetry || !this.isConnected) return;
         this.__webrtcRetry = setTimeout(() => {
             this.__webrtcRetry = null;
-            if (this.isConnected && this.type === 'webrtc') this._webrtcConnect();
+            if (this.isConnected && this.type === 'webrtc' && !this._streamPaused) this._webrtcConnect();
         }, 5000);
     }
 
@@ -528,6 +584,10 @@ class FeezalElementBasicCamera extends FeezalElement {
     // ── Sources ───────────────────────────────────────────────────────────────
 
     _feedSrc() {
+        // pause-when-hidden: empty src drops the <img>/<video> so mjpeg / hls /
+        // image feeds close their connection while off-screen (webrtc is torn
+        // down separately in updated()).
+        if (this._streamPaused) return '';
         if (this.type === 'mqtt-image') return this._mqttImage;
         const base = this._activeSrc || this.src;
         if (!base) return '';
@@ -675,11 +735,21 @@ class FeezalElementBasicCamera extends FeezalElement {
             this._unsubscribe();
             this._wireSubscriptions();
         }
+        // pause-when-hidden toggled live (editor preview / dynamic override):
+        // (dis)connect the observer and, when turned off, resume immediately.
+        if (changed.has('pauseWhenHidden')) {
+            if (this.pauseWhenHidden) {
+                this._startVisibilityWatch();
+            } else {
+                this._stopVisibilityWatch();
+                if (this._streamPaused) { this._streamPaused = false; this._startRefreshTimer(); }
+            }
+        }
         // webrtc: (re)negotiate whenever the source or type changes — covers
         // the initial mount (_activeSrc is set in connectedCallback) and MQTT
-        // driven src switches.
-        if (changed.has('type') || changed.has('src') || changed.has('_activeSrc')) {
-            if (this.type === 'webrtc') {
+        // driven src switches — and tear down / restore on the pause toggle.
+        if (changed.has('type') || changed.has('src') || changed.has('_activeSrc') || changed.has('_streamPaused')) {
+            if (this.type === 'webrtc' && !this._streamPaused) {
                 this._webrtcConnect();
             } else {
                 this._webrtcClose();
