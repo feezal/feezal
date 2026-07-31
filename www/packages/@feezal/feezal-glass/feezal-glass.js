@@ -102,12 +102,20 @@ export const glassCardStyles = css`
     .glass-badge-tray > .flip-btn {
         position: static; inset: auto;
     }
+    /* Uniform 16px boxes so the indicators read as one set: the shared battery
+       badge is 20px by default (its short bar then floats inside an oversized
+       box and looks low next to the taller icons). */
+    .glass-badge-tray > .feezal-batt-badge,
+    .glass-badge-tray > .feezal-fault-badge,
+    .glass-badge-tray > .feezal-sabotage-badge {
+        width: 16px; height: 16px;
+    }
     .glass-unavail {
         color: var(--error-color);
         display: inline-flex; align-items: center; justify-content: center;
-        /* the "signal off" glyph fills its whole 24-viewBox, so it reads larger
-           than the battery/fault badges at the same box — size it down to match. */
-        width: 14px; height: 14px;
+        /* the "signal off" glyph fills its whole 24-viewBox edge to edge, so it
+           reads heavier than the other icons — size it smaller to match. */
+        width: 12px; height: 12px;
     }
     .glass-unavail svg { width: 100%; height: 100%; display: block; }
 `;
