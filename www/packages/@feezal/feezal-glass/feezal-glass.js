@@ -118,7 +118,7 @@ export const glassCardStyles = css`
            -2px nudge lifts it level with the details/tune icon, whose optical
            centre sits higher than this glyph's. */
         width: 10px; height: 10px;
-        transform: translateY(-2px);
+        transform: translateY(-1px);
     }
     .glass-unavail svg { width: 100%; height: 100%; display: block; }
 `;
