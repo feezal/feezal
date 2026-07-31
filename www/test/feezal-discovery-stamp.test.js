@@ -11,6 +11,8 @@ import {
     detectRoom,
     functionBucket,
     groupForApp,
+    assignRoom,
+    lexiconWordsForLabel,
     slugifyViewName,
     UNKNOWN_ROOM,
 } from '../src/feezal-discovery-stamp.js';
@@ -477,6 +479,37 @@ describe('groupForApp — U77 data-driven zone clustering', () => {
         expect(labels).toContain('Living room');   // lexicon wins over cluster
         expect(labels).toContain(UNKNOWN_ROOM);     // lone leftover, no zone
         expect(labels).not.toContain('Wuzzle');
+    });
+});
+
+describe('assignRoom + lexiconWordsForLabel — U78 edited room list', () => {
+    const ent = (name, cfg = {}) => ({component: 'switch', name, config: {state_topic: 'x/' + name, ...cfg}});
+
+    it('lexiconWordsForLabel returns synonyms for a lexicon label, [] for custom', () => {
+        expect(lexiconWordsForLabel('Kitchen')).toContain('kueche');
+        expect(lexiconWordsForLabel('Wuzzle')).toEqual([]);
+    });
+
+    it('matches a device to a room by the lexicon words carried on the room', () => {
+        const rooms = [{label: 'Kitchen', icon: 'kitchen', words: lexiconWordsForLabel('Kitchen')}];
+        expect(assignRoom(ent('kueche_licht'), rooms)?.label).toBe('Kitchen');
+        expect(assignRoom(ent('wohnzimmer_lampe'), rooms)).toBe(null);   // no Living room in the list
+    });
+
+    it('matches a custom room by its own (folded) label token', () => {
+        const rooms = [{label: 'Wuzzle', icon: 'label', words: []}];
+        expect(assignRoom(ent('wuzzle_a'), rooms)?.label).toBe('Wuzzle');
+        expect(assignRoom(ent('other_x'), rooms)).toBe(null);
+    });
+
+    it('a trusted area that names a room wins over a name match', () => {
+        const rooms = [{label: 'Studio', icon: 'meeting_room', words: []},
+            {label: 'Kitchen', icon: 'kitchen', words: lexiconWordsForLabel('Kitchen')}];
+        expect(assignRoom(ent('kueche_licht', {device: {suggested_area: 'Studio'}}), rooms)?.label).toBe('Studio');
+    });
+
+    it('an empty room list assigns nothing', () => {
+        expect(assignRoom(ent('kueche_licht'), [])).toBe(null);
     });
 });
 

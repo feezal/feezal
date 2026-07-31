@@ -767,6 +767,46 @@ export function groupForApp(entities, axis) {
         (a.label === UNKNOWN_ROOM) - (b.label === UNKNOWN_ROOM) || a.label.localeCompare(b.label, undefined, {sensitivity: 'base'}));
 }
 
+/** The folded lexicon words for a room LABEL (matched against the English label
+ * or the localized drawer label), or [] for a custom / area / cluster room. Lets
+ * an edited room list (U78) keep a lexicon room's synonyms after a rename. */
+export function lexiconWordsForLabel(label) {
+    for (const {room, words} of ROOM_LEXICON_FOLDED) {
+        if (room.label === label || roomLabel(room) === label) return [...words];
+    }
+    return [];
+}
+
+/**
+ * Assign one entity to a room from an explicit, user-edited room list (U78).
+ * Each room is `{label, icon, words?}`: a trusted `suggested_area` that names one
+ * of the rooms wins; otherwise the entity name is matched (U76 fold + prefix +
+ * bounded substring) against each room's `words` ∪ its own folded label, longest
+ * stem winning. Returns the matched room object, or null (→ Unassigned).
+ */
+export function assignRoom(entity, rooms) {
+    if (!rooms || !rooms.length) return null;
+    const cfg = entity?.config || {};
+    const area = entity?.__area || cfg.device?.suggested_area;
+    if (area) {
+        const fa = foldToken(area);
+        const hit = rooms.find(r => foldToken(r.label) === fa);
+        if (hit) return hit;
+    }
+    const tokens = tokenize([discoveryLabel(entity), entity?.name, cfg.state_topic].join(' ')).map(foldToken);
+    let best = null, bestLen = 0;
+    for (const r of rooms) {
+        const words = new Set([...(r.words || []), foldToken(r.label)].filter(Boolean));
+        for (const w of words) {
+            const hit = tokens.some(t =>
+                t === w || (w.length >= 5 && t.startsWith(w))
+                || (w.length >= 6 && !AMBIGUOUS_STEMS.has(w) && t.includes(w)));
+            if (hit && w.length > bestLen) { best = r; bestLen = w.length; }
+        }
+    }
+    return best;
+}
+
 // Deterministic uniform-cell packing: `count` cells of `cellW`×`cellH` laid
 // left-to-right, wrapping into rows that fit `viewWidth`. Returns view-local
 // {left, top} pixel positions. Devices-mode only (flat auto-grid).
