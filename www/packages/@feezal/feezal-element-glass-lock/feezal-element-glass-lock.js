@@ -1,8 +1,8 @@
 /* global feezal */
-import {feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
+import {feezalBaseStyles, html, css, feezalBatteryStyles} from '@feezal/feezal-element';
 import {LockController, lockAttributes, lockDiscoveryMap} from '@feezal/feezal-controller-lock';
 import {feezalMovementStyles} from '@feezal/feezal-element/feezal-movement.js';
-import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard} from '@feezal/feezal-glass';
+import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard, glassBadgeTray} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-lock (E143)
@@ -97,10 +97,6 @@ class FeezalElementGlassLock extends FeezalGlassCard {
             font-size: var(--feezal-glass-font-size-label, 12px); font-weight: 600; line-height: 1.2;
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-        }
-        .unavail {
-            position: absolute; top: 8px; right: 10px;
-            font-size: 12px; color: var(--error-color); opacity: 0.85;
         }
         /* Popup actions — one full-width button per lock command. */
         .lock-actions { display: flex; flex-direction: column; gap: 8px; align-self: stretch; }
@@ -223,13 +219,10 @@ class FeezalElementGlassLock extends FeezalGlassCard {
                 @pointerup="${this._onPointerUp}"
                 @pointerleave="${this._onPointerLeave}"
                 @keydown="${e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._toggle(); } }}">
-                ${this._interactive ? html`
-                    <button class="flip-btn" title="Actions"
+                ${glassBadgeTray({battery: this.lock.batteryLow, unavailable: !this._available, details: this._interactive ? html`<button class="flip-btn" title="Actions"
                         @pointerdown="${e => e.stopPropagation()}"
                         @pointerup="${e => e.stopPropagation()}"
-                        @click="${e => { e.stopPropagation(); this.openDetails(); }}">tune</button>` : ''}
-                ${!this._available ? html`<span class="unavail" title="Device unavailable">⚠</span>` : ''}
-                ${batteryLowBadge(this.lock.batteryLow)}
+                        @click="${e => { e.stopPropagation(); this.openDetails(); }}">tune</button>` : ''})}
                 <feezal-icon class="${this.lock.moving ? 'feezal-moving' : ''}"
                     name="${STATE_ICON[disp] || 'lock'}"></feezal-icon>
                 <span class="state">${this._stateText()}</span>

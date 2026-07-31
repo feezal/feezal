@@ -221,9 +221,9 @@ describe('E138 — sensor vocabulary slices', () => {
 // message arrives — the exact gap B67 fixed (attribute wired to a subscription
 // but never surfaced in the DOM). We drive real messages through the shared
 // bus and assert the badge shows up in the shadow root, per family convention:
-//   circle / glass / metro-wled → `.unavail`   eink → `.badge-tr` (!)
-//   metro (renderBadge)         → `.badge` (!)  shared helper → `.feezal-unavail-badge`
-//   battery (all)               → `.feezal-batt-badge`
+//   circle / metro-wled → `.unavail`   glass → `.glass-unavail` (B91 tray)
+//   eink → `.badge-tr` (!)   metro (renderBadge) → `.badge` (!)
+//   shared helper → `.feezal-unavail-badge`   battery (all) → `.feezal-batt-badge`
 const ALL_DEVICE_TAGS = [
     'feezal-element-circle-climate', 'feezal-element-circle-contact', 'feezal-element-circle-cover',
     'feezal-element-circle-fan', 'feezal-element-circle-light', 'feezal-element-circle-lock',
@@ -252,7 +252,7 @@ const declaresAttr = (tag, attr) => {
 const hasBatteryBadge = el => !!el.renderRoot.querySelector('.feezal-batt-badge');
 const hasUnavailBadge = el => {
     const r = el.renderRoot;
-    if (r.querySelector('.unavail, .badge-tr, .feezal-unavail-badge')) return true;
+    if (r.querySelector('.unavail, .glass-unavail, .badge-tr, .feezal-unavail-badge')) return true;
     const b = r.querySelector('.badge');
     return !!(b && b.textContent.trim() === '!');
 };

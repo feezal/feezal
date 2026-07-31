@@ -146,19 +146,19 @@ describe('glass-fan presets', () => {
 describe('glass-fan availability (N31 base class)', () => {
     it('shared badge appears on offline and clears on online — set after mount (live rewire)', async () => {
         const el = await mount('feezal-element-glass-fan', {});
-        expect(el.shadowRoot.querySelector('.feezal-unavail-badge')).toBeNull();
+        expect(el.shadowRoot.querySelector('.glass-badge-tray .glass-unavail')).toBeNull();
 
         el.setAttribute('subscribe-availability', 'tele/fan/LWT');
         await el.updateComplete;
         feezal.connection.deliver('tele/fan/LWT', 'offline');
         await el.updateComplete;
         expect(el._available).toBe(false);
-        expect(el.shadowRoot.querySelector('.feezal-unavail-badge')).not.toBeNull();
+        expect(el.shadowRoot.querySelector('.glass-badge-tray .glass-unavail')).not.toBeNull();
 
         feezal.connection.deliver('tele/fan/LWT', 'online');
         await el.updateComplete;
         expect(el._available).toBe(true);
-        expect(el.shadowRoot.querySelector('.feezal-unavail-badge')).toBeNull();
+        expect(el.shadowRoot.querySelector('.glass-badge-tray .glass-unavail')).toBeNull();
     });
 });
 

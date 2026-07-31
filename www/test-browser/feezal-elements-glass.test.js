@@ -209,7 +209,8 @@ describe('glass-motion', () => {
         feezal.connection.deliver('tele/LWT', 'offline');
         await el.updateComplete;
         expect(el.shadowRoot.querySelector('.card').classList.contains('active')).toBe(true);
-        expect(el.shadowRoot.querySelector('.unavail')).not.toBeNull();
+        // B91: the availability badge now lives in the shared top-right tray.
+        expect(el.shadowRoot.querySelector('.glass-badge-tray .glass-unavail')).not.toBeNull();
     });
 });
 

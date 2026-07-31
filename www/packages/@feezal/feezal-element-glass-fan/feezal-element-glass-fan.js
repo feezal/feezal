@@ -1,6 +1,6 @@
 /* global feezal */
-import {feezalBaseStyles, feezalAvailabilityStyles, availabilityBadge, html, css} from '@feezal/feezal-element';
-import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard} from '@feezal/feezal-glass';
+import {feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard, glassBadgeTray} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-fan (E100)
@@ -122,7 +122,7 @@ class FeezalElementGlassFan extends FeezalGlassCard {
         _preset:  {state: true},
     };
 
-    static styles = [feezalBaseStyles, feezalAvailabilityStyles, glassCardStyles, glassPopupStyles, css`
+    static styles = [feezalBaseStyles, glassCardStyles, glassPopupStyles, css`
         .card {
             cursor: pointer;
             gap: 2px;
@@ -441,12 +441,10 @@ class FeezalElementGlassFan extends FeezalGlassCard {
                 @pointerup="${this._onPointerUp}"
                 @pointerleave="${this._onPointerLeave}"
                 @keydown="${e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.toggle(); } }}">
-                ${hasDetail ? html`
-                    <button class="flip-btn" title="Details"
+                ${glassBadgeTray({unavailable: !this._available, details: hasDetail ? html`<button class="flip-btn" title="Details"
                         @pointerdown="${e => e.stopPropagation()}"
                         @pointerup="${e => e.stopPropagation()}"
-                        @click="${e => { e.stopPropagation(); this.openDetails(); }}">tune</button>` : ''}
-                ${availabilityBadge(this._available)}
+                        @click="${e => { e.stopPropagation(); this.openDetails(); }}">tune</button>` : ''})}
                 <feezal-icon name="${this.icon || 'mode_fan'}" style="--feezal-glass-fan-dur: ${dur}"></feezal-icon>
                 <span class="state">${this._stateText()}</span>
                 <span class="label">${this.label || (feezal.isEditor ? 'Fan' : '')}</span>

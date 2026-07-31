@@ -1,5 +1,5 @@
 {
-  "name": "@feezal/feezal-element-glass-lock",
-  "version": "0.2.3",
-  "main": "feezal-element-glass-lock.js"
+    "name": "@feezal/feezal-element-glass-lock",
+    "version": "0.2.4",
+    "main": "feezal-element-glass-lock.js"
 }

@@ -1,6 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
-import {applySizePreset, glassCardStyles} from '@feezal/feezal-glass';
+import {applySizePreset, glassCardStyles, glassBadgeTray} from '@feezal/feezal-glass';
 import {GaugeMixin, gaugeAttributes, gaugeDiscoveryMap} from '@feezal/feezal-gauge';
 import {readonlyClimateAxes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
@@ -81,12 +81,6 @@ class FeezalElementGlassGauge extends GaugeMixin(FeezalElement) {
                already position:absolute -- do NOT override to position:relative
                here (see glass-value). */
         }
-        .unavail {
-            position: absolute; top: 6px; right: 8px;
-            font-size: 14px; line-height: 1;
-            color: var(--error-color);
-            opacity: 0.85; pointer-events: none; z-index: 2;
-        }
         .gauge-wrap {
             flex: 1 1 auto; min-height: 0; aspect-ratio: 1;
             display: flex; align-items: center; justify-content: center;
@@ -119,7 +113,7 @@ class FeezalElementGlassGauge extends GaugeMixin(FeezalElement) {
     render() {
         return html`
             <div class="card">
-                ${this.subscribeAvailability && !this._available ? html`<span class="unavail" title="Device unavailable">⚠</span>` : ''}
+                ${glassBadgeTray({unavailable: this.subscribeAvailability && !this._available})}
                 <div class="gauge-wrap">${this.renderDial()}</div>
                 ${this.label || feezal.isEditor ? html`<span class="label">${this.label || 'Gauge'}</span>` : ''}
             </div>`;

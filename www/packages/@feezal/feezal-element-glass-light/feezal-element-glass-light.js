@@ -6,7 +6,7 @@ import {feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {LightController, lightAttributes, lightDiscoveryMap, pctToRaw, hsvToRgb, rgbToHsv} from '@feezal/feezal-controller-light';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
-import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard} from '@feezal/feezal-glass';
+import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard, glassBadgeTray} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-light (E58)
@@ -160,13 +160,9 @@ class FeezalElementGlassLight extends FeezalGlassCard {
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
-        .unavail {
-            position: absolute; bottom: 8px; right: 10px;
-            font-size: 12px; color: var(--error-color); opacity: 0.85;
-        }
         /* E105: much wider than tall → horizontal layout (Apple-Home wide
-           tile): icon left, state/label stacked right of it. flip-btn and
-           unavail stay absolutely positioned in their corners. */
+           tile): icon left, state/label stacked right of it. The badge tray
+           (B91) stays pinned in its top-right corner. */
         @container (min-aspect-ratio: 2/1) {
             .card {
                 display: grid;
@@ -530,12 +526,10 @@ class FeezalElementGlassLight extends FeezalGlassCard {
                 @pointerup="${this._onPointerUp}"
                 @pointerleave="${this._onPointerLeave}"
                 @keydown="${e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!feezal.isEditor) this.light.toggle(); } }}">
-                ${hasDetail ? html`
-                    <button class="flip-btn" title="Details"
+                ${glassBadgeTray({unavailable: !this._available, details: hasDetail ? html`<button class="flip-btn" title="Details"
                         @pointerdown="${e => e.stopPropagation()}"
                         @pointerup="${e => e.stopPropagation()}"
-                        @click="${e => { e.stopPropagation(); this.openDetails(); }}">tune</button>` : ''}
-                ${!this._available ? html`<span class="unavail" title="Device unavailable">⚠</span>` : ''}
+                        @click="${e => { e.stopPropagation(); this.openDetails(); }}">tune</button>` : ''})}
                 <feezal-icon name="${this.icon || 'lightbulb'}"></feezal-icon>
                 <span class="state">${this._stateText()}</span>
                 <span class="label">${this.label || (feezal.isEditor ? 'Light' : '')}</span>

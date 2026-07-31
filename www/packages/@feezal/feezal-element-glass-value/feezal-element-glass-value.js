@@ -1,6 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
-import {applySizePreset, glassCardStyles} from '@feezal/feezal-glass';
+import {applySizePreset, glassCardStyles, glassBadgeTray} from '@feezal/feezal-glass';
 import {readonlyClimateAxes, NUMERIC_SENSOR_ICONS} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 import {formatNumber} from '@feezal/feezal-element/feezal-locale.js';
 
@@ -93,12 +93,6 @@ class FeezalElementGlassValue extends FeezalElement {
                here, or inset stops filling the host and the card collapses to
                content size (no longer tracks the element's width/height). */
         }
-        .unavail {
-            position: absolute; top: 6px; right: 8px;
-            font-size: 14px; line-height: 1;
-            color: var(--error-color);
-            opacity: 0.85; pointer-events: none; z-index: 2;
-        }
         feezal-icon { font-size: var(--feezal-glass-icon-size, 28px); line-height: 1; color: var(--feezal-glass-accent, #ff9f0a); }
         .value {
             font-size: var(--feezal-glass-font-size-value, 26px); font-weight: 700; line-height: 1.05;
@@ -185,7 +179,7 @@ class FeezalElementGlassValue extends FeezalElement {
     render() {
         return html`
             <div class="card">
-                ${this.subscribeAvailability && !this._available ? html`<span class="unavail" title="Device unavailable">⚠</span>` : ''}
+                ${glassBadgeTray({unavailable: this.subscribeAvailability && !this._available})}
                 <feezal-icon name="${this.icon || 'sensors'}"></feezal-icon>
                 <span class="value">${this.displayValue}${this.unit ? html`<span class="unit">${this.unit}</span>` : ''}</span>
                 <span class="label">${this.label || (feezal.isEditor ? 'Value' : '')}</span>

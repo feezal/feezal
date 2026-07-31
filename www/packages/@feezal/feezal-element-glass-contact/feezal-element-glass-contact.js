@@ -1,8 +1,8 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
-import {sabotageBadge, faultBadge, feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
+import {FeezalElement, feezalBaseStyles, html, css, feezalBatteryStyles} from '@feezal/feezal-element';
+import {feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
 import {ContactController, contactAttributes, contactDiscoveryMap} from '@feezal/feezal-controller-contact';
-import {applySizePreset, glassCardStyles} from '@feezal/feezal-glass';
+import {applySizePreset, glassCardStyles, glassBadgeTray} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-contact (E58)
@@ -103,10 +103,6 @@ class FeezalElementGlassContact extends FeezalElement {
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
-        .unavail {
-            position: absolute; top: 8px; right: 10px;
-            font-size: 12px; color: var(--error-color); opacity: 0.85;
-        }
         /* E105: much wider than tall → horizontal layout (Apple-Home wide
            tile): icon left, state/label stacked right of it. */
         @container (min-aspect-ratio: 2/1) {
@@ -164,9 +160,7 @@ class FeezalElementGlassContact extends FeezalElement {
     render() {
         return html`
             <div class="card ${this.contact.state}">
-                ${!this._available ? html`<span class="unavail" title="Device unavailable">⚠</span>` : ''}
-                ${batteryLowBadge(this.contact.batteryLow)}
-                ${sabotageBadge(this.contact.sabotage)}${faultBadge(this.contact.error)}
+                ${glassBadgeTray({battery: this.contact.batteryLow, unavailable: !this._available, fault: this.contact.error, sabotage: this.contact.sabotage})}
                 <feezal-icon name="${this.icon || TYPE_ICONS[this.type] || TYPE_ICONS.window}"></feezal-icon>
                 <span class="state">${this._stateText()}</span>
                 <span class="label">${this.label || (feezal.isEditor ? 'Contact' : '')}</span>

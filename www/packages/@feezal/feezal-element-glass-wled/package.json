@@ -1,7 +1,13 @@
 {
-  "name": "@feezal/feezal-element-glass-wled",
-  "version": "3.0.16",
-  "main": "feezal-element-glass-wled.js",
-  "license": "MIT",
-  "keywords": ["feezal", "feezal-element", "mqtt", "dashboard", "wled"]
+    "name": "@feezal/feezal-element-glass-wled",
+    "version": "3.0.17",
+    "main": "feezal-element-glass-wled.js",
+    "license": "MIT",
+    "keywords": [
+        "feezal",
+        "feezal-element",
+        "mqtt",
+        "dashboard",
+        "wled"
+    ]
 }

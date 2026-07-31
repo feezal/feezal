@@ -7,7 +7,7 @@ import {CoverController, coverAttributes, coverDiscoveryMap} from '@feezal/feeza
 import {feezalMovementStyles, movementBadge} from '@feezal/feezal-element/feezal-movement.js';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
-import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard} from '@feezal/feezal-glass';
+import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard, glassBadgeTray} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-cover (E58)
@@ -132,10 +132,6 @@ class FeezalElementGlassCover extends FeezalGlassCard {
             font-size: var(--feezal-glass-font-size-label, 12px); font-weight: 600; line-height: 1.2; position: relative;
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-        }
-        .unavail {
-            position: absolute; bottom: 8px; right: 10px;
-            font-size: 12px; color: var(--error-color); opacity: 0.85; z-index: 1;
         }
         /* E105: much wider than tall → horizontal layout (Apple-Home wide
            tile): icon left, state/label stacked right of it. flip-btn and
@@ -343,10 +339,9 @@ class FeezalElementGlassCover extends FeezalGlassCard {
             <div class="card" role="button" tabindex="0"
                 @click="${this._onCardClick}"
                 @keydown="${e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._onCardClick(); } }}">
-                ${!this._available ? html`<span class="unavail" title="Device unavailable">⚠</span>` : ''}
                 ${movementBadge(this.cover.direction, this.cover.direction === 'up' ? 'Opening' : 'Closing')}
-                <button class="flip-btn" title="Details"
-                    @click="${e => { e.stopPropagation(); this.openDetails(); }}">tune</button>
+                ${glassBadgeTray({unavailable: !this._available, details: html`<button class="flip-btn" title="Details"
+                    @click="${e => { e.stopPropagation(); this.openDetails(); }}">tune</button>`})}
                 <feezal-icon name="${this.icon || 'blinds'}"></feezal-icon>
                 <span class="state">${this._stateText()}</span>
                 <span class="label">${this.label || (feezal.isEditor ? 'Cover' : '')}</span>

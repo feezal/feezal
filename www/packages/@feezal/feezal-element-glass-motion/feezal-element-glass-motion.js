@@ -1,11 +1,11 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
-import {sabotageBadge, faultBadge, feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
+import {FeezalElement, feezalBaseStyles, html, css, feezalBatteryStyles} from '@feezal/feezal-element';
+import {feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
 // E137: the boolean-sensor behavior lives in the shared controller — this
 // element is a VIEW (glass chrome) over SensorController state.
 // E138: narrowed to the MOTION slice (motion / presence / radar / zone).
 import {SensorController, sensorAttributesFor, sensorDiscoveryMapFor} from '@feezal/feezal-controller-sensor';
-import {applySizePreset, glassCardStyles} from '@feezal/feezal-glass';
+import {applySizePreset, glassCardStyles, glassBadgeTray} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-motion (E58, E138)
@@ -106,10 +106,6 @@ class FeezalElementGlassMotion extends FeezalElement {
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
-        .unavail {
-            position: absolute; top: 8px; right: 10px;
-            font-size: 12px; color: var(--error-color); opacity: 0.85;
-        }
         /* E105: much wider than tall → horizontal layout (Apple-Home wide
            tile): icon left, state/label stacked right of it. */
         @container (min-aspect-ratio: 2/1) {
@@ -167,9 +163,7 @@ class FeezalElementGlassMotion extends FeezalElement {
         const activeDefault = `var(${this.sensor.activeColorVar()}, #ff9f0a)`;
         return html`
             <div class="card ${this.sensor.active ? 'active' : ''}" style="--feezal-glass-active-default: ${activeDefault}">
-                ${!this._available ? html`<span class="unavail" title="Device unavailable">⚠</span>` : ''}
-                ${batteryLowBadge(this.sensor.batteryLow)}
-                ${sabotageBadge(this.sensor.sabotage)}${faultBadge(this.sensor.error)}
+                ${glassBadgeTray({battery: this.sensor.batteryLow, unavailable: !this._available, fault: this.sensor.error, sabotage: this.sensor.sabotage})}
                 <feezal-icon name="${this.icon || this.sensor.icon()}"></feezal-icon>
                 <span class="state">${this.sensor.text()}</span>
                 <span class="label">${this.label || (feezal.isEditor ? 'Motion' : '')}</span>

@@ -1,7 +1,7 @@
 /* global feezal */
 import {feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {AiedgeController, aiedgeAttributes, formatMeterValue} from '@feezal/feezal-controller-aiedge';
-import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard} from '@feezal/feezal-glass';
+import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard, glassBadgeTray} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-meter (E147)
@@ -86,7 +86,6 @@ class FeezalElementGlassMeter extends FeezalGlassCard {
             font-size: 10px; font-weight: 700; color: var(--error-color);
             max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
-        .unavail { position: absolute; top: 6px; right: 8px; font-size: 14px; color: var(--error-color); opacity: 0.85; }
 
         /* Popup: the secondary readouts as a key/value list. */
         .readouts { display: flex; flex-direction: column; gap: 8px; align-self: stretch; font-size: 13px; }
@@ -171,10 +170,8 @@ class FeezalElementGlassMeter extends FeezalGlassCard {
         const m = this.meter;
         return html`
             <div class="card">
-                ${this.subscribeAvailability && !this._available ? html`<span class="unavail" title="Device unavailable">⚠</span>` : ''}
-                ${this._hasSecondary ? html`
-                    <button class="flip-btn" title="Details"
-                        @click="${e => { e.stopPropagation(); this.openDetails(); }}">tune</button>` : ''}
+                ${glassBadgeTray({unavailable: this.subscribeAvailability && !this._available, details: this._hasSecondary ? html`<button class="flip-btn" title="Details"
+                        @click="${e => { e.stopPropagation(); this.openDetails(); }}">tune</button>` : ''})}
                 <feezal-icon name="${this.icon || 'speed'}"></feezal-icon>
                 <span class="value">${this._displayValue}${this.unit ? html`<span class="unit">${this.unit}</span>` : ''}</span>
                 ${m.faulted ? html`<span class="err" title="${m.error}">⚠ ${m.error}</span>` : ''}

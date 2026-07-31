@@ -1,5 +1,6 @@
 /* global feezal */
-import {FeezalElement, css} from '@feezal/feezal-element';
+import {FeezalElement, css, html, batteryLowBadge} from '@feezal/feezal-element';
+import {faultBadge, sabotageBadge} from '@feezal/feezal-element/feezal-hm-fault.js';
 
 /**
  * @feezal/feezal-glass (E106)
@@ -77,7 +78,54 @@ export const glassCardStyles = css`
         -webkit-backdrop-filter: none; backdrop-filter: none;
         background: var(--feezal-glass-solid, rgba(245,245,247,0.94));
     }
+
+    /* B91 — one shared upper-right tray for EVERY glass indicator, always in
+       the order battery / availability / warnings (fault, then sabotage) /
+       details. Replaces the per-card corners that had drifted (battery
+       bottom-right or bottom-left, fault bottom-left, .unavail top- OR
+       bottom-right, the flip button top-right — four corners, clashes). The
+       tray owns the corner; nothing inside picks its own. Rendered by
+       glassBadgeTray(); it sits over the card's own content, so keep top-right
+       card content clear (the value cards' unit stays lower). */
+    .glass-badge-tray {
+        position: absolute; top: 6px; right: 8px; z-index: 4;
+        display: flex; align-items: center; gap: 4px;
+        pointer-events: none;
+    }
+    .glass-badge-tray > * { pointer-events: auto; }
+    /* the badges carry their own absolute-corner positioning for non-glass
+       families; inside the tray they are static flex children in order. */
+    .glass-badge-tray > .feezal-batt-badge,
+    .glass-badge-tray > .feezal-fault-badge,
+    .glass-badge-tray > .feezal-sabotage-badge,
+    .glass-badge-tray > .glass-unavail,
+    .glass-badge-tray > .flip-btn {
+        position: static; inset: auto;
+    }
+    .glass-unavail {
+        color: var(--error-color); line-height: 1;
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 18px; height: 18px; font-size: 14px;
+    }
 `;
+
+/**
+ * B91 — the shared indicator tray every glass card renders into its `.card`.
+ * Order is fixed: battery, availability, warnings (fault then sabotage),
+ * details button. Absent indicators render nothing and leave no gap; the order
+ * never changes with which are shown. `details` is the card's own flip button
+ * template (or '' for the simple cards) — it stays per-card because its click
+ * handler and visibility differ, but it always lands last, at the corner.
+ */
+export function glassBadgeTray({battery = false, unavailable = false, fault = '', sabotage = false, details = ''} = {}) {
+    return html`<div class="glass-badge-tray">
+        ${batteryLowBadge(battery)}
+        ${unavailable ? html`<span class="glass-unavail" title="Device unavailable">⚠</span>` : ''}
+        ${faultBadge(fault)}
+        ${sabotageBadge(sabotage)}
+        ${details}
+    </div>`;
+}
 
 /**
  * Shared details-POPOVER chrome for the 5 "popup" glass cards (light,
@@ -127,8 +175,9 @@ export const glassPopupStyles = css`
         font-size: 13px; font-weight: 700; align-self: stretch; text-align: center;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
+    /* B91: the flip button lives in the shared .glass-badge-tray (top-right),
+       so it is a static tray child, not its own absolutely-positioned corner. */
     .flip-btn {
-        position: absolute; top: 6px; right: 8px;
         border: none; background: none; cursor: pointer; padding: 2px;
         color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
         font-family: 'Material Icons'; font-size: var(--feezal-glass-font-size-unit, 12px); line-height: 1;

@@ -1,11 +1,11 @@
 /* global feezal */
-import {feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
+import {feezalBaseStyles, html, css, feezalBatteryStyles} from '@feezal/feezal-element';
 import {formatNumber} from '@feezal/feezal-element/feezal-locale.js';
-import {faultBadge, feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
+import {feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
 // E137: the thermostat behavior lives in the shared controller — this element
 // is a VIEW (glass chrome: frost card + Apple-Home details popup).
 import {ClimateController, climateAttributes, climateDiscoveryMap} from '@feezal/feezal-controller-climate';
-import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard} from '@feezal/feezal-glass';
+import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard, glassBadgeTray} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-climate (E58, renamed from glass-thermostat)
@@ -178,19 +178,11 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
-        /* B66: reserve a bottom strip so the badges sit BELOW the label instead
-           of overlapping it (the label is flow content in the same bottom band). */
-        .card { padding-bottom: 15px; }
-        .unavail {
-            position: absolute; bottom: 2px; right: 10px;
-            font-size: 12px; color: var(--error-color); opacity: 0.85;
-        }
-        .feezal-batt-badge { right: auto; left: 10px; bottom: 2px; }
         /* E105: much wider than tall → horizontal layout (Apple-Home wide
            tile): icon left, actual/state/label stacked right of it.
            display:contents dissolves .head so the icon and the actual
-           temperature become grid items; flip-btn and unavail stay
-           absolutely positioned in their corners. */
+           temperature become grid items; the badge tray (B91) stays pinned
+           in its top-right corner. */
         @container (min-aspect-ratio: 2/1) {
             .card {
                 display: grid;
@@ -425,11 +417,8 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
             <div class="card" role="button" tabindex="0"
                 @click="${this._onCardClick}"
                 @keydown="${e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._onCardClick(); } }}">
-                <button class="flip-btn" title="Details"
-                    @click="${e => { e.stopPropagation(); this.openDetails(); }}">tune</button>
-                ${!this._available ? html`<span class="unavail" title="Device unavailable">⚠</span>` : ''}
-                ${batteryLowBadge(this.climate.batteryLow)}
-                ${faultBadge(this.climate.error)}
+                ${glassBadgeTray({battery: this.climate.batteryLow, unavailable: !this._available, fault: this.climate.error, details: html`<button class="flip-btn" title="Details"
+                    @click="${e => { e.stopPropagation(); this.openDetails(); }}">tune</button>`})}
                 <div class="head">
                     <feezal-icon name="${this.icon || 'thermostat'}"></feezal-icon>
                     <span class="actual">${this._fmt(actual)}</span>

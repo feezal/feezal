@@ -7,7 +7,6 @@ Work in progress — priorities and scope are not final.
 ## Table of Contents
 
 **Bugs**
-- [B91 — Glass cards: badge/details-button placement is inconsistent across the family](#b91--glass-cards-badgedetails-button-placement-is-inconsistent-across-the-family)
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
 
@@ -84,30 +83,6 @@ Work in progress — priorities and scope are not final.
 ---
 
 ## Bugs
-
-### B91 — Glass cards: badge/details-button placement is inconsistent across the family
-
-**Reported (07/2026, with screenshot).** Across the glass cards the low-battery, availability and warning badges — and the details (flip) button — land in **different corners on different cards**, and sometimes collide. In the reporter's row: a contact shows a warning top-right + battery bottom-right; a light shows the details button top-right + a warning bottom-right; a climate shows the details button top-right + battery bottom-left. Every card looks like it decided independently, because it did.
-
-**Confirmed cause — three positioning systems, no shared corner:**
-
-| indicator | where it is styled | position |
-|---|---|---|
-| **battery** (`.feezal-batt-badge`, `feezalBatteryStyles` in `feezal-element.js`) | shared, but per-card overridable via `--feezal-battery-*` | default **bottom-right**; `glass-climate` overrides to **bottom-left** |
-| **fault + sabotage** (`.feezal-fault-badge` / `.feezal-sabotage-badge`, `feezalFaultStyles` in `feezal-hm-fault.js`) | shared, `--feezal-fault-*` | default **bottom-left** |
-| **availability** (`.unavail`) | **redeclared in every glass element** | **top-right** in `glass-contact`/`-value`/`-motion`/`-sensor`, **bottom-right** in `glass-light`/`-climate` |
-| **details button** (`.flip-btn`, `glassPopupStyles`) | shared (5 popup cards) | **top-right** (`6px/8px`) |
-
-So four indicators spread over three/four corners, `.unavail` re-authored per element (and drifting), the climate battery override colliding with the bottom-left fault badge, and the top-right `.unavail` colliding with the top-right details button on cards that have both.
-
-**Fix — one shared top-right indicator tray for all 10 glass cards.** Define a single positioned container in `@feezal/feezal-glass` (`glassCardStyles`, so every card gets it for free) anchored to the **upper-right corner**, holding, **always in this left-to-right order: battery · availability · warnings (fault, then sabotage) · details button**. Each item renders only when active/present; absent ones collapse without leaving a gap, and the order never changes with which are shown. Then:
-- delete the per-element `.unavail` blocks and the `glass-climate` battery override; the badges/button move into the tray;
-- the tray owns the corner, so battery/availability/fault/sabotage/details never pick their own corner again — no `--feezal-battery-*`/`--feezal-fault-*` per-card nudging;
-- keep the tray clear of the card's own top-right content (the value cards' unit, the climate readout) — a small inset / the tray floating above content, decided once centrally.
-
-**Acceptance:** on every glass card, battery / availability / warning / details sit in the top-right in that fixed order; a card with several shows them in a stable row (no overlap, no reflow of the others when one appears); the reporter's contact / light / climate row is uniform. A browser test asserts the tray order and that each indicator renders into it (not a per-card corner). The other families (circle/metro/eink/panel/tui) are **out of scope** — this is the glass inconsistency only, though the same tray idea could be lifted later.
-
-**Relates:** `@feezal/feezal-glass` (`glassCardStyles`/`glassPopupStyles` — where the shared tray + `.flip-btn` live), `feezalBatteryStyles` (`feezal-element.js`) + `feezalFaultStyles` (`feezal-hm-fault.js`) — the shared badge styles whose per-card position vars this removes, **E124**/**E132** (battery badge), **E135** (fault/sabotage badges), **B66**/**B67** ✅ (earlier glass badge-overlap/parity fixes — same surface), the 10 `feezal-element-glass-*` cards.
 
 ### B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)
 

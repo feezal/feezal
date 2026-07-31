@@ -1,6 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
-import {applySizePreset, payloadMatch, glassCardStyles} from '@feezal/feezal-glass';
+import {applySizePreset, payloadMatch, glassCardStyles, glassBadgeTray} from '@feezal/feezal-glass';
 
 import {switchAcceptsLight} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 /**
@@ -110,10 +110,6 @@ class FeezalElementGlassSwitch extends FeezalElement {
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
-        .unavail {
-            position: absolute; top: 8px; right: 10px;
-            font-size: 12px; color: var(--error-color); opacity: 0.85;
-        }
         /* E105: much wider than tall → horizontal layout (Apple-Home wide
            tile): icon left, state/label stacked right of it. */
         @container (min-aspect-ratio: 2/1) {
@@ -198,7 +194,7 @@ class FeezalElementGlassSwitch extends FeezalElement {
             <div class="card ${this._on ? 'on' : ''}" role="button" tabindex="0"
                 @click="${this.toggle}"
                 @keydown="${e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.toggle(); } }}">
-                ${!this._available ? html`<span class="unavail" title="Device unavailable">⚠</span>` : ''}
+                ${glassBadgeTray({unavailable: !this._available})}
                 <feezal-icon name="${icon}"></feezal-icon>
                 <span class="state">${this._on ? (this.textOn || 'On') : (this.textOff || 'Off')}</span>
                 <span class="label">${this.label || (feezal.isEditor ? 'Switch' : '')}</span>

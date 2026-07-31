@@ -1,7 +1,7 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {EvccLoadpointController, evccLoadpointAttributes, evccLoadpointDiscoveryMap, EVCC_MODES} from '@feezal/feezal-controller-evcc-loadpoint';
-import {applySizePreset, glassCardStyles} from '@feezal/feezal-glass';
+import {applySizePreset, glassCardStyles, glassBadgeTray} from '@feezal/feezal-glass';
 
 const fmtPower = w => {
     if (w == null) return '–';
@@ -96,7 +96,6 @@ class FeezalElementGlassLoadpoint extends FeezalElement {
             background: transparent; color: inherit; min-width: 0;
         }
         .modes button.active { background: var(--feezal-glass-accent, #30d158); border-color: var(--feezal-glass-accent, #30d158); color: #fff; }
-        .unavail { position: absolute; top: 6px; right: 8px; font-size: 14px; color: var(--error-color); opacity: 0.85; }
     `];
 
     constructor() {
@@ -144,7 +143,7 @@ class FeezalElementGlassLoadpoint extends FeezalElement {
         const heating = c.heating;
         return html`
             <div class="card ${c.charging ? 'charging' : ''}">
-                ${this.subscribeAvailability && !this._available ? html`<span class="unavail" title="Device unavailable">⚠</span>` : ''}
+                ${glassBadgeTray({unavailable: this.subscribeAvailability && !this._available})}
                 <div class="head">
                     <feezal-icon name="${heating ? 'mode_heat' : 'ev_station'}"></feezal-icon>
                     <span class="title">${this.label || c.vehicleTitle || (feezal.isEditor ? 'Loadpoint' : '')}</span>
