@@ -6,6 +6,7 @@
  * feezal.elements manifest).
  */
 import './feezal-element-fancy-light.js';
+import './feezal-element-fancy-switch.js';
 import './feezal-element-fancy-contact.js';
 import './feezal-element-fancy-cover.js';
 import './feezal-element-fancy-climate.js';

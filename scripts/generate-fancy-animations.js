@@ -269,8 +269,192 @@ function lock() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Reference-grade motion vocabulary (E162)
+//
+// Derived from a user-supplied LottieFiles success animation ("exactly what i
+// mean when i say fancy") — four techniques, no artwork: trim-path draw-ons,
+// a staggered particle burst with CURVED flight paths, aggressive
+// launch-and-drift easing, and a real multi-colour palette. The parameters
+// below are scaled from that reference (launch ≈ 37 % of comp, ~40-frame
+// flights, 1-frame pop-in, 10-frame fade-out, ease x:0 y:1) rather than
+// invented — copying the numbers of good motion beats inventing them blind.
+// Technique/parameters only; the shapes and code are our own.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Deterministic PRNG (mulberry32) — re-running the generator is a stable diff. */
+function rng(seed) {
+    let a = seed >>> 0;
+    return () => {
+        a |= 0; a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+// The reference's launch-and-drift ease: violent start, long deceleration.
+const POP = {i: {x: [0], y: [1]}, o: {x: [0.167], y: [0.167]}};
+
+/** Keyframes with per-frame options ({e: easeOverride, to, ti} — spatial tangents). */
+const kfx = frames => ({a: 1, k: frames.map(([t, s, opts], i, arr) => ({
+    t,
+    s: Array.isArray(s) ? s : [s],
+    ...(i < arr.length - 1 ? (opts && opts.e ? opts.e : {i: {x: [0.42], y: [1]}, o: {x: [0.58], y: [0]}}) : {}),
+    ...(opts && opts.to ? {to: opts.to, ti: opts.ti} : {}),
+}))});
+
+const stroke = (slotOrRgba, w, o = 100) => ({ty: 'st',
+    c: st(Array.isArray(slotOrRgba) ? slotOrRgba : (slotOrRgba === 'active' ? ACTIVE : BASE)),
+    o: typeof o === 'object' ? o : st(o), w: st(w), lc: 2, lj: 2, bm: 0, nm: 'stroke'});
+
+/** Trim-path animator — the draw-on technique (ring wipes, tick draw). */
+const trim = (eFrames, sFrames = null) => ({ty: 'tm',
+    s: sFrames ? kfx(sFrames) : st(0),
+    e: kfx(eFrames), o: st(0), m: 1, nm: 'trim'});
+
+// The reference confetti palette (rgba 0..1) — deliberately NOT theme slots:
+// flourish particles keep their own colours (E162: looking great beats
+// auto-retinting); recolorAnimation passes non-slot fills through untouched.
+const FX = [
+    [0, 0.631, 1, 1],        // cyan
+    [0, 1, 0.784, 1],        // teal
+    [0.961, 0.706, 0.004, 1],// amber
+    [0.024, 0.737, 0.361, 1],// green
+    [1, 0.294, 0.239, 1],    // red
+    [1, 0, 0.365, 1],        // pink
+];
+
+/** A 4-spike sparkle star (the reference's plus-star, as an 8-vertex polygon). */
+function sparklePath(r) {
+    const points = [];
+    for (let i = 0; i < 8; i++) {
+        const a = (i * Math.PI) / 4;
+        const rad = i % 2 === 0 ? r : r * 0.38;
+        points.push([+(Math.cos(a) * rad).toFixed(2), +(Math.sin(a) * rad).toFixed(2)]);
+    }
+    return poly(points);
+}
+
+/**
+ * A confetti burst, reference-parameterised: `count` particles from `origin`,
+ * launched at frame `t0`, flying `dur` frames along CURVED paths (spatial
+ * bezier tangents), spinning, popping in over 1 frame and fading over the
+ * last 10. Mixed shapes (spinning rects, dots, sparkle stars, arcs) in the
+ * FX palette. Deterministic via `seed`.
+ */
+function confettiBurst({origin: [ox, oy], count, t0, dur = 40, dist = 34, seed, scale = 1}) {
+    const rand = rng(seed);
+    const groups = [];
+    for (let i = 0; i < count; i++) {
+        const angle = (i / count) * Math.PI * 2 + rand() * 0.6;
+        const d = dist * (0.7 + rand() * 0.6) * scale;
+        const tx = ox + Math.cos(angle) * d;
+        const ty = oy + Math.sin(angle) * d;
+        // curved flight: the out-tangent leans ~30° off the straight line
+        const bend = (rand() - 0.5) * 0.9;
+        const to = [+(Math.cos(angle + bend) * d * 0.55).toFixed(2), +(Math.sin(angle + bend) * d * 0.55).toFixed(2)];
+        const ti = [+(-Math.cos(angle) * d * 0.3).toFixed(2), +(-Math.sin(angle) * d * 0.3).toFixed(2)];
+        const color = FX[i % FX.length];
+        const size = (2.2 + rand() * 2.6) * scale;
+        const kind = i % 4;
+        let items;
+        if (kind === 0) {          // spinning square
+            items = [rect(0, 0, size * 1.6, size * 1.6, 0.5), {ty: 'fl', c: st(color), o: st(100), r: 1, nm: 'fill-fx'}];
+        } else if (kind === 1) {   // dot
+            items = [ellipse(0, 0, size * 1.5, size * 1.5), {ty: 'fl', c: st(color), o: st(100), r: 1, nm: 'fill-fx'}];
+        } else if (kind === 2) {   // sparkle star
+            items = [sparklePath(size * 1.4), {ty: 'fl', c: st(color), o: st(100), r: 1, nm: 'fill-fx'}];
+        } else {                   // open arc (stroked u)
+            items = [{ty: 'sh', ks: st({c: false,
+                v: [[size, -size / 2], [0, size / 2], [-size, -size / 2]],
+                i: [[0, -size / 2], [size / 2, 0], [0, 0]],
+                o: [[0, 0], [-size / 2, 0], [0, -size / 2]]}), nm: 'arc'},
+            stroke(color, Math.max(1, size * 0.45))];
+        }
+        const t1 = t0 + Math.round(dur * (0.92 + rand() * 0.16));
+        const spin = Math.round((rand() - 0.5) * 900);
+        groups.push(group(`fx-${i}`, items, {ty: 'tr',
+            p: kfx([[t0, [ox, oy], {e: POP, to, ti}], [t1, [tx, ty]]]),
+            a: st([0, 0]), s: st([100, 100]),
+            r: kfx([[t0, 0, {e: POP}], [t1, spin]]),
+            o: kfx([[t0 - 1, 0], [t0, 100], [t1 - 10, 100, {}], [t1, 0]]),
+            nm: 'tr'}));
+    }
+    return groups;
+}
+
+/**
+ * switch — the E162 proof piece, reference-derived (user-supplied success
+ * animation): a toggle whose ON is a celebration and whose OFF is a
+ * satisfying power-down.
+ *
+ *  off pose [0,1]      knob left, base track
+ *  off>on  [10,100]    knob slides right with OVERSHOOT (38→64.5→62), the
+ *                      active track fades in, a radial trim-path WIPE flashes
+ *                      from the knob, then a two-burst multi-colour CONFETTI
+ *                      explosion (24 particles, curved flights, spins) — the
+ *                      reference choreography, scaled to the 100×100 comp
+ *  on pose [100,101]   knob right, active track
+ *  on>off  [110,150]   an imploding ring SHRINKS into the knob while the
+ *                      track drains, the knob slides home and lands with a
+ *                      little squash — shrink-down, per the request
+ */
+function switchToggle() {
+    // knob x across the whole timeline (both transitions live on one track)
+    const knobX = kfx([
+        [0, [38, 45]],
+        [10, [38, 45], {e: POP}], [19, [64.5, 45], {}], [23, [62, 45]],
+        [110, [62, 45], {e: POP}], [122, [36, 45], {}], [127, [38, 45]],
+    ]);
+    const knobSquash = kfx([
+        [0, [100, 100]],
+        [121, [100, 100], {e: POP}], [125, [118, 84]], [131, [100, 100]],
+    ]);
+    const knob = group('knob', [
+        ellipse(0, 0, 16, 16), {ty: 'fl', c: st([1, 1, 1, 1]), o: st(100), r: 1, nm: 'fill-hole'},
+    ], {ty: 'tr', p: knobX, a: st([0, 0]), s: knobSquash, r: st(0), o: st(100), nm: 'tr'});
+
+    const track = group('track', [rect(50, 45, 44, 20, 10), fill('base')]);
+    const trackOn = group('track-on', [rect(50, 45, 44, 20, 10), fill('active')],
+        {ty: 'tr', p: st([0, 0]), a: st([0, 0]), s: st([100, 100]), r: st(0),
+            o: kfx([[0, 0], [10, 0, {}], [20, 100, {}], [111, 100, {e: POP}], [131, 0]]), nm: 'tr'});
+
+    // the radial flash: a fat stroke swept angularly by a trim path (the
+    // reference's disc-wipe technique — stroke width == diameter)
+    const wipe = group('wipe', [
+        ellipse(0, 0, 26, 26),
+        stroke('active', 26, kfx([[0, 0], [19, 0, {}], [20, 35, {}], [46, 35, {}], [58, 0]])),
+        trim([[20, 0, {e: POP}], [52, 100]]),
+    ], {ty: 'tr', p: st([62, 45]), a: st([0, 0]), s: st([100, 100]), r: st(-90), o: st(100), nm: 'tr'});
+
+    // shrink-down: a thin ring imploding into the knob on off-switching
+    const shrink = group('shrink', [
+        ellipse(0, 0, 30, 30),
+        stroke('active', 2.5, kfx([[0, 0], [109, 0, {}], [110, 70, {}], [132, 70, {}], [140, 0]])),
+    ], {ty: 'tr', p: st([50, 45]), a: st([0, 0]),
+        s: kfx([[110, [150, 150], {e: POP}], [138, [8, 8]]]),
+        r: st(0), o: st(100), nm: 'tr'});
+
+    const confetti = [
+        ...confettiBurst({origin: [62, 45], count: 14, t0: 24, dur: 42, dist: 32, seed: 20260728}),
+        ...confettiBurst({origin: [62, 45], count: 9, t0: 30, dur: 38, dist: 26, seed: 4711, scale: 0.62}),
+    ];
+
+    return {
+        data: anim('switch', [layer('switch', [...confetti, wipe, shrink, trackOn, track, knob], {op: 151})], 151),
+        states: {off: [0, 1], on: [100, 101]},
+        transitions: {'off>on': [10, 100], 'on>off': [110, 150]},
+        // flourish particles carry their OWN palette (E162: looking great
+        // beats auto-retinting) — declared so the palette-contract test can
+        // tell deliberate colour from drift.
+        palette: FX,
+    };
+}
+
 const ANIMATIONS = {
     'light': light(),
+    'switch': switchToggle(),
     'contact-window': contactVariant('window'),
     'contact-door': contactVariant('door'),
     'contact-generic': contactVariant('door'),

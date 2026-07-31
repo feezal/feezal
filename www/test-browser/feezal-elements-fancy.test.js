@@ -53,7 +53,7 @@ const collectFills = data => {
     return fills;
 };
 
-const TAGS = ['light', 'contact', 'cover', 'climate', 'sensor', 'lock']
+const TAGS = ['light', 'switch', 'contact', 'cover', 'climate', 'sensor', 'lock']
     .map(n => `feezal-element-fancy-${n}`);
 
 describe('editor: static pose, the animation library is NEVER loaded (E89 discipline)', () => {
@@ -188,6 +188,37 @@ describe('viewer: the lottie lifecycle', () => {
         expect(inst.loop).toBe(true);
         expect(inst.calls[0]).toEqual(['playSegments', [10, 74]]);
         expect(el.shadowRoot.textContent).toContain('→');
+    });
+
+    it('switch (E162 proof piece): ON plays the confetti celebration, OFF the explicit shrink-down', async () => {
+        const el = await mount('feezal-element-fancy-switch',
+            {subscribe: 'stat/sw', publish: 'cmd/sw'});
+        await until(() => factory.instances.length === 1);
+        const inst = factory.last;
+        inst.calls.length = 0;
+        feezal.connection.deliver('stat/sw', 'ON');
+        await el.updateComplete;
+        expect(inst.calls[0]).toEqual(['playSegments', [10, 100]]);   // wipe + confetti
+        inst.fireComplete();
+        // holds the ON pose, no loop
+        expect(inst.loop).toBe(false);
+        expect(inst.calls.some(([c]) => c === 'goToAndStop')).toBe(true);
+        // OFF plays the EXPLICIT shrink-down clip — never the reversed ON
+        inst.calls.length = 0;
+        feezal.connection.deliver('stat/sw', 'OFF');
+        await el.updateComplete;
+        expect(inst.calls[0]).toEqual(['playSegments', [110, 150]]);
+        expect(el.shadowRoot.textContent).toContain('Off');
+        // the confetti keeps its own palette through the recolour
+        const fills = [];
+        const walk = n => {
+            if (Array.isArray(n)) return n.forEach(walk);
+            if (!n || typeof n !== 'object') return;
+            if (n.ty === 'fl' && n.c) fills.push(n.c.k);
+            Object.values(n).forEach(walk);
+        };
+        walk(inst.opts.animationData);
+        expect(fills.some(k => k[0] === 0 && Math.abs(k[1] - 0.631) < 0.01)).toBe(true);   // cyan survives
     });
 
     it('theme retint rebuilds the instance with fresh tones', async () => {

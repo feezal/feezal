@@ -12,7 +12,7 @@ import {recolorAnimation, parseCssColor, FancyPlayer}
     from '../packages/@feezal/feezal-elements-fancy/fancy-shared.js';
 import {__setLottieFactoryForTests} from '@feezal/feezal-lottie';
 
-const EXPECTED = ['light', 'contact-window', 'contact-door', 'contact-generic',
+const EXPECTED = ['light', 'switch', 'contact-window', 'contact-door', 'contact-generic',
     'contact-garagedoor', 'cover', 'climate', 'sensor', 'lock'];
 
 // the same shape check basic-lottie guards uploads with
@@ -69,13 +69,19 @@ describe('the generated animation set', () => {
         }
     });
 
-    it('every fill is one of the two palette slots (or a fully transparent hole)', () => {
+    it('every fill is a palette slot, a hole, or a DECLARED flourish colour', () => {
+        // E162: flourish particles (confetti) keep their own colours — each
+        // animation DECLARES them in entry.palette so deliberate colour is
+        // distinguishable from drift. Undeclared non-slot fills still fail.
         for (const [name, entry] of Object.entries(FANCY_ANIMATIONS)) {
+            const declared = entry.palette || [];
             for (const k of collectFills(entry.data)) {
                 const isSlot = [FANCY_BASE_SLOT, FANCY_ACTIVE_SLOT].some(slot =>
                     slot.slice(0, 3).every((c, i) => Math.abs(k[i] - c) < 0.002));
-                const isHole = k[0] === 1 && k[1] === 1 && k[2] === 1;   // o:0 punch-outs
-                expect(isSlot || isHole, `${name}: fill ${JSON.stringify(k)}`).toBe(true);
+                const isHole = k[0] === 1 && k[1] === 1 && k[2] === 1;   // knob / punch-outs
+                const isDeclared = declared.some(fx =>
+                    fx.slice(0, 3).every((c, i) => Math.abs(k[i] - c) < 0.002));
+                expect(isSlot || isHole || isDeclared, `${name}: fill ${JSON.stringify(k)}`).toBe(true);
             }
         }
     });
@@ -88,6 +94,10 @@ describe('the generated animation set', () => {
         expect(FANCY_ANIMATIONS.light.seek).toHaveProperty('brightness');
         expect(FANCY_ANIMATIONS.light.loops).toContain('on');
         expect(FANCY_ANIMATIONS.lock.transitions).toHaveProperty('locked>unlocked');
+        // E162 proof piece: BOTH directions are explicit clips (on is the
+        // confetti celebration, off is the shrink-down — never a reversed on)
+        expect(FANCY_ANIMATIONS.switch.transitions).toHaveProperty('off>on');
+        expect(FANCY_ANIMATIONS.switch.transitions).toHaveProperty('on>off');
         expect(FANCY_ANIMATIONS.climate.loops).toContain('heating');
         expect(FANCY_ANIMATIONS.sensor.loops).toContain('active');
     });

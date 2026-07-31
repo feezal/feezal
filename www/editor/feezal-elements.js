@@ -313,6 +313,7 @@ window.feezal.elements = [
   "feezal-element-tui-sparkline",
   "feezal-element-tui-value",
   "feezal-element-fancy-light",
+  "feezal-element-fancy-switch",
   "feezal-element-fancy-contact",
   "feezal-element-fancy-cover",
   "feezal-element-fancy-climate",
