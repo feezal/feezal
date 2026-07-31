@@ -65,6 +65,7 @@ Work in progress — priorities and scope are not final.
 - [U45 — Element insertion: palette sidebar + full-screen picker](#u45--element-insertion-palette-sidebar--full-screen-picker--to-refine) 💡 *(to refine)*
 - [U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow](#u61--editor-preview-fidelity-gradientbackground-in-a-percentage-sized-views-scroll-overflow)
 - [U63 — `layout-app`: split the content inset into per-side knobs](#u63--layout-app-split-the-content-inset-into-per-side-knobs)
+- [U72 — Generate wizard: order the cards within a view by function (room mode) or name (function mode)](#u72--generate-wizard-order-the-cards-within-a-view-by-function-room-mode-or-name-function-mode)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -1115,6 +1116,19 @@ Independent of A/B/C: decide whether the **Subscribe topic may also feed a range
 **Ships with:** the range schema + shared resolver (bands/gradient/enum, theme-var passthrough), the paired-property mechanism in `FeezalElement` (the storage shape chosen from A/B/C above; the primary value as the Range default source, an override/Subscribe subscription when a topic is set, and the raw-payload→`<var>` passthrough for Subscribe), the primary-value opt-in, `<feezal-site>` storage, the site-level manager panel, the colour-control **Static / Subscribe / Range radio** with the multi-line dynamic blocks (Subscribe: autocompleting `feezal-topic-input` + message-property + a live swatch of the last payload; Range: range dropdown + create sentinel + topic/property pre-filled from the primary value), the gauge `ranges` attribute accepting a named range, unit tests for the resolver, browser tests that a resolved colour lands on the var (from the primary value, from an overridden topic, and from a raw Subscribe payload), a test that Static↔Subscribe↔Range round-trips the paired properties cleanly, an **export test that ranges + subscriptions survive** into a static bundle, `docs/TESTING.md` coverage, and version bumps.
 
 **Relates:** `@feezal/feezal-gauge` (`bandColor` / `parseRanges` — the existing implementation this generalises, and the first consumer to migrate), **U49** / the conditions engine (`action: style` — the overlapping mechanism to delimit), **U47** ✅ (the `＋ Create new…` sentinel pattern to copy), `feezal-sidebar-themes` / `-assets` (site-level panel precedent), `material-tank` warn/crit + the glass/metro state colours (the ad-hoc thresholds to absorb), `CLAUDE.md` §"Theme variable discipline" (band colours should prefer theme vars), **A16**/export (ranges must serialize into a static bundle).
+
+### U72 — Generate wizard: order the cards within a view by function (room mode) or name (function mode)
+
+**Requested (07/2026).** The cards a generated app drops into each view come out in discovery order, which reads as random. Order them meaningfully:
+
+- **Room app (by room):** within each room view, order the cards by **function** in the taxonomy order — **Lights → Switches → Covers → Climate → Windows/doors → Motion → Alarms → Sensors → Locks → Media → Energy → Other** (the reporter's "lights, cover, climate, contact, sensor" is this sequence). So every room reads the same way: controls first, readouts last. Tie-break by label alphabetically within a function.
+- **Function app (by function):** the view already *is* one function, so ordering by function is meaningless — order the cards **alphabetically by label** instead.
+
+**Trivial and grounded.** [`feezal-generate-dialog.js`](../www/src/feezal-generate-dialog.js) `_generateApp` iterates `chosen` (the checked bucket entities) in `__devices` order; sort it first. The function priority already exists — `functionBucket(entity).order` in [`feezal-discovery-stamp.js`](../www/src/feezal-discovery-stamp.js) returns the `FN_TAXONOMY` order (Lights 0 … Other 11). So: room mode → `sort((a,b) => functionBucket(a).order - functionBucket(b).order || label(a).localeCompare(label(b)))`; function mode → `sort((a,b) => label(a).localeCompare(label(b)))` (locale-aware). Only the per-view card order changes; bucket order, slugs, drawer items and the dupe-guard are untouched.
+
+**Ships with:** the two-line sort in `_generateApp`, a browser test asserting card order within a room follows the function taxonomy (and alphabetical within a function bucket), and a `docs/TESTING.md` line under the Generate-wizard §.
+
+**Relates:** **U58** ✅ / **U67** ✅ / **U69** ✅ (the App generator this refines), **E138** (the `FN_TAXONOMY` function taxonomy the room order reuses — keep them one order, not two), `functionBucket` / `_generateApp`.
 
 ### E112 — Scrypted integration: camera snapshot element (sensors already work) 💡 to refine
 
