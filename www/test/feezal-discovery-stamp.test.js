@@ -15,6 +15,7 @@ import {
     lexiconWordsForLabel,
     slugifyViewName,
     UNKNOWN_ROOM,
+    applyFrigateLiveFeed,
 } from '../src/feezal-discovery-stamp.js';
 
 // U62: a fixture that routes the entity `name` → `label` (like every E137
@@ -543,5 +544,45 @@ describe('slugifyViewName (U58 view names in URLs)', () => {
     it('handles diacritics, punctuation and empties', () => {
         expect(slugifyViewName('Salón / Café!')).toBe('salon-cafe');
         expect(slugifyViewName('')).toBe('view');
+    });
+});
+
+describe('applyFrigateLiveFeed (live MJPEG tiles from the Frigate base URL)', () => {
+    const frigateEntity = (cam = 'front_door') => ({
+        source: 'frigate', name: cam,
+        config: {camera_name: cam, name: cam},
+    });
+    const stampedEl = () => {
+        const el = document.createElement('div');
+        el.setAttribute('subscribe', 'frigate/front_door/person/snapshot');
+        el.setAttribute('type', 'mqtt-image');
+        return el;
+    };
+
+    it('rewrites a Frigate camera into a live mjpeg tile (and drops subscribe)', () => {
+        const el = stampedEl();
+        expect(applyFrigateLiveFeed(el, frigateEntity(), 'http://frigate.local:5000')).toBe(true);
+        expect(el.getAttribute('src')).toBe('http://frigate.local:5000/api/front_door');
+        expect(el.getAttribute('type')).toBe('mjpeg');
+        // for URL types a payload REPLACES src - the snapshot topic must go
+        expect(el.hasAttribute('subscribe')).toBe(false);
+        // off-screen tiles must not keep a transcode running on the Frigate box
+        expect(el.hasAttribute('pause-when-hidden')).toBe(true);
+    });
+
+    it('trims a trailing slash off the base URL', () => {
+        const el = stampedEl();
+        applyFrigateLiveFeed(el, frigateEntity(), 'http://frigate.local:5000///');
+        expect(el.getAttribute('src')).toBe('http://frigate.local:5000/api/front_door');
+    });
+
+    it('does nothing without a URL or for a non-Frigate entity', () => {
+        const el = stampedEl();
+        expect(applyFrigateLiveFeed(el, frigateEntity(), '')).toBe(false);
+        expect(applyFrigateLiveFeed(el, {source: 'ha', name: 'cam', config: {}}, 'http://x:5000')).toBe(false);
+        // untouched - still the pure-MQTT stamping
+        expect(el.getAttribute('type')).toBe('mqtt-image');
+        expect(el.getAttribute('subscribe')).toBe('frigate/front_door/person/snapshot');
+        expect(el.hasAttribute('src')).toBe(false);
     });
 });

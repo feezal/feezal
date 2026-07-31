@@ -10,7 +10,7 @@ import '@shoelace-style/shoelace/dist/components/spinner/spinner.js';
 
 import {stampDiscovery, resolveElementTag, layoutGrid, knownComponents, discoveryLabel,
     groupForApp, functionBucket, slugifyViewName, UNKNOWN_ROOM,
-    assignRoom, lexiconWordsForLabel} from './feezal-discovery-stamp.js';
+    assignRoom, lexiconWordsForLabel, applyFrigateLiveFeed} from './feezal-discovery-stamp.js';
 import {RangeSelect} from './feezal-range-select.js';
 import './feezal-icon-input.js';   // U78: the shared icon picker for the room list
 
@@ -108,6 +108,7 @@ class FeezalGenerateDialog extends LitElement {
         _result:  {state: true},   // {added, view, views?, skippedNoElem:[], skippedDupe:[]}
         _newRoomFor: {state: true},// U70/U75: entity key(s) awaiting a new-room name, or null
         _newRoomName: {state: true},
+        _frigateUrl: {state: true},// Frigate base URL → live MJPEG tiles (empty = MQTT snapshots)
     };
 
     static styles = css`
@@ -363,6 +364,17 @@ class FeezalGenerateDialog extends LitElement {
         .row sl-checkbox, .group-hd sl-checkbox { flex: 0 0 auto; }
         .row sl-checkbox { pointer-events: none; }
         .g-toggle { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+
+        /* ── Frigate URL row (shown when Frigate cameras were discovered) ── */
+        .frigate-row {
+            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+            margin: 4px 0 8px; padding: 8px 10px; border-radius: 6px;
+            border: 1px solid var(--feezal-border, #e2e8f0);
+            background: var(--feezal-bg-sub, #f8fafc);
+        }
+        .frigate-icon { font-size: 18px; opacity: 0.7; flex: 0 0 auto; }
+        .frigate-row sl-input { flex: 1 1 220px; min-width: 180px; }
+        .frigate-hint { flex: 2 1 260px; font-size: 11px; opacity: 0.75; line-height: 1.4; }
     `;
 
     constructor() {
@@ -384,6 +396,7 @@ class FeezalGenerateDialog extends LitElement {
         this._autoFlow = false;
         this._newRoomFor = null;
         this._newRoomName = '';
+        this._frigateUrl = '';
         this._bucketMeta = new Map();
         this.__devices = [];
         // U68: the range/drag helper driving the CHECKBOXES (device list + the
@@ -676,8 +689,44 @@ class FeezalGenerateDialog extends LitElement {
             if (this._stage !== stage) return;   // user navigated away / cancelled
             await new Promise(r => setTimeout(r, 2000));
         }
+        // Frigate cameras present → prefill the Frigate URL once: last-used
+        // value, else a guess from the broker host (Frigate + broker commonly
+        // share a machine; Frigate's default HTTP port is 5000).
+        if (!this._frigateUrl && this._hasFrigate()) {
+            this._frigateUrl = localStorage.getItem('feezal.frigateUrl') || await this._guessFrigateUrl();
+        }
         this._loading = false;
         this.requestUpdate();
+    }
+
+    _hasFrigate() {
+        return (this.__devices || []).some(e => e.source === 'frigate');
+    }
+
+    async _guessFrigateUrl() {
+        try {
+            const r = await fetch('/api/bridge/status');
+            const d = await r.json();
+            // host from mqtt://user:pass@host:1883 / ws://[::1]:9001/… forms
+            const m = String(d.uri || '').match(/\/\/(?:[^@/]+@)?(\[[^\]]+\]|[^:/?#]+)/);
+            if (m) return `http://${m[1]}:5000`;
+        } catch { /* no bridge (direct connection) → no guess */ }
+        return '';
+    }
+
+    /** Frigate URL row — shown in the Devices/App setup when Frigate cameras
+     * are among the discovered devices. Empty keeps the pure-MQTT snapshots. */
+    _frigateUrlRow() {
+        if (!this._hasFrigate()) return '';
+        return html`
+            <div class="frigate-row">
+                <span class="material-icons frigate-icon">videocam</span>
+                <sl-input size="small" clearable placeholder="http://frigate.local:5000"
+                    value="${this._frigateUrl}"
+                    @sl-input="${e => { this._frigateUrl = e.target.value; }}"></sl-input>
+                <span class="frigate-hint">Frigate URL — live video on the camera tiles.
+                    Leave empty to show MQTT detection snapshots instead.</span>
+            </div>`;
     }
 
     // Friendly, distinguishable label — the shared ⚡ picker label, so a
@@ -691,6 +740,14 @@ class FeezalGenerateDialog extends LitElement {
     // The entity's resolved element tag in the current family, or null (parity gap).
     _tagFor(entity) {
         return resolveElementTag(entity.component, this._family, entity.config?.device_class);
+    }
+
+    /** stampDiscovery + the Frigate live-feed rewrite (when a URL was given). */
+    _stampEntity(el, entity) {
+        stampDiscovery(el, entity);
+        if (this._frigateUrl && applyFrigateLiveFeed(el, entity, this._frigateUrl)) {
+            localStorage.setItem('feezal.frigateUrl', this._frigateUrl.trim());
+        }
     }
 
     // Devices matching the filter, grouped by source (only generatable rows).
@@ -852,7 +909,7 @@ class FeezalGenerateDialog extends LitElement {
             const el = document.createElement(tag);
             view.append(el);
             feezal.editor.initElem(el, true);   // applies defaultStyle
-            stampDiscovery(el, entity);
+            this._stampEntity(el, entity);
             if (absolute && positions[i]) {
                 el.style.left = positions[i].left + 'px';
                 el.style.top = positions[i].top + 'px';
@@ -1224,7 +1281,7 @@ class FeezalGenerateDialog extends LitElement {
                 const el = document.createElement(tag);
                 view.append(el);
                 feezal.editor.initElem(el, true);
-                stampDiscovery(el, entity);
+                this._stampEntity(el, entity);
                 if (entity.discovery_id) existing.add(entity.discovery_id);
                 added++;
             }
@@ -1410,6 +1467,7 @@ class FeezalGenerateDialog extends LitElement {
                     @sl-input="${e => { this._filter = e.target.value; }}"></sl-input>
                 <span class="dev-count">${count} selected</span>
             </div>
+            ${this._frigateUrlRow()}
 
             <div class="dev-body">
                 ${this._loading ? html`<div class="loading"><sl-spinner></sl-spinner> Loading discovered devices…</div>`
@@ -1455,6 +1513,7 @@ class FeezalGenerateDialog extends LitElement {
                             </button>`)}
                     </div>
                 </div>
+                ${this._frigateUrlRow()}
                 <div class="setup-note">
                     ${this._loading ? html`<sl-spinner style="font-size:14px"></sl-spinner> ${this._autoFlow
                             ? 'Connecting to your broker and discovering your devices — this can take a few seconds on a fresh site…'

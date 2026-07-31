@@ -457,6 +457,33 @@ const CROSS_FAMILY_FALLBACK = {
     camera: ['feezal-element-basic-camera'],
 };
 
+/**
+ * Frigate live feed. MQTT cannot carry the Frigate server's HTTP base URL
+ * (Frigate publishes none — even HA's integration asks the user), so the
+ * Generate wizard asks for it once. Given that base, rewrite a stamped
+ * Frigate camera from the detection-snapshot (mqtt-image) tile into a LIVE
+ * MJPEG tile:
+ *   src  = <base>/api/<cam>   — Frigate's MJPEG endpoint; <img>-based, so no
+ *                               CORS/ORB pitfalls (unlike WHEP fetch)
+ *   type = mjpeg, plus pause-when-hidden so off-screen tiles stop burning
+ *          Frigate CPU (the MJPEG endpoint transcodes per open stream)
+ *   subscribe REMOVED — for URL types an arriving payload REPLACES src, so
+ *          the first detection would clobber the live stream with a still.
+ * Events / chips / thumbs / availability stay MQTT-stamped untouched.
+ * Returns true when the rewrite was applied.
+ */
+export function applyFrigateLiveFeed(el, entity, baseUrl) {
+    const base = String(baseUrl || '').trim().replace(/\/+$/, '');
+    if (!base || entity?.source !== 'frigate') return false;
+    const cam = entity.config?.camera_name || entity.config?.name || entity.name;
+    if (!cam) return false;
+    el.setAttribute('src', `${base}/api/${encodeURIComponent(cam)}`);
+    el.setAttribute('type', 'mjpeg');
+    el.removeAttribute('subscribe');
+    el.setAttribute('pause-when-hidden', '');
+    return true;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // U58 Phase ② — App mode: room detection + bucket grouping (pure, testable)
 // ─────────────────────────────────────────────────────────────────────────────
