@@ -341,6 +341,9 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U71 — Generate wizard: illustrate the element families with screenshots ✅ done](U71.md)
 - [U72 — Generate wizard: order the cards within a view by function (room mode) or name (function mode) ✅ done](U72.md)
 - [U74 — Generate wizard: set a family-matched theme so the app looks like the family screenshot ✅ done](U74.md)
+- [U75 — Generate review: checkbox is checkbox-only; multi-row select + bulk "move to room" ✅ done](U75.md)
+- [U76 — Room heuristic: broaden the lexicon + compound / umlaut-robust matching ✅ done](U76.md)
+- [U77 — Room heuristic: cluster recurring name-tokens into candidate zones (data-driven) ✅ done](U77.md)
 
 ## Architecture & Infrastructure
 
