@@ -7,13 +7,10 @@
  * drivers plus the sub/pub surface the base class expects. Fake timers drive
  * the quiet window / fallback / spinner-delay / fade deterministically.
  *
- * The optional Lottie path is exercised through the shared loader's
- * `__setLottieFactoryForTests` seam, so lottie-web itself is never loaded.
  */
 import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest';
 import '@feezal/feezal-element-system-splash';
-import {__setLottieFactoryForTests} from '@feezal/feezal-lottie';
-import {mount, until} from './helpers.js';
+import {mount} from './helpers.js';
 
 /** feezal.connection stand-in that is a real EventTarget. */
 function eventConnection() {
@@ -57,7 +54,6 @@ beforeEach(() => {
 afterEach(() => {
     vi.useRealTimers();
     document.body.innerHTML = '';   // disconnect releases the place-once claim
-    __setLottieFactoryForTests(null);
 });
 
 describe('defaults', () => {
@@ -185,38 +181,6 @@ describe('place-once (multiple instances)', () => {
         expect(b._secondary).toBe(true);
         expect(warn).toHaveBeenCalled();
         warn.mockRestore();
-    });
-});
-
-describe('lottie boot animation (shared loader)', () => {
-    it('creates a Lottie animation instead of the spinner, via the shared loader', async () => {
-        const created = [];
-        const factory = {
-            loadAnimation(opts) {
-                const inst = {opts, destroyed: false, destroy() { this.destroyed = true; }};
-                created.push(inst);
-                return inst;
-            },
-        };
-        __setLottieFactoryForTests(factory);
-
-        const el = await mount('feezal-element-system-splash', {
-            lottie: 'boot.json', 'spinner-delay': '20',
-        });
-
-        const inst = await until(() => created[0]);
-        expect(inst.opts.path).toBe('resolved/boot.json');   // resolved via feezal.resolveAsset
-        expect(inst.opts.renderer).toBe('svg');
-        expect(el.shadowRoot.querySelector('.lottie-stage')).not.toBeNull();
-
-        // Even past spinner-delay, the CSS spinner never shows when Lottie is set.
-        await new Promise(r => setTimeout(r, 60));
-        expect(el.shadowRoot.querySelector('.spinner')).toBeNull();
-
-        // Disconnect destroys the animation instance.
-        el.remove();
-        await new Promise(r => setTimeout(r, 10));
-        expect(inst.destroyed).toBe(true);
     });
 });
 

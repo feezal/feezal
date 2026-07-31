@@ -1,6 +1,5 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
-import {loadLottie} from '@feezal/feezal-lottie';
 
 /**
  * feezal-element-system-splash (E39)
@@ -25,12 +24,6 @@ import {loadLottie} from '@feezal/feezal-lottie';
  * Signals ride on feezal.connection's `connected` / `message` CustomEvents —
  * no MQTT subscription is taken, so the element never leaves a subscription
  * behind and adds zero broker traffic.
- *
- * The optional `lottie` boot animation rides on E89's shared lazy loader
- * (`@feezal/feezal-lottie`) — the ~250 kB lottie-web chunk is fetched only when
- * the `lottie` attribute is actually set, and only ONE such chunk exists for
- * the whole app (shared with basic-lottie). The animation is progressive
- * enhancement: it races the splash and NEVER blocks the hide conditions.
  */
 
 const FADE_MS = 250;
@@ -47,7 +40,7 @@ class FeezalElementSystemSplash extends FeezalElement {
             description: 'Covers the viewer with a full-screen splash on first load until the MQTT ' +
                 'connection is up and the retained-message burst has settled — prevents flash-of-' +
                 'unstyled-content and boot jitter. Pseudo-element — position/size don\'t matter; place ' +
-                'one per site. Optional logo, CSS spinner (after a delay) or a Lottie boot animation.',
+                'one per site. Optional logo and CSS spinner (after a delay).',
             attributes: [
                 {name: 'settle-window', type: 'number', default: 500, min: 0,
                     help: 'Milliseconds of MQTT silence (no message on any topic) after connect that count ' +
@@ -59,20 +52,11 @@ class FeezalElementSystemSplash extends FeezalElement {
                         'connection never establishes, from page load.'},
                 {name: 'spinner-delay', type: 'number', default: 0, min: 0,
                     help: 'Milliseconds before the spinner appears. Fast loads see only a clean colour flash; ' +
-                        'the spinner shows only if the wait exceeds this delay. Ignored when a Lottie ' +
-                        'animation is set (that shows immediately and replaces the spinner).'},
+                        'the spinner shows only if the wait exceeds this delay.'},
                 {name: 'logo', type: 'string', default: '',
                     help: 'Optional logo image URL (upload via the Asset Manager, e.g. assets/logo.png). ' +
-                        'Centered above the spinner/animation, sized to ~40% width / ~30% height. ' +
+                        'Centered above the spinner, sized to ~40% width / ~30% height. ' +
                         'Empty = colour-only splash.'},
-                {name: 'lottie', type: 'string', default: '',
-                    help: 'Optional Lottie animation JSON URL (Asset Manager) shown instead of the spinner, ' +
-                        'immediately (not after spinner-delay). May combine with a logo (logo above, ' +
-                        'animation below). The lottie-web library is lazy-loaded — the chunk is fetched only ' +
-                        'when this attribute is set, and shared with the Lottie element. Boot-timing caveat: ' +
-                        'the chunk fetch races the splash — the colour/logo show instantly and the animation ' +
-                        'pops in when it arrives; on fast loads the splash may hide before the animation ever ' +
-                        'renders. The animation is progressive enhancement and never blocks the hide.'},
             ],
             styles: [
                 {property: '--feezal-splash-background', type: 'color',
@@ -92,7 +76,6 @@ class FeezalElementSystemSplash extends FeezalElement {
         timeout:      {type: Number, reflect: true},
         spinnerDelay: {type: Number, reflect: true, attribute: 'spinner-delay'},
         logo:         {type: String, reflect: true},
-        lottie:       {type: String, reflect: true},
         _fading:      {state: true},
         _done:        {state: true},
         _showSpinner: {state: true},
@@ -146,8 +129,6 @@ class FeezalElementSystemSplash extends FeezalElement {
             display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px;
         }
         .logo { max-width: 40vw; max-height: 30vh; object-fit: contain; }
-        .lottie-stage { width: 200px; height: 200px; }
-        .lottie-stage svg { width: 100%; height: 100%; display: block; }
 
         .spinner {
             width: 40px; height: 40px; box-sizing: border-box; border-radius: 50%;
@@ -170,7 +151,6 @@ class FeezalElementSystemSplash extends FeezalElement {
         this.timeout = 1;
         this.spinnerDelay = 0;
         this.logo = '';
-        this.lottie = '';
         this._fading = false;
         this._done = false;
         this._showSpinner = false;
@@ -185,8 +165,6 @@ class FeezalElementSystemSplash extends FeezalElement {
         this._hardCapTimer = null;
         this._spinnerTimer = null;
         this._fadeTimer = null;
-        this._anim = null;
-        this._lottieToken = 0;
 
         this._onConnected = this._onConnected.bind(this);
         this._onMessage = this._onMessage.bind(this);
@@ -244,17 +222,12 @@ class FeezalElementSystemSplash extends FeezalElement {
         // connection never establishes (no `connected` event ever fires).
         this._hardCapTimer = setTimeout(() => this._hide(), this._timeoutMs());
 
-        // Spinner appears only if the wait exceeds spinner-delay (and no Lottie).
+        // Spinner appears only if the wait exceeds spinner-delay.
         this._spinnerTimer = setTimeout(() => {
-            if (!this._done && !this._hideStarted && !this.lottie) {
+            if (!this._done && !this._hideStarted) {
                 this._showSpinner = true;
             }
         }, this._spinnerDelayMs());
-
-        // Lottie is progressive enhancement — fire-and-forget, never blocks.
-        if (this.lottie) {
-            this._loadLottie();
-        }
     }
 
     disconnectedCallback() {
@@ -262,7 +235,6 @@ class FeezalElementSystemSplash extends FeezalElement {
         this._detachListeners();
         this._clearTimers();
         clearTimeout(this._fadeTimer);
-        this._destroyLottie();
         if (_splashOwner === this) {
             _splashOwner = null;
         }
@@ -305,7 +277,6 @@ class FeezalElementSystemSplash extends FeezalElement {
         this._fading = true;
         this._fadeTimer = setTimeout(() => {
             this._done = true;
-            this._destroyLottie();
         }, FADE_MS);
     }
 
@@ -321,44 +292,6 @@ class FeezalElementSystemSplash extends FeezalElement {
         if (conn && typeof conn.removeEventListener === 'function') {
             conn.removeEventListener('connected', this._onConnected);
             conn.removeEventListener('message', this._onMessage);
-        }
-    }
-
-    // ── Lottie (shared lazy loader) ──────────────────────────────────────────
-
-    async _loadLottie() {
-        const token = ++this._lottieToken;
-        let lottie;
-        try {
-            lottie = await loadLottie();
-        } catch {
-            return;   // optional — a missing library never blocks the splash.
-        }
-        if (token !== this._lottieToken || !this.isConnected || this._done) {
-            return;
-        }
-        await this.updateComplete;   // ensure the .lottie-stage container exists
-        if (token !== this._lottieToken || !this.isConnected || this._done) {
-            return;
-        }
-        const container = this.renderRoot?.querySelector('.lottie-stage');
-        if (!container) {
-            return;
-        }
-        const path = feezal.resolveAsset ? feezal.resolveAsset(this.lottie) : this.lottie;
-        try {
-            this._anim = lottie.loadAnimation({
-                container, renderer: 'svg', loop: true, autoplay: true, path,
-            });
-        } catch { /* a broken animation must never throw or block the hide */ }
-    }
-
-    _destroyLottie() {
-        if (this._anim) {
-            try {
-                this._anim.destroy();
-            } catch { /* ignore */ }
-            this._anim = null;
         }
     }
 
@@ -387,9 +320,7 @@ class FeezalElementSystemSplash extends FeezalElement {
             <div class="overlay ${this._fading ? 'fading' : ''}">
                 <div class="content">
                     ${logoSrc ? html`<img class="logo" src=${logoSrc} alt="">` : ''}
-                    ${this.lottie
-                        ? html`<div class="lottie-stage"></div>`
-                        : (this._showSpinner ? html`<div class="spinner"></div>` : '')}
+                    ${this._showSpinner ? html`<div class="spinner"></div>` : ''}
                 </div>
             </div>`;
     }
