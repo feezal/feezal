@@ -237,7 +237,7 @@ describe('feezal-generate-dialog (U58 Devices)', () => {
             const dlg = await reviewDialog();
             const before = dlg._assign.get('d-x').label;
             dlg._onReassignChange('d-x', '__feezal_new_room__');   // the NEW_ROOM sentinel value
-            expect(dlg._newRoomFor).toBe('d-x');
+            expect(dlg._newRoomFor).toEqual(['d-x']);   // U75: key(s) awaiting the name
             expect(dlg._assign.get('d-x').label).toBe(before);   // not moved yet
         });
 
@@ -290,6 +290,79 @@ describe('feezal-generate-dialog (U58 Devices)', () => {
             expect(selectFor(dlg, 'd-x').value).toBe('Living room');
             expect(dlg._assign.get('d-x').label).toBe('Living room');
             expect(dlg._assign.get('d-y').label).toBe('Kitchen');
+        });
+    });
+
+    describe('U75 review selection + bulk move', () => {
+        const dev = (id, area) => ({component: 'switch', discovery_id: id, name: id, __area: area,
+            config: {state_topic: 'z/' + id, command_topic: 'z/' + id + '/set'}, __key: id});
+        async function review(devices) {
+            const dlg = await makeDialog();
+            dlg._family = 'circle';
+            dlg._axis = 'room';
+            dlg.__devices = devices;
+            dlg._toReview();
+            await dlg.updateComplete;
+            return dlg;
+        }
+
+        it('checkbox toggles inclusion only; a row click selects only', async () => {
+            const dlg = await review([dev('d-a', 'Kitchen'), dev('d-b', 'Kitchen')]);
+            expect(dlg._checked.has('d-a')).toBe(true);   // all checked by default
+            expect(dlg._selected.size).toBe(0);           // nothing selected
+
+            // clicking the checkbox unchecks WITHOUT selecting the row
+            const cb = dlg.renderRoot.querySelector('.row[data-key="d-a"] sl-checkbox');
+            cb.checked = false;
+            cb.dispatchEvent(new CustomEvent('sl-change'));
+            await dlg.updateComplete;
+            expect(dlg._checked.has('d-a')).toBe(false);
+            expect(dlg._selected.has('d-a')).toBe(false);
+
+            // pressing the row body selects WITHOUT changing the checkbox
+            dlg._selPress({preventDefault() {}, shiftKey: false}, 'd-b');
+            dlg._endDrag();
+            await dlg.updateComplete;
+            expect(dlg._selected.has('d-b')).toBe(true);
+            expect(dlg._checked.has('d-b')).toBe(true);   // unchanged
+        });
+
+        it('bulk-moves every selected row to a room, then clears the selection', async () => {
+            const dlg = await review([dev('d-a', 'Kitchen'), dev('d-b', 'Kitchen'), dev('d-l', 'Living room')]);
+            dlg._selected = new Set(['d-a', 'd-b']);
+            dlg._bulkMove('Living room');
+            expect(dlg._assign.get('d-a').label).toBe('Living room');
+            expect(dlg._assign.get('d-b').label).toBe('Living room');
+            expect(dlg._selected.size).toBe(0);
+        });
+
+        it('bulk check / uncheck acts on the selection', async () => {
+            const dlg = await review([dev('d-a', 'Kitchen'), dev('d-b', 'Kitchen')]);
+            dlg._selected = new Set(['d-a', 'd-b']);
+            dlg._bulkCheck(false);
+            expect(dlg._checked.has('d-a')).toBe(false);
+            expect(dlg._checked.has('d-b')).toBe(false);
+            dlg._bulkCheck(true);
+            expect(dlg._checked.has('d-a')).toBe(true);
+        });
+
+        it('bulk "create new room" moves the whole selection into it', async () => {
+            const dlg = await review([dev('d-a', 'Kitchen'), dev('d-b', 'Kitchen')]);
+            dlg._selected = new Set(['d-a', 'd-b']);
+            dlg._bulkMove('__feezal_new_room__');
+            expect(dlg._newRoomFor).toEqual(['d-a', 'd-b']);
+            dlg._newRoomName = 'Studio';
+            dlg._confirmNewRoom();
+            expect(dlg._assign.get('d-a').label).toBe('Studio');
+            expect(dlg._assign.get('d-b').label).toBe('Studio');
+            expect(dlg._selected.size).toBe(0);
+        });
+
+        it('the selection resets when re-entering review', async () => {
+            const dlg = await review([dev('d-a', 'Kitchen')]);
+            dlg._selected = new Set(['d-a']);
+            dlg._toReview();
+            expect(dlg._selected.size).toBe(0);
         });
     });
 });

@@ -88,8 +88,9 @@ class FeezalGenerateDialog extends LitElement {
         _checked: {state: true},   // Set<string> of entity keys
         _axis:    {state: true},   // App mode: 'room' | 'function'
         _assign:  {state: true},   // App review: Map<entityKey, {label, icon}>
+        _selected: {state: true},  // U75: review row SELECTION (highlight, bulk ops) — distinct from _checked
         _result:  {state: true},   // {added, view, views?, skippedNoElem:[], skippedDupe:[]}
-        _newRoomFor: {state: true},// U70: entity key awaiting a new-room name, or null
+        _newRoomFor: {state: true},// U70/U75: entity key(s) awaiting a new-room name, or null
         _newRoomName: {state: true},
     };
 
@@ -165,6 +166,24 @@ class FeezalGenerateDialog extends LitElement {
             background: var(--feezal-badge-bg, #e2e8f0); color: var(--feezal-badge-fg, #64748b);
         }
         .row .r-gap { font-size: 11px; color: var(--sl-color-warning-600, #d97706); flex: 0 0 auto; }
+        /* U75: review row SELECTION highlight (distinct from the include checkbox). */
+        .row.selected, .row.selected:hover { background: var(--feezal-sel-bg, #cfe5fb); }
+
+        /* U75: bulk action bar — appears while ≥1 review row is selected. */
+        .bulk-bar {
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 10px; margin: 2px 0 8px; border-radius: 8px;
+            background: var(--feezal-tile-hover, #eff6ff);
+            border: 1px solid var(--sl-color-primary-300, #7dd3fc);
+            font-size: 12.5px; position: sticky; top: 0; z-index: 3;
+        }
+        .bulk-bar .bulk-n { font-weight: 600; flex: 0 0 auto; }
+        .bulk-bar .spacer { flex: 1; }
+        .bulk-bar select.bulk-move {
+            font: inherit; font-size: 12px; padding: 3px 6px; border-radius: 6px;
+            background: var(--sl-input-background-color, #fff); color: var(--sl-input-color, inherit);
+            border: 1px solid var(--sl-input-border-color, #d0d0d0);
+        }
 
         .empty { padding: 30px; text-align: center; opacity: .6; font-size: 13px; }
         .loading { display: flex; align-items: center; gap: 12px; padding: 24px; font-size: 13px; opacity: .8; }
@@ -209,6 +228,12 @@ class FeezalGenerateDialog extends LitElement {
         }
         .bucket-hd .material-icons { font-size: 20px; opacity: .7; }
         .bucket-hd sl-input { width: 220px; }
+        .bucket-hd .r-badge {
+            font-size: 10px; padding: 1px 6px; border-radius: 9px; flex: 0 0 auto;
+            background: var(--feezal-badge-bg, #e2e8f0); color: var(--feezal-badge-fg, #64748b);
+        }
+        /* U77: a frequency-detected zone reads differently from a lexicon guess. */
+        .bucket-hd .r-badge.detected { background: var(--sl-color-primary-100, #e0f2fe); color: var(--sl-color-primary-700, #0369a1); }
         .row .r-move {
             font: inherit; font-size: 12px; max-width: 150px; flex: 0 0 auto;
             background: var(--sl-input-background-color, #fff);
@@ -267,10 +292,19 @@ class FeezalGenerateDialog extends LitElement {
         this._newRoomFor = null;
         this._newRoomName = '';
         this.__devices = [];
-        // U68: one range/drag selection helper for BOTH lists (device + review).
+        // U68: the range/drag helper driving the CHECKBOXES (device list + the
+        // bucket-header toggle).
         this._sel = new RangeSelect({
             selection: () => this._checked,
             commit: s => { this._checked = s; },
+        });
+        // U75: a SECOND range/drag helper driving the review row SELECTION (the
+        // highlight the bulk "move to room" acts on) — separate from _checked so
+        // clicking a row no longer toggles its include checkbox.
+        this._selected = new Set();
+        this._selReview = new RangeSelect({
+            selection: () => this._selected,
+            commit: s => { this._selected = s; },
         });
     }
 
@@ -286,6 +320,7 @@ class FeezalGenerateDialog extends LitElement {
         this._filter = '';
         this._checked = new Set();
         this._sel.reset();
+        this._clearSelection();
         this._newRoomFor = null;
         this._result = null;
         // Default the family to the first available one.
@@ -410,15 +445,19 @@ class FeezalGenerateDialog extends LitElement {
     }
 
     // Pointer press on a row: apply the range/drag rule and arm a drag so the
-    // press action paints onto any row the pointer then crosses.
+    // press action paints onto any row the pointer then crosses. U75: in the
+    // review the gesture drives the row SELECTION (_selReview); in the device
+    // list it drives the CHECKBOXES (_sel).
     _selPress(ev, key) {
         ev.preventDefault();                       // no focus/selection flicker
-        this._sel.press(ev, key, this._currentOrder());
+        const sel = this._stage === 'review' ? this._selReview : this._sel;
+        this._activeSel = sel;
+        sel.press(ev, key, this._currentOrder());
         this.requestUpdate();
         if (this._dragMove) return;                // already armed this gesture
         this._dragMove = e => {
             const row = this.renderRoot.elementFromPoint(e.clientX, e.clientY)?.closest?.('.row[data-key]');
-            if (row) { this._sel.paint(row.dataset.key); this.requestUpdate(); }
+            if (row) { this._activeSel.paint(row.dataset.key); this.requestUpdate(); }
         };
         this._dragUp = () => this._endDrag();
         window.addEventListener('pointermove', this._dragMove);
@@ -426,7 +465,7 @@ class FeezalGenerateDialog extends LitElement {
     }
 
     _endDrag() {
-        this._sel.end();
+        this._activeSel?.end();
         if (this._dragMove) window.removeEventListener('pointermove', this._dragMove);
         if (this._dragUp) window.removeEventListener('pointerup', this._dragUp);
         this._dragMove = this._dragUp = null;
@@ -515,15 +554,45 @@ class FeezalGenerateDialog extends LitElement {
         const eligible = this.__devices.filter(e => this._tagFor(e));
         this._checked = new Set(eligible.map(e => e.__key));   // all selected by default
         this._sel.reset();
+        this._clearSelection();                                // U75: no rows selected on entry
         const buckets = groupForApp(eligible, this._axis);
         const assign = new Map();
-        this._bucketMeta = new Map();   // label → {order, guessed}
+        this._bucketMeta = new Map();   // label → {order, guessed, detected}
         for (const b of buckets) {
-            this._bucketMeta.set(b.label, {order: b.order, guessed: b.guessed});
+            this._bucketMeta.set(b.label, {order: b.order, guessed: b.guessed, detected: b.detected});
             for (const e of b.entities) assign.set(e.__key, {label: b.label, icon: b.icon});
         }
         this._assign = assign;
         this._stage = 'review';
+    }
+
+    // ── U75: review row selection (highlight) + bulk operations ──────────────
+    _clearSelection() { this._selected = new Set(); this._selReview.reset(); }
+
+    /** Set _checked on/off for every selected row (bulk check/uncheck). */
+    _bulkCheck(on) {
+        if (!this._selected.size) return;
+        const next = new Set(this._checked);
+        for (const k of this._selected) on ? next.add(k) : next.delete(k);
+        this._checked = next;
+    }
+
+    /** Move every selected row to a room (bulk). The "＋ Create new room"
+     * sentinel opens the new-room dialog for the whole selection instead. */
+    _bulkMove(value) {
+        if (!value || !this._selected.size) return;
+        if (value === NEW_ROOM) {
+            this._newRoomFor = [...this._selected];
+            this.updateComplete.then(() => this.renderRoot.querySelector('.newroom')?.show());
+            this.requestUpdate();
+            return;
+        }
+        const keys = [...this._selected];
+        const target = [...this._assign.values()].find(a => a.label === value);
+        const next = new Map(this._assign);
+        for (const k of keys) next.set(k, {label: value, icon: target?.icon || 'meeting_room'});
+        this._assign = next;
+        this._clearSelection();
     }
 
     // Toggle every device in a review bucket (its header checkbox).
@@ -544,7 +613,8 @@ class FeezalGenerateDialog extends LitElement {
             if (!byLabel.has(a.label)) {
                 const meta = this._bucketMeta?.get(a.label) || {};
                 byLabel.set(a.label, {label: a.label, icon: a.icon,
-                    order: meta.order ?? null, guessed: meta.guessed ?? false, entities: []});
+                    order: meta.order ?? null, guessed: meta.guessed ?? false,
+                    detected: meta.detected ?? false, entities: []});
             }
             byLabel.get(a.label).entities.push(e);
         }
@@ -577,10 +647,12 @@ class FeezalGenerateDialog extends LitElement {
         this._assign = next;
     }
 
-    // ── U70: "＋ Create new room" from a device's move-to-room dropdown ──
+    // ── U70: "＋ Create new room" from a device's move-to-room dropdown.
+    // _newRoomFor holds the key(s) awaiting the name (U75: an array so the bulk
+    // bar can create a room for a whole selection). ──
     _onReassignChange(key, value) {
         if (value === NEW_ROOM) {
-            this._newRoomFor = key;
+            this._newRoomFor = [key];
             this._newRoomName = '';
             this.updateComplete.then(() => this.renderRoot.querySelector('.newroom')?.show());
             this.requestUpdate();   // reset the <select> back to its real value
@@ -591,7 +663,11 @@ class FeezalGenerateDialog extends LitElement {
 
     _confirmNewRoom() {
         const label = String(this._newRoomName || '').trim();
-        if (label && this._newRoomFor) this._reassign(this._newRoomFor, label);
+        const keys = this._newRoomFor;
+        if (label && keys && keys.length) {
+            for (const k of keys) this._reassign(k, label);
+            this._clearSelection();   // U75: a bulk create clears the selection
+        }
         this._closeNewRoom();
     }
 
@@ -599,6 +675,13 @@ class FeezalGenerateDialog extends LitElement {
         this.renderRoot.querySelector('.newroom')?.hide();
         this._newRoomFor = null;
         this._newRoomName = '';
+    }
+
+    // ── U75: single-row toggle of the include checkbox (checkbox click only) ──
+    _setChecked(key, on) {
+        const next = new Set(this._checked);
+        on ? next.add(key) : next.delete(key);
+        this._checked = next;
     }
 
     /** Unique view name (the buckets may collide with non-view names only). */
@@ -916,10 +999,23 @@ class FeezalGenerateDialog extends LitElement {
             <div class="review-hint">
                 ${buckets.length} ${isRoom ? 'rooms' : 'groups'} · <b>${totalChecked}</b> of
                 ${buckets.reduce((n, b) => n + b.entities.length, 0)} devices selected —
-                <b>untick</b> what you don't want (hold <b>Shift</b> or drag for a range),
-                rename to merge, or move a device with its dropdown. Each group becomes a
-                sub-view in the app drawer.
+                tick a device's <b>box</b> to include it; <b>click rows</b> (Shift or drag for
+                a range) to select, then move them together with the bar. Rename a
+                ${isRoom ? 'room' : 'group'} to merge. Each becomes a sub-view in the app drawer.
             </div>
+            ${this._selected.size ? html`
+                <div class="bulk-bar">
+                    <span class="bulk-n">${this._selected.size} selected</span>
+                    <select class="bulk-move" @change="${ev => { this._bulkMove(ev.target.value); ev.target.value = ''; }}">
+                        <option value="">Move to ${isRoom ? 'room' : 'group'}…</option>
+                        ${labels.map(l => html`<option value="${l}">${l}</option>`)}
+                        ${isRoom ? html`<option value="${NEW_ROOM}">＋ Create new room…</option>` : ''}
+                    </select>
+                    <sl-button size="small" @click="${() => this._bulkCheck(true)}">Check</sl-button>
+                    <sl-button size="small" @click="${() => this._bulkCheck(false)}">Uncheck</sl-button>
+                    <span class="spacer"></span>
+                    <sl-button size="small" variant="text" @click="${() => this._clearSelection()}">Clear</sl-button>
+                </div>` : ''}
             <div class="dev-body groups">
                 ${repeat(buckets, b => b.label, b => {
                     const on = checkedIn(b);
@@ -935,13 +1031,17 @@ class FeezalGenerateDialog extends LitElement {
                             <sl-input size="small" value="${b.label}"
                                 @sl-change="${e => this._renameBucket(b.label, e.target.value)}"></sl-input>
                             <span class="g-count">${on}/${b.entities.length}</span>
-                            ${b.guessed && isRoom && b.label !== UNKNOWN_ROOM
+                            ${b.detected && isRoom
+                                ? html`<span class="r-badge detected" title="Detected group — devices that share a recurring name; rename or dismiss">detected</span>`
+                                : b.guessed && isRoom && b.label !== UNKNOWN_ROOM
                                 ? html`<span class="r-badge" title="Room guessed from the device name — no explicit area">guessed</span>` : ''}
                         </div>
                         ${repeat(b.entities, e => e.__key, e => html`
-                            <div class="row" data-key="${e.__key}"
+                            <div class="row ${this._selected.has(e.__key) ? 'selected' : ''}" data-key="${e.__key}"
                                 @pointerdown="${ev => this._selPress(ev, e.__key)}">
-                                <sl-checkbox ?checked="${this._checked.has(e.__key)}"></sl-checkbox>
+                                <sl-checkbox ?checked="${this._checked.has(e.__key)}"
+                                    @pointerdown="${ev => ev.stopPropagation()}"
+                                    @sl-change="${ev => this._setChecked(e.__key, ev.target.checked)}"></sl-checkbox>
                                 <span class="r-label">${this._label(e)}</span>
                                 <span class="r-badge">${e.component}</span>
                                 <select class="r-move" .value="${b.label}"
