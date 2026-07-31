@@ -166,83 +166,85 @@ class FeezalElementFancySensor extends FancyBase {
 
     // ── per-type poses ────────────────────────────────────────────────────────
 
+    // Every pose is drawn to sit optically centred at (50,50) inside a ~44px
+    // envelope, so a row of mixed types lines up (same height, same weight).
+
     _water(active) {
         return svg`
-            <ellipse class="base-fill puddle" cx="50" cy="80" rx="24" ry="5" opacity="0.35"/>
+            <ellipse class="base-fill puddle" cx="50" cy="73" rx="13" ry="3.2" opacity="0.3"/>
             <path class="${active ? 'on-fill' : 'base-fill'} drop"
-                d="M50 20 C58 42 68 52 68 63 A18 18 0 1 1 32 63 C32 52 42 42 50 20 Z"/>
+                d="M50 30 C56 44 63 49 63 57 A13 13 0 1 1 37 57 C37 49 44 44 50 30 Z"/>
             ${active ? svg`
-                <ellipse class="on-stroke wave w1" cx="50" cy="80" rx="10" ry="3"/>
-                <ellipse class="on-stroke wave w2" cx="50" cy="80" rx="10" ry="3"/>` : ''}`;
+                <ellipse class="on-stroke wave w1" cx="50" cy="73" rx="9" ry="3"/>
+                <ellipse class="on-stroke wave w2" cx="50" cy="73" rx="9" ry="3"/>` : ''}`;
     }
 
     _smoke(active) {
         if (!active) {
             return svg`
-                <rect class="base-fill" x="30" y="70" width="40" height="9" rx="4"/>
-                <circle class="base-stroke" cx="50" cy="48" r="17" stroke-width="3.5"/>
-                <circle class="base-fill" cx="50" cy="48" r="4.5"/>`;
+                <circle class="base-stroke" cx="50" cy="50" r="18" stroke-width="3.5"/>
+                <circle class="base-fill" cx="50" cy="50" r="4.5"/>`;
         }
         return svg`
-            <rect class="base-fill" x="30" y="70" width="40" height="9" rx="4"/>
+            <rect class="base-fill" x="34" y="68" width="32" height="8" rx="4"/>
             <path class="on-fill flame"
-                d="M50 24 C64 40 62 52 56 60 C61 49 51 46 50 57 C45 51 43 60 47 69 C36 65 33 51 40 42 C43 53 49 49 50 42 C51 33 46 30 50 24 Z"/>
+                d="M50 30 C61 44 59 55 54 62 C58 52 50 49 49 58 C45 53 43 61 47 68 C37 64 35 52 41 44 C43 54 49 50 50 44 C51 36 47 34 50 30 Z"/>
             <path class="on-fill flame-core" style="fill: var(--primary-background-color)"
-                d="M50 46 C55 54 52 62 50 66 C48 62 45 56 50 46 Z"/>`;
+                d="M50 48 C54 55 51 61 50 64 C49 61 46 56 50 48 Z"/>`;
     }
 
     _gas(active) {
         return svg`
-            <rect class="base-fill" x="34" y="58" width="32" height="28" rx="5"/>
-            <circle class="cut" cx="50" cy="72" r="6.5"/>
+            <rect class="base-fill" x="36" y="31" width="28" height="38" rx="6"/>
+            <circle class="cut" cx="50" cy="50" r="7"/>
             ${active ? svg`
-                <path class="on-stroke waft f1" d="M42 56 q5 -6 0 -12 q-5 -6 0 -12"/>
-                <path class="on-stroke waft f2" d="M50 56 q5 -6 0 -12 q-5 -6 0 -12"/>
-                <path class="on-stroke waft f3" d="M58 56 q5 -6 0 -12 q-5 -6 0 -12"/>` : ''}`;
+                <path class="on-stroke waft f1" d="M42 29 q5 -6 0 -12 q-5 -6 0 -12"/>
+                <path class="on-stroke waft f2" d="M50 29 q5 -6 0 -12 q-5 -6 0 -12"/>
+                <path class="on-stroke waft f3" d="M58 29 q5 -6 0 -12 q-5 -6 0 -12"/>` : ''}`;
     }
 
     _co(active) {
         const tone = active ? 'on-fill' : 'base-fill';
         return svg`
-            <rect class="${tone}" x="41" y="46" width="18" height="7" rx="3.5"/>
-            <circle class="${tone}" cx="35" cy="50" r="15"/>
-            <circle class="cut" cx="35" cy="50" r="7"/>
-            <circle class="${tone}" cx="66" cy="50" r="11"/>
-            <circle class="cut" cx="66" cy="50" r="5"/>
-            ${active ? svg`<circle class="on-stroke pulse" cx="50" cy="50" r="26"/>` : ''}`;
+            <rect class="${tone}" x="41" y="47" width="18" height="6" rx="3"/>
+            <circle class="${tone}" cx="40" cy="50" r="13"/>
+            <circle class="cut" cx="40" cy="50" r="6"/>
+            <circle class="${tone}" cx="63" cy="50" r="10"/>
+            <circle class="cut" cx="63" cy="50" r="4.5"/>
+            ${active ? svg`<circle class="on-stroke pulse" cx="50" cy="50" r="24"/>` : ''}`;
     }
 
     _vibration(active) {
         return svg`
             <g class="${active ? 'shake' : ''}">
-                <rect class="${active ? 'on-fill' : 'base-fill'}" x="39" y="28" width="22" height="44" rx="5"/>
-                <rect class="cut" x="44" y="34" width="12" height="26" rx="2"/>
-                <circle class="cut" cx="50" cy="66" r="2.5"/>
+                <rect class="${active ? 'on-fill' : 'base-fill'}" x="39" y="30" width="22" height="40" rx="5"/>
+                <rect class="cut" x="44" y="35" width="12" height="24" rx="2"/>
+                <circle class="cut" cx="50" cy="64" r="2.2"/>
             </g>
             ${active ? svg`
-                <path class="on-stroke vwave"   d="M29 42 q-6 8 0 16"/>
-                <path class="on-stroke vwave d" d="M23 37 q-9 13 0 26"/>
-                <path class="on-stroke vwave"   d="M71 42 q6 8 0 16"/>
-                <path class="on-stroke vwave d" d="M77 37 q9 13 0 26"/>` : ''}`;
+                <path class="on-stroke vwave"   d="M30 44 q-6 6 0 12"/>
+                <path class="on-stroke vwave d" d="M24 39 q-9 11 0 22"/>
+                <path class="on-stroke vwave"   d="M70 44 q6 6 0 12"/>
+                <path class="on-stroke vwave d" d="M76 39 q9 11 0 22"/>` : ''}`;
     }
 
     _tamper(active) {
         return svg`
-            <rect class="${active ? 'on-fill' : 'base-fill'}" x="32" y="52" width="36" height="30" rx="5"/>
-            <circle class="cut" cx="50" cy="65" r="4"/>
+            <rect class="${active ? 'on-fill' : 'base-fill'}" x="33" y="46" width="34" height="26" rx="5"/>
+            <circle class="cut" cx="50" cy="58" r="3.5"/>
             <path class="${active ? 'on-stroke' : 'base-stroke'}" stroke-width="6"
-                d="${active ? 'M40 52 V42 a10 10 0 0 1 19 -3' : 'M40 52 V42 a10 10 0 0 1 20 0 V52'}"/>
-            ${active ? svg`<circle class="on-stroke pulse" cx="50" cy="60" r="28"/>` : ''}`;
+                d="${active ? 'M40 46 V38 a10 10 0 0 1 19 -3' : 'M40 46 V38 a10 10 0 0 1 20 0 V46'}"/>
+            ${active ? svg`<circle class="on-stroke pulse" cx="50" cy="56" r="26"/>` : ''}`;
     }
 
     _generic(active) {
         return svg`
-            <circle class="${active ? 'on-fill' : 'base-fill'}" cx="50" cy="50" r="8"/>
+            <circle class="${active ? 'on-fill' : 'base-fill'}" cx="50" cy="50" r="7.5"/>
             ${active ? svg`
-                <circle class="on-stroke ring r1" cx="50" cy="50" r="9"/>
-                <circle class="on-stroke ring r2" cx="50" cy="50" r="9"/>
-                <circle class="on-stroke ring r3" cx="50" cy="50" r="9"/>`
-            : svg`<circle class="base-stroke" cx="50" cy="50" r="22" stroke-width="3" opacity="0.5"/>`}`;
+                <circle class="on-stroke ring r1" cx="50" cy="50" r="8"/>
+                <circle class="on-stroke ring r2" cx="50" cy="50" r="8"/>
+                <circle class="on-stroke ring r3" cx="50" cy="50" r="8"/>`
+            : svg`<circle class="base-stroke" cx="50" cy="50" r="20" stroke-width="3" opacity="0.5"/>`}`;
     }
 
     renderBadges() {
