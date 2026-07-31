@@ -157,7 +157,8 @@ describe('creating a site', () => {
         const [url, init] = fetchMock.mock.calls[0];
         expect(url).toBe('/api/sites');
         expect(init.method).toBe('POST');
-        expect(JSON.parse(init.body)).toEqual({name: 'garden'});
+        // A new site inherits the current site's MQTT connection (fromSite).
+        expect(JSON.parse(init.body)).toEqual({name: 'garden', fromSite: feezal.siteName});
         expect(navigated.at(-1)).toBe('/editor/?/garden/');
         expect(el._busy).toBe(false);
     });

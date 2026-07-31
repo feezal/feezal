@@ -97,6 +97,8 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B89 — HA discovery: nested `device` abbreviations not expanded (ESPHome device metadata lost; switch not offered) ✅ fixed](B89.md)
 - [B90 — layout-app: wide drawer entry padding, and the residual icon jump between slim and wide ✅ fixed](B90.md)
 - [B91 — Glass cards: badge/details-button placement is inconsistent across the family ✅ fixed](B91.md)
+- [B92 — circle-switch never publishes on tap (autodiscovered RedMatic switch); glass-switch works ✅ fixed](B92.md)
+- [B93 — Fan cards: default icon `mode_fan` is not a vendored glyph (glass-fan spins a broken fragment) ✅ fixed](B93.md)
 
 ## Near-term Improvements
 
@@ -336,6 +338,8 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U69 — Generate wizard: the review IS the selection (drop the flat first page) ✅ done](U69.md)
 - [U70 — Review: "＋ Create new room" in the per-device move-to-room dropdown ✅ done](U70.md)
 - [U71 — Generate wizard: illustrate the element families with screenshots ✅ done](U71.md)
+- [U72 — Generate wizard: order the cards within a view by function (room mode) or name (function mode) ✅ done](U72.md)
+- [U74 — Generate wizard: set a family-matched theme so the app looks like the family screenshot ✅ done](U74.md)
 
 ## Architecture & Infrastructure
 

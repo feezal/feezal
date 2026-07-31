@@ -7,8 +7,6 @@ Work in progress — priorities and scope are not final.
 ## Table of Contents
 
 **Bugs**
-- [B93 — Fan cards: default icon `mode_fan` is not a vendored glyph (glass-fan spins a broken fragment)](#b93--fan-cards-default-icon-mode_fan-is-not-a-vendored-glyph-glass-fan-spins-a-broken-fragment)
-- [B92 — circle-switch never publishes on tap (autodiscovered RedMatic switch); glass-switch works](#b92--circle-switch-never-publishes-on-tap-autodiscovered-redmatic-switch-glass-switch-works)
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
 
@@ -67,9 +65,7 @@ Work in progress — priorities and scope are not final.
 - [U45 — Element insertion: palette sidebar + full-screen picker](#u45--element-insertion-palette-sidebar--full-screen-picker--to-refine) 💡 *(to refine)*
 - [U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow](#u61--editor-preview-fidelity-gradientbackground-in-a-percentage-sized-views-scroll-overflow)
 - [U63 — `layout-app`: split the content inset into per-side knobs](#u63--layout-app-split-the-content-inset-into-per-side-knobs)
-- [U72 — Generate wizard: order the cards within a view by function (room mode) or name (function mode)](#u72--generate-wizard-order-the-cards-within-a-view-by-function-room-mode-or-name-function-mode)
 - [U73 — Welcome wizard: fork into "explore the editor" vs "just autogenerate an app"](#u73--welcome-wizard-fork-into-explore-the-editor-vs-just-autogenerate-an-app)
-- [U74 — Generate wizard: set a family-matched theme so the app looks like the family screenshot](#u74--generate-wizard-set-a-family-matched-theme-so-the-app-looks-like-the-family-screenshot)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -89,34 +85,6 @@ Work in progress — priorities and scope are not final.
 ---
 
 ## Bugs
-
-### B93 — Fan cards: default icon `mode_fan` is not a vendored glyph (glass-fan spins a broken fragment)
-
-**Reported (07/2026).** The **glass-fan** animation is broken — instead of a spinning fan, a single "wing" flies around at a totally wrong position.
-
-**Confirmed root cause — `mode_fan` isn't a vendored glyph.** All three fan cards default their icon to **`mode_fan`** (`glass-fan` / `circle-fan` / `eink-fan`), but the vendored Material Symbols subset (`www/src/material-design-icons.js` / the A25 self-hosted font) ships only **`mode_fan_off`**, not plain `mode_fan`. So `feezal-icon name="mode_fan"` renders a **broken / partial glyph** (no codepoint for the ligature). glass-fan then **spins that partial glyph** (`animation: feezalGlassFanSpin … linear infinite` on the `feezal-icon`, rotating about its box centre), so the fragment orbits — "one wing flying around". circle-fan / eink-fan carry the same wrong default but don't animate it, so they just show a broken static glyph (same cause, less obvious).
-
-**Fix.** Point the fans at a fan icon that IS in the subset, or vendor `mode_fan`. Already present and suitable: **`toys`** (a pinwheel — reads as a fan and spins cleanly), `cyclone`, `air`, `wind_power`. Recommend `toys` (or add `mode_fan` to the vendored subset per A25 + `material-design-icons.js` if the exact fan glyph is wanted). Fix the shared default across **all three** fan cards (palette icon + the render fallback), and confirm the spin's `transform-origin` is the glyph centre so a symmetric icon rotates **in place** (no orbit once the glyph is valid). Guard: extend the E160/E161 "every stamped icon is an installed Symbol" discipline (or add a small test) so a card's **default** icon can't reference a non-vendored glyph again.
-
-**Acceptance:** glass-fan shows a fan spinning **in place** while on (not an orbiting fragment); circle-fan / eink-fan show a proper fan glyph; the chosen icon is verified present in `material-design-icons.js`; a test asserts each fan card's default icon is a vendored Symbol.
-
-**Relates:** **A25** ✅ (the vendored self-hosted Material Symbols subset — the missing `mode_fan` codepoint), **E160** / **E161** ✅ (the "verify every icon against the installed set" discipline this default escaped), `feezal-element-glass-fan` (the spin animation) + circle-/eink-fan (shared default), `feezal-icon` (renders the ligature).
-
-### B92 — circle-switch never publishes on tap (autodiscovered RedMatic switch); glass-switch works
-
-**Reported (07/2026).** An autodiscovered RedMatic (Homematic) switch channel, carded as **circle-switch**, does not publish on tap. The **same** discovered settings on **glass-switch** publish fine.
-
-**Confirmed root cause — circle-switch is a light publishing to the wrong topic.** `circle-switch` is `FeezalElementCircleLight` locked to `on_off` mode (**E122**), so a tap routes through the shared **light controller**, whose on/off `toggle()` publishes to the **`publish-state`** attribute (`this._pub(this._attr('publish-state'), payloadOn/Off)`). But the shared **`switchAcceptsLight`** discovery fragment — used by every family's `*-switch` to accept a Homematic on/off *light* — maps `command_topic` / `state_command_topic` → **`publish`**, not `publish-state`, because it was written for the *simple* switch cards (glass/metro/eink) that publish directly to `publish` (`feezal.connection.pub(this.publish, …)`). So on circle-switch the discovery fills `publish` while the controller reads `publish-state` (empty) → **the tap publishes to an empty topic and nothing goes out.** glass-switch reads the very `publish` the fragment stamped, so it works.
-
-(A switch discovered as a native HA `switch` component is fine — circle-switch's *own* map stamps `command_topic → publish-state` there. The failure is specifically the **`light`-accepted-as-switch** path, which is how a RedMatic switch channel arrives.)
-
-**The deeper issue you flagged — circle-switch should not inherit circle-light.** Making the plain switch a locked light drags in the whole light machinery (payload-mode, `on_off_source`/E77 settling, `publish` vs `publish-state`) and gives it a *different* publish-attribute scheme than every other family's switch, so one shared discovery fragment stamps the right attribute for the simple cards and the wrong one for circle-switch.
-
-**Fix — decouple circle-switch from circle-light.** Make it a plain switch like the other families: `subscribe` + `publish` + `payload-on`/`payload-off`, publishing directly to `publish` (or over a shared switch controller, **E137**), so `switchAcceptsLight` and the native-`switch` map wire it **byte-for-byte the same** as glass/metro/eink and there is a single publish path. Its E122 "outlet" look/behaviour is trivial without the light controller. A narrow band-aid (stamp `publish-state` in the fragment for circle-switch, or fall back to `publish` when `publish-state` is empty) fixes this one symptom but keeps the light-in-disguise divergence that caused it.
-
-**Acceptance:** an autodiscovered Homematic/RedMatic switch (both the light-`on_off` and native-`switch` shapes) carded as circle-switch publishes payload-on/payload-off to the discovered command topic on tap, exactly as glass-switch does; a browser test drives a tap and asserts the publish (topic + payload) matches glass-switch for the same stamped config; existing `circle-switch` dashboards keep working.
-
-**Relates:** **E122** (circle-switch = circle-light locked to on_off — the inheritance this removes), **E137** (controllers — a shared switch controller is the clean home if one is wanted), `switchAcceptsLight` in `feezal-discovery-fragments.js` (stamps `publish`), `feezal-controller-light` `toggle()` (publishes to `publish-state`), glass-/metro-/eink-switch (the simple direct-publish switches to match), the ⚡ picker + Generate wizard (wire the switch), the E137 controller-parity test.
 
 ### B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)
 
@@ -1149,19 +1117,6 @@ Independent of A/B/C: decide whether the **Subscribe topic may also feed a range
 
 **Relates:** `@feezal/feezal-gauge` (`bandColor` / `parseRanges` — the existing implementation this generalises, and the first consumer to migrate), **U49** / the conditions engine (`action: style` — the overlapping mechanism to delimit), **U47** ✅ (the `＋ Create new…` sentinel pattern to copy), `feezal-sidebar-themes` / `-assets` (site-level panel precedent), `material-tank` warn/crit + the glass/metro state colours (the ad-hoc thresholds to absorb), `CLAUDE.md` §"Theme variable discipline" (band colours should prefer theme vars), **A16**/export (ranges must serialize into a static bundle).
 
-### U72 — Generate wizard: order the cards within a view by function (room mode) or name (function mode)
-
-**Requested (07/2026).** The cards a generated app drops into each view come out in discovery order, which reads as random. Order them meaningfully:
-
-- **Room app (by room):** within each room view, order the cards by **function** in the taxonomy order — **Lights → Switches → Covers → Climate → Windows/doors → Motion → Alarms → Sensors → Locks → Media → Energy → Other** (the reporter's "lights, cover, climate, contact, sensor" is this sequence). So every room reads the same way: controls first, readouts last. Tie-break by label alphabetically within a function.
-- **Function app (by function):** the view already *is* one function, so ordering by function is meaningless — order the cards **alphabetically by label** instead.
-
-**Trivial and grounded.** [`feezal-generate-dialog.js`](../www/src/feezal-generate-dialog.js) `_generateApp` iterates `chosen` (the checked bucket entities) in `__devices` order; sort it first. The function priority already exists — `functionBucket(entity).order` in [`feezal-discovery-stamp.js`](../www/src/feezal-discovery-stamp.js) returns the `FN_TAXONOMY` order (Lights 0 … Other 11). So: room mode → `sort((a,b) => functionBucket(a).order - functionBucket(b).order || label(a).localeCompare(label(b)))`; function mode → `sort((a,b) => label(a).localeCompare(label(b)))` (locale-aware). Only the per-view card order changes; bucket order, slugs, drawer items and the dupe-guard are untouched.
-
-**Ships with:** the two-line sort in `_generateApp`, a browser test asserting card order within a room follows the function taxonomy (and alphabetical within a function bucket), and a `docs/TESTING.md` line under the Generate-wizard §.
-
-**Relates:** **U58** ✅ / **U67** ✅ / **U69** ✅ (the App generator this refines), **E138** (the `FN_TAXONOMY` function taxonomy the room order reuses — keep them one order, not two), `functionBucket` / `_generateApp`.
-
 ### U73 — Welcome wizard: fork into "explore the editor" vs "just autogenerate an app"
 
 **Requested (07/2026).** [U37](roadmap-archive/U37.md) ✅ (`www/src/feezal-welcome-tour.js`) is one linear hands-on sequence. Add a branch after the basics so a first-run user picks their path:
@@ -1180,26 +1135,6 @@ Independent of A/B/C: decide whether the **Subscribe topic may also feed a range
 **Ships with:** the fork step + two branches, the tour-overlay/dialog hand-off, the empty-discovery bail-out, browser tests (the fork routes correctly; the autogenerate path advances only once discovery has entities; the finale appears after the result stage), a `docs/TESTING.md` update to the U37 tour section, and U37's editor-only property preserved (nothing reaches the viewer/export bundle).
 
 **Relates:** **U37** ✅ (the tour this restructures — `feezal-welcome-tour.js`), **U58** ✅ (the App generator the autogenerate path lands in — this **supersedes** its §Onboarding single-step plan), **U67**–**U71** ✅ (the current Generate wizard), the MQTT connection tab (`feezal-sidebar-viewer`) + `/api/discovery/devices` (the discovery wait), the open-viewer action + Deploy → Export (the finale), **A18** (kiosk / first-run onboarding is where this matters most).
-
-### U74 — Generate wizard: set a family-matched theme so the app looks like the family screenshot
-
-**Requested (07/2026).** The App generator should apply a **site theme that matches the chosen element family**, so a generated app looks like its U71 screenshot rather than the fresh-install default:
-
-| family | site theme | extra |
-|---|---|---|
-| **Glass** | `feezal-theme-midnight-blue` (the reporter's "midnight-dark" — the dark base the frost shines against) | set **each generated sub-view's background to the default gradient** wallpaper (what makes the frosted cards read) |
-| **Metro** | `feezal-theme-metro` | — |
-| **Circle** | `feezal-theme-gruvbox-light` | — |
-
-The other families (eink / basic / material) keep the default for now — add their theme when a screenshot exists (pairs with **U71**).
-
-**Grounding.** `_generateApp` in `feezal-generate-dialog.js` builds the shell + sub-views; on confirm it would also **(a)** set the site theme — a theme is a **class on `<feezal-site>`** (`pkgToClass` in `feezal-theme-select.js`), persisted as `config.theme`; reuse the theme sidebar's apply path so it saves + repaints — and **(b)** for glass, set each created sub-view's `background` / `background-image` to the **default gradient** (the `feezal-theme-glass` wallpaper gradient — pin the exact value at build; a per-view background already lives as the style-inspector `background`, so write the same inline form). Only the sub-views the run creates are touched; a re-run must not clobber a background the user has since changed.
-
-**Decisions to make:** whether setting the theme **overrides an existing site theme** on every generate (the request implies yes — "set site theme to X" to match the screenshots) or only when the app shell is freshly created; and whether the glass sub-view gradient is a one-time stamp (editable afterwards) — recommend yes, like every other generated default. Fold into the one-undo-snapshot scaffold.
-
-**Ships with:** the per-family theme map + the glass sub-view gradient in `_generateApp`, reuse of the theme apply/persist path, a browser test (glass → the `feezal-theme-midnight-blue` class on the site + sub-views carry the gradient; metro → `feezal-theme-metro`; circle → `feezal-theme-gruvbox-light`), and a `docs/TESTING.md` line in the Generate-wizard §.
-
-**Relates:** **U58** ✅ / **U67** ✅ / **U69** ✅ (the App generator this refines), **U71** ✅ (the family screenshots the output should match — same three families), `feezal-theme-{midnight-blue, metro, gruvbox-light, glass}`, `feezal-theme-select.js` (`pkgToClass` + the apply path), the view-background style (`feezal-sidebar-inspector-styles.js`), `_generateApp`.
 
 ### E112 — Scrypted integration: camera snapshot element (sensors already work) 💡 to refine
 
