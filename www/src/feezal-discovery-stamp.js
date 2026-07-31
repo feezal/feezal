@@ -444,6 +444,154 @@ export function resolveElementTag(component, family, deviceClass, isRegistered =
     return null;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// U58 Phase ② — App mode: room detection + bucket grouping (pure, testable)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Multilingual room-word lexicon. Detection tokenizes the searched strings on
+// non-letter boundaries and matches tokens exactly — plus prefix-matching for
+// words ≥5 chars, so German compounds ("Schlafzimmerfenster") still hit.
+// Labels are the sub-view names the wizard proposes (always editable).
+export const ROOM_LEXICON = [
+    {label: 'Living room', icon: 'chair',        words: ['living', 'livingroom', 'wohnzimmer', 'lounge', 'salon', 'soggiorno', 'sala', 'wohnen']},
+    {label: 'Kitchen',     icon: 'kitchen',      words: ['kitchen', 'küche', 'kueche', 'cocina', 'cuisine', 'cucina', 'kuchnia', 'mutfak']},
+    {label: 'Bedroom',     icon: 'bed',          words: ['bedroom', 'schlafzimmer', 'schlafen', 'dormitorio', 'chambre', 'camera', 'sypialnia', 'quarto']},
+    {label: 'Bathroom',    icon: 'bathtub',      words: ['bathroom', 'bad', 'badezimmer', 'baño', 'bano', 'salle', 'bagno', 'łazienka', 'lazienka', 'banheiro', 'banyo', 'wc', 'toilette', 'toilet', 'gäste-wc', 'gaestewc']},
+    {label: 'Office',      icon: 'desk',         words: ['office', 'büro', 'buero', 'arbeitszimmer', 'oficina', 'bureau', 'ufficio', 'biuro', 'escritório', 'escritorio', 'ofis', 'study']},
+    {label: 'Hallway',     icon: 'meeting_room', words: ['hallway', 'hall', 'flur', 'diele', 'korridor', 'corridor', 'pasillo', 'couloir', 'corridoio', 'entrada', 'entrance', 'eingang', 'treppenhaus', 'treppe']},
+    {label: 'Kids room',   icon: 'child_care',   words: ['kinderzimmer', 'kids', 'nursery', 'children']},
+    {label: 'Dining room', icon: 'restaurant',   words: ['dining', 'esszimmer', 'comedor', 'jadalnia']},
+    {label: 'Garage',      icon: 'garage',       words: ['garage', 'garaje', 'garagem', 'garaż', 'garaz', 'carport']},
+    {label: 'Garden',      icon: 'yard',         words: ['garden', 'garten', 'jardín', 'jardin', 'giardino', 'ogród', 'ogrod', 'bahçe', 'bahce', 'outdoor', 'aussen', 'außen']},
+    {label: 'Terrace',     icon: 'deck',         words: ['terrace', 'terrasse', 'balkon', 'balcony', 'balcón', 'balcon', 'terraza', 'patio', 'taras']},
+    {label: 'Basement',    icon: 'foundation',   words: ['basement', 'keller', 'sótano', 'sotano', 'cave', 'cantina', 'piwnica', 'porão', 'porao', 'hobbyraum', 'hwr']},
+    {label: 'Attic',       icon: 'roofing',      words: ['attic', 'dachboden', 'dachgeschoss', 'ático', 'atico', 'grenier', 'strych', 'sótão', 'sotao']},
+    {label: 'Laundry',     icon: 'local_laundry_service', words: ['laundry', 'waschküche', 'waschkueche', 'waschraum', 'lavadero', 'buanderie', 'lavanderia', 'pralnia']},
+    {label: 'Guest room',  icon: 'night_shelter', words: ['guest', 'gästezimmer', 'gaestezimmer', 'gast']},
+];
+
+/** The bucket every unmatched device lands in (still editable in review). */
+export const UNKNOWN_ROOM = 'Unassigned';
+
+// Function-axis taxonomy — built OVER the classification that already exists
+// (FUNCTION_CANDIDATES / BINARY_BY_CLASS below, MOTION/ALARM types from
+// feezal-sensor-types), never a parallel opinion. `order` is the E138
+// taxonomy order the drawer follows — "Lights, Covers, Climate…" reads as a
+// dashboard, alphabetical reads as a list.
+const FN_TAXONOMY = {
+    lights:   {label: 'Lights',             icon: 'lightbulb',        order: 0},
+    switches: {label: 'Switches & sockets', icon: 'toggle_on',        order: 1},
+    covers:   {label: 'Covers & blinds',    icon: 'blinds',           order: 2},
+    climate:  {label: 'Climate',            icon: 'thermostat',       order: 3},
+    contact:  {label: 'Windows & doors',    icon: 'sensor_door',      order: 4},
+    motion:   {label: 'Motion & presence',  icon: 'motion_photos_on', order: 5},
+    alarms:   {label: 'Alarms',             icon: 'warning',          order: 6},
+    sensors:  {label: 'Sensors',            icon: 'sensors',          order: 7},
+    locks:    {label: 'Locks',              icon: 'lock',             order: 8},
+    media:    {label: 'Media',              icon: 'play_circle',      order: 9},
+    energy:   {label: 'Energy',             icon: 'bolt',             order: 10},
+    other:    {label: 'Other',              icon: 'category',         order: 11},
+};
+
+const FN_BY_COMPONENT = {
+    light: 'lights', wled: 'lights',
+    switch: 'switches',
+    cover: 'covers',
+    climate: 'climate', water_heater: 'climate', humidifier: 'climate',
+    lock: 'locks',
+    media_player: 'media',
+    'energy-flow': 'energy', 'evcc-loadpoint': 'energy',
+    sensor: 'sensors',
+};
+
+// binary_sensor device_class → taxonomy key. Contact classes mirror
+// BINARY_BY_CLASS; motion/alarm follow E132/E138's split (feezal-sensor-types:
+// MOTION_SENSOR_TYPES / ALARM_SENSOR_TYPES). Unmapped defaults to sensors
+// (B59's rule: never contact).
+const FN_BINARY_BY_CLASS = {
+    door: 'contact', window: 'contact', garage_door: 'contact', opening: 'contact', lock: 'contact',
+    motion: 'motion', occupancy: 'motion', presence: 'motion', moving: 'motion',
+    smoke: 'alarms', gas: 'alarms', moisture: 'alarms', co: 'alarms',
+    vibration: 'alarms', tamper: 'alarms', safety: 'alarms', problem: 'alarms',
+};
+
+const tokenize = s => String(s || '').toLowerCase().split(/[^a-zäöüáéíóúàèìòùâêîôûãõçłńśźżığş]+/).filter(Boolean);
+
+/**
+ * Room detection for one entity. Resolution: a joined device-group area
+ * (`entity.__area`, from /api/discovery/device-groups) or the entity's own
+ * `device.suggested_area` is TRUSTED and wins verbatim; otherwise the lexicon
+ * is matched over the label, entity name and state topic (a GUESS). Returns
+ * {label, icon, source: 'area'|'guess'} or null (→ UNKNOWN_ROOM bucket).
+ */
+export function detectRoom(entity) {
+    const cfg = entity?.config || {};
+    const area = entity?.__area || cfg.device?.suggested_area;
+    if (area) return {label: String(area), icon: 'meeting_room', source: 'area'};
+    const hay = tokenize([discoveryLabel(entity), entity?.name, cfg.state_topic].join(' '));
+    for (const room of ROOM_LEXICON) {
+        for (const w of room.words) {
+            if (hay.some(t => t === w || (w.length >= 5 && t.startsWith(w)))) {
+                return {label: room.label, icon: room.icon, source: 'guess'};
+            }
+        }
+    }
+    return null;
+}
+
+/** Function-axis bucket for one entity: {label, icon, order}. */
+export function functionBucket(entity) {
+    let key;
+    if (entity?.component === 'binary_sensor') {
+        key = FN_BINARY_BY_CLASS[entity.config?.device_class] || 'sensors';
+    } else {
+        key = FN_BY_COMPONENT[entity?.component] || 'other';
+    }
+    return FN_TAXONOMY[key];
+}
+
+/**
+ * View names reach the URL (#/<view>) — slugify the human label for the view
+ * `name`, keep the label for the drawer entry. ASCII-folded with German
+ * transliteration (Büro → buero), lowercased, hyphenated. STABLE: the same
+ * label always yields the same slug, so re-runs merge instead of duplicating.
+ */
+export function slugifyViewName(label) {
+    const map = {ä: 'ae', ö: 'oe', ü: 'ue', ß: 'ss', æ: 'ae', ø: 'o', å: 'a'};
+    let s = String(label || '').toLowerCase()
+        .replace(/[äöüßæøå]/g, c => map[c])
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')   // strip remaining diacritics
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    return s || 'view';
+}
+
+/**
+ * Group entities into App-mode buckets on one axis ('room' | 'function').
+ * Returns [{label, icon, order, guessed, entities}] — rooms locale-sorted
+ * with UNKNOWN_ROOM pinned last, functions in taxonomy order. A room bucket
+ * is `guessed` unless at least one entity carried a TRUSTED area.
+ */
+export function groupForApp(entities, axis) {
+    const buckets = new Map();
+    for (const entity of entities || []) {
+        const b = axis === 'function'
+            ? {...functionBucket(entity), source: 'taxonomy'}
+            : (detectRoom(entity) || {label: UNKNOWN_ROOM, icon: 'inventory_2', source: 'none'});
+        if (!buckets.has(b.label)) {
+            buckets.set(b.label, {label: b.label, icon: b.icon, order: b.order ?? null, guessed: axis !== 'function', entities: []});
+        }
+        const bucket = buckets.get(b.label);
+        bucket.entities.push(entity);
+        if (b.source === 'area') bucket.guessed = false;
+    }
+    const arr = [...buckets.values()];
+    if (axis === 'function') {
+        return arr.sort((a, b) => (a.order ?? 99) - (b.order ?? 99) || a.label.localeCompare(b.label));
+    }
+    return arr.sort((a, b) =>
+        (a.label === UNKNOWN_ROOM) - (b.label === UNKNOWN_ROOM) || a.label.localeCompare(b.label, undefined, {sensitivity: 'base'}));
+}
+
 // Deterministic uniform-cell packing: `count` cells of `cellW`×`cellH` laid
 // left-to-right, wrapping into rows that fit `viewWidth`. Returns view-local
 // {left, top} pixel positions. Devices-mode only (flat auto-grid).

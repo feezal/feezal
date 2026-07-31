@@ -81,6 +81,7 @@ class FeezalElementLayoutApp extends FeezalElement {
                 {property: '--feezal-app-drawer-entry-inset', type: 'string', default: '8px',
                     help: 'Side gutter between the drawer edge and the entry rows — the space the hover/active highlight stops short of. Set "0" to let the highlight reach the drawer edge. Defaults to 8px with entry style "pill" and to 0 with "list". Applies to every drawer mode alike (full drawer, slim rail, expanded rail, overlay), so changing it never shifts the entries between modes.'},
                 {property: '--feezal-app-content-padding', type: 'string', default: '0', help: 'Breathing room between the app bar / drawer and the embedded view. Full CSS padding shorthand, so per-side insets need no extra knobs: "16px", "8px 16px", "0 16px 24px". The embedded view\'s own background paints under it.'},
+                {property: '--feezal-app-content-max-width', type: 'string', default: 'none', help: 'Caps the width of EVERY embedded view in one place and centres it — a phone/tablet column on a large monitor (e.g. "520px"). The content area\'s background fills the sides. Default none = full width.'},
             ],
             restrict: {move: false, resize: false, minWidth: 240, minHeight: 160},
             defaultStyle: {top: '0px', left: '0px', width: '100%', height: '100%'},
@@ -293,7 +294,10 @@ class FeezalElementLayoutApp extends FeezalElement {
         .content { flex: 1; min-width: 0; position: relative; overflow: auto;
             box-sizing: border-box;
             padding: var(--feezal-app-content-padding, 0); }
-        #content { width: 100%; height: 100%; }
+        /* U58 App mode: one central width cap for every embedded view — a
+           phone/tablet column on a big monitor, no per-sub-view drift. */
+        #content { width: 100%; height: 100%;
+            max-width: var(--feezal-app-content-max-width, none); margin: 0 auto; }
         .ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
             color: var(--secondary-text-color); font-size: 13px;
             background-image:

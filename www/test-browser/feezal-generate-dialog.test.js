@@ -106,3 +106,141 @@ describe('feezal-generate-dialog (U58 Devices)', () => {
         expect(dlg._result.skippedNoElem.map(e => e.component)).toContain('vacuum');
     });
 });
+
+
+// ── U58 Phase ②: App mode ────────────────────────────────────────────────────
+
+describe('feezal-generate-dialog (U58 App mode)', () => {
+    let site;
+    beforeEach(() => {
+        document.body.innerHTML = '';
+        site = document.createElement('div');   // stands in for feezal-site
+        document.body.append(site);
+        setupFeezal(null);
+        window.feezal.site = site;
+        window.feezal.app.views = [];
+    });
+
+    const DEVICES = () => ([
+        {component: 'light', discovery_id: 'd-wz', name: 'wohnzimmer_lampe',
+            config: {state_topic: 'z/wohnzimmer_lampe', command_topic: 'z/wohnzimmer_lampe/set'}, __key: 'd-wz'},
+        {component: 'switch', discovery_id: 'd-ku', name: 'kueche_steckdose',
+            config: {state_topic: 'z/kueche_steckdose', command_topic: 'z/kueche_steckdose/set'}, __key: 'd-ku'},
+        {component: 'light', discovery_id: 'd-x', name: 'mystery_7',
+            config: {state_topic: 'z/mystery_7', command_topic: 'z/m/set'}, __key: 'd-x'},
+    ]);
+
+    it('review buckets from the heuristic; rename = merge; generate scaffolds the app', async () => {
+        const dlg = await makeDialog();
+        dlg._family = 'circle';
+        dlg._axis = 'room';
+        dlg.__devices = DEVICES();
+        dlg._checked = new Set(['d-wz', 'd-ku', 'd-x']);
+        dlg._toReview();
+        expect(dlg._stage).toBe('review');
+        expect(dlg._reviewBuckets().map(b => b.label)).toEqual(['Kitchen', 'Living room', 'Unassigned']);
+
+        dlg._renameBucket('Unassigned', 'Kitchen');   // merge the unmatched one
+        expect(dlg._reviewBuckets().map(b => b.label)).toEqual(['Kitchen', 'Living room']);
+        dlg._generateApp();
+
+        const shell = site.querySelector('feezal-element-layout-app');
+        expect(shell).not.toBeNull();
+        expect(shell.closest('feezal-view').getAttribute('name')).toBe('Menu');
+        expect(shell.style.getPropertyValue('--feezal-app-content-max-width')).toBe('520px');
+
+        const items = JSON.parse(shell.getAttribute('items'));
+        expect(items.map(i => i.view).sort()).toEqual(['kitchen', 'living-room']);
+        expect(items.every(i => i.icon && i.label)).toBe(true);
+        expect(shell.getAttribute('active-view')).toBe(items[0].view);
+
+        const kitchen = site.querySelector('feezal-view[name="kitchen"]');
+        expect(kitchen.getAttribute('child-position')).toBe('flow');
+        expect(kitchen.getAttribute('flow-justify')).toBe('center');
+        expect(kitchen.querySelectorAll('[discovery-id]')).toHaveLength(2);
+        expect(site.querySelector('feezal-view[name="living-room"]').querySelectorAll('[discovery-id]')).toHaveLength(1);
+        expect(dlg._result.added).toBe(3);
+        expect(window.feezal.__changes).toBe(1);   // one undo entry
+    });
+
+    it('re-running reuses the shell, merges same-named views and dupe-guards site-wide', async () => {
+        const dlg = await makeDialog();
+        dlg._family = 'circle';
+        dlg._axis = 'room';
+        dlg.__devices = DEVICES().slice(0, 2);
+        dlg._checked = new Set(['d-wz', 'd-ku']);
+        dlg._toReview();
+        dlg._generateApp();
+
+        // second run: same two devices plus a new one that lands in Kitchen
+        dlg.__devices = [...DEVICES(),
+            {component: 'switch', discovery_id: 'd-ku2', name: 'kueche_ofen',
+                config: {state_topic: 'z/kueche_ofen', command_topic: 'z/kueche_ofen/set'}, __key: 'd-ku2'}];
+        dlg._checked = new Set(['d-wz', 'd-ku', 'd-ku2']);
+        dlg._toReview();
+        dlg._generateApp();
+
+        expect(site.querySelectorAll('feezal-element-layout-app')).toHaveLength(1);   // one shell
+        expect(site.querySelectorAll('feezal-view[name="kitchen"]')).toHaveLength(1); // merged, not duplicated
+        expect(site.querySelector('feezal-view[name="kitchen"]').querySelectorAll('[discovery-id]')).toHaveLength(2);
+        expect(dlg._result.added).toBe(1);                    // only the new device
+        expect(dlg._result.skippedDupe).toHaveLength(2);      // the re-picked ones
+        const items = JSON.parse(site.querySelector('feezal-element-layout-app').getAttribute('items'));
+        expect(items.map(i => i.view).sort()).toEqual(['kitchen', 'living-room']);   // append-only, no dupes
+    });
+
+    it('function axis groups by component; reassign moves a single device', async () => {
+        const dlg = await makeDialog();
+        dlg._family = 'circle';
+        dlg._axis = 'function';
+        dlg.__devices = DEVICES();
+        dlg._checked = new Set(['d-wz', 'd-ku', 'd-x']);
+        dlg._toReview();
+        expect(dlg._reviewBuckets().map(b => b.label)).toEqual(['Lights', 'Switches & sockets']);
+        dlg._reassign('d-x', 'Switches & sockets');
+        const buckets = dlg._reviewBuckets();
+        expect(buckets.find(b => b.label === 'Switches & sockets').entities.map(e => e.__key)).toContain('d-x');
+        expect(buckets.find(b => b.label === 'Lights').entities).toHaveLength(1);
+    });
+
+    it('a trusted area beats the lexicon and the review marks only guesses', async () => {
+        const dlg = await makeDialog();
+        dlg._family = 'circle';
+        dlg._axis = 'room';
+        dlg.__devices = [
+            {component: 'light', discovery_id: 'd-a', name: 'wohnzimmer_lampe', __area: 'Studio',
+                config: {state_topic: 'z/a', command_topic: 'z/a/set'}, __key: 'd-a'},
+            {component: 'light', discovery_id: 'd-b', name: 'kueche_spot',
+                config: {state_topic: 'z/b', command_topic: 'z/b/set'}, __key: 'd-b'},
+        ];
+        dlg._checked = new Set(['d-a', 'd-b']);
+        dlg._toReview();
+        const buckets = dlg._reviewBuckets();
+        expect(buckets.map(b => b.label)).toEqual(['Kitchen', 'Studio']);
+        expect(buckets.find(b => b.label === 'Studio').guessed).toBe(false);
+        expect(buckets.find(b => b.label === 'Kitchen').guessed).toBe(true);
+        // backing out of review has created nothing
+        expect(site.querySelectorAll('feezal-view')).toHaveLength(0);
+    });
+
+    it('umlaut labels slugify stably for the view name (Büro → buero)', async () => {
+        const dlg = await makeDialog();
+        dlg._family = 'circle';
+        dlg._axis = 'room';
+        dlg.__devices = [
+            {component: 'light', discovery_id: 'd-a', name: 'lampe', __area: 'Büro',
+                config: {state_topic: 'z/a', command_topic: 'z/a/set'}, __key: 'd-a'},
+        ];
+        dlg._checked = new Set(['d-a']);
+        dlg._toReview();
+        dlg._generateApp();
+        expect(site.querySelector('feezal-view[name="buero"]')).not.toBeNull();
+        const items = JSON.parse(site.querySelector('feezal-element-layout-app').getAttribute('items'));
+        expect(items[0]).toMatchObject({label: 'Büro', view: 'buero'});
+        // shell defaults per the Phase-2 spec
+        const shell = site.querySelector('feezal-element-layout-app');
+        expect(shell.getAttribute('rail')).toBe('auto');
+        expect(shell.style.getPropertyValue('--feezal-app-content-padding')).toBe('12px');
+    });
+});
+

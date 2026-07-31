@@ -493,11 +493,11 @@ this section is about the remaining **UI**.
 - [ ] **`water_heater` rides the climate card (E150)** — publish a retained `homeassistant/water_heater/<id>/config` (keys `temperature_command_topic`/`temperature_state_topic`/`current_temperature_topic`/`mode_command_topic`/`mode_state_topic`/`modes: ["off","eco","performance","high_demand"]`/`min_temp`/`max_temp`). Place a **climate** card (any of circle/glass/metro/eink) → the entity appears in its **⚡ discovery picker** (a climate card now lists both `climate` and `water_heater` entities); linking it stamps setpoint/actual/mode topics + `min`/`max` + the four modes + label, and the card operates as a boiler (setpoint + mode buttons). The **Generate wizard** also offers it as a climate device. `lawn_mower` stays unsupported on purpose (deferred — needs per-action command topics; see E150). *(Server registration + the alias stamp/`elementAcceptsComponent` matching are covered by `server/test/discovery-e150.test.js` + `www/test-browser/feezal-discovery-e150.test.js`.)*
 - [ ] `wss://` (TLS) viewer connection against a real broker. *(Plain `ws://` direct and the `mqtt://` bridge are automated.)*
 
-### Generate wizard — Devices (U58 Phase ①)
+### Generate wizard — Devices + App (U58)
 
 Reached from the top-bar **Generate** button (the `auto_awesome` ✨ icon, between the copy/paste/undo cluster and the `<>` source-mode toggle; hidden in source mode).
 
-- [ ] **Tile chooser:** clicking Generate opens a large popup with two tiles — **Devices** and **App**. The **App** tile is greyed out with a "Coming soon" badge and does nothing (Phase ②). Clicking outside the dialog does **not** close it; **Cancel**/Esc does.
+- [ ] **Tile chooser:** clicking Generate opens a large popup with two tiles — **Devices** and **App** — both live. Clicking outside the dialog does **not** close it; **Cancel**/Esc does.
 - [ ] **Devices → family + list:** the Devices tile shows a family segmented control (Circle / Glass / Metro / E-ink — only families that actually ship device cards), a filter box, and the discovered devices **grouped by source** (Homematic / zigbee2mqtt / WLED / evcc, matching the ⚡ picker's grouping). Only generatable entities appear (raw/unknown MQTT topics are filtered out). The filter narrows by label and component type live.
 - [ ] **Selection:** ticking rows updates the "N selected" count and the footer **Generate N elements** button (disabled at 0). A group-header checkbox selects/deselects all **eligible** rows in that group. Rows whose function has **no element in the chosen family** are greyed, un-tickable, and annotated "no &lt;family&gt; version"; switching family re-evaluates every row live (a row eligible in Circle may be a gap in E-ink).
 - [ ] **Generate → auto-grid:** hitting Generate drops one element per selected device onto the **current view**, laid out in a left-to-right grid that wraps to the view width; each element is **pre-wired** (same attributes the ⚡ picker would stamp — topics, availability, low-battery, `discovery-id`). One undo snapshot covers the whole batch.
@@ -506,7 +506,15 @@ Reached from the top-bar **Generate** button (the `auto_awesome` ✨ icon, betwe
 - [ ] **Dark mode:** the whole wizard (tiles, list, result) is legible in dark mode — filter field, its **focused** state, the checkboxes and the **Cancel** button (incl. on hover) all stay dark (no white flashes).
 - [ ] **Stable popup size:** while typing in the filter, the popup does **not** grow/shrink as the list shortens — the device list area keeps a fixed height and scrolls internally.
 
-*(The stamp/resolve/grid core in `feezal-discovery-stamp.js` is unit-tested; the dialog's generate/dupe-guard/parity-skip orchestration is browser-tested in `test-browser/feezal-generate-dialog.test.js`.)*
+**App mode (Phase ②):**
+
+- [ ] **Axis + selection:** the App tile shows a **By room / By function** toggle next to the family control and the same source-grouped device list. **Review …** leads to the review screen; **nothing is created** if you back out or cancel there.
+- [ ] **Review — rooms:** buckets seeded from HA `suggested_area` (trusted) or the multilingual room-word lexicon over device/topic names (marked **"guessed"**); unmatched devices land in **Unassigned** (always last). Rename a bucket to an existing name → the two **merge**; every device row has a dropdown to move it to another bucket. German compounds match ("Schlafzimmerfenster" → Bedroom); "bad" never fires inside unrelated words ("badge").
+- [ ] **Review — functions:** deterministic buckets in taxonomy order (Lights, Switches & sockets, Covers & blinds, Climate, Windows & doors, Motion & presence, Alarms, Sensors, Locks, …) — no "guessed" badges; only buckets with devices appear.
+- [ ] **Generate:** one undo snapshot creates (or **reuses**) the `Menu` view with a `layout-app` (`rail: auto`, site-name title, content max-width 520px + 12px inset) and one **flow-layout sub-view per bucket** — view *names* are **slugs** (`Büro` → `buero`, stable across runs; URLs stay clean) while drawer entries keep the human **labels** + lexicon icons; every device card is pre-wired exactly like the ⚡ picker. Switch the editor to the Menu view: the drawer navigates between the generated sub-views; cards wrap responsively and the content column is capped/centred on a wide window.
+- [ ] **Idempotency:** re-running App mode reuses the existing shell (never a second `Menu`/`layout-app`), **merges** into same-named sub-views, skips devices already carded **anywhere in the site** (`discovery-id` guard) and appends only missing drawer entries — existing views/elements/entries are never touched or cleared. The result screen reports created views, added cards and skips.
+
+*(The stamp/resolve/grid core + room lexicon/buckets/slugs in `feezal-discovery-stamp.js` are unit-tested; the dialog's generate/dupe-guard/parity-skip orchestration and the App scaffold incl. idempotent re-run, area-beats-lexicon and review editing are browser-tested in `test-browser/feezal-generate-dialog.test.js`.)*
 
 ### Autodiscovery grace period (Editor Settings → Autodiscovery)
 

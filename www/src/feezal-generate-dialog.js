@@ -7,7 +7,8 @@ import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/checkbox/checkbox.js';
 import '@shoelace-style/shoelace/dist/components/spinner/spinner.js';
 
-import {stampDiscovery, resolveElementTag, layoutGrid, knownComponents, discoveryLabel} from './feezal-discovery-stamp.js';
+import {stampDiscovery, resolveElementTag, layoutGrid, knownComponents, discoveryLabel,
+    groupForApp, slugifyViewName, UNKNOWN_ROOM} from './feezal-discovery-stamp.js';
 
 /**
  * U58 — the **Generate** wizard: a bulk element + app scaffold from MQTT
@@ -35,13 +36,15 @@ const FAMILY_LABELS = {glass: 'Glass', metro: 'Metro', circle: 'Circle', eink: '
 
 class FeezalGenerateDialog extends LitElement {
     static properties = {
-        _stage:   {state: true},   // 'tiles' | 'devices' | 'result'
+        _stage:   {state: true},   // 'tiles' | 'devices' | 'app' | 'review' | 'result'
         _loading: {state: true},
         _error:   {state: true},
         _family:  {state: true},
         _filter:  {state: true},
         _checked: {state: true},   // Set<string> of entity keys
-        _result:  {state: true},   // {added, view, skippedNoElem:[], skippedDupe:[]}
+        _axis:    {state: true},   // App mode: 'room' | 'function'
+        _assign:  {state: true},   // App review: Map<entityKey, {label, icon}>
+        _result:  {state: true},   // {added, view, views?, skippedNoElem:[], skippedDupe:[]}
     };
 
     static styles = css`
@@ -117,6 +120,23 @@ class FeezalGenerateDialog extends LitElement {
         .empty { padding: 30px; text-align: center; opacity: .6; font-size: 13px; }
         .loading { display: flex; align-items: center; gap: 12px; padding: 24px; font-size: 13px; opacity: .8; }
 
+        /* ── App review stage ───────────────────────────────────────────── */
+        .review-hint { font-size: 12.5px; opacity: .75; margin: 0 0 10px; }
+        .bucket { margin-bottom: 14px; }
+        .bucket-hd {
+            display: flex; align-items: center; gap: 8px; position: sticky; top: 0; z-index: 1;
+            background: var(--feezal-dialog-bg, #fff); padding: 6px 2px 4px;
+        }
+        .bucket-hd .material-icons { font-size: 20px; opacity: .7; }
+        .bucket-hd sl-input { width: 220px; }
+        .row .r-move {
+            font: inherit; font-size: 12px; max-width: 150px; flex: 0 0 auto;
+            background: var(--sl-input-background-color, #fff);
+            color: var(--sl-input-color, inherit);
+            border: 1px solid var(--sl-input-border-color, #d0d0d0); border-radius: 5px;
+            padding: 2px 4px;
+        }
+
         /* ── result stage ───────────────────────────────────────────────── */
         .result-ok { display: flex; align-items: center; gap: 10px; font-size: 15px; margin: 6px 0 14px; }
         .result-ok .material-icons { color: var(--sl-color-success-600, #16a34a); font-size: 26px; }
@@ -161,6 +181,8 @@ class FeezalGenerateDialog extends LitElement {
         this._family = 'glass';
         this._filter = '';
         this._checked = new Set();
+        this._axis = 'room';
+        this._assign = new Map();
         this._result = null;
         this.__devices = [];
     }
@@ -195,8 +217,12 @@ class FeezalGenerateDialog extends LitElement {
         return FAMILY_ORDER.filter(f => withDiscovery.has(f));
     }
 
-    async _chooseDevices() {
-        this._stage = 'devices';
+    async _chooseDevices() { await this._loadInto('devices'); }
+
+    async _chooseApp() { await this._loadInto('app'); }
+
+    async _loadInto(stage) {
+        this._stage = stage;
         this._loading = true;
         this._error = null;
         this.requestUpdate();
@@ -209,6 +235,21 @@ class FeezalGenerateDialog extends LitElement {
             // Stable per-entity key: discovery_id is unique when present; fall
             // back to a synthetic composite for the rare id-less entity.
             list.forEach((e, i) => { e.__key = e.discovery_id || `${e.component}:${this._label(e)}:${i}`; });
+            // App mode: join the device-group areas (E161 suggested_area) onto
+            // the entities — the TRUSTED room signal, beating the lexicon.
+            if (stage === 'app') {
+                try {
+                    const gr = await fetch('/api/discovery/device-groups');
+                    const areas = new Map();
+                    for (const g of (gr.ok ? (await gr.json()).groups : []) || []) {
+                        if (g.area && g.deviceId) areas.set(g.deviceId, g.area);
+                    }
+                    for (const e of list) {
+                        const devId = e.config?.device?.identifiers?.[0];
+                        if (devId && areas.has(devId)) e.__area = areas.get(devId);
+                    }
+                } catch { /* no groups endpoint → lexicon only */ }
+            }
             this.__devices = list;
         } catch (err) {
             this._error = String(err.message || err);
@@ -324,11 +365,191 @@ class FeezalGenerateDialog extends LitElement {
         this.requestUpdate();
     }
 
+    // ── U58 Phase ②: App mode ────────────────────────────────────────────────
+
+    /** Selected entities → review assignments, seeded from the heuristic.
+     * Nothing is created before confirm — backing out leaves no trace. */
+    _toReview() {
+        const chosen = this.__devices.filter(e => this._checked.has(e.__key) && this._tagFor(e));
+        const buckets = groupForApp(chosen, this._axis);
+        const assign = new Map();
+        this._bucketMeta = new Map();   // label → {order, guessed}
+        for (const b of buckets) {
+            this._bucketMeta.set(b.label, {order: b.order, guessed: b.guessed});
+            for (const e of b.entities) assign.set(e.__key, {label: b.label, icon: b.icon});
+        }
+        this._assign = assign;
+        this._stage = 'review';
+    }
+
+    /** The review buckets, derived from the editable assignment map — rooms
+     * locale-sorted (Unassigned last), functions in taxonomy order. */
+    _reviewBuckets() {
+        const byLabel = new Map();
+        for (const e of this.__devices) {
+            const a = this._assign.get(e.__key);
+            if (!a) continue;
+            if (!byLabel.has(a.label)) {
+                const meta = this._bucketMeta?.get(a.label) || {};
+                byLabel.set(a.label, {label: a.label, icon: a.icon,
+                    order: meta.order ?? null, guessed: meta.guessed ?? false, entities: []});
+            }
+            byLabel.get(a.label).entities.push(e);
+        }
+        const arr = [...byLabel.values()];
+        if (this._axis === 'function') {
+            return arr.sort((a, b) => (a.order ?? 99) - (b.order ?? 99) || a.label.localeCompare(b.label));
+        }
+        return arr.sort((a, b) =>
+            (a.label === UNKNOWN_ROOM) - (b.label === UNKNOWN_ROOM) ||
+            a.label.localeCompare(b.label, undefined, {sensitivity: 'base'}));
+    }
+
+    /** Rename a bucket (same-name rename = merge). */
+    _renameBucket(from, to) {
+        const label = String(to || '').trim();
+        if (!label || label === from) return;
+        const next = new Map(this._assign);
+        for (const [k, a] of next) {
+            if (a.label === from) next.set(k, {...a, label});
+        }
+        this._assign = next;
+    }
+
+    /** Move one entity to another (existing) bucket. */
+    _reassign(key, label) {
+        const target = [...this._assign.values()].find(a => a.label === label);
+        const next = new Map(this._assign);
+        next.set(key, {label, icon: target?.icon || 'meeting_room'});
+        this._assign = next;
+    }
+
+    /** Unique view name (the buckets may collide with non-view names only). */
+    _uniqueViewName(base, taken) {
+        let name = base;
+        let i = 2;
+        while (taken.has(name)) name = `${base} ${i++}`;
+        return name;
+    }
+
+    _generateApp() {
+        const site = feezal.site;
+        if (!site) { this._error = 'No site.'; this.requestUpdate(); return; }
+
+        // ── the app shell: reuse an existing layout-app, else create Menu ──
+        let shell = site.querySelector('feezal-element-layout-app');
+        let shellView = shell?.closest('feezal-view') || null;
+        const viewNames = new Set([...site.querySelectorAll('feezal-view')].map(v => v.getAttribute('name')));
+        let createdShell = false;
+        if (!shell) {
+            const menuName = this._uniqueViewName('Menu', viewNames);
+            shellView = document.createElement('feezal-view');
+            shellView.setAttribute('name', menuName);
+            shellView.style.width = '100%';
+            shellView.style.height = '100%';
+            site.append(shellView);
+            viewNames.add(menuName);
+            shell = document.createElement('feezal-element-layout-app');
+            shellView.append(shell);
+            feezal.editor.initElem(shell, true);
+            shell.setAttribute('title', site.getAttribute?.('name') || 'Home');
+            // B84 three-zone chrome: overlay on phones, slim rail on tablets,
+            // full drawer on desktop (rail-breakpoint keeps its default).
+            shell.setAttribute('rail', 'auto');
+            // tablets/phones are the target form factor — cap + centre every
+            // sub-view centrally (the U58 knob on the layout-app content area),
+            // with a small U50 inset so cards do not touch the chrome
+            shell.style.setProperty('--feezal-app-content-max-width', '520px');
+            shell.style.setProperty('--feezal-app-content-padding', '12px');
+            createdShell = true;
+        }
+
+        // ── site-wide dupe guard: a device carded ANYWHERE is not re-added ──
+        const existing = new Set(
+            [...site.querySelectorAll('[discovery-id]')].map(el => el.getAttribute('discovery-id')).filter(Boolean)
+        );
+
+        const buckets = this._reviewBuckets();
+        const skippedDupe = [];
+        let added = 0;
+        const createdViews = [];
+        let items;
+        try { items = JSON.parse(shell.getAttribute('items') || '[]'); } catch { items = []; }
+        if (!Array.isArray(items)) items = [];
+        const itemViews = new Set(items.map(it => it?.view).filter(Boolean));
+
+        // Labels are human (drawer entries); view NAMES are slugs — they reach
+        // the URL (#/<view>, B30). Slugs are stable per label, so re-runs merge
+        // by name; a same-run collision of two labels gets a numeric suffix.
+        const slugUsed = new Map();   // slug → label (this run)
+        for (const bucket of buckets) {
+            if (!bucket.entities.length) continue;
+            let slug = slugifyViewName(bucket.label);
+            if (slugUsed.has(slug) && slugUsed.get(slug) !== bucket.label) {
+                let i = 2;
+                while (slugUsed.has(`${slug}-${i}`)) i++;
+                slug = `${slug}-${i}`;
+            }
+            slugUsed.set(slug, bucket.label);
+            bucket.slug = slug;
+            // merge into a same-named view, create it only when missing
+            let view = site.querySelector(`feezal-view[name="${slug}"]`);
+            if (!view) {
+                view = document.createElement('feezal-view');
+                view.setAttribute('name', slug);
+                view.setAttribute('child-position', 'flow');
+                view.setAttribute('flow-justify', 'center');
+                view.style.width = '100%';
+                view.style.height = '100%';
+                site.append(view);
+                createdViews.push(slug);
+            }
+            for (const entity of bucket.entities) {
+                if (entity.discovery_id && existing.has(entity.discovery_id)) { skippedDupe.push(entity); continue; }
+                const tag = this._tagFor(entity);
+                if (!tag) continue;   // review only holds resolvable rows, belt & braces
+                const el = document.createElement(tag);
+                view.append(el);
+                feezal.editor.initElem(el, true);
+                stampDiscovery(el, entity);
+                if (entity.discovery_id) existing.add(entity.discovery_id);
+                added++;
+            }
+            // wire the drawer entry (append-only, merge by view name)
+            if (!itemViews.has(bucket.slug)) {
+                items.push({label: bucket.label, icon: bucket.icon, view: bucket.slug});
+                itemViews.add(bucket.slug);
+            }
+        }
+
+        shell.setAttribute('items', JSON.stringify(items));
+        if (!shell.getAttribute('active-view') && items.length) {
+            shell.setAttribute('active-view', items[0].view);
+        }
+
+        feezal.app.views = [...site.querySelectorAll('feezal-view')];
+        feezal.app.change();   // the whole scaffold = one undo entry
+
+        this._result = {
+            added,
+            app: true,
+            createdShell,
+            view: shellView?.getAttribute('name') || 'Menu',
+            views: createdViews,
+            skippedNoElem: [],
+            skippedDupe,
+        };
+        this._stage = 'result';
+        this.requestUpdate();
+    }
+
     render() {
         return html`
             <sl-dialog label="${this._dialogTitle()}" @sl-request-close="${e => { if (e.detail.source === 'overlay') e.preventDefault(); }}">
                 ${this._stage === 'tiles' ? this._renderTiles()
                     : this._stage === 'devices' ? this._renderDevices()
+                    : this._stage === 'app' ? this._renderApp()
+                    : this._stage === 'review' ? this._renderReview()
                     : this._renderResult()}
             </sl-dialog>
         `;
@@ -336,6 +557,8 @@ class FeezalGenerateDialog extends LitElement {
 
     _dialogTitle() {
         if (this._stage === 'devices') return 'Generate — Devices';
+        if (this._stage === 'app') return 'Generate — App';
+        if (this._stage === 'review') return `Generate — App: ${this._axis === 'room' ? 'rooms' : 'functions'}`;
         if (this._stage === 'result') return 'Generate — Done';
         return 'Generate';
     }
@@ -348,11 +571,10 @@ class FeezalGenerateDialog extends LitElement {
                     <span class="t-title">Devices</span>
                     <span class="t-sub">One pre-wired element per discovered device, dropped onto the current view in a grid.</span>
                 </button>
-                <button class="tile" disabled>
+                <button class="tile" @click="${this._chooseApp}">
                     <span class="material-icons">dashboard</span>
                     <span class="t-title">App</span>
-                    <span class="t-sub">A Menu view with per-room sub-views wired into a navigation app.</span>
-                    <span class="t-badge">Coming soon</span>
+                    <span class="t-sub">A Menu view with per-room (or per-function) sub-views wired into a navigation app.</span>
                 </button>
             </div>
         `;
@@ -387,6 +609,90 @@ class FeezalGenerateDialog extends LitElement {
                 <sl-button @click="${this._close}">Cancel</sl-button>
                 <sl-button variant="primary" ?disabled="${count === 0}" @click="${this._generate}">
                     Generate ${count} element${count === 1 ? '' : 's'}
+                </sl-button>
+            </div>
+        `;
+    }
+
+    /** App stage: axis + family + the shared device list. */
+    _renderApp() {
+        const fams = this._availableFamilies();
+        const count = this._selectableCount();
+        return html`
+            <div class="dev-head">
+                <div class="families">
+                    <button class="${this._axis === 'room' ? 'sel' : ''}" @click="${() => { this._axis = 'room'; }}">By room</button>
+                    <button class="${this._axis === 'function' ? 'sel' : ''}" @click="${() => { this._axis = 'function'; }}">By function</button>
+                </div>
+                <div class="families">
+                    ${fams.map(f => html`
+                        <button class="${f === this._family ? 'sel' : ''}" @click="${() => { this._family = f; }}">
+                            ${FAMILY_LABELS[f] || f}
+                        </button>`)}
+                </div>
+                <sl-input size="small" clearable placeholder="Filter devices…"
+                    value="${this._filter}"
+                    @sl-input="${e => { this._filter = e.target.value; }}"></sl-input>
+                <span class="dev-count">${count} selected</span>
+            </div>
+
+            <div class="dev-body">
+                ${this._loading ? html`<div class="loading"><sl-spinner></sl-spinner> Loading discovered devices…</div>`
+                    : this._error ? html`<div class="empty">Could not load devices: ${this._error}</div>`
+                    : this._renderGroups()}
+            </div>
+
+            <div slot="footer" class="footer">
+                <sl-button variant="text" @click="${() => { this._stage = 'tiles'; }}">Back</sl-button>
+                <span class="spacer"></span>
+                <sl-button @click="${this._close}">Cancel</sl-button>
+                <sl-button variant="primary" ?disabled="${count === 0}" @click="${this._toReview}">
+                    Review ${this._axis === 'room' ? 'rooms' : 'functions'}…
+                </sl-button>
+            </div>
+        `;
+    }
+
+    /** Review stage: editable buckets — rename (same name = merge), reassign
+     * a device via its select; a wrong guess is a two-click fix. */
+    _renderReview() {
+        const buckets = this._reviewBuckets();
+        const labels = buckets.map(b => b.label);
+        const total = buckets.reduce((n, b) => n + b.entities.length, 0);
+        return html`
+            <div class="review-hint">
+                ${buckets.length} ${this._axis === 'room' ? 'rooms' : 'groups'} · ${total} devices —
+                rename to merge, or move a device with its dropdown. Each group becomes a sub-view
+                wired into the app drawer.
+            </div>
+            <div class="dev-body">
+                ${buckets.map(b => html`
+                    <div class="bucket">
+                        <div class="bucket-hd">
+                            <span class="material-icons">${b.icon}</span>
+                            <sl-input size="small" value="${b.label}"
+                                @sl-change="${e => this._renameBucket(b.label, e.target.value)}"></sl-input>
+                            <span class="g-count">${b.entities.length}</span>
+                            ${b.guessed && this._axis === 'room' && b.label !== UNKNOWN_ROOM
+                                ? html`<span class="r-badge" title="Room guessed from the device name — no explicit area">guessed</span>` : ''}
+                        </div>
+                        ${b.entities.map(e => html`
+                            <div class="row">
+                                <span class="r-label">${this._label(e)}</span>
+                                <span class="r-badge">${e.component}</span>
+                                <select class="r-move" .value="${b.label}"
+                                    @change="${ev => this._reassign(e.__key, ev.target.value)}">
+                                    ${labels.map(l => html`<option value="${l}" ?selected="${l === b.label}">${l}</option>`)}
+                                </select>
+                            </div>`)}
+                    </div>`)}
+            </div>
+            <div slot="footer" class="footer">
+                <sl-button variant="text" @click="${() => { this._stage = 'app'; }}">Back</sl-button>
+                <span class="spacer"></span>
+                <sl-button @click="${this._close}">Cancel</sl-button>
+                <sl-button variant="primary" ?disabled="${total === 0}" @click="${this._generateApp}">
+                    Generate app (${buckets.length} view${buckets.length === 1 ? '' : 's'})
                 </sl-button>
             </div>
         `;
@@ -443,10 +749,16 @@ class FeezalGenerateDialog extends LitElement {
         // Group the parity gaps by component for a compact report.
         const byComp = {};
         for (const e of r.skippedNoElem) byComp[e.component] = (byComp[e.component] || 0) + 1;
+        const summary = r.app
+            ? html`<span>Added <b>${r.added}</b> element${r.added === 1 ? '' : 's'} across
+                ${r.views.length ? html`<b>${r.views.length}</b> new view${r.views.length === 1 ? '' : 's'}
+                    (${r.views.join(', ')})` : 'existing views'} —
+                ${r.createdShell ? html`app shell created on “${r.view}”.` : html`wired into the existing app on “${r.view}”.`}</span>`
+            : html`<span>Added <b>${r.added}</b> element${r.added === 1 ? '' : 's'} to “${r.view}”.</span>`;
         return html`
             <div class="result-ok">
                 <span class="material-icons">check_circle</span>
-                <span>Added <b>${r.added}</b> element${r.added === 1 ? '' : 's'} to “${r.view}”.</span>
+                ${summary}
             </div>
             ${r.skippedDupe.length ? html`
                 <div class="skip-block">
@@ -460,7 +772,7 @@ class FeezalGenerateDialog extends LitElement {
                     <ul>${Object.entries(byComp).map(([c, n]) => html`<li>${c} × ${n}</li>`)}</ul>
                 </div>` : ''}
             <div slot="footer" class="footer">
-                <sl-button variant="text" @click="${this._chooseDevices}">Pick more</sl-button>
+                <sl-button variant="text" @click="${() => (this._result?.app ? this._chooseApp() : this._chooseDevices())}">Pick more</sl-button>
                 <span class="spacer"></span>
                 <sl-button variant="primary" @click="${this._close}">Done</sl-button>
             </div>

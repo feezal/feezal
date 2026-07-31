@@ -8,6 +8,11 @@ import {
     layoutGrid,
     knownComponents,
     discoveryLabel,
+    detectRoom,
+    functionBucket,
+    groupForApp,
+    slugifyViewName,
+    UNKNOWN_ROOM,
 } from '../src/feezal-discovery-stamp.js';
 
 // U62: a fixture that routes the entity `name` → `label` (like every E137
@@ -330,5 +335,69 @@ describe('knownComponents', () => {
         for (const comp of ['light', 'switch', 'climate', 'cover', 'sensor', 'binary_sensor', 'wled']) {
             expect(c).toContain(comp);
         }
+    });
+});
+
+// ── U58 Phase ②: room detection + app bucket grouping ────────────────────────
+
+describe('detectRoom (U58 App mode)', () => {
+    const ent = (name, cfg = {}) => ({component: 'switch', name, config: {state_topic: 'x/' + name, ...cfg}});
+
+    it('an explicit HA suggested_area wins verbatim', () => {
+        const e = ent('anything', {device: {suggested_area: 'Wintergarten'}});
+        expect(detectRoom(e).label).toBe('Wintergarten');
+    });
+
+    it('matches z2m friendly-name tokens (wohnzimmer_lampe)', () => {
+        expect(detectRoom(ent('wohnzimmer_lampe')).label).toBe('Living room');
+        expect(detectRoom(ent('kueche_licht')).label).toBe('Kitchen');
+    });
+
+    it('matches German compounds by prefix (Schlafzimmerfenster)', () => {
+        expect(detectRoom(ent('Schlafzimmerfenster')).label).toBe('Bedroom');
+    });
+
+    it('short words match only as whole tokens — bad never fires inside badge', () => {
+        expect(detectRoom(ent('badge_reader'))).toBe(null);
+        expect(detectRoom(ent('Bad Spiegel')).label).toBe('Bathroom');
+    });
+
+    it('unmatched names yield null (→ the Unassigned bucket)', () => {
+        expect(detectRoom(ent('xyz_relay_7'))).toBe(null);
+    });
+});
+
+describe('functionBucket + groupForApp (U58 App mode)', () => {
+    it('routes binary_sensor by device_class', () => {
+        expect(functionBucket({component: 'binary_sensor', config: {device_class: 'window'}}).label).toBe('Windows & doors');
+        expect(functionBucket({component: 'binary_sensor', config: {device_class: 'motion'}}).label).toBe('Motion & presence');
+        expect(functionBucket({component: 'binary_sensor', config: {device_class: 'smoke'}}).label).toBe('Alarms');
+        expect(functionBucket({component: 'binary_sensor', config: {}}).label).toBe('Sensors');
+        expect(functionBucket({component: 'light'}).label).toBe('Lights');
+        expect(functionBucket({component: 'frobnicator'}).label).toBe('Other');
+    });
+
+    it('groups on one axis, Unassigned last, labels sorted', () => {
+        const entities = [
+            {component: 'light', name: 'wohnzimmer_lampe', config: {state_topic: 'a'}},
+            {component: 'light', name: 'kueche_spot', config: {state_topic: 'b'}},
+            {component: 'switch', name: 'mystery', config: {state_topic: 'c'}},
+        ];
+        const rooms = groupForApp(entities, 'room');
+        expect(rooms.map(b => b.label)).toEqual(['Kitchen', 'Living room', UNKNOWN_ROOM]);
+        const fns = groupForApp(entities, 'function');
+        expect(fns.map(b => b.label)).toEqual(['Lights', 'Switches & sockets']);   // taxonomy order
+        expect(fns[0].entities).toHaveLength(2);
+    });
+});
+
+describe('slugifyViewName (U58 view names in URLs)', () => {
+    it('transliterates German umlauts and stays stable', () => {
+        expect(slugifyViewName('Living room')).toBe('living-room');
+        expect(slugifyViewName('Living room')).toBe(slugifyViewName('Living room'));
+    });
+    it('handles diacritics, punctuation and empties', () => {
+        expect(slugifyViewName('Salón / Café!')).toBe('salon-cafe');
+        expect(slugifyViewName('')).toBe('view');
     });
 });
