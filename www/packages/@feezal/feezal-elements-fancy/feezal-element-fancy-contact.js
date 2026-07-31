@@ -94,26 +94,31 @@ class FeezalElementFancyContact extends FancyBase {
             // mirror of the animation's Dreh-Kipp window: SQUARE Rahmen +
             // Flügel at rest, the perspective trapezoid exists only in the
             // open/tilted states (hinge/bottom edge nailed to the frame),
-            // handle on the free edge (closed = down, open = left, tilted = up)
+            // handle on the free edge (closed = down, open = left, tilted =
+            // up) foreshortened by the same offset camera. The quads and
+            // handle numbers are the generator's projections verbatim
+            // (CAM {30,35,240}, swing 78°, kipp 32°) — retune THERE, then
+            // copy the printed values here.
             const Q = {
-                closed: {sash: 'M21,21 L79,21 L79,79 L21,79 Z',
-                    glass: 'M24.5,24.5 L75.5,24.5 L75.5,75.5 L24.5,75.5 Z',
-                    hx: 73.5, hy: 50, deg: 0},
-                open: {sash: 'M21,21 L45.5,14 L45.5,86 L21,79 Z',
-                    glass: 'M24.2,24.5 L42.5,19 L42.5,81 L24.2,75.5 Z',
-                    hx: 41, hy: 50, deg: 90},
-                tilted: {sash: 'M17,38 L83,38 L79,79 L21,79 Z',
-                    glass: 'M20.8,41.5 L79.2,41.5 L75.5,75.5 L24.5,75.5 Z',
-                    hx: 80, hy: 57, deg: 180},
+                closed: {sash: 'M19,19 L81,19 L81,81 L19,81 Z',
+                    glass: 'M22.5,22.5 L77.5,22.5 L77.5,77.5 L22.5,77.5 Z',
+                    hx: 75.5, hy: 50, deg: 0, ls: [1, 1], pr: [2.5, 2.5]},
+                open: {sash: 'M19,19 L32.5,13.6 L32.5,96.6 L19,81 Z',
+                    glass: 'M19.6,22.3 L31.5,18.6 L31.5,90.8 L19.6,78.1 Z',
+                    hx: 31, hy: 54.5, deg: 90, ls: [1.30, 0.28], pr: [0.74, 3.25]},
+                tilted: {sash: 'M17.3,27.4 L89.1,27.4 L81,81 L19,81 Z',
+                    glass: 'M21.4,30.9 L84.5,30.9 L77.9,78.4 L22.4,78.4 Z',
+                    hx: 78.8, hy: 56.2, deg: 180, ls: [1.06, 0.9], pr: [2.65, 2.17]},
             };
             const q = Q[state] || Q.closed;
             return svg`<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
                 <rect x="14" y="14" width="72" height="72" rx="2" stroke-width="4.5" style="${baseStroke}"/>
                 <path class="tone-active" d="${q.glass}" opacity="0.38"/>
                 <path d="${q.sash}" stroke-width="3" style="${baseStroke}"/>
-                <circle class="tone-base" cx="${q.hx}" cy="${q.hy}" r="2.5"/>
-                <rect class="tone-base" x="${q.hx - 1.4}" y="${q.hy}" width="2.8" height="10.5" rx="1.4"
-                    transform="rotate(${q.deg} ${q.hx} ${q.hy})"/>
+                <ellipse class="tone-base" cx="${q.hx}" cy="${q.hy}" rx="${q.pr[0]}" ry="${q.pr[1]}"/>
+                <g transform="translate(${q.hx} ${q.hy}) rotate(${q.deg}) scale(${q.ls[0]} ${q.ls[1]})">
+                    <rect class="tone-base" x="-1.4" y="0" width="2.8" height="10.5" rx="1.4"/>
+                </g>
             </svg>`;
         }
         let sash;

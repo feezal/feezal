@@ -186,24 +186,64 @@ function contactVariant(variant) {
  *   48–62 handle down→up      62–85 sash tilts
  */
 function windowContact() {
+    // ── the camera model ──
+    // Central projection from a camera OFFSET LEFT AND UP of the window
+    // centre — a dead-front camera made the open/tilt trapezoids symmetric
+    // and lifeless. z > 0 is toward the viewer; the projection only kicks in
+    // when the sash leaves the wall plane, so the resting window stays a
+    // perfect square. All open/tilt geometry (sash, glass AND the handle's
+    // position/foreshortening) derives from these four numbers.
+    const CAM = {x: 30, y: 35, d: 240};
+    const SWING_DEG = 78;   // Drehen — wide open
+    const KIPP_DEG = 32;    // Kippen — a gentle lean
+    const r1 = n => Math.round(n * 10) / 10;
+    const proj = ([x, y, z]) => {
+        const t = CAM.d / (CAM.d - z);
+        return [r1(CAM.x + (x - CAM.x) * t), r1(CAM.y + (y - CAM.y) * t)];
+    };
+    const rad = d => (d * Math.PI) / 180;
+    // sash edges — a slim gap to the frame (Rahmen inner stroke edge ≈ 16.25,
+    // sash outer stroke edge ≈ 17.5): reads as one window, split by a divider
+    const [E0, E1] = [19, 81];
+    // swing: hinge = the vertical sash edge at x=E0 (nailed to the frame)
+    const OPEN = ([x, y]) => proj([E0 + (x - E0) * Math.cos(rad(SWING_DEG)), y,
+        (x - E0) * Math.sin(rad(SWING_DEG))]);
+    // kipp: hinge = the horizontal sash edge at y=E1 (nailed to the frame)
+    const TILT = ([x, y]) => proj([x, E1 - (E1 - y) * Math.cos(rad(KIPP_DEG)),
+        (E1 - y) * Math.sin(rad(KIPP_DEG))]);
+    const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+
     const frame = group('frame', [rect(50, 50, 72, 72, 2), stroke('base', 4.5)]);
-    const SASH_SQ   = [[21, 21], [79, 21], [79, 79], [21, 79]];
-    const SASH_OPEN = [[21, 21], [45.5, 14], [45.5, 86], [21, 79]];
-    const SASH_TILT = [[17, 38], [83, 38], [79, 79], [21, 79]];
-    const GLASS_SQ   = [[24.5, 24.5], [75.5, 24.5], [75.5, 75.5], [24.5, 75.5]];
-    const GLASS_OPEN = [[24.2, 24.5], [42.5, 19], [42.5, 81], [24.2, 75.5]];
-    const GLASS_TILT = [[20.8, 41.5], [79.2, 41.5], [75.5, 75.5], [24.5, 75.5]];
-    const sashK = polyKf([[0, SASH_SQ], [12, SASH_SQ], [36, SASH_OPEN], [47, SASH_OPEN],
-        [48, SASH_SQ], [62, SASH_SQ], [85, SASH_TILT]]);
-    const glassK = polyKf([[0, GLASS_SQ], [12, GLASS_SQ], [36, GLASS_OPEN], [47, GLASS_OPEN],
-        [48, GLASS_SQ], [62, GLASS_SQ], [85, GLASS_TILT]]);
-    // the handle rides the free edge (its pivot travels with the sash)
-    const handleP = kf([[0, [73.5, 50]], [12, [73.5, 50]], [36, [41, 50]], [47, [41, 50]],
-        [48, [73.5, 50]], [62, [73.5, 50]], [85, [80, 57]]]);
+    const SASH  = [[E0, E0], [E1, E0], [E1, E1], [E0, E1]];
+    const GLASS = [[22.5, 22.5], [77.5, 22.5], [77.5, 77.5], [22.5, 77.5]];
+    const sashK = polyKf([[0, SASH], [12, SASH], [36, SASH.map(OPEN)], [47, SASH.map(OPEN)],
+        [48, SASH], [62, SASH], [85, SASH.map(TILT)]]);
+    const glassK = polyKf([[0, GLASS], [12, GLASS], [36, GLASS.map(OPEN)], [47, GLASS.map(OPEN)],
+        [48, GLASS], [62, GLASS], [85, GLASS.map(TILT)]]);
+
+    // ── the handle, INSIDE the projection ──
+    // Pivot travels with the sash; lever length and plate radii foreshorten
+    // per the same camera (measured on projected chords, % of the rest size).
+    const HP = [75.5, 50];
+    const pOpen = OPEN(HP), pTilt = TILT(HP);
+    const lenOpen = r1(dist(OPEN([65.5, 50]), pOpen) * 10);        // lever || sash, toward hinge
+    const lenTilt = r1(dist(TILT([75.5, 40]), pTilt) * 10);        // lever up the sash
+    const sxOpen = r1(dist(OPEN([73, 50]), OPEN([78, 50])) * 20);  // horizontal chord ×5
+    const syOpen = r1(dist(OPEN([75.5, 47.5]), OPEN([75.5, 52.5])) * 20);
+    const sxTilt = r1(dist(TILT([73, 50]), TILT([78, 50])) * 20);
+    const syTilt = r1(dist(TILT([75.5, 47.5]), TILT([75.5, 52.5])) * 20);
+    const handleP = kf([[0, HP], [12, HP], [36, pOpen], [47, pOpen],
+        [48, HP], [62, HP], [85, pTilt]]);
+    const hold = (open, tilt, rest = [100, 100]) => kf([[0, rest], [12, rest], [36, open],
+        [47, open], [48, rest], [62, rest], [85, tilt]]);
+    // lever local axes: y = length, x = thickness (scale applies BEFORE the
+    // rotation, so the same pair works for the 90° and 180° positions)
     const leverR = kf([[0, 0], [12, 90], [47, 90], [48, 0], [62, 180], [85, 180]]);
     const lever = group('lever', [rect(0, 5.5, 2.8, 10, 1.4), fill('base')],
-        tr({p: handleP, r: leverR}));
-    const plate = group('plate', [ellipse(0, 0, 5, 5), fill('base')], tr({p: handleP}));
+        tr({p: handleP, r: leverR, s: hold([syOpen, lenOpen], [sxTilt, lenTilt])}));
+    const plate = group('plate', [ellipse(0, 0, 5, 5), fill('base')],
+        tr({p: handleP, s: hold([sxOpen, syOpen], [sxTilt, syTilt])}));
+
     const sashFrame = group('sash-frame', [sashK, stroke('base', 3)]);
     const glass = group('glass', [glassK, fill('active', 38)]);
     const sash = group('sash', [lever, plate, sashFrame, glass]);
