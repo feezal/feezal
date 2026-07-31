@@ -312,9 +312,7 @@ describe('feezal-generate-dialog (U58 Devices)', () => {
             expect(dlg._selected.size).toBe(0);           // nothing selected
 
             // clicking the checkbox unchecks WITHOUT selecting the row
-            const cb = dlg.renderRoot.querySelector('.row[data-key="d-a"] sl-checkbox');
-            cb.checked = false;
-            cb.dispatchEvent(new CustomEvent('sl-change'));
+            dlg.renderRoot.querySelector('.row[data-key="d-a"] .cb-hit').click();
             await dlg.updateComplete;
             expect(dlg._checked.has('d-a')).toBe(false);
             expect(dlg._selected.has('d-a')).toBe(false);
@@ -363,6 +361,74 @@ describe('feezal-generate-dialog (U58 Devices)', () => {
             dlg._selected = new Set(['d-a']);
             dlg._toReview();
             expect(dlg._selected.size).toBe(0);
+        });
+    });
+
+    describe('U78 room review (rooms-first step)', () => {
+        const dev = (id, name, area) => ({component: 'switch', discovery_id: id, name, __area: area,
+            config: {state_topic: 'z/' + id, command_topic: 'z/' + id + '/set'}, __key: id});
+        async function rooms(devices) {
+            const dlg = await makeDialog();
+            dlg._family = 'circle';
+            dlg._axis = 'room';
+            dlg.__devices = devices;
+            dlg._toRooms();
+            await dlg.updateComplete;
+            return dlg;
+        }
+
+        it('builds the room list from detection (Unassigned excluded)', async () => {
+            const dlg = await rooms([dev('d-a', 'kueche_licht'), dev('d-b', 'wohnzimmer_lampe'), dev('d-c', 'mystery')]);
+            expect(dlg._stage).toBe('rooms');
+            expect(dlg._rooms.map(r => r.label).sort()).toEqual(['Kitchen', 'Living room']);
+        });
+
+        it('removing a room re-scans its devices against the remaining rooms', async () => {
+            const dlg = await rooms([dev('d-a', 'kueche_licht'), dev('d-b', 'wohnzimmer_lampe')]);
+            dlg._removeRoom(dlg._rooms.findIndex(r => r.label === 'Kitchen'));
+            expect(dlg._rooms.map(r => r.label)).toEqual(['Living room']);
+            dlg._toReview();
+            expect(dlg._assign.get('d-a').label).toBe('Unassigned');   // no remaining room matches 'kueche'
+            expect(dlg._assign.get('d-b').label).toBe('Living room');
+        });
+
+        it('a re-added matching room re-claims the orphaned device', async () => {
+            const dlg = await rooms([dev('d-a', 'kueche_licht')]);
+            dlg._removeRoom(0);            // drop Kitchen
+            dlg._newRoomName = 'Küche';    // add a room the device name includes
+            dlg._addRoom();
+            dlg._toReview();
+            expect(dlg._assign.get('d-a').label).toBe('Küche');
+        });
+
+        it('up/down reorder sets the review (drawer) order', async () => {
+            const dlg = await rooms([dev('d-a', 'kueche_licht'), dev('d-b', 'wohnzimmer_lampe')]);
+            dlg._moveRoom(dlg._rooms.findIndex(r => r.label === 'Living room'), -1);
+            expect(dlg._rooms.map(r => r.label)).toEqual(['Living room', 'Kitchen']);
+            dlg._toReview();
+            expect(dlg._reviewBuckets().map(b => b.label)).toEqual(['Living room', 'Kitchen']);
+        });
+
+        it('drag-drop reorders the room list', async () => {
+            const dlg = await rooms([dev('d-a', 'kueche_licht'), dev('d-b', 'wohnzimmer_lampe')]);
+            dlg._roomDragStart({dataTransfer: {}}, 0);        // grab the first room
+            dlg._roomDrop({preventDefault() {}}, 1);          // drop after the second
+            expect(dlg._rooms.map(r => r.label)).toEqual(['Living room', 'Kitchen']);
+        });
+
+        it('rename rejects a duplicate label', async () => {
+            const dlg = await rooms([dev('d-a', 'kueche_licht'), dev('d-b', 'wohnzimmer_lampe')]);
+            dlg._renameRoom(0, dlg._rooms[1].label);          // rename room0 to room1's label
+            expect(new Set(dlg._rooms.map(r => r.label)).size).toBe(2);   // still unique
+        });
+
+        it('the function axis skips the room step', async () => {
+            const dlg = await makeDialog();
+            dlg._family = 'circle';
+            dlg._axis = 'function';
+            dlg.__devices = [dev('d-a', 'kueche_licht')];
+            dlg._startReview();
+            expect(dlg._stage).toBe('review');
         });
     });
 });

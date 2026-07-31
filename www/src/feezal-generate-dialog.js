@@ -9,8 +9,10 @@ import '@shoelace-style/shoelace/dist/components/checkbox/checkbox.js';
 import '@shoelace-style/shoelace/dist/components/spinner/spinner.js';
 
 import {stampDiscovery, resolveElementTag, layoutGrid, knownComponents, discoveryLabel,
-    groupForApp, functionBucket, slugifyViewName, UNKNOWN_ROOM} from './feezal-discovery-stamp.js';
+    groupForApp, functionBucket, slugifyViewName, UNKNOWN_ROOM,
+    assignRoom, lexiconWordsForLabel} from './feezal-discovery-stamp.js';
 import {RangeSelect} from './feezal-range-select.js';
+import './feezal-icon-input.js';   // U78: the shared icon picker for the room list
 
 // U74: a generated app adopts the theme that matches its element family, so the
 // result looks like the family's preview screenshot. Only families with a
@@ -88,6 +90,7 @@ class FeezalGenerateDialog extends LitElement {
         _checked: {state: true},   // Set<string> of entity keys
         _axis:    {state: true},   // App mode: 'room' | 'function'
         _assign:  {state: true},   // App review: Map<entityKey, {label, icon}>
+        _rooms:   {state: true},   // U78: the editable room list (room axis) — [{label, icon, words, guessed, detected}] | null
         _selected: {state: true},  // U75: review row SELECTION (highlight, bulk ops) — distinct from _checked
         _result:  {state: true},   // {added, view, views?, skippedNoElem:[], skippedDupe:[]}
         _newRoomFor: {state: true},// U70/U75: entity key(s) awaiting a new-room name, or null
@@ -184,6 +187,32 @@ class FeezalGenerateDialog extends LitElement {
             background: var(--sl-input-background-color, #fff); color: var(--sl-input-color, inherit);
             border: 1px solid var(--sl-input-border-color, #d0d0d0);
         }
+
+        /* ── U78: room-review stage ─────────────────────────────────────── */
+        .room-list { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 10px; }
+        .room-row {
+            display: flex; align-items: center; gap: 8px;
+            padding: 4px 6px; border-radius: 8px;
+            border: 1px solid var(--feezal-tile-border, #e2e8f0);
+            background: var(--feezal-tile-bg, #f8fafc);
+        }
+        .room-row .spacer { flex: 1; }
+        .room-drag { cursor: grab; opacity: .5; font-size: 20px; user-select: none; }
+        .room-drag:active { cursor: grabbing; }
+        .room-icon { width: 132px; flex: 0 0 auto; }
+        .room-name { width: 200px; flex: 0 0 auto; }
+        .room-btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 26px; height: 26px; padding: 0; border-radius: 6px; cursor: pointer;
+            border: 1px solid transparent; background: transparent; color: inherit; opacity: .8;
+        }
+        .room-btn:hover:not([disabled]) { background: var(--feezal-tile-hover, #eff6ff); opacity: 1; }
+        .room-btn[disabled] { opacity: .25; cursor: default; }
+        .room-btn .material-icons { font-size: 18px; }
+        .room-btn.room-x:hover { color: var(--sl-color-danger-600, #dc2626); }
+        .room-empty { padding: 16px; text-align: center; opacity: .6; font-size: 12.5px; }
+        .room-add { display: flex; align-items: center; gap: 8px; }
+        .room-add sl-input { flex: 1; }
 
         .empty { padding: 30px; text-align: center; opacity: .6; font-size: 13px; }
         .loading { display: flex; align-items: center; gap: 12px; padding: 24px; font-size: 13px; opacity: .8; }
@@ -288,6 +317,7 @@ class FeezalGenerateDialog extends LitElement {
         this._checked = new Set();
         this._axis = 'room';
         this._assign = new Map();
+        this._rooms = null;
         this._result = null;
         this._newRoomFor = null;
         this._newRoomName = '';
@@ -321,6 +351,7 @@ class FeezalGenerateDialog extends LitElement {
         this._checked = new Set();
         this._sel.reset();
         this._clearSelection();
+        this._rooms = null;
         this._newRoomFor = null;
         this._result = null;
         // Default the family to the first available one.
@@ -546,21 +577,98 @@ class FeezalGenerateDialog extends LitElement {
 
     // ── U58 Phase ②: App mode ────────────────────────────────────────────────
 
+    // ── U78: room-review step (room axis only) — edit the found rooms first ──
+
+    /** Derive the editable room list from auto-detection (buckets minus the
+     * Unassigned fallback), each carrying its lexicon match words + icon. */
+    _buildRoomsFrom(eligible) {
+        this._rooms = groupForApp(eligible, 'room')
+            .filter(b => b.label !== UNKNOWN_ROOM)
+            .map(b => ({label: b.label, icon: b.icon, guessed: b.guessed, detected: b.detected,
+                words: lexiconWordsForLabel(b.label)}));
+    }
+
+    /** Step 1 of the App room flow: review the ROOMS (not the devices). */
+    _toRooms() {
+        this._buildRoomsFrom(this.__devices.filter(e => this._tagFor(e)));
+        this._newRoomName = '';
+        this._stage = 'rooms';
+    }
+
+    /** The setup screen's primary action: rooms get their own review step
+     * first; functions go straight to the device review. */
+    _startReview() {
+        if (this._axis === 'room') this._toRooms();
+        else this._toReview();
+    }
+
+    _removeRoom(i) { this._rooms = this._rooms.filter((_, idx) => idx !== i); }
+    _setRoomIcon(i, icon) { this._rooms = this._rooms.map((r, idx) => idx === i ? {...r, icon} : r); }
+    _renameRoom(i, label) {
+        const l = String(label || '').trim();
+        // Keep labels unique — they key the list and become view slugs.
+        if (!l || this._rooms.some((r, idx) => idx !== i && r.label.toLowerCase() === l.toLowerCase())) return;
+        this._rooms = this._rooms.map((r, idx) => idx === i ? {...r, label: l} : r);
+    }
+    _moveRoom(i, dir) {
+        const j = i + dir;
+        if (j < 0 || j >= this._rooms.length) return;
+        const rooms = [...this._rooms];
+        [rooms[i], rooms[j]] = [rooms[j], rooms[i]];
+        this._rooms = rooms;
+    }
+    _addRoom() {
+        const label = String(this._newRoomName || '').trim();
+        this._newRoomName = '';
+        if (!label || this._rooms.some(r => r.label.toLowerCase() === label.toLowerCase())) return;
+        this._rooms = [...this._rooms,
+            {label, icon: 'meeting_room', guessed: false, detected: false, words: lexiconWordsForLabel(label)}];
+    }
+
+    // Drag-drop reorder (grab the handle, drop on a row).
+    _roomDragStart(e, i) { this._dragRoomIdx = i; if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'; }
+    _roomDragOver(e) { e.preventDefault(); }
+    _roomDrop(e, to) {
+        e.preventDefault();
+        const from = this._dragRoomIdx;
+        this._dragRoomIdx = null;
+        if (from == null || from === to) return;
+        const rooms = [...this._rooms];
+        const [moved] = rooms.splice(from, 1);
+        rooms.splice(to, 0, moved);
+        this._rooms = rooms;
+    }
+    _roomDragEnd() { this._dragRoomIdx = null; }
+
     /** U69: the review IS the selection. Every generatable device is bucketed
      * and starts CHECKED; the user unchecks the ones they don't want in the
-     * review itself, so there is no separate flat device list. Nothing is
-     * created before confirm — backing out leaves no trace. */
+     * review itself. Nothing is created before confirm. U78: on the room axis
+     * devices are assigned to the user-edited room list (order = drawer order);
+     * the function axis keeps the taxonomy grouping. */
     _toReview() {
         const eligible = this.__devices.filter(e => this._tagFor(e));
         this._checked = new Set(eligible.map(e => e.__key));   // all selected by default
         this._sel.reset();
         this._clearSelection();                                // U75: no rows selected on entry
-        const buckets = groupForApp(eligible, this._axis);
         const assign = new Map();
         this._bucketMeta = new Map();   // label → {order, guessed, detected}
-        for (const b of buckets) {
-            this._bucketMeta.set(b.label, {order: b.order, guessed: b.guessed, detected: b.detected});
-            for (const e of b.entities) assign.set(e.__key, {label: b.label, icon: b.icon});
+
+        if (this._axis === 'room') {
+            if (this._rooms == null) this._buildRoomsFrom(eligible);   // direct entry (no room-review): auto-detect
+            this._rooms.forEach((r, i) =>
+                this._bucketMeta.set(r.label, {order: i, guessed: r.guessed, detected: r.detected}));
+            let anyUnassigned = false;
+            for (const e of eligible) {
+                const r = assignRoom(e, this._rooms);
+                if (r) assign.set(e.__key, {label: r.label, icon: r.icon});
+                else { assign.set(e.__key, {label: UNKNOWN_ROOM, icon: 'inventory_2'}); anyUnassigned = true; }
+            }
+            if (anyUnassigned) this._bucketMeta.set(UNKNOWN_ROOM, {order: this._rooms.length, guessed: false, detected: false});
+        } else {
+            for (const b of groupForApp(eligible, 'function')) {
+                this._bucketMeta.set(b.label, {order: b.order, guessed: b.guessed, detected: b.detected});
+                for (const e of b.entities) assign.set(e.__key, {label: b.label, icon: b.icon});
+            }
         }
         this._assign = assign;
         this._stage = 'review';
@@ -622,8 +730,11 @@ class FeezalGenerateDialog extends LitElement {
         if (this._axis === 'function') {
             return arr.sort((a, b) => (a.order ?? 99) - (b.order ?? 99) || a.label.localeCompare(b.label));
         }
+        // U78: rooms follow the user's room-review order (Unassigned last); a
+        // bucket with no order (created later in device-review) sorts after.
         return arr.sort((a, b) =>
             (a.label === UNKNOWN_ROOM) - (b.label === UNKNOWN_ROOM) ||
+            (a.order ?? 999) - (b.order ?? 999) ||
             a.label.localeCompare(b.label, undefined, {sensitivity: 'base'}));
     }
 
@@ -677,10 +788,13 @@ class FeezalGenerateDialog extends LitElement {
         this._newRoomName = '';
     }
 
-    // ── U75: single-row toggle of the include checkbox (checkbox click only) ──
-    _setChecked(key, on) {
+    // ── U75: single-row toggle of the include checkbox (checkbox click only).
+    // The <sl-checkbox> is display-only (pointer-events:none); a wrapper span
+    // owns the click + stops it reaching the row's selection gesture — the same
+    // proven pattern as the bucket-header toggle. ──
+    _toggleChecked(key) {
         const next = new Set(this._checked);
-        on ? next.add(key) : next.delete(key);
+        next.has(key) ? next.delete(key) : next.add(key);
         this._checked = next;
     }
 
@@ -860,6 +974,7 @@ class FeezalGenerateDialog extends LitElement {
                 ${this._stage === 'tiles' ? this._renderTiles()
                     : this._stage === 'devices' ? this._renderDevices()
                     : this._stage === 'app' ? this._renderApp()
+                    : this._stage === 'rooms' ? this._renderRooms()
                     : this._stage === 'review' ? this._renderReview()
                     : this._renderResult()}
             </sl-dialog>
@@ -882,7 +997,8 @@ class FeezalGenerateDialog extends LitElement {
     _dialogTitle() {
         if (this._stage === 'devices') return 'Generate — Devices';
         if (this._stage === 'app') return 'Generate — App';
-        if (this._stage === 'review') return `Generate — App: ${this._axis === 'room' ? 'rooms' : 'functions'}`;
+        if (this._stage === 'rooms') return 'Generate — App: rooms';
+        if (this._stage === 'review') return `Generate — App: ${this._axis === 'room' ? 'devices' : 'functions'}`;
         if (this._stage === 'result') return 'Generate — Done';
         return 'Generate';
     }
@@ -977,11 +1093,56 @@ class FeezalGenerateDialog extends LitElement {
                 <sl-button variant="text" @click="${() => { this._stage = 'tiles'; }}">Back</sl-button>
                 <span class="spacer"></span>
                 <sl-button @click="${this._close}">Cancel</sl-button>
-                <sl-button variant="primary" ?disabled="${!eligible}" @click="${this._toReview}">
-                    Review ${this._axis === 'room' ? 'rooms' : 'functions'}…
+                <sl-button variant="primary" ?disabled="${!eligible}" @click="${this._startReview}">
+                    ${this._axis === 'room' ? 'Review rooms…' : 'Review devices…'}
                 </sl-button>
             </div>
         `;
+    }
+
+    /** U78 room-review stage: edit the found rooms (remove / add / rename /
+     * reorder / icon) BEFORE the device review. On continue, devices are
+     * re-matched to this edited list (a deleted room's devices are re-scanned
+     * against the remaining rooms). Room order here IS the app drawer order. */
+    _renderRooms() {
+        const eligible = this.__devices.filter(e => this._tagFor(e)).length;
+        const rooms = this._rooms || [];
+        return html`
+            <div class="review-hint">
+                Review the <b>rooms</b> found — remove any you don't want (✕), add your own, drag or use
+                ↑/↓ to set the <b>drawer order</b>, and pick each icon. Devices are matched to these rooms
+                on the next step; anything unmatched lands in <b>Unassigned</b>.
+            </div>
+            <div class="room-list">
+                ${rooms.length ? repeat(rooms, r => r.label, (r, i) => html`
+                    <div class="room-row" @dragover="${this._roomDragOver}" @drop="${e => this._roomDrop(e, i)}">
+                        <span class="room-drag material-icons" draggable="true" title="Drag to reorder"
+                            @dragstart="${e => this._roomDragStart(e, i)}" @dragend="${this._roomDragEnd}">drag_indicator</span>
+                        <feezal-icon-input class="room-icon" value="${r.icon || ''}"
+                            @feezal-change="${e => this._setRoomIcon(i, e.detail.value)}"></feezal-icon-input>
+                        <sl-input class="room-name" size="small" value="${r.label}"
+                            @sl-change="${e => this._renameRoom(i, e.target.value)}"></sl-input>
+                        ${r.detected ? html`<span class="r-badge detected" title="Detected group — devices sharing a recurring name">detected</span>`
+                            : r.guessed ? html`<span class="r-badge" title="Guessed from device names — no explicit area">guessed</span>` : ''}
+                        <span class="spacer"></span>
+                        <button class="room-btn" title="Move up" ?disabled="${i === 0}" @click="${() => this._moveRoom(i, -1)}"><span class="material-icons">arrow_upward</span></button>
+                        <button class="room-btn" title="Move down" ?disabled="${i === rooms.length - 1}" @click="${() => this._moveRoom(i, 1)}"><span class="material-icons">arrow_downward</span></button>
+                        <button class="room-btn room-x" title="Remove room" @click="${() => this._removeRoom(i)}"><span class="material-icons">close</span></button>
+                    </div>`)
+                    : html`<div class="room-empty">No rooms yet — add one below, or every device lands in “Unassigned”.</div>`}
+            </div>
+            <div class="room-add">
+                <sl-input size="small" placeholder="Add a room…" value="${this._newRoomName}"
+                    @sl-input="${e => { this._newRoomName = e.target.value; }}"
+                    @keydown="${e => { if (e.key === 'Enter') { e.preventDefault(); this._addRoom(); } }}"></sl-input>
+                <sl-button size="small" ?disabled="${!this._newRoomName.trim()}" @click="${this._addRoom}">Add room</sl-button>
+            </div>
+            <div slot="footer" class="footer">
+                <sl-button variant="text" @click="${() => { this._stage = 'app'; }}">Back</sl-button>
+                <span class="spacer"></span>
+                <sl-button @click="${this._close}">Cancel</sl-button>
+                <sl-button variant="primary" ?disabled="${!eligible}" @click="${this._toReview}">Review devices…</sl-button>
+            </div>`;
     }
 
     /** Review stage (U69): the selection surface. Every device starts checked;
@@ -1039,9 +1200,10 @@ class FeezalGenerateDialog extends LitElement {
                         ${repeat(b.entities, e => e.__key, e => html`
                             <div class="row ${this._selected.has(e.__key) ? 'selected' : ''}" data-key="${e.__key}"
                                 @pointerdown="${ev => this._selPress(ev, e.__key)}">
-                                <sl-checkbox ?checked="${this._checked.has(e.__key)}"
-                                    @pointerdown="${ev => ev.stopPropagation()}"
-                                    @sl-change="${ev => this._setChecked(e.__key, ev.target.checked)}"></sl-checkbox>
+                                <span class="cb-hit" @pointerdown="${ev => ev.stopPropagation()}"
+                                    @click="${ev => { ev.stopPropagation(); this._toggleChecked(e.__key); }}">
+                                    <sl-checkbox ?checked="${this._checked.has(e.__key)}" style="pointer-events:none"></sl-checkbox>
+                                </span>
                                 <span class="r-label">${this._label(e)}</span>
                                 <span class="r-badge">${e.component}</span>
                                 <select class="r-move" .value="${b.label}"
