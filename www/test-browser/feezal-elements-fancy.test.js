@@ -1,0 +1,212 @@
+/**
+ * E139 — the Fancy family in a real browser: editor static poses without the
+ * lib, viewer animation lifecycle against a fake lottie factory (recoloured
+ * data, directional transitions, cover position-seek, light brightness-seek,
+ * contact tilt tristate), theme retint, and MQTT behaviour through the shared
+ * E137 controllers.
+ */
+import {describe, it, expect, beforeEach, afterEach} from 'vitest';
+import '../packages/@feezal/feezal-elements-fancy/index.js';
+import {FANCY_BASE_SLOT, FANCY_ACTIVE_SLOT}
+    from '../packages/@feezal/feezal-elements-fancy/animations.js';
+import {__setLottieFactoryForTests} from '@feezal/feezal-lottie';
+import {setupFeezal, mount, until} from './helpers.js';
+
+function fakeLottie() {
+    const factory = {
+        instances: [],
+        loadAnimation(opts) {
+            const inst = {
+                opts, loop: false, destroyed: false, _listeners: {}, calls: [],
+                addEventListener(ev, cb) { (this._listeners[ev] ??= []).push(cb); },
+                playSegments(seg) { this.calls.push(['playSegments', seg]); },
+                goToAndStop(f) { this.calls.push(['goToAndStop', f]); },
+                resetSegments() {},
+                destroy() { this.destroyed = true; },
+                fireComplete() { (this._listeners.complete || []).forEach(cb => cb()); },
+            };
+            factory.instances.push(inst);
+            return inst;
+        },
+        get last() { return this.instances[this.instances.length - 1]; },
+    };
+    return factory;
+}
+
+let factory;
+beforeEach(() => {
+    setupFeezal();
+    factory = fakeLottie();
+    __setLottieFactoryForTests(factory);
+});
+afterEach(() => __setLottieFactoryForTests(null));
+
+const collectFills = data => {
+    const fills = [];
+    const walk = n => {
+        if (Array.isArray(n)) return n.forEach(walk);
+        if (!n || typeof n !== 'object') return;
+        if (n.ty === 'fl' && n.c) fills.push(n.c.k);
+        Object.values(n).forEach(walk);
+    };
+    walk(data);
+    return fills;
+};
+
+const TAGS = ['light', 'contact', 'cover', 'climate', 'sensor', 'lock']
+    .map(n => `feezal-element-fancy-${n}`);
+
+describe('editor: static pose, the animation library is NEVER loaded (E89 discipline)', () => {
+    it.each(TAGS)('%s renders its duotone pose and skips lottie', async tag => {
+        feezal.isEditor = true;
+        const el = await mount(tag);
+        await new Promise(r => setTimeout(r, 30));
+        expect(el.shadowRoot.querySelector('.pose svg')).toBeTruthy();
+        expect(el.shadowRoot.querySelector('.pose').hidden).toBe(false);
+        expect(factory.instances.length).toBe(0);
+    });
+});
+
+describe('viewer: the lottie lifecycle', () => {
+    it('mounts the recoloured animation — no palette slot survives', async () => {
+        const el = await mount('feezal-element-fancy-light', {subscribe: 'stat/l'});
+        await until(() => factory.instances.length === 1);
+        await el.updateComplete;   // _animLive re-render
+        const {animationData} = factory.last.opts;
+        for (const k of collectFills(animationData)) {
+            for (const slot of [FANCY_BASE_SLOT, FANCY_ACTIVE_SLOT]) {
+                expect(slot.slice(0, 3).every((c, i) => Math.abs(k[i] - c) < 0.002),
+                    JSON.stringify(k)).toBe(false);
+            }
+        }
+        // the pose layer hides once the animation is live
+        expect(el.shadowRoot.querySelector('.anim').hidden).toBe(false);
+        expect(el.shadowRoot.querySelector('.pose').hidden).toBe(true);
+    });
+
+    it('light: OFF→ON plays the transition clip, completion enters the breathing loop', async () => {
+        const el = await mount('feezal-element-fancy-light',
+            {subscribe: 'stat/l', 'payload-on': 'ON', 'payload-off': 'OFF'});
+        await until(() => factory.instances.length === 1);
+        const inst = factory.last;
+        inst.calls.length = 0;
+        feezal.connection.deliver('stat/l', 'ON');
+        await el.updateComplete;
+        expect(inst.calls[0]).toEqual(['playSegments', [0, 30]]);
+        inst.fireComplete();
+        expect(inst.loop).toBe(true);
+        expect(inst.calls[1]).toEqual(['playSegments', [30, 90]]);
+        // …and ON→OFF plays the closing clip (never a jump-cut)
+        inst.calls.length = 0;
+        feezal.connection.deliver('stat/l', 'OFF');
+        await el.updateComplete;
+        expect(inst.calls[0]).toEqual(['playSegments', [90, 120]]);
+    });
+
+    it('light: a known brightness scrubs the glow segment instead of looping', async () => {
+        const el = await mount('feezal-element-fancy-light',
+            {subscribe: 'stat/l', mode: 'brightness', 'payload-on': 'ON'});
+        await until(() => factory.instances.length === 1);
+        const inst = factory.last;
+        // payload parsing is the light controller's own test surface - drive
+        // the state it exposes and assert the ELEMENT's seek wiring
+        el.light.on = true;
+        el.light.brt = 50;
+        el.requestUpdate();
+        await el.updateComplete;
+        const seeks = inst.calls.filter(([c]) => c === 'goToAndStop');
+        expect(seeks.length).toBeGreaterThan(0);
+        // 50 % → halfway into the [130,190] brightness segment
+        expect(seeks[seeks.length - 1][1]).toBeCloseTo(160, 0);
+    });
+
+    it('contact window: tilt tristate — closed→tilted plays the tilt clip', async () => {
+        const el = await mount('feezal-element-fancy-contact',
+            {subscribe: 'stat/c', type: 'window', 'payload-open': 'open',
+                'payload-closed': 'closed', 'payload-tilted': 'tilted'});
+        await until(() => factory.instances.length === 1);
+        const inst = factory.last;
+        inst.calls.length = 0;
+        feezal.connection.deliver('stat/c', 'tilted');
+        await el.updateComplete;
+        expect(inst.calls[0]).toEqual(['playSegments', [48, 72]]);
+        expect(el.shadowRoot.textContent).toContain('Tilted');
+    });
+
+    it('cover: SEEKS by reported position — the blind stands where the device says', async () => {
+        const el = await mount('feezal-element-fancy-cover', {subscribe: 'stat/cov'});
+        await until(() => factory.instances.length === 1);
+        const inst = factory.last;
+        inst.calls.length = 0;
+        feezal.connection.deliver('stat/cov', {position: 30});   // 30 % open → 70 % closed
+        await el.updateComplete;
+        const seeks = inst.calls.filter(([c]) => c === 'goToAndStop');
+        expect(seeks[seeks.length - 1][1]).toBeCloseTo(70, 0);
+        expect(inst.calls.some(([c]) => c === 'playSegments')).toBe(false);   // never plays
+        expect(el.shadowRoot.textContent).toContain('30');
+    });
+
+    it('lock: unlock plays the shackle clip; jammed enters the shake loop', async () => {
+        const el = await mount('feezal-element-fancy-lock',
+            {subscribe: 'stat/lock', publish: 'cmd/lock'});
+        await until(() => factory.instances.length === 1);
+        const inst = factory.last;
+        feezal.connection.deliver('stat/lock', 'LOCKED');
+        await el.updateComplete;
+        inst.calls.length = 0;
+        feezal.connection.deliver('stat/lock', 'UNLOCKED');
+        await el.updateComplete;
+        expect(inst.calls[0]).toEqual(['playSegments', [0, 24]]);
+        feezal.connection.deliver('stat/lock', 'JAMMED');
+        await el.updateComplete;
+        inst.fireComplete?.();
+        expect(inst.loop).toBe(true);   // the jam shake loops
+        expect(el.shadowRoot.textContent).toContain('Jammed');
+    });
+
+    it('sensor (alarm slice): triggering enters the pulse loop, E138 error tone var', async () => {
+        const el = await mount('feezal-element-fancy-sensor',
+            {subscribe: 'stat/leak', type: 'water-leak'});
+        expect(el.activeToneVar()).toBe('--error-color');
+        await until(() => factory.instances.length === 1);
+        const inst = factory.last;
+        inst.calls.length = 0;
+        feezal.connection.deliver('stat/leak', 'ON');
+        await el.updateComplete;
+        expect(inst.loop).toBe(true);
+        expect(inst.calls[0]).toEqual(['playSegments', [10, 70]]);
+    });
+
+    it('climate: heating when the setpoint is above actual — the waves loop', async () => {
+        const el = await mount('feezal-element-fancy-climate',
+            {subscribe: 'stat/clim', 'payload-mode': 'json'});
+        await until(() => factory.instances.length === 1);
+        const inst = factory.last;
+        inst.calls.length = 0;
+        feezal.connection.deliver('stat/clim', {current_heating_setpoint: 23, local_temperature: 19});
+        await el.updateComplete;
+        expect(inst.loop).toBe(true);
+        expect(inst.calls[0]).toEqual(['playSegments', [10, 74]]);
+        expect(el.shadowRoot.textContent).toContain('→');
+    });
+
+    it('theme retint rebuilds the instance with fresh tones', async () => {
+        const site = document.createElement('feezal-site-stub');
+        document.body.append(site);
+        feezal.site = site;
+        await mount('feezal-element-fancy-light', {subscribe: 'stat/l'});
+        await until(() => factory.instances.length === 1);
+        document.dispatchEvent(new CustomEvent('feezal-fancy-retint'));
+        await until(() => factory.instances.length === 2);
+        expect(factory.instances[0].destroyed).toBe(true);
+        site.remove();
+    });
+
+    it('a broken animation-src leaves the static pose in charge (never throws)', async () => {
+        const el = await mount('feezal-element-fancy-light',
+            {subscribe: 'stat/l', 'animation-src': '/definitely/not/there.json'});
+        await new Promise(r => setTimeout(r, 60));
+        expect(factory.instances.length).toBe(0);
+        expect(el.shadowRoot.querySelector('.pose').hidden).toBe(false);
+    });
+});

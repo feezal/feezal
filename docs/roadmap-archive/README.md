@@ -7,7 +7,7 @@ Each entry is filed under the section its **ID prefix** belongs to — `B` Bugs,
 Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastructure,
 `D` Documentation — and sorted by number within it, so a new entry has exactly one correct place.
 
-**329 items.**
+**330 items.**
 
 ## Bugs
 
@@ -245,6 +245,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [E136 — Metro tile backsides: redesign for touch — bigger targets, calmer layout, use the space ✅ done](E136.md)
 - [E137 — Shared MQTT device contracts: extract behavior controllers (climate / light / cover / wled) ✅ implemented](E137.md)
 - [E138 — Contact / sensor / motion / value: untangle the boolean-card taxonomy ✅ implemented](E138.md)
+- [E139 — "Fancy" element family: Lottie-animated device cards ✅ done](E139.md)
 - [E140 — Per-state icon colour: configurable CSS vars for every state-driven icon ✅ done](E140.md)
 - [E141 — Metro tiles: per-state background colour vars for state-driven elements ✅ done](E141.md)
 - [E142 — Dialog `label` attribute: editor-only placeholder tag to tell dialogs apart ✅ done](E142.md)

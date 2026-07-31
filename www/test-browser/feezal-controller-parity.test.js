@@ -75,6 +75,8 @@ import '../packages/@feezal/feezal-element-eink-fan/feezal-element-eink-fan.js';
 import '../packages/@feezal/feezal-element-circle-value/feezal-element-circle-value.js';
 import '../packages/@feezal/feezal-element-glass-value/feezal-element-glass-value.js';
 import '../packages/@feezal/feezal-element-metro-value/feezal-element-metro-value.js';
+// E139: the Fancy family adopts five controllers + lock — all six register.
+import '../packages/@feezal/feezal-elements-fancy/index.js';
 import {setupFeezal, mount} from './helpers.js';
 
 const CASES = [
@@ -123,6 +125,14 @@ const CASES = [
     {tag: 'feezal-element-circle-lock',    consumed: LOCK_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-glass-lock',       consumed: LOCK_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-metro-lock',       consumed: LOCK_CONSUMED_ATTRIBUTES},
+    // E139 fancy slice — the animated family is pure views over the shared
+    // controllers; all six cards carry the full contracts.
+    {tag: 'feezal-element-fancy-light',    consumed: LIGHT_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-fancy-contact',  consumed: CONTACT_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-fancy-cover',    consumed: COVER_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-fancy-climate',  consumed: CLIMATE_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-fancy-sensor',   consumed: SENSOR_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-fancy-lock',     consumed: LOCK_CONSUMED_ATTRIBUTES},
     // E147 meter slice — circle/glass/metro adopt the AI-on-the-edge controller.
     {tag: 'feezal-element-circle-meter',   consumed: AIEDGE_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-glass-meter',      consumed: AIEDGE_CONSUMED_ATTRIBUTES},

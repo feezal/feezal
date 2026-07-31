@@ -49,7 +49,6 @@ Work in progress — priorities and scope are not final.
 - [E114 — Family parity contract: material/circle / glass / metro stay in sync](#e114--family-parity-contract-materialcircle--glass--metro-stay-in-sync--needs-discussion) ⚠️
 - [E119 — `basic-number`: configurable placeholder before the first value](#e119--basic-number-configurable-placeholder-before-the-first-value)
 - [E125 — Homematic battery voltage (`OPERATING_VOLTAGE`)](#e125--homematic-battery-voltage-operating_voltage--future) 💡
-- [E139 — "Fancy" element family: Lottie-animated device cards](#e139--fancy-element-family-lottie-animated-device-cards)
 - [E144 — Lock autodiscovery: Homematic BidCoS (Keymatic) + HmIP smart locks + zigbee2mqtt](#e144--lock-autodiscovery-homematic-bidcos-keymatic--hmip-smart-locks--zigbee2mqtt--keymatic--z2m-done-hmip-dld-open) 🔨 *(Keymatic + z2m done; HmIP-DLD open)*
 - [E145 — Autodiscovery support for ccu-jack's MQTT interface](#e145--autodiscovery-support-for-ccu-jacks-mqtt-interface)
 - [E150 — Discovery for profile-shaped components: `water_heater` ✅ + `lawn_mower` 🔨](#e150--discovery-for-profile-shaped-components-water_heater---lawn_mower)
@@ -1378,31 +1377,6 @@ HmIP battery devices publish **`OPERATING_VOLTAGE`** on the `:0` maintenance cha
 - **Reporting cadence.** Battery voltage updates rarely and drifts with temperature — a chart of it is only useful over days/weeks, which has implications for history retention (see the history/logbook items).
 
 **Relates:** **E124** (low-battery boolean — the prerequisite), E108 ✅ (native Homematic discovery — where the recognizer lives), N31 (availability), E30 (sparkline — the natural place a voltage trend would render).
-
-### E139 — "Fancy" element family: Lottie-animated device cards
-
-A new element family whose defining trait is **animation**: a `fancy-contact` that visibly swings the window/door open and closed, a `fancy-light` whose glow breathes with the state, a `fancy-cover` whose blind actually travels. Rich vector motion as the family chrome — nothing in the palette does this today.
-
-**Decided (07/2026):**
-- **Core family** (`feezal-element-fancy-*`, palette category `Fancy`) — ships with feezal, in the default palette. *(Deliberate exception to the A23 keep-core-small line.)*
-- **MVP scope: light, climate, cover, contact, sensor, lock** — six cards (sensor = the E138 ✅ alarm-boolean semantics; a `fancy-motion` can follow the taxonomy later).
-- **Animations: programmatic built-in set + per-element override.** The default set is **self-authored/generated Lottie JSON** — feasible because Lottie is plain JSON (shape layers + keyframed transforms) and the chosen style tier is authorable in code; MIT-clean by construction, no third-party asset licensing. Every element additionally accepts **user-supplied animation JSON via asset refs** (per-state/per-variant `src` overrides through the E89 loader) for anyone wanting LottieFiles art instead.
-- **Style: filled flat duotone** — solid flat shapes in **two theme-derived tones**, recoloured at runtime: the animation JSON uses two palette slots substituted with resolved values of the canonical theme vars before instantiating (lottie-web needs concrete colours — read computed style, re-render on theme change; must respect per-view themes). Default tone mapping follows E138's colour semantics: base tone from `--secondary-text-color`/`--divider-color`; active tone `--primary-color` (light/cover/lock/contact), `--error-color` (alarm sensor states).
-- **Chrome: animation + slim chrome** — the animation is the hero (most of the tile); beneath it a slim label + state line; availability/low-bat/sabotage badges come from the controller contracts. One consistent family frame across all six cards.
-
-**Architecture:**
-- **E137 controllers are the behavior layer — fancy elements are pure views:** contact → `ContactController`, sensor → `SensorController`, climate → `ClimateController`, light → `LightController`, cover → `CoverController` (all extracted as of E137 part 5). **Lock has no controller yet** — with `fancy-lock` as a second consumer beside `circle-lock`, the E137 rule applies: **extract `feezal-controller-lock` first.** All six register in `feezal-controller-parity.test.js`.
-- **State → segment model on the E89 machinery:** shared lazy `lottie-web` chunk (fetched only when a fancy element is on a view — the established E39/E89 export discipline); per-state segments plus **directional transitions** (open→closed plays the closing segment, never a jump-cut). Two special mappings: `fancy-cover` **seeks by position** (position % → frame within the travel segment, so the blind stands where the device reports — E127 / [E128](roadmap-archive/E128.md) settling-aware; the movement badge and `MovementController` from E128/[E154](roadmap-archive/E154.md) are the plain-family baseline a Lottie travel/lock-turn animation replaces here); `fancy-light` scales glow intensity with brightness. `fancy-contact` covers door/window/garage variants incl. the Homematic **tilt tristate** (three poses + transitions between all of them).
-- **Editor: static pose** (current state's first frame, no lib load — E89 pattern); `prefers-reduced-motion` freezes to poses in the viewer too.
-- **Packaging: one N29 bundle** (`@feezal/feezal-elements-fancy`) in the core workspace — the six cards share the animation set, the recolour helper and the chrome frame (E106 lesson: no six hand-rolled copies).
-
-**Animation authoring:** the default set is generated by a **checked-in generator script** emitting the Lottie JSONs — reproducible, tweakable, and the two-tone palette slots are enforced by the generator. Complex illustrative art is explicitly out of scope for the built-in set (that's what the override attributes are for). *(Answer to "can you create them": yes for this tier — flat-geometric Lottie is authorable programmatically; illustrator-grade art would need supplied/curated assets.)*
- 
-**Sequencing:** first wave **contact, sensor, climate, light, cover** (controllers all shipped); **lock** follows the controller-lock extraction. Family frame + recolour helper + generator land with the first wave.
-
-**Ships with:** N29 bundle + registration + `generate-elements`, parity-test registrations, TESTING.md §6 family section (state animations, directional transitions, position-seek, tilt tristate, theme recolour incl. per-view themes, reduced motion, editor static pose, override srcs, lazy chunk), version bumps per policy.
-
-**Relates:** E89 ✅ (Lottie machinery + lazy loader — the foundation), **E137** (controllers — the behavior layer; lock-controller extraction is the one prerequisite), **E138 ✅** (taxonomy + colour semantics the family follows), E114 (parity), E39 ✅ (splash — same lazy-chunk discipline), per-view themes ✅ (recolour must respect them), A25 ✅ (self-hosted/MIT-clean assets — the programmatic set satisfies it by construction), E113 (function × style — a new style family over existing functions, exactly that model), E135 (sabotage badge on the fancy cards too).
 
 ### E144 — Lock autodiscovery: Homematic BidCoS (Keymatic) + HmIP smart locks + zigbee2mqtt 🔨 Keymatic + z2m done; HmIP-DLD open
 

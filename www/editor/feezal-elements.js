@@ -147,6 +147,7 @@ import '@feezal/feezal-element-tui-menu';
 import '@feezal/feezal-element-tui-panel';
 import '@feezal/feezal-element-tui-sparkline';
 import '@feezal/feezal-element-tui-value';
+import '@feezal/feezal-elements-fancy';
 import '@feezal/feezal-theme-blue-night';
 import '@feezal/feezal-theme-dark-mint';
 import '@feezal/feezal-theme-dark-orange';
@@ -310,7 +311,13 @@ window.feezal.elements = [
   "feezal-element-tui-menu",
   "feezal-element-tui-panel",
   "feezal-element-tui-sparkline",
-  "feezal-element-tui-value"
+  "feezal-element-tui-value",
+  "feezal-element-fancy-light",
+  "feezal-element-fancy-contact",
+  "feezal-element-fancy-cover",
+  "feezal-element-fancy-climate",
+  "feezal-element-fancy-sensor",
+  "feezal-element-fancy-lock"
 ];
 
 window.feezal.themes = [

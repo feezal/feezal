@@ -170,6 +170,7 @@
         "@feezal/feezal-element-tui-panel": "*",
         "@feezal/feezal-element-tui-sparkline": "*",
         "@feezal/feezal-element-tui-value": "*",
+        "@feezal/feezal-elements-fancy": "*",
         "@feezal/feezal-controller-aiedge": "*",
         "@feezal/feezal-controller-climate": "*",
         "@feezal/feezal-controller-contact": "*",
