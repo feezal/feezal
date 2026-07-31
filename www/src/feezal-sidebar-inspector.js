@@ -237,8 +237,13 @@ class FeezalSidebarInspector extends LitElement {
             border: 1px solid var(--feezal-border, #ccc);
             border-radius: 6px;
             box-shadow: 0 4px 20px rgba(0,0,0,.2);
-            min-width: 140px; padding: 4px 0; z-index: 10001;
+            min-width: 140px; max-width: 280px; padding: 4px 0; z-index: 10001;
+            /* The view list is unbounded — cap the height and scroll. JS
+               (_positionCtxSub) refines the exact placement + height against the
+               viewport when the submenu opens. */
+            max-height: 70vh; overflow-y: auto;
         }
+        .ctx-sub .ctx-item { overflow: hidden; text-overflow: ellipsis; }
 
         /* ── Keyboard shortcuts modal ────────────────────────────────────── */
         .shortcuts-overlay {
@@ -806,6 +811,49 @@ class FeezalSidebarInspector extends LitElement {
                 this.shadowRoot.querySelector('sl-tab-group')?.show?.('attributes');
             }
         }
+
+        // The "Copy/Move to view" (and "Switch family") submenu holds an
+        // unbounded list of views — position it against the viewport (flip
+        // left / shift up, cap the height) whenever it opens so it never
+        // renders off-screen.
+        if (changed.has('_ctxMenu') && this._ctxMenu?.visible && this._ctxMenu.subMenu) {
+            this._positionCtxSub();
+        }
+    }
+
+    /** Place an open Copy/Move/Switch submenu against the viewport: it can hold
+     * any number of views, so flip it to the item's left when it would overflow
+     * the right edge, shift it up when it would overflow the bottom, and cap its
+     * height to the viewport with an internal scroll. */
+    _positionCtxSub() {
+        const sub = this.renderRoot?.querySelector('.ctx-sub');
+        const item = sub?.parentElement;
+        if (!sub || !item) return;
+        const r = item.getBoundingClientRect();
+        const margin = 8;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+
+        sub.style.position = 'fixed';
+        sub.style.maxHeight = 'none';                 // measure the natural size first
+        const subW = sub.offsetWidth;
+        const natural = sub.scrollHeight;
+
+        // Horizontal: prefer the item's right edge; flip to its left on overflow.
+        let left = r.right - 2;
+        if (left + subW > vw - margin) left = Math.max(margin, r.left - subW + 2);
+
+        // Vertical: cap the height to the viewport (scroll the rest) and shift up
+        // so the capped menu stays fully on-screen.
+        const used = Math.min(natural, vh - 2 * margin);
+        let top = r.top - 4;
+        if (top + used > vh - margin) top = vh - margin - used;
+        if (top < margin) top = margin;
+
+        sub.style.left = `${left}px`;
+        sub.style.top = `${top}px`;
+        sub.style.maxHeight = `${used}px`;
+        sub.style.overflowY = natural > used ? 'auto' : '';
     }
 
     /** E50: number of condition rows on an element (for the tab label). */
