@@ -66,6 +66,9 @@ Work in progress — priorities and scope are not final.
 - [U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow](#u61--editor-preview-fidelity-gradientbackground-in-a-percentage-sized-views-scroll-overflow)
 - [U63 — `layout-app`: split the content inset into per-side knobs](#u63--layout-app-split-the-content-inset-into-per-side-knobs)
 - [U73 — Welcome wizard: fork into "explore the editor" vs "just autogenerate an app"](#u73--welcome-wizard-fork-into-explore-the-editor-vs-just-autogenerate-an-app)
+- [U75 — Generate review: checkbox is checkbox-only; multi-row select + bulk "move to room"](#u75--generate-review-checkbox-is-checkbox-only-multi-row-select--bulk-move-to-room)
+- [U76 — Room heuristic: broaden the lexicon + compound / umlaut-robust matching](#u76--room-heuristic-broaden-the-lexicon--compound--umlaut-robust-matching)
+- [U77 — Room heuristic: cluster recurring name-tokens into candidate zones (data-driven)](#u77--room-heuristic-cluster-recurring-name-tokens-into-candidate-zones-data-driven)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -1135,6 +1138,65 @@ Independent of A/B/C: decide whether the **Subscribe topic may also feed a range
 **Ships with:** the fork step + two branches, the tour-overlay/dialog hand-off, the empty-discovery bail-out, browser tests (the fork routes correctly; the autogenerate path advances only once discovery has entities; the finale appears after the result stage), a `docs/TESTING.md` update to the U37 tour section, and U37's editor-only property preserved (nothing reaches the viewer/export bundle).
 
 **Relates:** **U37** ✅ (the tour this restructures — `feezal-welcome-tour.js`), **U58** ✅ (the App generator the autogenerate path lands in — this **supersedes** its §Onboarding single-step plan), **U67**–**U71** ✅ (the current Generate wizard), the MQTT connection tab (`feezal-sidebar-viewer`) + `/api/discovery/devices` (the discovery wait), the open-viewer action + Deploy → Export (the finale), **A18** (kiosk / first-run onboarding is where this matters most).
+
+### U75 — Generate review: checkbox is checkbox-only; multi-row select + bulk "move to room"
+
+**Requested (07/2026).** Two coupled complaints about the review list's row interaction:
+1. **The whole row toggles the include checkbox.** Clicking anywhere on a device row flips its checkbox (the U68/U69 range/drag select is wired to `_checked`), which is far too easy to trigger by accident. The **checkbox should only toggle when you click the checkbox itself**.
+2. **No bulk room change.** Moving many devices to the same room means opening each row's dropdown one at a time. You should be able to **select multiple rows and set the room for all of them at once**.
+
+This pulls the row's two concerns apart: **inclusion** (the checkbox — "generate this device") vs an **operation target** (a transient row *selection* to act on in bulk).
+
+**Design.**
+- **Checkbox = inclusion, atomic.** The `<sl-checkbox>` toggles `_checked` for its own row only (click / Space on the checkbox). Optionally Shift-click a checkbox to range-*check* between the last checkbox and this one (keeps U68's fast bulk-check without hijacking the whole row).
+- **Row body = selection.** Click a row (not its checkbox or dropdown) to select it; **Shift-click** extends a range, **Ctrl/Cmd-click** toggles one, **drag** paints a selection — repoint the existing `RangeSelect` / `_selPress` machinery at a **new `_selected` set** (highlight) instead of `_checked`. Selected rows get a clear highlight, distinct from the checkbox state.
+- **Bulk action bar.** While ≥1 row is selected, a compact bar appears (sticky above the list or in the footer): **"N selected"** + a **Move to room** control (existing rooms + the U70 "＋ Create new room" sentinel) that runs `_reassign` over every selected key at once, plus **Check / Uncheck selected** and **Clear selection**.
+- Selection is **review-only ephemeral state**: never leaves the dialog, resets on re-entering review, independent of `_checked` and `_assign`.
+
+**This refines U68/U69** — the row-click-toggles-checkbox model becomes checkbox-only, and bulk check/uncheck moves from "drag the row to range-toggle checkboxes" to the explicit action bar (clearer, and frees the row gesture for selection). Keep the keyboard/drag ergonomics U68 built; only the *target* of the gesture changes (`_checked` → `_selected`).
+
+**Open questions:** does a bulk **Move to room** also **check** the moved rows (you usually want what you just organised to be generated)? Does the selection **persist** after a bulk action or clear? If Shift means range-*check* on the checkbox and range-*select* on the row, the two hit-targets must be split crisply so it never feels ambiguous.
+
+**Ships with:** the `_selected` set + `RangeSelect` re-target, the checkbox-only toggle (+ optional Shift-range-check on the checkbox), row-highlight styling, the bulk action bar (move-to-room over the U70 room list incl. the create-new sentinel, check/uncheck, clear), keyboard + drag parity, browser tests (row click selects without toggling the checkbox; checkbox click toggles without selecting; a multi-row selection bulk-moved lands every row in the target room; create-new from the bulk bar; selection resets on re-entry), and a `docs/TESTING.md` update to the Generate-wizard review §.
+
+**Relates:** **U68** ✅ (the range/drag select being re-pointed), **U69** ✅ (review-is-the-selection — the checkbox model this revises), **U70** ✅ (the create-new-room sentinel the bulk mover reuses), **B94** ✅ (the keyed review rows the selection highlight renders over), `RangeSelect` / `_selPress` / `_reassign` / `_renderReview`.
+
+### U76 — Room heuristic: broaden the lexicon + compound / umlaut-robust matching
+
+**Requested (07/2026).** The room guesser misses common cases: devices whose name carries a real room word as part of a **compound** (a German "Gästetoilette" / "Gäste-WC" style word) get **no room, land in the wrong room, or fall to Unassigned**, even though the room is obvious to a human.
+
+**Root cause.** `detectRoom` ([`feezal-discovery-stamp.js`](../www/src/feezal-discovery-stamp.js)) tokenises the name and matches a lexicon word only when it **equals a token or is its prefix** (`t === w || (w.length >= 5 && t.startsWith(w))`). So a room word sitting at the **end or middle** of a compound token never matches (a `…toilette` compound does not *start* with `toilette`), and the prefix-only rule was chosen precisely to avoid false positives (the "bad" inside "badge" guard). Spelling variants compound the miss: the lexicon must currently list **both** the umlaut and the ASCII form of every word (`küche`/`kueche`, `gäste-wc`/`gaestewc`), and any it forgets silently fails.
+
+**Fix (three parts).**
+1. **Canonical fold before matching.** Normalise both the name tokens and the lexicon words through one fold — lowercase, `ä→ae ö→oe ü→ue ß→ss`, strip separators/diacritics (the `slugifyViewName` transliteration already does this) — so `gästetoilette` and `gaestetoilette` become the same string and one lexicon spelling covers both. Drops the duplicate umlaut/ASCII entries.
+2. **Bounded substring match, not prefix-only.** Match a lexicon stem anywhere in a token **when it is unambiguous** — long enough and not a known false-friend — so `…toilette` / `gäste…` compounds hit. Keep the "bad"-in-"badge" class of false positive out with a short **stop-set of ambiguous stems** (matched only as whole tokens / prefixes) rather than banning substring matching wholesale, and prefer the **longest / most-specific** lexicon hit when several match one name.
+3. **Broaden the lexicon** with the common misses this surfaces (guest-toilet / half-bath compounds, and whatever else testing turns up), each as one folded stem.
+
+**Care:** substring matching is where room detection gets *worse* if rushed (every "hall" inside a longer word, every "wc" fragment) — so this needs a fixture set of real-world names (Homematic channel names + zigbee friendly names) asserting both the new hits and that the guarded false positives still don't fire.
+
+**Ships with:** the fold + bounded-substring matcher + longest-match tie-break in `detectRoom`, the trimmed/broadened `ROOM_LEXICON`, the ambiguous-stem stop-set, a `feezal-discovery-stamp.test.js` fixture table (compound hits + false-positive guards + umlaut/ASCII parity), and a `docs/TESTING.md` note. Pairs with **U77** (the data-driven pass for names no lexicon can hold).
+
+**Relates:** **U67** ✅ (localized room labels + the lexicon this extends), **U58** / **U69** ✅ (the Generate review the buckets feed), **U77** (frequency clustering — the complementary heuristic), `detectRoom` / `ROOM_LEXICON` / `tokenize` / `slugifyViewName` (the existing fold to reuse).
+
+### U77 — Room heuristic: cluster recurring name-tokens into candidate zones (data-driven)
+
+**Requested (07/2026).** Beyond dictionary room words, people label devices with **custom zone names a lexicon can never hold** — a nickname, a person's or pet's name used as a zone, a floor or wing label. These recur **across many devices** (Homematic *and* zigbee), yet each currently lands in Unassigned because no room word matches. The signal is in the data: **a token shared by many devices is very likely a zone.**
+
+**Approach — document-frequency clustering (a heuristic, offered for confirmation).**
+- Tokenise every discovered device's name/label (the same fold as **U76**) and build a **document-frequency** count (how many distinct devices carry each token).
+- A token that appears on **≥ N devices** (tunable; e.g. 3) and is **not** a room word (the lexicon), **not** a function word (light/switch/sensor/cover/climate/…), **not** a unit/number, and **not** a family/brand/platform token (`zigbee2mqtt`, `hmip`, `hm`, model prefixes) becomes a **candidate zone bucket**.
+- In the **review**, surface these as pre-formed buckets clearly marked **"detected group"** (distinct from the lexicon "guessed" badge), pre-filled with their devices — the user renames, merges, or dismisses them, exactly like a room bucket. Never silently authoritative; it is a *suggestion* that saves dragging a dozen devices by hand.
+- **Precedence:** an explicit `suggested_area` (trusted) always wins; a lexicon room word (U76) wins over a frequency cluster; frequency clustering only claims what would otherwise be Unassigned. A device carrying two candidate tokens goes to the higher-frequency (or longer) one, the rest offered as a merge.
+
+**Why it works across ecosystems.** Homematic channel names and zigbee friendly names both concatenate the human label the user typed, so the same zone token recurs regardless of source — no per-integration logic, just the shared token stream.
+
+**Traps to avoid:** clustering on **function / brand** tokens (every device has "sensor"), on a **shared prefix** the user gave every device, or on **numbers**; a strong stop-list + the lexicon/function-word exclusion + a minimum token-length guard those. Keep the threshold conservative (better to miss a small group than to invent noisy ones), and always let the user reject a cluster in one click.
+
+**Privacy:** clustering runs entirely client-side over already-discovered names; it surfaces nothing new externally.
+
+**Ships with:** the tokenise→document-frequency→candidate-bucket pass (shared fold with U76), the stop-list + lexicon/function-word exclusion + threshold, review integration (a "detected group" bucket kind, pre-checked, rename/merge/dismiss), the precedence rule (area > lexicon > cluster > Unassigned), unit tests over a fixture device set (a recurring custom token forms a bucket; function/brand/number tokens never do; area/lexicon precedence holds), and a `docs/TESTING.md` note. Pairs with **U76**.
+
+**Relates:** **U76** (the lexicon pass + shared fold), **U67** ✅ / **U58** ✅ / **U69** ✅ (the room bucketing + review this extends), **E161** ✅ (device friendly-name metadata the tokens come from), `detectRoom` / `groupForApp` / `tokenize` (where the pass slots in).
 
 ### E112 — Scrypted integration: camera snapshot element (sensors already work) 💡 to refine
 
