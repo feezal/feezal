@@ -65,6 +65,7 @@ class FeezalAppEditor extends LitElement {
         _sidebarWidth:    {state: true},
         _version:         {state: true},
         _viewCtx:         {state: true},
+        _bridge:          {state: true},   // server↔broker status for the top-bar MQTT dot
         _actionMenuPos:   {state: true},
         _sourceMode:      {state: true},
         _sourceError:     {state: true},
@@ -354,6 +355,31 @@ class FeezalAppEditor extends LitElement {
         #btn-deploy-caret:not([disabled]):hover { filter: brightness(1.12); }
         #btn-deploy-main:disabled,
         #btn-deploy-caret:disabled { opacity: 0.65; cursor: default; }
+        /* Standalone View button — same shape as Deploy, left of it. */
+        #btn-view {
+            height: 32px; padding: 0 12px; margin: auto 0; margin-top: 4.5px;
+            background: #666; border: none; cursor: pointer; border-radius: 4px;
+            color: white; font-weight: 600; font-size: 13px;
+            display: flex; align-items: center; gap: 6px; transition: filter 0.15s;
+        }
+        #btn-view .material-icons { font-size: 18px; }
+        #btn-view:hover { filter: brightness(1.12); }
+        /* Top-bar MQTT connection dot */
+        #mqtt-dot-btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 26px; height: 32px; margin: auto 2px; margin-top: 4.5px;
+            background: none; border: none; cursor: pointer; padding: 0;
+        }
+        .mqtt-dot-inner {
+            width: 11px; height: 11px; border-radius: 50%;
+            background: #9ca3af; box-shadow: 0 0 0 3px rgba(156,163,175,0.18);
+            transition: background 0.2s, box-shadow 0.2s;
+        }
+        #mqtt-dot-btn.ok  .mqtt-dot-inner { background: #2e9d4f; box-shadow: 0 0 0 3px rgba(46,157,79,0.22); }
+        #mqtt-dot-btn.err .mqtt-dot-inner { background: #d64545; box-shadow: 0 0 0 3px rgba(214,69,69,0.22); }
+        #mqtt-dot-btn.connecting .mqtt-dot-inner { background: #eab308; box-shadow: 0 0 0 3px rgba(234,179,8,0.22); animation: mqtt-pulse 1s ease-in-out infinite; }
+        #mqtt-dot-btn:hover .mqtt-dot-inner { box-shadow: 0 0 0 4px rgba(255,255,255,0.15); }
+        @keyframes mqtt-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
         /* Action dropdown menu */
         .action-menu {
             position: fixed; z-index: 10000;
@@ -665,6 +691,13 @@ class FeezalAppEditor extends LitElement {
             --feezal-btn-hover-border: #666;
             --feezal-btn-hover-color: rgba(255,255,255,0.95);
         }
+        /* Input focus/hover bg must be set too, or Shoelace paints them white on
+           hover/focus in dark mode (the recurring dark-mode input bug). */
+        :host(.dark) feezal-connect-dialog {
+            --feezal-badge-bg:    #3a3a3a;
+            --sl-input-background-color-focus: #252525;
+            --sl-input-background-color-hover: #252525;
+        }
         :host(.dark) feezal-generate-dialog {
             /* Review row selection highlight — dark blue instead of the light
                #cfe5fb, which was unreadable on the dark dialog. */
@@ -768,6 +801,7 @@ class FeezalAppEditor extends LitElement {
         this.deploying        = false;
         this.viewSelected     = true;
         this._navView         = '';
+        this._bridge          = null;
         this._history         = [];
         this._clipboardTpl    = document.createElement('template');
         this.editViewName     = '';
@@ -955,6 +989,15 @@ class FeezalAppEditor extends LitElement {
                         </span>` : ''}
 
                     <feezal-site-manager .darkMode="${this._darkMode}"></feezal-site-manager>
+                    ${(() => { const d = this._mqttDot(); return html`
+                        <button id="mqtt-dot-btn" class="mqtt-dot ${d.cls}" title="${d.label}"
+                            @click="${this._openConnectionSettings}">
+                            <span class="mqtt-dot-inner"></span>
+                        </button>`; })()}
+                    <button id="btn-view" title="Open the viewer in a new tab" @click="${this._view}">
+                        <span class="material-icons">tv</span>
+                        View
+                    </button>
                     <div id="btn-deploy-wrap">
                         <button id="btn-deploy-main"
                             class="${this.changes ? 'has-changes' : ''}"
@@ -978,9 +1021,6 @@ class FeezalAppEditor extends LitElement {
                                 <span class="material-icons">upload_file</span> Save
                             </div>
                             <div class="action-menu-sep"></div>
-                            <div class="action-menu-item" @click="${() => { this._actionMenuPos = null; this._view(); }}">
-                                <span class="material-icons">tv</span> View
-                            </div>
                             <div class="action-menu-item" @click="${() => { this._actionMenuPos = null; this._export(); }}">
                                 <span class="material-icons">download</span> Export
                             </div>
@@ -1531,6 +1571,36 @@ class FeezalAppEditor extends LitElement {
         // (after the dialog closes / is skipped) the welcome tour. Deferred so
         // the server-injected site markup and the first render are settled.
         setTimeout(() => this._maybeFirstRunSetup(), 800);
+
+        // Top-bar MQTT connection dot — poll the server↔broker bridge status.
+        this._pollBridgeStatus();
+        this._bridgeTimer = setInterval(() => this._pollBridgeStatus(), 3000);
+    }
+
+    async _pollBridgeStatus() {
+        try {
+            const r = await fetch('/api/bridge/status');
+            if (r.ok) this._bridge = await r.json();
+        } catch { /* server unreachable — keep the last state */ }
+    }
+
+    /** Top-bar MQTT dot: {cls, label} from the bridge status (+ a yellow
+     * "connecting" while a deploy is applying the connection). */
+    _mqttDot() {
+        if (this.deploying) return {cls: 'connecting', label: 'MQTT: applying connection…'};
+        const b = this._bridge;
+        if (!b || !b.uri) return {cls: 'unknown', label: 'MQTT: no broker configured — click to set up'};
+        if (b.connected) return {cls: 'ok', label: `MQTT: connected — ${b.uri}`};
+        return {cls: 'err', label: `MQTT: not connected${b.lastError ? ' — ' + b.lastError.message : ''} (click to fix)`};
+    }
+
+    /** Open the Connection sidebar (from the top-bar MQTT dot). */
+    _openConnectionSettings() {
+        this.sidebarVisible = true;
+        this._setSidebar('viewer');
+        this.updateComplete.then(() =>
+            this.shadowRoot.querySelector('feezal-sidebar-viewer')?.shadowRoot
+                ?.querySelector('sl-tab-group')?.show?.('connection'));
     }
 
     /** No broker host configured yet? Offer the connect dialog first — the tour
@@ -1700,6 +1770,7 @@ class FeezalAppEditor extends LitElement {
 
     disconnectedCallback() {
         super.disconnectedCallback();
+        clearInterval(this._bridgeTimer);
         window.removeEventListener('hashchange', this._onHashChange);
         window.removeEventListener('feezal-open-color-ranges', this._onOpenColorRanges);
         this._darkMq?.removeEventListener('change', this._darkMqHandler);

@@ -38,11 +38,19 @@ async function dialog() {
 }
 
 describe('feezal-connect-dialog', () => {
-    it('defaults to ws:// and DIRECT viewer mode', async () => {
+    it('defaults to mqtt://localhost:1883', async () => {
         const el = await dialog();
-        expect(el._protocol).toBe('ws');
-        expect(el._viaServer).toBe(false);
-        expect(el._bridge).toBe(false);
+        expect(el._protocol).toBe('mqtt');
+        expect(el._host).toBe('localhost');
+        expect(el._port).toBe('1883');
+        expect(el._viaServer).toBe(false);          // the switch state (mqtt forces bridge below)
+        expect(el._bridgeMode).toBe(true);          // mqtt:// → bridge required
+    });
+
+    it('offers exactly the four protocols, no empty option', async () => {
+        const el = await dialog();
+        const opts = [...el.renderRoot.querySelectorAll('sl-option')].map(o => o.value);
+        expect(opts).toEqual(['mqtt', 'mqtts', 'ws', 'wss']);
     });
 
     it('open() pre-fills from the existing connection (parses the uri)', async () => {
@@ -74,7 +82,7 @@ describe('feezal-connect-dialog', () => {
         el._protocol = 'mqtt'; el._viaServer = false;
         await el.updateComplete;
         expect(el._isTcp).toBe(true);
-        expect(el._bridge).toBe(true);                                   // forced on
+        expect(el._bridgeMode).toBe(true);                               // forced on
         expect(el._buildConnection().viaServer).toBe(true);
         const sw = el.renderRoot.querySelector('sl-switch');
         expect(sw.disabled).toBe(true);
@@ -116,5 +124,35 @@ describe('feezal-connect-dialog', () => {
         el._close('skipped');
         expect(closed).toBe('skipped');
         expect(deployCalls).toBe(0);
+    });
+
+    it('Test connection applies + polls without closing, shows yellow connecting then settles', async () => {
+        const origFetch = window.fetch;
+        let bridge = {connected: false, uri: '', lastError: null};
+        window.fetch = async () => ({ok: true, json: async () => bridge});
+        try {
+            const el = await dialog();
+            let closed = false;
+            el.addEventListener('feezal-connect-closed', () => { closed = true; });
+            el._protocol = 'ws'; el._host = 'broker'; el._port = '9001';
+
+            el._test();
+            expect(deployCalls).toBe(1);                       // applied (deployed)
+            expect(el._testing).toBe(true);
+            expect(closed).toBe(false);                        // did NOT close
+            await el.updateComplete;
+            expect(el.renderRoot.querySelector('.dot.connecting')).not.toBeNull();   // yellow
+            expect(el.renderRoot.textContent).toMatch(/Trying to connect to ws:\/\/broker:9001/);
+
+            // the bridge reports connected for our uri → settle to green
+            bridge = {connected: true, uri: 'ws://broker:9001', lastError: null};
+            await el._pollBridge();
+            await el.updateComplete;
+            expect(el._testing).toBe(false);
+            expect(el.renderRoot.querySelector('.dot.ok')).not.toBeNull();
+            el._stopPoll();
+        } finally {
+            window.fetch = origFetch;
+        }
     });
 });
