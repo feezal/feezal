@@ -14,9 +14,47 @@ import {describe, it, expect, afterEach} from 'vitest';
 import '../src/feezal-sidebar-inspector.js';
 
 const positionCtxSub = customElements.get('feezal-sidebar-inspector').prototype._positionCtxSub;
+const clampCtxMenu = customElements.get('feezal-sidebar-inspector').prototype._clampCtxMenu;
 
 const hosts = [];
 afterEach(() => { hosts.forEach(h => h.remove()); hosts.length = 0; });
+
+/** A fake .ctx-menu at (x,y) with a fixed size; run the clamp and return the
+ *  (possibly-adjusted) stored position. */
+function clampMenu({x, y, w, h}) {
+    const host = document.createElement('div');
+    document.body.append(host);
+    hosts.push(host);
+    const menu = document.createElement('div');
+    menu.className = 'ctx-menu';
+    menu.style.cssText = `position:fixed; left:${x}px; top:${y}px; width:${w}px; height:${h}px;`;
+    host.append(menu);
+    const self = {_ctxMenu: {x, y, visible: true}, renderRoot: host};
+    clampCtxMenu.call(self);
+    return self._ctxMenu;
+}
+
+describe('context-menu (top level) stays on-screen', () => {
+    it('shifts UP when the menu would overflow the bottom edge', () => {
+        const vh = window.innerHeight;
+        const res = clampMenu({x: 100, y: vh - 30, w: 180, h: 300});
+        expect(res.y + 300).toBeLessThanOrEqual(vh - 8 + 1);   // bottom on-screen
+        expect(res.y).toBeGreaterThanOrEqual(8);
+    });
+
+    it('shifts LEFT when the menu would overflow the right edge', () => {
+        const vw = window.innerWidth;
+        const res = clampMenu({x: vw - 20, y: 50, w: 180, h: 100});
+        expect(res.x + 180).toBeLessThanOrEqual(vw - 8 + 1);
+        expect(res.x).toBeGreaterThanOrEqual(8);
+    });
+
+    it('leaves a menu that already fits untouched', () => {
+        const res = clampMenu({x: 50, y: 50, w: 180, h: 100});
+        expect(res.x).toBe(50);
+        expect(res.y).toBe(50);
+    });
+});
 
 /** A fake open submenu: a fixed-positioned .ctx-item carrying a tall .ctx-sub,
  *  then run the positioner against a host standing in for `renderRoot`. */

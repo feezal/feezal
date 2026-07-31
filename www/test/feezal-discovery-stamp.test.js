@@ -392,9 +392,18 @@ describe('detectRoom (U58 App mode)', () => {
 describe('detectRoom — U76 compound / umlaut-robust matching', () => {
     const ent = name => ({component: 'switch', name, config: {state_topic: 'x/' + name}});
 
-    it('matches a room word inside a compound (Gästetoilette → Bathroom)', () => {
-        expect(detectRoom(ent('Gästetoilette Licht')).label).toBe('Bathroom');
-        expect(detectRoom(ent('gaestetoilette_licht')).label).toBe('Bathroom');   // ASCII spelling too
+    it('a guest toilet is its OWN room, not generic Bathroom (longest match wins)', () => {
+        expect(detectRoom(ent('Gästetoilette Licht')).label).toBe('Guest toilet');
+        expect(detectRoom(ent('gaestetoilette_licht')).label).toBe('Guest toilet');   // ASCII spelling too
+        expect(detectRoom(ent('gästewc')).label).toBe('Guest toilet');
+        // a plain toilet / WC stays generic Bathroom
+        expect(detectRoom(ent('toilette_eg')).label).toBe('Bathroom');
+        expect(detectRoom(ent('wc_licht')).label).toBe('Bathroom');
+    });
+
+    it('detects the guest room, umlaut or ASCII (gäste/gaeste)', () => {
+        expect(detectRoom(ent('Gästezimmer')).label).toBe('Guest room');
+        expect(detectRoom(ent('gaestezimmer_lampe')).label).toBe('Guest room');
     });
 
     it('folds umlaut and ASCII spellings to the same room', () => {

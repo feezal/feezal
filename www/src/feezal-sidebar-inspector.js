@@ -812,13 +812,31 @@ class FeezalSidebarInspector extends LitElement {
             }
         }
 
-        // The "Copy/Move to view" (and "Switch family") submenu holds an
-        // unbounded list of views — position it against the viewport (flip
-        // left / shift up, cap the height) whenever it opens so it never
-        // renders off-screen.
-        if (changed.has('_ctxMenu') && this._ctxMenu?.visible && this._ctxMenu.subMenu) {
-            this._positionCtxSub();
+        // Keep the context menu (and its submenus) on-screen. The top-level menu
+        // is opened at the cursor and can overflow the bottom/right with a tall
+        // menu near an edge — clamp it into the viewport first; then position any
+        // open submenu against the (now settled) menu.
+        if (changed.has('_ctxMenu') && this._ctxMenu?.visible) {
+            this._clampCtxMenu();
+            if (this._ctxMenu.subMenu) this._positionCtxSub();
         }
+    }
+
+    /** Clamp the just-opened context menu into the viewport: if it would overflow
+     * the bottom (a tall menu near the bottom edge) shift it UP; likewise off the
+     * right edge. Updates the stored x/y (so re-renders — e.g. a submenu opening —
+     * keep the clamped position) exactly once; the settled measurement then fits
+     * and no further change is made. */
+    _clampCtxMenu() {
+        const menu = this.renderRoot?.querySelector('.ctx-menu');
+        if (!menu) return;
+        const r = menu.getBoundingClientRect();
+        const margin = 8;
+        const {x, y} = this._ctxMenu;
+        let nx = x, ny = y;
+        if (y + r.height > window.innerHeight - margin) ny = Math.max(margin, window.innerHeight - margin - r.height);
+        if (x + r.width > window.innerWidth - margin) nx = Math.max(margin, window.innerWidth - margin - r.width);
+        if (nx !== x || ny !== y) this._ctxMenu = {...this._ctxMenu, x: nx, y: ny};
     }
 
     /** Place an open Copy/Move/Switch submenu against the viewport: it can hold

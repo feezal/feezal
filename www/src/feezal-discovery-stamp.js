@@ -464,7 +464,7 @@ export const ROOM_LEXICON = [
     {label: 'Bedroom',     icon: 'bed',          labelI18n: {de: 'Schlafzimmer', es: 'Dormitorio', fr: 'Chambre', it: 'Camera da letto', pl: 'Sypialnia', pt: 'Quarto', tr: 'Yatak odası'},
         words: ['bedroom', 'schlafzimmer', 'schlafen', 'dormitorio', 'chambre', 'camera', 'sypialnia', 'quarto']},
     {label: 'Bathroom',    icon: 'bathtub',      labelI18n: {de: 'Badezimmer', es: 'Baño', fr: 'Salle de bain', it: 'Bagno', pl: 'Łazienka', pt: 'Banheiro', tr: 'Banyo'},
-        words: ['bathroom', 'bad', 'badezimmer', 'baño', 'bano', 'salle', 'bagno', 'łazienka', 'lazienka', 'banheiro', 'banyo', 'wc', 'toilette', 'toilet', 'gäste-wc', 'gaestewc']},
+        words: ['bathroom', 'bad', 'badezimmer', 'baño', 'bano', 'salle', 'bagno', 'łazienka', 'lazienka', 'banheiro', 'banyo', 'wc', 'toilette', 'toilet']},
     {label: 'Office',      icon: 'desk',         labelI18n: {de: 'Büro', es: 'Oficina', fr: 'Bureau', it: 'Ufficio', pl: 'Biuro', pt: 'Escritório', tr: 'Ofis'},
         words: ['office', 'büro', 'buero', 'arbeitszimmer', 'oficina', 'bureau', 'ufficio', 'biuro', 'escritório', 'escritorio', 'ofis', 'study']},
     {label: 'Hallway',     icon: 'meeting_room', labelI18n: {de: 'Flur', es: 'Pasillo', fr: 'Couloir', it: 'Corridoio', pl: 'Korytarz', pt: 'Corredor', tr: 'Koridor'},
@@ -487,6 +487,12 @@ export const ROOM_LEXICON = [
         words: ['laundry', 'waschküche', 'waschkueche', 'waschraum', 'lavadero', 'buanderie', 'lavanderia', 'pralnia']},
     {label: 'Guest room',  icon: 'night_shelter', labelI18n: {de: 'Gästezimmer', es: 'Habitación de invitados', fr: "Chambre d'amis", it: 'Camera degli ospiti', pl: 'Pokój gościnny', pt: 'Quarto de hóspedes', tr: 'Misafir odası'},
         words: ['guest', 'gästezimmer', 'gaestezimmer', 'gast']},
+    // A guest toilet is its OWN room, not generic Bathroom: its specific words
+    // (e.g. folded `gaestetoilette`, 14 chars) out-rank Bathroom's `toilette` (8)
+    // under the longest-match rule. Umlaut + ASCII spellings both fold to the
+    // same string, so `gästetoilette` and `gaestetoilette` are covered alike.
+    {label: 'Guest toilet', icon: 'wc',           labelI18n: {de: 'Gäste-WC', es: 'Aseo de invitados', fr: 'WC invités', it: 'Bagno degli ospiti', pl: 'Toaleta dla gości', pt: 'Lavabo de hóspedes', tr: 'Misafir tuvaleti'},
+        words: ['gästetoilette', 'gaestetoilette', 'gäste-wc', 'gaestewc', 'gästewc', 'gästeklo', 'gaesteklo']},
 ];
 
 /** The localized drawer label for a lexicon room, resolved against the site
