@@ -105,7 +105,9 @@ export const glassCardStyles = css`
     .glass-unavail {
         color: var(--error-color);
         display: inline-flex; align-items: center; justify-content: center;
-        width: 18px; height: 18px;
+        /* the "signal off" glyph fills its whole 24-viewBox, so it reads larger
+           than the battery/fault badges at the same box — size it down to match. */
+        width: 14px; height: 14px;
     }
     .glass-unavail svg { width: 100%; height: 100%; display: block; }
 `;
