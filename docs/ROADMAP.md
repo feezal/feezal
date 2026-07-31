@@ -64,7 +64,6 @@ Work in progress — priorities and scope are not final.
 - [U45 — Element insertion: palette sidebar + full-screen picker](#u45--element-insertion-palette-sidebar--full-screen-picker--to-refine) 💡 *(to refine)*
 - [U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow](#u61--editor-preview-fidelity-gradientbackground-in-a-percentage-sized-views-scroll-overflow)
 - [U63 — `layout-app`: split the content inset into per-side knobs](#u63--layout-app-split-the-content-inset-into-per-side-knobs)
-- [U71 — Generate wizard: illustrate the element families with screenshots](#u71--generate-wizard-illustrate-the-element-families-with-screenshots)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -1095,12 +1094,6 @@ Independent of A/B/C: decide whether the **Subscribe topic may also feed a range
 **Ships with:** the range schema + shared resolver (bands/gradient/enum, theme-var passthrough), the paired-property mechanism in `FeezalElement` (the storage shape chosen from A/B/C above; the primary value as the Range default source, an override/Subscribe subscription when a topic is set, and the raw-payload→`<var>` passthrough for Subscribe), the primary-value opt-in, `<feezal-site>` storage, the site-level manager panel, the colour-control **Static / Subscribe / Range radio** with the multi-line dynamic blocks (Subscribe: autocompleting `feezal-topic-input` + message-property + a live swatch of the last payload; Range: range dropdown + create sentinel + topic/property pre-filled from the primary value), the gauge `ranges` attribute accepting a named range, unit tests for the resolver, browser tests that a resolved colour lands on the var (from the primary value, from an overridden topic, and from a raw Subscribe payload), a test that Static↔Subscribe↔Range round-trips the paired properties cleanly, an **export test that ranges + subscriptions survive** into a static bundle, `docs/TESTING.md` coverage, and version bumps.
 
 **Relates:** `@feezal/feezal-gauge` (`bandColor` / `parseRanges` — the existing implementation this generalises, and the first consumer to migrate), **U49** / the conditions engine (`action: style` — the overlapping mechanism to delimit), **U47** ✅ (the `＋ Create new…` sentinel pattern to copy), `feezal-sidebar-themes` / `-assets` (site-level panel precedent), `material-tank` warn/crit + the glass/metro state colours (the ad-hoc thresholds to absorb), `CLAUDE.md` §"Theme variable discipline" (band colours should prefer theme vars), **A16**/export (ranges must serialize into a static bundle).
-
-### U71 — Generate wizard: illustrate the element families with screenshots
-
-The family control (Circle / Glass / Metro / E-ink / …) is text-only, so the user picks blind. Show a **screenshot / thumbnail per family** in the axis+family step so the look is visible before generating. Images are author-provided (the reporter will supply them); vendor them as **bundled** assets (A25 no-CDN rule), lazy-loaded where sensible, with the current text label as caption/fallback. The selected family reads clearly (border / check). Fits the U69 step-1 redesign, where axis + family become the whole first screen and have room to breathe.
-
-**Relates:** **U69** (the step-1 screen these enrich), **U58** ✅ / **U67** ✅ (the wizard), `_availableFamilies` / `FAMILY_LABELS` + the `.families` control in `feezal-generate-dialog.js`, **A25** ✅ (bundle the images, no external hosting).
 
 ### E112 — Scrypted integration: camera snapshot element (sensors already work) 💡 to refine
 

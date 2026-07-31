@@ -11,6 +11,15 @@ import {stampDiscovery, resolveElementTag, layoutGrid, knownComponents, discover
     groupForApp, slugifyViewName, UNKNOWN_ROOM} from './feezal-discovery-stamp.js';
 import {RangeSelect} from './feezal-range-select.js';
 
+// U71: bundled family preview screenshots (A25 self-hosted — Vite emits each as
+// a hashed asset in the editor chunk, not inlined). Drop a `<family>.png` into
+// ./family-shots and add it here to illustrate that family; families without an
+// image fall back to the label + a placeholder tile.
+import glassShot from './family-shots/glass.png';
+import metroShot from './family-shots/metro.png';
+import circleShot from './family-shots/circle.png';
+const FAMILY_SHOTS = {glass: glassShot, metro: metroShot, circle: circleShot};
+
 // U70: the sentinel option value that opens the "new room" dialog.
 const NEW_ROOM = '__feezal_new_room__';
 
@@ -143,8 +152,30 @@ class FeezalGenerateDialog extends LitElement {
         /* ── App setup stage (U69: axis + family only) ──────────────────── */
         .app-setup { display: flex; flex-direction: column; gap: 14px; padding: 6px 0 4px; }
         .setup-row { display: flex; align-items: center; gap: 12px; }
-        .setup-label { font-size: 12px; font-weight: 600; opacity: .7; width: 64px; flex: 0 0 auto; }
+        .setup-row.family-row { align-items: flex-start; }
+        .setup-label { font-size: 12px; font-weight: 600; opacity: .7; width: 64px; flex: 0 0 auto; padding-top: 4px; }
         .setup-note { font-size: 12.5px; opacity: .75; margin-top: 2px; display: flex; align-items: center; gap: 8px; }
+
+        /* U71: illustrated family picker — a thumbnail per family, selected one
+           framed in the primary colour; families with no image fall back to a
+           placeholder tile + the label. */
+        .fam-gallery { display: flex; flex-wrap: wrap; gap: 10px; flex: 1; }
+        .fam-card {
+            display: flex; flex-direction: column; gap: 5px; width: 118px; padding: 6px;
+            border: 2px solid transparent; border-radius: 9px; cursor: pointer;
+            background: var(--feezal-tile-bg, #f8fafc); color: inherit; font: inherit;
+            transition: border-color .12s, background .12s;
+        }
+        .fam-card:hover { background: var(--feezal-tile-hover, #eff6ff); }
+        .fam-card.sel { border-color: var(--sl-color-primary-600, #0284c7); }
+        .fam-shot {
+            width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 5px;
+            display: block; background: var(--feezal-badge-bg, #e2e8f0);
+        }
+        .fam-noshot { display: flex; align-items: center; justify-content: center; opacity: .45; }
+        .fam-noshot .material-icons { font-size: 30px; }
+        .fam-name { font-size: 12px; font-weight: 600; text-align: center; }
+        .fam-card.sel .fam-name { color: var(--sl-color-primary-700, #0369a1); }
 
         /* U70: the new-room prompt stacks above the wizard dialog. */
         sl-dialog.newroom { --width: 340px; --sl-z-index-dialog: 20005; }
@@ -796,12 +827,16 @@ class FeezalGenerateDialog extends LitElement {
                         <button class="${this._axis === 'function' ? 'sel' : ''}" @click="${() => { this._axis = 'function'; }}">By function</button>
                     </div>
                 </div>
-                <div class="setup-row">
+                <div class="setup-row family-row">
                     <span class="setup-label">Family</span>
-                    <div class="families">
+                    <div class="fam-gallery">
                         ${fams.map(f => html`
-                            <button class="${f === this._family ? 'sel' : ''}" @click="${() => { this._family = f; }}">
-                                ${FAMILY_LABELS[f] || f}
+                            <button class="fam-card ${f === this._family ? 'sel' : ''}"
+                                title="${FAMILY_LABELS[f] || f}" @click="${() => { this._family = f; }}">
+                                ${FAMILY_SHOTS[f]
+                                    ? html`<img class="fam-shot" src="${FAMILY_SHOTS[f]}" alt="${FAMILY_LABELS[f]} preview" loading="lazy">`
+                                    : html`<span class="fam-shot fam-noshot"><span class="material-icons">dashboard</span></span>`}
+                                <span class="fam-name">${FAMILY_LABELS[f] || f}</span>
                             </button>`)}
                     </div>
                 </div>

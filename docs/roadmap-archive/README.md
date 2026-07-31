@@ -335,6 +335,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U68 — Device-list selection: refined range-select + drag-select (reusable) ✅ done](U68.md)
 - [U69 — Generate wizard: the review IS the selection (drop the flat first page) ✅ done](U69.md)
 - [U70 — Review: "＋ Create new room" in the per-device move-to-room dropdown ✅ done](U70.md)
+- [U71 — Generate wizard: illustrate the element families with screenshots ✅ done](U71.md)
 
 ## Architecture & Infrastructure
 
