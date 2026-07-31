@@ -57,7 +57,7 @@ const kf = frames => ({a: 1, k: frames.map(([t, s], i, arr) => ({
     ...(i < arr.length - 1 ? {i: {x: [0.42], y: [1]}, o: {x: [0.58], y: [0]}} : {}),
 }))});                                                             // eased keyframes
 
-const fill = slot => ({ty: 'fl', c: st(slot === 'active' ? ACTIVE : slot === 'surface' ? SURFACE : BASE), o: st(100), r: 1, nm: 'fill-' + slot});
+const fill = (slot, o = 100) => ({ty: 'fl', c: st(slot === 'active' ? ACTIVE : slot === 'surface' ? SURFACE : BASE), o: st(o), r: 1, nm: 'fill-' + slot});
 const rect = (x, y, w, h, r = 0) => ({ty: 'rc', p: st([x, y]), s: st([w, h]), r: st(r), nm: 'rect'});
 const ellipse = (x, y, w, h) => ({ty: 'el', p: st([x, y]), s: st([w, h]), nm: 'ellipse'});
 
@@ -69,12 +69,17 @@ const poly = points => ({ty: 'sh', ks: st({
     o: points.map(() => [0, 0]),
 }), nm: 'poly'});
 
-/** Group transform — anchor/position let a group rotate around a hinge. */
-const tr = ({p = [0, 0], a = [0, 0], s = [100, 100], r = 0, o = 100} = {}) =>
-    ({ty: 'tr', p: typeof p.a === 'number' ? p : st(p), a: st(a),
+/** Group transform — anchor/position let a group rotate around a hinge; the
+ * anchor itself may be keyframed (kept identical to p, so switching it between
+ * clips — swing hinge vs tilt hinge — never shifts the artwork); sk/sa add the
+ * shear that fakes perspective on a swinging sash. */
+const tr = ({p = [0, 0], a = [0, 0], s = [100, 100], r = 0, o = 100, sk = 0, sa = 0} = {}) =>
+    ({ty: 'tr', p: typeof p.a === 'number' ? p : st(p),
+        a: typeof a.a === 'number' ? a : st(a),
         s: typeof s.a === 'number' ? s : st(s),
         r: typeof r === 'object' ? r : st(r),
-        o: typeof o === 'object' ? o : st(o), nm: 'tr'});
+        o: typeof o === 'object' ? o : st(o),
+        sk: typeof sk === 'object' ? sk : st(sk), sa: st(sa), nm: 'tr'});
 
 const group = (name, items, transform = tr()) => ({ty: 'gr', it: [...items, transform], nm: name});
 
@@ -132,47 +137,70 @@ function light() {
  *  garagedoor: panel slides up (0–24)
  */
 function contactVariant(variant) {
+    if (variant === 'window') return windowContact();
     // stroke frame (fill would be a plate ON TOP of the sash - AE z-order)
     const frame = group('frame', [rect(50, 50, 76, 76, 4), stroke('base', 7)]);
     let moving;
-    let op = 73;
-    const transitions = {};
+    let op = 25;
+    const transitions = {'closed>open': [0, 24]};
     const states = {closed: [0, 1], open: [24, 25]};
     if (variant === 'garagedoor') {
         // panel slides up: y 50 → 18
         moving = group('panel', [rect(0, 0, 58, 58, 2), fill('active')],
             tr({p: kf([[0, [50, 50]], [24, [50, 18]]]), a: [0, 0]}));
-        transitions['closed>open'] = [0, 24];
-        op = 25;
     } else {
-        const swing = variant === 'door' ? -55 : -40;
-        // sash rotates around its LEFT edge (anchor at x=-29 of the sash box)
-        const rot = variant === 'window'
-            ? kf([[0, 0], [24, swing], [48, 0], [72, 0]])
-            : kf([[0, 0], [24, swing]]);
-        const sashItems = [rect(29, 0, 58, 58, 2), fill('active')];
-        moving = group('sash', sashItems, tr({p: [21, 50], a: [0, 0], r: rot}));
-        transitions['closed>open'] = [0, 24];
-        if (variant === 'window') {
-            // tilt: the whole sash leans back — modelled as a vertical squash
-            // toward the bottom edge (anchor at the bottom), 48–72
-            const tilt = group('sash-tilt', [rect(0, -29, 58, 58, 2), fill('active')],
-                tr({p: [50, 79], a: [0, 29], s: kf([[48, [100, 100]], [72, [100, 74]]]),
-                    o: kf([[0, 0], [47, 0], [48, 100], [72, 100]])}));
-            // hide the swing sash during the tilt clip
-            moving.it[moving.it.length - 1].o = kf([[0, 100], [47, 100], [48, 0], [72, 0]]);
-            states.tilted = [72, 73];
-            transitions['closed>tilted'] = [48, 72];
-            return {
-                data: anim('contact-' + variant, [layer('contact', [frame, tilt, moving], {op})], op),
-                states, transitions,
-            };
-        }
-        op = 25;
+        // door: sash rotates around its LEFT edge (anchor at x=-29 of the box)
+        moving = group('sash', [rect(29, 0, 58, 58, 2), fill('active')],
+            tr({p: [21, 50], a: [0, 0], r: kf([[0, 0], [24, -55]])}));
     }
     return {
         data: anim('contact-' + variant, [layer('contact', [frame, moving], {op})], op),
         states, transitions,
+    };
+}
+
+/**
+ * window — a German Dreh-Kipp window in mock perspective (viewed from the
+ * hinge side, the free edge farther away). Fensterrahmen = outer stroke quad;
+ * Flügel = inner stroke quad (the gap between the two strokes is the divider);
+ * glass = half-transparent active-tone pane. The handle sits on the free edge
+ * and turns BEFORE the sash moves — closed = down, open = left (90°),
+ * tilted = up (180°) — and because the player derives reverse clips by playing
+ * [b, a], closing runs sash-first-handle-last, exactly like the real thing.
+ *   0–12  handle down→left    12–36 sash swings open (rotation around the
+ *                                   hinge + foreshorten + y-shear = perspective)
+ *   48–62 handle down→up      62–85 sash tilts (Kipp: bottom-anchored squash,
+ *                                   slightly widened top edge toward the viewer)
+ * The sash transform's anchor/position pair is keyframed IDENTICALLY (swing
+ * hinge at the left edge, tilt hinge at the bottom) so the anchor hand-over
+ * between the two clips never shifts the artwork.
+ */
+function windowContact() {
+    const paK = kf([[0, [21, 50]], [47, [21, 50]], [48, [49.5, 76.5]], [85, [49.5, 76.5]]]);
+    const frame = group('frame', [
+        poly([[14, 14], [84, 20], [84, 80], [14, 86]]), stroke('base', 4.5),
+    ]);
+    // handle: rounded lever rotating around its pivot on the free edge
+    const lever = group('lever', [rect(0, 5.5, 2.8, 10, 1.4), fill('base')],
+        tr({p: [71.5, 50.5], r: kf([[0, 0], [12, 90], [47, 90], [48, 0], [62, 180], [85, 180]])}));
+    const plate = group('plate', [ellipse(71.5, 50.5, 5, 5), fill('base')]);
+    const sashFrame = group('sash-frame', [
+        poly([[21.5, 21.5], [77.5, 26.5], [77.5, 74.5], [21.5, 78.5]]), stroke('base', 3),
+    ]);
+    const glass = group('glass', [
+        poly([[24.5, 24.5], [74.5, 29.5], [74.5, 71.5], [24.5, 75.5]]), fill('active', 38),
+    ]);
+    const sash = group('sash', [lever, plate, sashFrame, glass], tr({
+        p: paK, a: paK, sa: 90,
+        r:  kf([[0, 0], [12, 0], [36, -24], [47, -24], [48, 0], [85, 0]]),
+        sk: kf([[0, 0], [12, 0], [36, -10], [47, -10], [48, 0], [85, 0]]),
+        s:  kf([[0, [100, 100]], [12, [100, 100]], [36, [70, 106]], [47, [70, 106]],
+            [48, [100, 100]], [62, [100, 100]], [85, [104, 78]]]),
+    }));
+    return {
+        data: anim('contact-window', [layer('contact', [sash, frame], {op: 87})], 87),
+        states: {closed: [0, 1], open: [36, 37], tilted: [85, 86]},
+        transitions: {'closed>open': [0, 36], 'closed>tilted': [48, 85]},
     };
 }
 

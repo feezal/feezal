@@ -1,6 +1,6 @@
 {
     "name": "@feezal/feezal-elements-fancy",
-    "version": "3.0.5",
+    "version": "3.0.6",
     "main": "index.js",
     "license": "MIT",
     "keywords": ["feezal", "feezal-element", "feezal-elements", "mqtt", "dashboard", "lottie", "animated"],

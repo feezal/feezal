@@ -89,22 +89,39 @@ class FeezalElementFancyContact extends FancyBase {
     renderPose() {
         const {state} = this.contact;
         const t = this.type || 'window';
+        const baseStroke = 'fill: none; stroke: var(--feezal-fancy-base-color, var(--secondary-text-color))';
+        if (t === 'window') {
+            // mirror of the animation's mock-perspective Dreh-Kipp window:
+            // Rahmen + Flügel stroke quads, half-transparent glass, and the
+            // handle on the free edge (closed = down, open = left, tilted = up)
+            const handleDeg = state === 'open' ? 90 : state === 'tilted' ? 180 : 0;
+            const sashTf = state === 'open' ? 'rotate(-24 21 50)'
+                : state === 'tilted' ? 'translate(0 16.83) scale(1 0.78)' : '';
+            return svg`<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+                <path d="M14,14 L84,20 L84,80 L14,86 Z" stroke-width="4.5" style="${baseStroke}"/>
+                <g transform="${sashTf}">
+                    <path class="tone-active" d="M24.5,24.5 L74.5,29.5 L74.5,71.5 L24.5,75.5 Z"
+                        opacity="0.38"/>
+                    <path d="M21.5,21.5 L77.5,26.5 L77.5,74.5 L21.5,78.5 Z"
+                        stroke-width="3" style="${baseStroke}"/>
+                    <circle class="tone-base" cx="71.5" cy="50.5" r="2.5"/>
+                    <rect class="tone-base" x="70.1" y="50.5" width="2.8" height="10.5" rx="1.4"
+                        transform="rotate(${handleDeg} 71.5 50.5)"/>
+                </g>
+            </svg>`;
+        }
         let sash;
         if (t === 'garagedoor') {
             sash = svg`<rect class="tone-active" x="24" y="${state === 'open' ? 16 : 21}"
                 width="52" height="${state === 'open' ? 10 : 52}" rx="2"/>`;
-        } else if (state === 'tilted') {
-            sash = svg`<rect class="tone-active" x="24" y="21" width="52" height="52" rx="2"
-                transform="translate(0 14) scale(1 0.74)"/>`;
         } else {
-            const deg = state === 'open' ? (t === 'door' ? -55 : -40) : 0;
+            const deg = state === 'open' ? -55 : 0;
             sash = svg`<rect class="tone-active" x="24" y="21" width="52" height="52" rx="2"
                 transform="rotate(${deg} 24 47)"/>`;
         }
         return svg`<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
             <rect class="tone-base" x="12" y="12" width="76" height="76" rx="4"
-                fill="none" stroke="currentColor" stroke-width="7"
-                style="stroke: var(--feezal-fancy-base-color, var(--secondary-text-color))"/>
+                stroke-width="7" style="${baseStroke}"/>
             ${sash}
         </svg>`;
     }

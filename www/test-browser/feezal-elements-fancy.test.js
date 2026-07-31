@@ -142,8 +142,18 @@ describe('viewer: the lottie lifecycle', () => {
         inst.calls.length = 0;
         feezal.connection.deliver('stat/c', 'tilted');
         await el.updateComplete;
-        expect(inst.calls[0]).toEqual(['playSegments', [48, 72]]);
+        // the clip includes the handle pre-roll (down→up) before the Kipp
+        expect(inst.calls[0]).toEqual(['playSegments', [48, 85]]);
         expect(el.shadowRoot.textContent).toContain('Tilted');
+        // opening instead: handle down→left, then the perspective swing
+        inst.calls.length = 0;
+        feezal.connection.deliver('stat/c', 'closed');
+        await el.updateComplete;
+        inst.fireComplete();
+        inst.calls.length = 0;
+        feezal.connection.deliver('stat/c', 'open');
+        await el.updateComplete;
+        expect(inst.calls[0]).toEqual(['playSegments', [0, 36]]);
     });
 
     it('cover: SEEKS by reported position — the blind stands where the device says', async () => {

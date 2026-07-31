@@ -105,6 +105,23 @@ describe('the generated animation set', () => {
         }
     });
 
+    it('the window is a perspective Dreh-Kipp: handle above Flügel above glass, sash above Rahmen', () => {
+        const win = FANCY_ANIMATIONS['contact-window'];
+        const names = win.data.layers[0].shapes.map(s => s.nm);
+        // the sash sweeps toward the viewer → it must render ABOVE the frame
+        expect(names.indexOf('sash')).toBeLessThan(names.indexOf('frame'));
+        const sash = win.data.layers[0].shapes.find(s => s.nm === 'sash');
+        const inner = sash.it.map(i => i.nm);
+        expect(inner.indexOf('lever')).toBeLessThan(inner.indexOf('sash-frame'));
+        expect(inner.indexOf('sash-frame')).toBeLessThan(inner.indexOf('glass'));
+        // glass pane is the half-transparent active tone
+        const glassFill = sash.it.find(i => i.nm === 'glass').it.find(i => i.ty === 'fl');
+        expect(glassFill.o.k).toBe(38);
+        // the handle actually animates (down→left→up choreography)
+        const leverR = sash.it.find(i => i.nm === 'lever').it.find(i => i.ty === 'tr').r;
+        expect(leverR.a).toBe(1);
+    });
+
     it('the marquee cards carry the segment semantics the elements rely on', () => {
         expect(FANCY_ANIMATIONS['contact-window'].states).toHaveProperty('tilted');
         expect(FANCY_ANIMATIONS['contact-window'].transitions).toHaveProperty('closed>open');
