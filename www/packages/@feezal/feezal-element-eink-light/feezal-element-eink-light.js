@@ -54,8 +54,8 @@ class FeezalElementEinkLight extends EinkBase {
                 {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
                 {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
                 {name: 'label', type: 'string', help: 'Label line (rendered uppercase).'},
-                {name: 'label-on',  type: 'string', default: 'On', defaultI18n: {de: 'Ein'},  help: 'Displayed state word while the light is on (localise, e.g. "Ein"). Display only — NOT the MQTT payload (payload-on) and NOT the card title (label).'},
-                {name: 'label-off', type: 'string', default: 'Off', defaultI18n: {de: 'Aus'}, help: 'Displayed state word while the light is off (localise, e.g. "Aus"). Display only — NOT the MQTT payload (payload-off) and NOT the card title (label).'},
+                {name: 'label-on',  type: 'string', default: 'On', defaultI18n: {de: 'Ein', es: 'Encendido', fr: 'Allumé', it: 'Acceso', pl: 'Włączony', pt: 'Ligado', tr: 'Açık'},  help: 'Displayed state word while the light is on (localise, e.g. "Ein"). Display only — NOT the MQTT payload (payload-on) and NOT the card title (label).'},
+                {name: 'label-off', type: 'string', default: 'Off', defaultI18n: {de: 'Aus', es: 'Apagado', fr: 'Éteint', it: 'Spento', pl: 'Wyłączony', pt: 'Desligado', tr: 'Kapalı'}, help: 'Displayed state word while the light is off (localise, e.g. "Aus"). Display only — NOT the MQTT payload (payload-off) and NOT the card title (label).'},
             ],
             styles: [
                 'top', 'left', 'width', 'height',

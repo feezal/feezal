@@ -21,9 +21,9 @@ class FeezalElementFancyLight extends FancyBase {
             attributes: [
                 ...lightAttributes,
                 ...fancyCommonAttributes,
-                {name: 'label-on',  type: 'string', default: 'On', defaultI18n: {de: 'Ein'},
+                {name: 'label-on',  type: 'string', default: 'On', defaultI18n: {de: 'Ein', es: 'Encendido', fr: 'Allumé', it: 'Acceso', pl: 'Włączony', pt: 'Ligado', tr: 'Açık'},
                     help: 'Displayed state text while on (brightness % is appended when known). Display only — NOT the MQTT payload (payload-on).'},
-                {name: 'label-off', type: 'string', default: 'Off', defaultI18n: {de: 'Aus'},
+                {name: 'label-off', type: 'string', default: 'Off', defaultI18n: {de: 'Aus', es: 'Apagado', fr: 'Éteint', it: 'Spento', pl: 'Wyłączony', pt: 'Desligado', tr: 'Kapalı'},
                     help: 'Displayed state text while off. Display only — NOT the MQTT payload (payload-off).'},
                 {name: 'subscribe-availability', type: 'mqttTopic', section: 'Availability', help: 'Topic reporting device availability — a badge appears while unavailable.'},
                 {name: 'message-property-availability', type: 'string', section: 'Availability', default: 'payload', help: 'Property path within availability messages.'},

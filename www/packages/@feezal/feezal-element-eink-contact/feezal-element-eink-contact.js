@@ -25,9 +25,9 @@ class FeezalElementEinkContact extends EinkBase {
                 // E137: the shared contact contract (subscribe/payloads/type +
                 // the E124 battery quartet) — declared ONCE by the controller.
                 ...contactAttributes,
-                {name: 'text-open',   type: 'string', default: '', defaultI18n: {de: 'Offen'}, help: 'State word while open. Blank = "Open".'},
-                {name: 'text-closed', type: 'string', default: '', defaultI18n: {de: 'Geschlossen'}, help: 'State word while closed. Blank = "Closed".'},
-                {name: 'text-tilted', type: 'string', default: '', defaultI18n: {de: 'Gekippt'}, help: 'State word while tilted. Blank = "Tilted".'},
+                {name: 'text-open',   type: 'string', default: '', defaultI18n: {de: 'Offen', es: 'Abierta', fr: 'Ouverte', it: 'Aperta', pl: 'Otwarte', pt: 'Aberta', tr: 'Açık'}, help: 'State word while open. Blank = "Open".'},
+                {name: 'text-closed', type: 'string', default: '', defaultI18n: {de: 'Geschlossen', es: 'Cerrada', fr: 'Fermée', it: 'Chiusa', pl: 'Zamknięte', pt: 'Fechada', tr: 'Kapalı'}, help: 'State word while closed. Blank = "Closed".'},
+                {name: 'text-tilted', type: 'string', default: '', defaultI18n: {de: 'Gekippt', es: 'Inclinada', fr: 'Entrouverte', it: 'Ribaltata', pl: 'Uchylone', pt: 'Inclinada', tr: 'Aralık'}, help: 'State word while tilted. Blank = "Tilted".'},
                 {name: 'label', type: 'string', help: 'Label under the state (rendered uppercase).'},
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability — a ! badge appears while unavailable.'},
                 {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},

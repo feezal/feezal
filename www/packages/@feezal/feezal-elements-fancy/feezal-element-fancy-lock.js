@@ -22,9 +22,9 @@ class FeezalElementFancyLock extends FancyBase {
             attributes: [
                 ...lockAttributes,
                 ...fancyCommonAttributes,
-                {name: 'text-locked',   type: 'string', default: '', defaultI18n: {de: 'Verriegelt'}, help: 'State word while locked. Blank = "Locked".'},
-                {name: 'text-unlocked', type: 'string', default: '', defaultI18n: {de: 'Entriegelt'}, help: 'State word while unlocked. Blank = "Unlocked".'},
-                {name: 'text-jammed',   type: 'string', default: '', defaultI18n: {de: 'Blockiert'}, help: 'State word while jammed. Blank = "Jammed".'},
+                {name: 'text-locked',   type: 'string', default: '', defaultI18n: {de: 'Verriegelt', es: 'Bloqueado', fr: 'Verrouillé', it: 'Bloccato', pl: 'Zablokowany', pt: 'Trancado', tr: 'Kilitli'}, help: 'State word while locked. Blank = "Locked".'},
+                {name: 'text-unlocked', type: 'string', default: '', defaultI18n: {de: 'Entriegelt', es: 'Desbloqueado', fr: 'Déverrouillé', it: 'Sbloccato', pl: 'Odblokowany', pt: 'Destrancado', tr: 'Kilit Açık'}, help: 'State word while unlocked. Blank = "Unlocked".'},
+                {name: 'text-jammed',   type: 'string', default: '', defaultI18n: {de: 'Blockiert', es: 'Atascado', fr: 'Bloqué', it: 'Inceppato', pl: 'Zacięty', pt: 'Emperrado', tr: 'Sıkışmış'}, help: 'State word while jammed. Blank = "Jammed".'},
                 {name: 'subscribe-availability', type: 'mqttTopic', section: 'Availability', help: 'Topic reporting device availability — a badge appears while unavailable.'},
                 {name: 'message-property-availability', type: 'string', section: 'Availability', default: 'payload', help: 'Property path within availability messages.'},
                 {name: 'payload-available',   type: 'string', section: 'Availability', default: 'online',  help: 'Payload meaning available.'},

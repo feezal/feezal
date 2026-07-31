@@ -1,6 +1,6 @@
 {
     "name": "@feezal/feezal-element-eink-light",
-    "version": "3.0.2",
+    "version": "3.0.3",
     "main": "feezal-element-eink-light.js",
     "license": "MIT"
 }

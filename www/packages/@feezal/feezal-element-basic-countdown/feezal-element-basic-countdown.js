@@ -43,7 +43,7 @@ class FeezalElementBasicCountdown extends FeezalElement {
                     help: 'Denominator for the progress ring (0 = infer from the first value seen).'},
                 {name: 'warn-seconds', type: 'number', default: 10,
                     help: 'Remaining seconds at which the digits + ring turn to the error colour.'},
-                {name: 'done-label', type: 'string', default: 'Done', defaultI18n: {de: 'Fertig'},
+                {name: 'done-label', type: 'string', default: 'Done', defaultI18n: {de: 'Fertig', es: 'Listo', fr: 'Terminé', it: 'Fatto', pl: 'Gotowe', pt: 'Concluído', tr: 'Bitti'},
                     help: 'Text shown at zero.'},
                 {name: 'publish-on-zero', type: 'mqttTopic',
                     help: 'Optional topic published to once when the countdown reaches zero. NOTE: every open viewer publishes at zero (2 tablets = 2 messages) — consuming automations must tolerate duplicates.'},

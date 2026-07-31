@@ -29,9 +29,9 @@ class FeezalElementFancyContact extends FancyBase {
                         help: 'Opening type — restricted to window for now; door/garage variants are being reworked.'}
                     : a),
                 ...fancyCommonAttributes,
-                {name: 'text-open',   type: 'string', default: '', defaultI18n: {de: 'Offen'}, help: 'State word while open. Blank = "Open".'},
-                {name: 'text-closed', type: 'string', default: '', defaultI18n: {de: 'Geschlossen'}, help: 'State word while closed. Blank = "Closed".'},
-                {name: 'text-tilted', type: 'string', default: '', defaultI18n: {de: 'Gekippt'}, help: 'State word while tilted. Blank = "Tilted". Window type only.'},
+                {name: 'text-open',   type: 'string', default: '', defaultI18n: {de: 'Offen', es: 'Abierta', fr: 'Ouverte', it: 'Aperta', pl: 'Otwarte', pt: 'Aberta', tr: 'Açık'}, help: 'State word while open. Blank = "Open".'},
+                {name: 'text-closed', type: 'string', default: '', defaultI18n: {de: 'Geschlossen', es: 'Cerrada', fr: 'Fermée', it: 'Chiusa', pl: 'Zamknięte', pt: 'Fechada', tr: 'Kapalı'}, help: 'State word while closed. Blank = "Closed".'},
+                {name: 'text-tilted', type: 'string', default: '', defaultI18n: {de: 'Gekippt', es: 'Inclinada', fr: 'Entrouverte', it: 'Ribaltata', pl: 'Uchylone', pt: 'Inclinada', tr: 'Aralık'}, help: 'State word while tilted. Blank = "Tilted". Window type only.'},
                 {name: 'subscribe-availability', type: 'mqttTopic', section: 'Availability', help: 'Topic reporting device availability — a badge appears while unavailable.'},
                 {name: 'message-property-availability', type: 'string', section: 'Availability', default: 'payload', help: 'Property path within availability messages.'},
                 {name: 'payload-available',   type: 'string', section: 'Availability', default: 'online',  help: 'Payload meaning available.'},

@@ -76,7 +76,7 @@ class FeezalElementCircleSwitch extends FeezalElementCircleLight {
                 {name: 'payload-unavailable',    type: 'string', default: 'offline', help: 'Payload meaning the device is unavailable.'},
                 {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path for availability topic. Defaults to message-property.'},
                 {name: 'label', type: 'string', default: '', help: 'Optional label shown below the button.'},
-                {name: 'label-off', type: 'string', default: 'off', defaultI18n: {de: 'aus'}, help: 'Displayed centre text while the outlet is off (localise, e.g. "aus"). Display only — NOT the MQTT payload (payload-off).'}
+                {name: 'label-off', type: 'string', default: 'off', defaultI18n: {de: 'aus', es: 'apagado', fr: 'éteint', it: 'spento', pl: 'wyłączony', pt: 'desligado', tr: 'kapalı'}, help: 'Displayed centre text while the outlet is off (localise, e.g. "aus"). Display only — NOT the MQTT payload (payload-off).'}
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',

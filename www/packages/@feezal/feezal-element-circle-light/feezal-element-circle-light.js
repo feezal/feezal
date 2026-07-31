@@ -76,7 +76,7 @@ class FeezalElementCircleLight extends FeezalElement {
                 {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path for availability topic. Defaults to message-property.'},
                 // Label
                 {name: 'label', type: 'string', default: '', help: 'Optional label shown below the circle.'},
-                {name: 'label-off', type: 'string', default: 'off', defaultI18n: {de: 'aus'}, help: 'Displayed centre text while the light is off (localise, e.g. "aus"). Display only — NOT the MQTT payload (payload-off) and NOT the card label.'}
+                {name: 'label-off', type: 'string', default: 'off', defaultI18n: {de: 'aus', es: 'apagado', fr: 'éteint', it: 'spento', pl: 'wyłączony', pt: 'desligado', tr: 'kapalı'}, help: 'Displayed centre text while the light is off (localise, e.g. "aus"). Display only — NOT the MQTT payload (payload-off) and NOT the card label.'}
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',

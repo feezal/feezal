@@ -77,7 +77,7 @@ Work in progress — priorities and scope are not final.
 - [A21 — Accessibility: adopt the web-components Gold Standard for feezal elements](#a21--accessibility-adopt-the-web-components-gold-standard-for-feezal-elements)
 - [A23 — Externalize element families: own git repos + npm publish (paper, tui, panel)](#a23--externalize-element-families-own-git-repos--npm-publish-paper-tui-panel)
 - [A24 — Externalize the metro element family](#a24--externalize-the-metro-element-family-future--will-be-done-later) *(future)*
-- [A27 — i18n: editor localization + language-aware element defaults 🔨 first step (de) ✅ shipped · phases 2–3 open](#a27--i18n-editor-localization--language-aware-element-defaults--first-step-de--shipped--phases-23-open)
+- [A27 — i18n: editor localization + language-aware element defaults 🔨 Phase 1 (de+es+fr+it+pl+pt+tr) ✅ shipped · phases 2–3 open](#a27--i18n-editor-localization--language-aware-element-defaults--phase-1-deesfritplpttr--shipped--phases-23-open)
 - [A29 — RTL layout support (Arabic, Hebrew)](#a29--rtl-layout-support-arabic-hebrew--future) 💡 *(future)*
 - [A35 — Theme-var discipline, part 2: family design tokens still default to fixed colours](#a35--theme-var-discipline-part-2-family-design-tokens-still-default-to-fixed-colours)
 
@@ -2235,13 +2235,18 @@ Metro **stays bundled with feezal for now** (decided 07/2026) — it moves out *
 
 **Relates:** A23 (the playbook — do that first), N29, E106 (metro shares the same consolidation considerations glass had).
 
-### A27 — i18n: editor localization + language-aware element defaults 🔨 first step (de) ✅ shipped · phases 2–3 open
+### A27 — i18n: editor localization + language-aware element defaults 🔨 Phase 1 (de+es+fr+it+pl+pt+tr) ✅ shipped · phases 2–3 open
 
 feezal is English-only today — and not just the editor chrome: **element attribute defaults bake English into every dashboard** (`label-on: 'On'`, `label-off: 'Off'`, `done-label: 'Done'`, contact state texts, `labelOff: 'off'` centre text, …). A German wall tablet should say "Ein/Aus" without the user hand-setting every label on every element.
 
 **Foundation decided (07/2026): the site `locale` attribute lands in N38** (localized number formatting) — this item consumes that same attribute for its language-aware defaults rather than introducing a second setting. Open sub-question to settle here: whether the *editor chrome* language follows the site locale or gets its own editor-level setting (an editor used in English can legitimately build German dashboards).
 
-**First step SHIPPED (07/2026)** — with [N38](roadmap-archive/N38.md) ✅, which supplied the locale foundation in the same stroke. What landed: the `defaultI18n` descriptor field + `localizedDefault`/`resolveLocaleChain` in `@feezal/feezal-element/feezal-locale.js`; `_applyLocalizedDefaults` in the base class (on connect + `feezal-locale-change`, authored-attributes-win); the inspector placeholder shows the locale-resolved default; German dicts on every display-text descriptor across the families (glass/eink/metro/circle/panel switch·light·contact·wled state words, countdown's `done-label` — 24 dicts, 13 elements, case-matched per family). One refinement beyond the plan, discovered by test: the display-text properties were REFLECTED, and Lit reflects constructor defaults on first render — so `hasAttribute` was not the trustworthy authored-signal the refinement assumed, and saved dashboards already carried baked `text-on="On"` junk. The properties no longer reflect, and the base class heals the baked junk (attribute value === en default → treated as reflection junk, removed, localized; anything else the author typed wins). **Still open here: Phase 2 (editor chrome), Phase 3 (help texts), climate/enum mode words, every language past de.**
+**First step SHIPPED (07/2026)** — with [N38](roadmap-archive/N38.md) ✅, which supplied the locale foundation in the same stroke. What landed: the `defaultI18n` descriptor field + `localizedDefault`/`resolveLocaleChain` in `@feezal/feezal-element/feezal-locale.js`; `_applyLocalizedDefaults` in the base class (on connect + `feezal-locale-change`, authored-attributes-win); the inspector placeholder shows the locale-resolved default; German dicts on every display-text descriptor across the families (glass/eink/metro/circle/panel switch·light·contact·wled state words, countdown's `done-label` — 24 dicts, 13 elements, case-matched per family). One refinement beyond the plan, discovered by test: the display-text properties were REFLECTED, and Lit reflects constructor defaults on first render — so `hasAttribute` was not the trustworthy authored-signal the refinement assumed, and saved dashboards already carried baked `text-on="On"` junk. The properties no longer reflect, and the base class heals the baked junk (attribute value === en default → treated as reflection junk, removed, localized; anything else the author typed wins). **Still open here: Phase 2 (editor chrome), Phase 3 (help texts), climate/enum mode words.**
+
+**Language progress (Phase 1 dicts):**
+- ✅ de (07/2026, first step)
+- ✅ pt · es · fr · it · pl · tr (07/2026 — all 38 dicts across 14 packages; contact-state words use the feminine forms that fit window/door in the Romance languages, Polish the neuter/plural fitting okno+drzwi; `test/feezal-locale.test.js` ratchets that every shipped dict carries the FULL language set, so a new dict or language cannot ship half-covered)
+- ⏳ next candidates when asked: nl, cs, sv, da, nb, fi, hu, ru, uk (the N38 locale picker already offers them — only dict entries are missing)
 
 
 **Proposed scope split (phased — the phases are independently shippable):**

@@ -1,6 +1,6 @@
 {
   "name": "@feezal/feezal-element-metro-contact",
-  "version": "3.0.11",
+  "version": "3.0.12",
   "license": "MIT",
   "main": "feezal-element-metro-contact.js",
   "dependencies": {

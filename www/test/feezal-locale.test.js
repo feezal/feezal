@@ -112,3 +112,42 @@ describe('localizedDefault — the dict IS the opt-in (A27)', () => {
         expect(localizedDefault(spec)).toBe('Ein');
     });
 });
+
+describe('A27 language coverage — every shipped dict carries the full language set', () => {
+    // The 07/2026 expansion: whatever ships a defaultI18n must translate to
+    // ALL supported languages, so no card is half-localized. Scans every
+    // element package source for dicts and asserts the key set.
+    const LANGS = ['de', 'es', 'fr', 'it', 'pl', 'pt', 'tr'];
+
+    it('all defaultI18n dicts in element packages carry de+es+fr+it+pl+pt+tr', async () => {
+        const fs = await import('node:fs');
+        const path = await import('node:path');
+        const root = path.resolve(__dirname, '../packages/@feezal');
+        const dicts = [];
+        const walk = dir => {
+            for (const e of fs.readdirSync(dir, {withFileTypes: true})) {
+                const p = path.join(dir, e.name);
+                if (e.isDirectory() && e.name !== 'node_modules') walk(p);
+                else if (e.isFile() && e.name.endsWith('.js')) {
+                    const src = fs.readFileSync(p, 'utf8');
+                    for (const m of src.matchAll(/defaultI18n:\s*\{([^}]*)\}/g)) {
+                        dicts.push({file: e.name, keys: [...m[1].matchAll(/(?:^|[,{]\s*)['"]?([\w-]+)['"]?\s*:/g)].map(k => k[1]).sort()});
+                    }
+                }
+            }
+        };
+        walk(root);
+        expect(dicts.length).toBeGreaterThan(30);   // the shipped set
+        for (const d of dicts) {
+            expect(d.keys, d.file).toEqual(LANGS);
+        }
+    });
+
+    it('a Brazilian browser resolves to the pt entry', () => {
+        const s = {default: 'On', defaultI18n: {de: 'Ein', es: 'Encendido', fr: 'Allumé', it: 'Acceso', pl: 'Włączony', pt: 'Ligado', tr: 'Açık'}};
+        expect(localizedDefault(s, 'pt-BR')).toBe('Ligado');
+        expect(localizedDefault(s, 'tr')).toBe('Açık');
+        expect(localizedDefault(s, 'pl')).toBe('Włączony');
+        expect(localizedDefault(s, 'nl')).toBe('On');   // unsupported → en default
+    });
+});

@@ -51,8 +51,8 @@ class FeezalElementGlassWled extends FeezalGlassCard {
                 // intensity read-backs/presets) — declared ONCE.
                 ...wledAttributes,
                 {name: 'label', type: 'string', help: 'Card label.'},
-                {name: 'label-on',  type: 'string', default: 'On', defaultI18n: {de: 'Ein'},  help: 'Displayed state text while on (localise). Display only.'},
-                {name: 'label-off', type: 'string', default: 'Off', defaultI18n: {de: 'Aus'}, help: 'Displayed state text while off (localise). Display only.'},
+                {name: 'label-on',  type: 'string', default: 'On', defaultI18n: {de: 'Ein', es: 'Encendido', fr: 'Allumé', it: 'Acceso', pl: 'Włączony', pt: 'Ligado', tr: 'Açık'},  help: 'Displayed state text while on (localise). Display only.'},
+                {name: 'label-off', type: 'string', default: 'Off', defaultI18n: {de: 'Aus', es: 'Apagado', fr: 'Éteint', it: 'Spento', pl: 'Wyłączony', pt: 'Desligado', tr: 'Kapalı'}, help: 'Displayed state text while off (localise). Display only.'},
                 {name: 'icon', type: 'string', default: 'wb_iridescent', help: 'Icon name.'},
                 {name: 'degrade', type: 'boolean', default: false,
                     help: 'Replace the live backdrop blur with a semi-opaque solid card — no per-frame GPU cost (weak wall-tablet hardware).'},
