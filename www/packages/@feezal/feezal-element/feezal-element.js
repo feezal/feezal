@@ -123,9 +123,11 @@ export class FeezalElement extends LitElement {
         // visibility controller resumes it via a reconnect cycle later.
         if (window.feezal?.visibility?.isPaused?.(this)) {
             this.__n37Paused = true;
+            this._lazyLog('SKIP subscribe on connect (view paused)');
             return;
         }
         this.__n37Paused = false;
+        this._lazyLog('connect → subscribe');
         // A27: locale-aware display defaults — applied before first render,
         // re-applied on locale change, and ONLY for attributes the author
         // never set (hasAttribute is trustworthy because defaults are never
@@ -153,6 +155,16 @@ export class FeezalElement extends LitElement {
         this._subscribeAvailability();
     }
 
+    /** N40 lazy/pause debug — gated on window.feezalMqttDebugOn (set by
+     * feezal-connection when window.feezalDebugMqtt / localStorage flag is on). */
+    _lazyLog(what) {
+        if (!window.feezalMqttDebugOn?.()) return;
+        const view = this.closest?.('feezal-view')?.getAttribute?.('name') ?? '?';
+        console.debug('%c[lazy]%c %s in view "%s" — %s; subscribe=%s',
+            'color:#a60;font-weight:600', 'color:inherit',
+            this.localName, view, what, this.subscribe || '(none)');
+    }
+
     /**
      * N37 — pause this element's MQTT traffic while its view is hidden.
      * Teardown is uniform for EVERY element: all primary subscriptions live
@@ -162,6 +174,7 @@ export class FeezalElement extends LitElement {
     pauseSubscriptions() {
         if (this.__n37Paused) return;
         this.__n37Paused = true;
+        this._lazyLog(`pauseSubscriptions (dropping ${this._subscriptions.length} sub(s))`);
         this._unsubscribe();
         this._unsubscribeAvailability();
         this._conditions.disconnect();
@@ -178,6 +191,7 @@ export class FeezalElement extends LitElement {
     resumeSubscriptions() {
         if (!this.__n37Paused) return;
         this.__n37Paused = false;
+        this._lazyLog('resumeSubscriptions (reconnect cycle)');
         const parent = this.parentNode;
         if (!parent) return;
         const next = this.nextSibling;

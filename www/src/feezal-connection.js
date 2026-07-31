@@ -3,6 +3,23 @@
 import {LitElement} from 'lit';
 
 /**
+ * MQTT debug logging — off by default. Enable in the browser console with
+ *   window.feezalDebugMqtt = true          (this session)
+ *   localStorage['feezal:debug-mqtt'] = '1'  (persists across reloads)
+ * then reload. Logs every subscribe/unsubscribe (with whether it opened/closed
+ * the actual broker subscription) plus the lazy/pause decisions per view — used
+ * to investigate the N40 lazy-subscription behaviour. Read per-call so it can be
+ * toggled live. Exposed as window.feezalMqttDebugOn for reuse elsewhere.
+ */
+export function mqttDebugOn() {
+    try {
+        if (window.feezalDebugMqtt) return true;
+        return localStorage.getItem('feezal:debug-mqtt') === '1';
+    } catch { return false; }
+}
+if (typeof window !== 'undefined') window.feezalMqttDebugOn = mqttDebugOn;
+
+/**
  * feezal-connection
  *
  * Connection abstraction. Delegates to a backend implementation:
@@ -174,12 +191,20 @@ class FeezalConnection extends LitElement {
             options = {};
         }
 
-        if (this.conn && this.connected && !this.subscriptions.some(s => s.topic === topic)) {
+        const wireSub = this.conn && this.connected && !this.subscriptions.some(s => s.topic === topic);
+        if (wireSub) {
             this.conn.subscribe([topic]);
         }
 
         const subscription = {topic, options, callback};
         this.subscriptions.push(subscription);
+
+        if (mqttDebugOn()) {
+            const n = this.subscriptions.filter(s => s.topic === topic).length;
+            console.debug('%c[mqtt] SUB%c %s %s(subscribers: %d)',
+                'color:#0a0;font-weight:600', 'color:inherit', topic,
+                wireSub ? '⇢ wire-subscribe ' : '(already open) ', n);
+        }
 
         // B40: replay cached retained values to THIS subscriber only, on a
         // microtask so the caller (typically an element's connectedCallback)
@@ -207,8 +232,15 @@ class FeezalConnection extends LitElement {
         }
 
         this.subscriptions = this.subscriptions.filter(s => s !== subscription);
-        if (this.conn && !this.subscriptions.some(s => s.topic === subscription.topic)) {
+        const wireUnsub = this.conn && !this.subscriptions.some(s => s.topic === subscription.topic);
+        if (wireUnsub) {
             this.conn.unsubscribe([subscription.topic]);
+        }
+        if (mqttDebugOn()) {
+            const n = this.subscriptions.filter(s => s.topic === subscription.topic).length;
+            console.debug('%c[mqtt] UNSUB%c %s %s(remaining subscribers: %d)',
+                'color:#c00;font-weight:600', 'color:inherit', subscription.topic,
+                wireUnsub ? '⇠ wire-unsubscribe ' : '(kept open) ', n);
         }
     }
 

@@ -80,15 +80,29 @@ export class FeezalVisibility {
         return view ? this._paused.has(view) : false;
     }
 
+    _dbg(...args) { if (window.feezalMqttDebugOn?.()) console.debug('%c[lazy]%c', 'color:#a60;font-weight:600', 'color:inherit', ...args); }
+
     /** Re-evaluate every view (called on each active-view change). */
     update() {
+        this._dbg(`update() — active view = "${String(this.site.view ?? '')}"`);
         for (const view of this.site.querySelectorAll('feezal-view')) {
-            if (this._visible(view)) { this._seen.add(view); this._resume(view); continue; }
+            const name = view.getAttribute('name');
+            if (this._visible(view)) {
+                this._dbg(`view "${name}": VISIBLE → resume (seen)`);
+                this._seen.add(view); this._resume(view); continue;
+            }
             // N40: a view never shown yet, under an effective lazy policy, is
             // paused IMMEDIATELY (no grace) so it only subscribes on first reveal.
-            if (!this._seen.has(view) && this._effectiveLazy(view)) this._pauseNow(view);
-            else if (this._effective(view)) this._schedulePause(view);   // N37: grace pause on a later hide
-            else this._resume(view);
+            if (!this._seen.has(view) && this._effectiveLazy(view)) {
+                this._dbg(`view "${name}": hidden + never-seen + lazy → pauseNow`);
+                this._pauseNow(view);
+            } else if (this._effective(view)) {
+                this._dbg(`view "${name}": hidden + pause-policy → schedulePause (grace ${this._graceMs()}ms), seen=${this._seen.has(view)} lazy=${this._effectiveLazy(view)}`);
+                this._schedulePause(view);   // N37: grace pause on a later hide
+            } else {
+                this._dbg(`view "${name}": hidden + no pause/lazy policy → stays subscribed (seen=${this._seen.has(view)} lazy=${this._effectiveLazy(view)})`);
+                this._resume(view);
+            }
         }
     }
 
@@ -98,7 +112,9 @@ export class FeezalVisibility {
         if (t) { clearTimeout(t); this._timers.delete(view); }
         if (this._paused.has(view) || this._visible(view)) return;
         this._paused.add(view);
-        for (const el of view.querySelectorAll('.feezal-element')) el.pauseSubscriptions?.();
+        const els = view.querySelectorAll('.feezal-element');
+        this._dbg(`  pauseNow "${view.getAttribute('name')}" — pausing ${els.length} element(s) (${els.length ? 'already connected' : 'none connected yet — they will skip subscribe on connect via isPaused'})`);
+        for (const el of els) el.pauseSubscriptions?.();
     }
 
     _schedulePause(view) {
@@ -127,6 +143,7 @@ export class FeezalVisibility {
         // of nested feezal descendants (component instances) with them.
         const els = [...view.querySelectorAll('.feezal-element')]
             .filter(el => !el.parentElement?.closest?.('.feezal-element'));
+        this._dbg(`  resume "${view.getAttribute('name')}" — resuming ${els.length} top-level element(s)`);
         for (const el of els) el.resumeSubscriptions?.();
     }
 
