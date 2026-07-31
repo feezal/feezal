@@ -8,8 +8,27 @@ import '@shoelace-style/shoelace/dist/components/checkbox/checkbox.js';
 import '@shoelace-style/shoelace/dist/components/spinner/spinner.js';
 
 import {stampDiscovery, resolveElementTag, layoutGrid, knownComponents, discoveryLabel,
-    groupForApp, slugifyViewName, UNKNOWN_ROOM} from './feezal-discovery-stamp.js';
+    groupForApp, functionBucket, slugifyViewName, UNKNOWN_ROOM} from './feezal-discovery-stamp.js';
 import {RangeSelect} from './feezal-range-select.js';
+
+// U74: a generated app adopts the theme that matches its element family, so the
+// result looks like the family's preview screenshot. Only families with a
+// dedicated look are mapped; the rest keep the site's current theme.
+const FAMILY_THEME = {
+    glass:  'feezal-theme-midnight-blue',
+    metro:  'feezal-theme-metro',
+    circle: 'feezal-theme-gruvbox-light',
+};
+
+// U74: the feezal signature gradient (the glass theme's wallpaper colour stops,
+// as pure CSS — no SVG asset) painted behind the frosted cards on every glass
+// sub-view, so midnight-blue chrome frames the colourful glass canvas.
+const GLASS_GRADIENT =
+    'radial-gradient(70% 70% at 20% 15%, #7dd3fc, transparent 60%),' +
+    'radial-gradient(75% 75% at 85% 25%, #c4b5fd, transparent 60%),' +
+    'radial-gradient(80% 80% at 30% 90%, #f0abfc, transparent 60%),' +
+    'radial-gradient(70% 70% at 75% 80%, #5eead4, transparent 60%),' +
+    '#dbeafe';
 
 // U71: bundled family preview screenshots (A25 self-hosted — Vite emits each as
 // a hashed asset in the editor chunk, not inlined). Drop a `<family>.png` into
@@ -623,6 +642,15 @@ class FeezalGenerateDialog extends LitElement {
             shell.style.setProperty('--feezal-app-content-max-width', '960px');
             shell.style.setProperty('--feezal-app-content-padding', '12px');
             createdShell = true;
+
+            // U74: match the site theme to the chosen element family so the
+            // generated app looks like the family's preview (only on a fresh
+            // app — never clobber a theme the user picked for an existing one).
+            const themeClass = FAMILY_THEME[this._family];
+            if (themeClass) {
+                const base = site.className.split(' ').filter(c => !c.startsWith('feezal-theme-'));
+                site.className = [themeClass, ...base].join(' ').trim();
+            }
         }
 
         // ── site-wide dupe guard: a device carded ANYWHERE is not re-added ──
@@ -667,8 +695,21 @@ class FeezalGenerateDialog extends LitElement {
                 view.setAttribute('flow-justify', 'start');
                 view.style.width = '100%';
                 view.style.height = '100%';
+                // U74: glass sub-views carry the signature gradient behind the
+                // frosted cards (midnight-blue theme keeps the chrome dark).
+                if (this._family === 'glass') view.style.background = GLASS_GRADIENT;
                 site.append(view);
                 createdViews.push(slug);
+            }
+            // U72: within a view, order cards by function (lights → cover →
+            // climate → contact → sensor …) in room mode, alphabetically in
+            // function mode (where the bucket already IS the function).
+            if (this._axis === 'function') {
+                chosen.sort((a, b) => this._label(a).localeCompare(this._label(b), undefined, {sensitivity: 'base'}));
+            } else {
+                chosen.sort((a, b) =>
+                    (functionBucket(a).order ?? 99) - (functionBucket(b).order ?? 99) ||
+                    this._label(a).localeCompare(this._label(b), undefined, {sensitivity: 'base'}));
             }
             for (const entity of chosen) {
                 if (entity.discovery_id && existing.has(entity.discovery_id)) { skippedDupe.push(entity); continue; }

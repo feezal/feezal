@@ -5,6 +5,8 @@ import {describe, it, expect, beforeEach} from 'vitest';
 import '../packages/@feezal/feezal-element-circle-switch/feezal-element-circle-switch.js';
 import '../packages/@feezal/feezal-element-circle-light/feezal-element-circle-light.js';
 import '../packages/@feezal/feezal-element-circle-climate/feezal-element-circle-climate.js';
+// U74: a real glass element so the glass family is available (family-theme test).
+import '../packages/@feezal/feezal-element-glass-switch/feezal-element-glass-switch.js';
 
 import '../src/feezal-generate-dialog.js';
 import {fakeConnection} from './helpers.js';
@@ -13,6 +15,7 @@ const CIRCLE_PKGS = [
     '@feezal/feezal-element-circle-switch',
     '@feezal/feezal-element-circle-light',
     '@feezal/feezal-element-circle-climate',
+    '@feezal/feezal-element-glass-switch',
 ];
 
 function setupFeezal(view) {
@@ -416,6 +419,82 @@ describe('feezal-generate-dialog (U58 App mode)', () => {
         const shell = site.querySelector('feezal-element-layout-app');
         expect(shell.getAttribute('rail')).toBe('auto');
         expect(shell.style.getPropertyValue('--feezal-app-content-padding')).toBe('12px');
+    });
+
+    it('U72: orders the cards within a room by function (lights → switches → climate)', async () => {
+        const dlg = await makeDialog();
+        dlg._family = 'circle';
+        dlg._axis = 'room';
+        // Same room, supplied OUT of function order — the sort must reorder them.
+        dlg.__devices = [
+            {component: 'climate', discovery_id: 'd-cl', name: 'studio_thermostat', __area: 'Studio',
+                config: {state_topic: 'z/cl', command_topic: 'z/cl/set'}, __key: 'd-cl'},
+            {component: 'switch', discovery_id: 'd-sw', name: 'studio_plug', __area: 'Studio',
+                config: {state_topic: 'z/sw', command_topic: 'z/sw/set'}, __key: 'd-sw'},
+            {component: 'light', discovery_id: 'd-li', name: 'studio_lamp', __area: 'Studio',
+                config: {state_topic: 'z/li', command_topic: 'z/li/set'}, __key: 'd-li'},
+        ];
+        dlg._checked = new Set(['d-cl', 'd-sw', 'd-li']);
+        dlg._toReview();
+        dlg._generateApp();
+
+        const studio = site.querySelector('feezal-view[name="studio"]');
+        const order = [...studio.children].map(c => c.localName);
+        expect(order).toEqual([
+            'feezal-element-circle-light',    // Lights first
+            'feezal-element-circle-switch',   // then Switches
+            'feezal-element-circle-climate',  // then Climate
+        ]);
+    });
+
+    it('U72: function axis orders cards alphabetically by label', async () => {
+        const dlg = await makeDialog();
+        dlg._family = 'circle';
+        dlg._axis = 'function';
+        dlg.__devices = [
+            {component: 'switch', discovery_id: 'd-c', name: 'Charlie',
+                config: {state_topic: 'z/c', command_topic: 'z/c/set'}, __key: 'd-c'},
+            {component: 'switch', discovery_id: 'd-a', name: 'Alpha',
+                config: {state_topic: 'z/a', command_topic: 'z/a/set'}, __key: 'd-a'},
+            {component: 'switch', discovery_id: 'd-b', name: 'Bravo',
+                config: {state_topic: 'z/b', command_topic: 'z/b/set'}, __key: 'd-b'},
+        ];
+        dlg._checked = new Set(['d-a', 'd-b', 'd-c']);
+        dlg._toReview();
+        dlg._generateApp();
+
+        const view = site.querySelector('feezal-view[name="switches-sockets"]');
+        const ids = [...view.children].map(c => c.getAttribute('discovery-id'));
+        expect(ids).toEqual(['d-a', 'd-b', 'd-c']);   // Alpha, Bravo, Charlie
+    });
+
+    it('U74: circle family sets the gruvbox-light site theme', async () => {
+        const dlg = await makeDialog();
+        dlg._family = 'circle';
+        dlg._axis = 'room';
+        dlg.__devices = DEVICES();
+        dlg._checked = new Set(['d-wz', 'd-ku', 'd-x']);
+        dlg._toReview();
+        dlg._generateApp();
+        expect(site.classList.contains('feezal-theme-gruvbox-light')).toBe(true);
+    });
+
+    it('U74: glass family sets midnight-blue + paints sub-views with the gradient', async () => {
+        const dlg = await makeDialog();
+        dlg._family = 'glass';
+        dlg._axis = 'room';
+        dlg.__devices = [
+            {component: 'switch', discovery_id: 'g-sw', name: 'kueche_steckdose', __area: 'Kitchen',
+                config: {state_topic: 'z/g', command_topic: 'z/g/set'}, __key: 'g-sw'},
+        ];
+        dlg._checked = new Set(['g-sw']);
+        dlg._toReview();
+        dlg._generateApp();
+
+        expect(site.classList.contains('feezal-theme-midnight-blue')).toBe(true);
+        const kitchen = site.querySelector('feezal-view[name="kitchen"]');
+        expect(kitchen).not.toBeNull();
+        expect(kitchen.style.background).toContain('radial-gradient');
     });
 });
 
