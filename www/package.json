@@ -211,9 +211,10 @@
     "devDependencies": {
         "@vitest/browser-playwright": "^4.1.10",
         "@vitest/coverage-v8": "^4.1.10",
+        "esbuild": "^0.28.1",
         "happy-dom": "^20.10.6",
         "monocart-coverage-reports": "^2.12.12",
-        "vite": "^6.4.3",
+        "vite": "^8.1.5",
         "vite-plugin-monaco-editor": "^1.1.0",
         "vite-plugin-static-copy": "^4.1.1",
         "vitest": "^4.1.10"
