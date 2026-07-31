@@ -215,6 +215,14 @@ class FeezalGenerateDialog extends LitElement {
             background: var(--feezal-tile-bg, #f8fafc);
         }
         .room-row .spacer { flex: 1; }
+        /* Room-review provenance badge (guessed / detected / area). */
+        .room-row .r-badge {
+            font-size: 10px; padding: 1px 6px; border-radius: 9px; flex: 0 0 auto;
+            background: var(--feezal-badge-bg, #e2e8f0); color: var(--feezal-badge-fg, #64748b);
+        }
+        .room-row .r-badge.detected { background: var(--sl-color-primary-100, #e0f2fe); color: var(--sl-color-primary-700, #0369a1); }
+        /* "area" = a trusted, verbatim source (HA suggested_area / device group). */
+        .r-badge.area { background: var(--sl-color-success-100, #dcfce7); color: var(--sl-color-success-700, #15803d); }
         .room-drag { cursor: grab; opacity: .5; font-size: 20px; user-select: none; }
         .room-drag:active { cursor: grabbing; }
         .room-icon { width: 132px; flex: 0 0 auto; }
@@ -872,7 +880,7 @@ class FeezalGenerateDialog extends LitElement {
     _buildRoomsFrom(eligible) {
         this._rooms = groupForApp(eligible, 'room')
             .filter(b => b.label !== UNKNOWN_ROOM)
-            .map(b => ({label: b.label, icon: b.icon, guessed: b.guessed, detected: b.detected,
+            .map(b => ({label: b.label, icon: b.icon, guessed: b.guessed, detected: b.detected, area: b.area,
                 words: lexiconWordsForLabel(b.label)}));
     }
 
@@ -910,7 +918,7 @@ class FeezalGenerateDialog extends LitElement {
         this._newRoomName = '';
         if (!label || this._rooms.some(r => r.label.toLowerCase() === label.toLowerCase())) return;
         this._rooms = [...this._rooms,
-            {label, icon: 'meeting_room', guessed: false, detected: false, words: lexiconWordsForLabel(label)}];
+            {label, icon: 'meeting_room', guessed: false, detected: false, area: false, words: lexiconWordsForLabel(label)}];
     }
 
     // Drag-drop reorder (grab the handle, drop on a row).
@@ -944,7 +952,7 @@ class FeezalGenerateDialog extends LitElement {
         if (this._axis === 'room') {
             if (this._rooms == null) this._buildRoomsFrom(eligible);   // direct entry (no room-review): auto-detect
             this._rooms.forEach((r, i) =>
-                this._bucketMeta.set(r.label, {order: i, guessed: r.guessed, detected: r.detected}));
+                this._bucketMeta.set(r.label, {order: i, guessed: r.guessed, detected: r.detected, area: r.area}));
             let anyUnassigned = false;
             for (const e of eligible) {
                 const r = assignRoom(e, this._rooms);
@@ -1010,7 +1018,7 @@ class FeezalGenerateDialog extends LitElement {
                 const meta = this._bucketMeta?.get(a.label) || {};
                 byLabel.set(a.label, {label: a.label, icon: a.icon,
                     order: meta.order ?? null, guessed: meta.guessed ?? false,
-                    detected: meta.detected ?? false, entities: []});
+                    detected: meta.detected ?? false, area: meta.area ?? false, entities: []});
             }
             byLabel.get(a.label).entities.push(e);
         }
@@ -1491,7 +1499,8 @@ class FeezalGenerateDialog extends LitElement {
                         <sl-input class="room-name" size="small" value="${r.label}"
                             @sl-change="${e => this._renameRoom(i, e.target.value)}"></sl-input>
                         ${r.detected ? html`<span class="r-badge detected" title="Detected group — devices sharing a recurring name">detected</span>`
-                            : r.guessed ? html`<span class="r-badge" title="Guessed from device names — no explicit area">guessed</span>` : ''}
+                            : r.guessed ? html`<span class="r-badge" title="Guessed from device names — no explicit area">guessed</span>`
+                            : r.area ? html`<span class="r-badge area" title="From an explicit area (Home Assistant suggested_area / device group) — taken verbatim">area</span>` : ''}
                         <span class="spacer"></span>
                         <button class="room-btn" title="Move up" ?disabled="${i === 0}" @click="${() => this._moveRoom(i, -1)}"><span class="material-icons">arrow_upward</span></button>
                         <button class="room-btn" title="Move down" ?disabled="${i === rooms.length - 1}" @click="${() => this._moveRoom(i, 1)}"><span class="material-icons">arrow_downward</span></button>
@@ -1563,7 +1572,9 @@ class FeezalGenerateDialog extends LitElement {
                             ${b.detected && isRoom
                                 ? html`<span class="r-badge detected" title="Detected group — devices that share a recurring name; rename or dismiss">detected</span>`
                                 : b.guessed && isRoom && b.label !== UNKNOWN_ROOM
-                                ? html`<span class="r-badge" title="Room guessed from the device name — no explicit area">guessed</span>` : ''}
+                                ? html`<span class="r-badge" title="Room guessed from the device name — no explicit area">guessed</span>`
+                                : b.area && isRoom
+                                ? html`<span class="r-badge area" title="From an explicit area (Home Assistant suggested_area / device group) — taken verbatim">area</span>` : ''}
                         </div>
                         ${repeat(b.entities, e => e.__key, e => html`
                             <div class="row ${this._selected.has(e.__key) ? 'selected' : ''}" data-key="${e.__key}"

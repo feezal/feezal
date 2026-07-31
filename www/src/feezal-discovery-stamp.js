@@ -741,11 +741,13 @@ export function groupForApp(entities, axis) {
     const add = (b, entity) => {
         if (!buckets.has(b.label)) {
             buckets.set(b.label, {label: b.label, icon: b.icon, order: b.order ?? null,
-                guessed: axis !== 'function', detected: false, entities: []});
+                guessed: axis !== 'function', detected: false, area: false, entities: []});
         }
         const bucket = buckets.get(b.label);
         bucket.entities.push(entity);
-        if (b.source === 'area') bucket.guessed = false;
+        // A TRUSTED area (HA suggested_area / device-group area): shown verbatim,
+        // not a guess. Track it so the review can badge it "area".
+        if (b.source === 'area') { bucket.guessed = false; bucket.area = true; }
         if (b.source === 'cluster') bucket.detected = true;
     };
 

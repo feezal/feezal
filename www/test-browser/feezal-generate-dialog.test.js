@@ -454,6 +454,26 @@ describe('feezal-generate-dialog (U58 Devices)', () => {
             expect(dlg._rooms.map(r => r.label).sort()).toEqual(['Kitchen', 'Living room']);
         });
 
+        it('badges a trusted-area room "area" (lexicon → "guessed", user-added → none)', async () => {
+            const dlg = await rooms([dev('d-a', 'x', 'Hobbyraum'), dev('d-b', 'kueche_licht')]);
+            const hobby = dlg._rooms.find(r => r.label === 'Hobbyraum');
+            const kitchen = dlg._rooms.find(r => r.label === 'Kitchen');
+            expect(hobby.area).toBe(true);
+            expect(hobby.guessed).toBe(false);
+            expect(kitchen.guessed).toBe(true);
+            expect(kitchen.area).toBe(false);
+            await dlg.updateComplete;
+            const badges = [...dlg.renderRoot.querySelectorAll('.room-row .r-badge')].map(b => b.textContent.trim()).sort();
+            expect(badges).toEqual(['area', 'guessed']);
+            expect(dlg.renderRoot.querySelector('.r-badge.area')).not.toBeNull();
+
+            // a user-added room carries NO badge
+            dlg._newRoomName = 'Studio'; dlg._addRoom();
+            await dlg.updateComplete;
+            const after = [...dlg.renderRoot.querySelectorAll('.room-row .r-badge')].map(b => b.textContent.trim()).sort();
+            expect(after).toEqual(['area', 'guessed']);
+        });
+
         it('removing a room re-scans its devices against the remaining rooms', async () => {
             const dlg = await rooms([dev('d-a', 'kueche_licht'), dev('d-b', 'wohnzimmer_lampe')]);
             dlg._removeRoom(dlg._rooms.findIndex(r => r.label === 'Kitchen'));

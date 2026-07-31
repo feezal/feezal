@@ -444,6 +444,19 @@ describe('functionBucket + groupForApp (U58 App mode)', () => {
         expect(fns.map(b => b.label)).toEqual(['Lights', 'Switches & sockets']);   // taxonomy order
         expect(fns[0].entities).toHaveLength(2);
     });
+
+    it('flags provenance: a trusted area is area=true (not a guess); a lexicon room is guessed', () => {
+        const rooms = groupForApp([
+            {component: 'switch', name: 'x', __area: 'Hobbyraum', config: {state_topic: 'a'}},   // trusted area
+            {component: 'light', name: 'kueche_spot', config: {state_topic: 'b'}},               // lexicon guess
+        ], 'room');
+        const byLabel = Object.fromEntries(rooms.map(b => [b.label, b]));
+        expect(byLabel.Hobbyraum.area).toBe(true);
+        expect(byLabel.Hobbyraum.guessed).toBe(false);
+        expect(byLabel.Hobbyraum.detected).toBe(false);
+        expect(byLabel.Kitchen.area).toBe(false);
+        expect(byLabel.Kitchen.guessed).toBe(true);
+    });
 });
 
 describe('groupForApp — U77 data-driven zone clustering', () => {
