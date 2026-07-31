@@ -30,7 +30,7 @@ const LONG_PRESS_MS = 450;
 class FeezalElementGlassFan extends FeezalGlassCard {
     static get feezal() {
         return {
-            palette: {name: 'Fan', category: 'Glass', color: '#7aa5c9', icon: 'mode_fan'},
+            palette: {name: 'Fan', category: 'Glass', color: '#7aa5c9', icon: 'toys'},
             description: 'Frosted-glass fan card — the icon spins while on, tap toggles; long-press (or the ⋯ button) ' +
                 'opens the details popup: vertical speed slider and preset chips. Same wiring contract as the ' +
                 'material fan card (speed-range scaling, presets, HA fan discovery).',
@@ -74,7 +74,7 @@ class FeezalElementGlassFan extends FeezalGlassCard {
                 {name: 'preset-modes',           type: 'objectList', itemFields: [{key: '', placeholder: 'preset name'}], default: '[]',
                     help: 'JSON array of preset mode names, e.g. ["low","medium","high"].'},
                 {name: 'label',                  type: 'string',    default: '', help: 'Optional card label.'},
-                {name: 'icon',                   type: 'string',    default: 'mode_fan', help: 'Icon name.'},
+                {name: 'icon',                   type: 'string',    default: 'toys', help: 'Icon name.'},
                 {name: 'subscribe-availability', type: 'mqttTopic', help: 'Availability topic.'},
                 {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
                 {name: 'payload-available',      type: 'string',    default: 'online',  help: 'Payload meaning available.'},
@@ -223,7 +223,7 @@ class FeezalElementGlassFan extends FeezalGlassCard {
         this.publishPreset = '';
         this.presetModes = '[]';
         this.label = '';
-        this.icon = 'mode_fan';
+        this.icon = 'toys';
         this.degrade = false;
         this.discoveryId = '';
         this._on = false;
@@ -420,7 +420,7 @@ class FeezalElementGlassFan extends FeezalGlassCard {
                         @pointermove="${this._vsliderMove}"
                         @pointerup="${this._vsliderUp}">
                         <div class="fill" style="height:${pct}%"></div>
-                        <feezal-icon name="${this.icon || 'mode_fan'}"></feezal-icon>
+                        <feezal-icon name="${this.icon || 'toys'}"></feezal-icon>
                         <div class="pct">${pct} %</div>
                     </div>` : ''}
                 ${presets.length > 0 ? html`
@@ -445,7 +445,7 @@ class FeezalElementGlassFan extends FeezalGlassCard {
                         @pointerdown="${e => e.stopPropagation()}"
                         @pointerup="${e => e.stopPropagation()}"
                         @click="${e => { e.stopPropagation(); this.openDetails(); }}">tune</button>` : ''})}
-                <feezal-icon name="${this.icon || 'mode_fan'}" style="--feezal-glass-fan-dur: ${dur}"></feezal-icon>
+                <feezal-icon name="${this.icon || 'toys'}" style="--feezal-glass-fan-dur: ${dur}"></feezal-icon>
                 <span class="state">${this._stateText()}</span>
                 <span class="label">${this.label || (feezal.isEditor ? 'Fan' : '')}</span>
             </div>

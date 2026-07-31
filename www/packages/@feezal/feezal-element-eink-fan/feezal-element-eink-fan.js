@@ -23,7 +23,7 @@ const SPEED_STEPS = [25, 50, 75, 100];
 class FeezalElementEinkFan extends EinkBase {
     static get feezal() {
         return {
-            palette: {name: 'Fan', category: 'Eink', color: '#222222', icon: 'mode_fan'},
+            palette: {name: 'Fan', category: 'Eink', color: '#222222', icon: 'toys'},
             description: 'E-ink fan card — inverted while on, oversized speed numeral or preset word, ' +
                 'flat speed-step/preset buttons. Same wiring contract as the glass fan card ' +
                 '(speed-range scaling, presets, HA fan discovery). 1-bit, no animation, redraw-deduped.',
