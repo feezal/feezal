@@ -32,11 +32,11 @@
         "ws": "^8.21.0"
     },
     "devDependencies": {
-        "@vitest/coverage-v8": "^4.1.9",
+        "@vitest/coverage-v8": "^4.1.10",
         "adm-zip": "^0.5.18",
         "aedes": "^1.1.1",
         "socket.io-client": "^4.8.3",
         "supertest": "^7.2.2",
-        "vitest": "^4.1.9"
+        "vitest": "^4.1.10"
     }
 }
