@@ -350,6 +350,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U77 — Room heuristic: cluster recurring name-tokens into candidate zones (data-driven) ✅ done](U77.md)
 - [U78 — Generate wizard: a room-review step before the device review ✅ done](U78.md)
 - [U79 — Generate wizard: a hidden "System" view with the splash + connection-status chrome ✅ done](U79.md)
+- [U80 — Generate wizard: the App generator always creates a new site (name → deploy → viewer link) ✅ done](U80.md)
 
 ## Architecture & Infrastructure
 
