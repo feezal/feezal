@@ -230,6 +230,7 @@ class FeezalGenerateDialog extends LitElement {
         .setup-row.family-row { align-items: flex-start; }
         .setup-label { font-size: 12px; font-weight: 600; opacity: .7; width: 64px; flex: 0 0 auto; padding-top: 4px; }
         .setup-note { font-size: 12.5px; opacity: .75; margin-top: 2px; display: flex; align-items: center; gap: 8px; }
+        .retry-link { color: var(--sl-color-primary-600, #0284c7); cursor: pointer; text-decoration: underline; }
 
         /* U71: illustrated family picker — a thumbnail per family, selected one
            framed in the primary colour; families with no image fall back to a
@@ -474,44 +475,61 @@ class FeezalGenerateDialog extends LitElement {
         this._chooseApp();
     }
 
+    /** One discovery fetch → the filtered, keyed, area-joined device list. */
+    async _fetchDevices(stage) {
+        const res = await fetch('/api/discovery/devices');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        const known = new Set(knownComponents());
+        // U67: drop HA housekeeping entities (z2m linkquality / last_seen /
+        // OTA update, …). HA flags them entity_category diagnostic|config
+        // (ent_cat → entity_category, expanded server-side) or
+        // enabled_by_default:false — none are a device's primary function.
+        // A multi-function device still yields one row per FUNCTIONAL entity.
+        const list = (data.devices || []).filter(e => known.has(e.component) && !isDiagnostic(e));
+        // Stable per-entity key: discovery_id is unique when present; fall
+        // back to a synthetic composite for the rare id-less entity.
+        list.forEach((e, i) => { e.__key = e.discovery_id || `${e.component}:${this._label(e)}:${i}`; });
+        // App mode: join the device-group areas (E161 suggested_area) onto
+        // the entities — the TRUSTED room signal, beating the lexicon.
+        if (stage === 'app') {
+            try {
+                const gr = await fetch('/api/discovery/device-groups');
+                const areas = new Map();
+                for (const g of (gr.ok ? (await gr.json()).groups : []) || []) {
+                    if (g.area && g.deviceId) areas.set(g.deviceId, g.area);
+                }
+                for (const e of list) {
+                    const devId = e.config?.device?.identifiers?.[0];
+                    if (devId && areas.has(devId)) e.__area = areas.get(devId);
+                }
+            } catch { /* no groups endpoint → lexicon only */ }
+        }
+        return list;
+    }
+
     async _loadInto(stage) {
         this._stage = stage;
         this._loading = true;
         this._error = null;
         this.requestUpdate();
-        try {
-            const res = await fetch('/api/discovery/devices');
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            const data = await res.json();
-            const known = new Set(knownComponents());
-            // U67: drop HA housekeeping entities (z2m linkquality / last_seen /
-            // OTA update, …). HA flags them entity_category diagnostic|config
-            // (ent_cat → entity_category, expanded server-side) or
-            // enabled_by_default:false — none are a device's primary function.
-            // A multi-function device still yields one row per FUNCTIONAL entity.
-            const list = (data.devices || []).filter(e => known.has(e.component) && !isDiagnostic(e));
-            // Stable per-entity key: discovery_id is unique when present; fall
-            // back to a synthetic composite for the rare id-less entity.
-            list.forEach((e, i) => { e.__key = e.discovery_id || `${e.component}:${this._label(e)}:${i}`; });
-            // App mode: join the device-group areas (E161 suggested_area) onto
-            // the entities — the TRUSTED room signal, beating the lexicon.
-            if (stage === 'app') {
-                try {
-                    const gr = await fetch('/api/discovery/device-groups');
-                    const areas = new Map();
-                    for (const g of (gr.ok ? (await gr.json()).groups : []) || []) {
-                        if (g.area && g.deviceId) areas.set(g.deviceId, g.area);
-                    }
-                    for (const e of list) {
-                        const devId = e.config?.device?.identifiers?.[0];
-                        if (devId && areas.has(devId)) e.__area = areas.get(devId);
-                    }
-                } catch { /* no groups endpoint → lexicon only */ }
+        // U80: a freshly-created site's server bridge is still connecting and
+        // taking the retained discovery burst, so a single fetch would open the
+        // App wizard on "0 devices discovered". In the new-site flow, poll until
+        // devices show up (or ~24 s pass). A normal open fetches once.
+        const maxAttempts = (stage === 'app' && this._autoFlow) ? 12 : 1;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                this.__devices = await this._fetchDevices(stage);
+                this._error = null;
+                if (this.__devices.length || attempt === maxAttempts) break;
+            } catch (err) {
+                this.__devices = [];
+                this._error = String(err.message || err);
+                if (attempt === maxAttempts) break;
             }
-            this.__devices = list;
-        } catch (err) {
-            this._error = String(err.message || err);
-            this.__devices = [];
+            if (this._stage !== stage) return;   // user navigated away / cancelled
+            await new Promise(r => setTimeout(r, 2000));
         }
         this._loading = false;
         this.requestUpdate();
@@ -1255,10 +1273,12 @@ class FeezalGenerateDialog extends LitElement {
                     </div>
                 </div>
                 <div class="setup-note">
-                    ${this._loading ? html`<sl-spinner style="font-size:14px"></sl-spinner> Loading discovered devices…`
+                    ${this._loading ? html`<sl-spinner style="font-size:14px"></sl-spinner> ${this._autoFlow
+                            ? 'Connecting to your broker and discovering your devices — this can take a few seconds on a fresh site…'
+                            : 'Loading discovered devices…'}`
                         : this._error ? html`Could not load devices: ${this._error}`
                         : eligible ? html`<b>${eligible}</b> device${eligible === 1 ? '' : 's'} discovered — pick which to include on the next screen.`
-                        : html`No generatable devices discovered in the <b>${FAMILY_LABELS[this._family] || this._family}</b> family.`}
+                        : html`No generatable devices discovered${this._autoFlow ? ' yet' : ''} in the <b>${FAMILY_LABELS[this._family] || this._family}</b> family.${this._autoFlow ? html` <a class="retry-link" @click="${() => this._chooseApp()}">Retry</a>` : ''}`}
                 </div>
             </div>
 

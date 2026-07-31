@@ -815,12 +815,31 @@ describe('feezal-generate-dialog (U80 new-site App flow)', () => {
     });
 
     it('resumeNewSiteApp opens at the App setup in auto-deploy mode', async () => {
-        window.fetch = async () => ({ok: true, json: async () => ({devices: []})});
+        window.fetch = async url => String(url).includes('/api/discovery/devices')
+            ? {ok: true, json: async () => ({devices: [{discovery_id: 'x', component: 'switch', name: 'k', config: {}}]})}
+            : {ok: true, json: async () => ({groups: []})};
         const dlg = await makeDialog();
         dlg.resumeNewSiteApp();
         expect(dlg._autoFlow).toBe(true);
         expect(dlg._stage).toBe('app');   // _loadInto sets the stage synchronously
     });
+
+    it('the App setup polls discovery on a fresh site until devices appear (auto-flow)', async () => {
+        let calls = 0;
+        window.fetch = async url => {
+            if (String(url).includes('/api/discovery/devices')) {
+                calls++;
+                return {ok: true, json: async () => ({devices: calls >= 2
+                    ? [{discovery_id: 'x', component: 'switch', name: 'kueche', config: {}}] : []})};
+            }
+            return {ok: true, json: async () => ({groups: []})};
+        };
+        const dlg = await makeDialog();
+        dlg._autoFlow = true;
+        await dlg._loadInto('app');          // attempt 1 empty → waits → attempt 2 has a device
+        expect(calls).toBeGreaterThanOrEqual(2);
+        expect(dlg.__devices).toHaveLength(1);
+    }, 10000);
 
     it('the auto-flow deploys, drops the empty scaffold view, makes Menu first, and links the viewer', async () => {
         window.fetch = async () => ({ok: true, json: async () => ({devices: []})});
