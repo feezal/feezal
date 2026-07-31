@@ -122,16 +122,16 @@ class FeezalElementCircleWled extends FeezalElement {
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
                 {property: '--feezal-wled-on-color', type: 'color',
-                    default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))',
+                    default: 'var(--primary-color)',
                     help: 'Accent while the strip is on (overridden by the live strip colour when known).'},
                 {property: '--feezal-wled-off-color', type: 'color',
-                    default: 'var(--secondary-text-color, #9e9e9e)',
+                    default: 'var(--secondary-text-color)',
                     help: 'Outline/control colour while off.'},
                 {property: '--feezal-wled-surface-color', type: 'color',
-                    default: 'var(--primary-background-color, var(--feezal-bg, #fff))',
+                    default: 'var(--primary-background-color)',
                     help: 'Control surface colour.'},
                 {property: '--feezal-wled-text-color', type: 'color',
-                    default: 'var(--primary-text-color, var(--feezal-color, #333))',
+                    default: 'var(--primary-text-color)',
                     help: 'Text colour.'},
                 // B29/B37 — ring geometry, unitless % of the slider viewBox; the
                 // same numbers on material-light/material-climate give an
@@ -174,10 +174,10 @@ class FeezalElementCircleWled extends FeezalElement {
             box-sizing: border-box;
             position: relative;
             overflow: hidden;
-            --feezal-wled-on-color:      var(--primary-color, var(--sl-color-primary-600, #0284c7));
-            --feezal-wled-off-color:     var(--secondary-text-color, #9e9e9e);
-            --feezal-wled-surface-color: var(--primary-background-color, var(--feezal-bg, #fff));
-            --feezal-wled-text-color:    var(--primary-text-color, var(--feezal-color, #333));
+            --feezal-wled-on-color:      var(--primary-color);
+            --feezal-wled-off-color:     var(--secondary-text-color);
+            --feezal-wled-surface-color: var(--primary-background-color);
+            --feezal-wled-text-color:    var(--primary-text-color);
         }
         .ring-wrap { width: 100%; flex-shrink: 0; }
         svg {

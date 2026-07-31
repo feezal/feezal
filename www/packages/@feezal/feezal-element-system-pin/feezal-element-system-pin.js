@@ -48,7 +48,7 @@ class FeezalElementSystemPin extends FeezalElement {
         .ph {
             position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
             gap: 4px; box-sizing: border-box; font-size: 11px; text-align: center;
-            color: var(--secondary-text-color, #777);
+            color: var(--secondary-text-color);
             border: 2px dashed var(--feezal-border, #bbb); border-radius: 6px;
         }
         .material-icons {
@@ -71,8 +71,8 @@ class FeezalElementSystemPin extends FeezalElement {
             position: fixed; inset: 0; z-index: 99999;
             width: auto; height: auto; margin: 0; border: 0; padding: 0; overflow: hidden;
             display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
-            background: var(--primary-background-color, #1b1b1b);
-            color: var(--primary-text-color, #eee);
+            background: var(--primary-background-color);
+            color: var(--primary-text-color);
             font-family: inherit;
         }
         .overlay .prompt { font-size: 18px; opacity: 0.9; }
@@ -81,7 +81,7 @@ class FeezalElementSystemPin extends FeezalElement {
         .dot.filled { background: currentColor; opacity: 1; }
         .keypad { display: grid; grid-template-columns: repeat(3, 68px); gap: 12px; }
         .key {
-            height: 68px; border-radius: 50%; border: 1px solid var(--divider-color, rgba(128,128,128,0.4));
+            height: 68px; border-radius: 50%; border: 1px solid var(--divider-color);
             background: rgba(128,128,128,0.12); color: inherit; font-size: 24px; cursor: pointer;
             display: flex; align-items: center; justify-content: center; user-select: none;
         }
@@ -89,7 +89,7 @@ class FeezalElementSystemPin extends FeezalElement {
         .key:active { transform: scale(0.94); }
         .key.wide { font-size: 15px; }
         .key.blank { visibility: hidden; cursor: default; }
-        .err { color: var(--error-color, #e53935); min-height: 16px; font-size: 13px; }
+        .err { color: var(--error-color); min-height: 16px; font-size: 13px; }
         .shake { animation: feezal-pin-shake 0.35s; }
         @keyframes feezal-pin-shake {
             0%,100% { transform: translateX(0); }

@@ -48,7 +48,7 @@ class FeezalElementSystemSwipe extends FeezalElement {
             display: flex; align-items: center; justify-content: center; gap: 6px;
             width: 100%; height: 100%; box-sizing: border-box;
             border: 2px dashed var(--feezal-border, #bbb); border-radius: 6px;
-            font-size: 12px; color: var(--secondary-text-color, #777); user-select: none;
+            font-size: 12px; color: var(--secondary-text-color); user-select: none;
         }
         .ph feezal-icon { font-size: 16px; }
     `];

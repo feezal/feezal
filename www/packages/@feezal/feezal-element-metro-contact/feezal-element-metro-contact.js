@@ -123,10 +123,10 @@ class FeezalElementMetroContact extends MetroTileBase {
                     default: 'var(--feezal-metro-accent)',
                     help: 'Tile colour while the contact is closed (defaults to the family accent).'},
                 {property: '--feezal-metro-open-color', type: 'color',
-                    default: 'var(--error-color, #e51400)',
+                    default: 'var(--error-color)',
                     help: 'Tile colour while the contact is open.'},
                 {property: '--feezal-metro-tilt-color', type: 'color',
-                    default: 'var(--info-color, #1ba1e2)',
+                    default: 'var(--info-color)',
                     help: 'Tile colour while the window is tilted.'},
             ],
             restrict: {minWidth: 40, minHeight: 40},
@@ -154,8 +154,8 @@ class FeezalElementMetroContact extends MetroTileBase {
     static styles = [feezalBatteryStyles, feezalFaultStyles, MetroTileBase.styles, css`
         :host {
             --feezal-metro-closed-color: var(--feezal-metro-accent);
-            --feezal-metro-open-color: var(--error-color, #e51400);
-            --feezal-metro-tilt-color: var(--info-color, #1ba1e2);
+            --feezal-metro-open-color: var(--error-color);
+            --feezal-metro-tilt-color: var(--info-color);
         }
         .face { transition: background 0.15s; }
         :host([data-state='closed']) .face { background: var(--feezal-metro-closed-color); }

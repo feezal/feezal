@@ -56,7 +56,7 @@ class FeezalElementLayoutFlex extends FeezalElement {
             position: absolute; inset: 0;
             display: flex; align-items: center; justify-content: center; text-align: center;
             box-sizing: border-box; padding: 12px; pointer-events: none;
-            color: var(--secondary-text-color, #888); font-size: 13px;
+            color: var(--secondary-text-color); font-size: 13px;
             border: 2px dashed var(--feezal-border, #bbb); border-radius: 6px;
         }
     `];
@@ -138,7 +138,7 @@ class FeezalElementLayoutFlexInspector extends LitElement {
         .region-head { display: flex; align-items: center; gap: 4px; }
         .region-num {
             flex: 0 0 auto; width: 18px; height: 18px; border-radius: 50%;
-            background: var(--sl-color-primary-600, #5c6bc0); color: #fff;
+            background: var(--primary-color); color: #fff;
             font-size: 11px; display: flex; align-items: center; justify-content: center;
         }
         .region-head sl-select { flex: 1; min-width: 0; }

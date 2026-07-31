@@ -50,7 +50,7 @@ class FeezalElementLayoutResponsive extends FeezalElement {
             position: absolute; inset: 0; box-sizing: border-box; padding: 10px;
             display: flex; flex-direction: column; gap: 5px; overflow: auto;
             border: 2px dashed var(--feezal-border, #bbb); border-radius: 6px;
-            color: var(--secondary-text-color, #888); font-size: 12px;
+            color: var(--secondary-text-color); font-size: 12px;
         }
         .ph .title { font-weight: 600; letter-spacing: 0.02em; }
         .ph .rule { display: flex; gap: 6px; align-items: baseline; padding: 2px 5px; border-radius: 4px; }
@@ -203,7 +203,7 @@ class FeezalElementLayoutResponsiveInspector extends LitElement {
         .rule-head { display: flex; align-items: center; gap: 4px; }
         .rule-num {
             flex: 0 0 auto; width: 18px; height: 18px; border-radius: 50%;
-            background: var(--sl-color-primary-600, #5c6bc0); color: #fff;
+            background: var(--primary-color); color: #fff;
             font-size: 11px; display: flex; align-items: center; justify-content: center;
         }
         .rule-head sl-select { flex: 1; min-width: 0; }

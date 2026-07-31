@@ -102,19 +102,19 @@ class FeezalElementCircleClimate extends FeezalElement {
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
                 // Theme-aware colour tokens. Leave blank to inherit from theme.
                 {property: '--feezal-climate-heat-color', type: 'color',
-                    default: 'var(--accent-color, #ff7043)',
+                    default: 'var(--accent-color)',
                     help: 'Arc fill, handle and mode-chip active colour when heating.'},
                 {property: '--feezal-climate-cool-color', type: 'color',
-                    default: 'var(--info-color, #29b6f6)',
+                    default: 'var(--info-color)',
                     help: 'Arc fill colour when cooling.'},
                 {property: '--feezal-climate-idle-color', type: 'color',
-                    default: 'var(--secondary-text-color, #aaa)',
+                    default: 'var(--secondary-text-color)',
                     help: 'Background track and off/idle arc colour.'},
                 {property: '--feezal-climate-text-color', type: 'color',
-                    default: 'var(--primary-text-color, #212121)',
+                    default: 'var(--primary-text-color)',
                     help: 'Temperature text, chip text, and icon colour.'},
                 {property: '--feezal-climate-error-color', type: 'color',
-                    default: 'var(--error-color, #b00020)',
+                    default: 'var(--error-color)',
                     help: 'Unavailability badge colour.'},
                 // B29 — arc geometry, unitless % of the slider viewBox; the same
                 // numbers on material-light give an identical-looking slider.
@@ -186,11 +186,11 @@ class FeezalElementCircleClimate extends FeezalElement {
 
             /* ── Theme-aware colour tokens ────────────────────────────────────
                Override per-element via the Style inspector or a theme rule.  */
-            --feezal-climate-heat-color:  var(--accent-color,         var(--feezal-accent,  #ff7043));
-            --feezal-climate-cool-color:  var(--info-color,           var(--feezal-info,    #29b6f6));
-            --feezal-climate-idle-color:  var(--secondary-text-color, var(--feezal-color2,  #aaa));
-            --feezal-climate-text-color:  var(--primary-text-color,   var(--feezal-color,   #212121));
-            --feezal-climate-error-color: var(--error-color, #b00020);
+            --feezal-climate-heat-color:  var(--accent-color);
+            --feezal-climate-cool-color:  var(--info-color);
+            --feezal-climate-idle-color:  var(--secondary-text-color);
+            --feezal-climate-text-color:  var(--primary-text-color);
+            --feezal-climate-error-color: var(--error-color);
 
             /* MD3 bridge — filter-chips follow the thermostat theme */
             --md-sys-color-on-surface-variant: var(--feezal-climate-idle-color);

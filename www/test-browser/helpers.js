@@ -62,6 +62,11 @@ export function fakeConnection() {
 }
 
 /** Fresh `feezal` global (viewer mode) + empty document body. */
+// Element colour defaults are BARE canonical var() references (no literal
+// fallbacks) — the app provides the variables via the base-theme module, so
+// the test page must too, or every un-themed colour resolves to nothing.
+import '../src/feezal-base-theme.js';
+
 export function setupFeezal(overrides = {}) {
     window.feezal = {
         isEditor: false,

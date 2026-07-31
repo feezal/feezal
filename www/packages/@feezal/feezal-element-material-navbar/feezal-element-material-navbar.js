@@ -65,7 +65,7 @@ class FeezalElementMaterialNavbar extends FeezalElement {
     static styles = [feezalBaseStyles, css`
         :host {
             display: flex; box-sizing: border-box; overflow: hidden;
-            background: var(--feezal-navbar-background, var(--md-sys-color-surface-container, var(--primary-background-color, #f2f3f5)));
+            background: var(--feezal-navbar-background, var(--md-sys-color-surface-container, var(--primary-background-color)));
             box-shadow: var(--feezal-navbar-elevation, none);
             gap: var(--feezal-navbar-gap, 4px);
             padding: 4px;
@@ -76,7 +76,7 @@ class FeezalElementMaterialNavbar extends FeezalElement {
             display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
             padding: var(--feezal-navbar-item-padding, 6px 12px);
             border: none; background: none; cursor: pointer; position: relative;
-            color: var(--feezal-navbar-color, var(--md-sys-color-on-surface-variant, var(--secondary-text-color, #666)));
+            color: var(--feezal-navbar-color, var(--md-sys-color-on-surface-variant, var(--secondary-text-color)));
             border-radius: var(--feezal-navbar-radius, 16px);
             font: inherit; overflow: hidden;
         }
@@ -85,15 +85,15 @@ class FeezalElementMaterialNavbar extends FeezalElement {
         .item .label { font-size: var(--feezal-navbar-label-size, 12px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
         .item.active {
             color: var(--feezal-navbar-active-color, var(--md-sys-color-on-secondary-container, #fff));
-            background: var(--feezal-navbar-active-indicator, var(--md-sys-color-secondary-container, var(--primary-color, #0284c7)));
+            background: var(--feezal-navbar-active-indicator, var(--md-sys-color-secondary-container, var(--primary-color)));
         }
         .item .badge {
             position: absolute; top: 4px; right: 8px; min-width: 8px; height: 16px; padding: 0 4px;
-            box-sizing: border-box; border-radius: 8px; background: var(--error-color, #e53935); color: #fff;
+            box-sizing: border-box; border-radius: 8px; background: var(--error-color); color: #fff;
             font-size: 10px; line-height: 16px; text-align: center;
         }
         .item .badge.dot { min-width: 8px; width: 8px; height: 8px; padding: 0; top: 6px; right: 10px; }
-        .empty { margin: auto; font-size: 12px; color: var(--secondary-text-color, #888); }
+        .empty { margin: auto; font-size: 12px; color: var(--secondary-text-color); }
     `];
 
     constructor() {
@@ -253,7 +253,7 @@ class FeezalElementMaterialNavbarInspector extends LitElement {
         .item { border: 1px solid var(--feezal-border, #e0e0e0); border-radius: 6px; padding: 6px; }
         .item-head { display: flex; align-items: center; gap: 4px; }
         .item-num { flex: 0 0 auto; width: 18px; height: 18px; border-radius: 50%;
-            background: var(--sl-color-primary-600, #5c6bc0); color: #fff; font-size: 11px;
+            background: var(--primary-color); color: #fff; font-size: 11px;
             display: flex; align-items: center; justify-content: center; }
         .item-head sl-select { flex: 1; min-width: 0; }
         .ib { flex: 0 0 auto; width: 24px; height: 26px; border: none; background: none; cursor: pointer;

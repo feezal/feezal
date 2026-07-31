@@ -63,12 +63,12 @@ class FeezalElementCarbonSwitch extends FeezalElement {
             align-items: center;
             /* Let the focus ring extend past the element box. */
             overflow: visible;
-            --feezal-switch-track-on:    var(--primary-color, var(--sl-color-primary-600, #0284c7));
-            --feezal-switch-track-off:   var(--primary-background-color, #8d8d8d);
+            --feezal-switch-track-on:    var(--primary-color);
+            --feezal-switch-track-off:   var(--primary-background-color);
             --feezal-switch-border-on:   transparent;
-            --feezal-switch-border-off:  var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --feezal-switch-border-off:  var(--primary-color);
             --feezal-switch-thumb-on:    #ffffff;
-            --feezal-switch-label-color: var(--primary-text-color, var(--feezal-color, #333));
+            --feezal-switch-label-color: var(--primary-text-color);
             /* Carbon token wiring — the toggle's ON track is support-success. */
             --cds-support-success:  var(--feezal-switch-track-on);
             --cds-toggle-off:       var(--feezal-switch-track-off);

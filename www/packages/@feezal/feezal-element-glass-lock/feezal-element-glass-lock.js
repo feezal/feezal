@@ -44,8 +44,8 @@ class FeezalElementGlassLock extends FeezalGlassCard {
             styles: [
                 'top', 'left', 'width', 'height',
                 {property: '--feezal-glass-locked-color',   type: 'color', default: 'var(--primary-text-color)',   help: 'Icon/state colour when locked.'},
-                {property: '--feezal-glass-unlocked-color', type: 'color', default: 'var(--accent-color, #4caf50)', help: 'Icon/state colour when unlocked.'},
-                {property: '--feezal-glass-jammed-color',   type: 'color', default: 'var(--error-color, #d32f2f)',  help: 'Icon/state colour when jammed.'},
+                {property: '--feezal-glass-unlocked-color', type: 'color', default: 'var(--accent-color)', help: 'Icon/state colour when unlocked.'},
+                {property: '--feezal-glass-jammed-color',   type: 'color', default: 'var(--error-color)',  help: 'Icon/state colour when jammed.'},
                 {property: '--feezal-glass-tint', type: 'color', help: 'Frost tint (defaults from the theme).'},
                 {property: '--feezal-glass-icon-size', default: '28px', help: 'Icon font size.'},
                 {property: '--feezal-glass-font-size-state', default: '15px', help: 'State line font size.'},
@@ -100,7 +100,7 @@ class FeezalElementGlassLock extends FeezalGlassCard {
         }
         .unavail {
             position: absolute; top: 8px; right: 10px;
-            font-size: 12px; color: var(--error-color, #d32f2f); opacity: 0.85;
+            font-size: 12px; color: var(--error-color); opacity: 0.85;
         }
         /* Popup actions — one full-width button per lock command. */
         .lock-actions { display: flex; flex-direction: column; gap: 8px; align-self: stretch; }

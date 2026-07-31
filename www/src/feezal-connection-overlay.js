@@ -142,7 +142,7 @@ class FeezalConnectionOverlay extends LitElement {
             position: absolute; top: 0; left: 0; right: 0;
             display: flex; align-items: center; justify-content: center; gap: 8px;
             padding: 6px 12px; font-size: 13px; font-weight: 600;
-            color: #fff; background: var(--error-color, #d32f2f);
+            color: #fff; background: var(--error-color);
             box-shadow: 0 1px 6px rgba(0,0,0,0.3); pointer-events: auto;
         }
         .dot {
@@ -157,8 +157,8 @@ class FeezalConnectionOverlay extends LitElement {
             display: flex; align-items: center; justify-content: center; pointer-events: auto;
         }
         .modal {
-            background: var(--primary-background-color, #fff);
-            color: var(--primary-text-color, #222);
+            background: var(--primary-background-color);
+            color: var(--primary-text-color);
             border-radius: 10px; padding: 24px 28px; max-width: 420px; width: calc(100% - 48px);
             box-shadow: 0 12px 48px rgba(0,0,0,0.4); text-align: center;
         }
@@ -168,11 +168,11 @@ class FeezalConnectionOverlay extends LitElement {
         .actions { display: flex; gap: 10px; justify-content: center; }
         .actions button {
             font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
-            padding: 8px 16px; border-radius: 6px; border: 1px solid var(--divider-color, #ccc);
-            background: var(--secondary-background-color, #f2f2f2); color: var(--primary-text-color, #222);
+            padding: 8px 16px; border-radius: 6px; border: 1px solid var(--divider-color);
+            background: var(--secondary-background-color); color: var(--primary-text-color);
         }
         .actions button.primary {
-            background: var(--primary-color, #0284c7); border-color: var(--primary-color, #0284c7); color: #fff;
+            background: var(--primary-color); border-color: var(--primary-color); color: #fff;
         }
         .toast {
             position: absolute; top: 14px; left: 50%; transform: translateX(-50%);

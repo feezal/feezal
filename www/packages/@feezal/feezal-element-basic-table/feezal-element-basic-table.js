@@ -82,16 +82,16 @@ class FeezalElementBasicTable extends FeezalElement {
             styles: [
                 'top', 'left', 'width', 'height', 'font-size',
                 {property: '--feezal-table-text-color', type: 'color',
-                    default: 'var(--primary-text-color, var(--feezal-color, #333))',
+                    default: 'var(--primary-text-color)',
                     help: 'Cell text colour.'},
                 {property: '--feezal-table-header-color', type: 'color',
-                    default: 'var(--secondary-text-color, #757575)',
+                    default: 'var(--secondary-text-color)',
                     help: 'Header text colour.'},
                 {property: '--feezal-table-surface-color', type: 'color',
-                    default: 'var(--secondary-background-color, var(--feezal-bg, #fff))',
+                    default: 'var(--secondary-background-color)',
                     help: 'Table background (also behind the sticky header).'},
                 {property: '--feezal-table-border-color', type: 'color',
-                    default: 'var(--divider-color, var(--feezal-border, #e0e0e0))',
+                    default: 'var(--divider-color)',
                     help: 'Row separator and border colour.'}
             ],
             restrict: {minWidth: 120, minHeight: 60},
@@ -122,10 +122,10 @@ class FeezalElementBasicTable extends FeezalElement {
             width: 400px;
             height: 300px;
             font-size: 13px;
-            --feezal-table-text-color: var(--primary-text-color, var(--feezal-color, #333));
-            --feezal-table-header-color: var(--secondary-text-color, #757575);
-            --feezal-table-surface-color: var(--secondary-background-color, var(--feezal-bg, #fff));
-            --feezal-table-border-color: var(--divider-color, var(--feezal-border, #e0e0e0));
+            --feezal-table-text-color: var(--primary-text-color);
+            --feezal-table-header-color: var(--secondary-text-color);
+            --feezal-table-surface-color: var(--secondary-background-color);
+            --feezal-table-border-color: var(--divider-color);
             color: var(--feezal-table-text-color);
             background: var(--feezal-table-surface-color);
         }
@@ -166,21 +166,21 @@ class FeezalElementBasicTable extends FeezalElement {
         /* Semantic conditional-formatting classes — theme state colours.
            Declared after the stripe rule so they win at equal specificity. */
         tbody tr.ok, tbody tr.success, tbody tr.good {
-            background: color-mix(in srgb, var(--success-color, #4caf50) 15%, transparent);
+            background: color-mix(in srgb, var(--success-color) 15%, transparent);
         }
         tbody tr.warn, tbody tr.warning {
-            background: color-mix(in srgb, var(--warning-color, #ff9800) 15%, transparent);
+            background: color-mix(in srgb, var(--warning-color) 15%, transparent);
         }
         tbody tr.error, tbody tr.alert, tbody tr.critical {
-            background: color-mix(in srgb, var(--error-color, #d32f2f) 15%, transparent);
+            background: color-mix(in srgb, var(--error-color) 15%, transparent);
         }
         tbody tr.info {
-            background: color-mix(in srgb, var(--info-color, #2196f3) 15%, transparent);
+            background: color-mix(in srgb, var(--info-color) 15%, transparent);
         }
-        td.ok, td.success, td.good { color: var(--success-color, #4caf50); }
-        td.warn, td.warning { color: var(--warning-color, #ff9800); }
-        td.error, td.alert, td.critical { color: var(--error-color, #d32f2f); }
-        td.info { color: var(--info-color, #2196f3); }
+        td.ok, td.success, td.good { color: var(--success-color); }
+        td.warn, td.warning { color: var(--warning-color); }
+        td.error, td.alert, td.critical { color: var(--error-color); }
+        td.info { color: var(--info-color); }
         input {
             box-sizing: border-box;
             width: 100%;
@@ -201,7 +201,7 @@ class FeezalElementBasicTable extends FeezalElement {
             cursor: pointer;
             color: var(--feezal-table-header-color);
         }
-        td.remove:hover { color: var(--error-color, #d32f2f); }
+        td.remove:hover { color: var(--error-color); }
         .add-row {
             flex: none;
             padding: 4px 8px;

@@ -148,8 +148,8 @@ export const feezalFaultStyles = css`
         width: var(--feezal-fault-size, 18px); height: var(--feezal-fault-size, 18px);
         pointer-events: none; z-index: 2;
     }
-    .feezal-sabotage-badge { color: var(--error-color, #d32f2f); opacity: 1; }
-    .feezal-fault-badge { color: var(--warning-color, #f0a30a); opacity: 0.95; }
+    .feezal-sabotage-badge { color: var(--error-color); opacity: 1; }
+    .feezal-fault-badge { color: var(--warning-color); opacity: 0.95; }
     .feezal-sabotage-badge svg, .feezal-fault-badge svg { width: 100%; height: 100%; display: block; }
 `;
 

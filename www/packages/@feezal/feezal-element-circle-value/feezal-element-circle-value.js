@@ -124,11 +124,11 @@ class FeezalElementCircleValue extends FeezalElement {
             overflow: visible; text-align: center;
             /* cqi units scale the disc content with the card width. */
             container-type: inline-size;
-            --feezal-value-icon-color:  var(--accent-color, #1565c0);
-            --feezal-value-text-color:  var(--primary-text-color, #1d1d1f);
-            --feezal-value-label-color: var(--secondary-text-color, rgba(29,29,31,0.55));
-            --feezal-value-track-color: var(--divider-color, rgba(0,0,0,0.15));
-            --feezal-value-fill-color:  var(--accent-color, #1565c0);
+            --feezal-value-icon-color:  var(--accent-color);
+            --feezal-value-text-color:  var(--primary-text-color);
+            --feezal-value-label-color: var(--secondary-text-color);
+            --feezal-value-track-color: var(--divider-color);
+            --feezal-value-fill-color:  var(--accent-color);
             /* E139: currentColor drives the disc ring — anchor it to the text
                colour so the ring matches the other Circle cards. */
             color: var(--feezal-value-text-color);
@@ -192,7 +192,7 @@ class FeezalElementCircleValue extends FeezalElement {
         .unavail {
             position: absolute; top: 6px; right: 6px;
             width: 16px; height: 16px;
-            color: var(--error-color, #d32f2f);
+            color: var(--error-color);
             opacity: 0.85; pointer-events: none; z-index: 2;
         }
         .unavail svg { width: 100%; height: 100%; display: block; }

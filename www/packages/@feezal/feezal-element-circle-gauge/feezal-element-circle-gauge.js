@@ -70,12 +70,12 @@ class FeezalElementCircleGauge extends GaugeMixin(FeezalElement) {
             gap: 4px; padding: 6px; box-sizing: border-box;
             overflow: hidden; text-align: center;
             container-type: inline-size;
-            --feezal-dial-track-color:  var(--divider-color, rgba(0,0,0,0.15));
-            --feezal-dial-fill-color:   var(--primary-color, #1565c0);
-            --feezal-dial-needle-color: var(--primary-text-color, #1d1d1f);
-            --feezal-dial-text-color:   var(--primary-text-color, #1d1d1f);
-            --feezal-dial-tick-color:   var(--secondary-text-color, rgba(29,29,31,0.55));
-            --feezal-dial-label-color:  var(--secondary-text-color, rgba(29,29,31,0.55));
+            --feezal-dial-track-color:  var(--divider-color);
+            --feezal-dial-fill-color:   var(--primary-color);
+            --feezal-dial-needle-color: var(--primary-text-color);
+            --feezal-dial-text-color:   var(--primary-text-color);
+            --feezal-dial-tick-color:   var(--secondary-text-color);
+            --feezal-dial-label-color:  var(--secondary-text-color);
             --feezal-dial-track-width: 8;
             --feezal-dial-value-size: 20;
             color: var(--feezal-dial-text-color);

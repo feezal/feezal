@@ -180,11 +180,11 @@ class FeezalElementCircleLight extends FeezalElement {
                In colour-temperature / RGB / HS modes the ring and centre show
                the live light colour, which overrides on-color. The CT gradient
                and hue wheel stay fixed — they represent the real light output. */
-            --feezal-light-on-color:      var(--primary-text-color, var(--primary-color, var(--sl-color-primary-600, #0284c7)));
-            --feezal-light-off-color:     var(--secondary-text-color, var(--divider-color, var(--feezal-border, #e0e0e0)));
-            --feezal-light-surface-color: var(--primary-background-color, var(--feezal-bg, #fff));
-            --feezal-light-text-color:    var(--primary-text-color, var(--feezal-color, #333));
-            --feezal-light-error-color:   var(--error-color, #b00020);
+            --feezal-light-on-color:      var(--primary-text-color);
+            --feezal-light-off-color:     var(--secondary-text-color);
+            --feezal-light-surface-color: var(--primary-background-color);
+            --feezal-light-text-color:    var(--primary-text-color);
+            --feezal-light-error-color:   var(--error-color);
 
             --md-sys-color-primary:    var(--feezal-light-on-color);
             --md-sys-color-surface:    var(--feezal-light-surface-color);

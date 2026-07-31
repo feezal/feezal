@@ -79,9 +79,9 @@ class FeezalElementCircleSensor extends FeezalElement {
             /* E134: the state disc sizes its content in cqi (card width). */
             container-type: inline-size;
             /* E138: alarm-slice active default → --error-color (activeColorVar). */
-            --feezal-sensor-active-color: var(--error-color, #b00020);
-            --feezal-sensor-text-color:   var(--primary-text-color, var(--feezal-color, #333));
-            --feezal-sensor-error-color:  var(--error-color, #b00020);
+            --feezal-sensor-active-color: var(--error-color);
+            --feezal-sensor-text-color:   var(--primary-text-color);
+            --feezal-sensor-error-color:  var(--error-color);
             color: var(--feezal-sensor-text-color);
         }
         .unavail {

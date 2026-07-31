@@ -1,6 +1,6 @@
 {
     "name": "@feezal/feezal-element-circle-cover",
-    "version": "3.0.15",
+    "version": "3.0.16",
     "license": "MIT",
     "main": "feezal-element-circle-cover.js",
     "dependencies": {

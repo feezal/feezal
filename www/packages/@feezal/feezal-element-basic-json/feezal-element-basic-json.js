@@ -51,19 +51,19 @@ class FeezalElementBasicJson extends FeezalElement {
             styles: [
                 'top', 'left', 'width', 'height', 'font-size',
                 {property: '--feezal-json-key-color', type: 'color',
-                    default: 'var(--primary-text-color, #333)',
+                    default: 'var(--primary-text-color)',
                     help: 'Object/array key colour.'},
                 {property: '--feezal-json-string-color', type: 'color',
-                    default: 'var(--accent-color, #f44336)',
+                    default: 'var(--accent-color)',
                     help: 'String value colour.'},
                 {property: '--feezal-json-number-color', type: 'color',
-                    default: 'var(--primary-color, #0284c7)',
+                    default: 'var(--primary-color)',
                     help: 'Number and boolean value colour.'},
                 {property: '--feezal-json-null-color', type: 'color',
-                    default: 'var(--secondary-text-color, #757575)',
+                    default: 'var(--secondary-text-color)',
                     help: 'null/undefined value and punctuation colour.'},
                 {property: '--feezal-json-guide-color', type: 'color',
-                    default: 'var(--divider-color, #e0e0e0)',
+                    default: 'var(--divider-color)',
                     help: 'Indent guide / border colour.'}
             ],
             restrict: {minWidth: 120, minHeight: 60},
@@ -85,12 +85,12 @@ class FeezalElementBasicJson extends FeezalElement {
             width: 320px;
             height: 300px;
             font-size: 13px;
-            --feezal-json-key-color: var(--primary-text-color, #333);
-            --feezal-json-string-color: var(--accent-color, #f44336);
-            --feezal-json-number-color: var(--primary-color, #0284c7);
-            --feezal-json-null-color: var(--secondary-text-color, #757575);
-            --feezal-json-guide-color: var(--divider-color, #e0e0e0);
-            background: var(--secondary-background-color, #fff);
+            --feezal-json-key-color: var(--primary-text-color);
+            --feezal-json-string-color: var(--accent-color);
+            --feezal-json-number-color: var(--primary-color);
+            --feezal-json-null-color: var(--secondary-text-color);
+            --feezal-json-guide-color: var(--divider-color);
+            background: var(--secondary-background-color);
             color: var(--feezal-json-key-color);
         }
         .tree {

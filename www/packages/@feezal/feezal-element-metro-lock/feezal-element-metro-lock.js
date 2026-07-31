@@ -37,8 +37,8 @@ class FeezalElementMetroLock extends MetroTileBase {
                 ...MetroTileBase.tileStyles,
                 // E141: LOCKED defaults to the family accent; all three states overridable.
                 {property: '--feezal-metro-locked-color',   type: 'color', default: 'var(--feezal-metro-accent)',    help: 'Tile colour while locked (defaults to the family accent).'},
-                {property: '--feezal-metro-unlocked-color', type: 'color', default: 'var(--warning-color, #f0a30a)', help: 'Tile colour while unlocked.'},
-                {property: '--feezal-metro-jammed-color',   type: 'color', default: 'var(--error-color, #e51400)',  help: 'Tile colour while jammed / faulted.'},
+                {property: '--feezal-metro-unlocked-color', type: 'color', default: 'var(--warning-color)', help: 'Tile colour while unlocked.'},
+                {property: '--feezal-metro-jammed-color',   type: 'color', default: 'var(--error-color)',  help: 'Tile colour while jammed / faulted.'},
             ],
             restrict: {minWidth: 40, minHeight: 40},
             defaultStyle: {width: '150px', height: '150px'},
@@ -69,8 +69,8 @@ class FeezalElementMetroLock extends MetroTileBase {
     static styles = [feezalBatteryStyles, MetroTileBase.styles, feezalMovementStyles, css`
         :host {
             --feezal-metro-locked-color:   var(--feezal-metro-accent);
-            --feezal-metro-unlocked-color: var(--warning-color, #f0a30a);
-            --feezal-metro-jammed-color:   var(--error-color, #e51400);
+            --feezal-metro-unlocked-color: var(--warning-color);
+            --feezal-metro-jammed-color:   var(--error-color);
         }
         .face { transition: background 0.15s; }
         :host([data-state='locked'])   .face { background: var(--feezal-metro-locked-color); }

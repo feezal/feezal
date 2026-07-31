@@ -1,6 +1,6 @@
 {
     "name": "@feezal/feezal-element-glass-sensor",
-    "version": "3.1.3",
+    "version": "3.1.4",
     "main": "feezal-element-glass-sensor.js",
     "license": "MIT"
 }

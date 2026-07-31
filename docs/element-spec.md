@@ -297,7 +297,7 @@ styles: [
     {
         property: '--feezal-widget-color',    // CSS custom property (see §5.2)
         type:     'color',
-        default:  'var(--primary-color, var(--sl-color-primary-600, #0284c7))',
+        default:  'var(--primary-color)',
         help:     'Accent colour for this element.'
     }
 ]
@@ -616,18 +616,25 @@ feezal themes and the Home Assistant theme integration inject these CSS custom p
 | `--warning-color` | Warning state colour |
 | `--success-color` | Success / good state colour |
 | `--info-color` | Informational state colour |
-| `--feezal-color` | feezal primary text colour |
-| `--feezal-bg` | feezal panel / element background |
-| `--feezal-border` | feezal border colour |
-| `--sl-color-primary-600` | Shoelace accent colour (fallback when HA theme vars are absent) |
+| `--disabled-text-color` | Disabled / inert text |
+| `--divider-color` | Divider / hairline colour |
+| `--card-background-color` | Card surface background |
 
-Always use these variables as defaults rather than hardcoding hex values.
+The built-in default theme defines ALL of these once, at `:root`, in
+`www/src/feezal-base-theme.js` — loaded by the editor, the viewer and the
+static export alike. Theme classes override them by inheritance proximity.
 
-**Theme-var discipline — use ONLY the canonical theme variables for `--feezal-*` defaults (all elements).** When choosing the default a `--feezal-<element>-<role>` var falls back to, use exclusively:
+**Theme-var discipline — canonical vars only, referenced BARE (all elements).** A `--feezal-<element>-<role>` var defaults to exactly one canonical theme variable and nothing else:
 
-`--primary-background-color`, `--secondary-background-color`, `--primary-text-color`, `--secondary-text-color`, `--disabled-text-color`, `--divider-color`, `--primary-color`, `--accent-color`, `--error-color`
+```css
+--feezal-widget-color: var(--primary-color);        /* correct */
+```
 
-(each with a literal hex last-resort fallback, e.g. `var(--primary-color, #0284c7)`). **Do not** default to Material-Design-3 tokens (`--md-sys-color-*`) — feezal themes define the canonical set above, not the MD3 palette, so an `--md-sys-color-*` default silently falls through to its hardcoded hex and ignores the active theme. Pick the closest canonical var for each role (bar/accent → `--primary-color`; drawer/panel surface → `--divider-color` or `--secondary-background-color`; body text → `--primary-text-color`; muted → `--secondary-text-color`; active highlight → `--secondary-background-color`). *(Reference migration: `feezal-element-layout-app`. Existing `--md-sys-color-*` usages in the `material-*` family are legacy — migrate them to the canonical set as those elements are next touched.)*
+- **No literal fallbacks** — not hex, not rgba, not named colours. The default palette lives in `feezal-base-theme.js`, once; per-element fallbacks were three drifting copies of it.
+- **No `--sl-*` tokens** in dashboard styling — Shoelace tokens are the EDITOR's chrome. (The single exception: N6 custom-inspector components may use `--sl-input-color` / `--sl-input-label-color`, the editor dark-mode plumbing for their own Shoelace inputs.)
+- Enforced by `www/test/theme-var-discipline.test.js` — CI fails on `--sl-color-*` or on any canonical var referenced with a fallback.
+
+**Do not** default to Material-Design-3 tokens (`--md-sys-color-*`) — feezal themes define the canonical set above, not the MD3 palette, so an `--md-sys-color-*` default silently falls through to its hardcoded hex and ignores the active theme. Pick the closest canonical var for each role (bar/accent → `--primary-color`; drawer/panel surface → `--divider-color` or `--secondary-background-color`; body text → `--primary-text-color`; muted → `--secondary-text-color`; active highlight → `--secondary-background-color`). *(Reference migration: `feezal-element-layout-app`. Existing `--md-sys-color-*` usages in the `material-*` family are legacy — migrate them to the canonical set as those elements are next touched.)*
 
 ### 5.2 Exposing `--feezal-*` custom properties
 
@@ -641,7 +648,7 @@ Every element with meaningful colours must expose them as `--feezal-<element>-<r
 styles: [
     'top', 'left', 'width', 'height',
     {property: '--feezal-widget-color', type: 'color',
-     default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))',
+     default: 'var(--primary-color)',
      help: 'Accent colour for this element.'},
 ]
 ```
@@ -650,7 +657,7 @@ styles: [
 
 ```css
 :host {
-    --feezal-widget-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
+    --feezal-widget-color: var(--primary-color);
 }
 ```
 
@@ -658,7 +665,7 @@ styles: [
 
 ```css
 :host {
-    --feezal-widget-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
+    --feezal-widget-color: var(--primary-color);
     --md-sys-color-primary: var(--feezal-widget-color);   /* do NOT use sl-color directly here */
 }
 ```
@@ -667,17 +674,17 @@ styles: [
 
 | Role | Suggested name suffix | Recommended default |
 |---|---|---|
-| Primary accent | `-color` | `var(--primary-color, var(--sl-color-primary-600, #0284c7))` |
-| Active / on state | `-on-color` | `var(--primary-color, var(--sl-color-primary-600, #0284c7))` |
-| Inactive / off state | `-off-color` | `var(--secondary-text-color, #9e9e9e)` |
-| Idle / standby | `-idle-color` | `var(--secondary-text-color, #9e9e9e)` |
-| Error / fault | `-error-color` | `var(--error-color, #d32f2f)` |
-| Warning | `-warn-color` | `var(--warning-color, #ff9800)` |
-| Text | `-text-color` | `var(--primary-text-color, var(--feezal-color, #333))` |
+| Primary accent | `-color` | `var(--primary-color)` |
+| Active / on state | `-on-color` | `var(--primary-color)` |
+| Inactive / off state | `-off-color` | `var(--secondary-text-color)` |
+| Idle / standby | `-idle-color` | `var(--secondary-text-color)` |
+| Error / fault | `-error-color` | `var(--error-color)` |
+| Warning | `-warn-color` | `var(--warning-color)` |
+| Text | `-text-color` | `var(--primary-text-color)` |
 | Surface / background | `-surface-color` | `var(--feezal-bg, #fff)` |
 | Border | `-border-color` | `var(--feezal-border, #e0e0e0)` |
-| Badge / notification dot | `-color` (e.g. `--feezal-badge-color`) | `var(--error-color, #d32f2f)` |
-| Icon | `-icon-color` | `var(--primary-text-color, var(--feezal-color, #555))` |
+| Badge / notification dot | `-color` (e.g. `--feezal-badge-color`) | `var(--error-color)` |
+| Icon | `-icon-color` | `var(--primary-text-color)` |
 
 Keep the set **minimal and state-aware** — 2–5 vars per element is typically enough. Don't create a var for every visual detail.
 
@@ -892,7 +899,7 @@ class FeezalElementMyToggle extends FeezalElement {
             styles: [
                 'top', 'left', 'width', 'height',
                 {property: '--feezal-toggle-color', type: 'color',
-                 default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))',
+                 default: 'var(--primary-color)',
                  help: 'Active state colour.'},
             ],
             defaultStyle: {width: '100px', height: '40px'},
@@ -910,7 +917,7 @@ class FeezalElementMyToggle extends FeezalElement {
     static styles = [feezalBaseStyles, css`
         :host {
             display: flex;
-            --feezal-toggle-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --feezal-toggle-color: var(--primary-color);
         }
         button {
             flex: 1; cursor: pointer;

@@ -58,7 +58,7 @@ class FeezalElementMaterialClock extends FeezalElement {
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
                 {property: '--feezal-clock-face-color',   type: 'color', default: 'var(--secondary-background-color)', help: 'Analog clock face background.'},
                 {property: '--feezal-clock-hand-color',   type: 'color', default: 'var(--primary-text-color)',         help: 'Hour and minute hands colour.'},
-                {property: '--feezal-clock-second-color', type: 'color', default: 'var(--accent-color, #f44336)',      help: 'Second hand / digit accent colour.'},
+                {property: '--feezal-clock-second-color', type: 'color', default: 'var(--accent-color)',      help: 'Second hand / digit accent colour.'},
                 {property: '--feezal-clock-text-color',   type: 'color', default: 'var(--primary-text-color)',         help: 'Tick labels, digit and label text colour.'},
                 {property: '--feezal-clock-rim-color',    type: 'color', default: 'var(--secondary-text-color)',         help: 'Analog clock rim / tick-mark colour.'},
             ],
@@ -87,11 +87,11 @@ class FeezalElementMaterialClock extends FeezalElement {
             box-sizing: border-box;
             overflow: hidden;
             gap: 3px;
-            --feezal-clock-face-color:   var(--secondary-background-color, var(--feezal-bg-sub, #f5f5f5));
-            --feezal-clock-hand-color:   var(--primary-text-color, var(--feezal-color, #333));
-            --feezal-clock-second-color: var(--accent-color, #f44336);
-            --feezal-clock-text-color:   var(--primary-text-color, var(--feezal-color, #333));
-            --feezal-clock-rim-color:    var(--primary-text-color, var(--feezal-color, #333));
+            --feezal-clock-face-color:   var(--secondary-background-color);
+            --feezal-clock-hand-color:   var(--primary-text-color);
+            --feezal-clock-second-color: var(--accent-color);
+            --feezal-clock-text-color:   var(--primary-text-color);
+            --feezal-clock-rim-color:    var(--primary-text-color);
         }
         .clock-wrap { flex: 1; width: 100%; min-height: 0; display: flex; align-items: center; justify-content: center; }
         svg.analog { width: min(100%, 100%); height: min(100%, 100%); display: block; }

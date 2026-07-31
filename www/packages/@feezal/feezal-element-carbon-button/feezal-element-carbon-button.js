@@ -44,7 +44,7 @@ class FeezalElementCarbonButton extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height',
-                {property: '--feezal-button-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Button fill / accent colour (base token).'},
+                {property: '--feezal-button-color', type: 'color', default: 'var(--primary-color)', help: 'Button fill / accent colour (base token).'},
                 {property: '--feezal-button-active-color',   type: 'color', default: 'var(--feezal-button-color)', help: 'Accent colour while the state feedback is active. Defaults to the base colour.'},
                 {property: '--feezal-button-inactive-color', type: 'color', default: 'var(--feezal-button-color)', help: 'Accent colour while inactive. Defaults to the base colour.'},
             ],
@@ -70,7 +70,7 @@ class FeezalElementCarbonButton extends FeezalElement {
             display: flex;
             align-items: stretch;
             justify-content: stretch;
-            --feezal-button-color:          var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --feezal-button-color:          var(--primary-color);
             /* E79: state-feedback colours — both default to the base token, so
                nothing changes visually until a theme/style overrides them. The
                private --_btn-color switches with the [active] host attribute
@@ -91,7 +91,7 @@ class FeezalElementCarbonButton extends FeezalElement {
             --cds-button-focus-color:       var(--_btn-color);
             --cds-focus:                    var(--_btn-color);
             --cds-link-primary:             var(--_btn-color);
-            --cds-text-primary:             var(--primary-text-color, var(--feezal-color, #333));
+            --cds-text-primary:             var(--primary-text-color);
         }
         :host([active]) {
             --_btn-color: var(--feezal-button-active-color);

@@ -67,7 +67,7 @@ class FeezalElementGlassGauge extends GaugeMixin(FeezalElement) {
                the family accent, the rest anchors to the canonical theme vars
                (each with a literal last-resort fallback). */
             --feezal-dial-fill-color:   var(--feezal-glass-accent, #ff9f0a);
-            --feezal-dial-track-color:  var(--divider-color, rgba(0,0,0,0.15));
+            --feezal-dial-track-color:  var(--divider-color);
             --feezal-dial-needle-color: var(--feezal-glass-color, #1d1d1f);
             --feezal-dial-text-color:   var(--feezal-glass-color, #1d1d1f);
             --feezal-dial-tick-color:   var(--feezal-glass-muted, rgba(29,29,31,0.55));
@@ -84,7 +84,7 @@ class FeezalElementGlassGauge extends GaugeMixin(FeezalElement) {
         .unavail {
             position: absolute; top: 6px; right: 8px;
             font-size: 14px; line-height: 1;
-            color: var(--error-color, #d32f2f);
+            color: var(--error-color);
             opacity: 0.85; pointer-events: none; z-index: 2;
         }
         .gauge-wrap {

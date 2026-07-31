@@ -53,16 +53,16 @@ class FeezalElementBasicCountdown extends FeezalElement {
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
                 {property: '--feezal-countdown-text-color', type: 'color',
-                    default: 'var(--primary-text-color, #333)',
+                    default: 'var(--primary-text-color)',
                     help: 'Digit colour.'},
                 {property: '--feezal-countdown-ring-color', type: 'color',
-                    default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))',
+                    default: 'var(--primary-color)',
                     help: 'Progress ring / bar colour.'},
                 {property: '--feezal-countdown-warn-color', type: 'color',
-                    default: 'var(--error-color, #d32f2f)',
+                    default: 'var(--error-color)',
                     help: 'Colour used within warn-seconds.'},
                 {property: '--feezal-countdown-label-color', type: 'color',
-                    default: 'var(--secondary-text-color, #9e9e9e)',
+                    default: 'var(--secondary-text-color)',
                     help: 'Colour of the done-label text.'},
                 {property: '--feezal-countdown-digit-size',
                     default: '28cqmin',
@@ -94,10 +94,10 @@ class FeezalElementBasicCountdown extends FeezalElement {
             display: block;
             container-type: size;
             overflow: hidden;
-            --feezal-countdown-text-color: var(--primary-text-color, #333);
-            --feezal-countdown-ring-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
-            --feezal-countdown-warn-color: var(--error-color, #d32f2f);
-            --feezal-countdown-label-color: var(--secondary-text-color, #9e9e9e);
+            --feezal-countdown-text-color: var(--primary-text-color);
+            --feezal-countdown-ring-color: var(--primary-color);
+            --feezal-countdown-warn-color: var(--error-color);
+            --feezal-countdown-label-color: var(--secondary-text-color);
             --feezal-countdown-digit-size: 28cqmin;
         }
         .frame {
@@ -121,7 +121,7 @@ class FeezalElementBasicCountdown extends FeezalElement {
         }
         .ring-track {
             fill: none;
-            stroke: var(--divider-color, #e0e0e0);
+            stroke: var(--divider-color);
             stroke-width: 8;
         }
         .ring-prog {
@@ -156,7 +156,7 @@ class FeezalElementBasicCountdown extends FeezalElement {
             min-height: 4px;
             border-radius: 999px;
             overflow: hidden;
-            background: var(--divider-color, #e0e0e0);
+            background: var(--divider-color);
         }
         .bar-fill {
             height: 100%;

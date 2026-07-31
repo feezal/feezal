@@ -39,7 +39,7 @@ class FeezalElementPanelLed extends FeezalElement {
             styles: [
                 'top', 'left', 'width', 'height',
                 {property: '--feezal-panel-led-on-color', type: 'color',
-                    default: 'var(--success-color, #43a047)',
+                    default: 'var(--success-color)',
                     help: 'Lens colour when lit (simple mode).'},
                 {property: '--feezal-panel-led-off-color', type: 'color',
                     default: '#1c221f',
@@ -74,7 +74,7 @@ class FeezalElementPanelLed extends FeezalElement {
         :host {
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             gap: 6px; box-sizing: border-box; overflow: hidden;
-            --feezal-panel-led-on-color: var(--success-color, #43a047);
+            --feezal-panel-led-on-color: var(--success-color);
             --feezal-panel-led-off-color: #1c221f;
         }
         .lens-wrap { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; width: 100%; }

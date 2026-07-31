@@ -79,6 +79,7 @@ Work in progress — priorities and scope are not final.
 - [A27 — i18n: editor localization + language-aware element defaults](#a27--i18n-editor-localization--language-aware-element-defaults--first-step-de-ready-to-build) 💡 *(first step: de)*
 - [A29 — RTL layout support (Arabic, Hebrew)](#a29--rtl-layout-support-arabic-hebrew--future) 💡 *(future)*
 - [A34 — Dependency refresh + supply-chain hardening (`npm ci`, lockfile enforcement)](#a34--dependency-refresh--supply-chain-hardening-npm-ci-lockfile-enforcement)
+- [A35 — Theme-var discipline, part 2: family design tokens still default to fixed colours](#a35--theme-var-discipline-part-2-family-design-tokens-still-default-to-fixed-colours)
 
 
 ---
@@ -2340,3 +2341,28 @@ Several analytics elements need historical data feezal deliberately doesn't stor
 See the design exploration earlier in this file — the view-in-view nesting concept is the likely foundation. Full responsive layout support is a longer-term goal; no decisions needed yet.
 
 ---
+### A35 — Theme-var discipline, part 2: family design tokens still default to fixed colours
+
+**Context (07/2026).** The discipline sweep removed every fallback after a canonical theme var and every `--sl-color-*` reference from dashboard code (491 chains + 136 tokens across 101 files), and the default palette now lives ONCE in `www/src/feezal-base-theme.js` (`:root`), enforced by `www/test/theme-var-discipline.test.js`. What remains — deliberately — is the class the sweep could not do mechanically: **~512 element/family vars in 74 files whose default is a fixed colour with NO canonical var in the chain**, plus plain literal descriptor defaults (e.g. `--feezal-app-bar-color: #fff`).
+
+## Why these were not bulldozed
+
+They are **design-language constants**, not theme roles, and each needs a per-var decision:
+
+- **Frosted glass** (`glass-*`, the worst offenders at ~30/file): surfaces like `rgba(255,255,255,0.12)` and text `rgba(255,255,255,0.92)` are what MAKES the glass look. Mapping glass text to `--primary-text-color` renders it unreadable on light themes — the glass card is dark regardless of theme.
+- **eink** (1-bit black/white by definition), **panel** (cockpit bezels), **tui** (terminal green) — same story: the family IS the palette.
+- **On-primary text** (`--feezal-app-bar-color: #fff`, dialog header text, …): the canonical set has NO "text on primary-coloured surface" role, so there is nothing correct to map to today.
+- Editor-placeholder chrome inside elements (layout-flex/-responsive slot badges etc.) — cosmetic, low value.
+
+## Fix directions (decide per family, not globally)
+
+1. **Family themes own the family tokens.** `feezal-theme-glass` defines `--feezal-glass-*` values; the elements reference them bare; a *base block in the family's shared package* (the `@feezal/feezal-glass` equivalent of `feezal-base-theme.js`) supplies the defaults once per family instead of per element. Removes the duplication without pretending a design constant is a theme role.
+2. **New canonical roles** where a real gap exists — the strongest candidate is **`--on-primary-color`** (text/icons on `--primary-color` surfaces: app bar, filled buttons, dialog headers). One new var would eliminate most `#fff` literals meaningfully instead of mislabelling them.
+3. **Leave true constants alone** and allow-list them in the ratchet with a comment (eink's black is not themable and should not look like it is).
+
+## Ships with
+
+Per-family passes (glass first — biggest count), each: the family base block or new canonical role, elements referencing bare vars, the ratchet extended to that family's pattern, a visual check on light AND dark themes, patch bumps. The ratchet stays green throughout — extend it family by family rather than in one leap.
+
+**Relates:** `www/src/feezal-base-theme.js` + `www/test/theme-var-discipline.test.js` (part 1, done), `CLAUDE.md` §Theme variable discipline, `docs/element-spec.md` §5.1, the `--md-sys-color-*` legacy migration (same touch-it-then-migrate policy).
+

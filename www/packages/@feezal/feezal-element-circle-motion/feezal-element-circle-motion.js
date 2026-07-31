@@ -156,9 +156,9 @@ class FeezalElementCircleMotion extends FeezalElement {
             /* E38: container query so the visual scales with the card width. */
             container-type: inline-size;
             /* E138: motion-slice active default → --accent-color (activeColorVar). */
-            --feezal-motion-active-color: var(--accent-color, #ff9800);
-            --feezal-motion-text-color:   var(--primary-text-color, var(--feezal-color, #333));
-            --feezal-motion-error-color:  var(--error-color, #b00020);
+            --feezal-motion-active-color: var(--accent-color);
+            --feezal-motion-text-color:   var(--primary-text-color);
+            --feezal-motion-error-color:  var(--error-color);
             color: var(--feezal-motion-text-color);
         }
         .unavail {

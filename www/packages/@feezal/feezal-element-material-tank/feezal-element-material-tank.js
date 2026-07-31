@@ -53,9 +53,9 @@ class FeezalElementMaterialTank extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
-                {property: '--feezal-tank-fluid-color', type: 'color', default: 'var(--info-color, #42a5f5)',       help: 'Fill colour at normal level.'},
-                {property: '--feezal-tank-warn-color',  type: 'color', default: 'var(--warning-color, #ff9800)',    help: 'Fill colour when level ≤ warn-threshold.'},
-                {property: '--feezal-tank-crit-color',  type: 'color', default: 'var(--error-color, #f44336)',      help: 'Fill colour when level ≤ crit-threshold.'},
+                {property: '--feezal-tank-fluid-color', type: 'color', default: 'var(--info-color)',       help: 'Fill colour at normal level.'},
+                {property: '--feezal-tank-warn-color',  type: 'color', default: 'var(--warning-color)',    help: 'Fill colour when level ≤ warn-threshold.'},
+                {property: '--feezal-tank-crit-color',  type: 'color', default: 'var(--error-color)',      help: 'Fill colour when level ≤ crit-threshold.'},
                 {property: '--feezal-tank-rim-color',   type: 'color', default: 'var(--primary-text-color)',        help: 'Tank outline / rim stroke colour.'},
                 {property: '--feezal-tank-text-color',  type: 'color', default: 'var(--primary-text-color)',        help: 'Value label and bottom label text colour.'},
             ],
@@ -89,11 +89,11 @@ class FeezalElementMaterialTank extends FeezalElement {
             box-sizing: border-box;
             overflow: hidden;
             gap: 4px;
-            --feezal-tank-fluid-color: var(--info-color, var(--feezal-info, #42a5f5));
-            --feezal-tank-warn-color:  var(--warning-color, var(--feezal-warning, #ff9800));
-            --feezal-tank-crit-color:  var(--error-color, #f44336);
-            --feezal-tank-rim-color:   var(--primary-text-color, var(--feezal-color, #333));
-            --feezal-tank-text-color:  var(--primary-text-color, var(--feezal-color, #333));
+            --feezal-tank-fluid-color: var(--info-color);
+            --feezal-tank-warn-color:  var(--warning-color);
+            --feezal-tank-crit-color:  var(--error-color);
+            --feezal-tank-rim-color:   var(--primary-text-color);
+            --feezal-tank-text-color:  var(--primary-text-color);
         }
         @keyframes feezalTankWave {
             0%   { d: path("M0,0 Q9,-4 18,0 T36,0 L36,12 L0,12 Z"); }

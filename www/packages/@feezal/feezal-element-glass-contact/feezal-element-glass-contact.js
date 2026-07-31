@@ -59,8 +59,8 @@ class FeezalElementGlassContact extends FeezalElement {
                 // E140: per-state icon colour — the CLOSED side (was the
                 // unexposed frost-muted) is now overridable.
                 {property: '--feezal-glass-closed-color', type: 'color', default: 'var(--feezal-glass-muted, rgba(29,29,31,0.55))', help: 'Icon/state colour while closed (defaults to the frost muted colour).'},
-                {property: '--feezal-glass-open-color', type: 'color', default: 'var(--warning-color, #ff9f0a)', help: 'Icon/state colour while open.'},
-                {property: '--feezal-glass-tilt-color', type: 'color', default: 'var(--info-color, #0a84ff)', help: 'Icon/state colour while tilted.'},
+                {property: '--feezal-glass-open-color', type: 'color', default: 'var(--warning-color)', help: 'Icon/state colour while open.'},
+                {property: '--feezal-glass-tilt-color', type: 'color', default: 'var(--info-color)', help: 'Icon/state colour while tilted.'},
                 {property: '--feezal-glass-tint', type: 'color', help: 'Frost tint (defaults from the theme).'},
                 {property: '--feezal-glass-icon-size', default: '28px', help: 'Icon font size.'},
                 {property: '--feezal-glass-font-size-state', default: '15px', help: 'State line font size.'},
@@ -105,7 +105,7 @@ class FeezalElementGlassContact extends FeezalElement {
         }
         .unavail {
             position: absolute; top: 8px; right: 10px;
-            font-size: 12px; color: var(--error-color, #d32f2f); opacity: 0.85;
+            font-size: 12px; color: var(--error-color); opacity: 0.85;
         }
         /* E105: much wider than tall → horizontal layout (Apple-Home wide
            tile): icon left, state/label stacked right of it. */

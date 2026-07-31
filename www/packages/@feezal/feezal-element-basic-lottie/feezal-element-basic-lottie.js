@@ -104,9 +104,9 @@ class FeezalElementBasicLottie extends FeezalElement {
             position: absolute; inset: 0;
             display: flex; align-items: center; justify-content: center; gap: 6px;
             box-sizing: border-box; padding: 4px;
-            font-size: 12px; color: var(--secondary-text-color, #888);
-            border: 1px dashed var(--divider-color, #bbb); border-radius: 6px;
-            background: color-mix(in srgb, var(--secondary-text-color, #888) 6%, transparent);
+            font-size: 12px; color: var(--secondary-text-color);
+            border: 1px dashed var(--divider-color); border-radius: 6px;
+            background: color-mix(in srgb, var(--secondary-text-color) 6%, transparent);
             user-select: none;
         }
         .placeholder .glyph {

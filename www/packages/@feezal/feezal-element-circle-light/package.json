@@ -1,6 +1,6 @@
 {
     "name": "@feezal/feezal-element-circle-light",
-    "version": "3.0.13",
+    "version": "3.0.14",
     "license": "MIT",
     "main": "feezal-element-circle-light.js",
     "dependencies": {

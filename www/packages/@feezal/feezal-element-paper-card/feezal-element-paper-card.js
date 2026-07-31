@@ -67,7 +67,7 @@ class FeezalElementPaperCard extends FeezalElement {
             display: flex;
             flex-direction: column;
             border-radius: 2px;
-            background: var(--paper-card-background-color, var(--card-background-color, #fff));
+            background: var(--paper-card-background-color, var(--card-background-color));
             transition: box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: 0 2px 2px 0 rgba(0,0,0,0.14), 0 1px 5px 0 rgba(0,0,0,0.12), 0 3px 1px -2px rgba(0,0,0,0.2);
         }
@@ -89,14 +89,14 @@ class FeezalElementPaperCard extends FeezalElement {
         .card-heading {
             font-size: 20px;
             font-weight: 500;
-            color: var(--paper-card-header-color, var(--primary-text-color, #212121));
+            color: var(--paper-card-header-color, var(--primary-text-color));
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
         .card-subhead {
             font-size: 13px;
-            color: var(--secondary-text-color, #757575);
+            color: var(--secondary-text-color);
             margin-top: 2px;
             white-space: nowrap;
             overflow: hidden;

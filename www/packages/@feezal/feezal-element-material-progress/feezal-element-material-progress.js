@@ -36,11 +36,11 @@ class FeezalElementMaterialProgress extends FeezalElement {
                 'top', 'left', 'width', 'height',
                 {property: '--feezal-progress-color',
                     type: 'color',
-                    default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))',
+                    default: 'var(--primary-color)',
                     help: 'Active indicator colour.'},
                 {property: '--feezal-progress-track-color',
                     type: 'color',
-                    default: 'var(--divider-color, #e0e0e0)',
+                    default: 'var(--divider-color)',
                     help: 'Inactive track colour.'},
                 {property: '--feezal-progress-thickness',
                     type: 'string',
@@ -70,8 +70,8 @@ class FeezalElementMaterialProgress extends FeezalElement {
             justify-content: center;
             align-items: center;
             box-sizing: border-box;
-            --feezal-progress-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
-            --feezal-progress-track-color: var(--divider-color, #e0e0e0);
+            --feezal-progress-color: var(--primary-color);
+            --feezal-progress-track-color: var(--divider-color);
             --feezal-progress-thickness: 4px;
             /* Wire MD3 linear tokens */
             --md-linear-progress-track-color: var(--feezal-progress-track-color);
@@ -95,7 +95,7 @@ class FeezalElementMaterialProgress extends FeezalElement {
             display: flex;
             justify-content: space-between;
             font-size: 12px;
-            color: var(--secondary-text-color, #666);
+            color: var(--secondary-text-color);
         }
         md-linear-progress {
             width: 100%;
@@ -184,18 +184,18 @@ class FeezalElementMaterialProgress extends FeezalElement {
             position: absolute;
             font-size: 14px;
             font-weight: 500;
-            color: var(--primary-text-color, #333);
+            color: var(--primary-text-color);
             text-align: center;
             line-height: 1;
             pointer-events: none;
         }
         .centre-unit {
             font-size: 0.7em;
-            color: var(--secondary-text-color, #666);
+            color: var(--secondary-text-color);
         }
         .circular-label {
             font-size: 12px;
-            color: var(--secondary-text-color, #666);
+            color: var(--secondary-text-color);
             flex-shrink: 0;
         }
     `];

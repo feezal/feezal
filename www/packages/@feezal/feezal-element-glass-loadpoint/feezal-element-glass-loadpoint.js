@@ -87,7 +87,7 @@ class FeezalElementGlassLoadpoint extends FeezalElement {
         .power { font-size: 26px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
         .socbar { position: relative; height: 8px; border-radius: 4px; background: var(--feezal-glass-muted, rgba(29,29,31,0.18)); overflow: hidden; margin-top: 2px; }
         .socbar .fill { position: absolute; inset: 0 auto 0 0; background: var(--feezal-glass-accent, #30d158); border-radius: 4px; }
-        .socbar .limit { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--primary-text-color, #222); opacity: 0.6; }
+        .socbar .limit { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--primary-text-color); opacity: 0.6; }
         .socline, .session { font-size: 11px; opacity: 0.7; }
         .modes { display: flex; gap: 3px; margin-top: auto; }
         .modes button {
@@ -96,7 +96,7 @@ class FeezalElementGlassLoadpoint extends FeezalElement {
             background: transparent; color: inherit; min-width: 0;
         }
         .modes button.active { background: var(--feezal-glass-accent, #30d158); border-color: var(--feezal-glass-accent, #30d158); color: #fff; }
-        .unavail { position: absolute; top: 6px; right: 8px; font-size: 14px; color: var(--error-color, #d32f2f); opacity: 0.85; }
+        .unavail { position: absolute; top: 6px; right: 8px; font-size: 14px; color: var(--error-color); opacity: 0.85; }
     `];
 
     constructor() {

@@ -124,7 +124,7 @@ class FeezalElementMaterialMap extends FeezalElement {
         }
         .editor-ph span {
             font-size: 12px;
-            color: var(--secondary-text-color, #666);
+            color: var(--secondary-text-color);
         }
     `];
 

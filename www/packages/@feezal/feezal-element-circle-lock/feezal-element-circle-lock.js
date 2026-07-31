@@ -60,10 +60,10 @@ class FeezalElementCircleLock extends FeezalElement {
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
                 {property: '--feezal-lock-locked-color',   type: 'color', default: 'var(--primary-text-color)',    help: 'Padlock colour when locked.'},
-                {property: '--feezal-lock-unlocked-color', type: 'color', default: 'var(--accent-color, #4caf50)', help: 'Padlock colour when unlocked.'},
-                {property: '--feezal-lock-jammed-color',   type: 'color', default: 'var(--error-color, #b00020)',  help: 'Padlock colour when jammed.'},
+                {property: '--feezal-lock-unlocked-color', type: 'color', default: 'var(--accent-color)', help: 'Padlock colour when unlocked.'},
+                {property: '--feezal-lock-jammed-color',   type: 'color', default: 'var(--error-color)',  help: 'Padlock colour when jammed.'},
                 {property: '--feezal-lock-text-color',     type: 'color', default: 'var(--primary-text-color)',    help: 'Label and state text colour.'},
-                {property: '--feezal-lock-error-color',    type: 'color', default: 'var(--error-color, #b00020)',  help: 'Unavailability badge colour.'},
+                {property: '--feezal-lock-error-color',    type: 'color', default: 'var(--error-color)',  help: 'Unavailability badge colour.'},
             ],
             restrict:     {minWidth: 80, minHeight: 100},
             defaultStyle: {width: '120px', height: '160px'},
@@ -110,11 +110,11 @@ class FeezalElementCircleLock extends FeezalElement {
             gap: 4px;
             position: relative;
             container-type: inline-size;
-            --feezal-lock-locked-color:   var(--primary-text-color, var(--feezal-color, #333));
-            --feezal-lock-unlocked-color: var(--accent-color, var(--success-color, #4caf50));
-            --feezal-lock-jammed-color:   var(--error-color, #b00020);
-            --feezal-lock-text-color:     var(--primary-text-color, var(--feezal-color, #333));
-            --feezal-lock-error-color:    var(--error-color, #b00020);
+            --feezal-lock-locked-color:   var(--primary-text-color);
+            --feezal-lock-unlocked-color: var(--accent-color);
+            --feezal-lock-jammed-color:   var(--error-color);
+            --feezal-lock-text-color:     var(--primary-text-color);
+            --feezal-lock-error-color:    var(--error-color);
             /* E139: currentColor drives the neutral disc ring — anchor it to the
                text colour so the ring matches the other Circle cards. */
             color: var(--feezal-lock-text-color);

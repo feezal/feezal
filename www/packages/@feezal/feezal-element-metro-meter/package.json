@@ -1,6 +1,6 @@
 {
   "name": "@feezal/feezal-element-metro-meter",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "license": "MIT",
   "main": "feezal-element-metro-meter.js",
   "dependencies": {

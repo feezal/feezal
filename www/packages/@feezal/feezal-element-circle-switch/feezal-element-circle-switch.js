@@ -31,7 +31,7 @@ class FeezalElementCircleSwitch extends FeezalElementCircleLight {
     // styles; overriding stylesheet wins by source order, an inline Style-inspector
     // value still wins over this.
     static styles = [FeezalElementCircleLight.styles, css`
-        :host { --feezal-light-on-color: var(--primary-color, #0284c7); }
+        :host { --feezal-light-on-color: var(--primary-color); }
     `];
 
     static get feezal() {

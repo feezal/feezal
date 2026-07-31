@@ -82,19 +82,19 @@ class FeezalElementMaterialSwitch extends FeezalElement {
             /* ── Exposed colours (on + off state) ──
                Theme variables first so the switch tracks the active theme;
                concrete fallbacks keep it visible in a theme-less viewer. */
-            --feezal-switch-color:        var(--primary-color, var(--sl-color-primary-600, #0284c7)); /* legacy alias → on-track */
+            --feezal-switch-color:        var(--primary-color); /* legacy alias → on-track */
             --feezal-switch-track-on:     var(--feezal-switch-color);
             /* E139: OFF is muted (transparent fill), the active state (ON) carries
                the accent fill, and an always-on active ring (below) signals the
                switch is clickable in BOTH states. */
             --feezal-switch-track-off:    transparent;
-            --feezal-switch-thumb-on:     var(--primary-text-color, #ffffff);
-            --feezal-switch-thumb-off:    var(--disabled-text-color, #757575);
+            --feezal-switch-thumb-on:     var(--primary-text-color);
+            --feezal-switch-thumb-off:    var(--disabled-text-color);
             /* Back-compat alias: --feezal-switch-outline-off still feeds the ring. */
-            --feezal-switch-ring-color:   var(--feezal-switch-outline-off, var(--primary-color, #0284c7));
-            --feezal-switch-outline-off:  var(--primary-color, #0284c7);
+            --feezal-switch-ring-color:   var(--feezal-switch-outline-off, var(--primary-color));
+            --feezal-switch-outline-off:  var(--primary-color);
             --feezal-switch-ring-width:   1.5px;
-            --feezal-switch-label-color:  var(--primary-text-color, #333);
+            --feezal-switch-label-color:  var(--primary-text-color);
             --feezal-switch-size:         100cqh;
 
             /* ── Size tokens (proportional to --feezal-switch-size = track height) ── */

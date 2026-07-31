@@ -289,7 +289,7 @@ class FeezalElementPanelGauge extends FeezalElement {
                     stroke="var(--feezal-panel-bezel, #3c454d)" stroke-width="3"/>
                 ${this._zoneRows().map(z => svg`
                     <path d="${this._arcPath(this._valueToAngle(Number(z.from)), this._valueToAngle(Number(z.to)), _R + 2.5)}"
-                        stroke="${z.color || 'var(--success-color, #43a047)'}" stroke-width="3.5" fill="none"/>`)}
+                        stroke="${z.color || 'var(--success-color)'}" stroke-width="3.5" fill="none"/>`)}
                 ${this._ticks()}
                 <g class="needle">
                     <polygon points="${_CX - 1.6},${_CY + 6} ${_CX + 1.6},${_CY + 6} ${_CX},${_CY - _R + 6}"

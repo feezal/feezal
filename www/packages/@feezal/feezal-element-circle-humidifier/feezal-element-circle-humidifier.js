@@ -123,16 +123,16 @@ class FeezalElementCircleHumidifier extends FeezalElement {
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
                 {property: '--feezal-humidifier-humid-color', type: 'color',
-                    default: 'var(--info-color, #29b6f6)',
+                    default: 'var(--info-color)',
                     help: 'Arc, handle and chip accent colour in humidifier mode.'},
                 {property: '--feezal-humidifier-dry-color', type: 'color',
-                    default: 'var(--warning-color, #ff9800)',
+                    default: 'var(--warning-color)',
                     help: 'Arc, handle and chip accent colour in dehumidifier mode.'},
                 {property: '--feezal-humidifier-idle-color', type: 'color',
-                    default: 'var(--secondary-text-color, #aaa)',
+                    default: 'var(--secondary-text-color)',
                     help: 'Background track and off/idle colour.'},
                 {property: '--feezal-humidifier-text-color', type: 'color',
-                    default: 'var(--primary-text-color, #212121)',
+                    default: 'var(--primary-text-color)',
                     help: 'Humidity text, chip text, and label colour.'},
             ],
             restrict:     {minWidth: 150, minHeight: 180},
@@ -179,10 +179,10 @@ class FeezalElementCircleHumidifier extends FeezalElement {
             position: relative;
 
             /* ── Theme-aware colour tokens ──────────────────────────────────── */
-            --feezal-humidifier-humid-color: var(--info-color,           var(--feezal-info,   #29b6f6));
-            --feezal-humidifier-dry-color:   var(--warning-color,        var(--feezal-warn,   #ff9800));
-            --feezal-humidifier-idle-color:  var(--secondary-text-color, var(--feezal-color2, #aaa));
-            --feezal-humidifier-text-color:  var(--primary-text-color,   var(--feezal-color,  #212121));
+            --feezal-humidifier-humid-color: var(--info-color);
+            --feezal-humidifier-dry-color:   var(--warning-color);
+            --feezal-humidifier-idle-color:  var(--secondary-text-color);
+            --feezal-humidifier-text-color:  var(--primary-text-color);
 
             /* MD3 bridge — filter-chips follow the accent theme (set per-type in render) */
             --md-sys-color-on-surface-variant: var(--feezal-humidifier-idle-color);

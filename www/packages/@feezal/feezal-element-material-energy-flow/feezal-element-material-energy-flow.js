@@ -186,7 +186,7 @@ class FeezalElementMaterialEnergyFlow extends FeezalElement {
                 font-family="Material Symbols Outlined, Material Icons, sans-serif"
                 fill="${color}">${icon}</text>
             <text x="${cx}" y="${cy + r + 13}" text-anchor="middle" font-size="9"
-                fill="var(--secondary-text-color, #666)">${label}</text>
+                fill="var(--secondary-text-color)">${label}</text>
             ${!isEditor && value != null ? svg`
                 <text x="${cx}" y="${cy + r + 24}" text-anchor="middle" font-size="8"
                     font-weight="500" fill="${color}">${fmt(value)}</text>` : ''}`;

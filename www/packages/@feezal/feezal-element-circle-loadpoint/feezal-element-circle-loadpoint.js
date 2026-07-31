@@ -36,7 +36,7 @@ class FeezalElementCircleLoadpoint extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
-                {property: '--feezal-loadpoint-accent', type: 'color', default: 'var(--accent-color, #30d158)', help: 'Charging / active-mode accent.'},
+                {property: '--feezal-loadpoint-accent', type: 'color', default: 'var(--accent-color)', help: 'Charging / active-mode accent.'},
                 {property: '--feezal-loadpoint-text-color', type: 'color', default: 'var(--primary-text-color)', help: 'Text colour.'},
             ],
             defaultStyle: {width: '200px', height: '210px'},
@@ -78,8 +78,8 @@ class FeezalElementCircleLoadpoint extends FeezalElement {
             overflow: hidden;
             position: relative;
             container-type: inline-size;
-            --feezal-loadpoint-accent: var(--accent-color, var(--success-color, #30d158));
-            --feezal-loadpoint-text-color: var(--primary-text-color, #1d1d1f);
+            --feezal-loadpoint-accent: var(--accent-color);
+            --feezal-loadpoint-text-color: var(--primary-text-color);
             color: var(--feezal-loadpoint-text-color);
         }
         .head { display: flex; align-items: center; gap: 6px; }
@@ -90,7 +90,7 @@ class FeezalElementCircleLoadpoint extends FeezalElement {
         .power { font-size: 26px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
         .socbar { position: relative; height: 8px; border-radius: 4px; background: color-mix(in srgb, currentColor 18%, transparent); overflow: hidden; margin-top: 2px; }
         .socbar .fill { position: absolute; inset: 0 auto 0 0; background: var(--feezal-loadpoint-accent, #30d158); border-radius: 4px; }
-        .socbar .limit { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--primary-text-color, #222); opacity: 0.6; }
+        .socbar .limit { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--primary-text-color); opacity: 0.6; }
         .socline, .session { font-size: 11px; opacity: 0.7; }
         .modes { display: flex; gap: 3px; margin-top: auto; }
         .modes button {
@@ -99,7 +99,7 @@ class FeezalElementCircleLoadpoint extends FeezalElement {
             background: transparent; color: inherit; min-width: 0;
         }
         .modes button.active { background: var(--feezal-loadpoint-accent, #30d158); border-color: var(--feezal-loadpoint-accent, #30d158); color: #fff; }
-        .unavail { position: absolute; top: 6px; right: 8px; font-size: 14px; color: var(--error-color, #d32f2f); opacity: 0.85; }
+        .unavail { position: absolute; top: 6px; right: 8px; font-size: 14px; color: var(--error-color); opacity: 0.85; }
     `];
 
     constructor() {

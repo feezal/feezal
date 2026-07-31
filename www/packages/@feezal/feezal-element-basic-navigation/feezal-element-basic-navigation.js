@@ -49,16 +49,16 @@ class FeezalElementBasicNavigation extends FeezalElement {
         :host([orientation="vertical"]) { flex-direction: column; }
         :host(:not([orientation="vertical"])) { flex-direction: row; flex-wrap: wrap; }
         button {
-            flex: 1 0 auto; border: 1px solid var(--primary-color, #0284c7);
-            background: transparent; color: var(--primary-text-color, inherit);
+            flex: 1 0 auto; border: 1px solid var(--primary-color);
+            background: transparent; color: var(--primary-text-color);
             cursor: pointer; padding: 6px 10px; font-size: 13px;
             transition: background 0.15s, color 0.15s; border-radius: 3px; margin: 2px;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
         button:hover { background: rgba(0,0,0,0.08); }
         button.active {
-            background: var(--nav-active-color, var(--primary-color, #0284c7));
-            color: #fff; border-color: var(--nav-active-color, var(--primary-color, #0284c7));
+            background: var(--nav-active-color, var(--primary-color));
+            color: #fff; border-color: var(--nav-active-color, var(--primary-color));
         }
         .editor-placeholder {
             flex: 1; border: 2px dashed #4a6080; background: #e8edf2; border-radius: 4px;

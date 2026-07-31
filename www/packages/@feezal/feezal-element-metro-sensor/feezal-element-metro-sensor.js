@@ -45,7 +45,7 @@ class FeezalElementMetroSensor extends MetroTileBase {
             styles: [
                 ...MetroTileBase.tileStyles,
                 {property: '--feezal-metro-active-color', type: 'color',
-                    default: 'var(--error-color, #e51400)',
+                    default: 'var(--error-color)',
                     help: 'Tile colour while the alarm is triggered (theme error colour by default).'},
                 // E141: CLEAR tile background — defaults to the family accent.
                 {property: '--feezal-metro-clear-color', type: 'color',
@@ -82,7 +82,7 @@ class FeezalElementMetroSensor extends MetroTileBase {
         /* E138: active default = the error var (SensorController.activeColorVar()
            resolves the alarm slice to --error-color); --feezal-metro-active-color
            stays the per-element override. */
-        :host { --feezal-metro-active-color: var(--error-color, #e51400); --feezal-metro-clear-color: var(--feezal-metro-accent); }
+        :host { --feezal-metro-active-color: var(--error-color); --feezal-metro-clear-color: var(--feezal-metro-accent); }
         .face { transition: background 0.15s; }
         :host([data-active]) .face { background: var(--feezal-metro-active-color); }
         :host(:not([data-active])) .face { background: var(--feezal-metro-clear-color); }

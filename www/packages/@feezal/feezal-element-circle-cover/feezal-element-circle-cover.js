@@ -163,10 +163,10 @@ class FeezalElementCircleCover extends FeezalElement {
                Style inspector or a theme rule.                              */
             /* E123: the frame is the card's ACCENT — primary colour, like the
                active track/knob on the other Material cards. */
-            --feezal-cover-frame-color: var(--primary-color, #0284c7);
-            --feezal-cover-panel-color: var(--secondary-background-color, var(--feezal-bg-sub, #ddd));
-            --feezal-cover-text-color:  var(--primary-text-color,        var(--feezal-color, #333));
-            --feezal-cover-error-color: var(--error-color, #b00020);
+            --feezal-cover-frame-color: var(--primary-color);
+            --feezal-cover-panel-color: var(--secondary-background-color);
+            --feezal-cover-text-color:  var(--primary-text-color);
+            --feezal-cover-error-color: var(--error-color);
 
             /* MD3 bridge — icon buttons follow the cover theme */
             --md-sys-color-on-surface:         var(--feezal-cover-text-color);

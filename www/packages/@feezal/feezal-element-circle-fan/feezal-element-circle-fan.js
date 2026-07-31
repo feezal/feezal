@@ -71,7 +71,7 @@ class FeezalElementCircleFan extends FeezalElement {
                 {property: '--feezal-fan-on-color',    type: 'color', default: 'var(--primary-text-color)',   help: 'Fan blade colour when on.'},
                 {property: '--feezal-fan-off-color',   type: 'color', default: 'var(--secondary-text-color)', help: 'Fan blade colour when off.'},
                 {property: '--feezal-fan-text-color',  type: 'color', default: 'var(--primary-text-color)',   help: 'Text and control colour.'},
-                {property: '--feezal-fan-error-color', type: 'color', default: 'var(--error-color, #b00020)', help: 'Unavailability badge colour.'},
+                {property: '--feezal-fan-error-color', type: 'color', default: 'var(--error-color)', help: 'Unavailability badge colour.'},
             ],
             restrict:     {minWidth: 100, minHeight: 120},
             defaultStyle: {width: '160px', height: '200px'},
@@ -114,14 +114,14 @@ class FeezalElementCircleFan extends FeezalElement {
                the neutral ring to the text colour like the other Circle cards. */
             container-type: inline-size;
             color: var(--feezal-fan-text-color, #333);
-            --feezal-fan-on-color:    var(--primary-text-color, var(--feezal-color, #333));
-            --feezal-fan-off-color:   var(--secondary-text-color, var(--feezal-color-sub, #999));
-            --feezal-fan-text-color:  var(--primary-text-color, var(--feezal-color, #333));
-            --feezal-fan-error-color: var(--error-color, #b00020);
+            --feezal-fan-on-color:    var(--primary-text-color);
+            --feezal-fan-off-color:   var(--secondary-text-color);
+            --feezal-fan-text-color:  var(--primary-text-color);
+            --feezal-fan-error-color: var(--error-color);
             /* Use the themed accent colour for interactive controls (switch track, preset active).
                --primary-color is the feezal/Shoelace accent; --primary-text-color is used for
                the blade colour only so it can stay white on dark themes. */
-            --feezal-fan-accent-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --feezal-fan-accent-color: var(--primary-color);
             --md-sys-color-primary:              var(--feezal-fan-accent-color);
             --md-slider-active-track-color:      var(--feezal-fan-accent-color);
             --md-slider-handle-color:            var(--feezal-fan-accent-color);
@@ -170,7 +170,7 @@ class FeezalElementCircleFan extends FeezalElement {
         }
         .preset-btn.active {
             background: var(--feezal-fan-accent-color);
-            color: var(--primary-background-color, #fff);
+            color: var(--primary-background-color);
             border-color: var(--feezal-fan-accent-color);
         }
         .label {

@@ -34,9 +34,9 @@ class FeezalElementMaterialCheckbox extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height',
-                {property: '--feezal-checkbox-color',         type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Checkbox fill and border colour when checked.'},
-                {property: '--feezal-checkbox-inactive-color', type: 'color', default: 'var(--divider-color, #757575)', help: 'Border colour when unchecked.'},
-                {property: '--feezal-checkbox-label-color',    type: 'color', default: 'var(--primary-text-color, #333)', help: 'Label text colour.'},
+                {property: '--feezal-checkbox-color',         type: 'color', default: 'var(--primary-color)', help: 'Checkbox fill and border colour when checked.'},
+                {property: '--feezal-checkbox-inactive-color', type: 'color', default: 'var(--divider-color)', help: 'Border colour when unchecked.'},
+                {property: '--feezal-checkbox-label-color',    type: 'color', default: 'var(--primary-text-color)', help: 'Label text colour.'},
                 {property: '--feezal-checkbox-size',           default: '18px', help: 'Checkbox box size, e.g. "18px" or "24px".'},
             ],
             defaultStyle: {width: '140px', height: '40px'},
@@ -67,9 +67,9 @@ class FeezalElementMaterialCheckbox extends FeezalElement {
             /* E38: scale the box + label with the element size (cqmin = 1% of the
                smaller of width/height). An explicit --feezal-checkbox-size still wins. */
             container-type: size;
-            --feezal-checkbox-color:          var(--primary-color, var(--sl-color-primary-600, #0284c7));
-            --feezal-checkbox-inactive-color: var(--divider-color, #757575);
-            --feezal-checkbox-label-color:    var(--primary-text-color, #333);
+            --feezal-checkbox-color:          var(--primary-color);
+            --feezal-checkbox-inactive-color: var(--divider-color);
+            --feezal-checkbox-label-color:    var(--primary-text-color);
             --feezal-checkbox-size:           55cqmin;
             /* MD3 token wiring */
             --md-sys-color-primary:                          var(--feezal-checkbox-color);
@@ -101,7 +101,7 @@ class FeezalElementMaterialCheckbox extends FeezalElement {
             padding: 4px;
             box-sizing: border-box;
             font-size: 14px;
-            color: var(--feezal-checkbox-label-color, var(--primary-text-color, #555));
+            color: var(--feezal-checkbox-label-color, var(--primary-text-color));
         }
         .editor-ph .box {
             width: var(--feezal-checkbox-size, 18px);

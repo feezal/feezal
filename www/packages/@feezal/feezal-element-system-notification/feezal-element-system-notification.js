@@ -54,8 +54,8 @@ class FeezalNotificationToasts extends LitElement {
             padding: 10px 12px;
             border-radius: 6px;
             border-left: 4px solid var(--_sev);
-            background: var(--secondary-background-color, #fff);
-            color: var(--primary-text-color, #333);
+            background: var(--secondary-background-color);
+            color: var(--primary-text-color);
             box-shadow: 0 4px 16px rgba(0,0,0,0.25);
             box-sizing: border-box;
             animation: feezal-toast-in 0.18s ease;
@@ -64,10 +64,10 @@ class FeezalNotificationToasts extends LitElement {
             from { opacity: 0; transform: translateX(24px); }
             to   { opacity: 1; transform: translateX(0); }
         }
-        .toast.info    { --_sev: var(--info-color, #2196f3); }
-        .toast.success { --_sev: var(--success-color, #4caf50); }
-        .toast.warning { --_sev: var(--warning-color, #ff9800); }
-        .toast.error   { --_sev: var(--error-color, #e53935); }
+        .toast.info    { --_sev: var(--info-color); }
+        .toast.success { --_sev: var(--success-color); }
+        .toast.warning { --_sev: var(--warning-color); }
+        .toast.error   { --_sev: var(--error-color); }
         .ticon {
             font-family: 'Material Icons';
             font-size: 20px;
@@ -211,7 +211,7 @@ class FeezalElementSystemNotification extends FeezalElement {
         .ph {
             position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
             gap: 4px; box-sizing: border-box; font-size: 11px; text-align: center;
-            color: var(--secondary-text-color, #777);
+            color: var(--secondary-text-color);
             border: 2px dashed var(--feezal-border, #bbb); border-radius: 6px;
         }
         .ph .material-icons { font-family: 'Material Icons'; font-size: 16px; }

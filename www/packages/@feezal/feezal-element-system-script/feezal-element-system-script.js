@@ -99,7 +99,7 @@ class FeezalElementSystemScript extends FeezalElement {
         .ph {
             position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
             gap: 4px; box-sizing: border-box; font-size: 11px; text-align: center; overflow: hidden;
-            color: var(--secondary-text-color, #777);
+            color: var(--secondary-text-color);
             border: 2px dashed var(--feezal-border, #bbb); border-radius: 6px;
         }
         .ph .material-icons { font-family: 'Material Icons'; font-size: 16px; }

@@ -92,7 +92,7 @@ class FeezalElementGlassValue extends FeezalElement {
         .unavail {
             position: absolute; top: 6px; right: 8px;
             font-size: 14px; line-height: 1;
-            color: var(--error-color, #d32f2f);
+            color: var(--error-color);
             opacity: 0.85; pointer-events: none; z-index: 2;
         }
         feezal-icon { font-size: var(--feezal-glass-icon-size, 28px); line-height: 1; color: var(--feezal-glass-accent, #ff9f0a); }

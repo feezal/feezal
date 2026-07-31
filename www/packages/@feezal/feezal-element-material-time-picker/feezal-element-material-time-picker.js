@@ -80,7 +80,7 @@ class FeezalElementMaterialTimePicker extends FeezalElement {
             styles: [
                 'top', 'left', 'width', 'height',
                 {property: '--feezal-time-picker-color', type: 'color',
-                 default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))',
+                 default: 'var(--primary-color)',
                  help: 'Accent colour (focus border, wheel highlight, OK button).'},
             ],
             defaultStyle: {width: '160px', height: '60px'},
@@ -105,17 +105,17 @@ class FeezalElementMaterialTimePicker extends FeezalElement {
             display: flex;
             align-items: center;
             box-sizing: border-box;
-            --feezal-time-picker-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --feezal-time-picker-color: var(--primary-color);
             --md-sys-color-primary: var(--feezal-time-picker-color);
-            --md-sys-color-on-surface: var(--primary-text-color, #333);
-            --md-sys-color-surface: var(--card-background-color, #fff);
-            --md-sys-color-outline: var(--divider-color, #ccc);
+            --md-sys-color-on-surface: var(--primary-text-color);
+            --md-sys-color-surface: var(--card-background-color);
+            --md-sys-color-outline: var(--divider-color);
         }
         md-outlined-text-field { width: 100%; }
         .clock-btn {
             border: none; background: none; cursor: pointer; padding: 2px;
             font-family: 'Material Icons'; font-size: 20px;
-            color: var(--secondary-text-color, #666);
+            color: var(--secondary-text-color);
         }
 
         /* ── Wheel overlay ─────────────────────────────────────────────── */
@@ -125,8 +125,8 @@ class FeezalElementMaterialTimePicker extends FeezalElement {
             display: flex; align-items: center; justify-content: center;
         }
         .panel {
-            background: var(--secondary-background-color, #fff);
-            color: var(--primary-text-color, #333);
+            background: var(--secondary-background-color);
+            color: var(--primary-text-color);
             border-radius: 12px; padding: 14px 16px 12px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.35);
             user-select: none; touch-action: pan-y;
@@ -162,7 +162,7 @@ class FeezalElementMaterialTimePicker extends FeezalElement {
         .buttons button {
             border: none; border-radius: 6px; padding: 7px 14px; cursor: pointer;
             font: inherit; font-size: 13px;
-            background: none; color: var(--primary-text-color, #333);
+            background: none; color: var(--primary-text-color);
         }
         .buttons button.ok {
             background: var(--feezal-time-picker-color); color: #fff;

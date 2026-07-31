@@ -177,11 +177,15 @@ These are editor UI components, not dashboard elements. Only modify these when c
 
 ## Theme variable discipline (ALL elements)
 
-When defaulting a `--feezal-*` CSS custom property (element chrome, `styles` descriptors, inline CSS `var(...)` fallbacks), use **only** these canonical theme variables — each with a literal hex last-resort fallback:
+When defaulting a `--feezal-*` CSS custom property (element chrome, `styles` descriptors, inline CSS `var(...)` fallbacks), use **only** these canonical theme variables, referenced **bare — no fallback of any kind**:
 
-`--primary-background-color`, `--secondary-background-color`, `--primary-text-color`, `--secondary-text-color`, `--disabled-text-color`, `--divider-color`, `--primary-color`, `--accent-color`, `--error-color`
+`--primary-background-color`, `--secondary-background-color`, `--primary-text-color`, `--secondary-text-color`, `--disabled-text-color`, `--divider-color`, `--primary-color`, `--accent-color`, `--error-color` — plus the semantic state colours `--warning-color`, `--success-color`, `--info-color` and `--card-background-color`.
 
-**Never default to `--md-sys-color-*` (Material Design 3) tokens** — feezal themes define the canonical set above, not the MD3 palette, so an `--md-sys-color-*` default silently falls through to its hardcoded hex and ignores the active theme. Role mapping: bar/accent → `--primary-color`; drawer/panel surface → `--divider-color` or `--secondary-background-color`; body text → `--primary-text-color`; muted → `--secondary-text-color`; active highlight → `--secondary-background-color`. See `docs/element-spec.md` §5.1. (`feezal-element-layout-app` is the reference; the `material-*` family's remaining `--md-sys-color-*` usages are legacy — migrate them to the canonical set when next touching those elements.)
+- **Correct:** `var(--primary-color)`. **Wrong:** any fallback chain — no hex literals, no rgba, no nested vars after a canonical var, and **never `--sl-*` tokens** in dashboard styling (Shoelace tokens belong to the editor's own chrome; the sole exception is `--sl-input-color`/`--sl-input-label-color` inside N6 custom-inspector components, which are editor UI).
+- The default palette is defined **once**, at `:root`, by `www/src/feezal-base-theme.js` (loaded by editor, viewer and static export). Theme classes override it by inheritance proximity. Adding a fallback to an element re-creates the drifting-copies problem this rule removed.
+- Enforced by `www/test/theme-var-discipline.test.js` — CI fails on `--sl-color-*` or any canonical var referenced with a fallback.
+
+**Never default to `--md-sys-color-*` (Material Design 3) tokens** — feezal themes define the canonical set above, not the MD3 palette. Role mapping: bar/accent → `--primary-color`; drawer/panel surface → `--divider-color` or `--secondary-background-color`; body text → `--primary-text-color`; muted → `--secondary-text-color`; active highlight → `--secondary-background-color`. See `docs/element-spec.md` §5.1. (The `material-*` family's remaining `--md-sys-color-*` usages are legacy — migrate them to the canonical set when next touching those elements.)
 
 ---
 

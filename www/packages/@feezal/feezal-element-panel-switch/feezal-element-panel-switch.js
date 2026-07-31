@@ -71,7 +71,7 @@ class FeezalElementPanelSwitch extends FeezalElement {
             styles: [
                 'top', 'left', 'width', 'height',
                 {property: '--feezal-panel-switch-on-color', type: 'color',
-                    default: 'var(--success-color, #43a047)',
+                    default: 'var(--success-color)',
                     help: 'ON position marker colour.'},
                 {property: '--feezal-panel-bezel', type: 'color', default: '#3c454d', help: 'Bezel/plate colour (shared across panel-* elements).'},
                 {property: '--feezal-panel-text', type: 'color', default: '#aeb7bd', help: 'Engraved label colour (shared across panel-* elements).'},
@@ -111,7 +111,7 @@ class FeezalElementPanelSwitch extends FeezalElement {
         :host {
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             gap: 4px; box-sizing: border-box; overflow: hidden;
-            --feezal-panel-switch-on-color: var(--success-color, #43a047);
+            --feezal-panel-switch-on-color: var(--success-color);
         }
         svg { flex: 1; min-height: 0; width: 100%; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
         /* Lever snap: fast accelerate, small overshoot. transform-box makes

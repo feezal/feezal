@@ -44,8 +44,8 @@ class FeezalElementMaterialSlider extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height',
-                {property: '--feezal-slider-color',        type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Active track and thumb colour (used as default for --feezal-slider-knob-color).'},
-                {property: '--feezal-slider-track-color',  type: 'color', default: 'var(--divider-color, #e0e0e0)', help: 'Inactive track colour.'},
+                {property: '--feezal-slider-color',        type: 'color', default: 'var(--primary-color)', help: 'Active track and thumb colour (used as default for --feezal-slider-knob-color).'},
+                {property: '--feezal-slider-track-color',  type: 'color', default: 'var(--divider-color)', help: 'Inactive track colour.'},
                 {property: '--feezal-slider-knob-color',   type: 'color', default: 'var(--feezal-slider-color)',    help: 'Thumb / knob colour. Defaults to the active track colour.'},
                 {property: '--feezal-slider-track-width',  default: '4px',  help: 'Track height in CSS units, e.g. "4px" or "6px".'},
                 {property: '--feezal-slider-knob-size',    default: '20px', help: 'Thumb diameter in CSS units, e.g. "20px".'},
@@ -71,8 +71,8 @@ class FeezalElementMaterialSlider extends FeezalElement {
             /* E38: track + handle scale with the element height (cqh = 1% of height);
                explicit --feezal-slider-track-width / --feezal-slider-knob-size still win. */
             container-type: size;
-            --feezal-slider-color:        var(--primary-color, var(--sl-color-primary-600, #0284c7));
-            --feezal-slider-track-color:  var(--divider-color, #e0e0e0);
+            --feezal-slider-color:        var(--primary-color);
+            --feezal-slider-track-color:  var(--divider-color);
             --feezal-slider-knob-color:   var(--feezal-slider-color);
             --feezal-slider-track-width:  8cqh;
             --feezal-slider-knob-size:    42cqh;

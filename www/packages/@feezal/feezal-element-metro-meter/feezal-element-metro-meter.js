@@ -79,7 +79,7 @@ class FeezalElementMetroMeter extends MetroTileBase {
             max-width: 92%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
         .brow { font-size: var(--_metro-unit-size); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .brow.age.stale { color: var(--error-color, #e51400); font-weight: 600; }
+        .brow.age.stale { color: var(--error-color); font-weight: 600; }
         .brow.raw { opacity: 0.75; }
         .placeholder { text-align: center; opacity: 0.7; }
     `];

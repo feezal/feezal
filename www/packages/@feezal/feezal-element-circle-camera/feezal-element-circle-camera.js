@@ -38,7 +38,7 @@ class FeezalElementCircleCamera extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'border-radius',
-                {property: '--feezal-camera-bg-color',    type: 'color', default: 'var(--secondary-background-color, #111)', help: 'Background colour shown when no feed is loaded.'},
+                {property: '--feezal-camera-bg-color',    type: 'color', default: 'var(--secondary-background-color)', help: 'Background colour shown when no feed is loaded.'},
                 {property: '--feezal-camera-label-color', type: 'color', default: 'var(--primary-text-color)', help: 'Overlay label text colour.'},
             ],
             restrict:     {minWidth: 120, minHeight: 80},
@@ -69,9 +69,9 @@ class FeezalElementCircleCamera extends FeezalElement {
             overflow: hidden;
             box-sizing: border-box;
             position: relative;
-            background: var(--feezal-camera-bg-color, var(--secondary-background-color, #111));
-            --feezal-camera-bg-color:    var(--secondary-background-color, #111);
-            --feezal-camera-label-color: var(--primary-text-color, #fff);
+            background: var(--feezal-camera-bg-color, var(--secondary-background-color));
+            --feezal-camera-bg-color:    var(--secondary-background-color);
+            --feezal-camera-label-color: var(--primary-text-color);
         }
         img.feed, video.feed {
             width: 100%; flex: 1; min-height: 0; object-fit: contain; display: block;

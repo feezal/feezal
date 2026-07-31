@@ -187,7 +187,7 @@ class FeezalElementMaterialSchedule extends FeezalElement {
             styles: [
                 'top', 'left', 'width', 'height',
                 {property: '--feezal-schedule-color', type: 'color',
-                 default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))',
+                 default: 'var(--primary-color)',
                  help: 'Block / accent colour.'},
             ],
             defaultStyle: {width: '420px', height: '320px'},
@@ -213,10 +213,10 @@ class FeezalElementMaterialSchedule extends FeezalElement {
     static styles = [feezalBaseStyles, css`
         :host {
             display: flex; flex-direction: column; box-sizing: border-box;
-            font-size: 12px; color: var(--primary-text-color, #333);
-            background: var(--card-background-color, var(--feezal-bg, #fff));
+            font-size: 12px; color: var(--primary-text-color);
+            background: var(--card-background-color);
             border-radius: 8px; padding: 8px;
-            --feezal-schedule-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --feezal-schedule-color: var(--primary-color);
             user-select: none;
         }
         .head {
@@ -229,13 +229,13 @@ class FeezalElementMaterialSchedule extends FeezalElement {
             color: var(--feezal-schedule-color);
         }
         .spacer { flex: 1; }
-        .dirty { font-size: 11px; color: var(--warning-color, #ff9800); }
+        .dirty { font-size: 11px; color: var(--warning-color); }
         .remote-hint {
-            font-size: 11px; color: var(--warning-color, #ff9800);
+            font-size: 11px; color: var(--warning-color);
             margin-bottom: 4px;
         }
         .btn {
-            border: 1px solid var(--divider-color, #ccc); border-radius: 5px;
+            border: 1px solid var(--divider-color); border-radius: 5px;
             background: none; color: inherit; cursor: pointer;
             font: inherit; font-size: 12px; padding: 3px 10px;
         }
@@ -256,12 +256,12 @@ class FeezalElementMaterialSchedule extends FeezalElement {
         .day .name { text-align: center; font-size: 10px; opacity: 0.7; margin-bottom: 2px; }
         .col {
             flex: 1; position: relative; border-radius: 3px;
-            background: color-mix(in srgb, var(--primary-text-color, #333) 6%, transparent);
+            background: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
             touch-action: none;
         }
         .col .hourline {
             position: absolute; left: 0; right: 0; height: 1px;
-            background: color-mix(in srgb, var(--primary-text-color, #333) 8%, transparent);
+            background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
             pointer-events: none;
         }
         .block {
@@ -271,7 +271,7 @@ class FeezalElementMaterialSchedule extends FeezalElement {
             display: flex; align-items: center; justify-content: center;
             font-size: 9px;
         }
-        .block.selected { outline: 2px solid var(--warning-color, #ff9800); z-index: 2; }
+        .block.selected { outline: 2px solid var(--warning-color); z-index: 2; }
         .block .edge {
             position: absolute; left: 0; right: 0; height: 7px; cursor: ns-resize;
         }
@@ -279,7 +279,7 @@ class FeezalElementMaterialSchedule extends FeezalElement {
         .block .edge.bottom { bottom: 0; }
         .nowline {
             position: absolute; left: 0; right: 0; height: 0;
-            border-top: 1px dashed var(--error-color, #d32f2f);
+            border-top: 1px dashed var(--error-color);
             pointer-events: none; z-index: 3;
         }
         .toolbar {
@@ -289,7 +289,7 @@ class FeezalElementMaterialSchedule extends FeezalElement {
         .toolbar input[type="number"] {
             width: 70px; font: inherit; padding: 2px 4px;
             background: var(--feezal-bg, #fff); color: inherit;
-            border: 1px solid var(--divider-color, #ccc); border-radius: 4px;
+            border: 1px solid var(--divider-color); border-radius: 4px;
         }
     `];
 

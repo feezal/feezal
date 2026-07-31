@@ -78,7 +78,7 @@ class FeezalElementBasicIcon extends FeezalElement {
         feezal-icon {
             font-size: 90cqmin;
             line-height: 1;
-            color: var(--feezal-icon-color, var(--primary-text-color, #333));
+            color: var(--feezal-icon-color, var(--primary-text-color));
         }
     `];
 

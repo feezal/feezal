@@ -43,7 +43,7 @@ class FeezalElementMetroMotion extends MetroTileBase {
             styles: [
                 ...MetroTileBase.tileStyles,
                 {property: '--feezal-metro-active-color', type: 'color',
-                    default: 'var(--accent-color, #fa6800)',
+                    default: 'var(--accent-color)',
                     help: 'Tile colour while motion is detected / the zone is occupied (theme accent by default).'},
                 // E141: CLEAR (idle) tile background — defaults to the family accent.
                 {property: '--feezal-metro-clear-color', type: 'color',
@@ -80,7 +80,7 @@ class FeezalElementMetroMotion extends MetroTileBase {
         /* E138: active default = the accent var (SensorController.activeColorVar()
            resolves the motion slice to --accent-color); --feezal-metro-active-color
            stays the per-element override. */
-        :host { --feezal-metro-active-color: var(--accent-color, #fa6800); --feezal-metro-clear-color: var(--feezal-metro-accent); }
+        :host { --feezal-metro-active-color: var(--accent-color); --feezal-metro-clear-color: var(--feezal-metro-accent); }
         .face { transition: background 0.15s; }
         :host([data-active]) .face { background: var(--feezal-metro-active-color); }
         :host(:not([data-active])) .face { background: var(--feezal-metro-clear-color); }

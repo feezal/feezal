@@ -85,10 +85,10 @@ class FeezalElementMaterialSelect extends FeezalElement {
             width: 100%;
             height: 40px;
             padding: 0 12px;
-            border: 1px solid var(--divider-color, #ccc);
+            border: 1px solid var(--divider-color);
             border-radius: 4px;
             font-size: 14px;
-            color: var(--secondary-text-color, #666);
+            color: var(--secondary-text-color);
             box-sizing: border-box;
         }
     `];

@@ -67,8 +67,8 @@ class FeezalElementCirclePlant extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
-                {property: '--feezal-plant-ok-color',   type: 'color', default: 'var(--success-color, #4caf50)',  help: 'Badge colour for in-range values.'},
-                {property: '--feezal-plant-warn-color', type: 'color', default: 'var(--warning-color, #ff9800)', help: 'Badge colour for out-of-range values.'},
+                {property: '--feezal-plant-ok-color',   type: 'color', default: 'var(--success-color)',  help: 'Badge colour for in-range values.'},
+                {property: '--feezal-plant-warn-color', type: 'color', default: 'var(--warning-color)', help: 'Badge colour for out-of-range values.'},
                 {property: '--feezal-plant-text-color', type: 'color', default: 'var(--primary-text-color)',     help: 'Label and value text colour.'},
             ],
             restrict:     {minWidth: 160, minHeight: 80},
@@ -130,9 +130,9 @@ class FeezalElementCirclePlant extends FeezalElement {
             box-sizing: border-box;
             overflow: hidden;
             gap: 4px;
-            --feezal-plant-ok-color:   var(--success-color, var(--feezal-success, #4caf50));
-            --feezal-plant-warn-color: var(--warning-color, var(--feezal-warning, #ff9800));
-            --feezal-plant-text-color: var(--primary-text-color, var(--feezal-color, #333));
+            --feezal-plant-ok-color:   var(--success-color);
+            --feezal-plant-warn-color: var(--warning-color);
+            --feezal-plant-text-color: var(--primary-text-color);
         }
         .header {
             display: flex; align-items: center; gap: 6px;
@@ -149,7 +149,7 @@ class FeezalElementCirclePlant extends FeezalElement {
         }
         .battery-badge {
             font-size: 10px; padding: 1px 5px; border-radius: 8px;
-            background: var(--feezal-plant-text-color); color: var(--primary-background-color, #fff);
+            background: var(--feezal-plant-text-color); color: var(--primary-background-color);
             opacity: 0.6; white-space: nowrap;
         }
         .dry-badge {
@@ -162,7 +162,7 @@ class FeezalElementCirclePlant extends FeezalElement {
         .metric  { display: flex; flex-direction: column; align-items: center; min-width: 34px; gap: 1px; }
         .metric-bar-bg {
             width: 30px; height: 5px; border-radius: 3px;
-            background: var(--secondary-background-color, #e0e0e0); overflow: hidden;
+            background: var(--secondary-background-color); overflow: hidden;
         }
         .metric-bar { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
         .metric-label { font-size: 9px; opacity: 0.55; color: var(--feezal-plant-text-color); }
@@ -179,7 +179,7 @@ class FeezalElementCirclePlant extends FeezalElement {
         }
         .detail-bar-bg {
             width: 48px; height: 4px; border-radius: 2px;
-            background: var(--secondary-background-color, #e0e0e0); overflow: hidden; flex-shrink: 0;
+            background: var(--secondary-background-color); overflow: hidden; flex-shrink: 0;
         }
         .detail-bar { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
     `];

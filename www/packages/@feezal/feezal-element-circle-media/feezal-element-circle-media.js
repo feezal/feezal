@@ -93,16 +93,16 @@ class FeezalElementCircleMedia extends FeezalElement {
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
                 {property: '--feezal-media-color', type: 'color',
-                    default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))',
+                    default: 'var(--primary-color)',
                     help: 'Accent colour — progress fill, active shuffle/repeat, volume track.'},
                 {property: '--feezal-media-text-color', type: 'color',
-                    default: 'var(--primary-text-color, var(--feezal-color, #212121))',
+                    default: 'var(--primary-text-color)',
                     help: 'Track title and transport icon colour.'},
                 {property: '--feezal-media-muted-color', type: 'color',
-                    default: 'var(--secondary-text-color, #9e9e9e)',
+                    default: 'var(--secondary-text-color)',
                     help: 'Artist / album / time text and inactive control colour.'},
                 {property: '--feezal-media-surface-color', type: 'color',
-                    default: 'var(--secondary-background-color, var(--feezal-bg, #fff))',
+                    default: 'var(--secondary-background-color)',
                     help: 'Album-art placeholder and progress-track background.'},
             ],
             restrict:     {minWidth: 220, minHeight: 120},
@@ -172,10 +172,10 @@ class FeezalElementCircleMedia extends FeezalElement {
             overflow: hidden;
 
             /* ── Theme-aware colour tokens ──────────────────────────────────── */
-            --feezal-media-color:         var(--primary-color,        var(--sl-color-primary-600, #0284c7));
-            --feezal-media-text-color:    var(--primary-text-color,   var(--feezal-color, #212121));
-            --feezal-media-muted-color:   var(--secondary-text-color, #9e9e9e);
-            --feezal-media-surface-color: var(--secondary-background-color, var(--feezal-bg, #fff));
+            --feezal-media-color:         var(--primary-color);
+            --feezal-media-text-color:    var(--primary-text-color);
+            --feezal-media-muted-color:   var(--secondary-text-color);
+            --feezal-media-surface-color: var(--secondary-background-color);
 
             color: var(--feezal-media-text-color);
             font-size: 13px;

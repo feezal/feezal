@@ -118,7 +118,7 @@ class FeezalElementMaterialComputerStats extends FeezalElement {
         }
         .centre-label {
             font-size: 9px;
-            fill: var(--secondary-text-color, #666);
+            fill: var(--secondary-text-color);
             text-anchor: middle;
             dominant-baseline: middle;
         }
@@ -127,7 +127,7 @@ class FeezalElementMaterialComputerStats extends FeezalElement {
             flex-direction: column;
             gap: 4px;
             font-size: 11px;
-            color: var(--secondary-text-color, #666);
+            color: var(--secondary-text-color);
             flex-shrink: 0;
         }
         .legend-row {
@@ -144,7 +144,7 @@ class FeezalElementMaterialComputerStats extends FeezalElement {
         }
         .legend-val {
             font-weight: 500;
-            color: var(--primary-text-color, #333);
+            color: var(--primary-text-color);
         }
     `];
 

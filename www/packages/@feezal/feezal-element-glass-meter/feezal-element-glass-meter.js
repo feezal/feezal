@@ -83,17 +83,17 @@ class FeezalElementGlassMeter extends FeezalGlassCard {
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
         .err {
-            font-size: 10px; font-weight: 700; color: var(--error-color, #d32f2f);
+            font-size: 10px; font-weight: 700; color: var(--error-color);
             max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
-        .unavail { position: absolute; top: 6px; right: 8px; font-size: 14px; color: var(--error-color, #d32f2f); opacity: 0.85; }
+        .unavail { position: absolute; top: 6px; right: 8px; font-size: 14px; color: var(--error-color); opacity: 0.85; }
 
         /* Popup: the secondary readouts as a key/value list. */
         .readouts { display: flex; flex-direction: column; gap: 8px; align-self: stretch; font-size: 13px; }
         .readouts .rline { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
         .readouts .rk { opacity: 0.55; }
         .readouts .rv { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-        .readouts .rv.stale { color: var(--error-color, #d32f2f); }
+        .readouts .rv.stale { color: var(--error-color); }
         .readouts .empty { opacity: 0.6; font-style: italic; }
     `];
 

@@ -99,7 +99,7 @@ class FeezalElementPaperDialogView extends FeezalElement {
             --feezal-dialog-view-max-height: 85vh;
             --feezal-dialog-view-radius: 2px;
             --feezal-dialog-view-padding: 0px;
-            --feezal-dialog-view-background: var(--paper-dialog-background-color, var(--primary-background-color, #fff));
+            --feezal-dialog-view-background: var(--paper-dialog-background-color, var(--primary-background-color));
             --feezal-dialog-view-backdrop: rgba(0,0,0,0.6);
         }
 
@@ -146,7 +146,7 @@ class FeezalElementPaperDialogView extends FeezalElement {
             max-width: var(--feezal-dialog-view-max-width, calc(100vw - 32px));
             max-height: var(--feezal-dialog-view-max-height, 85vh);
             background: var(--feezal-dialog-view-background, #fff);
-            color: var(--paper-dialog-color, var(--primary-text-color, #333));
+            color: var(--paper-dialog-color, var(--primary-text-color));
             border-radius: var(--feezal-dialog-view-radius, 2px);
             box-shadow: 0 16px 24px 2px rgba(0,0,0,0.14), 0 6px 30px 5px rgba(0,0,0,0.12), 0 8px 10px -5px rgba(0,0,0,0.4);
             display: flex;
@@ -161,7 +161,7 @@ class FeezalElementPaperDialogView extends FeezalElement {
             font-size: 20px;
             font-weight: 500;
             font-family: 'Roboto', sans-serif;
-            color: var(--paper-dialog-color, var(--primary-text-color, #333));
+            color: var(--paper-dialog-color, var(--primary-text-color));
         }
         .dialog-header .spacer { flex: 1; }
         .dialog-close {
@@ -171,7 +171,7 @@ class FeezalElementPaperDialogView extends FeezalElement {
             line-height: 1;
             border: none;
             background: none;
-            color: var(--secondary-text-color, #777);
+            color: var(--secondary-text-color);
             cursor: pointer;
             padding: 2px;
             border-radius: 50%;
@@ -219,8 +219,8 @@ class FeezalElementPaperDialogView extends FeezalElement {
             background: none;
             transition: background 0.15s;
         }
-        .dialog-btn-ok { color: var(--primary-color, #3f51b5); }
-        .dialog-btn-cancel { color: var(--secondary-text-color, #666); }
+        .dialog-btn-ok { color: var(--primary-color); }
+        .dialog-btn-cancel { color: var(--secondary-text-color); }
         .dialog-btn:hover { background: rgba(0,0,0,0.07); }
     `];
 
@@ -436,7 +436,7 @@ class FeezalElementPaperDialogView extends FeezalElement {
                     max-width: var(--feezal-dialog-view-max-width, calc(100vw - 32px));
                     max-height: var(--feezal-dialog-view-max-height, 85vh);
                     background: var(--feezal-dialog-view-background, #fff);
-                    color: var(--paper-dialog-color, var(--primary-text-color, #333));
+                    color: var(--paper-dialog-color, var(--primary-text-color));
                     border-radius: var(--feezal-dialog-view-radius, 2px);
                     box-shadow: 0 16px 24px 2px rgba(0,0,0,0.14), 0 6px 30px 5px rgba(0,0,0,0.12), 0 8px 10px -5px rgba(0,0,0,0.4);
                     display: flex; flex-direction: column; overflow: hidden;
@@ -449,12 +449,12 @@ class FeezalElementPaperDialogView extends FeezalElement {
                 [feezal-paper-dialog-view-portal] .dialog-header {
                     display: flex; align-items: center; gap: 8px;
                     padding: 20px 24px 0; font-size: 20px; font-weight: 500;
-                    font-family: 'Roboto', sans-serif; color: var(--paper-dialog-color, var(--primary-text-color, #333));
+                    font-family: 'Roboto', sans-serif; color: var(--paper-dialog-color, var(--primary-text-color));
                 }
                 [feezal-paper-dialog-view-portal] .dialog-header .spacer { flex: 1; }
                 [feezal-paper-dialog-view-portal] .dialog-close {
                     font-family: 'Material Icons'; font-style: normal; font-size: 20px; line-height: 1;
-                    border: none; background: none; color: var(--secondary-text-color, #777);
+                    border: none; background: none; color: var(--secondary-text-color);
                     cursor: pointer; padding: 2px; border-radius: 50%;
                 }
                 [feezal-paper-dialog-view-portal] .dialog-close:hover { background: rgba(0,0,0,0.08); }
@@ -474,8 +474,8 @@ class FeezalElementPaperDialogView extends FeezalElement {
                     text-transform: uppercase; letter-spacing: 0.5px; background: none; transition: background .15s;
                 }
                 [feezal-paper-dialog-view-portal] .dialog-btn:hover { background: rgba(0,0,0,0.07); }
-                [feezal-paper-dialog-view-portal] .dialog-btn-ok { color: var(--primary-color, #3f51b5); }
-                [feezal-paper-dialog-view-portal] .dialog-btn-cancel { color: var(--secondary-text-color, #666); }
+                [feezal-paper-dialog-view-portal] .dialog-btn-ok { color: var(--primary-color); }
+                [feezal-paper-dialog-view-portal] .dialog-btn-cancel { color: var(--secondary-text-color); }
             </style>
             <div class="backdrop" @click=${() => this._handleBackdropClick()}></div>
             <div class="dialog-panel">

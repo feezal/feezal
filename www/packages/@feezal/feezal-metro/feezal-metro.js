@@ -54,7 +54,7 @@ export class MetroTileBase extends FeezalElement {
         return [
             'top', 'left', 'width', 'height',
             {property: '--feezal-metro-accent', type: 'color',
-                default: 'var(--primary-color, var(--sl-color-primary-600, #1ba1e2))',
+                default: 'var(--primary-color)',
                 help: 'Tile colour (theme accent by default — WP7 cyan with feezal-theme-metro).'},
             {property: '--feezal-metro-text', type: 'color', default: '#ffffff', help: 'Tile text/icon colour.'},
             // E129: size tokens — settable per element here, or family-wide by
@@ -81,7 +81,7 @@ export class MetroTileBase extends FeezalElement {
         :host {
             display: block; box-sizing: border-box; overflow: visible;
             container-type: size;
-            --feezal-metro-accent: var(--primary-color, var(--sl-color-primary-600, #1ba1e2));
+            --feezal-metro-accent: var(--primary-color);
             --feezal-metro-text: #fff;
             /* E129: size tokens, defaulted ONCE for the family. Private
                intermediates resolve the PUBLIC var first (theme/ancestor/style

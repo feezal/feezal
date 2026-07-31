@@ -56,13 +56,13 @@ class FeezalElementCircleAlarm extends FeezalElement {
             styles: [
                 'top', 'left', 'width', 'height', 'border-radius',
                 {property: '--feezal-alarm-surface-color', type: 'color',
-                    default: 'var(--secondary-background-color, var(--feezal-bg, #fff))',
+                    default: 'var(--secondary-background-color)',
                     help: 'Panel background colour.'},
                 {property: '--feezal-alarm-text-color', type: 'color',
-                    default: 'var(--primary-text-color, var(--feezal-color, #212121))',
+                    default: 'var(--primary-text-color)',
                     help: 'Panel and keypad text colour.'},
                 {property: '--feezal-alarm-key-color', type: 'color',
-                    default: 'var(--primary-background-color, var(--feezal-bg2, #f5f5f5))',
+                    default: 'var(--primary-background-color)',
                     help: 'Keypad / mode-button background colour.'},
                 {property: '--feezal-alarm-border-color', type: 'color',
                     default: 'var(--feezal-border, #e0e0e0)',
@@ -99,9 +99,9 @@ class FeezalElementCircleAlarm extends FeezalElement {
             color: var(--feezal-alarm-text-color);
 
             /* ── Theme-aware colour tokens ─────────────────────────────────── */
-            --feezal-alarm-surface-color: var(--secondary-background-color, var(--feezal-bg,  #fff));
-            --feezal-alarm-text-color:    var(--primary-text-color,         var(--feezal-color, #212121));
-            --feezal-alarm-key-color:     var(--primary-background-color,   var(--feezal-bg2, #f5f5f5));
+            --feezal-alarm-surface-color: var(--secondary-background-color);
+            --feezal-alarm-text-color:    var(--primary-text-color);
+            --feezal-alarm-key-color:     var(--primary-background-color);
             --feezal-alarm-border-color:  var(--feezal-border, #e0e0e0);
         }
         .mi {

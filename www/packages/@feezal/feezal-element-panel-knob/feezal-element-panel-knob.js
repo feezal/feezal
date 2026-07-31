@@ -48,7 +48,7 @@ class FeezalElementPanelKnob extends FeezalElement {
             styles: [
                 'top', 'left', 'width', 'height',
                 {property: '--feezal-panel-knob-color', type: 'color',
-                    default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))',
+                    default: 'var(--primary-color)',
                     help: 'Value arc + indicator colour.'},
                 {property: '--feezal-panel-bezel', type: 'color', default: '#3c454d', help: 'Bezel/ring colour (shared across panel-* elements).'},
                 {property: '--feezal-panel-text', type: 'color', default: '#aeb7bd', help: 'Scale/label colour (shared across panel-* elements).'},
@@ -98,7 +98,7 @@ class FeezalElementPanelKnob extends FeezalElement {
         :host {
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             gap: 2px; box-sizing: border-box; overflow: hidden;
-            --feezal-panel-knob-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --feezal-panel-knob-color: var(--primary-color);
         }
         svg { flex: 1; min-height: 0; width: 100%; touch-action: none; user-select: none; -webkit-tap-highlight-color: transparent; }
         .cap { cursor: grab; }

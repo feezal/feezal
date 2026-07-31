@@ -150,18 +150,18 @@ class FeezalElementBasicSvg extends FeezalElement {
         .hint {
             display: flex; align-items: center; justify-content: center; height: 100%;
             padding: 8px; box-sizing: border-box; text-align: center;
-            font-size: 12px; color: var(--secondary-text-color, #888);
+            font-size: 12px; color: var(--secondary-text-color);
             border: 1px dashed var(--feezal-border, #bbb); border-radius: 6px;
         }
         .badge {
             position: absolute; right: 4px; bottom: 4px; z-index: 1;
             font-size: 10px; padding: 1px 6px; border-radius: 8px;
-            background: color-mix(in srgb, var(--sl-color-primary-600, #0284c7) 15%, transparent);
-            color: var(--sl-color-primary-600, #0284c7);
+            background: color-mix(in srgb, var(--primary-color) 15%, transparent);
+            color: var(--primary-color);
             pointer-events: none;
         }
         .clickable { cursor: pointer; }
-        .clickable:focus-visible { outline: 2px solid var(--sl-color-primary-600, #0284c7); }
+        .clickable:focus-visible { outline: 2px solid var(--primary-color); }
     `];
 
     constructor() {
@@ -422,7 +422,7 @@ class FeezalElementBasicSvgInspector extends LitElement {
             border: none; background: none; cursor: pointer; padding: 2px;
             color: var(--feezal-color, #888); font-size: 14px; line-height: 1;
         }
-        .del:hover { color: var(--error-color, #d32f2f); }
+        .del:hover { color: var(--error-color); }
         .pair { display: flex; gap: 6px; }
         .pair > * { flex: 1; min-width: 0; }
         .map-rows { display: flex; flex-direction: column; gap: 4px; }

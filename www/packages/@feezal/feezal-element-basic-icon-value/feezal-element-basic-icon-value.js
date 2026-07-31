@@ -161,7 +161,7 @@ class FeezalElementBasicIconValue extends FeezalElement {
         const name = this._variantName(bucket);
         if (!name) return html``;
         return html`<feezal-icon name="${name}"
-            style="color: var(--feezal-icon-value-color-${bucket}, var(--primary-text-color, #333))"></feezal-icon>`;
+            style="color: var(--feezal-icon-value-color-${bucket}, var(--primary-text-color))"></feezal-icon>`;
     }
 }
 

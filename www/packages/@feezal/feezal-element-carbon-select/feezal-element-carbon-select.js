@@ -52,11 +52,11 @@ class FeezalElementCarbonSelect extends FeezalElement {
             display: flex;
             align-items: center;
             box-sizing: border-box;
-            --feezal-select-color:            var(--primary-color, var(--sl-color-primary-600, #0284c7));
-            --feezal-select-text-color:       var(--primary-text-color, var(--feezal-color, #333));
-            --feezal-select-background-color: var(--card-background-color, var(--feezal-bg, #fff));
-            --feezal-select-popup-background-color: var(--card-background-color, var(--feezal-bg, #fff));
-            --feezal-select-border-color:     var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --feezal-select-color:            var(--primary-color);
+            --feezal-select-text-color:       var(--primary-text-color);
+            --feezal-select-background-color: var(--card-background-color);
+            --feezal-select-popup-background-color: var(--card-background-color);
+            --feezal-select-border-color:     var(--primary-color);
             /* Carbon token wiring — the field surface is a "layer". */
             --cds-layer:            var(--feezal-select-background-color);
             --cds-layer-01:         var(--feezal-select-background-color);

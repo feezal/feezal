@@ -21,7 +21,7 @@ class FeezalElementMaterialIconButton extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height',
-                {property: '--feezal-icon-button-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Icon and selected state colour.'},
+                {property: '--feezal-icon-button-color', type: 'color', default: 'var(--primary-color)', help: 'Icon and selected state colour.'},
             ],
             defaultStyle: {width: '48px', height: '48px'},
         };
@@ -50,9 +50,9 @@ class FeezalElementMaterialIconButton extends FeezalElement {
             /* E38: scale the icon + touch target with the element size (cqmin = 1%
                of the smaller of the element's width/height, so it stays square). */
             container-type: size;
-            --feezal-icon-button-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --feezal-icon-button-color: var(--primary-color);
             --md-sys-color-primary: var(--feezal-icon-button-color);
-            --md-sys-color-on-surface: var(--primary-text-color, #333);
+            --md-sys-color-on-surface: var(--primary-text-color);
             --md-icon-button-icon-size: 55cqmin;
             --md-icon-button-state-layer-width: 92cqmin;
             --md-icon-button-state-layer-height: 92cqmin;

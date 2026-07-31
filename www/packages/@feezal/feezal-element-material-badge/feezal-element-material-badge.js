@@ -23,8 +23,8 @@ class FeezalElementMaterialBadge extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height',
-                {property: '--feezal-badge-color',      type: 'color', default: 'var(--error-color, #d32f2f)',         help: 'Badge dot background colour.'},
-                {property: '--feezal-badge-icon-color',  type: 'color', default: 'var(--primary-text-color, #555)',     help: 'Base icon colour.'},
+                {property: '--feezal-badge-color',      type: 'color', default: 'var(--error-color)',         help: 'Badge dot background colour.'},
+                {property: '--feezal-badge-icon-color',  type: 'color', default: 'var(--primary-text-color)',     help: 'Base icon colour.'},
             ],
             defaultStyle: {width: '56px', height: '56px'},
         };
@@ -45,9 +45,9 @@ class FeezalElementMaterialBadge extends FeezalElement {
             align-items: center;
             justify-content: center;
             box-sizing: border-box;
-            --feezal-badge-color:      var(--error-color, #d32f2f);
-            --feezal-badge-icon-color: var(--primary-text-color, var(--feezal-color, #555));
-            --md-sys-color-primary: var(--sl-color-primary-600, #0284c7);
+            --feezal-badge-color:      var(--error-color);
+            --feezal-badge-icon-color: var(--primary-text-color);
+            --md-sys-color-primary: var(--primary-color);
             --md-sys-color-error: var(--feezal-badge-color);
         }
         .wrap {
@@ -89,7 +89,7 @@ class FeezalElementMaterialBadge extends FeezalElement {
         }
         .item-label {
             font-size: 11px;
-            color: var(--secondary-text-color, #666);
+            color: var(--secondary-text-color);
             margin-top: 2px;
             text-align: center;
         }
@@ -105,7 +105,7 @@ class FeezalElementMaterialBadge extends FeezalElement {
         .editor-icon {
             font-size: 32px;
             font-family: 'Material Symbols Outlined', 'Material Icons', sans-serif;
-            color: var(--primary-text-color, #555);
+            color: var(--primary-text-color);
         }
         .editor-badge {
             position: absolute;

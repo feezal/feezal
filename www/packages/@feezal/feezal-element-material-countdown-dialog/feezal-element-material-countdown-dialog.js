@@ -105,8 +105,8 @@ class FeezalElementMaterialCountdownDialog extends FeezalElement {
             left: 50%;
             transform: translate(-50%, -50%);
             z-index: 9999;
-            background: var(--primary-background-color, #fff);
-            color: var(--primary-text-color, #333);
+            background: var(--primary-background-color);
+            color: var(--primary-text-color);
             border-radius: 8px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.3);
             display: flex;
@@ -125,7 +125,7 @@ class FeezalElementMaterialCountdownDialog extends FeezalElement {
         .dialog-header {
             font-size: 16px;
             font-weight: 600;
-            color: var(--primary-text-color, #333);
+            color: var(--primary-text-color);
             margin-bottom: 12px;
             text-align: center;
         }
@@ -143,7 +143,7 @@ class FeezalElementMaterialCountdownDialog extends FeezalElement {
         }
         .ring-bg {
             fill: none;
-            stroke: var(--secondary-background-color, #e0e0e0);
+            stroke: var(--secondary-background-color);
             stroke-width: 6;
         }
         .ring-progress {
@@ -165,13 +165,13 @@ class FeezalElementMaterialCountdownDialog extends FeezalElement {
             justify-content: center;
             font-size: 28px;
             font-weight: 700;
-            color: var(--primary-text-color, #333);
+            color: var(--primary-text-color);
         }
 
         .dialog-message {
             font-size: 14px;
             line-height: 1.5;
-            color: var(--primary-text-color, #555);
+            color: var(--primary-text-color);
             text-align: center;
             margin-bottom: 16px;
         }
@@ -183,8 +183,8 @@ class FeezalElementMaterialCountdownDialog extends FeezalElement {
             font-family: 'Roboto', sans-serif;
             cursor: pointer;
             font-weight: 500;
-            background: var(--secondary-background-color, #e0e0e0);
-            color: var(--primary-text-color, #333);
+            background: var(--secondary-background-color);
+            color: var(--primary-text-color);
             transition: background 0.15s;
         }
         .dialog-btn:hover { background: #d0d0d0; }

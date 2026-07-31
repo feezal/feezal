@@ -125,8 +125,8 @@ class FeezalElementPaperDialog extends FeezalElement {
             left: 50%;
             transform: translate(-50%, -50%);
             z-index: 9999;
-            background: var(--paper-dialog-background-color, var(--primary-background-color, #fff));
-            color: var(--paper-dialog-color, var(--primary-text-color, #333));
+            background: var(--paper-dialog-background-color, var(--primary-background-color));
+            color: var(--paper-dialog-color, var(--primary-text-color));
             border-radius: 2px;
             box-shadow: 0 16px 24px 2px rgba(0,0,0,0.14), 0 6px 30px 5px rgba(0,0,0,0.12), 0 8px 10px -5px rgba(0,0,0,0.4);
             display: flex;
@@ -141,7 +141,7 @@ class FeezalElementPaperDialog extends FeezalElement {
             font-size: 20px;
             font-weight: 500;
             font-family: 'Roboto', sans-serif;
-            color: var(--paper-dialog-color, var(--primary-text-color, #333));
+            color: var(--paper-dialog-color, var(--primary-text-color));
         }
         .dialog-header .spacer { flex: 1; }
         .dialog-close {
@@ -151,7 +151,7 @@ class FeezalElementPaperDialog extends FeezalElement {
             line-height: 1;
             border: none;
             background: none;
-            color: var(--secondary-text-color, #777);
+            color: var(--secondary-text-color);
             cursor: pointer;
             padding: 2px;
             border-radius: 50%;
@@ -171,12 +171,12 @@ class FeezalElementPaperDialog extends FeezalElement {
             font-family: 'Material Icons';
             font-size: 40px;
             font-style: normal;
-            color: var(--primary-color, #3f51b5);
+            color: var(--primary-color);
         }
         .dialog-message {
             font-size: 14px;
             line-height: 1.5;
-            color: var(--paper-dialog-color, var(--primary-text-color, #555));
+            color: var(--paper-dialog-color, var(--primary-text-color));
             text-align: center;
         }
         .dialog-footer {
@@ -198,8 +198,8 @@ class FeezalElementPaperDialog extends FeezalElement {
             background: none;
             transition: background 0.15s;
         }
-        .dialog-btn-ok { color: var(--primary-color, #3f51b5); }
-        .dialog-btn-cancel { color: var(--secondary-text-color, #666); }
+        .dialog-btn-ok { color: var(--primary-color); }
+        .dialog-btn-cancel { color: var(--secondary-text-color); }
         .dialog-btn:hover { background: rgba(0,0,0,0.07); }
     `];
 
@@ -335,7 +335,7 @@ class FeezalElementPaperDialog extends FeezalElement {
         if (!this.dialogTitle && !this.showClose) return html``;
         const closeBtn = this.showClose
             ? (inline
-                ? html`<button style="font-family:'Material Icons';font-style:normal;font-size:20px;line-height:1;border:none;background:none;color:var(--secondary-text-color,#777);cursor:pointer;padding:2px;border-radius:50%;" title="Close" @click=${() => this._close()}>close</button>`
+                ? html`<button style="font-family:'Material Icons';font-style:normal;font-size:20px;line-height:1;border:none;background:none;color:var(--secondary-text-color);cursor:pointer;padding:2px;border-radius:50%;" title="Close" @click=${() => this._close()}>close</button>`
                 : html`<button class="dialog-close" title="Close" @click=${() => this._close()}>close</button>`)
             : html``;
         return inline
@@ -355,8 +355,8 @@ class FeezalElementPaperDialog extends FeezalElement {
             'left:50%',
             'transform:translate(-50%,-50%)',
             'z-index:9999',
-            'background:var(--paper-dialog-background-color,var(--primary-background-color,#fff))',
-            'color:var(--paper-dialog-color,var(--primary-text-color,#333))',
+            'background:var(--paper-dialog-background-color,var(--primary-background-color))',
+            'color:var(--paper-dialog-color,var(--primary-text-color))',
             'border-radius:2px',
             'box-shadow:0 16px 24px 2px rgba(0,0,0,0.14), 0 6px 30px 5px rgba(0,0,0,0.12), 0 8px 10px -5px rgba(0,0,0,0.4)',
             'display:flex',
@@ -365,18 +365,18 @@ class FeezalElementPaperDialog extends FeezalElement {
         ].join(';');
 
         const iconTpl = this.icon
-            ? html`<feezal-icon style="font-size:40px;color:var(--primary-color,#3f51b5);" name="${this.icon}"></feezal-icon>`
+            ? html`<feezal-icon style="font-size:40px;color:var(--primary-color);" name="${this.icon}"></feezal-icon>`
             : html``;
         const body = this._evalTemplate();
         const msgTpl = body
-            ? html`<div style="font-size:14px;line-height:1.5;color:var(--paper-dialog-color,var(--primary-text-color,#555));text-align:center;">${unsafeHTML(body)}</div>`
+            ? html`<div style="font-size:14px;line-height:1.5;color:var(--paper-dialog-color,var(--primary-text-color));text-align:center;">${unsafeHTML(body)}</div>`
             : html``;
         const btnBase = 'padding:8px 12px;border:none;border-radius:2px;font-size:14px;font-family:Roboto,sans-serif;cursor:pointer;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;background:none;';
         const okTpl = this.okLabel
-            ? html`<button style="${btnBase}color:var(--primary-color,#3f51b5);" @click=${() => this._handleOk()}>${this.okLabel}</button>`
+            ? html`<button style="${btnBase}color:var(--primary-color);" @click=${() => this._handleOk()}>${this.okLabel}</button>`
             : html``;
         const cancelTpl = this.cancelLabel
-            ? html`<button style="${btnBase}color:var(--secondary-text-color,#666);" @click=${() => this._handleCancel()}>${this.cancelLabel}</button>`
+            ? html`<button style="${btnBase}color:var(--secondary-text-color);" @click=${() => this._handleCancel()}>${this.cancelLabel}</button>`
             : html``;
 
         return html`

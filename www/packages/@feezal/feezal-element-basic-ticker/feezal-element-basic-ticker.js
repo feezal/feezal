@@ -67,7 +67,7 @@ class FeezalElementBasicTicker extends FeezalElement {
             height: 40px;
             display: flex;
             align-items: center;
-            color: var(--primary-text-color, #333);
+            color: var(--primary-text-color);
         }
         .viewport {
             width: 100%;

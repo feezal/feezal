@@ -53,7 +53,7 @@ class FeezalElementGlassSensor extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height',
-                {property: '--feezal-glass-active-color', type: 'color', default: 'var(--error-color, #d32f2f)', help: 'Icon/state colour while triggered. Defaults to the theme error colour.'},
+                {property: '--feezal-glass-active-color', type: 'color', default: 'var(--error-color)', help: 'Icon/state colour while triggered. Defaults to the theme error colour.'},
                 // E140: per-state icon colour — the CLEAR side (was the
                 // unexposed frost-muted) is now overridable.
                 {property: '--feezal-glass-clear-color', type: 'color', default: 'var(--feezal-glass-muted, rgba(29,29,31,0.55))', help: 'Icon/state colour while clear (defaults to the frost muted colour).'},
@@ -110,7 +110,7 @@ class FeezalElementGlassSensor extends FeezalElement {
         }
         .unavail {
             position: absolute; top: 8px; right: 10px;
-            font-size: 12px; color: var(--error-color, #d32f2f); opacity: 0.85;
+            font-size: 12px; color: var(--error-color); opacity: 0.85;
         }
         /* E105: much wider than tall → horizontal layout (Apple-Home wide
            tile): icon left, state/label stacked right of it. */

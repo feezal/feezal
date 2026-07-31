@@ -128,7 +128,7 @@ class FeezalElementGlassWled extends FeezalGlassCard {
         }
         .unavail {
             position: absolute; bottom: 8px; right: 10px;
-            font-size: 12px; color: var(--error-color, #d32f2f); opacity: 0.85;
+            font-size: 12px; color: var(--error-color); opacity: 0.85;
         }
         /* E105: much wider than tall → horizontal layout (Apple-Home wide
            tile): icon left, state/label stacked right of it. flip-btn and

@@ -87,7 +87,7 @@ class FeezalElementBasicChart extends FeezalElement {
         const rawMin = this.min !== undefined && this.min !== null ? Number(this.min) : Math.min(...vals);
         const rawMax = this.max !== undefined && this.max !== null ? Number(this.max) : Math.max(...vals);
         const range = rawMax - rawMin || 1;
-        const accent = this.color || 'var(--sl-color-primary-600, #0284c7)';
+        const accent = this.color || 'var(--primary-color)';
 
         const toX = i => (i / (vals.length - 1)) * w;
         const toY = v => h - ((v - rawMin) / range) * h * 0.85 - h * 0.075;

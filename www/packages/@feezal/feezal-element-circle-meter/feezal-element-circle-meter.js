@@ -68,10 +68,10 @@ class FeezalElementCircleMeter extends FeezalElement {
             overflow: hidden; text-align: center;
             /* cqi units scale the disc content with the card width. */
             container-type: inline-size;
-            --feezal-value-icon-color:  var(--accent-color, #4a9d7f);
-            --feezal-value-text-color:  var(--primary-text-color, #1d1d1f);
-            --feezal-value-muted-color: var(--secondary-text-color, rgba(29,29,31,0.6));
-            --feezal-value-label-color: var(--secondary-text-color, rgba(29,29,31,0.55));
+            --feezal-value-icon-color:  var(--accent-color);
+            --feezal-value-text-color:  var(--primary-text-color);
+            --feezal-value-muted-color: var(--secondary-text-color);
+            --feezal-value-label-color: var(--secondary-text-color);
             /* currentColor drives the disc ring — anchor it to the text colour so
                the ring matches the other Circle cards. */
             color: var(--feezal-value-text-color);
@@ -111,17 +111,17 @@ class FeezalElementCircleMeter extends FeezalElement {
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
         }
         .rate { font-weight: 600; }
-        .age.stale { color: var(--error-color, #d32f2f); font-weight: 600; }
+        .age.stale { color: var(--error-color); font-weight: 600; }
         .label {
             font-size: var(--feezal-value-label-size, 12px); font-weight: 600; line-height: 1.2;
             color: var(--feezal-value-label-color);
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
         }
         .err {
-            font-size: 10px; font-weight: 700; color: var(--error-color, #d32f2f);
+            font-size: 10px; font-weight: 700; color: var(--error-color);
             max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
-        .unavail { position: absolute; top: 6px; right: 8px; font-size: 14px; color: var(--error-color, #d32f2f); opacity: 0.85; }
+        .unavail { position: absolute; top: 6px; right: 8px; font-size: 14px; color: var(--error-color); opacity: 0.85; }
     `];
 
     constructor() {

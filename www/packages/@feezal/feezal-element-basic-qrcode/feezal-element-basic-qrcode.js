@@ -168,7 +168,7 @@ class FeezalElementBasicQrcode extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'font-size',
-                {property: '--feezal-qrcode-color', type: 'color', default: 'var(--primary-text-color, #000)', help: 'Module (dark dot) colour.'},
+                {property: '--feezal-qrcode-color', type: 'color', default: 'var(--primary-text-color)', help: 'Module (dark dot) colour.'},
                 {property: '--feezal-qrcode-background', type: 'color', default: 'transparent', help: 'Code background — set light on dark themes for scanner contrast.'}
             ],
             restrict: {minWidth: 40, minHeight: 40},
@@ -201,11 +201,11 @@ class FeezalElementBasicQrcode extends FeezalElement {
             width: 100%;
         }
         .qr-bg { fill: var(--feezal-qrcode-background, transparent); }
-        .qr-fg { fill: var(--feezal-qrcode-color, var(--primary-text-color, #000)); }
+        .qr-fg { fill: var(--feezal-qrcode-color, var(--primary-text-color)); }
         .label {
             flex: none;
             font-size: 0.85em;
-            color: var(--primary-text-color, #333);
+            color: var(--primary-text-color);
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;

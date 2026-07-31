@@ -31,7 +31,7 @@ class FeezalElementCarbonInput extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height',
-                {property: '--feezal-text-field-color',            type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Focus outline colour.'},
+                {property: '--feezal-text-field-color',            type: 'color', default: 'var(--primary-color)', help: 'Focus outline colour.'},
                 {property: '--feezal-text-field-text-color',       type: 'color', default: 'var(--primary-text-color)',    help: 'Input text and label colour.'},
                 {property: '--feezal-text-field-background-color', type: 'color', default: 'var(--card-background-color)', help: 'Field background colour.'},
                 {property: '--feezal-text-field-border-color',     type: 'color', default: 'var(--primary-color)',        help: 'Bottom border colour.'},
@@ -56,10 +56,10 @@ class FeezalElementCarbonInput extends FeezalElement {
             display: flex;
             align-items: center;
             box-sizing: border-box;
-            --feezal-text-field-color:            var(--primary-color, var(--sl-color-primary-600, #0284c7));
-            --feezal-text-field-text-color:       var(--primary-text-color, var(--feezal-color, #333));
-            --feezal-text-field-background-color: var(--card-background-color, var(--feezal-bg, #fff));
-            --feezal-text-field-border-color:     var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --feezal-text-field-color:            var(--primary-color);
+            --feezal-text-field-text-color:       var(--primary-text-color);
+            --feezal-text-field-background-color: var(--card-background-color);
+            --feezal-text-field-border-color:     var(--primary-color);
             /* Carbon token wiring — the field surface is a "layer". */
             --cds-layer:            var(--feezal-text-field-background-color);
             --cds-layer-01:         var(--feezal-text-field-background-color);

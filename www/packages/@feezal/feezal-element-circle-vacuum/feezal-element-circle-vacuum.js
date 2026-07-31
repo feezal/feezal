@@ -91,22 +91,22 @@ class FeezalElementCircleVacuum extends FeezalElement {
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
                 // Theme-aware colour tokens. Leave blank to inherit from theme.
                 {property: '--feezal-vacuum-active-color', type: 'color',
-                    default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))',
+                    default: 'var(--primary-color)',
                     help: 'Robot / label colour while cleaning or returning home.'},
                 {property: '--feezal-vacuum-paused-color', type: 'color',
-                    default: 'var(--accent-color, #ff9800)',
+                    default: 'var(--accent-color)',
                     help: 'Robot / label tint while paused.'},
                 {property: '--feezal-vacuum-idle-color', type: 'color',
-                    default: 'var(--secondary-text-color, #9e9e9e)',
+                    default: 'var(--secondary-text-color)',
                     help: 'Robot / label colour while docked or idle.'},
                 {property: '--feezal-vacuum-error-color', type: 'color',
-                    default: 'var(--error-color, #f44336)',
+                    default: 'var(--error-color)',
                     help: 'Robot / label colour and "!" overlay on error.'},
                 {property: '--feezal-vacuum-text-color', type: 'color',
-                    default: 'var(--primary-text-color, #212121)',
+                    default: 'var(--primary-text-color)',
                     help: 'Status label, battery and button text colour.'},
                 {property: '--feezal-vacuum-battery-color', type: 'color',
-                    default: 'var(--success-color, #4caf50)',
+                    default: 'var(--success-color)',
                     help: 'Battery bar colour when charge is high.'},
             ],
             restrict:     {minWidth: 140, minHeight: 200},
@@ -153,12 +153,12 @@ class FeezalElementCircleVacuum extends FeezalElement {
 
             /* ── Theme-aware colour tokens ────────────────────────────────────
                Override per-element via the Style inspector or a theme rule.  */
-            --feezal-vacuum-active-color:  var(--primary-color,        var(--sl-color-primary-600, #0284c7));
-            --feezal-vacuum-paused-color:  var(--accent-color,         #ff9800);
-            --feezal-vacuum-idle-color:    var(--secondary-text-color, #9e9e9e);
-            --feezal-vacuum-error-color:   var(--error-color,          #f44336);
-            --feezal-vacuum-text-color:    var(--primary-text-color,   var(--feezal-color, #212121));
-            --feezal-vacuum-battery-color: var(--success-color,        #4caf50);
+            --feezal-vacuum-active-color:  var(--primary-color);
+            --feezal-vacuum-paused-color:  var(--accent-color);
+            --feezal-vacuum-idle-color:    var(--secondary-text-color);
+            --feezal-vacuum-error-color:   var(--error-color);
+            --feezal-vacuum-text-color:    var(--primary-text-color);
+            --feezal-vacuum-battery-color: var(--success-color);
         }
 
         /* Control-button icons rely on the 'Material Icons' font being present;

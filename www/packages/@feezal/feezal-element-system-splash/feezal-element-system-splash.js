@@ -76,10 +76,10 @@ class FeezalElementSystemSplash extends FeezalElement {
             ],
             styles: [
                 {property: '--feezal-splash-background', type: 'color',
-                    default: 'var(--primary-background-color, #fff)',
+                    default: 'var(--primary-background-color)',
                     help: 'Solid background colour of the splash overlay (defaults to the theme background).'},
                 {property: '--feezal-splash-spinner-color', type: 'color',
-                    default: 'var(--primary-color, #0284c7)',
+                    default: 'var(--primary-color)',
                     help: 'Colour of the CSS spinner (defaults to the theme primary colour).'},
             ],
             restrict: {minWidth: 24, minHeight: 24},
@@ -119,7 +119,7 @@ class FeezalElementSystemSplash extends FeezalElement {
         .ph {
             position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
             gap: 4px; box-sizing: border-box; font-size: 11px; text-align: center;
-            color: var(--secondary-text-color, #777);
+            color: var(--secondary-text-color);
             border: 2px dashed var(--feezal-border, #bbb); border-radius: 6px;
         }
         .material-icons {
@@ -136,7 +136,7 @@ class FeezalElementSystemSplash extends FeezalElement {
         .overlay {
             position: fixed; inset: 0; z-index: 9999;
             display: flex; align-items: center; justify-content: center;
-            background: var(--feezal-splash-background, var(--primary-background-color, #fff));
+            background: var(--feezal-splash-background, var(--primary-background-color));
             opacity: 1;
             transition: opacity ${FADE_MS}ms ease;
         }
@@ -152,8 +152,8 @@ class FeezalElementSystemSplash extends FeezalElement {
         .spinner {
             width: 40px; height: 40px; box-sizing: border-box; border-radius: 50%;
             border: 4px solid color-mix(in srgb,
-                var(--feezal-splash-spinner-color, var(--primary-color, #0284c7)) 22%, transparent);
-            border-top-color: var(--feezal-splash-spinner-color, var(--primary-color, #0284c7));
+                var(--feezal-splash-spinner-color, var(--primary-color)) 22%, transparent);
+            border-top-color: var(--feezal-splash-spinner-color, var(--primary-color));
             animation: feezal-splash-spin 0.9s linear infinite;
         }
         @keyframes feezal-splash-spin { to { transform: rotate(360deg); } }

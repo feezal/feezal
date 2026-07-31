@@ -457,7 +457,7 @@ export const feezalAvailabilityStyles = css`
         right: var(--feezal-unavailable-right, 4px);
         font-size: var(--feezal-unavailable-size, 14px);
         line-height: 1;
-        color: var(--feezal-unavailable-color, var(--error-color, #b00020));
+        color: var(--feezal-unavailable-color, var(--error-color));
         opacity: 0.85;
         pointer-events: none;
         z-index: 2;
@@ -481,7 +481,7 @@ export const feezalBatteryStyles = css`
         right: var(--feezal-battery-right, 6px);
         width: var(--feezal-battery-size, 20px);
         height: var(--feezal-battery-size, 20px);
-        color: var(--feezal-battery-color, var(--warning-color, #f59e0b));
+        color: var(--feezal-battery-color, var(--warning-color));
         opacity: 0.95; pointer-events: none; z-index: 2;
     }
     .feezal-batt-badge svg { width: 100%; height: 100%; display: block; }

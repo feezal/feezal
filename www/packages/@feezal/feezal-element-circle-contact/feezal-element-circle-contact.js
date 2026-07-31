@@ -80,10 +80,10 @@ class FeezalElementCircleContact extends FeezalElement {
             /* E134: the state disc sizes its content in cqi (card width). */
             container-type: inline-size;
             /* E138: open default → --primary-color (ContactController.activeColorVar). */
-            --feezal-contact-open-color:  var(--primary-color, #1565c0);
-            --feezal-contact-tilt-color:  var(--info-color, #2196f3);
-            --feezal-contact-text-color:  var(--primary-text-color, var(--feezal-color, #333));
-            --feezal-contact-error-color: var(--error-color, #b00020);
+            --feezal-contact-open-color:  var(--primary-color);
+            --feezal-contact-tilt-color:  var(--info-color);
+            --feezal-contact-text-color:  var(--primary-text-color);
+            --feezal-contact-error-color: var(--error-color);
             color: var(--feezal-contact-text-color);
         }
         .unavail {

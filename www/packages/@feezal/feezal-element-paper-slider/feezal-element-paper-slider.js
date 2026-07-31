@@ -18,9 +18,9 @@ class FeezalElementPaperSlider extends FeezalPolymerElement {
                        the canonical theme vars (each with a hex last-resort).
                        Themes still control the active fill; a per-element
                        Style-inspector value still wins (inline style beats :host). */
-                    --paper-slider-container-color: var(--divider-color, #cccccc);
-                    --paper-slider-knob-color: var(--primary-text-color, #222222);
-                    --paper-slider-knob-start-color: var(--primary-text-color, #222222);
+                    --paper-slider-container-color: var(--divider-color);
+                    --paper-slider-knob-color: var(--primary-text-color);
+                    --paper-slider-knob-start-color: var(--primary-text-color);
                 }
                 paper-slider {
                     width: 100%;

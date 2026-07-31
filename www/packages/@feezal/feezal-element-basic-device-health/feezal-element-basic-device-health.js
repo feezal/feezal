@@ -130,9 +130,9 @@ class FeezalElementBasicDeviceHealth extends FeezalElement {
                 {name: 'show-ok', type: 'boolean', default: true, help: 'Show an "all OK" state when nothing is wrong (else the board is empty).'},
             ],
             styles: ['top', 'left', 'width', 'height',
-                {property: '--feezal-health-sabotage-color', type: 'color', default: 'var(--error-color, #d32f2f)', help: 'Sabotage (alarm) colour.'},
-                {property: '--feezal-health-fault-color', type: 'color', default: 'var(--warning-color, #f0a30a)', help: 'Fault (warning) colour.'},
-                {property: '--feezal-health-muted-color', type: 'color', default: 'var(--secondary-text-color, #666)', help: 'Battery / unreachable colour.'},
+                {property: '--feezal-health-sabotage-color', type: 'color', default: 'var(--error-color)', help: 'Sabotage (alarm) colour.'},
+                {property: '--feezal-health-fault-color', type: 'color', default: 'var(--warning-color)', help: 'Fault (warning) colour.'},
+                {property: '--feezal-health-muted-color', type: 'color', default: 'var(--secondary-text-color)', help: 'Battery / unreachable colour.'},
             ],
             defaultStyle: {width: '260px', height: '200px'},
         };
@@ -151,9 +151,9 @@ class FeezalElementBasicDeviceHealth extends FeezalElement {
         :host { display: block; box-sizing: border-box; }
         .board {
             width: 100%; height: 100%; box-sizing: border-box; padding: 10px 12px;
-            background: var(--secondary-background-color, #f5f5f5); border-radius: 8px;
+            background: var(--secondary-background-color); border-radius: 8px;
             display: flex; flex-direction: column; gap: 6px; overflow: hidden;
-            color: var(--primary-text-color, #222);
+            color: var(--primary-text-color);
         }
         .head { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 14px; }
         .head feezal-icon { font-size: 18px; }

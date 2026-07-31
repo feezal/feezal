@@ -182,7 +182,7 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
         .card { padding-bottom: 15px; }
         .unavail {
             position: absolute; bottom: 2px; right: 10px;
-            font-size: 12px; color: var(--error-color, #d32f2f); opacity: 0.85;
+            font-size: 12px; color: var(--error-color); opacity: 0.85;
         }
         .feezal-batt-badge { right: auto; left: 10px; bottom: 2px; }
         /* E105: much wider than tall → horizontal layout (Apple-Home wide

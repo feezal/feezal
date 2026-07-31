@@ -19,7 +19,7 @@ class FeezalElementMaterialFab extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height',
-                {property: '--feezal-fab-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'FAB fill colour.'},
+                {property: '--feezal-fab-color', type: 'color', default: 'var(--primary-color)', help: 'FAB fill colour.'},
             ],
             defaultStyle: {width: '56px', height: '56px'},
         };
@@ -42,7 +42,7 @@ class FeezalElementMaterialFab extends FeezalElement {
             align-items: center;
             justify-content: center;
             box-sizing: border-box;
-            --feezal-fab-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --feezal-fab-color: var(--primary-color);
             /*
              * B13: md-fab resolves its fill from the component-level container
              * tokens (per variant), not directly from the sys tokens. Set them

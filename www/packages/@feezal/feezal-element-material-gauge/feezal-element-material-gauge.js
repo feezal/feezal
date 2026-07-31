@@ -42,7 +42,7 @@ class FeezalElementMaterialGauge extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
-                {property: '--feezal-gauge-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Arc fill colour.'},
+                {property: '--feezal-gauge-color', type: 'color', default: 'var(--primary-color)', help: 'Arc fill colour.'},
             ],
             defaultStyle: {width: '120px', height: '120px'}
         };
@@ -67,7 +67,7 @@ class FeezalElementMaterialGauge extends FeezalElement {
             justify-content: center;
             box-sizing: border-box;
             overflow: hidden;
-            --feezal-gauge-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --feezal-gauge-color: var(--primary-color);
         }
         svg { flex: 1; width: 100%; overflow: visible; }
         .label {

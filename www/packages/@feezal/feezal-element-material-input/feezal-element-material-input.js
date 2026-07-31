@@ -32,7 +32,7 @@ class FeezalElementMaterialInput extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height',
-                {property: '--feezal-text-field-color', type: 'color', default: 'var(--primary-color, var(--sl-color-primary-600, #0284c7))', help: 'Focus border and floating label colour.'},
+                {property: '--feezal-text-field-color', type: 'color', default: 'var(--primary-color)', help: 'Focus border and floating label colour.'},
             ],
             defaultStyle: {width: '200px', height: '56px'},
         };
@@ -55,11 +55,11 @@ class FeezalElementMaterialInput extends FeezalElement {
             display: flex;
             align-items: center;
             box-sizing: border-box;
-            --feezal-text-field-color: var(--primary-color, var(--sl-color-primary-600, #0284c7));
+            --feezal-text-field-color: var(--primary-color);
             --md-sys-color-primary: var(--feezal-text-field-color);
-            --md-sys-color-on-surface: var(--primary-text-color, #333);
-            --md-sys-color-surface: var(--card-background-color, #fff);
-            --md-sys-color-outline: var(--divider-color, #ccc);
+            --md-sys-color-on-surface: var(--primary-text-color);
+            --md-sys-color-surface: var(--card-background-color);
+            --md-sys-color-outline: var(--divider-color);
         }
         md-outlined-text-field {
             width: 100%;
@@ -71,10 +71,10 @@ class FeezalElementMaterialInput extends FeezalElement {
             width: 100%;
             height: 40px;
             padding: 0 12px;
-            border: 1px solid var(--divider-color, #ccc);
+            border: 1px solid var(--divider-color);
             border-radius: 4px;
             font-size: 14px;
-            color: var(--secondary-text-color, #666);
+            color: var(--secondary-text-color);
             box-sizing: border-box;
         }
     `];
