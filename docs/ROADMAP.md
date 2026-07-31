@@ -12,6 +12,7 @@ Work in progress — priorities and scope are not final.
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
+- [N40 — Lazy view subscriptions: subscribe a view's topics only when it is first shown](#n40--lazy-view-subscriptions-subscribe-a-views-topics-only-when-it-is-first-shown)
 - [N12 — Export bundle: strip mqtt.js for feezal-bridge users](#n12--export-bundle-strip-mqttjs-for-feezal-bridge-users-partial) *(partial)*
 - [N13 — Lighter MQTT client for export bundle](#n13--lighter-mqtt-client-for-export-bundle-️-tbd) ⚠️
 
@@ -288,6 +289,26 @@ This also **removes an existing ambiguity**: `slim` and `autohide` are independe
 **Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
 
 **Relates:** **[B62](roadmap-archive/B62.md)** ✅ (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
+
+### N40 — Lazy view subscriptions: subscribe a view's topics only when it is first shown
+
+**Requested (07/2026).** A view's topics should be subscribed the first time the view becomes visible — not on load. Today, even with [N37](roadmap-archive/N37.md) ✅'s hidden-view pausing on, **every** view subscribes on load and the hidden ones pause only *after* the grace timer (default 30 s). So a dashboard with twenty views floods the broker with all twenty views' subscriptions at startup, and a view the user never opens still subscribes for at least the grace window. Lazy fixes both: an initially-hidden view **never subscribes until first revealed**, and one never visited never subscribes at all.
+
+**This extends [N37](roadmap-archive/N37.md) ✅, reusing its machinery.** The `isPaused(el)` precondition already gates `FeezalElement.addSubscription`, and `resumeSubscriptions()` already re-wires a view on reveal (with the [B40](roadmap-archive/B40.md) ✅ retained-cache repaint). The only new part is the **initial** state: a hidden view under an effective pause policy must be marked paused **before its elements' `connectedCallback` runs**, so they skip the first subscribe instead of subscribing-then-unsubscribing.
+
+**The real design question — ordering.** `FeezalVisibility` is instantiated by `feezal-app-viewer` and today runs `update()` after the views exist, scheduling a *grace* pause. For lazy, the paused set for initially-hidden views must be known before those views' elements upgrade/connect. Two ways:
+- **(a) Pre-mark before mount** — construct the controller (or a lightweight "which views start hidden" pass) early enough in the viewer boot that hidden views are in `_paused` before their `.feezal-element`s connect. Cleanest (truly never subscribes) but needs the boot order pinned.
+- **(b) Immediate initial pause (grace = 0 for the first hide only)** — let elements subscribe, but pause hidden views synchronously on the first `update()` rather than after the grace, distinguishing the **initial** hide (immediate) from a **later** re-hide (keep the grace, to avoid churn on quick back-and-forth). Simpler, reuses the pause path, but the broker sees a brief subscribe→unsubscribe on load.
+
+Recommend (a) if the boot order allows it, else (b) as the pragmatic MVP.
+
+**Config — fold into N37, ideally no new surface.** When `pause-hidden-subscriptions` is on, initial-hidden views become lazy automatically (the initial hide is immediate; the grace stays for re-hides). Open decision: whether lazy should be **on by default** — it is strictly better for retained data and is exactly what was asked, so it could become the standard viewer behaviour rather than an opt-in, with `pause-subscriptions="never"` still the escape hatch for a view that must stay eagerly warm (non-retained streams). Decide default-on vs. gated by the existing switch.
+
+**Caveats (mostly handled by N37 already).** Retained values repaint on reveal via the B40 cache, so a lazy view opens showing the last-seen state, not blank. A view with **non-retained** data (a live stream with no retained seed) shows nothing until its first message *after* reveal — the same trade-off N37's pause already makes; `never` opts such a view out. The active view at boot (and `never` views) always subscribe eagerly.
+
+**Ships with:** the initial-hidden-views-start-paused change in `feezal-visibility.js` / the viewer boot (approach a or b), the default decision, browser tests (a hidden view subscribes **nothing** until first shown; the active view subscribes immediately; a `never` hidden view still subscribes on load; reveal repaints retained values), and a `docs/TESTING.md` line under the N37 block.
+
+**Relates:** **[N37](roadmap-archive/N37.md)** ✅ (the pause/resume machinery + `isPaused` precondition this extends — the initial state is the only new part), **[B40](roadmap-archive/B40.md)** ✅ (retained cache → the reveal repaint), **N38** / **N39** (other viewer-side items), **A18** (kiosk / wall tablets — the beneficiary), `feezal-visibility.js` / `feezal-app-viewer` (boot order), `FeezalElement.addSubscription` (the gate).
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
