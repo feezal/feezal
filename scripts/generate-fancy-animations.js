@@ -44,6 +44,7 @@ const path = require('path');
 // ── the two palette slots (sentinels — see contract above) ───────────────────
 const BASE = [0.437, 0.451, 0.471, 1];    // replaced with --secondary-text-color
 const ACTIVE = [0.129, 0.588, 0.953, 1];  // replaced with --primary-color / --error-color
+const SURFACE = [0.993, 0.994, 0.995, 1]; // replaced with --primary-background-color (knobs, keyholes)
 
 const FR = 60;   // frames/second — segment maths below is in frames
 
@@ -56,7 +57,7 @@ const kf = frames => ({a: 1, k: frames.map(([t, s], i, arr) => ({
     ...(i < arr.length - 1 ? {i: {x: [0.42], y: [1]}, o: {x: [0.58], y: [0]}} : {}),
 }))});                                                             // eased keyframes
 
-const fill = slot => ({ty: 'fl', c: st(slot === 'active' ? ACTIVE : BASE), o: st(100), r: 1, nm: 'fill-' + slot});
+const fill = slot => ({ty: 'fl', c: st(slot === 'active' ? ACTIVE : slot === 'surface' ? SURFACE : BASE), o: st(100), r: 1, nm: 'fill-' + slot});
 const rect = (x, y, w, h, r = 0) => ({ty: 'rc', p: st([x, y]), s: st([w, h]), r: st(r), nm: 'rect'});
 const ellipse = (x, y, w, h) => ({ty: 'el', p: st([x, y]), s: st([w, h]), nm: 'ellipse'});
 
@@ -115,7 +116,7 @@ function light() {
         ellipse(0, 0, 56, 56), fill('active'),
     ], tr({p: [50, 44], s: glowScale, o: glowOpacity}));
     return {
-        data: anim('light', [layer('light', [glow, bulb, socket], {op: 191})], 191),
+        data: anim('light', [layer('light', [bulb, socket, glow], {op: 191})], 191),
         states: {off: [0, 1], on: [30, 90]},
         loops: ['on'],
         transitions: {'off>on': [0, 30], 'on>off': [90, 120]},
@@ -131,9 +132,8 @@ function light() {
  *  garagedoor: panel slides up (0–24)
  */
 function contactVariant(variant) {
-    const frame = group('frame', [rect(50, 50, 76, 76, 4), fill('base')]);
-    const inner = group('inner', [rect(50, 50, 60, 60, 2),
-        {ty: 'fl', c: st([1, 1, 1, 1]), o: st(0), r: 1, nm: 'fill-hole'}]);
+    // stroke frame (fill would be a plate ON TOP of the sash - AE z-order)
+    const frame = group('frame', [rect(50, 50, 76, 76, 4), stroke('base', 7)]);
     let moving;
     let op = 73;
     const transitions = {};
@@ -164,14 +164,14 @@ function contactVariant(variant) {
             states.tilted = [72, 73];
             transitions['closed>tilted'] = [48, 72];
             return {
-                data: anim('contact-' + variant, [layer('contact', [frame, inner, tilt, moving], {op})], op),
+                data: anim('contact-' + variant, [layer('contact', [frame, tilt, moving], {op})], op),
                 states, transitions,
             };
         }
         op = 25;
     }
     return {
-        data: anim('contact-' + variant, [layer('contact', [frame, inner, moving], {op})], op),
+        data: anim('contact-' + variant, [layer('contact', [frame, moving], {op})], op),
         states, transitions,
     };
 }
@@ -181,7 +181,7 @@ function contactVariant(variant) {
  * One seek segment: 0 = fully open (blind up), 100 frames = fully closed.
  */
 function cover() {
-    const frame = group('frame', [rect(50, 50, 76, 76, 4), fill('base')]);
+    const frame = group('frame', [rect(50, 50, 76, 76, 4), stroke('base', 7)]);
     const blindH = kf([[0, [64, 6]], [100, [64, 64]]]);
     // rc scales from its centre — animate position downward in step with size
     const blindY = kf([[0, [50, 21]], [100, [50, 50]]]);
@@ -190,7 +190,7 @@ function cover() {
         fill('active'),
     ]);
     return {
-        data: anim('cover', [layer('cover', [blind, frame], {op: 101})], 101),
+        data: anim('cover', [layer('cover', [frame, blind], {op: 101})], 101),
         states: {},
         transitions: {},
         seek: {travel: [0, 100]},
@@ -233,7 +233,7 @@ function sensor() {
             s: kf([[10, [60, 60]], [70, [130, 130]]]),
             o: kf([[0, 0], [9, 0], [10, 45], [70, 0]])}));
     return {
-        data: anim('sensor', [layer('sensor', [ring, tri, bang], {op: 71})], 71),
+        data: anim('sensor', [layer('sensor', [bang, tri, ring], {op: 71})], 71),
         states: {clear: [0, 1], active: [10, 70]},
         loops: ['active'],
         transitions: {},
@@ -246,8 +246,7 @@ function sensor() {
  */
 function lock() {
     const body = group('body', [rect(50, 64, 52, 40, 6), fill('base')]);
-    const keyhole = group('keyhole', [ellipse(50, 62, 10, 10), rect(50, 72, 4, 10, 2),
-        {ty: 'fl', c: st([1, 1, 1, 1]), o: st(0), r: 1, nm: 'fill-hole'}]);
+    const keyhole = group('keyhole', [ellipse(50, 62, 10, 10), rect(50, 72, 4, 10, 2), fill('surface')]);
     // Shackle: a ∩ of two rects (flat-duotone approximation) that lifts (y) and
     // swings (r around the right leg) when unlocking.
     const shackle = group('shackle', [
@@ -258,7 +257,7 @@ function lock() {
         r: kf([[0, 0], [12, 0], [24, 28]])}));
     // jam shake: the whole comp wiggles 48–78
     const shake = kf([[48, 0], [52, -4], [58, 4], [64, -4], [70, 4], [78, 0]]);
-    const lay = layer('lock', [shackle, body, keyhole], {op: 79, ks: {r: shake}});
+    const lay = layer('lock', [keyhole, body, shackle], {op: 79, ks: {r: shake}});
     return {
         data: anim('lock', [lay], 79),
         states: {locked: [0, 1], unlocked: [24, 25], jammed: [48, 78]},
@@ -412,7 +411,7 @@ function switchToggle() {
         [121, [100, 100], {e: POP}], [125, [118, 84]], [131, [100, 100]],
     ]);
     const knob = group('knob', [
-        ellipse(0, 0, 16, 16), {ty: 'fl', c: st([1, 1, 1, 1]), o: st(100), r: 1, nm: 'fill-hole'},
+        ellipse(0, 0, 16, 16), fill('surface'),
     ], {ty: 'tr', p: knobX, a: st([0, 0]), s: knobSquash, r: st(0), o: st(100), nm: 'tr'});
 
     const track = group('track', [rect(50, 45, 44, 20, 10), fill('base')]);
@@ -442,7 +441,7 @@ function switchToggle() {
     ];
 
     return {
-        data: anim('switch', [layer('switch', [...confetti, wipe, shrink, trackOn, track, knob], {op: 151})], 151),
+        data: anim('switch', [layer('switch', [...confetti, wipe, shrink, knob, trackOn, track], {op: 151})], 151),
         states: {off: [0, 1], on: [100, 101]},
         transitions: {'off>on': [10, 100], 'on>off': [110, 150]},
         // flourish particles carry their OWN palette (E162: looking great
@@ -477,6 +476,7 @@ const HEADER = `/**
 /** The palette slots the generator writes (rgba, 0..1). */
 export const FANCY_BASE_SLOT = ${JSON.stringify(BASE)};
 export const FANCY_ACTIVE_SLOT = ${JSON.stringify(ACTIVE)};
+export const FANCY_SURFACE_SLOT = ${JSON.stringify(SURFACE)};
 
 export const FANCY_ANIMATIONS = `;
 

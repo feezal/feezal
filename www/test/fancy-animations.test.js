@@ -6,7 +6,7 @@
  * loads in unit tests).
  */
 import {describe, it, expect} from 'vitest';
-import {FANCY_ANIMATIONS, FANCY_BASE_SLOT, FANCY_ACTIVE_SLOT}
+import {FANCY_ANIMATIONS, FANCY_BASE_SLOT, FANCY_ACTIVE_SLOT, FANCY_SURFACE_SLOT}
     from '../packages/@feezal/feezal-elements-fancy/animations.js';
 import {recolorAnimation, parseCssColor, FancyPlayer}
     from '../packages/@feezal/feezal-elements-fancy/fancy-shared.js';
@@ -23,7 +23,7 @@ const collectFills = data => {
     const walk = n => {
         if (Array.isArray(n)) return n.forEach(walk);
         if (!n || typeof n !== 'object') return;
-        if (n.ty === 'fl' && n.c) fills.push(n.c.k);
+        if ((n.ty === 'fl' || n.ty === 'st') && n.c) fills.push(n.c.k);   // fills AND strokes
         Object.values(n).forEach(walk);
     };
     walk(data);
@@ -76,13 +76,32 @@ describe('the generated animation set', () => {
         for (const [name, entry] of Object.entries(FANCY_ANIMATIONS)) {
             const declared = entry.palette || [];
             for (const k of collectFills(entry.data)) {
-                const isSlot = [FANCY_BASE_SLOT, FANCY_ACTIVE_SLOT].some(slot =>
+                const isSlot = [FANCY_BASE_SLOT, FANCY_ACTIVE_SLOT, FANCY_SURFACE_SLOT].some(slot =>
                     slot.slice(0, 3).every((c, i) => Math.abs(k[i] - c) < 0.002));
-                const isHole = k[0] === 1 && k[1] === 1 && k[2] === 1;   // knob / punch-outs
                 const isDeclared = declared.some(fx =>
                     fx.slice(0, 3).every((c, i) => Math.abs(k[i] - c) < 0.002));
-                expect(isSlot || isHole || isDeclared, `${name}: fill ${JSON.stringify(k)}`).toBe(true);
+                expect(isSlot || isDeclared, `${name}: colour ${JSON.stringify(k)}`).toBe(true);
             }
+        }
+    });
+
+    it('z-order is AE order — movers/knobs render ABOVE plates, frames are strokes (viewer bug)', () => {
+        // Lottie renders the FIRST shape in the array ON TOP. The knob was
+        // stacked under the track and invisible in the viewer (the editor
+        // pose was fine — separate SVG), reported from a real dashboard.
+        const names = shapes => shapes.map(s => s.nm);
+        const sw = FANCY_ANIMATIONS.switch.data.layers[0].shapes;
+        expect(names(sw).indexOf('knob')).toBeLessThan(names(sw).indexOf('track'));
+        expect(names(sw).indexOf('knob')).toBeLessThan(names(sw).indexOf('track-on'));
+        const lock = FANCY_ANIMATIONS.lock.data.layers[0].shapes;
+        expect(names(lock).indexOf('keyhole')).toBeLessThan(names(lock).indexOf('body'));
+        const sensor = FANCY_ANIMATIONS.sensor.data.layers[0].shapes;
+        expect(names(sensor).indexOf('bang')).toBeLessThan(names(sensor).indexOf('triangle'));
+        // frames are STROKES now — a filled frame is a plate hiding the sash
+        for (const key of ['contact-window', 'contact-door', 'cover']) {
+            const frame = FANCY_ANIMATIONS[key].data.layers[0].shapes.find(s => s.nm === 'frame');
+            expect(frame.it.some(i => i.ty === 'st'), key).toBe(true);
+            expect(frame.it.some(i => i.ty === 'fl'), key).toBe(false);
         }
     });
 

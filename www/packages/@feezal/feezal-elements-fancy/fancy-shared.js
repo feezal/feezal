@@ -28,9 +28,9 @@
 import {FeezalElement, feezalBaseStyles, html, css, availabilityBadge,
     feezalAvailabilityStyles, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
 import {loadLottie} from '@feezal/feezal-lottie';
-import {FANCY_ANIMATIONS, FANCY_BASE_SLOT, FANCY_ACTIVE_SLOT} from './animations.js';
+import {FANCY_ANIMATIONS, FANCY_BASE_SLOT, FANCY_ACTIVE_SLOT, FANCY_SURFACE_SLOT} from './animations.js';
 
-export {FANCY_ANIMATIONS, FANCY_BASE_SLOT, FANCY_ACTIVE_SLOT};
+export {FANCY_ANIMATIONS, FANCY_BASE_SLOT, FANCY_ACTIVE_SLOT, FANCY_SURFACE_SLOT};
 
 // ── colours ──────────────────────────────────────────────────────────────────
 
@@ -62,14 +62,15 @@ const slotMatches = (k, slot) => Array.isArray(k) && k.length >= 3 &&
  * Deep-copy `data` with every fill in a palette slot replaced by the given
  * tone ([r,g,b] 0..1). Non-slot colours (user-supplied art) pass through.
  */
-export function recolorAnimation(data, baseTone, activeTone) {
+export function recolorAnimation(data, baseTone, activeTone, surfaceTone = [1, 1, 1]) {
     const clone = JSON.parse(JSON.stringify(data));
     const walk = node => {
         if (Array.isArray(node)) { node.forEach(walk); return; }
         if (!node || typeof node !== 'object') return;
-        if (node.ty === 'fl' && node.c && Array.isArray(node.c.k)) {
+        if ((node.ty === 'fl' || node.ty === 'st') && node.c && Array.isArray(node.c.k)) {
             if (slotMatches(node.c.k, FANCY_BASE_SLOT)) node.c.k = [...baseTone, 1];
             else if (slotMatches(node.c.k, FANCY_ACTIVE_SLOT)) node.c.k = [...activeTone, 1];
+            else if (slotMatches(node.c.k, FANCY_SURFACE_SLOT)) node.c.k = [...surfaceTone, 1];
         }
         for (const v of Object.values(node)) walk(v);
     };
@@ -204,7 +205,11 @@ export class FancyPlayer {
 
 // ── the family frame ─────────────────────────────────────────────────────────
 
-export const fancyCardStyles = css`
+// Composes feezalBaseStyles (Lit flattens nested style arrays) - it carries
+// the editor outline (:host(.feezal-editable)) every element must show; the
+// family originally forgot it, which left fancy cards outline-less on the
+// canvas until selected.
+export const fancyCardStyles = [feezalBaseStyles, css`
     :host {
         display: block; box-sizing: border-box; position: relative;
         background: var(--feezal-fancy-bg, transparent);
@@ -239,7 +244,7 @@ export const fancyCardStyles = css`
         text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     :host([unavailable]) .stage { opacity: 0.4; }
-`;
+`];
 
 // ── the family base class ────────────────────────────────────────────────────
 
@@ -331,7 +336,8 @@ export class FancyBase extends FeezalElement {
             resolveTone(this, '--secondary-text-color', [0.42, 0.45, 0.47]));
         const active = resolveTone(this, '--feezal-fancy-active-color',
             resolveTone(this, this.activeToneVar(), [0.01, 0.52, 0.78]));
-        const data = recolorAnimation(spec.data, base, active);
+        const surface = resolveTone(this, '--primary-background-color', [1, 1, 1]);
+        const data = recolorAnimation(spec.data, base, active, surface);
         await this.player.mount(mountEl, {...spec, data});
         this._animLive = true;
         this._syncAnimation({jump: true});

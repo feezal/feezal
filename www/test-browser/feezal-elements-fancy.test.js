@@ -67,6 +67,19 @@ describe('editor: static pose, the animation library is NEVER loaded (E89 discip
     });
 });
 
+describe('editor chrome (reported bugs)', () => {
+    it.each(TAGS)('%s shows the dashed editable outline', async tag => {
+        // feezalBaseStyles was missing from the family styles - fancy cards
+        // had NO outline on the canvas until selected (reported).
+        feezal.isEditor = true;
+        const el = await mount(tag);
+        el.classList.add('feezal-editable');
+        await el.updateComplete;
+        const cs = getComputedStyle(el);
+        expect(cs.outlineStyle, tag).toBe('dashed');
+    });
+});
+
 describe('viewer: the lottie lifecycle', () => {
     it('mounts the recoloured animation — no palette slot survives', async () => {
         const el = await mount('feezal-element-fancy-light', {subscribe: 'stat/l'});
