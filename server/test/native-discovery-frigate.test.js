@@ -54,6 +54,27 @@ describe('E163 — Frigate camera entities', () => {
         expect(nat.getNativeEntities().filter(e => e.source === 'frigate')).toHaveLength(0);
     });
 
+    it('learns every camera from the frigate/stats roster in one message', () => {
+        nat.handleNativeMessage('frigate/stats', buf(JSON.stringify({
+            cameras: {
+                terrasse:    {camera_fps: 5, process_fps: 5},
+                'rabbits-9': {camera_fps: 5, process_fps: 5},
+            },
+            service: {version: '0.17.2'},
+        })));
+
+        for (const cam of ['terrasse', 'rabbits-9']) {
+            const e = byId('frigate:' + cam);
+            expect(e).toBeTruthy();
+            expect(e.component).toBe('camera');
+            expect(e.config.camera_name).toBe(cam);
+        }
+        // objects learned later still refine the existing entity
+        nat.handleNativeMessage('frigate/terrasse/person/snapshot', jpeg());
+        expect(byId('frigate:terrasse').config.chips.map(c => c.subscribe))
+            .toContain('frigate/terrasse/person');
+    });
+
     it('learns a camera from the retained toggle states alone (no detection yet)', () => {
         // A fresh server start on a quiet system sees only the retained
         // per-camera config toggles — no object snapshot exists before the

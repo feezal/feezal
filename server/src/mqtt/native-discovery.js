@@ -124,11 +124,14 @@ function handleNativeMessage(topic, payloadOrBuf) {
 
         let entity;
         try { entity = rec.promote(channelState); } catch { continue; }
-        if (entity && entity.discovery_id) {
-            nativeEntities.set(entity.discovery_id, entity);
+        // promote() may return one entity or an array (a Frigate stats payload
+        // names EVERY camera at once) — same handling either way.
+        for (const ent of Array.isArray(entity) ? entity : [entity]) {
+            if (!ent || !ent.discovery_id) continue;
+            nativeEntities.set(ent.discovery_id, ent);
             // Stamp the device's newest ts for the read-time staleness filter.
             if (channelState && typeof channelState.lastTs === 'number') {
-                nativeEntityTs.set(entity.discovery_id, channelState.lastTs);
+                nativeEntityTs.set(ent.discovery_id, channelState.lastTs);
             }
         }
     }

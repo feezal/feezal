@@ -36,6 +36,10 @@ const frigateRecognizer = {
     match(topic) {
         if (!topic.startsWith('frigate/')) return null;
         const parts = topic.split('/');
+        // frigate/stats — its JSON names EVERY camera under `cameras`, the
+        // most authoritative roster (published periodically, survives any
+        // per-camera topic-shape change). Handled before the RESERVED guard.
+        if (parts.length === 2 && parts[1] === 'stats') return {stats: true};
         const cam = parts[1];
         if (!cam || RESERVED.has(cam)) return null;
         // frigate/<cam>/motion — the cheapest per-camera signal
@@ -52,7 +56,16 @@ const frigateRecognizer = {
         return null;
     },
 
-    accumulate(state, parsed) {
+    accumulate(state, parsed, _value, payload) {
+        // stats: register every camera the roster names (objects come from the
+        // per-class snapshot topics as usual).
+        if (parsed.stats) {
+            const cams = Object.keys(payload?.cameras || {}).filter(c => c && !RESERVED.has(c));
+            for (const cam of cams) {
+                if (!state.cameras.has(cam)) state.cameras.set(cam, {objects: new Set()});
+            }
+            return cams.length ? {statsCams: cams} : null;
+        }
         if (!state.cameras.has(parsed.cam)) state.cameras.set(parsed.cam, {objects: new Set()});
         const entry = state.cameras.get(parsed.cam);
         if (parsed.obj) entry.objects.add(parsed.obj);
@@ -60,7 +73,14 @@ const frigateRecognizer = {
     },
 
     promote(channelState) {
-        const {cam, objects} = channelState;
+        if (channelState.statsCams) {
+            return channelState.statsCams.map(cam =>
+                this._entity(cam, [...(this.state.cameras.get(cam)?.objects || [])]));
+        }
+        return this._entity(channelState.cam, channelState.objects);
+    },
+
+    _entity(cam, objects) {
         // person is the class users care about; else the first class seen;
         // else assume person (the snapshot topic appears with the first hit).
         const primary = objects.includes('person') ? 'person' : (objects[0] || 'person');
