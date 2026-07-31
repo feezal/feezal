@@ -484,6 +484,20 @@ export function applyFrigateLiveFeed(el, entity, baseUrl) {
     return true;
 }
 
+/** Best-effort Frigate base-URL guess: the broker host from the server
+ * bridge status + Frigate's default HTTP port (they commonly share a
+ * machine). Empty string when there is no bridge (direct connection). */
+export async function guessFrigateUrl() {
+    try {
+        const r = await fetch('/api/bridge/status');
+        const d = await r.json();
+        // host from mqtt://user:pass@host:1883 / ws://[::1]:9001/… forms
+        const m = String(d.uri || '').match(/\/\/(?:[^@/]+@)?(\[[^\]]+\]|[^:/?#]+)/);
+        if (m) return `http://${m[1]}:5000`;
+    } catch { /* no bridge */ }
+    return '';
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // U58 Phase ② — App mode: room detection + bucket grouping (pure, testable)
 // ─────────────────────────────────────────────────────────────────────────────

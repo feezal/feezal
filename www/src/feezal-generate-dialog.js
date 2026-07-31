@@ -10,7 +10,7 @@ import '@shoelace-style/shoelace/dist/components/spinner/spinner.js';
 
 import {stampDiscovery, resolveElementTag, layoutGrid, knownComponents, discoveryLabel,
     groupForApp, functionBucket, slugifyViewName, UNKNOWN_ROOM,
-    assignRoom, lexiconWordsForLabel, applyFrigateLiveFeed} from './feezal-discovery-stamp.js';
+    assignRoom, lexiconWordsForLabel, applyFrigateLiveFeed, guessFrigateUrl} from './feezal-discovery-stamp.js';
 import {RangeSelect} from './feezal-range-select.js';
 import './feezal-icon-input.js';   // U78: the shared icon picker for the room list
 
@@ -693,7 +693,7 @@ class FeezalGenerateDialog extends LitElement {
         // value, else a guess from the broker host (Frigate + broker commonly
         // share a machine; Frigate's default HTTP port is 5000).
         if (!this._frigateUrl && this._hasFrigate()) {
-            this._frigateUrl = localStorage.getItem('feezal.frigateUrl') || await this._guessFrigateUrl();
+            this._frigateUrl = localStorage.getItem('feezal.frigateUrl') || await guessFrigateUrl();
         }
         this._loading = false;
         this.requestUpdate();
@@ -701,17 +701,6 @@ class FeezalGenerateDialog extends LitElement {
 
     _hasFrigate() {
         return (this.__devices || []).some(e => e.source === 'frigate');
-    }
-
-    async _guessFrigateUrl() {
-        try {
-            const r = await fetch('/api/bridge/status');
-            const d = await r.json();
-            // host from mqtt://user:pass@host:1883 / ws://[::1]:9001/… forms
-            const m = String(d.uri || '').match(/\/\/(?:[^@/]+@)?(\[[^\]]+\]|[^:/?#]+)/);
-            if (m) return `http://${m[1]}:5000`;
-        } catch { /* no bridge (direct connection) → no guess */ }
-        return '';
     }
 
     /** Frigate URL row — shown in the Devices/App setup when Frigate cameras

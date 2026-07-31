@@ -9,7 +9,8 @@ export const LIVE_APPLY_DEBOUNCE_MS = 250;
 // the ⚡ picker and the bulk Generate wizard apply identical wiring.
 // valueTemplateLeaf is re-exported here for back-compat with existing importers.
 import {stampDiscovery, valueTemplateLeaf, discoveryLabel, discoveryAttributeSuffix, elementAcceptsComponent,
-    discoveryCandidates, acceptedComponents, DISCOVERY_ROW_SEP} from './feezal-discovery-stamp.js';
+    discoveryCandidates, acceptedComponents, DISCOVERY_ROW_SEP,
+    applyFrigateLiveFeed, guessFrigateUrl} from './feezal-discovery-stamp.js';
 export {valueTemplateLeaf};
 
 import '@shoelace-style/shoelace/dist/components/input/input.js';
@@ -1919,10 +1920,27 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         // ⚡ picker and the bulk Generate wizard wire devices identically. The
         // inspector-specific redraw stays here.
         if (!stampDiscovery(el, entity, variant)) return;
+        this._maybeFrigateLiveFeed(el, entity);   // async — refreshes again when applied
         this._rebuildItems();
         feezal.app.change();
         // Refresh a custom inspector (N6) so its fields show the applied values.
         this.shadowRoot?.querySelector('#custom-inspector-host')?.firstElementChild?.requestUpdate?.();
+    }
+
+    /** ⚡-picked Frigate camera → live MJPEG src. MQTT cannot carry the
+     * Frigate base URL, so fill src with the best guess available — the URL
+     * the Generate wizard stored, else the broker host, else a placeholder —
+     * so the user at most edits the hostname instead of composing the
+     * /api/<cam> URL by hand. */
+    async _maybeFrigateLiveFeed(el, entity) {
+        if (entity?.source !== 'frigate') return;
+        const url = localStorage.getItem('feezal.frigateUrl')
+            || await guessFrigateUrl()
+            || 'http://frigate.local:5000';
+        if (!applyFrigateLiveFeed(el, entity, url)) return;
+        feezal.app.change();
+        // Refresh the panel only if the element is still the selection.
+        if (el === this.selectedElems?.[0]) this._rebuildItems();
     }
 }
 
