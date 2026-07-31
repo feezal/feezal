@@ -1520,6 +1520,14 @@ Fancy must not mean busy. Three tiers, strictly:
 
 **Key insight:** the built-ins must come from **redistributable** sources (CC-BY/MIT); LottieFiles' huge catalogue is the *user's* pool, not ours — and E139 already shipped the attribute pair (`animation-src` + `animation-map`) that makes any of it usable today.
 
+## Capability re-assessment (07/2026) — reference-grade GEOMETRIC fancy is generatable
+
+The reporter supplied a LottieFiles success animation ("exactly what i mean when i say fancy") and asked for an honest can-you-do-this. Deconstructed, it is four techniques and ZERO artwork: **trim-path draw-ons** (the ring wipes in, the tick draws stroke-on — a technique E139's generator never used and half the perceived quality), a **particle system** (~32 confetti pieces, two staggered bursts, curved bezier flight paths, spins, 1-frame pop-in / 10-frame fade-out), **craft easing** (x:0,y:1 launch-and-drift — plain numbers), and a **real multi-colour palette**. Every shape is a primitive.
+
+**Assessment, recorded:** this tier IS programmatically reachable — particle bursts are the one motion-design category where code beats hand-animation — and the E139 failure was parameter timidity, not capability. The fix is to **extract the motion vocabulary and the concrete numbers from reference files like this one** (launch ≈ 37 % of comp, 40-frame flights, the exact ease curves, burst-pair stagger) into generator primitives, rather than inventing parameters blind. Copying technique/parameters is legally clean (the LSL covers files, not ideas; own shapes, own code). The hard limit stays: no eyes — the last 20 % of feel needs short human feedback loops (or strict cloning of reference timings), and illustrator-grade art (characters, organic shading) remains out of generator reach — the Noto/pack path covers that.
+
+**Consequence for the direction:** generated art is BACK on the table for the geometric-fancy tier (bursts, wipes, draw-ons, sparkles — i.e. the tier-3 flourishes: the supplied file is literally the lock's command→confirmed choreography: ring wipe, tick draw-on, confetti), complementing — not replacing — the ready-made packs for illustrative looks.
+
 ## The Lottie Simple License, analysed against feezal's model (07/2026)
 
 Full-text review (FL 9.13.21) against the concrete model: repo **AGPL-3.0-only**, element packages published **MIT**, CI **license gate** whose allowlist is exclusively OSI/DFSG-clean SPDX licenses (CC-BY-4.0 already on it; LSL has no SPDX identifier).
