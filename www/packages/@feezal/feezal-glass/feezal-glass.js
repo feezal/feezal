@@ -103,10 +103,11 @@ export const glassCardStyles = css`
         position: static; inset: auto;
     }
     .glass-unavail {
-        color: var(--error-color); line-height: 1;
+        color: var(--error-color);
         display: inline-flex; align-items: center; justify-content: center;
-        width: 18px; height: 18px; font-size: 14px;
+        width: 18px; height: 18px;
     }
+    .glass-unavail svg { width: 100%; height: 100%; display: block; }
 `;
 
 /**
@@ -120,7 +121,9 @@ export const glassCardStyles = css`
 export function glassBadgeTray({battery = false, unavailable = false, fault = '', sabotage = false, details = ''} = {}) {
     return html`<div class="glass-badge-tray">
         ${batteryLowBadge(battery)}
-        ${unavailable ? html`<span class="glass-unavail" title="Device unavailable">⚠</span>` : ''}
+        ${unavailable ? html`<span class="glass-unavail" title="Device unavailable"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M24 8.98C20.93 5.9 16.69 4 12 4c-1.69 0-3.32.25-4.86.71l2.5 2.5c.77-.14 1.55-.21 2.36-.21 3.42 0 6.7 1.21 9.32 3.42L24 8.98zM2.81 2.81L1.39 4.22l2.05 2.05C2.2 6.92 1.05 7.86 0 8.98l1.68 1.43c.93-.78 1.94-1.45 3.01-2L6.4 9.83c-1.2.55-2.31 1.3-3.28 2.21L4.81 13.46C5.96 12.38 7.4 11.62 9 11.27l2.16 2.16c-1.3.18-2.5.74-3.46 1.59L12 19.51l1.94-1.94 5.84 5.84 1.41-1.41L2.81 2.81zM12 16.5l-1.41-1.41L12 13.68c.5 0 .96.06 1.42.13l1.71 1.71c-.99-.65-2.18-1.02-3.13-1.02z"/>
+        </svg></span>` : ''}
         ${faultBadge(fault)}
         ${sabotageBadge(sabotage)}
         ${details}
