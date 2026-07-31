@@ -91,23 +91,29 @@ class FeezalElementFancyContact extends FancyBase {
         const t = this.type || 'window';
         const baseStroke = 'fill: none; stroke: var(--feezal-fancy-base-color, var(--secondary-text-color))';
         if (t === 'window') {
-            // mirror of the animation's mock-perspective Dreh-Kipp window:
-            // Rahmen + Flügel stroke quads, half-transparent glass, and the
+            // mirror of the animation's Dreh-Kipp window: SQUARE Rahmen +
+            // Flügel at rest, the perspective trapezoid exists only in the
+            // open/tilted states (hinge/bottom edge nailed to the frame),
             // handle on the free edge (closed = down, open = left, tilted = up)
-            const handleDeg = state === 'open' ? 90 : state === 'tilted' ? 180 : 0;
-            const sashTf = state === 'open' ? 'rotate(-24 21 50)'
-                : state === 'tilted' ? 'translate(0 16.83) scale(1 0.78)' : '';
+            const Q = {
+                closed: {sash: 'M21,21 L79,21 L79,79 L21,79 Z',
+                    glass: 'M24.5,24.5 L75.5,24.5 L75.5,75.5 L24.5,75.5 Z',
+                    hx: 73.5, hy: 50, deg: 0},
+                open: {sash: 'M21,21 L45.5,14 L45.5,86 L21,79 Z',
+                    glass: 'M24.2,24.5 L42.5,19 L42.5,81 L24.2,75.5 Z',
+                    hx: 41, hy: 50, deg: 90},
+                tilted: {sash: 'M17,38 L83,38 L79,79 L21,79 Z',
+                    glass: 'M20.8,41.5 L79.2,41.5 L75.5,75.5 L24.5,75.5 Z',
+                    hx: 80, hy: 57, deg: 180},
+            };
+            const q = Q[state] || Q.closed;
             return svg`<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
-                <path d="M14,14 L84,20 L84,80 L14,86 Z" stroke-width="4.5" style="${baseStroke}"/>
-                <g transform="${sashTf}">
-                    <path class="tone-active" d="M24.5,24.5 L74.5,29.5 L74.5,71.5 L24.5,75.5 Z"
-                        opacity="0.38"/>
-                    <path d="M21.5,21.5 L77.5,26.5 L77.5,74.5 L21.5,78.5 Z"
-                        stroke-width="3" style="${baseStroke}"/>
-                    <circle class="tone-base" cx="71.5" cy="50.5" r="2.5"/>
-                    <rect class="tone-base" x="70.1" y="50.5" width="2.8" height="10.5" rx="1.4"
-                        transform="rotate(${handleDeg} 71.5 50.5)"/>
-                </g>
+                <rect x="14" y="14" width="72" height="72" rx="2" stroke-width="4.5" style="${baseStroke}"/>
+                <path class="tone-active" d="${q.glass}" opacity="0.38"/>
+                <path d="${q.sash}" stroke-width="3" style="${baseStroke}"/>
+                <circle class="tone-base" cx="${q.hx}" cy="${q.hy}" r="2.5"/>
+                <rect class="tone-base" x="${q.hx - 1.4}" y="${q.hy}" width="2.8" height="10.5" rx="1.4"
+                    transform="rotate(${q.deg} ${q.hx} ${q.hy})"/>
             </svg>`;
         }
         let sash;
