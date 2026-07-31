@@ -2,6 +2,7 @@
 // Copyright (c) 2019-2026 Sebastian Raff — feezal viewer runtime
 import {LitElement, html, css} from 'lit';
 import {viewPathFromHash} from './hash-view.js';
+import {FeezalVisibility} from './feezal-visibility.js';
 // The default theme's canonical variables — must load wherever elements
 // render (editor canvas, viewer, static export), because element colour
 // defaults are BARE canonical var() references with no literal fallback.
@@ -233,6 +234,18 @@ class FeezalSite extends LitElement {
         } else {
             this.view = feezal.views[0].getAttribute('name');
             location.hash = '/' + this.view;
+        }
+
+        if (!feezal.isEditor && !feezal.visibility) {
+            // N37/N40: build the visibility controller HERE — before this site's
+            // view elements upgrade/connect — so an initially-hidden or lazy view
+            // is marked paused first and its elements skip the initial subscribe
+            // entirely (the FeezalElement `isPaused` precondition). If elements
+            // ever connect before this (unusual boot order / static export), the
+            // controller's immediate pause still unsubscribes them (N40 approach
+            // b fallback). feezal-app-viewer keeps a late fallback construction
+            // guarded by the same `!feezal.visibility` check; disposal stays there.
+            feezal.visibility = new FeezalVisibility(this);
         }
 
         if (!feezal.isEditor) {
@@ -568,6 +581,12 @@ class FeezalSite extends LitElement {
 
     disconnectedCallback() {
         super.disconnectedCallback();
+        // N37/N40: tear down the visibility controller this site created
+        // (idempotent — app-viewer disposes it too; whichever runs first wins).
+        if (!feezal.isEditor && feezal.visibility) {
+            feezal.visibility.dispose?.();
+            feezal.visibility = null;
+        }
         if (this._bgObserver) {
             this._bgObserver.disconnect();
             this._bgObserver = null;

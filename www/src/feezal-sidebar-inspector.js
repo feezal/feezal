@@ -618,7 +618,9 @@ class FeezalSidebarInspector extends LitElement {
                                 autoReload: attr('auto-reload'),                 // N32: '' = on (default), 'off' = disabled
                                 // N37: pause hidden views' subscriptions (viewer bandwidth)
                                 pauseHiddenSubscriptions: feezal.site.hasAttribute('pause-hidden-subscriptions'),
-                                pauseGraceSeconds: attr('pause-grace-seconds')
+                                pauseGraceSeconds: attr('pause-grace-seconds'),
+                                // N40: lazy view subscriptions (subscribe on first show)
+                                lazyViewSubscriptions: feezal.site.hasAttribute('lazy-view-subscriptions')
                             };
                         }
                     }

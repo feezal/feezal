@@ -1,5 +1,5 @@
 /**
- * feezal-visibility (N37) — pause the subscriptions of hidden views.
+ * feezal-visibility (N37 · N40) — pause the subscriptions of hidden views.
  *
  * Viewer-only central controller: a view is "visible" when it is the site's
  * active view; a hidden view's elements unsubscribe after a grace period and
@@ -10,11 +10,17 @@
  * Config (serialized site attributes, like playlist/presence):
  *   <feezal-site pause-hidden-subscriptions pause-grace-seconds="30">
  *   <feezal-view pause-subscriptions="inherit|always|never">
- * `never` is the escape hatch for views with non-retained data: their
- * originals stay subscribed, keeping the connection cache warm so later
- * embedded clones start with the last-seen values (retained-origin topics
- * refresh in the cache on every live message; pure command topics are
- * deliberately never cached/replayed).
+ *   <feezal-site lazy-view-subscriptions>          (N40)
+ *   <feezal-view lazy-subscriptions="inherit|always|never">   (N40)
+ *
+ * **N37 pause** unsubscribes a view once it is HIDDEN (after the grace).
+ * **N40 lazy** is orthogonal: a view that has NEVER been shown starts paused
+ * IMMEDIATELY (no grace), so it only subscribes the first time it is revealed.
+ * They compose — lazy defers the initial subscribe, pause drops it again on a
+ * later hide; a lazy-only view stays warm once shown, a pause-only view is the
+ * plain N37 behaviour. `never` opts a view out of both (non-retained data:
+ * the original stays subscribed, keeping the connection cache warm so later
+ * embedded clones start with the last-seen values).
  *
  * The editor never instantiates this — inspectors/conditions on hidden views
  * stay live there.
@@ -24,6 +30,7 @@ export class FeezalVisibility {
         this.site = site;
         this._timers = new Map();   // view → grace timeout handle
         this._paused = new Set();   // views whose elements are unsubscribed
+        this._seen = new Set();     // N40: views that have been visible at least once
         // The controller needs a real site element (attribute reads, DOM queries
         // and a live MutationObserver). Some unit tests inject a plain-object
         // stand-in for feezal.site (they exercise navigation, not N37); skip
@@ -53,6 +60,16 @@ export class FeezalVisibility {
         return this._siteDefault();
     }
 
+    _lazyDefault() { return this.site.hasAttribute('lazy-view-subscriptions'); }
+
+    /** N40: effective lazy policy for a view — per-view tri-state over the site default. */
+    _effectiveLazy(view) {
+        const mode = view.getAttribute('lazy-subscriptions');
+        if (mode === 'never') return false;
+        if (mode === 'always') return true;
+        return this._lazyDefault();
+    }
+
     _visible(view) {
         return view.getAttribute('name') === String(this.site.view ?? '');
     }
@@ -66,9 +83,22 @@ export class FeezalVisibility {
     /** Re-evaluate every view (called on each active-view change). */
     update() {
         for (const view of this.site.querySelectorAll('feezal-view')) {
-            if (this._visible(view) || !this._effective(view)) this._resume(view);
-            else this._schedulePause(view);
+            if (this._visible(view)) { this._seen.add(view); this._resume(view); continue; }
+            // N40: a view never shown yet, under an effective lazy policy, is
+            // paused IMMEDIATELY (no grace) so it only subscribes on first reveal.
+            if (!this._seen.has(view) && this._effectiveLazy(view)) this._pauseNow(view);
+            else if (this._effective(view)) this._schedulePause(view);   // N37: grace pause on a later hide
+            else this._resume(view);
         }
+    }
+
+    /** N40: pause a view's subscriptions synchronously (no grace timer). */
+    _pauseNow(view) {
+        const t = this._timers.get(view);
+        if (t) { clearTimeout(t); this._timers.delete(view); }
+        if (this._paused.has(view) || this._visible(view)) return;
+        this._paused.add(view);
+        for (const el of view.querySelectorAll('.feezal-element')) el.pauseSubscriptions?.();
     }
 
     _schedulePause(view) {

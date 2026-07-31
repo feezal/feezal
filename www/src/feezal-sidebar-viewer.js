@@ -707,6 +707,23 @@ class FeezalSidebarViewer extends LitElement {
                         value="${s.pauseGraceSeconds || ''}"
                         @sl-change="${e => this._setSite('pauseGraceSeconds', e.target.value)}"></sl-input>
 
+                    <sl-switch id="lazy-switch" size="small" ?checked="${s.lazyViewSubscriptions === true}"
+                        @sl-change="${e => this._setSite('lazyViewSubscriptions', e.target.checked)}">
+                        Lazy view subscriptions
+                    </sl-switch>
+                    <div class="pwa-hint">
+                        A view subscribes its MQTT topics only when it is
+                        <b>first shown</b> — so a dashboard with many views
+                        doesn't subscribe them all at load, and a view never
+                        opened never subscribes. Composes with Pause above
+                        (which drops the subscriptions again on a later hide).
+                        Per-view override: the view's
+                        <code>lazy-subscriptions</code> attribute
+                        (<code>inherit · always · never</code> —
+                        <code>never</code> subscribes eagerly for non-retained
+                        data). Viewer only.
+                    </div>
+
                     <div class="section-label">Viewer presence</div>
                     <sl-switch id="presence-switch" size="small" ?checked="${s.presence !== 'off'}"
                         @sl-change="${e => this._setSite('presence', e.target.checked ? '' : 'off')}">

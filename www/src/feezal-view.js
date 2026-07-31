@@ -112,6 +112,18 @@ class FeezalView extends LitElement {
                     default: 'inherit',
                     help: 'Pause this view’s MQTT subscriptions while it is hidden (viewer only). inherit = follow the site setting; always = pause even when the site default is off; never = keep subscribed (non-retained data, warm cache for embedded copies).'
                 },
+                {
+                    // N40 — per-view override of the site's lazy-view-
+                    // subscriptions default. Lazy defers the FIRST subscribe
+                    // until the view is revealed (composes with pause, which
+                    // drops it again on a later hide). `never` keeps the view
+                    // eagerly subscribed from load (non-retained data).
+                    name: 'lazy-subscriptions',
+                    type: 'select',
+                    options: ['inherit', 'always', 'never'],
+                    default: 'inherit',
+                    help: 'Subscribe this view’s MQTT topics only when it is first shown (viewer only). inherit = follow the site setting; always = defer even when the site default is off; never = subscribe eagerly from load (non-retained data). Combine with Pause to keep the view fully on-demand.'
+                },
                 // U41 — flow knobs; U39 conditional visibility hides them unless
                 // the view is in flow mode.
                 {name: 'flow-gap', type: 'number', default: 5, section: 'Flow layout',
