@@ -356,9 +356,12 @@ class FeezalGenerateDialog extends LitElement {
         this._rooms = null;
         this._result = null;
         this._newSiteName = '';
+        this._pendingNewSite = null;   // name captured at step 1, created only at generate
+        this._creatingSite = false;
         this._autoFlow = false;
         this._newRoomFor = null;
         this._newRoomName = '';
+        this._bucketMeta = new Map();
         this.__devices = [];
         // U68: the range/drag helper driving the CHECKBOXES (device list + the
         // bucket-header toggle).
@@ -391,6 +394,8 @@ class FeezalGenerateDialog extends LitElement {
         this._clearSelection();
         this._rooms = null;
         this._autoFlow = false;
+        this._pendingNewSite = null;
+        this._creatingSite = false;
         this._newRoomFor = null;
         this._result = null;
         // Default the family to the first available one.
@@ -428,10 +433,13 @@ class FeezalGenerateDialog extends LitElement {
         await this._loadInto('app');
     }
 
-    // ── U80: the App generator always creates a NEW site ──────────────────────
-    // The App tile first asks for the new site's name (prefilled siteN), creates
-    // it (inheriting the current site's broker connection), then switches the
-    // editor to it; the wizard resumes there and auto-deploys at the end.
+    // ── U80: the App generator always builds onto a NEW site ──────────────────
+    // The App tile asks for the new site's name FIRST (prefilled siteN) but does
+    // NOT create it there — the whole wizard (setup → rooms → review) runs on the
+    // current site, untouched. Only when the user clicks the final Generate is the
+    // site created (inheriting the current site's broker connection); the editor
+    // then switches to it and the wizard resumes to generate + auto-deploy. So
+    // backing out before Generate leaves no orphan site behind.
 
     /** Next free "siteN" name (site1, site2, …). */
     async _nextSiteName() {
@@ -453,10 +461,59 @@ class FeezalGenerateDialog extends LitElement {
         this.updateComplete.then(() => this.renderRoot.querySelector('.newsite sl-input')?.focus?.());
     }
 
-    async _confirmNewSite() {
+    /** Step 1 → App setup: validate + remember the new site's name, but do NOT
+     * create it yet (creation is deferred to the final Generate). Runs the rest
+     * of the wizard on the CURRENT site. */
+    async _nameStepNext() {
         const name = String(this._newSiteName || '').trim();
         if (!name) return;
         if (!/^[^/\\]+$/.test(name)) { this._error = 'A site name cannot contain / or \\.'; this.requestUpdate(); return; }
+        // Best-effort early duplicate check so the user learns now, not at the end.
+        try {
+            const res = await fetch('/api/sites');
+            if (res.ok) {
+                const data = await res.json();
+                const taken = (data.sites || data || []).map(n => String(n).toLowerCase());
+                if (taken.includes(name.toLowerCase())) {
+                    this._error = 'A site with that name already exists.';
+                    this.requestUpdate();
+                    return;
+                }
+            }
+        } catch { /* offline — the create-time check still guards it */ }
+        this._error = null;
+        this._pendingNewSite = name;
+        this._autoFlow = true;
+        this._chooseApp();
+    }
+
+    /** The review "Generate app" button: on the new-site flow, create the site
+     * now and switch to it (the resume generates); otherwise generate in place. */
+    _commitApp() {
+        if (this._pendingNewSite) return this._createSiteAndGenerate();
+        return this._generateApp();
+    }
+
+    /** Snapshot of the review selection, carried across the site-switch reload so
+     * the resume regenerates exactly what the user picked (device keys are
+     * discovery ids, stable across the re-fetch on the new site). */
+    _serializeGenState() {
+        return {
+            family: this._family,
+            axis: this._axis,
+            rooms: this._rooms,                 // array or null (function axis)
+            checked: [...this._checked],
+            assign: [...this._assign],          // [[key, {label, icon}], …]
+            bucketMeta: [...this._bucketMeta],  // [[label, {order, guessed, detected}], …]
+        };
+    }
+
+    /** Deferred site creation, at the final Generate. Create the new site
+     * (inheriting the current broker connection), stash the review selection, and
+     * switch the editor to it — the resume picks the state up and generates. */
+    async _createSiteAndGenerate() {
+        const name = String(this._pendingNewSite || '').trim();
+        if (!name) return;
         this._error = null;
         this._creatingSite = true;
         this.requestUpdate();
@@ -467,18 +524,20 @@ class FeezalGenerateDialog extends LitElement {
                 body: JSON.stringify({name, fromSite: feezal.siteName}),
             });
             if (!res.ok) {
+                // Send the user back to the name step to fix a now-taken name.
                 this._error = res.status === 409 ? 'A site with that name already exists.' : 'Could not create the site.';
                 this._creatingSite = false;
+                this._stage = 'newsite';
                 this.requestUpdate();
                 return;
             }
-            // Resume the App generator on the new site after the reload (loadViews
-            // in the inspector picks this up and calls resumeNewSiteApp()).
             sessionStorage.setItem('feezal:generateAppSite', name);
+            sessionStorage.setItem('feezal:generateAppState', JSON.stringify(this._serializeGenState()));
             this._navigateTo(`/editor/?/${encodeURIComponent(name)}/`);
         } catch {
             this._error = 'Could not reach the server.';
             this._creatingSite = false;
+            this._stage = 'newsite';
             this.requestUpdate();
         }
     }
@@ -486,12 +545,36 @@ class FeezalGenerateDialog extends LitElement {
     /** Full-page navigation to switch the editor to another site (seam for tests). */
     _navigateTo(url) { window.location.href = url; }
 
-    /** Called by the editor after it switches to the freshly-created site: open
-     * the wizard straight at the App setup and mark the auto-deploy flow. */
+    /** Called by the editor after it switches to the freshly-created site. If a
+     * generate-state snapshot is waiting (deferred-create flow), restore it and
+     * generate; otherwise open the wizard at the App setup (legacy/direct flow). */
     resumeNewSiteApp() {
         this.open();
         this._autoFlow = true;
-        this._chooseApp();
+        let state = null;
+        const raw = sessionStorage.getItem('feezal:generateAppState');
+        if (raw) {
+            sessionStorage.removeItem('feezal:generateAppState');
+            try { state = JSON.parse(raw); } catch { state = null; }
+        }
+        if (state) this._resumeGenerate(state);
+        else this._chooseApp();
+    }
+
+    /** Restore the review selection on the new site, then generate + auto-deploy.
+     * Discovery is re-fetched here (the fresh site's bridge may still be
+     * connecting — _loadInto polls), then the saved assignment/checked state is
+     * re-applied by device key and the app is generated. */
+    async _resumeGenerate(state) {
+        this._family = state.family;
+        this._axis = state.axis;
+        this._rooms = state.rooms;
+        await this._loadInto('app');   // polls until the new site's discovery is ready
+        if (this._stage !== 'app') return;   // user navigated away mid-poll
+        this._checked = new Set(state.checked || []);
+        this._assign = new Map(state.assign || []);
+        this._bucketMeta = new Map(state.bucketMeta || []);
+        this._generateApp();
     }
 
     /** One discovery fetch → the filtered, keyed, area-joined device list. */
@@ -1195,21 +1278,20 @@ class FeezalGenerateDialog extends LitElement {
     _renderNewSite() {
         return html`
             <div class="newsite">
-                <p>The App generator builds your dashboard on a <b>new site</b> — your current site stays untouched. Name it (you'll land in the editor on it, and it deploys automatically at the end):</p>
+                <p>The App generator builds your dashboard on a <b>new site</b> — your current site stays untouched. Name it now; the site is <b>created only when you finish and generate</b>, so backing out leaves nothing behind:</p>
                 <sl-input label="New site name" autofocus value="${this._newSiteName}"
-                    ?disabled="${this._creatingSite}"
                     @sl-input="${e => { this._newSiteName = e.target.value; }}"
-                    @keydown="${e => { if (e.key === 'Enter') { e.preventDefault(); this._confirmNewSite(); } }}"></sl-input>
+                    @keydown="${e => { if (e.key === 'Enter') { e.preventDefault(); this._nameStepNext(); } }}"></sl-input>
                 ${this._error ? html`<p class="newsite-err">${this._error}</p>` : ''}
-                <p class="newsite-hint">It inherits this site's MQTT broker connection, so your discovered devices are ready right away.</p>
+                <p class="newsite-hint">It will inherit this site's MQTT broker connection, and deploys automatically once generated.</p>
             </div>
             <div slot="footer" class="footer">
-                <sl-button variant="text" @click="${() => { this._stage = 'tiles'; }}" ?disabled="${this._creatingSite}">Back</sl-button>
+                <sl-button variant="text" @click="${() => { this._stage = 'tiles'; }}">Back</sl-button>
                 <span class="spacer"></span>
-                <sl-button @click="${this._close}" ?disabled="${this._creatingSite}">Cancel</sl-button>
-                <sl-button variant="primary" ?loading="${this._creatingSite}"
-                    ?disabled="${!this._newSiteName.trim() || this._creatingSite}"
-                    @click="${this._confirmNewSite}">Create &amp; continue</sl-button>
+                <sl-button @click="${this._close}">Cancel</sl-button>
+                <sl-button variant="primary"
+                    ?disabled="${!this._newSiteName.trim()}"
+                    @click="${this._nameStepNext}">Continue</sl-button>
             </div>`;
     }
 
@@ -1302,7 +1384,7 @@ class FeezalGenerateDialog extends LitElement {
             </div>
 
             <div slot="footer" class="footer">
-                <sl-button variant="text" @click="${() => { this._stage = 'tiles'; }}">Back</sl-button>
+                <sl-button variant="text" @click="${() => { this._stage = this._pendingNewSite ? 'newsite' : 'tiles'; }}">Back</sl-button>
                 <span class="spacer"></span>
                 <sl-button @click="${this._close}">Cancel</sl-button>
                 <sl-button variant="primary" ?disabled="${!eligible}" @click="${this._startReview}">
@@ -1432,7 +1514,8 @@ class FeezalGenerateDialog extends LitElement {
                 <sl-button variant="text" @click="${() => { this._stage = 'app'; }}">Back</sl-button>
                 <span class="spacer"></span>
                 <sl-button @click="${this._close}">Cancel</sl-button>
-                <sl-button variant="primary" ?disabled="${totalChecked === 0}" @click="${this._generateApp}">
+                <sl-button variant="primary" ?loading="${this._creatingSite}"
+                    ?disabled="${totalChecked === 0 || this._creatingSite}" @click="${this._commitApp}">
                     Generate app (${views} view${views === 1 ? '' : 's'})
                 </sl-button>
             </div>

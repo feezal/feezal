@@ -795,6 +795,7 @@ describe('feezal-generate-dialog (U80 new-site App flow)', () => {
         window.feezal.app._deploy = () => { window.feezal.__deployed = true; };
         window.feezal.__deployed = false;
         sessionStorage.removeItem('feezal:generateAppSite');
+        sessionStorage.removeItem('feezal:generateAppState');
         origFetch = window.fetch;
     });
     afterEach(() => { window.fetch = origFetch; });
@@ -813,7 +814,34 @@ describe('feezal-generate-dialog (U80 new-site App flow)', () => {
         expect(dlg._newSiteName).toBe('site1');
     });
 
-    it('creating the site POSTs {name, fromSite}, flags the resume, and navigates', async () => {
+    it('the name step remembers the name and moves on WITHOUT creating the site', async () => {
+        let postCalls = 0;
+        window.fetch = async (url, opts) => {
+            if (url === '/api/sites' && opts?.method === 'POST') { postCalls++; return {ok: true, json: async () => ({})}; }
+            if (String(url).includes('/api/discovery/devices')) return {ok: true, json: async () => ({devices: [{discovery_id: 'x', component: 'switch', name: 'k', config: {}}]})};
+            return {ok: true, json: async () => ({sites: []})};
+        };
+        const dlg = await makeDialog();
+        dlg._newSiteName = 'site1';
+        await dlg._nameStepNext();
+        expect(postCalls).toBe(0);                       // no site created at the name step
+        expect(dlg._pendingNewSite).toBe('site1');       // name remembered for the final Generate
+        expect(dlg._autoFlow).toBe(true);
+        expect(dlg._stage).toBe('app');                  // proceeds to the App setup on the current site
+    });
+
+    it('the name step rejects a name that already exists (before proceeding)', async () => {
+        window.fetch = async () => ({ok: true, json: async () => ({sites: ['default', 'site1']})});
+        const dlg = await makeDialog();
+        dlg._stage = 'newsite';        // the name step
+        dlg._newSiteName = 'site1';
+        await dlg._nameStepNext();
+        expect(dlg._error).toMatch(/already exists/i);
+        expect(dlg._pendingNewSite).toBeNull();
+        expect(dlg._stage).toBe('newsite');   // stays put, does not proceed to App setup
+    });
+
+    it('_commitApp creates the site at Generate: POSTs {name, fromSite}, stashes state, navigates', async () => {
         let posted = null;
         window.fetch = async (url, opts) => {
             if (url === '/api/sites' && opts?.method === 'POST') { posted = JSON.parse(opts.body); return {ok: true, json: async () => ({})}; }
@@ -822,23 +850,58 @@ describe('feezal-generate-dialog (U80 new-site App flow)', () => {
         const dlg = await makeDialog();
         let navUrl = null;
         dlg._navigateTo = u => { navUrl = u; };
-        dlg._newSiteName = 'site1';
-        await dlg._confirmNewSite();
+        dlg._pendingNewSite = 'site1';
+        dlg._family = 'circle'; dlg._axis = 'room';
+        dlg._rooms = [{label: 'Kitchen', icon: 'countertops', order: 0}];
+        dlg._checked = new Set(['d']);
+        dlg._assign = new Map([['d', {label: 'Kitchen', icon: 'countertops'}]]);
+        dlg._bucketMeta = new Map([['Kitchen', {order: 0, guessed: false, detected: false}]]);
+        await dlg._commitApp();
         expect(posted).toEqual({name: 'site1', fromSite: 'kitchen'});
         expect(sessionStorage.getItem('feezal:generateAppSite')).toBe('site1');
+        const state = JSON.parse(sessionStorage.getItem('feezal:generateAppState'));
+        expect(state.family).toBe('circle');
+        expect(state.checked).toEqual(['d']);
+        expect(state.assign).toEqual([['d', {label: 'Kitchen', icon: 'countertops'}]]);
         expect(navUrl).toBe('/editor/?/site1/');
     });
 
-    it('a duplicate name errors without navigating', async () => {
-        window.fetch = async () => ({ok: false, status: 409, json: async () => ({})});
+    it('a duplicate name at Generate errors and returns to the name step (no navigation)', async () => {
+        window.fetch = async (url, opts) => (url === '/api/sites' && opts?.method === 'POST')
+            ? {ok: false, status: 409, json: async () => ({})}
+            : {ok: true, json: async () => ({sites: []})};
         const dlg = await makeDialog();
         let navigated = false;
         dlg._navigateTo = () => { navigated = true; };
-        dlg._newSiteName = 'site1';
-        await dlg._confirmNewSite();
+        dlg._pendingNewSite = 'site1';
+        await dlg._createSiteAndGenerate();
         expect(dlg._error).toMatch(/already exists/i);
         expect(navigated).toBe(false);
+        expect(dlg._stage).toBe('newsite');
         expect(sessionStorage.getItem('feezal:generateAppSite')).toBeNull();
+    });
+
+    it('resumeNewSiteApp restores the stashed selection and generates + deploys', async () => {
+        window.fetch = async url => String(url).includes('/api/discovery/devices')
+            ? {ok: true, json: async () => ({devices: [{discovery_id: 'd', component: 'switch', name: 'kueche_x',
+                config: {state_topic: 'z/d', command_topic: 'z/d/set'}}]})}
+            : {ok: true, json: async () => ({groups: []})};
+        sessionStorage.setItem('feezal:generateAppState', JSON.stringify({
+            family: 'circle', axis: 'room',
+            rooms: [{label: 'Kitchen', icon: 'countertops', order: 0}],
+            checked: ['d'],
+            assign: [['d', {label: 'Kitchen', icon: 'countertops'}]],
+            bucketMeta: [['Kitchen', {order: 0, guessed: false, detected: false}]],
+        }));
+        const dlg = await makeDialog();
+        dlg.resumeNewSiteApp();
+        // resume awaits discovery + generation; poll resolves on attempt 1 (devices present)
+        await new Promise(r => setTimeout(r, 50));
+        expect(dlg._family).toBe('circle');
+        expect(dlg._checked.has('d')).toBe(true);
+        expect(window.feezal.__deployed).toBe(true);                                     // auto-deployed
+        expect(window.feezal.site.querySelector('feezal-element-circle-switch')).not.toBeNull();
+        expect(sessionStorage.getItem('feezal:generateAppState')).toBeNull();            // consumed
     });
 
     it('resumeNewSiteApp opens at the App setup in auto-deploy mode', async () => {
