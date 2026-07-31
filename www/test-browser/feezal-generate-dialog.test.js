@@ -822,9 +822,14 @@ describe('feezal-generate-dialog (U80 new-site App flow)', () => {
         expect(dlg._stage).toBe('app');   // _loadInto sets the stage synchronously
     });
 
-    it('the auto-flow deploys after generating and shows a prominent viewer link', async () => {
+    it('the auto-flow deploys, drops the empty scaffold view, makes Menu first, and links the viewer', async () => {
         window.fetch = async () => ({ok: true, json: async () => ({devices: []})});
         const dlg = await makeDialog();
+        // the new site ships with an empty scaffold view "view1"
+        const view1 = document.createElement('feezal-view');
+        view1.setAttribute('name', 'view1');
+        window.feezal.site.append(view1);
+
         dlg._autoFlow = true;
         dlg._family = 'circle';
         dlg._axis = 'room';
@@ -834,7 +839,9 @@ describe('feezal-generate-dialog (U80 new-site App flow)', () => {
         dlg._toReview();
         dlg._generateApp();
 
-        expect(window.feezal.__deployed).toBe(true);
+        expect(window.feezal.__deployed).toBe(true);                                   // auto-deployed
+        expect(window.feezal.site.querySelector('feezal-view[name="view1"]')).toBeNull(); // scaffold dropped
+        expect(window.feezal.site.querySelector('feezal-view').getAttribute('name')).toBe('Menu'); // Menu first/default
         expect(dlg._stage).toBe('result');
         await dlg.updateComplete;
         const link = dlg.renderRoot.querySelector('.viewer-link');

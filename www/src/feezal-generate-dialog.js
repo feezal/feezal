@@ -1075,6 +1075,14 @@ class FeezalGenerateDialog extends LitElement {
         // moves it — the established pattern in this file.
         const genNames = new Set([shellView.getAttribute('name'), SYSTEM_VIEW,
             ...buckets.map(b => b.slug).filter(Boolean)]);
+        // U80: a freshly-created site ships with one empty scaffold view
+        // ("view1"). On the new-site flow, drop any empty pre-existing view so
+        // Menu is the sole first/default view (no stray empty view lingers).
+        if (this._autoFlow) {
+            for (const v of [...site.querySelectorAll('feezal-view')]) {
+                if (!genNames.has(v.getAttribute('name')) && v.children.length === 0) v.remove();
+            }
+        }
         const bucketViews = buckets.map(b => b.slug).filter(Boolean)
             .map(slug => site.querySelector(`feezal-view[name="${slug}"]`)).filter(Boolean);
         const preExisting = [...site.querySelectorAll('feezal-view')]

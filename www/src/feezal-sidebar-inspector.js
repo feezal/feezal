@@ -766,7 +766,9 @@ class FeezalSidebarInspector extends LitElement {
         try {
             if (sessionStorage.getItem('feezal:generateAppSite') === feezal.siteName) {
                 sessionStorage.removeItem('feezal:generateAppSite');
-                feezal.app.updateComplete?.then?.(() =>
+                // Promise.resolve() so it still fires if updateComplete is absent
+                // (`?.then?.()` would silently no-op and skip the whole resume).
+                Promise.resolve(feezal.app.updateComplete).then(() =>
                     feezal.app.shadowRoot?.querySelector('feezal-generate-dialog')?.resumeNewSiteApp?.());
             }
         } catch { /* sessionStorage unavailable — no resume */ }
