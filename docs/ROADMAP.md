@@ -1522,6 +1522,12 @@ Full-text review (FL 9.13.21) against the concrete model: repo **AGPL-3.0-only**
 4. **Editor UX: an animation picker** — the fancy inspector should *show* what you're choosing: a gallery of the vendored set + the site's own `.json` assets with live previews, instead of a bare asset path field. This is where "fancy" becomes discoverable instead of a hidden override.
 5. **Size discipline** — ready-made art is 20–200 kB per file; the built-in set should move out of the main chunk into lazily fetched per-card assets (the loader machinery exists — E89), with the tiny generated fallbacks staying inline for instant first paint.
 
+## Packaging (discussed 07/2026): split the ART, not the family
+
+Asked: would moving the fancy elements into their own repo + npm distribution make the licensing easier? Analysed: it makes the CORE cleaner (repo/image stays 100 % OSD-clean, the license gate never sees an optionally-installed package, the opt-in shifts to the user) — but the LSL problems themselves just relocate (a package with LSL assets still cannot be "license": "MIT" wherever it lives; the display clause still reaches every dashboard; per-file verification is the same work), and it costs the one thing E162 exists for: Fancy would leave the default palette (reversing E139's deliberate A23 exception).
+
+**Decided direction instead: keep the six elements in core (machinery + generated fallbacks are MIT-clean — never the problem) and ship ready-made art as separate optional ANIMATION-PACK packages** — `@feezal/feezal-animations-noto` (CC-BY-4.0, allowlist-clean, may even ship in core) first; an LSL pack only ever as its own clearly-labeled opt-in artifact, or not at all (LottieFiles stays user-side). This is the `feezal-icons-*` precedent exactly: asset packages installed via the package manager, registered at import — and the animation picker's content model falls out for free (installed packs + the site's own .json assets).
+
 ## Open questions
 
 - Noto coverage audit: which cards get convincing emoji art, which stay generated? (Cover and lock almost certainly stay generated — no emoji travels a blind.)
