@@ -139,6 +139,16 @@ describe('feezal-style-editor-background — reading', () => {
         expect(ed._gradientValue()).toBe('linear-gradient(45deg, #ff0000 0%, #0000ff 100%)');
     });
 
+    it('parses a linear gradient with NO angle (browser drops the default 180deg)', () => {
+        target.style.setProperty('background-image', 'linear-gradient(#ff0000 0%, #0000ff 100%)');
+        const ed = makeEditor(target);
+        expect(ed._mode).toBe('gradient');
+        expect(ed._gradType).toBe('linear');
+        expect(ed._gradAngle).toBe(180);   // the CSS default (to bottom)
+        expect(ed._stops).toEqual([{color: '#ff0000', pos: 0}, {color: '#0000ff', pos: 100}]);
+        expect(ed._gradientValue()).toBe('linear-gradient(180deg, #ff0000 0%, #0000ff 100%)');
+    });
+
     it('U59: keeps themed var() gradient stops verbatim and round-trips them', () => {
         target.style.setProperty('background-image',
             'linear-gradient(90deg, var(--primary-color) 0%, #0000ff 100%)');

@@ -23,15 +23,13 @@ const FAMILY_THEME = {
     circle: 'feezal-theme-gruvbox-light',
 };
 
-// U74: the feezal signature gradient (the glass theme's wallpaper colour stops,
-// as pure CSS — no SVG asset) painted behind the frosted cards on every glass
-// sub-view, so midnight-blue chrome frames the colourful glass canvas.
-const GLASS_GRADIENT =
-    'radial-gradient(70% 70% at 20% 15%, #7dd3fc, transparent 60%),' +
-    'radial-gradient(75% 75% at 85% 25%, #c4b5fd, transparent 60%),' +
-    'radial-gradient(80% 80% at 30% 90%, #f0abfc, transparent 60%),' +
-    'radial-gradient(70% 70% at 75% 80%, #5eead4, transparent 60%),' +
-    '#dbeafe';
+// U74: the feezal default gradient painted behind the frosted cards on every
+// glass sub-view. Written EXACTLY as the Background style editor
+// (feezal-style-editor-background) serialises a gradient — a `background-image`
+// linear-gradient with `deg,` + `%` stops — so the inspector reflects it and
+// the view renders it immediately (setting the `background` shorthand instead
+// left the editor/renderer reading nothing until the user re-edited it).
+const GLASS_GRADIENT = 'linear-gradient(180deg, #0284c7 0%, #1e293b 100%)';
 
 // U71: bundled family preview screenshots (A25 self-hosted — Vite emits each as
 // a hashed asset in the editor chunk, not inlined). Drop a `<family>.png` into
@@ -893,9 +891,11 @@ class FeezalGenerateDialog extends LitElement {
                 view.setAttribute('flow-justify', 'start');
                 view.style.width = '100%';
                 view.style.height = '100%';
-                // U74: glass sub-views carry the signature gradient behind the
-                // frosted cards (midnight-blue theme keeps the chrome dark).
-                if (this._family === 'glass') view.style.background = GLASS_GRADIENT;
+                // U74: glass sub-views carry the default gradient behind the
+                // frosted cards — set as `background-image` (the exact property
+                // the Background style editor reads/writes) so it renders and the
+                // inspector reflects it without a re-edit.
+                if (this._family === 'glass') view.style.setProperty('background-image', GLASS_GRADIENT);
                 site.append(view);
                 createdViews.push(slug);
             }

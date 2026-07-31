@@ -301,12 +301,19 @@ class FeezalStyleEditorBackground extends LitElement {
 
     /** Parse the gradients we serialise; anything else keeps the defaults. */
     _parseGradient(image) {
-        let m = image.match(/^linear-gradient\(\s*([\d.]+)deg\s*,\s*(.*)\)$/);
+        // The angle is OPTIONAL: the browser normalises `linear-gradient(180deg,
+        // …)` by DROPPING the default `180deg` (and lower-casing hex to rgb) when
+        // it round-trips through an inline style, so a re-read gradient often has
+        // no angle. Treat a missing angle as the CSS default, 180deg (to bottom).
+        let m = image.match(/^linear-gradient\(\s*(?:([\d.]+)deg\s*,\s*)?(.*)\)$/);
         if (m) {
-            this._gradType = 'linear';
-            this._gradAngle = parseFloat(m[1]);
-            this._stops = this._parseStops(m[2]) || this._stops;
-            return;
+            const stops = this._parseStops(m[2]);
+            if (stops) {
+                this._gradType = 'linear';
+                this._gradAngle = m[1] !== undefined ? parseFloat(m[1]) : 180;
+                this._stops = stops;
+                return;
+            }
         }
         m = image.match(/^radial-gradient\(\s*(circle|ellipse)\s*,\s*(.*)\)$/);
         if (m) {

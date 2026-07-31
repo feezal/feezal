@@ -674,7 +674,13 @@ describe('feezal-generate-dialog (U58 App mode)', () => {
         expect(site.classList.contains('feezal-theme-midnight-blue')).toBe(true);
         const kitchen = site.querySelector('feezal-view[name="kitchen"]');
         expect(kitchen).not.toBeNull();
-        expect(kitchen.style.background).toContain('radial-gradient');
+        // U74: written as background-image (the property the Background editor
+        // reads) so it renders + reflects without a re-edit. The browser
+        // normalises the gradient (drops the default 180deg, hex → rgb).
+        const bg = kitchen.style.getPropertyValue('background-image');
+        expect(bg).toContain('linear-gradient');
+        expect(bg).toContain('2, 132, 199');   // #0284c7
+        expect(bg).toContain('30, 41, 59');    // #1e293b
     });
 });
 
