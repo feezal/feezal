@@ -1493,12 +1493,26 @@ That is the most expensive of the options considered and it adds to the legacy P
 
 | source | license | shippable in core? |
 |---|---|---|
-| **LottieFiles marketplace (free tier)** | "Lottie Simple License" — free use in end products, but **redistribution of the asset files is not clearly permitted** | ❌ almost certainly not vendorable in an MIT repo — but PERFECT for the user-side `animation-src` path that already works |
+| **LottieFiles marketplace (free tier)** | "Lottie Simple License" (FL 9.13.21) — **redistribution IS permitted** (analysed against the full text, 07/2026), but share-alike: files stay LSL forever, no relicensing | ⚠️ legally vendorable, **poor fit** — see the LSL analysis below. User-side `animation-src` remains the clean path |
 | **Google Noto Animated Emoji** | **CC BY 4.0** — redistribution allowed with attribution | ✅ vendorable per A25 (attribution file alongside, like the font licenses). Full-colour, genuinely delightful; the set covers a surprising amount of the device vocabulary (bulb, fire, droplet, bell, warning, sun/clouds/rain for a future weather card) |
 | **useAnimations** | MIT (repo) | ✅ vendorable, but micro icon-transitions, monochrome — solves motion, not "colors!" |
 | **LordIcon / IconScout etc.** | paid seats | ❌ out for core; users can buy + `animation-src` |
 
 **Key insight:** the built-ins must come from **redistributable** sources (CC-BY/MIT); LottieFiles' huge catalogue is the *user's* pool, not ours — and E139 already shipped the attribute pair (`animation-src` + `animation-map`) that makes any of it usable today.
+
+## The Lottie Simple License, analysed against feezal's model (07/2026)
+
+Full-text review (FL 9.13.21) against the concrete model: repo **AGPL-3.0-only**, element packages published **MIT**, CI **license gate** whose allowlist is exclusively OSI/DFSG-clean SPDX licenses (CC-BY-4.0 already on it; LSL has no SPDX identifier).
+
+**Permitted:** download, reproduce, modify, publish, distribute, display — incl. commercial. So vendoring is NOT forbidden (the earlier "not clearly permitted" verdict above was too pessimistic — corrected).
+
+**Why it still fits poorly:**
+1. **Share-alike, no relicensing** — files must carry and stay under the same terms; they cannot be subsumed under the fancy package's MIT or the repo's AGPL. Mixed licensing is workable (the OFL-font precedent) but needs `LicenseRef-` handling, an AND-expression in the npm `license` field, and a deliberate gate extension.
+2. **The no-compete clause is a field-of-use restriction** ("does not include the right to collect or compile Files … to develop a similar or competing service") — fails OSD §6/DFSG, so the distribution stops being 100 % open-source-licensed. Harmless in fact for dashboard chrome — but the planned **animation picker gallery** is exactly where it bites: shipping a large collection starts to look like "collecting/compiling Files". A small curated set is defensible; a gallery is not.
+3. **Drafting ambiguity on "display"** — read literally, "any display … must contain (and be subject to) the same terms" would attach to every wall panel showing the animation. The sane reading (terms travel with the files; displays are merely subject to them) is probably right, but the interpretive risk lands on **every user who exports/publishes a dashboard**, and exports would need to bundle the LSL text.
+4. **Per-file applicability** — the LSL covers "public animation files available for download at the LottieFiles site", but not everything there carries it (marketplace/paid files, and newer uploads under different terms). Every candidate needs its license verified and archived individually.
+
+**Resolution:** LSL assets stay **user-side** (`animation-src` — their download, their obligation); the **built-in** set comes from allowlisted sources (CC-BY-4.0/MIT/OFL-class — zero model change). A single irreplaceably good LSL file may be vendored as a consciously-argued exception (license text alongside, gate extended deliberately, kept out of the MIT npm payload) — the fallback, never the default.
 
 ## Direction (proposed, refine before building)
 
