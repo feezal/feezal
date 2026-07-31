@@ -1,5 +1,28 @@
 # Breaking changes / migration notes
 
+## E163 — `circle-camera` → `basic-camera` (07/2026)
+
+The camera element moved from the circle family to **basic** — a camera feed
+is a function, not a style (the E113 axis); every other circle card is a
+themed device card. **Hard rename, no tag aliasing:**
+
+| old | new |
+|---|---|
+| `feezal-element-circle-camera` | `feezal-element-basic-camera` |
+| `@feezal/feezal-element-circle-camera` | `@feezal/feezal-element-basic-camera` |
+
+Saved dashboards using the old tag must be migrated (source view →
+search & replace `feezal-element-circle-camera` → `feezal-element-basic-camera`
+**before** upgrading is the safest route). All attributes are carried over
+unchanged; the element additionally gained `mqtt-image` (images as MQTT
+payloads), aspect/fit knobs, state chips, an event list and per-button
+chrome toggles — see the element help texts.
+
+One behavioural fix rides along: HA MQTT `camera` discovery now wires the
+image-payload `topic` to `subscribe` + `type=mqtt-image` (it used to be
+stamped into `src`, which expects a URL and never worked for real HA
+cameras).
+
 ## E138 — boolean-card taxonomy: `*-motion` / `*-sensor` / `*-value` (07/2026)
 
 The boolean sensor cards were untangled into four functions per family

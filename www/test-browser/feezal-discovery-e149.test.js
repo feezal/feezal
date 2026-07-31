@@ -68,7 +68,7 @@ describe('E149 — image element map', () => {
 describe('E149 — resolveElementTag routing', () => {
     const reg = new Set([
         'feezal-element-material-button', 'feezal-element-material-input',
-        'feezal-element-circle-alarm', 'feezal-element-circle-camera',
+        'feezal-element-circle-alarm', 'feezal-element-basic-camera',
         'feezal-element-panel-knob', 'feezal-element-basic-image',
     ]);
     const isReg = t => reg.has(t);
@@ -81,7 +81,7 @@ describe('E149 — resolveElementTag routing', () => {
     });
     it('routes alarm_control_panel / camera / number to their elements', () => {
         expect(resolveElementTag('alarm_control_panel', 'circle', undefined, isReg)).toBe('feezal-element-circle-alarm');
-        expect(resolveElementTag('camera', 'circle', undefined, isReg)).toBe('feezal-element-circle-camera');
+        expect(resolveElementTag('camera', 'basic', undefined, isReg)).toBe('feezal-element-basic-camera');
         expect(resolveElementTag('number', 'panel', undefined, isReg)).toBe('feezal-element-panel-knob');
         expect(resolveElementTag('image', 'basic', undefined, isReg)).toBe('feezal-element-basic-image');
     });

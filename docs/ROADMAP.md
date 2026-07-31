@@ -54,7 +54,6 @@ Work in progress — priorities and scope are not final.
 - [E150 — Discovery for profile-shaped components: `water_heater` ✅ + `lawn_mower` 🔨](#e150--discovery-for-profile-shaped-components-water_heater---lawn_mower)
 - [E159 — Re-add a Paper-family app shell (`paper-app`) with full layout-app parity](#e159--re-add-a-paper-family-app-shell-paper-app-with-full-layout-app-parity)
 - [E162 — Fancy family, take two: actually fancy — ready-made Lottie art over generated geometry](#e162--fancy-family-take-two-actually-fancy--ready-made-lottie-art-over-generated-geometry)
-- [E163 — Camera element upgrade: `basic-camera` (hard rename), HA-card parity, Frigate/Scrypted events](#e163--camera-element-upgrade-basic-camera-hard-rename-ha-card-parity-frigatescrypted-events)
 - [E164 — Fancy family: finish and re-enable the disabled cards](#e164--fancy-family-finish-and-re-enable-the-disabled-cards)
 
 **Editor UX**
@@ -615,9 +614,9 @@ State-driven equipment symbols for plant/heating schematics — each bound to a 
 
 ### E64 — Camera image via MQTT (`feezal-element-basic-mqtt-image`) 💡 idea
 
-Displays **image payloads received over MQTT** (binary or base64) — distinct from `circle-camera`, which is stream/URL-based. ESP32-cams, doorbells, printer cams, and vision systems publish stills this way. Options: state framing (border color bound to a second topic — e.g. pass/fail, motion), **filmstrip of the last N images** (tap to enlarge; Cognex's no-read-review pattern), freeze-on-condition. Memory-bounded ring buffer; document payload-size caution.
+Displays **image payloads received over MQTT** (binary or base64). ⚠️ **Largely absorbed by E163 ✅:** `basic-camera`'s `mqtt-image` type covers the display half (binary → data-URL relay in both connection layers). What keeps this entry alive is the vision niche: state framing (border color bound to a second topic — e.g. pass/fail, motion), **filmstrip of the last N images** (tap to enlarge; Cognex's no-read-review pattern), freeze-on-condition. Memory-bounded ring buffer; document payload-size caution.
 
-**Relates:** E65 (vision sibling), circle-camera (stream sibling), E32 (event context).
+**Relates:** E65 (vision sibling), basic-camera (stream sibling), E32 (event context).
 
 ### E65 — Pass/fail counter (`feezal-element-basic-passfail`) 💡 idea
 
@@ -1314,58 +1313,6 @@ Fancy must not mean busy. Three tiers, strictly:
    - operating a lock → an **animated key turns while the command is in flight**, and when the device *reports back* (subscribe confirmation / HmIP settling — the E127/E128 machinery, given a visual form) → a confirmation flourish (sparkle, spotlight). This is command→working→confirmed **choreography**, not a single clip: the controllers' settling state is what drives it, so the animation is honest about what the device actually did.
 
 **Plus the popup tier (glass precedent):** elements with complex multiple controls hide them behind a **popup**, exactly like the glass family — and the popup open/close transitions are themselves really fancy animated (this is user interaction, tier 3).
-
-### E163 — Camera element upgrade: `basic-camera` (hard rename), HA-card parity, Frigate/Scrypted events
-
-**Requested (07/2026):** improve the camera element; move it from the circle family to **basic** (hard rename, documented in BREAKING-CHANGES.md); feature parity with Home Assistant's camera card; **discover Frigate and Scrypted instances** and show the last events, recognitions and so on.
-
-#### The rename: `circle-camera` → `basic-camera` (hard)
-
-A camera feed is a **function, not a style** (the E113 axis): every other circle card is a themed device card, the camera is a family-less media surface — `basic` is where it belongs. **Hard rename** per the request, no alias: package `feezal-element-circle-camera` → `feezal-element-basic-camera`, tag likewise; entry in `docs/BREAKING-CHANGES.md` (the E152 `metro-tile` → `metro-button` precedent) with the manual migration line (edit saved views: replace the tag; attributes are unchanged). Palette category Basic, patch history restarts under the new package.
-
-#### Where it already is (better than expected)
-
-`circle-camera` today: MJPEG / HLS / **WebRTC (WHEP)** / refreshing-image types, MQTT-switchable src, overlay label, near-fullscreen popup (with grow animation), click-publish, click-through, camera discovery component. The gap to HA's card is smaller than assumed — and some of it is *event data*, not rendering.
-
-#### HA camera-card parity — bounded honestly
-
-In scope: **aspect-ratio + object-fit** knobs; **live-on-demand** (image type at rest, tap opens the popup on the stream type — HA's `camera_view: auto` pattern, and the right default for wall panels); **state chips over the feed** (motion, per-class counts — fed by the topics below); title/label parity. Already there: fullscreen popup, refresh interval, mute/controls.
-
-Out of scope, stated: HA's stream proxying (HLS/WebRTC via its backend) — feezal has no backend media path and the element already plays direct HLS/WHEP URLs; clip/recording **playback** (Frigate serves clips over HTTP — the pure-MQTT boundary; event rows show snapshot stills, deep-linking a clip URL is just an `<a>`, playback inside feezal is not v1).
-
-**New source type: MQTT image payloads** (binary or base64 JPEG frames as messages) — this absorbs the display half of **E64** into `basic-camera` (`type: mqtt-image`); E64 stays open for its vision extras (filmstrip, freeze-on-condition, pass/fail framing).
-
-#### Research: what Frigate speaks over MQTT (from knowledge — ⚠ verify against a live instance before wiring, per the usual caveat)
-
-Frigate is an **excellent pure-MQTT citizen** — everything below is broker traffic, no HTTP needed:
-
-| topic | payload | use |
-|---|---|---|
-| `frigate/available` | `online`/`offline` (LWT) | N31 availability for every frigate entity |
-| `frigate/events` | JSON stream `{type: new/update/end, after: {id, camera, label, sub_label, top_score, zones, has_snapshot, has_clip, start_time, …}}` | **the event list** — camera, recognition class, score, zones, timestamps |
-| `frigate/reviews` (0.14+) | review segments with `severity: alert/detection` | the curated variant of the same list |
-| `frigate/<cam>/<object>` | count (retained) | per-class chips: person 1, car 0, … |
-| `frigate/<cam>/<object>/snapshot` | **JPEG bytes** (retained) | the best-shot image per class — pure-MQTT camera stills! |
-| `frigate/<cam>/motion` | ON/OFF | motion chip |
-| `frigate/<cam>/{detect,recordings,snapshots,motion}/state` + `/set` | switch pairs | detection toggles (switch cards work today) |
-| `frigate/<cam>/ptz` | `MOVE_LEFT` … | PTZ buttons for ONVIF cams |
-| `frigate/stats` | JSON incl. the camera list | **instance discovery/enumeration** |
-
-**Feasibility verdict: yes, squarely.** Frigate publishes **no** `homeassistant/*` discovery natively (HA uses a custom integration) → this needs a **native recognizer** (the E108 framework, like Homematic/evcc/WLED): key on `frigate/available` + `frigate/stats`, enumerate cameras from stats, emit camera records (snapshot topic per class as the image source, counts, motion, events feed, availability, PTZ where present). The Generate wizard then scaffolds camera walls for free.
-
-#### Research: Scrypted — already answered by E112, cross-referenced not duplicated
-
-The official `@scrypted/mqtt` plugin **deliberately excludes cameras** (`publishable-types.ts` strips Camera/ObjectDetection — no images, no detection classes over official MQTT). The viable path is the one E112 found: the third-party **`@apocaliss92/scrypted-advanced-notifier`** publishes HA **device-bundle discovery** (which `handleDeviceDiscovery` already parses) with per-class Person/Vehicle/Animal/Face/Plate entities, counts, and **`LastImage` as base64 JPEG** — i.e. Scrypted cameras arrive through the *existing* HA-discovery path + the new `mqtt-image` source type, no recognizer needed. Scrypted's native topics stay hands-off (undocumented upstream, unstable). So: **Frigate = native recognizer; Scrypted = E112's plugin route.** Both feed the same element.
-
-#### The event list
-
-Per camera, the last N events (ring buffer, memory-bounded): time, class chip (person/car/animal/face…), score, zone, thumbnail from the per-class snapshot topic; tap a row → the popup shows the still large. Ships as an optional section of `basic-camera` (`show-events`, N configurable); a standalone events-list element (for a wall of events across cameras) is a follow-up if wanted — E32 (logbook) is the generic sibling.
-
-**Open questions:** `frigate/events` vs `frigate/reviews` as the default feed (reviews is curated but 0.14+ only — probably events with a `min-score`); how binary MQTT payloads flow through feezal's connection (the bridge/mqtt.js path must hand `Uint8Array` through unmangled — verify before anything else, it gates the whole image story); whether PTZ buttons are v1 or follow-up.
-
-**Ships with:** the hard rename + BREAKING-CHANGES.md entry + palette/manifest updates; the parity knobs (aspect, fit, live-on-demand, chips); the `mqtt-image` source type (binary + base64); the event list section; the native Frigate recognizer + tests (sample topic captures → camera records); TESTING.md §6 rewrite for the element; version bumps. Scrypted arrives via E112's plugin route — no code here beyond `mqtt-image`.
-
-**Relates:** **E64** (absorbed half: payload images; keeps filmstrip/vision extras), **E112** (the Scrypted answer — plugin route, base64 LastImage), **E108** ✅ (recognizer framework for Frigate), **E32** (generic event/logbook sibling), **E113** (function-vs-style — the argument for `basic`), `docs/BREAKING-CHANGES.md` (E152 rename precedent), N31 (availability via `frigate/available`), U58 (Generate wizard consumes the camera records), A18 (kiosk/wall panels — the prime consumer), pure-MQTT principle (bounds: stills/events yes, clip playback no).
 
 ### E164 — Fancy family: finish and re-enable the disabled cards
 

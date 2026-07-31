@@ -1,3 +1,4 @@
+import '@feezal/feezal-element-basic-camera';
 import '@feezal/feezal-element-basic-chart';
 import '@feezal/feezal-element-basic-countdown';
 import '@feezal/feezal-element-basic-datetime';
@@ -22,7 +23,6 @@ import '@feezal/feezal-element-carbon-select';
 import '@feezal/feezal-element-carbon-slider';
 import '@feezal/feezal-element-carbon-switch';
 import '@feezal/feezal-element-circle-alarm';
-import '@feezal/feezal-element-circle-camera';
 import '@feezal/feezal-element-circle-climate';
 import '@feezal/feezal-element-circle-contact';
 import '@feezal/feezal-element-circle-cover';
@@ -163,6 +163,7 @@ import '@feezal/feezal-theme-solarized-light';
 import '@feezal/feezal-theme-tui';
 
 window.feezal.elements = [
+  "feezal-element-basic-camera",
   "feezal-element-basic-chart",
   "feezal-element-basic-countdown",
   "feezal-element-basic-datetime",
@@ -187,7 +188,6 @@ window.feezal.elements = [
   "feezal-element-carbon-slider",
   "feezal-element-carbon-switch",
   "feezal-element-circle-alarm",
-  "feezal-element-circle-camera",
   "feezal-element-circle-climate",
   "feezal-element-circle-contact",
   "feezal-element-circle-cover",

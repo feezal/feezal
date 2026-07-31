@@ -52,6 +52,19 @@ function _clearTrie() {
     lastPayloads.clear();
 }
 
+// ── E163: binary image detection (magic bytes) ──────────────────────────────
+// The MIME type of a binary image payload, or null. Only formats browsers
+// render in <img> are recognized; everything else stays on the string path.
+function imageMime(buf) {
+    if (!buf || buf.length < 12) return null;
+    if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return 'image/jpeg';
+    if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return 'image/png';
+    if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38) return 'image/gif';
+    if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
+        buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return 'image/webp';
+    return null;
+}
+
 // ── Last-payload store (U26) ────────────────────────────────────────────────
 // topic → { payload, raw, retain, ts }. Updated for EVERY message (not just
 // retained, unlike the hub's replay cache) so the AI payload-peek tool can see
@@ -255,12 +268,25 @@ function _doConnect(uri, options) {
     client.on('message', (topic, payload, packet) => {
         insertTopic(topic);
         discovery.handleMessage(topic, payload);
+        const retain = packet && packet.retain === true;
+        // E163: BINARY IMAGE payloads (Frigate snapshots, HA MQTT cameras,
+        // ESP32-cams) must survive the JSON socket relay — .toString() would
+        // mangle the bytes. Detected by magic bytes and relayed as a data URL
+        // string, so elements can set it straight on an <img>. The peek store
+        // gets a placeholder instead of megabytes of base64.
+        const mime = imageMime(payload);
+        if (mime) {
+            const dataUrl = `data:${mime};base64,` + payload.toString('base64');
+            recordPayload(topic, `[${mime} image, ${payload.length} bytes]`,
+                `[${mime} image, ${payload.length} bytes]`, retain);
+            if (_relayCallback) _relayCallback({topic, payload: dataUrl, retain});
+            return;
+        }
         const payloadStr = payload ? payload.toString() : '';
         let parsed = payloadStr;
         if (payloadStr.startsWith('{') || payloadStr.startsWith('[')) {
             try { parsed = JSON.parse(payloadStr); } catch {}
         }
-        const retain = packet && packet.retain === true;
         recordPayload(topic, parsed, payloadStr, retain);
         if (_relayCallback) {
             _relayCallback({topic, payload: parsed, retain});
@@ -352,4 +378,4 @@ function publish(message) {
     _logger?.debug('mqtt-bridge: publish ' + message.topic + (message.retain === true ? ' (retained)' : ''));
 }
 
-module.exports = { connect, disconnect, reconnect, getStatus, publish, insertTopic, getTopicCompletions, getAllTopics, getLastPayload, recordPayload, setRelayCallback, buildConnectOptions, guardEmptyWsFrames, refreshRetained, getDiscoveredEntities: discovery.getDiscoveredEntities, getDiscoveredEntity: discovery.getDiscoveredEntity, getDeviceGroups: discovery.getDeviceGroups, setDiscoveryStale: discovery.setHomematicClimateStale };
+module.exports = { connect, disconnect, reconnect, getStatus, publish, insertTopic, getTopicCompletions, getAllTopics, getLastPayload, recordPayload, setRelayCallback, buildConnectOptions, guardEmptyWsFrames, refreshRetained, imageMime, getDiscoveredEntities: discovery.getDiscoveredEntities, getDiscoveredEntity: discovery.getDiscoveredEntity, getDeviceGroups: discovery.getDeviceGroups, setDiscoveryStale: discovery.setHomematicClimateStale };

@@ -100,6 +100,25 @@ class FeezalConnectionMqtt extends LitElement {
             this.dispatchEvent(new Event('connected'));
         });
 
+        // E163 helpers — see the bridge's imageMime (same magic-byte set).
+        const imageMime = buf => {
+            if (!buf || buf.length < 12) return null;
+            if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return 'image/jpeg';
+            if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return 'image/png';
+            if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38) return 'image/gif';
+            if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
+                buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return 'image/webp';
+            return null;
+        };
+        const uint8ToBase64 = bytes => {
+            let bin = '';
+            const CHUNK = 0x8000;   // String.fromCharCode arg-count limit
+            for (let i = 0; i < bytes.length; i += CHUNK) {
+                bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+            }
+            return btoa(bin);
+        };
+
         this.client.on('close', () => {
             console.log('feezal-connection-mqtt disconnected');
             this.connected = false;
@@ -119,12 +138,20 @@ class FeezalConnectionMqtt extends LitElement {
         });
 
         this.client.on('message', (topic, payload, packet) => {
-            let payloadStr = payload.toString();
-            let parsed = payloadStr;
-            if (payloadStr.startsWith('{') || payloadStr.startsWith('[')) {
-                try {
-                    parsed = JSON.parse(payloadStr);
-                } catch {}
+            // E163: binary image payloads (Frigate snapshots, HA MQTT cameras)
+            // → data URL, matching the feezal-server bridge's behaviour.
+            const mime = imageMime(payload);
+            let parsed;
+            if (mime) {
+                parsed = `data:${mime};base64,` + uint8ToBase64(payload);
+            } else {
+                const payloadStr = payload.toString();
+                parsed = payloadStr;
+                if (payloadStr.startsWith('{') || payloadStr.startsWith('[')) {
+                    try {
+                        parsed = JSON.parse(payloadStr);
+                    } catch {}
+                }
             }
 
             this.dispatchEvent(new CustomEvent('message', {

@@ -364,3 +364,19 @@ describe('status while the broker is unreachable', () => {
         expect(bridge.getStatus()).toMatchObject({connected: false, uri: null});
     }, 20000);
 });
+
+describe('E163 - imageMime (binary image payload detection)', () => {
+    const bridge = require('../src/mqtt/bridge.js');
+    it('recognizes jpeg/png/gif/webp magic bytes', () => {
+        expect(bridge.imageMime(Buffer.from([0xFF, 0xD8, 0xFF, 0xE0, 0, 0, 0, 0, 0, 0, 0, 0]))).toBe('image/jpeg');
+        expect(bridge.imageMime(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0]))).toBe('image/png');
+        expect(bridge.imageMime(Buffer.from([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0, 0, 0, 0, 0, 0]))).toBe('image/gif');
+        expect(bridge.imageMime(Buffer.from([0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4, 0x57, 0x45, 0x42, 0x50]))).toBe('image/webp');
+    });
+    it('leaves text, JSON and short payloads on the string path', () => {
+        expect(bridge.imageMime(Buffer.from('{"a":1}'))).toBe(null);
+        expect(bridge.imageMime(Buffer.from('ON'))).toBe(null);
+        expect(bridge.imageMime(Buffer.from('RIFFxxxxAVI '))).toBe(null);
+        expect(bridge.imageMime(null)).toBe(null);
+    });
+});
