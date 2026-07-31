@@ -307,6 +307,10 @@ export class FeezalElement extends LitElement {
     }
 
     _subscribeAvailability() {
+        // N37/N40: availability topics go through feezal.connection.sub directly
+        // (not addSubscription), so gate the pause state here too — a paused
+        // element must not re-open availability via the signature-change path.
+        if (this.__n37Paused) return;
         this.__availSig = this._availabilitySignature();
         this._availabilityStatus = {};
         const entries = this._availabilityEntries();
@@ -377,6 +381,15 @@ export class FeezalElement extends LitElement {
     }
 
     _subscribe() {
+        // N37/N40: a paused element (hidden/lazy view) must NEVER (re)subscribe.
+        // connectedCallback's guard covers the initial mount, and addSubscription
+        // covers device cards' manual wiring — but the base primary _subscribe
+        // can also be reached AFTER a pause (Lit's updated() on a `visible`
+        // change, a controller card's rewire, or a second _subscribe on a
+        // property update) with _subscribed reset to false by the pause's
+        // _unsubscribe — so the pause gate must live here too, or hidden-view
+        // topics silently re-open. This was the N40 "subscribed but never shown".
+        if (this.__n37Paused) return;
         // The _subscribed guard makes this idempotent: an element that mounts
         // with visible already set (the attribute reflects, so it can arrive
         // from saved view HTML) hits _subscribe from both connectedCallback

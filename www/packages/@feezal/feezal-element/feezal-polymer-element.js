@@ -97,10 +97,14 @@ class FeezalPolymerElement extends PolymerElement {
     }
 
     addSubscription(topic, callback) {
+        if (this.__n37Paused) return;   // N37/N40: dropped while the view is paused
         this._subscriptions.push(feezal.connection.sub(topic, callback));
     }
 
     _subscribe() {
+        // N37/N40: never (re)subscribe while paused — _visibleChanged and other
+        // re-entry points can reach this after a pause.
+        if (this.__n37Paused) return;
         if (!this.subscribe) {
             return;
         }
@@ -175,6 +179,15 @@ class FeezalPolymerElement extends PolymerElement {
     connectedCallback() {
         super.connectedCallback();
         this.classList.add('feezal-element');
+        // N37/N40: an element stamped into an ALREADY-PAUSED (hidden/lazy) view
+        // must not subscribe — pause is a precondition, not only an event. The
+        // visibility controller resumes it via a reconnect cycle later. (Same
+        // contract as FeezalElement; the paper-* elements use this base.)
+        if (window.feezal?.visibility?.isPaused?.(this)) {
+            this.__n37Paused = true;
+            return;
+        }
+        this.__n37Paused = false;
         // Prevent tab-focus on shadow DOM controls while in the editor.
         if (feezal.isEditor && this.shadowRoot) {
             this.shadowRoot.querySelectorAll('*').forEach(el => {
@@ -200,6 +213,30 @@ class FeezalPolymerElement extends PolymerElement {
         super.disconnectedCallback();
         this._unsubscribe();
         this._conditions.disconnect();
+    }
+
+    /** N37/N40 — pause this element's MQTT traffic while its view is hidden.
+     * The paper-* elements use this base, so without these the visibility
+     * controller's `el.pauseSubscriptions?.()` was a no-op and they stayed
+     * subscribed on hidden/lazy views. */
+    pauseSubscriptions() {
+        if (this.__n37Paused) return;
+        this.__n37Paused = true;
+        this._unsubscribe();
+        this._conditions.disconnect();
+    }
+
+    /** N37/N40 — resume by re-running the element's own wiring via a
+     * detach/re-attach cycle (the one path every element implements correctly).
+     * Retained values repaint from the B40 cache replay. */
+    resumeSubscriptions() {
+        if (!this.__n37Paused) return;
+        this.__n37Paused = false;
+        const parent = this.parentNode;
+        if (!parent) return;
+        const next = this.nextSibling;
+        this.remove();
+        parent.insertBefore(this, next);
     }
 
     _visibleChanged(visible) {

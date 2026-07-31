@@ -181,6 +181,26 @@ describe('subscription lifecycle', () => {
         expect(conn.topics()).toHaveLength(6);
     });
 
+    it('a paused element does not re-subscribe via _subscribe()/_subscribeAvailability() (N40 gate)', async () => {
+        const el = await mount('test-fe-string', {subscribe: 'home/x'});
+        expect(conn.topics()).toHaveLength(7);            // subscribed on mount
+        el.pauseSubscriptions();
+        expect(el._subscriptions).toHaveLength(0);
+        expect(conn.handlers).toHaveLength(0);            // pause unsubscribed everything
+        conn.sub.mockClear();
+        // A stray re-subscribe attempt (Lit updated() on a `visible` change, a
+        // device-card rewire, a second _subscribe on a property update) must be a
+        // NO-OP while paused — this is the N40 "subscribed but never shown" bug.
+        el._subscribe();
+        el._subscribeAvailability();
+        expect(conn.sub).not.toHaveBeenCalled();
+        expect(el._subscriptions).toHaveLength(0);
+        // resuming re-subscribes cleanly
+        el.resumeSubscriptions();
+        await el.updateComplete;
+        expect(conn.topics()).toHaveLength(7);
+    });
+
     it('editor with MQTT manipulation prevented (default) does not subscribe', async () => {
         feezal.isEditor = true;
         await mount('test-fe-string', {subscribe: 'home/x'});

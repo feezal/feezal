@@ -240,15 +240,25 @@ class FeezalSite extends LitElement {
         }
 
         if (!feezal.isEditor && !feezal.visibility) {
-            // N37/N40: build the visibility controller HERE — before this site's
-            // view elements upgrade/connect — so an initially-hidden or lazy view
-            // is marked paused first and its elements skip the initial subscribe
-            // entirely (the FeezalElement `isPaused` precondition). If elements
-            // ever connect before this (unusual boot order / static export), the
-            // controller's immediate pause still unsubscribes them (N40 approach
-            // b fallback). feezal-app-viewer keeps a late fallback construction
-            // guarded by the same `!feezal.visibility` check; disposal stays there.
-            feezal.visibility = new FeezalVisibility(this);
+            // N37/N40: build the visibility controller so an initially-hidden or
+            // lazy view is marked paused BEFORE its elements upgrade/connect —
+            // then their `isPaused` precondition skips the initial subscribe. In
+            // the module-script viewer bundle this connectedCallback runs (import
+            // order) before the element packages define, so our <feezal-view>
+            // children already exist and can be marked paused now.
+            //
+            // Guard against the boot order where our view children are NOT yet in
+            // the DOM (an inline-defined static export can upgrade this element
+            // during parsing, before its children): building now would see zero
+            // views and pause nothing. Defer to DOMContentLoaded (children
+            // present) in that case. feezal-app-viewer keeps a late fallback
+            // construction guarded by the same `!feezal.visibility` check.
+            const build = () => { if (!feezal.isEditor && !feezal.visibility) feezal.visibility = new FeezalVisibility(this); };
+            if (this.querySelector('feezal-view') || document.readyState !== 'loading') {
+                build();
+            } else {
+                document.addEventListener('DOMContentLoaded', build, {once: true});
+            }
         }
 
         if (!feezal.isEditor) {
