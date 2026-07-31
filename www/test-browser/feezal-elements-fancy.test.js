@@ -205,7 +205,7 @@ describe('viewer: the lottie lifecycle', () => {
 
     it('switch (E162 proof piece): ON plays the confetti celebration, OFF the explicit shrink-down', async () => {
         const el = await mount('feezal-element-fancy-switch',
-            {subscribe: 'stat/sw', 'publish-state': 'cmd/sw'});
+            {subscribe: 'stat/sw', publish: 'cmd/sw'});
         await until(() => factory.instances.length === 1);
         const inst = factory.last;
         inst.calls.length = 0;
@@ -234,12 +234,12 @@ describe('viewer: the lottie lifecycle', () => {
         expect(fills.some(k => k[0] === 0 && Math.abs(k[1] - 0.631) < 0.01)).toBe(true);   // cyan survives
     });
 
-    it('switch: a tap publishes payload-on/off to publish-state (separate mode, circle-switch contract)', async () => {
-        // Regression: the element used to expose only `publish` and map
-        // discovery command_topic to it — but in separate mode the controller
-        // publishes ONLY to publish-state, so taps went nowhere.
+    it('switch: a tap publishes payload-on/off to publish (glass-switch contract)', async () => {
+        // Regression guard: the element once wired taps through a controller
+        // that published to a topic the element never exposed — taps went
+        // nowhere. Now it IS the simple glass/material contract.
         const el = await mount('feezal-element-fancy-switch',
-            {subscribe: 'stat/sw', 'publish-state': 'cmd/sw'});
+            {subscribe: 'stat/sw', publish: 'cmd/sw'});
         await until(() => factory.instances.length === 1);
         el.shadowRoot.querySelector('div').click();
         await el.updateComplete;
@@ -247,6 +247,10 @@ describe('viewer: the lottie lifecycle', () => {
         el.shadowRoot.querySelector('div').click();
         await el.updateComplete;
         expect(feezal.connection.published[1]).toEqual({topic: 'cmd/sw', payload: 'OFF'});
+        // incoming state still reflects (payloadMatch, not the tap path)
+        feezal.connection.deliver('stat/sw', 'ON');
+        await el.updateComplete;
+        expect(el.shadowRoot.textContent).toContain('On');
     });
 
     it('theme retint rebuilds the instance with fresh tones', async () => {
