@@ -128,45 +128,124 @@ describe('feezal-generate-dialog (U58 Devices)', () => {
         }
     });
 
-    describe('shift-click range select', () => {
+    describe('U68 range + drag select', () => {
         const dev = (id, name) => ({component: 'switch', discovery_id: id,
             config: {command_topic: id + '/set', device: {name}}, __key: id});
         const sel = dlg => new Set(dlg._checked);
+        // labels AAA..DDD sort to a stable visible order a,b,c,d
         async function dialogWith4() {
             const dlg = await makeDialog();
-            dlg._family = 'circle';   // circle-switch is registered, so all four are eligible
-            // labels AAA..DDD sort to a stable visible order a,b,c,d
+            dlg._family = 'circle';   // circle-switch is registered → all four eligible
             dlg.__devices = [dev('d-a', 'AAA'), dev('d-b', 'BBB'), dev('d-c', 'CCC'), dev('d-d', 'DDD')];
             return dlg;
         }
+        const press = (dlg, key, shift = false) => dlg._sel.press({shiftKey: shift}, key, dlg._currentOrder());
 
-        it('plain click then Shift+click fills the range (anchor checked)', async () => {
+        it('plain press then Shift+press fills the range with the TARGET action', async () => {
             const dlg = await dialogWith4();
-            dlg._rowClick({shiftKey: false}, 'd-a');           // check a, anchor = a
+            press(dlg, 'd-a');                                  // check a, anchor = a
             expect(sel(dlg)).toEqual(new Set(['d-a']));
-            dlg._rowClick({shiftKey: true}, 'd-d');            // a..d all checked
+            press(dlg, 'd-d', true);                            // d-d toggles ON → a..d checked
             expect(sel(dlg)).toEqual(new Set(['d-a', 'd-b', 'd-c', 'd-d']));
         });
 
-        it('works upward too (Shift+click a row above the anchor)', async () => {
+        it('works upward too (Shift+press a row above the anchor)', async () => {
             const dlg = await dialogWith4();
-            dlg._rowClick({shiftKey: false}, 'd-d');
-            dlg._rowClick({shiftKey: true}, 'd-a');
+            press(dlg, 'd-d');
+            press(dlg, 'd-a', true);
             expect(sel(dlg)).toEqual(new Set(['d-a', 'd-b', 'd-c', 'd-d']));
         });
 
-        it('Shift+click CLEARS a range when the anchor is unchecked', async () => {
+        it('Shift+press CLEARS a range when the target toggles off', async () => {
             const dlg = await dialogWith4();
             dlg._checked = new Set(['d-a', 'd-b', 'd-c', 'd-d']);
-            dlg._rowClick({shiftKey: false}, 'd-b');           // uncheck b, anchor = b (off)
-            dlg._rowClick({shiftKey: true}, 'd-d');            // b..d cleared
+            press(dlg, 'd-b');                                  // uncheck b, anchor = b
+            press(dlg, 'd-d', true);                            // d-d toggles OFF → b..d cleared
             expect(sel(dlg)).toEqual(new Set(['d-a']));
         });
 
-        it('a Shift+click with no prior anchor is just a toggle', async () => {
+        it('Shift+press with NO anchor extends up to the boundary', async () => {
             const dlg = await dialogWith4();
-            dlg._rowClick({shiftKey: true}, 'd-c');
-            expect(sel(dlg)).toEqual(new Set(['d-c']));
+            press(dlg, 'd-c', true);      // no anchor: check c and everything above until a checked row
+            expect(sel(dlg)).toEqual(new Set(['d-a', 'd-b', 'd-c']));   // d-d (below) untouched
+        });
+
+        it('the upward boundary stops at the first already-selected row', async () => {
+            const dlg = await dialogWith4();
+            dlg._checked = new Set(['d-a']);   // a already checked
+            press(dlg, 'd-d', true);           // check d, c, b — stop AT a (already on)
+            expect(sel(dlg)).toEqual(new Set(['d-a', 'd-b', 'd-c', 'd-d']));
+        });
+
+        it('press-and-drag paints the press action onto crossed rows', async () => {
+            const dlg = await dialogWith4();
+            press(dlg, 'd-a');            // check a, drag armed with on=true
+            dlg._sel.paint('d-b');
+            dlg._sel.paint('d-c');
+            expect(sel(dlg)).toEqual(new Set(['d-a', 'd-b', 'd-c']));
+            dlg._sel.end();
+            dlg._sel.paint('d-d');       // after release, painting is a no-op
+            expect(sel(dlg)).toEqual(new Set(['d-a', 'd-b', 'd-c']));
+        });
+    });
+
+    describe('U69 review is the selection', () => {
+        const dev = (id, name, comp = 'switch') => ({component: comp, discovery_id: id,
+            config: {command_topic: id + '/set', device: {name}}, __key: id});
+        async function reviewDialog() {
+            const dlg = await makeDialog();
+            dlg._family = 'circle';
+            dlg._axis = 'room';
+            dlg.__devices = [dev('d-wz', 'wohnzimmer_lampe', 'light'), dev('d-ku', 'kueche_steckdose')];
+            dlg._toReview();
+            return dlg;
+        }
+
+        it('_toReview selects every eligible device by default', async () => {
+            const dlg = await reviewDialog();
+            expect(new Set(dlg._checked)).toEqual(new Set(['d-wz', 'd-ku']));
+            expect(dlg._stage).toBe('review');
+        });
+
+        it('unchecking a device excludes it from generation', async () => {
+            const dlg = await reviewDialog();
+            window.feezal.site = document.createElement('div');
+            window.feezal.app.views = [];
+            dlg._checked = new Set(['d-wz']);   // drop kueche
+            dlg._generateApp();
+            const site = window.feezal.site;
+            expect(site.querySelector('feezal-view[name="kitchen"]')).toBeNull();       // emptied bucket → no view
+            expect(site.querySelector('feezal-view[name="living-room"]')).not.toBeNull();
+            expect(dlg._result.added).toBe(1);
+        });
+    });
+
+    describe('U70 create new room', () => {
+        async function reviewDialog() {
+            const dlg = await makeDialog();
+            dlg._family = 'circle'; dlg._axis = 'room';
+            dlg.__devices = [{component: 'switch', discovery_id: 'd-x', name: 'mystery',
+                config: {command_topic: 'x/set', state_topic: 'x'}, __key: 'd-x'}];
+            dlg._toReview();
+            return dlg;
+        }
+
+        it('the create sentinel opens the new-room dialog without reassigning', async () => {
+            const dlg = await reviewDialog();
+            const before = dlg._assign.get('d-x').label;
+            dlg._onReassignChange('d-x', '__feezal_new_room__');   // the NEW_ROOM sentinel value
+            expect(dlg._newRoomFor).toBe('d-x');
+            expect(dlg._assign.get('d-x').label).toBe(before);   // not moved yet
+        });
+
+        it('confirming a name moves the device into the new bucket', async () => {
+            const dlg = await reviewDialog();
+            dlg._onReassignChange('d-x', '__feezal_new_room__');
+            dlg._newRoomName = '  Wintergarten  ';
+            dlg._confirmNewRoom();
+            expect(dlg._assign.get('d-x').label).toBe('Wintergarten');   // trimmed
+            expect(dlg._newRoomFor).toBe(null);
+            expect(dlg._reviewBuckets().some(b => b.label === 'Wintergarten')).toBe(true);
         });
     });
 });
@@ -272,8 +351,8 @@ describe('feezal-generate-dialog (U58 App mode)', () => {
         dlg.__devices = [...DEVICES(),
             {component: 'switch', discovery_id: 'd-ku2', name: 'kueche_ofen',
                 config: {state_topic: 'z/kueche_ofen', command_topic: 'z/kueche_ofen/set'}, __key: 'd-ku2'}];
-        dlg._checked = new Set(['d-wz', 'd-ku', 'd-ku2']);
         dlg._toReview();
+        dlg._checked = new Set(['d-wz', 'd-ku', 'd-ku2']);   // U69: uncheck the Unassigned mystery device
         dlg._generateApp();
 
         expect(site.querySelectorAll('feezal-element-layout-app')).toHaveLength(1);   // one shell

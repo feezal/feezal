@@ -332,6 +332,9 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U65 — Site-wide named colour ranges: any colour knob can be driven by a value ✅ done](U65.md)
 - [U66 — Colour pickers cannot express transparency (no alpha slider) ✅ done](U66.md)
 - [U67 — U58 Generate wizard: post-ship polish (ordering, sizing, diagnostics filter, localized rooms) ✅ done](U67.md)
+- [U68 — Device-list selection: refined range-select + drag-select (reusable) ✅ done](U68.md)
+- [U69 — Generate wizard: the review IS the selection (drop the flat first page) ✅ done](U69.md)
+- [U70 — Review: "＋ Create new room" in the per-device move-to-room dropdown ✅ done](U70.md)
 
 ## Architecture & Infrastructure
 

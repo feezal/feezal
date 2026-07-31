@@ -9,6 +9,10 @@ import '@shoelace-style/shoelace/dist/components/spinner/spinner.js';
 
 import {stampDiscovery, resolveElementTag, layoutGrid, knownComponents, discoveryLabel,
     groupForApp, slugifyViewName, UNKNOWN_ROOM} from './feezal-discovery-stamp.js';
+import {RangeSelect} from './feezal-range-select.js';
+
+// U70: the sentinel option value that opens the "new room" dialog.
+const NEW_ROOM = '__feezal_new_room__';
 
 /**
  * U58 — the **Generate** wizard: a bulk element + app scaffold from MQTT
@@ -56,6 +60,8 @@ class FeezalGenerateDialog extends LitElement {
         _axis:    {state: true},   // App mode: 'room' | 'function'
         _assign:  {state: true},   // App review: Map<entityKey, {label, icon}>
         _result:  {state: true},   // {added, view, views?, skippedNoElem:[], skippedDupe:[]}
+        _newRoomFor: {state: true},// U70: entity key awaiting a new-room name, or null
+        _newRoomName: {state: true},
     };
 
     static styles = css`
@@ -134,8 +140,17 @@ class FeezalGenerateDialog extends LitElement {
         .empty { padding: 30px; text-align: center; opacity: .6; font-size: 13px; }
         .loading { display: flex; align-items: center; gap: 12px; padding: 24px; font-size: 13px; opacity: .8; }
 
+        /* ── App setup stage (U69: axis + family only) ──────────────────── */
+        .app-setup { display: flex; flex-direction: column; gap: 14px; padding: 6px 0 4px; }
+        .setup-row { display: flex; align-items: center; gap: 12px; }
+        .setup-label { font-size: 12px; font-weight: 600; opacity: .7; width: 64px; flex: 0 0 auto; }
+        .setup-note { font-size: 12.5px; opacity: .75; margin-top: 2px; display: flex; align-items: center; gap: 8px; }
+
+        /* U70: the new-room prompt stacks above the wizard dialog. */
+        sl-dialog.newroom { --width: 340px; --sl-z-index-dialog: 20005; }
+
         /* ── App review stage ───────────────────────────────────────────── */
-        .review-hint { font-size: 12.5px; opacity: .75; margin: 0 0 10px; }
+        .review-hint { font-size: 12.5px; opacity: .75; margin: 0 0 10px; line-height: 1.45; }
         .bucket { margin-bottom: 14px; }
         .bucket-hd {
             display: flex; align-items: center; gap: 8px; position: sticky; top: 0; z-index: 1;
@@ -195,11 +210,22 @@ class FeezalGenerateDialog extends LitElement {
         this._family = 'glass';
         this._filter = '';
         this._checked = new Set();
-        this._anchorKey = null;   // last plain-clicked row — the shift-range anchor
         this._axis = 'room';
         this._assign = new Map();
         this._result = null;
+        this._newRoomFor = null;
+        this._newRoomName = '';
         this.__devices = [];
+        // U68: one range/drag selection helper for BOTH lists (device + review).
+        this._sel = new RangeSelect({
+            selection: () => this._checked,
+            commit: s => { this._checked = s; },
+        });
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        this._endDrag();   // never leave window listeners behind
     }
 
     /** Open the wizard at the tile chooser. */
@@ -208,7 +234,8 @@ class FeezalGenerateDialog extends LitElement {
         this._error = null;
         this._filter = '';
         this._checked = new Set();
-        this._anchorKey = null;
+        this._sel.reset();
+        this._newRoomFor = null;
         this._result = null;
         // Default the family to the first available one.
         const fams = this._availableFamilies();
@@ -307,14 +334,12 @@ class FeezalGenerateDialog extends LitElement {
         return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]));
     }
 
-    _toggle(key) {
-        const next = new Set(this._checked);
-        next.has(key) ? next.delete(key) : next.add(key);
-        this._checked = next;
-    }
+    // ── U68: range + drag selection, shared by the device list AND the review ──
 
-    // The selectable (non-gap) row keys in visible order across all groups —
-    // the sequence a shift-click range runs over.
+    // The selectable row keys in the CURRENTLY visible order — the sequence a
+    // Shift-range runs over. Devices/App-setup list: eligible rows grouped by
+    // source. Review: every device in bucket order (review holds only resolvable
+    // rows). Used by the range fill.
     _orderedEligibleKeys() {
         const keys = [];
         for (const [, entities] of this._grouped()) {
@@ -323,27 +348,37 @@ class FeezalGenerateDialog extends LitElement {
         return keys;
     }
 
-    // Row click. A plain click toggles the row and becomes the range anchor; a
-    // Shift+click sets every selectable row between the anchor and this row
-    // (inclusive) to the anchor's state — so shift-click FILLS a range when the
-    // anchor is checked and CLEARS one when it isn't. The anchor is kept so the
-    // range endpoint can be moved with another shift-click.
-    _rowClick(ev, key) {
-        if (ev.shiftKey && this._anchorKey && this._anchorKey !== key) {
-            const order = this._orderedEligibleKeys();
-            const a = order.indexOf(this._anchorKey);
-            const b = order.indexOf(key);
-            if (a !== -1 && b !== -1) {
-                const [lo, hi] = a < b ? [a, b] : [b, a];
-                const on = this._checked.has(this._anchorKey);
-                const next = new Set(this._checked);
-                for (let i = lo; i <= hi; i++) on ? next.add(order[i]) : next.delete(order[i]);
-                this._checked = next;
-                return;   // keep the anchor — the user can re-shift-click a new endpoint
-            }
-        }
-        this._toggle(key);
-        this._anchorKey = key;
+    _orderedReviewKeys() {
+        const keys = [];
+        for (const b of this._reviewBuckets()) for (const e of b.entities) keys.push(e.__key);
+        return keys;
+    }
+
+    _currentOrder() {
+        return this._stage === 'review' ? this._orderedReviewKeys() : this._orderedEligibleKeys();
+    }
+
+    // Pointer press on a row: apply the range/drag rule and arm a drag so the
+    // press action paints onto any row the pointer then crosses.
+    _selPress(ev, key) {
+        ev.preventDefault();                       // no focus/selection flicker
+        this._sel.press(ev, key, this._currentOrder());
+        this.requestUpdate();
+        if (this._dragMove) return;                // already armed this gesture
+        this._dragMove = e => {
+            const row = this.renderRoot.elementFromPoint(e.clientX, e.clientY)?.closest?.('.row[data-key]');
+            if (row) { this._sel.paint(row.dataset.key); this.requestUpdate(); }
+        };
+        this._dragUp = () => this._endDrag();
+        window.addEventListener('pointermove', this._dragMove);
+        window.addEventListener('pointerup', this._dragUp);
+    }
+
+    _endDrag() {
+        this._sel.end();
+        if (this._dragMove) window.removeEventListener('pointermove', this._dragMove);
+        if (this._dragUp) window.removeEventListener('pointerup', this._dragUp);
+        this._dragMove = this._dragUp = null;
     }
 
     // Toggle every generatable (non-gap) row in a group.
@@ -421,11 +456,15 @@ class FeezalGenerateDialog extends LitElement {
 
     // ── U58 Phase ②: App mode ────────────────────────────────────────────────
 
-    /** Selected entities → review assignments, seeded from the heuristic.
-     * Nothing is created before confirm — backing out leaves no trace. */
+    /** U69: the review IS the selection. Every generatable device is bucketed
+     * and starts CHECKED; the user unchecks the ones they don't want in the
+     * review itself, so there is no separate flat device list. Nothing is
+     * created before confirm — backing out leaves no trace. */
     _toReview() {
-        const chosen = this.__devices.filter(e => this._checked.has(e.__key) && this._tagFor(e));
-        const buckets = groupForApp(chosen, this._axis);
+        const eligible = this.__devices.filter(e => this._tagFor(e));
+        this._checked = new Set(eligible.map(e => e.__key));   // all selected by default
+        this._sel.reset();
+        const buckets = groupForApp(eligible, this._axis);
         const assign = new Map();
         this._bucketMeta = new Map();   // label → {order, guessed}
         for (const b of buckets) {
@@ -434,6 +473,14 @@ class FeezalGenerateDialog extends LitElement {
         }
         this._assign = assign;
         this._stage = 'review';
+    }
+
+    // Toggle every device in a review bucket (its header checkbox).
+    _toggleBucket(entities) {
+        const allOn = entities.length > 0 && entities.every(e => this._checked.has(e.__key));
+        const next = new Set(this._checked);
+        for (const e of entities) allOn ? next.delete(e.__key) : next.add(e.__key);
+        this._checked = next;
     }
 
     /** The review buckets, derived from the editable assignment map — rooms
@@ -470,12 +517,37 @@ class FeezalGenerateDialog extends LitElement {
         this._assign = next;
     }
 
-    /** Move one entity to another (existing) bucket. */
+    /** Move one entity to another bucket — existing (copy its icon) or a brand
+     * new room (default icon; the bucket springs into being from the assign). */
     _reassign(key, label) {
         const target = [...this._assign.values()].find(a => a.label === label);
         const next = new Map(this._assign);
         next.set(key, {label, icon: target?.icon || 'meeting_room'});
         this._assign = next;
+    }
+
+    // ── U70: "＋ Create new room" from a device's move-to-room dropdown ──
+    _onReassignChange(key, value) {
+        if (value === NEW_ROOM) {
+            this._newRoomFor = key;
+            this._newRoomName = '';
+            this.updateComplete.then(() => this.renderRoot.querySelector('.newroom')?.show());
+            this.requestUpdate();   // reset the <select> back to its real value
+            return;
+        }
+        this._reassign(key, value);
+    }
+
+    _confirmNewRoom() {
+        const label = String(this._newRoomName || '').trim();
+        if (label && this._newRoomFor) this._reassign(this._newRoomFor, label);
+        this._closeNewRoom();
+    }
+
+    _closeNewRoom() {
+        this.renderRoot.querySelector('.newroom')?.hide();
+        this._newRoomFor = null;
+        this._newRoomName = '';
     }
 
     /** Unique view name (the buckets may collide with non-view names only). */
@@ -541,7 +613,10 @@ class FeezalGenerateDialog extends LitElement {
         // by name; a same-run collision of two labels gets a numeric suffix.
         const slugUsed = new Map();   // slug → label (this run)
         for (const bucket of buckets) {
-            if (!bucket.entities.length) continue;
+            // U69: only the devices still checked in the review are generated;
+            // a bucket the user emptied creates no view.
+            const chosen = bucket.entities.filter(e => this._checked.has(e.__key));
+            if (!chosen.length) continue;
             let slug = slugifyViewName(bucket.label);
             if (slugUsed.has(slug) && slugUsed.get(slug) !== bucket.label) {
                 let i = 2;
@@ -564,7 +639,7 @@ class FeezalGenerateDialog extends LitElement {
                 site.append(view);
                 createdViews.push(slug);
             }
-            for (const entity of bucket.entities) {
+            for (const entity of chosen) {
                 if (entity.discovery_id && existing.has(entity.discovery_id)) { skippedDupe.push(entity); continue; }
                 const tag = this._tagFor(entity);
                 if (!tag) continue;   // review only holds resolvable rows, belt & braces
@@ -632,6 +707,19 @@ class FeezalGenerateDialog extends LitElement {
                     : this._stage === 'review' ? this._renderReview()
                     : this._renderResult()}
             </sl-dialog>
+
+            <!-- U70: create a new room, stacked above the wizard (editor-dark aware). -->
+            <sl-dialog class="newroom" label="New room"
+                @sl-request-close="${e => { if (e.detail.source === 'overlay') e.preventDefault(); }}">
+                <sl-input placeholder="Room name" autofocus value="${this._newRoomName}"
+                    @sl-input="${e => { this._newRoomName = e.target.value; }}"
+                    @keydown="${e => { if (e.key === 'Enter') { e.preventDefault(); this._confirmNewRoom(); } }}"></sl-input>
+                <div slot="footer" class="footer">
+                    <sl-button @click="${this._closeNewRoom}">Cancel</sl-button>
+                    <sl-button variant="primary" ?disabled="${!this._newRoomName.trim()}"
+                        @click="${this._confirmNewRoom}">Create</sl-button>
+                </div>
+            </sl-dialog>
         `;
     }
 
@@ -694,85 +782,107 @@ class FeezalGenerateDialog extends LitElement {
         `;
     }
 
-    /** App stage: axis + family + the shared device list. */
+    /** App step 1 (U69): choose the axis + family only. The devices themselves
+     * are picked on the review screen, so there is no flat list here. */
     _renderApp() {
         const fams = this._availableFamilies();
-        const count = this._selectableCount();
+        const eligible = this.__devices.filter(e => this._tagFor(e)).length;
         return html`
-            <div class="dev-head">
-                <div class="families">
-                    <button class="${this._axis === 'room' ? 'sel' : ''}" @click="${() => { this._axis = 'room'; }}">By room</button>
-                    <button class="${this._axis === 'function' ? 'sel' : ''}" @click="${() => { this._axis = 'function'; }}">By function</button>
+            <div class="app-setup">
+                <div class="setup-row">
+                    <span class="setup-label">Group by</span>
+                    <div class="families">
+                        <button class="${this._axis === 'room' ? 'sel' : ''}" @click="${() => { this._axis = 'room'; }}">By room</button>
+                        <button class="${this._axis === 'function' ? 'sel' : ''}" @click="${() => { this._axis = 'function'; }}">By function</button>
+                    </div>
                 </div>
-                <div class="families">
-                    ${fams.map(f => html`
-                        <button class="${f === this._family ? 'sel' : ''}" @click="${() => { this._family = f; }}">
-                            ${FAMILY_LABELS[f] || f}
-                        </button>`)}
+                <div class="setup-row">
+                    <span class="setup-label">Family</span>
+                    <div class="families">
+                        ${fams.map(f => html`
+                            <button class="${f === this._family ? 'sel' : ''}" @click="${() => { this._family = f; }}">
+                                ${FAMILY_LABELS[f] || f}
+                            </button>`)}
+                    </div>
                 </div>
-                <sl-input size="small" clearable placeholder="Filter devices…"
-                    value="${this._filter}"
-                    @sl-input="${e => { this._filter = e.target.value; }}"></sl-input>
-                <span class="dev-count">${count} selected</span>
-            </div>
-
-            <div class="dev-body">
-                ${this._loading ? html`<div class="loading"><sl-spinner></sl-spinner> Loading discovered devices…</div>`
-                    : this._error ? html`<div class="empty">Could not load devices: ${this._error}</div>`
-                    : this._renderGroups()}
+                <div class="setup-note">
+                    ${this._loading ? html`<sl-spinner style="font-size:14px"></sl-spinner> Loading discovered devices…`
+                        : this._error ? html`Could not load devices: ${this._error}`
+                        : eligible ? html`<b>${eligible}</b> device${eligible === 1 ? '' : 's'} discovered — pick which to include on the next screen.`
+                        : html`No generatable devices discovered in the <b>${FAMILY_LABELS[this._family] || this._family}</b> family.`}
+                </div>
             </div>
 
             <div slot="footer" class="footer">
                 <sl-button variant="text" @click="${() => { this._stage = 'tiles'; }}">Back</sl-button>
                 <span class="spacer"></span>
                 <sl-button @click="${this._close}">Cancel</sl-button>
-                <sl-button variant="primary" ?disabled="${count === 0}" @click="${this._toReview}">
+                <sl-button variant="primary" ?disabled="${!eligible}" @click="${this._toReview}">
                     Review ${this._axis === 'room' ? 'rooms' : 'functions'}…
                 </sl-button>
             </div>
         `;
     }
 
-    /** Review stage: editable buckets — rename (same name = merge), reassign
-     * a device via its select; a wrong guess is a two-click fix. */
+    /** Review stage (U69): the selection surface. Every device starts checked;
+     * uncheck to exclude (with the U68 range/drag select). Rename a bucket
+     * (same name = merge), move a device with its dropdown or make a new room
+     * (U70). A bucket with no checked device produces no view. */
     _renderReview() {
         const buckets = this._reviewBuckets();
         const labels = buckets.map(b => b.label);
-        const total = buckets.reduce((n, b) => n + b.entities.length, 0);
+        const checkedIn = b => b.entities.filter(e => this._checked.has(e.__key)).length;
+        const totalChecked = buckets.reduce((n, b) => n + checkedIn(b), 0);
+        const views = buckets.filter(b => checkedIn(b) > 0).length;
+        const isRoom = this._axis === 'room';
         return html`
             <div class="review-hint">
-                ${buckets.length} ${this._axis === 'room' ? 'rooms' : 'groups'} · ${total} devices —
-                rename to merge, or move a device with its dropdown. Each group becomes a sub-view
-                wired into the app drawer.
+                ${buckets.length} ${isRoom ? 'rooms' : 'groups'} · <b>${totalChecked}</b> of
+                ${buckets.reduce((n, b) => n + b.entities.length, 0)} devices selected —
+                <b>untick</b> what you don't want (hold <b>Shift</b> or drag for a range),
+                rename to merge, or move a device with its dropdown. Each group becomes a
+                sub-view in the app drawer.
             </div>
-            <div class="dev-body">
-                ${buckets.map(b => html`
+            <div class="dev-body groups">
+                ${buckets.map(b => {
+                    const on = checkedIn(b);
+                    return html`
                     <div class="bucket">
                         <div class="bucket-hd">
+                            <span class="g-toggle" @click="${() => this._toggleBucket(b.entities)}">
+                                <sl-checkbox ?checked="${on === b.entities.length}"
+                                    ?indeterminate="${on > 0 && on < b.entities.length}"
+                                    style="pointer-events:none"></sl-checkbox>
+                            </span>
                             <span class="material-icons">${b.icon}</span>
                             <sl-input size="small" value="${b.label}"
                                 @sl-change="${e => this._renameBucket(b.label, e.target.value)}"></sl-input>
-                            <span class="g-count">${b.entities.length}</span>
-                            ${b.guessed && this._axis === 'room' && b.label !== UNKNOWN_ROOM
+                            <span class="g-count">${on}/${b.entities.length}</span>
+                            ${b.guessed && isRoom && b.label !== UNKNOWN_ROOM
                                 ? html`<span class="r-badge" title="Room guessed from the device name — no explicit area">guessed</span>` : ''}
                         </div>
                         ${b.entities.map(e => html`
-                            <div class="row">
+                            <div class="row" data-key="${e.__key}"
+                                @pointerdown="${ev => this._selPress(ev, e.__key)}">
+                                <sl-checkbox ?checked="${this._checked.has(e.__key)}"></sl-checkbox>
                                 <span class="r-label">${this._label(e)}</span>
                                 <span class="r-badge">${e.component}</span>
                                 <select class="r-move" .value="${b.label}"
-                                    @change="${ev => this._reassign(e.__key, ev.target.value)}">
+                                    @pointerdown="${ev => ev.stopPropagation()}"
+                                    @change="${ev => this._onReassignChange(e.__key, ev.target.value)}">
                                     ${labels.map(l => html`<option value="${l}" ?selected="${l === b.label}">${l}</option>`)}
+                                    ${isRoom ? html`<option value="${NEW_ROOM}">＋ Create new room…</option>` : ''}
                                 </select>
                             </div>`)}
-                    </div>`)}
+                    </div>`;
+                })}
             </div>
             <div slot="footer" class="footer">
                 <sl-button variant="text" @click="${() => { this._stage = 'app'; }}">Back</sl-button>
                 <span class="spacer"></span>
                 <sl-button @click="${this._close}">Cancel</sl-button>
-                <sl-button variant="primary" ?disabled="${total === 0}" @click="${this._generateApp}">
-                    Generate app (${buckets.length} view${buckets.length === 1 ? '' : 's'})
+                <sl-button variant="primary" ?disabled="${totalChecked === 0}" @click="${this._generateApp}">
+                    Generate app (${views} view${views === 1 ? '' : 's'})
                 </sl-button>
             </div>
         `;
@@ -819,7 +929,8 @@ class FeezalGenerateDialog extends LitElement {
         }
         const on = this._checked.has(entity.__key);
         return html`
-            <div class="row" @click="${ev => this._rowClick(ev, entity.__key)}">
+            <div class="row" data-key="${entity.__key}"
+                @pointerdown="${ev => this._selPress(ev, entity.__key)}">
                 <sl-checkbox ?checked="${on}"></sl-checkbox>
                 <span class="r-label">${this._label(entity)}</span>
                 <span class="r-badge">${entity.component}</span>
