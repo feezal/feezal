@@ -53,6 +53,7 @@ Work in progress — priorities and scope are not final.
 - [E145 — Autodiscovery support for ccu-jack's MQTT interface](#e145--autodiscovery-support-for-ccu-jacks-mqtt-interface)
 - [E150 — Discovery for profile-shaped components: `water_heater` ✅ + `lawn_mower` 🔨](#e150--discovery-for-profile-shaped-components-water_heater---lawn_mower)
 - [E159 — Re-add a Paper-family app shell (`paper-app`) with full layout-app parity](#e159--re-add-a-paper-family-app-shell-paper-app-with-full-layout-app-parity)
+- [E162 — Fancy family, take two: actually fancy — ready-made Lottie art over generated geometry](#e162--fancy-family-take-two-actually-fancy--ready-made-lottie-art-over-generated-geometry)
 
 **Editor UX**
 
@@ -1478,6 +1479,46 @@ That is the most expensive of the options considered and it adds to the legacy P
 **Ships with:** the element or variant, palette entry, the N6 inspector (shared or re-pointed), `www/editor/feezal-elements.js` regenerated if a new package lands, per-element notes in `docs/TESTING.md` §6, a browser test mirroring `test-browser/feezal-elements-layout-app.test.js`, and version bumps per policy.
 
 **Relates:** **[E47](roadmap-archive/E47.md)** ✅ (built `layout-app` *as* the replacement for `paper-app-layout` — read it before re-adding what it deliberately superseded), **N36** / **N30** / **B41** / **B50** / **U47** / **[U50](roadmap-archive/U50.md)** ✅ (the feature set to match), **B84** (slim-rail bug that would be inherited), **U63** (content-inset API in flux — settle it before duplicating), **E137** (the "view over shared behaviour, never fork" principle this item must answer to), **E114** (family parity — the convention pulling toward a separate element), `feezal-element-layout-app`.
+
+### E162 — Fancy family, take two: actually fancy — ready-made Lottie art over generated geometry
+
+**Verdict from the reporter (07/2026), after seeing [E139](roadmap-archive/E139.md) ✅ on a dashboard:** *"i expected much more fancyness … they look really boring. i wanted animations! colors! fancy!"* Honest reading: the shipped set is exactly what E139's own text warned it would be — *"complex illustrative art is explicitly out of scope for the built-in set"* — flat-geometric motion authored in code. The MACHINERY is right (lazy chunk, segment player, directional transitions, position-seek, controller views, override attributes); the ART is the problem. This item replaces the art tier, not the architecture.
+
+## What "fancy" concretely means (so the next attempt can't miss it)
+
+- **Colour** — not two theme tones. Real palettes, gradients, glow. The E139 duotone was chosen FOR theme-recolourability; that trade-off is now explicitly re-decided: **looking great beats auto-retinting** for the built-in set.
+- **Motion character** — overshoot/bounce, secondary motion (particles, sparkles, drips), not just eased transforms of the same rectangles.
+- **Illustration** — objects that look like the thing (a bulb with filament and rays, a radiator with shimmer, a window with glass and frame depth), not abstract geometry.
+
+## The licensing landscape for ready-made animations (researched, verify before vendoring)
+
+| source | license | shippable in core? |
+|---|---|---|
+| **LottieFiles marketplace (free tier)** | "Lottie Simple License" — free use in end products, but **redistribution of the asset files is not clearly permitted** | ❌ almost certainly not vendorable in an MIT repo — but PERFECT for the user-side `animation-src` path that already works |
+| **Google Noto Animated Emoji** | **CC BY 4.0** — redistribution allowed with attribution | ✅ vendorable per A25 (attribution file alongside, like the font licenses). Full-colour, genuinely delightful; the set covers a surprising amount of the device vocabulary (bulb, fire, droplet, bell, warning, sun/clouds/rain for a future weather card) |
+| **useAnimations** | MIT (repo) | ✅ vendorable, but micro icon-transitions, monochrome — solves motion, not "colors!" |
+| **LordIcon / IconScout etc.** | paid seats | ❌ out for core; users can buy + `animation-src` |
+
+**Key insight:** the built-ins must come from **redistributable** sources (CC-BY/MIT); LottieFiles' huge catalogue is the *user's* pool, not ours — and E139 already shipped the attribute pair (`animation-src` + `animation-map`) that makes any of it usable today.
+
+## Direction (proposed, refine before building)
+
+1. **Curate a CC-BY/MIT built-in set** — Noto Animated Emoji first: audit which of the six cards (+ states) it can cover convincingly; vendor the JSONs with attribution (A25 pattern), wire them through the existing segment maps. Where emoji art exists, it REPLACES the generated geometry as the default.
+2. **Full-colour art does not recolour** — it keeps its own palette (that is the point). The two-tone recolour path stays for the generated fallbacks and for the `--feezal-fancy-*` knobs; a per-element `recolor` boolean could force-tint monochrome art. The E138 colour-semantics requirement relaxes to badges/state-line (which already follow the theme).
+3. **Keep the generator as the gap-filler** — device-specific motion no emoji provides (blind travelling to a position %, sash tilt tristate, shackle swing) stays generated, but upgraded: gradients, glow layers, overshoot easing, secondary particles. The slots/segments machinery already supports it; only the authoring ambition was too low.
+4. **Editor UX: an animation picker** — the fancy inspector should *show* what you're choosing: a gallery of the vendored set + the site's own `.json` assets with live previews, instead of a bare asset path field. This is where "fancy" becomes discoverable instead of a hidden override.
+5. **Size discipline** — ready-made art is 20–200 kB per file; the built-in set should move out of the main chunk into lazily fetched per-card assets (the loader machinery exists — E89), with the tiny generated fallbacks staying inline for instant first paint.
+
+## Open questions
+
+- Noto coverage audit: which cards get convincing emoji art, which stay generated? (Cover and lock almost certainly stay generated — no emoji travels a blind.)
+- Attribution UX: a LICENSES/animations file, or per-asset credits surfaced in the editor?
+- Should the picker also browse LottieFiles directly (link-out, never bundling), keeping the licensing burden on the user?
+- `fancy-motion` card while at it? (The taxonomy slot exists.)
+
+**Ships with:** the curated vendored set + attribution, the no-recolour/full-colour path, upgraded generator art for the gap cards, the animation picker UX, lazy per-card asset loading, updated family tests (the palette-slot assertions become conditional on generated art), TESTING.md updates, patch bumps.
+
+**Relates:** **[E139](roadmap-archive/E139.md)** ✅ (the machinery this re-skins — player/segments/override attributes unchanged), **E89** ✅ (loader), **A25** (self-hosting + license hygiene — the vendoring pattern), **E113** (function × style), the E20/weather element (Noto's weather emoji would serve it too).
 
 ### A7 — Git versioning for data directory 🔨 in progress
 
