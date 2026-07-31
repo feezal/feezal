@@ -7,7 +7,7 @@ Each entry is filed under the section its **ID prefix** belongs to — `B` Bugs,
 Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastructure,
 `D` Documentation — and sorted by number within it, so a new entry has exactly one correct place.
 
-**330 items.**
+**331 items.**
 
 ## Bugs
 
@@ -350,6 +350,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [A31 — Test coverage: reach 50%+ overall (measure what's already tested, then fill gaps) ✅ done](A31.md)
 - [A32 — Element packages must declare their own npm dependencies ✅ done](A32.md)
 - [A33 — Move element-only toolkit deps out of `www/package.json` into their families ✅ done](A33.md)
+- [A34 — Dependency refresh + supply-chain hardening (`npm ci`, lockfile enforcement) ✅ done](A34.md)
 
 ## Documentation
 
