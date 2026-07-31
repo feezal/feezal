@@ -59,6 +59,33 @@ describe('feezal-generate-dialog (U58 Devices)', () => {
         expect(dlg._availableFamilies()).toContain('circle');
     });
 
+    it('the App family picker excludes basic/material (Devices tile still offers them)', async () => {
+        const dlg = await makeDialog();
+        dlg._availableFamilies = () => ['glass', 'circle', 'eink', 'basic', 'material'];
+
+        dlg._stage = 'app'; dlg.__devices = []; dlg.requestUpdate(); await dlg.updateComplete;
+        const appFams = [...dlg.renderRoot.querySelectorAll('.fam-gallery .fam-name')].map(n => n.textContent.trim());
+        expect(appFams).toEqual(expect.arrayContaining(['Glass', 'Circle', 'E-ink']));
+        expect(appFams).not.toContain('Basic');
+        expect(appFams).not.toContain('Material');
+
+        dlg._stage = 'devices'; dlg.requestUpdate(); await dlg.updateComplete;
+        const devFams = [...dlg.renderRoot.querySelectorAll('.families button')].map(b => b.textContent.trim());
+        expect(devFams).toEqual(expect.arrayContaining(['Basic', 'Material']));
+    });
+
+    it('_chooseApp drops a leftover basic/material selection to the first app family', async () => {
+        window.fetch = async url => String(url).includes('/api/discovery/devices')
+            ? {ok: true, json: async () => ({devices: []})}
+            : {ok: true, json: async () => ({groups: []})};
+        const dlg = await makeDialog();
+        dlg._availableFamilies = () => ['glass', 'circle', 'basic', 'material'];
+        dlg._autoFlow = false;
+        dlg._family = 'material';
+        await dlg._chooseApp();
+        expect(dlg._family).toBe('glass');
+    });
+
     it('generates one wired element per selected device in an auto-grid', async () => {
         const dlg = await makeDialog();
         dlg._family = 'circle';

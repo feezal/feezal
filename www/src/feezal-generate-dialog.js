@@ -45,7 +45,8 @@ const SYSTEM_ELEMENTS = ['feezal-element-system-splash', 'feezal-element-system-
 import glassShot from './family-shots/glass.png';
 import metroShot from './family-shots/metro.png';
 import circleShot from './family-shots/circle.png';
-const FAMILY_SHOTS = {glass: glassShot, metro: metroShot, circle: circleShot};
+import einkShot from './family-shots/eink.png';
+const FAMILY_SHOTS = {glass: glassShot, metro: metroShot, circle: circleShot, eink: einkShot};
 
 // U70: the sentinel option value that opens the "new room" dialog.
 const NEW_ROOM = '__feezal_new_room__';
@@ -73,6 +74,11 @@ const NEW_ROOM = '__feezal_new_room__';
 // family never appears). No other family is offered, whatever it ships.
 const FAMILY_ORDER = ['glass', 'metro', 'circle', 'eink', 'basic', 'material'];
 const FAMILY_LABELS = {glass: 'Glass', metro: 'Metro', circle: 'Circle', eink: 'E-ink', basic: 'Basic', material: 'Material'};
+
+// The App generator only offers the styled, app-oriented families — the plain
+// `basic` and `material` families are excluded from the App flow's picker (they
+// stay available on the Devices tile).
+const APP_FAMILY_EXCLUDE = new Set(['basic', 'material']);
 
 // U67: is a discovery entity HA housekeeping (linkquality, last_seen, OTA
 // update, RSSI, …) rather than a device function? HA marks these
@@ -407,7 +413,15 @@ class FeezalGenerateDialog extends LitElement {
 
     async _chooseDevices() { await this._loadInto('devices'); }
 
-    async _chooseApp() { await this._loadInto('app'); }
+    async _chooseApp() {
+        // The App flow never offers basic/material — if one is left selected from
+        // the Devices tile, fall back to the first app-eligible family.
+        if (APP_FAMILY_EXCLUDE.has(this._family)) {
+            const appFams = this._availableFamilies().filter(f => !APP_FAMILY_EXCLUDE.has(f));
+            if (appFams.length) this._family = appFams[0];
+        }
+        await this._loadInto('app');
+    }
 
     // ── U80: the App generator always creates a NEW site ──────────────────────
     // The App tile first asks for the new site's name (prefilled siteN), creates
@@ -1248,7 +1262,7 @@ class FeezalGenerateDialog extends LitElement {
     /** App step 1 (U69): choose the axis + family only. The devices themselves
      * are picked on the review screen, so there is no flat list here. */
     _renderApp() {
-        const fams = this._availableFamilies();
+        const fams = this._availableFamilies().filter(f => !APP_FAMILY_EXCLUDE.has(f));
         const eligible = this.__devices.filter(e => this._tagFor(e)).length;
         return html`
             <div class="app-setup">
