@@ -64,7 +64,6 @@ Work in progress — priorities and scope are not final.
 - [U45 — Element insertion: palette sidebar + full-screen picker](#u45--element-insertion-palette-sidebar--full-screen-picker--to-refine) 💡 *(to refine)*
 - [U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow](#u61--editor-preview-fidelity-gradientbackground-in-a-percentage-sized-views-scroll-overflow)
 - [U63 — `layout-app`: split the content inset into per-side knobs](#u63--layout-app-split-the-content-inset-into-per-side-knobs)
-- [U73 — Welcome wizard: fork into "explore the editor" vs "just autogenerate an app"](#u73--welcome-wizard-fork-into-explore-the-editor-vs-just-autogenerate-an-app)
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -1095,25 +1094,6 @@ Independent of A/B/C: decide whether the **Subscribe topic may also feed a range
 **Ships with:** the range schema + shared resolver (bands/gradient/enum, theme-var passthrough), the paired-property mechanism in `FeezalElement` (the storage shape chosen from A/B/C above; the primary value as the Range default source, an override/Subscribe subscription when a topic is set, and the raw-payload→`<var>` passthrough for Subscribe), the primary-value opt-in, `<feezal-site>` storage, the site-level manager panel, the colour-control **Static / Subscribe / Range radio** with the multi-line dynamic blocks (Subscribe: autocompleting `feezal-topic-input` + message-property + a live swatch of the last payload; Range: range dropdown + create sentinel + topic/property pre-filled from the primary value), the gauge `ranges` attribute accepting a named range, unit tests for the resolver, browser tests that a resolved colour lands on the var (from the primary value, from an overridden topic, and from a raw Subscribe payload), a test that Static↔Subscribe↔Range round-trips the paired properties cleanly, an **export test that ranges + subscriptions survive** into a static bundle, `docs/TESTING.md` coverage, and version bumps.
 
 **Relates:** `@feezal/feezal-gauge` (`bandColor` / `parseRanges` — the existing implementation this generalises, and the first consumer to migrate), **U49** / the conditions engine (`action: style` — the overlapping mechanism to delimit), **U47** ✅ (the `＋ Create new…` sentinel pattern to copy), `feezal-sidebar-themes` / `-assets` (site-level panel precedent), `material-tank` warn/crit + the glass/metro state colours (the ad-hoc thresholds to absorb), `CLAUDE.md` §"Theme variable discipline" (band colours should prefer theme vars), **A16**/export (ranges must serialize into a static bundle).
-
-### U73 — Welcome wizard: fork into "explore the editor" vs "just autogenerate an app"
-
-**Requested (07/2026).** [U37](roadmap-archive/U37.md) ✅ (`www/src/feezal-welcome-tour.js`) is one linear hands-on sequence. Add a branch after the basics so a first-run user picks their path:
-
-1. **After the terminology / basics steps, a fork asks:** *"Place a few elements yourself"* (explore the editor) **or** *"Just autogenerate an app from your devices"*.
-2. **Explore path** — the existing hands-on sequence (palette → canvas → inspector → first live element → point-at-topic → deploy), unchanged, ending with the spotlight on **Generate** the U58 note already planned.
-3. **Autogenerate path** — skip the manual element steps. Guide only the **MQTT connection** (broker/port/protocol/credentials + Deploy to connect), then **wait until the connection is established AND devices are discovered** (poll `/api/discovery/devices`; show "connecting… / discovering your devices…"), then **open the Generate → App flow** so the user lands directly in the wizard (axis + family → review → generate).
-4. **After the app is created, a final step** points the user to the **viewer** (open-viewer action) and mentions the **export** functions (static bundle for a wall tablet / sharing).
-
-**This revisits the U58 onboarding decisions** (recorded in [U58](roadmap-archive/U58.md) §Onboarding, which planned a single spotlight *finale*). Two of them flip for the autogenerate path, deliberately:
-- **Wait for discovery** (the note recommended "always show, don't wait"). The autogenerate path is only useful once devices exist, so here the tour DOES wait (the note's option c) — with a spinner + honest copy and a **bail-out** ("no devices yet? skip to the editor") so a broker with no discovery never traps the user.
-- **Drive, don't just spotlight** (the note said "spotlight, do not drive"). The whole point is to land the user IN the generate flow, so the tour opens the Generate dialog at the App tile. Manage the tour-overlay ↔ modal-dialog interaction the note warned about: **suspend the tour spotlight while the dialog owns the screen, resume for the final step once the result stage shows** (the dialog already tracks its `_stage`). The simple spotlight finale stays right for the *explore* branch.
-
-**Design / grounding.** The tour is a linear `STEPS` array today — branching needs a small router (a step names its next, or the fork sets a `path` the list filters on). The MQTT-connect steps already exist (Connect broker / connection status / Deploy). The Generate dialog opens via `feezal-generate-dialog.open()` → drive it to the App tile (`_chooseApp`). The discovery wait reuses a discovery-count poll (the same event-driven advance the hands-on steps use). The finale reuses the open-viewer action + points at Deploy → Export.
-
-**Ships with:** the fork step + two branches, the tour-overlay/dialog hand-off, the empty-discovery bail-out, browser tests (the fork routes correctly; the autogenerate path advances only once discovery has entities; the finale appears after the result stage), a `docs/TESTING.md` update to the U37 tour section, and U37's editor-only property preserved (nothing reaches the viewer/export bundle).
-
-**Relates:** **U37** ✅ (the tour this restructures — `feezal-welcome-tour.js`), **U58** ✅ (the App generator the autogenerate path lands in — this **supersedes** its §Onboarding single-step plan), **U67**–**U71** ✅ (the current Generate wizard), the MQTT connection tab (`feezal-sidebar-viewer`) + `/api/discovery/devices` (the discovery wait), the open-viewer action + Deploy → Export (the finale), **A18** (kiosk / first-run onboarding is where this matters most).
 
 ### E112 — Scrypted integration: camera snapshot element (sensors already work) 💡 to refine
 

@@ -343,6 +343,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U70 — Review: "＋ Create new room" in the per-device move-to-room dropdown ✅ done](U70.md)
 - [U71 — Generate wizard: illustrate the element families with screenshots ✅ done](U71.md)
 - [U72 — Generate wizard: order the cards within a view by function (room mode) or name (function mode) ✅ done](U72.md)
+- [U73 — Welcome wizard: fork into "explore the editor" vs "just autogenerate an app" ✅ done](U73.md)
 - [U74 — Generate wizard: set a family-matched theme so the app looks like the family screenshot ✅ done](U74.md)
 - [U75 — Generate review: checkbox is checkbox-only; multi-row select + bulk "move to room" ✅ done](U75.md)
 - [U76 — Room heuristic: broaden the lexicon + compound / umlaut-robust matching ✅ done](U76.md)
