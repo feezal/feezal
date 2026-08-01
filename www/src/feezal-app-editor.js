@@ -26,6 +26,10 @@ import './feezal-icon.js';
 import './feezal-icon-input.js';
 import './feezal-sidebar-inspector.js';
 import {stripCanvasZIndex} from './feezal-canvas-geometry.js';   // A37
+import {reconcileFolders, cloneTree, folderViewCount, folderContainsView,
+    locateNode, findFolder, collectFolders, maxFolderDepth, folderNameExists,
+    findViewParent, renameViewInTree, tabItems, applyFolderDrop}
+    from './feezal-view-folders.js';   // A37
 import './feezal-sidebar-assets.js';
 import './feezal-sidebar-themes.js';
 import './feezal-sidebar-viewer.js';
@@ -3265,70 +3269,26 @@ class FeezalAppEditor extends LitElement {
     // -------------------------------------------------------------------
     // View folders (U8) — editor-only tree persisted in viewer.json
 
+    /** Names of the views that currently exist, in document order. */
+    _viewNames() {
+        return (feezal.views ? [...feezal.views] : []).map(v => v.getAttribute('name'));
+    }
+
     /** Public: load the folder tree from persisted viewer config and reconcile. */
     setFolders(tree) {
-        this._folders = this._reconcile(Array.isArray(tree) ? tree : []);
+        this._folders = reconcileFolders(Array.isArray(tree) ? tree : [], this._viewNames());
         this._foldersSig = JSON.stringify(this._folders);
         this.requestUpdate();
     }
 
     /** Snapshot of the reconciled tree for saving in viewer.json. */
     foldersForSave() {
-        return this._reconcile(this._folders);
-    }
-
-    /**
-     * Reconcile a stored tree against the actual views:
-     *  - drop dangling view refs (view no longer exists) and duplicates,
-     *  - drop malformed nodes,
-     *  - cap folder nesting at 3 levels (deeper folders are flattened up),
-     *  - append any unreferenced views at the top level in document order.
-     */
-    _reconcile(tree) {
-        const viewNames = (feezal.views ? [...feezal.views] : []).map(v => v.getAttribute('name'));
-        const seen = new Set();
-        const usedIds = new Set();
-        let folderSeq = 0;
-
-        const walk = (nodes, depth) => {
-            const out = [];
-            if (!Array.isArray(nodes)) return out;
-            for (const node of nodes) {
-                if (node && typeof node === 'object' && typeof node.view === 'string') {
-                    if (viewNames.includes(node.view) && !seen.has(node.view)) {
-                        seen.add(node.view);
-                        out.push({view: node.view});
-                    }
-                } else if (node && typeof node === 'object' && Array.isArray(node.children)) {
-                    if (depth > 3) {
-                        // Too deeply nested — lift this folder's contents into the parent.
-                        out.push(...walk(node.children, depth));
-                        continue;
-                    }
-                    let id = (typeof node.id === 'string' && node.id) ? node.id : 'f' + (++folderSeq);
-                    while (usedIds.has(id)) id = 'f' + (++folderSeq);
-                    usedIds.add(id);
-                    const name = (typeof node.name === 'string' && node.name.trim()) ? node.name : 'Folder';
-                    out.push({id, name, children: walk(node.children, depth + 1)});
-                }
-                // anything else: ignored (malformed)
-            }
-            return out;
-        };
-
-        const result = walk(tree, 1);
-        for (const name of viewNames) {
-            if (name && !seen.has(name)) {
-                seen.add(name);
-                result.push({view: name});
-            }
-        }
-        return result;
+        return reconcileFolders(this._folders, this._viewNames());
     }
 
     /** Reconcile in place when the set of views changes; avoids update loops. */
     _syncFolders() {
-        const next = this._reconcile(this._folders);
+        const next = reconcileFolders(this._folders, this._viewNames());
         const sig = JSON.stringify(next);
         if (sig !== this._foldersSig) {
             this._foldersSig = sig;
@@ -3345,119 +3305,53 @@ class FeezalAppEditor extends LitElement {
     }
 
     _cloneTree() {
-        return JSON.parse(JSON.stringify(this._folders));
+        return cloneTree(this._folders);
     }
 
     /** Top-level tab-bar items. Folders open a popup menu (no inline fold-out). */
     _tabItems() {
-        return this._folders.map(node => node.view !== undefined
-            ? {type: 'view', name: node.view, depth: 0}
-            : {type: 'folder', id: node.id, name: node.name,
-                count: this._folderViewCount(node),
-                containsActive: this._folderContainsView(node, this._navView)});
+        return tabItems(this._folders, this._navView);
     }
 
     _folderViewCount(node) {
-        let c = 0;
-        for (const ch of node.children) {
-            if (ch.view !== undefined) c++;
-            else c += this._folderViewCount(ch);
-        }
-        return c;
+        return folderViewCount(node);
     }
 
-    /** True when the named view lives anywhere inside this folder (recursively). */
     _folderContainsView(node, name) {
-        if (!name) return false;
-        for (const ch of node.children) {
-            if (ch.view === name) return true;
-            if (ch.children && this._folderContainsView(ch, name)) return true;
-        }
-        return false;
+        return folderContainsView(node, name);
     }
 
-    /** Recursively locate the array + index of the first node matching pred. */
     _locate(nodes, pred) {
-        for (let i = 0; i < nodes.length; i++) {
-            if (pred(nodes[i])) return {arr: nodes, idx: i};
-            if (nodes[i].children) {
-                const r = this._locate(nodes[i].children, pred);
-                if (r) return r;
-            }
-        }
-        return null;
-    }
-
-    /** Remove and return the first node matching pred (mutates nodes). */
-    _detach(nodes, pred) {
-        for (let i = 0; i < nodes.length; i++) {
-            if (pred(nodes[i])) return nodes.splice(i, 1)[0];
-            if (nodes[i].children) {
-                const r = this._detach(nodes[i].children, pred);
-                if (r) return r;
-            }
-        }
-        return null;
+        return locateNode(nodes, pred);
     }
 
     _findFolder(nodes, id) {
-        for (const n of nodes) {
-            if (n.children) {
-                if (n.id === id) return n;
-                const r = this._findFolder(n.children, id);
-                if (r) return r;
-            }
-        }
-        return null;
+        return findFolder(nodes, id);
     }
 
-    /** Flat list of {id, name, depth} folders for the move menu / depth checks. */
     _collectFolders(nodes = this._folders, depth = 0, acc = []) {
-        for (const n of nodes) {
-            if (n.children) {
-                acc.push({id: n.id, name: n.name, depth});
-                this._collectFolders(n.children, depth + 1, acc);
-            }
-        }
-        return acc;
+        return collectFolders(nodes, depth, acc);
     }
 
     _maxFolderDepth(nodes, depth = 1) {
-        let max = 0;
-        for (const n of nodes) {
-            if (n.children) {
-                max = Math.max(max, depth, this._maxFolderDepth(n.children, depth + 1));
-            }
-        }
-        return max;
+        return maxFolderDepth(nodes, depth);
     }
 
     _folderNameExists(name, exceptId) {
-        return this._collectFolders().some(f => f.name === name && f.id !== exceptId);
+        return folderNameExists(this._folders, name, exceptId);
     }
 
     /** Id of the folder directly containing the named view, or null for top level. */
     _findViewParent(name) {
-        let parentId = null;
-        const search = (nodes, parent) => {
-            for (const n of nodes) {
-                if (n.view === name) { parentId = parent; return true; }
-                if (n.children && search(n.children, n.id)) return true;
-            }
-            return false;
-        };
-        search(this._folders, null);
-        return parentId;
+        return findViewParent(this._folders, name);
     }
 
     /** Update a renamed view inside the folder tree (keeps placement). */
     _renameInTree(oldName, newName) {
-        const tree = this._cloneTree();
-        const node = this._locate(tree, n => n.view === oldName);
-        if (node) {
-            node.arr[node.idx] = {view: newName};
-            this._folders = tree;
-            this._foldersSig = JSON.stringify(tree);
+        const next = renameViewInTree(this._folders, oldName, newName);
+        if (next) {
+            this._folders = next;
+            this._foldersSig = JSON.stringify(next);
         }
     }
 
@@ -3721,45 +3615,10 @@ class FeezalAppEditor extends LitElement {
     }
 
     _applyDrop(target, position) {
-        const drag = this._dragData;
-        if (!drag) return;
-        // U55: dropping an item onto ITSELF (before/after itself — the pointer
-        // never left the tab) is order-preserving by definition — bail BEFORE
-        // detaching. Without this, the detach-then-locate sequence could not
-        // find the just-detached target and the fallback appended the dragged
-        // item to the END (view1,view2,view3 → view2,view3,view1 on a micro-drag).
-        const isSelf = drag.kind === target.kind
-            && (drag.kind === 'view' ? target.name === drag.name : target.id === drag.id);
-        if (isSelf) return;
-        const tree = this._cloneTree();
-        const dragged = drag.kind === 'view'
-            ? this._detach(tree, n => n.view === drag.name)
-            : this._detach(tree, n => n.id === drag.id);
-        if (!dragged) return;
-
-        if (target.kind === 'bar') {
-            tree.push(dragged);
-        } else if (target.kind === 'folder' && position === 'into') {
-            const folder = this._findFolder(tree, target.id);
-            // folder may be null if it was inside the dragged subtree — abort silently.
-            if (!folder) return;
-            folder.children.push(dragged);
-        } else {
-            const pred = target.kind === 'folder'
-                ? n => n.id === target.id
-                : n => n.view === target.name;
-            const loc = this._locate(tree, pred);
-            // U55: an unresolved target must ABORT, not relocate — the old
-            // `push(dragged)` fallback turned every lookup miss into a silent
-            // "move to end" (matches the existing silent abort for a folder
-            // dropped into its own subtree).
-            if (!loc) return;
-            loc.arr.splice(loc.idx + (position === 'after' ? 1 : 0), 0, dragged);
-        }
-
-        // Reject moves that would exceed the 3-level nesting limit.
-        if (this._maxFolderDepth(tree) > 3) return;
-        this._commitFolders(tree);
+        const next = applyFolderDrop(this._folders, this._dragData, target, position);
+        // null = no-op or invalid (self-drop, unresolved target, a folder into
+        // its own subtree, or a move past the nesting limit) — leave the tree.
+        if (next) this._commitFolders(next);
     }
 
     _dropClass(item) {

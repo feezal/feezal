@@ -1,12 +1,15 @@
 import {describe, it, expect, beforeEach} from 'vitest';
 
 import '../src/feezal-app-editor.js';
+import {reconcileFolders, applyFolderDrop} from '../src/feezal-view-folders.js';
 
-// U8 view-folder reconciliation. _reconcile() only reads feezal.views, so it
-// is called on the prototype with a dummy receiver — no editor instance (and
-// none of its DOM/socket wiring) is needed.
+// U8 view-folder reconciliation (A37: the tree model moved to
+// feezal-view-folders.js, so this calls it directly instead of reaching into
+// the component's prototype with a dummy receiver). The component supplies the
+// view names; here they come from the same feezal.views the tests set up.
 const FeezalAppEditor = customElements.get('feezal-app-editor');
-const reconcile = tree => FeezalAppEditor.prototype._reconcile.call({}, tree);
+const viewNames = () => (feezal.views ? [...feezal.views] : []).map(v => v.getAttribute('name'));
+const reconcile = tree => reconcileFolders(tree, viewNames());
 
 // B39: _view() only reads feezal.siteName + location.hash and calls
 // window.open — drive it on the prototype with a captured window.open.
@@ -31,7 +34,7 @@ beforeEach(() => {
     setViews('home', 'kitchen', 'bath');
 });
 
-describe('_reconcile() — view folder tree (U8)', () => {
+describe('reconcileFolders() — view folder tree (U8)', () => {
     it('appends all views top-level for an empty tree', () => {
         expect(reconcile([])).toEqual([{view: 'home'}, {view: 'kitchen'}, {view: 'bath'}]);
     });
@@ -360,16 +363,11 @@ describe('_revealActiveViewLine() — U54', () => {
     });
 });
 
-describe('_applyDrop() — U55 self-drop + unresolved-target hardening', () => {
-    function drive(tree, dragData, target, position) {
-        const self = Object.create(FeezalAppEditor.prototype);
-        self._dragData = dragData;
-        self._cloneTree = () => JSON.parse(JSON.stringify(tree));
-        self.committed = null;
-        self._commitFolders = next => { self.committed = next; };
-        self._applyDrop(target, position);
-        return self.committed;   // null = no reorder applied
-    }
+describe('applyFolderDrop() — U55 self-drop + unresolved-target hardening', () => {
+    // A37: the move is now array-in / array-or-null-out, so the test no longer
+    // has to fake a component to observe what would have been committed.
+    const drive = (tree, dragData, target, position) =>
+        applyFolderDrop(tree, dragData, target, position);   // null = no reorder
 
     const THREE = [{view: 'view1'}, {view: 'view2'}, {view: 'view3'}];
 
