@@ -1388,16 +1388,13 @@ class FeezalSidebarInspector extends LitElement {
                 return;
             }
 
-            // View deletion works regardless of whether feezal-site has focus
-            // (clicking a tab focuses the tab, not feezal-site).
-            if (event.key === 'Delete' && this.viewSelected) {
-                return; // TECHNICAL DEBT: SKIP THIS FOR NOW. WE CAN'T REALLIABLY DETECT WHERE FOCUS IS...
-                this.dispatchEvent(new CustomEvent('delete-view', {
-                    bubbles: true, composed: true,
-                    detail: { name: feezal.view?.getAttribute('name') }
-                }));
-                return;
-            }
+            // B99: a "delete the selected VIEW with Delete" path used to sit
+            // here behind an unconditional `return` (dead since it was written)
+            // because focus cannot be attributed reliably — a Delete pressed
+            // anywhere outside a text field would have destroyed a whole view,
+            // which is far too destructive for an ambiguous focus state.
+            // Deleting a view stays an explicit act: the tab context menu.
+            if (event.key === 'Delete' && this.viewSelected) return;
 
             // Arrow-key movement: only when feezal-site itself is document.activeElement.
             if (['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown'].includes(event.key)) {

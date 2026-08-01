@@ -26,6 +26,7 @@ const mqtt = require('mqtt');
 const logger = {debug() {}, info() {}, warn() {}, error() {}};
 
 let dataDir;
+let storage;   // B98: tests stub saveSite to exercise the failure ack
 let httpServer;
 let io;
 let hub;
@@ -60,7 +61,7 @@ function collect(client, event, ms = 300) {
 
 beforeAll(async () => {
     dataDir = await mkdtemp(join(tmpdir(), 'feezal-hub-test-'));
-    const storage = new FilesystemStorage(dataDir);
+    storage = new FilesystemStorage(dataDir);
     httpServer = createServer();
     io = new Server(httpServer);
     hub = createHub(io, {storage, logger});
@@ -151,6 +152,32 @@ describe('getSite / deploy', () => {
             html: '<feezal-site auto-reload="off"></feezal-site>'
         });
         expect(await seen).toEqual([]);
+    });
+
+    // B98 — the ack used to fire identically on success and failure, so the
+    // editor cleared its dirty flag on a save that never happened.
+    it('B98: a successful deploy acks with null', async () => {
+        const client = await connectClient();
+        const ack = await emitAck(client, 'deploy', {
+            site: {name: 'b98ok'}, html: '<feezal-site></feezal-site>',
+        });
+        expect(ack).toBe(null);
+    });
+
+    it('B98: a failed save acks with the error instead of reporting success', async () => {
+        const client = await connectClient();
+        const spy = vi.spyOn(storage, 'saveSite').mockRejectedValue(new Error('disk on fire'));
+        try {
+            const ack = await emitAck(client, 'deploy', {
+                site: {name: 'b98fail'}, html: '<feezal-site></feezal-site>',
+            });
+            expect(ack).toEqual({error: 'disk on fire'});
+        } finally {
+            spy.mockRestore();
+        }
+        // and the site was genuinely not written
+        const res = await emitAck(client, 'getSite', 'b98fail');
+        expect(res.views).toContain('<feezal-view name="view1"');   // untouched scaffold
     });
 
     it('N32: deploy publishes the site control reload topic, non-retained', async () => {

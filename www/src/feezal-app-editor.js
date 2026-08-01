@@ -38,6 +38,7 @@ import './feezal-capacitor-dialog.js';
 import './feezal-export-dialog.js';
 import './feezal-generate-dialog.js';
 import './feezal-connection-overlay.js';
+import './feezal-toast.js';   // U85: the editor's notification channel
 import {clippyStyles, clippyMarkup, clippyEnabled} from './feezal-clippy.js';
 
 class FeezalAppEditor extends LitElement {
@@ -1029,6 +1030,7 @@ class FeezalAppEditor extends LitElement {
                     <feezal-export-dialog></feezal-export-dialog>
                     <feezal-generate-dialog></feezal-generate-dialog>
                     <feezal-connection-overlay></feezal-connection-overlay>
+                    <feezal-toast></feezal-toast>
 
                     ${this._aiConfigured && this._sourceMode && !this._aiPanelOpen ? html`
                         <button class="icon-btn" title="AI assistant"
@@ -2414,10 +2416,21 @@ class FeezalAppEditor extends LitElement {
         const siteData = {...(site || {})};
         siteData.name = feezal.siteName;
 
-        feezal.connection.deploy({html, elements, connection, site: siteData, viewer}, () => {
+        feezal.connection.deploy({html, elements, connection, site: siteData, viewer}, ack => {
+            this.deploying = false;
+            // B98: a failed save must NOT clear the dirty state — the user's
+            // work is still only in the browser. Surface it and stop here; the
+            // Deploy button stays blue so a retry is one click away.
+            if (ack && ack.error) {
+                this._deployError = ack.error;
+                this.toast(`Deploy failed: ${ack.error}`, {variant: 'danger', duration: 0,
+                    action: {label: 'Retry', run: () => this._deploy(done)}});
+                return;
+            }
+            this._deployError = null;
             this.changes = false;
             feezal.hasChanges = false;
-            this.deploying = false;
+            this.toast('Deployed', {variant: 'success'});
             // U43: the just-deployed connection is the new baseline for the
             // Apply-connection-settings dirty detection.
             this.shadowRoot.querySelector('feezal-sidebar-viewer')?.markConnectionDeployed?.();
@@ -2432,6 +2445,15 @@ class FeezalAppEditor extends LitElement {
             // then call the event object and throw "done is not a function".
             if (typeof done === 'function') done();
         });
+    }
+
+    /**
+     * U85: show a notification. `opts`: {variant: success|info|warning|danger,
+     * duration (0 = sticky; the default for warning/danger), action:{label,run}}.
+     * Safe before first render — the toast host simply may not exist yet.
+     */
+    toast(message, opts) {
+        return this.shadowRoot?.querySelector('feezal-toast')?.show(message, opts);
     }
 
     _export() {
@@ -2981,6 +3003,10 @@ class FeezalAppEditor extends LitElement {
             feezal.editor.initElem(clone);
         });
         feezal.editor.selectElement(newSelection);
+        // B99: paste used to mark nothing dirty and add no history entry — the
+        // pasted elements were neither undoable nor saved on deploy unless some
+        // later edit happened to flag the site. Duplicate always did this.
+        if (newSelection.length) this.change();
     }
 
     _paste(event) {
@@ -3078,8 +3104,10 @@ class FeezalAppEditor extends LitElement {
         }
         this.editViewName = name;
         const dlg = this.shadowRoot.querySelector('#deletedialog');
+        // B99: it IS undoable (_deleteViewConfirmed snapshots) — the old copy
+        // said the opposite, which is the scarier direction to be wrong in.
         dlg.querySelector('#deleteconfirmtext').textContent =
-            `Delete view "${name}"? This cannot be undone.`;
+            `Delete view "${name}" and everything on it? You can undo this with Ctrl+Z.`;
         dlg.show();
     }
 
@@ -3150,6 +3178,10 @@ class FeezalAppEditor extends LitElement {
         feezal.site.append(el);
         feezal.app.views = [...feezal.views];
         this._setView(name);
+        // B99: adding a view marked the site neither dirty nor undoable — a
+        // new view could be lost on close, or survive a Ctrl+Z that was meant
+        // to remove it. Every other view op (rename/duplicate/delete) snapshots.
+        this.change();
     }
 
     // -------------------------------------------------------------------

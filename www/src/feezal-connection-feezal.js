@@ -11,6 +11,11 @@ import {io} from 'socket.io-client';
  *
  * The viewer never uses this — it uses feezal-connection-mqtt directly.
  */
+
+/** B98: how long to wait for the server's deploy ack before reporting failure.
+ *  Generous — a deploy formats + writes + git-commits the whole site. */
+const DEPLOY_ACK_TIMEOUT_MS = 30000;
+
 class FeezalConnectionFeezal extends LitElement {
     static properties = {
         connected: {type: Boolean, reflect: true}
@@ -92,8 +97,24 @@ class FeezalConnectionFeezal extends LitElement {
         this.socket.emit('presence', {topic: statusTopic});
     }
 
+    /**
+     * B98: the callback receives the server's ack — `null` on success, or
+     * `{error}` when the save failed. A dead/blocked socket would otherwise
+     * never call back at all and leave the editor stuck "deploying", so an
+     * ack timeout synthesizes the same error shape.
+     */
     deploy(data, callback) {
-        this.socket.emit('deploy', data, callback);
+        let settled = false;
+        const done = ack => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            callback?.(ack && ack.error ? ack : null);
+        };
+        const timer = setTimeout(
+            () => done({error: 'the server did not confirm the deploy (timeout)'}),
+            DEPLOY_ACK_TIMEOUT_MS);
+        this.socket.emit('deploy', data, done);
     }
 
     getSite(site, callback) {

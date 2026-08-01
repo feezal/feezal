@@ -77,6 +77,7 @@ function createHub(io, {storage, logger}) {
 
         // ------------------------------------------------------------------ deploy
         socket.on('deploy', async (data, callback) => {
+            let deployError = 'deploy failed';   // B98: pessimistic until saved
             try {
                 data.site = data.site || {name: 'default'};
                 const siteName = data.site.name;
@@ -126,11 +127,16 @@ function createHub(io, {storage, logger}) {
                 if (autoReload) {
                     io.emit('reload', {site: siteName});
                 }
+                deployError = null;
             } catch (err) {
+                // B98: the ack used to fire identically on success and failure,
+                // so the editor cleared its dirty flag on a save that never
+                // happened — silent data loss. Report the failure back.
                 logger.error('deploy error: ' + err.message);
+                deployError = err.message || 'deploy failed';
             } finally {
                 if (typeof callback === 'function') {
-                    callback();
+                    callback(deployError ? {error: deployError} : null);
                 }
             }
         });
