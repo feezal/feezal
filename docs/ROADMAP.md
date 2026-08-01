@@ -79,6 +79,9 @@ Work in progress — priorities and scope are not final.
 - [A29 — RTL layout support (Arabic, Hebrew)](#a29--rtl-layout-support-arabic-hebrew--future) 💡 *(future)*
 - [A35 — Theme-var discipline, part 2: family design tokens still default to fixed colours](#a35--theme-var-discipline-part-2-family-design-tokens-still-default-to-fixed-colours)
 
+**Documentation**
+- [D4 — README: credits for key dependencies + a "plays well with" ecosystem line](#d4--readme-credits-for-key-dependencies--a-plays-well-with-ecosystem-line)
+
 
 ---
 
@@ -2183,4 +2186,35 @@ They are **design-language constants**, not theme roles, and each needs a per-va
 Per-family passes (glass first — biggest count), each: the family base block or new canonical role, elements referencing bare vars, the ratchet extended to that family's pattern, a visual check on light AND dark themes, patch bumps. The ratchet stays green throughout — extend it family by family rather than in one leap.
 
 **Relates:** `www/src/feezal-base-theme.js` + `www/test/theme-var-discipline.test.js` (part 1, done), `CLAUDE.md` §Theme variable discipline, `docs/element-spec.md` §5.1, the `--md-sys-color-*` legacy migration (same touch-it-then-migrate policy).
+
+---
+
+### D4 — README: credits for key dependencies + a "plays well with" ecosystem line
+
+Add a **Credits** section to the README (between *Documentation* and *License*)
+naming the dependencies that deserve visible thanks, plus a separate **plays
+well with** line for the ecosystem feezal integrates with. One line per entry
+(link + a few words on the role), no badge walls; end with a pointer to the
+release SBOMs for the exhaustive dependency list.
+
+**Decided (08/2026):**
+- **Credit:** Lit (everything is a Lit component), interact.js (canvas
+  drag/resize/snap), DragSelect (rubber-band multi-select; also good form to
+  credit visibly given its GPL-3.0 licence).
+- **Do NOT credit:** the element-family foundations (Material Web, Carbon Web
+  Components, Polymer paper-*) — their licences ship in the SBOM/licence gate;
+  the README stays about feezal.
+- **Undecided — settle when writing:** MQTT.js, Shoelace, Express (core
+  plumbing, but arguably below the "deserves README thanks" bar).
+- **Plays well with** (integration recognition, not dependencies): Home
+  Assistant MQTT discovery, zigbee2mqtt, Homematic/CCU, Frigate, evcc, WLED
+  (and the Scrypted → Frigate camera chain the camera docs describe).
+
+**Also check while writing:** the vendored icon/font sets (Material Symbols,
+Font Awesome Free, Material Design Icons, KNX-UF) — their licences (OFL /
+CC-BY / MIT) may *require* attribution somewhere user-visible; if so, that
+attribution belongs in this section regardless of taste.
+
+**Ships with:** the README section, a link check (no dead URLs), and — if the
+icon-set audit finds required attributions — those lines included.
 
