@@ -9,6 +9,7 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
+- [B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces](#b106--discovery-ids-is-space-separated-but-mqtt-topics-may-contain-spaces)
 
 
 **Near-term Improvements**
@@ -304,6 +305,43 @@ This also **removes an existing ambiguity**: `slim` and `autohide` are independe
 **Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
 
 **Relates:** **[B62](roadmap-archive/B62.md)** ✅ (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
+
+### B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces
+
+**Reported (08/2026).** Seen in saved source:
+
+```html
+discovery-ids="sensor/0x5c0272fffec4c0e9/battery sensor/0x5c0272fffec4c0e9/temperature …"
+```
+
+The multivalue merge stamps its member IDs **space-joined** — but discovery
+IDs embed topic-derived segments, and MQTT topics may legitimately contain
+spaces. hm2mqtt/RedMatic builds topics from **Homematic channel names**
+("Licht Terrasse"), and the native recognizers put exactly those segments into
+their IDs (`hm-switch:<channelAddr || seg>` — `seg` IS the channel name). One
+such member and the list becomes unparseable: the splitter yields fragments,
+the dupe-guard mismatches (false re-adds on re-runs, or wrong skips).
+
+**Where:** writer `applyMultivalueFill` in
+[feezal-discovery-stamp.js](../www/src/feezal-discovery-stamp.js)
+(`memberIds.join(' ')`); reader in
+[feezal-generate-dialog.js](../www/src/feezal-generate-dialog.js) (the merge
+path splits on `/\s+/`). Audit for further space-joined topic/ID lists while
+in there — the single-value `discovery-id` attribute is unaffected.
+
+**Fix:** serialize as a **JSON array** (`discovery-ids='["a","b"]'`), the same
+convention `subscribe-availability` already uses for its multi-entry form.
+Reader accepts both encodings for back-compat: value starts with `[` → JSON
+parse; anything else → legacy whitespace split (existing dashboards keep
+working; the next re-stamp upgrades them). Unit test with a member ID
+containing a space (an hm2mqtt-style channel name) — round-trip through
+stamp → parse → dupe-guard must match exactly.
+
+**Relates:** the multivalue merge (⚡ device rows / wizard), U58 ✅ (Generate —
+the dupe-guard consumer), E108 ✅ (native recognizers whose IDs carry channel
+names), N12 (re-sync — anything else reading discovery ids must use the same
+parser).
+
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
