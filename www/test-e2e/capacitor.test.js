@@ -122,7 +122,7 @@ describe('Site Settings entry point', () => {
     it('shows the persisted values and opens the same dialog', async () => {
         await page.reload();
         await page.waitForSelector('feezal-palette .element', {timeout: 60_000});
-        await page.locator('feezal-app-editor button[title="Site Settings"]').click();
+        await page.locator('feezal-app-editor button[title^="Site Settings"]').click();
         await page.locator('feezal-sidebar-viewer sl-tab[panel="site"]').click();
 
         const appNameField = page.locator('feezal-sidebar-viewer sl-input[label="App name"] input');

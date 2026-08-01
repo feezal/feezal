@@ -355,6 +355,11 @@ class FeezalAppEditor extends LitElement {
             border-radius: 4px; display: flex; align-items: center; justify-content: center;
             width: 32px; height: 32px; flex-shrink: 0;
         }
+        /* U93: a labeled toolbar button — icon plus text. Deliberately still a
+           flat icon-btn rather than a solid pill like Deploy/View: Generate and
+           Source are toolbar actions, not the bar's primary calls to action. */
+        .icon-btn.labeled { width: auto; padding: 0 10px; gap: 6px; font-size: 13px; font-weight: 600; }
+        .icon-btn.labeled .material-icons { font-size: 20px; }
         .icon-btn:hover { background: rgba(0,0,0,0.07); }
         .icon-btn:disabled { opacity: 0.35; cursor: default; }
         .icon-btn.dark { color: #555; }
@@ -407,21 +412,21 @@ class FeezalAppEditor extends LitElement {
         }
         #btn-view .material-icons { font-size: 18px; }
         #btn-view:hover { filter: brightness(1.12); }
-        /* Top-bar MQTT connection dot */
-        #mqtt-dot-btn {
-            display: inline-flex; align-items: center; justify-content: center;
-            width: 26px; height: 32px; margin: auto 2px; margin-top: 4.5px;
-            background: none; border: none; cursor: pointer; padding: 0;
+        /* U93 — MQTT connection state, as a badge on the sidebar tab that opens
+           the Connection settings. It used to be a separate top-bar button;
+           riding on the tab keeps it visible at all times (its whole purpose is
+           passive at-a-glance status) while folding two controls into one. */
+        .icon-btn.mqtt-badged { position: relative; }
+        .mqtt-badge {
+            position: absolute; right: 3px; top: 4px;
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #9ca3af; box-shadow: 0 0 0 2px var(--feezal-bg, #f5f5f5);
+            transition: background 0.2s;
+            pointer-events: none;
         }
-        .mqtt-dot-inner {
-            width: 11px; height: 11px; border-radius: 50%;
-            background: #9ca3af; box-shadow: 0 0 0 3px rgba(156,163,175,0.18);
-            transition: background 0.2s, box-shadow 0.2s;
-        }
-        #mqtt-dot-btn.ok  .mqtt-dot-inner { background: #2e9d4f; box-shadow: 0 0 0 3px rgba(46,157,79,0.22); }
-        #mqtt-dot-btn.err .mqtt-dot-inner { background: #d64545; box-shadow: 0 0 0 3px rgba(214,69,69,0.22); }
-        #mqtt-dot-btn.connecting .mqtt-dot-inner { background: #eab308; box-shadow: 0 0 0 3px rgba(234,179,8,0.22); animation: mqtt-pulse 1s ease-in-out infinite; }
-        #mqtt-dot-btn:hover .mqtt-dot-inner { box-shadow: 0 0 0 4px rgba(255,255,255,0.15); }
+        .mqtt-badge.ok  { background: #2e9d4f; }
+        .mqtt-badge.err { background: #d64545; }
+        .mqtt-badge.connecting { background: #eab308; animation: mqtt-pulse 1s ease-in-out infinite; }
         @keyframes mqtt-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
         /* Action dropdown menu */
         .action-menu {
@@ -1021,6 +1026,10 @@ class FeezalAppEditor extends LitElement {
                         <span class="material-icons">${this.paletteVisible ? 'chevron_left' : 'chevron_right'}</span>
                     </button>
 
+                    <!-- U93: the site switcher leads the centre cluster, the
+                         toolbar icons follow it. -->
+                    <feezal-site-manager .darkMode="${this._darkMode}"></feezal-site-manager>
+
                     <div id="toolbar">
                         <button class="icon-btn" title="Copy (Ctrl+C)" ?disabled="${this.viewSelected && !this._sourceMode}" @click="${this._clickCopy}"><span class="material-icons">content_copy</span></button>
                         <button class="icon-btn" title="Paste (Ctrl+V)" @click="${this._clickPaste}"><span class="material-icons">content_paste</span></button>
@@ -1031,17 +1040,19 @@ class FeezalAppEditor extends LitElement {
                         <button class="icon-btn" style="margin-left:20px;font-size:15px;font-weight:600" title="Keyboard shortcuts (Ctrl+I)" @click="${this._openShortcuts}">?</button>
                     </div>
 
-                    <button class="icon-btn generate-btn" title="Generate elements from discovery"
+                    <button class="icon-btn labeled generate-btn" title="Generate elements from discovery"
                         style="${this._sourceMode ? 'visibility:hidden' : ''}"
                         @click="${this._openGenerate}">
                         <span class="material-icons">auto_awesome</span>
+                        Generate
                     </button>
 
-                    <button class="icon-btn source-mode-btn ${this._sourceMode ? 'active' : ''}"
+                    <button class="icon-btn labeled source-mode-btn ${this._sourceMode ? 'active' : ''}"
                         title="${this._sourceMode ? 'Design mode (Ctrl+Shift+U)' : 'Source mode (Ctrl+Shift+U)'}"
                         ?disabled="${this._sourceMode && !!this._sourceError}"
                         @click="${this._toggleSourceMode}">
                         <span class="material-icons">code</span>
+                        Source
                     </button>
 
                     ${this._sourceMode && this._sourceError ? html`
@@ -1049,12 +1060,6 @@ class FeezalAppEditor extends LitElement {
                             <span class="material-icons">error</span> Syntax error
                         </span>` : ''}
 
-                    <feezal-site-manager .darkMode="${this._darkMode}"></feezal-site-manager>
-                    ${(() => { const d = this._mqttDot(); return html`
-                        <button id="mqtt-dot-btn" class="mqtt-dot ${d.cls}" title="${d.label}"
-                            @click="${this._openConnectionSettings}">
-                            <span class="mqtt-dot-inner"></span>
-                        </button>`; })()}
                     <div id="btn-deploy-wrap">
                         <button id="btn-deploy-main"
                             class="${this.changes ? 'has-changes' : ''}"
@@ -1110,7 +1115,13 @@ class FeezalAppEditor extends LitElement {
                         <button class="icon-btn ${this.sidebar === 'inspector' ? 'active' : ''}" title="Inspector" @click="${() => this._setSidebar('inspector')}"><span class="material-icons">tune</span></button>
                         <button class="icon-btn ${this.sidebar === 'layers' ? 'active' : ''}" title="Layers — every view and its elements" @click="${() => this._setSidebar('layers')}"><span class="material-icons">layers</span></button>
                         <button class="icon-btn ${this.sidebar === 'themes' ? 'active' : ''}" title="Theme" @click="${() => this._setSidebar('themes')}"><span class="material-icons">palette</span></button>
-                        <button class="icon-btn ${this.sidebar === 'viewer' ? 'active' : ''}" title="Site Settings" @click="${() => this._setSidebar('viewer')}"><span class="material-icons">cast</span></button>
+                        ${(() => { const d = this._mqttDot(); return html`
+                        <button class="icon-btn mqtt-badged ${this.sidebar === 'viewer' ? 'active' : ''}"
+                            title="Site Settings — ${d.label}"
+                            @click="${() => this._setSidebar('viewer')}">
+                            <span class="material-icons">cast</span>
+                            <span class="mqtt-badge ${d.cls}"></span>
+                        </button>`; })()}
                         <button class="icon-btn ${this.sidebar === 'assets' ? 'active' : ''}" title="Assets" @click="${() => this._setSidebar('assets')}"><span class="material-icons">perm_media</span></button>
                         <button class="icon-btn ${this.sidebar === 'packages' ? 'active' : ''}" title="Packages" @click="${() => this._setSidebar('packages')}"><span class="material-icons">widgets</span></button>
                         <button class="icon-btn ${this.sidebar === 'history' ? 'active' : ''}" title="Version history" @click="${() => this._setSidebar('history')}"><span class="material-icons">history</span></button>

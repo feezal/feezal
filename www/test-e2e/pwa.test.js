@@ -62,7 +62,7 @@ afterAll(async () => {
 });
 
 async function openSiteSettingsTab() {
-    await page.locator('feezal-app-editor button[title="Site Settings"]').click();
+    await page.locator('feezal-app-editor button[title^="Site Settings"]').click();
     await page.locator('feezal-sidebar-viewer sl-tab[panel="site"]').click();
 }
 
