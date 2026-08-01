@@ -89,16 +89,18 @@ export async function startStack() {
     await waitForHttp(stack.baseUrl + '/editor/');
 
     // E2E baseline = a returning user, never first-run: seed the server-side
-    // "tour seen" flag so the welcome tour never auto-starts. Its full-screen
-    // overlay intercepts pointer events and blocks every editor interaction
-    // (the auto-start fires whenever all views are empty at load — true for
-    // most suites' scaffolds). The server pref is authoritative over
-    // localStorage, so an addInitScript can't suppress it — it must be set
-    // server-side, on this instance's fresh data dir.
+    // "tour seen" flag so the welcome tour never auto-starts, and the U81
+    // "connect setup seen" flag so the first-run MQTT connect dialog never
+    // opens (the e2e stack has no broker configured, which is exactly the
+    // condition that pops it). Both are modal — their overlay intercepts
+    // pointer events and blocks every editor interaction, timing out whole
+    // suites. The server pref is authoritative over localStorage, so an
+    // addInitScript can't suppress them — they must be set server-side, on
+    // this instance's fresh data dir.
     await fetch(stack.baseUrl + '/api/editor/prefs', {
         method: 'PUT',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({tourSeen: true})
+        body: JSON.stringify({tourSeen: true, connectSetupSeen: true})
     }).catch(() => {});
 
     stack.browser = await chromium.launch({headless: true});

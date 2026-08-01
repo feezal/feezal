@@ -1625,6 +1625,19 @@ class FeezalAppEditor extends LitElement {
      * seconds to settle so the dialog never flashes over a working broker. */
     async _maybeFirstRunSetup() {
         if (this._sourceMode) return;
+        // A `connectSetupSeen` editor pref suppresses the dialog outright —
+        // same server-authoritative mechanism as `tourSeen` (the e2e harness
+        // seeds both: a modal dialog over the editor blocks every pointer
+        // interaction and times out whole suites). Not set by the dialog
+        // itself: for real users the dialog re-offers whenever no broker is
+        // configured, exactly as specified.
+        let seen;
+        try {
+            const r = await fetch('/api/editor/prefs');
+            if (r.ok) seen = Boolean((await r.json()).connectSetupSeen);
+        } catch { /* server unreachable */ }
+        if (seen === undefined) seen = Boolean(localStorage.getItem('feezalConnectSetupSeen'));
+        if (seen) { this._maybeAutoStartTour(); return; }
         let b = await this._pollBridgeStatus();
         // Wait out a still-connecting bridge (has a uri, not connected, no error).
         for (let i = 0; i < 6 && b && b.uri && !b.connected && !b.lastError; i++) {
@@ -2413,7 +2426,11 @@ class FeezalAppEditor extends LitElement {
                 const history = this.shadowRoot.querySelector('feezal-sidebar-history');
                 if (history) history._load();
             }, 800);
-            done?.();   // let a caller (e.g. the generate wizard) know the deploy finished
+            // Let a caller (the generate wizard) know the deploy finished.
+            // _deploy is ALSO the Deploy button's @click handler, where Lit
+            // passes the click EVENT as the first argument — `done?.()` would
+            // then call the event object and throw "done is not a function".
+            if (typeof done === 'function') done();
         });
     }
 
