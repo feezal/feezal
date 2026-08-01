@@ -89,6 +89,7 @@ Work in progress — priorities and scope are not final.
 - [A35 — Theme-var discipline, part 2: family design tokens still default to fixed colours](#a35--theme-var-discipline-part-2-family-design-tokens-still-default-to-fixed-colours)
 - [A36 — Server API layer: decompose the monolith, one error contract, bounded caches](#a36--server-api-layer-decompose-the-monolith-one-error-contract-bounded-caches)
 - [A37 — Editor front-end: extract the four buried subsystems](#a37--editor-front-end-extract-the-four-buried-subsystems)
+- [A38 — Drop DragSelect: hand-rolled rubber-band selection](#a38--drop-dragselect-hand-rolled-rubber-band-selection)
 
 
 **Documentation**
@@ -2293,6 +2294,29 @@ AI apply results, and the asset upload/rename outcomes.
 **Relates:** N42 (querySelector caching lands naturally during extraction), A36 (the server twin).
 
 ---
+
+### A38 — Drop DragSelect: hand-rolled rubber-band selection
+
+**Analyzed (08/2026), on request.** The question was whether interact.js could take over the rubber band — it cannot (interact.js ships draggable/resizable/dropzone/gestures, no selection module, and never has), but the analysis showed DragSelect is not necessary either: a replacement would not lean on interact.js at all, it is plain pointer-event work.
+
+**What feezal actually uses of DragSelect** ([feezal-sidebar-inspector.js](../www/src/feezal-sidebar-inspector.js) `_initDragSelect`): the selection rectangle overlay, the selectables registry (`addSelectables`/`removeSelection`), rect-vs-element hit-testing during the drag, and the end-of-gesture callback. Deliberately NOT used: its keyboard drag (disabled), its click selection (feezal's own composedPath handler covers clicks — U41 flow views have no DragSelect and select fine), and even `selectedClass` is overridden — the callback re-syncs `feezal-selected` by hand.
+
+**Why replace — the workaround surface outweighs the feature:**
+- Three archived lifecycle bugs are pure DragSelect fights: **B2** (zero-size SelectorArea blocking all clicks → the requestAnimationFrame deferral), **B35** (dispose/reseed on view switch), **B48** (stale instances bound to detached view nodes).
+- `.dragselect-rectangle` DOM junk must be scrubbed before serialization in THREE places (sidebar-inspector, app-editor, ai-chat), plus its cumulative z-index junk.
+- The `_dsDidDrag` / `_ignoreNextClick` timing dance keeps its events from clobbering feezal's own selection handling.
+- The v3 upgrade already cost a migration (`break()` → `continue` flag).
+- It is the README's only GPL-3.0 call-out — compatible with the AGPL editor, but the odd one out; dropping it simplifies the licensing story (and removes the commercial-license ambiguity DragSelect sells around).
+
+**The replacement** (~80–120 lines, zero dependencies): pointer-down on empty canvas → absolutely-positioned rect overlay → `getBoundingClientRect()` intersection against `.feezal-editable` (transform/zoom-safe for free) → apply `feezal-selected` → `_updateSelection()`. Shift-drag adds to the selection (match today's behavior).
+
+**Consciously re-implement or accept losing** (the two real features beyond the basics):
+1. **Auto-scroll** while rubber-banding near the view edge — reimplement (a scroll step per rAF while the pointer is within ~24px of the area edge) or explicitly drop with a note.
+2. **Touch-drag selection** — decide whether touch draws a rubber band at all (long-press-then-drag?) or stays tap-only; today's behavior on touch should be captured in a test BEFORE the swap.
+
+**Guardrails:** the B2/B35/B48 scenarios are already fenced by browser tests — they must pass unchanged against the new implementation; the serialization-scrub sites become assertions that nothing needs scrubbing. Remove the dependency from `www/package.json`, the README credits line and the A37 note (the canvas interaction engine extraction gets ~1000 lines lighter — coordinate: doing A38 FIRST makes A37's extraction smaller).
+
+**Relates:** **A37** (the canvas-interaction-engine extraction this shrinks — order matters), B2/B35/B48 ✅ (the regression fence), U41 (flow views already select without DragSelect — proof the click path is independent), A34 (dependency policy — one dep fewer).
 
 ### U89 — Equal-gap smart guides during drag 💡
 
