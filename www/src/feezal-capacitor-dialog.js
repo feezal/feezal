@@ -5,6 +5,8 @@ import '@shoelace-style/shoelace/dist/components/dialog/dialog.js';
 import '@shoelace-style/shoelace/dist/components/button/button.js';
 import '@shoelace-style/shoelace/dist/components/input/input.js';
 
+import {feezalDialogChrome, FEEZAL_Z} from './feezal-editor-chrome.js';   // N43
+
 /**
  * A9 Tier 2a — pre-export dialog for the Capacitor mobile-app project.
  *
@@ -38,8 +40,8 @@ class FeezalCapacitorDialog extends LitElement {
         _build:   {state: true},    // null | {jobId, status, log: []}
     };
 
-    static styles = css`
-        sl-dialog { --width: 420px; --sl-z-index-dialog: 20002; }
+    static styles = [feezalDialogChrome, css`
+        sl-dialog { --width: 420px; --sl-z-index-dialog: ${FEEZAL_Z.dialog}; }
         sl-input { margin-top: 10px; }
         /* Same idiom as the sidebars: pin the input parts to the feezal vars so
            Shoelace's (unthemed) hover/focus state tokens never flash white. */
@@ -54,11 +56,6 @@ class FeezalCapacitorDialog extends LitElement {
            (No :host-context() here — Chromium dropped support for it. And
            [variant="default"], not :not([variant]) — Shoelace reflects the
            default variant onto the attribute.) */
-        sl-button[variant='default']::part(base):hover {
-            background-color: var(--feezal-btn-hover, var(--sl-color-primary-50, #f0f9ff));
-            border-color: var(--feezal-btn-hover-border, var(--sl-color-primary-300, #7dd3fc));
-            color: var(--feezal-btn-hover-color, var(--sl-color-primary-700, #0369a1));
-        }
         .icon-row { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
         .icon-row img { width: 44px; height: 44px; border-radius: 9px; border: 1px solid var(--feezal-border, #ddd); background: #fff; }
         .icon-row .hint { font-size: 12px; color: var(--feezal-color, #666); line-height: 1.4; }
@@ -73,7 +70,7 @@ class FeezalCapacitorDialog extends LitElement {
             background: #14161a; color: #cfd8dc; border-radius: 6px;
             font-size: 11px; line-height: 1.45; white-space: pre-wrap; word-break: break-all;
         }
-    `;
+    `];
 
     constructor() {
         super();

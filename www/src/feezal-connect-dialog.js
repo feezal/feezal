@@ -8,6 +8,8 @@ import '@shoelace-style/shoelace/dist/components/switch/switch.js';
 import '@shoelace-style/shoelace/dist/components/spinner/spinner.js';
 import '@shoelace-style/shoelace/dist/components/textarea/textarea.js';
 
+import {feezalDialogChrome, FEEZAL_Z} from './feezal-editor-chrome.js';   // N43
+
 /**
  * First-run MQTT broker setup. Shown before the welcome tour whenever the site
  * has no broker host configured (see feezal-app-editor._maybeFirstRunSetup). It
@@ -43,7 +45,7 @@ class FeezalConnectDialog extends LitElement {
         _certBusy: {state: true},
     };
 
-    static styles = css`
+    static styles = [feezalDialogChrome, css`
         /* A comfortable, wide modal — this is a focused first-run form. */
         sl-dialog { --width: 640px; }
         /* Bigger inputs than the sidebar, and Shoelace vertically centres the
@@ -105,12 +107,7 @@ class FeezalConnectDialog extends LitElement {
         /* Default (non-primary) sl-button hover — draw from the editor dark
            tokens instead of Shoelace's light neutral, which reads white in dark
            mode. (Same fix as feezal-generate-dialog; keep the two in sync.) */
-        sl-button[variant='default']::part(base):hover {
-            background-color: var(--feezal-btn-hover, var(--sl-color-primary-50, #f0f9ff));
-            border-color: var(--feezal-btn-hover-border, var(--sl-color-primary-300, #7dd3fc));
-            color: var(--feezal-btn-hover-color, var(--sl-color-primary-700, #0369a1));
-        }
-    `;
+    `];
 
     constructor() {
         super();

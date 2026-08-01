@@ -5,6 +5,8 @@ import '@shoelace-style/shoelace/dist/components/dialog/dialog.js';
 import '@shoelace-style/shoelace/dist/components/button/button.js';
 import '@shoelace-style/shoelace/dist/components/spinner/spinner.js';
 
+import {feezalDialogChrome, FEEZAL_Z} from './feezal-editor-chrome.js';   // N43
+
 /**
  * U34 — static-export dialog with a bundle size breakdown.
  *
@@ -30,8 +32,8 @@ class FeezalExportDialog extends LitElement {
         _loading: {state: true},
     };
 
-    static styles = css`
-        sl-dialog { --width: 560px; --sl-z-index-dialog: 20002; }
+    static styles = [feezalDialogChrome, css`
+        sl-dialog { --width: 560px; --sl-z-index-dialog: ${FEEZAL_Z.dialog}; }
         /* Open at a stable size: the body reserves room up front so the dialog
            doesn't pop small (spinner only) and then jump taller once the report
            lands. Content stacks from the top; the loading state fills+centres. */
@@ -39,11 +41,6 @@ class FeezalExportDialog extends LitElement {
             min-height: 380px;
             display: flex;
             flex-direction: column;
-        }
-        sl-button[variant='default']::part(base):hover {
-            background-color: var(--feezal-btn-hover, var(--sl-color-primary-50, #f0f9ff));
-            border-color: var(--feezal-btn-hover-border, var(--sl-color-primary-300, #7dd3fc));
-            color: var(--feezal-btn-hover-color, var(--sl-color-primary-700, #0369a1));
         }
         .loading {
             flex: 1;
@@ -86,7 +83,7 @@ class FeezalExportDialog extends LitElement {
             color: var(--sl-color-warning-700, #b45309);
         }
         .note { margin-top: 12px; font-size: 11px; color: var(--feezal-color, #888); line-height: 1.5; }
-    `;
+    `];
 
     constructor() {
         super();

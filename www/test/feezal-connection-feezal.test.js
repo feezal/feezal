@@ -128,13 +128,52 @@ describe('socket command pass-through', () => {
         expect(socket.emit).toHaveBeenCalledWith('send', {topic: 'a/b', payload: 'on'});
     });
 
-    it('deploy and getSite forward the acknowledgement callback', () => {
+    it('getSite forwards the acknowledgement callback verbatim', () => {
         const el = makeConnected();
-        const deployCb = () => {};
         const getSiteCb = () => {};
-        el.deploy({site: 'demo'}, deployCb);
         el.getSite('demo', getSiteCb);
-        expect(socket.emit).toHaveBeenCalledWith('deploy', {site: 'demo'}, deployCb);
         expect(socket.emit).toHaveBeenCalledWith('getSite', 'demo', getSiteCb);
+    });
+
+    // B98: deploy no longer passes the caller's callback straight through — it
+    // wraps it so a server-reported failure and a never-answered emit both
+    // reach the editor (which must NOT clear its dirty flag on either).
+    describe('deploy acknowledgement (B98)', () => {
+        it('reports success as null', () => {
+            const el = makeConnected();
+            const cb = vi.fn();
+            el.deploy({site: 'demo'}, cb);
+            const [event, data, ack] = socket.emit.mock.calls.find(c => c[0] === 'deploy');
+            expect(event).toBe('deploy');
+            expect(data).toEqual({site: 'demo'});
+            ack(null);
+            expect(cb).toHaveBeenCalledWith(null);
+        });
+
+        it('passes a server error through', () => {
+            const el = makeConnected();
+            const cb = vi.fn();
+            el.deploy({site: 'demo'}, cb);
+            const ack = socket.emit.mock.calls.find(c => c[0] === 'deploy')[2];
+            ack({error: 'disk on fire'});
+            expect(cb).toHaveBeenCalledWith({error: 'disk on fire'});
+        });
+
+        it('synthesizes an error when the server never acks, and ignores a late ack', () => {
+            vi.useFakeTimers();
+            try {
+                const el = makeConnected();
+                const cb = vi.fn();
+                el.deploy({site: 'demo'}, cb);
+                const ack = socket.emit.mock.calls.find(c => c[0] === 'deploy')[2];
+                vi.advanceTimersByTime(30001);
+                expect(cb).toHaveBeenCalledTimes(1);
+                expect(cb.mock.calls[0][0].error).toMatch(/timeout/i);
+                ack(null);                       // a late ack must not double-call
+                expect(cb).toHaveBeenCalledTimes(1);
+            } finally {
+                vi.useRealTimers();
+            }
+        });
     });
 });

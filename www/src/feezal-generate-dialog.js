@@ -47,6 +47,8 @@ import glassShot from './family-shots/glass.png';
 import metroShot from './family-shots/metro.png';
 import circleShot from './family-shots/circle.png';
 import einkShot from './family-shots/eink.png';
+
+import {feezalDialogChrome, FEEZAL_Z} from './feezal-editor-chrome.js';   // N43
 const FAMILY_SHOTS = {glass: glassShot, metro: metroShot, circle: circleShot, eink: einkShot};
 
 // U70: the sentinel option value that opens the "new room" dialog.
@@ -113,8 +115,8 @@ class FeezalGenerateDialog extends LitElement {
         _demerged: {state: true},  // E165: device ids the user split out of the auto-merge
     };
 
-    static styles = css`
-        sl-dialog { --width: 720px; --sl-z-index-dialog: 20002; }
+    static styles = [feezalDialogChrome, css`
+        sl-dialog { --width: 720px; --sl-z-index-dialog: ${FEEZAL_Z.dialog}; }
         sl-dialog::part(body) { padding-top: 8px; }
 
         /* ── tile chooser (Windows-Start style) ─────────────────────────── */
@@ -350,11 +352,6 @@ class FeezalGenerateDialog extends LitElement {
         .footer .spacer { flex: 1; }
         /* Default (Cancel) button hover — draw from the editor tokens instead of
            Shoelace's light neutral, which reads as white in dark mode. */
-        sl-button[variant='default']::part(base):hover {
-            background-color: var(--feezal-btn-hover, var(--sl-color-primary-50, #f0f9ff));
-            border-color: var(--feezal-btn-hover-border, var(--sl-color-primary-300, #7dd3fc));
-            color: var(--feezal-btn-hover-color, var(--sl-color-primary-700, #0369a1));
-        }
 
         /* Material Icons ligature font — the class must be declared inside this
            shadow root (the @font-face itself is document-global and pierces the
@@ -384,7 +381,7 @@ class FeezalGenerateDialog extends LitElement {
         .frigate-icon { font-size: 18px; opacity: 0.7; flex: 0 0 auto; }
         .frigate-row sl-input { flex: 1 1 220px; min-width: 180px; }
         .frigate-hint { flex: 2 1 260px; font-size: 11px; opacity: 0.75; line-height: 1.4; }
-    `;
+    `];
 
     constructor() {
         super();
