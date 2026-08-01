@@ -765,7 +765,9 @@ class FeezalSidebarAssets extends LitElement {
                             if (x < 0) x = 0;
                             this._dragElem.style.left = x + 'px';
                             this._dragElem.style.top  = y + 'px';
-                            feezal.editor.selectElement(this._dragElem);
+                            // Dropping an asset adds a NEW element — same
+                            // opt-in as a palette drop (see selectElement).
+                            feezal.editor.selectElement(this._dragElem, {revealInspector: true});
                             this._dragElem.style.outlineWidth = null;
                             // Copy-on-use (A14): a global asset placed on a view is
                             // copied into this site's assets and the src repointed to

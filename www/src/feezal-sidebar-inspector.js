@@ -1385,10 +1385,9 @@ class FeezalSidebarInspector extends LitElement {
             }
         }
 
-        // Selecting on the canvas reveals the Inspector — that is where the
-        // user goes next. A selection made FROM another sidebar panel (the
-        // Layers tree) opts out, so the panel does not swap under them.
-        if (this._revealInspector !== false) feezal.app.sidebar = 'inspector';
+        // Opt-in only: see selectElement(). A plain selection leaves the right
+        // sidebar exactly where the user put it.
+        if (this._revealInspector) feezal.app.sidebar = 'inspector';
     }
 
     _moveElems(dx, dy) {
@@ -1901,14 +1900,20 @@ class FeezalSidebarInspector extends LitElement {
     /**
      * @param {Element|Element[]|NodeList} [elems]  the new selection; falsy
      *        selects the current view.
-     * @param {{revealInspector?: boolean}} [opts]  `revealInspector: false`
-     *        keeps the sidebar on whatever panel the user is in. Selecting on
-     *        the CANVAS should jump to the Inspector (that is where you go
-     *        next), but selecting from the Layers panel must not yank the
-     *        panel out from under the user mid-task (U87 feedback).
+     * @param {{revealInspector?: boolean}} [opts]  `revealInspector: true`
+     *        switches the right sidebar to the Inspector.
+     *
+     * Selection NEVER moves the sidebar by default. Switching panels under
+     * someone who is working in Layers, Themes or Assets is disorienting, and
+     * a selection is not a request to go somewhere — it is how you point at
+     * things. Only genuinely ADDING an element to the canvas opts in (palette
+     * drop, asset drop), because a brand-new element is unconfigured and the
+     * attribute panel is the obvious next stop. Duplicating, pasting and
+     * component extraction deliberately do not: those produce already-
+     * configured elements.
      */
     selectElement(elems, opts = {}) {
-        this._revealInspector = opts.revealInspector !== false;
+        this._revealInspector = opts.revealInspector === true;
         const view = feezal.getView(this.view);
         [...view.querySelectorAll('.feezal-selected')].forEach(el => el.classList.remove('feezal-selected'));
 

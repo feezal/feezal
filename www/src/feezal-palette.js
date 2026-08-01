@@ -461,7 +461,9 @@ class FeezalPalette extends LitElement {
 
                     this._applySnappedPos();
                     hideSnapLines();
-                    feezal.editor.selectElement(this.newElem);
+                    // A NEW element is unconfigured, so this is the one case
+                    // where selection may move the sidebar (see selectElement).
+                    feezal.editor.selectElement(this.newElem, {revealInspector: true});
                     this.newElem.style.outlineWidth = null;
                     feezal.app.change();
                 }

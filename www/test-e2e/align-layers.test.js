@@ -133,11 +133,14 @@ describe('U87 — layers panel (own sidebar tab)', () => {
         await expect.poll(() => layers().isVisible()).toBe(true);
     });
 
-    it('selecting on the CANVAS still reveals the Inspector', async () => {
+    it('selecting on the CANVAS does not move the sidebar either', async () => {
+        // Selection is how you point at things, not a request to go somewhere:
+        // whichever panel the user is in stays put. Only ADDING an element
+        // (palette / asset drop) jumps to the Inspector.
         await openLayers();
         await el('c').click();
         await expect.poll(() => page.evaluate(() =>
-            document.querySelector('feezal-app-editor').sidebar)).toBe('inspector');
+            document.querySelector('feezal-app-editor').sidebar)).toBe('layers');
     });
 
     it('the canvas selection is mirrored back into the list', async () => {

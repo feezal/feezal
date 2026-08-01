@@ -230,19 +230,19 @@ describe('selection mirroring', () => {
         const panel = await mountPanel('main');
         rows(panel)[0].click();                       // 'a' is the first row
         await panel.updateComplete;
-        expect(inspector.selectElement).toHaveBeenCalledWith([a], {revealInspector: false});
+        expect(inspector.selectElement).toHaveBeenCalledWith([a], {});
     });
 
     it('selecting here does NOT swap the sidebar to the Inspector', async () => {
-        // Selecting on the CANVAS reveals the Inspector (that is where you go
-        // next); selecting in the tree is navigation, so the panel must stay.
+        // Selection never moves the sidebar (only ADDING an element does), so
+        // the tree must not ask for a reveal either.
         const main = addView('main');
         addElement(main, 'feezal-element-basic-number', {label: 'a'});
         const panel = await mountPanel('main');
         rows(panel)[0].click();
         await panel.updateComplete;
         const [, opts] = inspector.selectElement.mock.calls[0];
-        expect(opts).toEqual({revealInspector: false});
+        expect(opts?.revealInspector).toBeFalsy();
     });
 
     it('reads the canvas selection from the feezal-selected class', async () => {
@@ -263,7 +263,7 @@ describe('selection mirroring', () => {
         const panel = await mountPanel('main');
         rows(panel)[1].dispatchEvent(new MouseEvent('click', {ctrlKey: true, bubbles: true}));
         await panel.updateComplete;
-        expect(inspector.selectElement).toHaveBeenCalledWith([a, b], {revealInspector: false});
+        expect(inspector.selectElement).toHaveBeenCalledWith([a, b], {});
     });
 
     it('clicking an element in ANOTHER view switches to that view first', async () => {
@@ -277,7 +277,7 @@ describe('selection mirroring', () => {
         panel.shadowRoot.querySelectorAll('li')[1].click();
         await until(() => inspector.selectElement.mock.calls.length > 0);
         expect(feezal.app._setView).toHaveBeenCalledWith('other');
-        expect(inspector.selectElement).toHaveBeenCalledWith([b], {revealInspector: false});
+        expect(inspector.selectElement).toHaveBeenCalledWith([b], {});
     });
 });
 
@@ -445,7 +445,7 @@ describe('context menu', () => {
         const panel = await mountPanel('main');
         rightClick(rows(panel)[0]);
         await until(() => Boolean(ctx(panel)));
-        expect(inspector.selectElement).toHaveBeenCalledWith([a], {revealInspector: false});
+        expect(inspector.selectElement).toHaveBeenCalledWith([a], {});
     });
 
     it('offers move/copy as hover submenus listing the OTHER views', async () => {

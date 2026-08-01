@@ -389,7 +389,9 @@ class FeezalSidebarLayers extends LitElement {
         // Keep the sidebar on Layers — selecting here is part of navigating the
         // tree, so swapping to the Inspector would pull the panel away
         // mid-task (the canvas still reveals the Inspector, as before).
-        const keepPanel = {revealInspector: false};
+        // Selection never moves the sidebar (see inspector.selectElement),
+        // so nothing to opt out of here any more.
+        const keepPanel = {};
         if (next.length) inspector.selectElement(next, keepPanel);
         else inspector.selectElement(null, keepPanel);
         el.scrollIntoView?.({block: 'nearest', inline: 'nearest'});
