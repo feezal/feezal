@@ -23,6 +23,7 @@ Then open [http://localhost:3000/editor/](http://localhost:3000/editor/) and fol
 - **Real-time data binding** — topic-based message routing connects any element attribute to a mqtt subscription
 - **MQTT support** — direct browser-to-broker WebSocket connection; no backend required for the viewer
 - **MQTT auto-discovery** — automatically detects devices published by zigbee2mqtt, ESPHome, RedMatic, evcc and compatible devices and bridges; one click pre-wires all topics and attributes.
+- **Autogenerate apps and dashboard** - create a full fledged app with menu drawer and subviews only with a few clicks. 
 - **Web Components element model** — every palette element is a standard Custom Element; the ecosystem is distributed as plain npm packages
 - **Composable elements** — turn a selection of elements into a named, reusable component with typed parameters: build once, instantiate many times, edit centrally and every instance follows
 - **Responsive layouts** — layout elements (flex containers, responsive/app-shell wrappers, navbars) build fluid dashboards that adapt to any screen size, beyond fixed absolute positioning
