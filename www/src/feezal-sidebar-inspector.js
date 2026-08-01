@@ -10,7 +10,10 @@ import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
 import './feezal-sidebar-inspector-styles.js';
 import './feezal-sidebar-inspector-attributes.js';
 import './feezal-sidebar-inspector-conditions.js';
+import './feezal-sidebar-layers.js';   // U87
+import './feezal-sidebar-debug.js';    // U88
 import {clippyStyles, clippyMarkup, clippyEnabled} from './feezal-clippy.js';
+import {align, distribute, matchSize, operationLabel} from './feezal-canvas-align.js';   // U83
 
 // U32: everything the canvas machinery treats as a first-class element —
 // regular feezal elements plus component instances. Stamped children inside a
@@ -244,6 +247,9 @@ class FeezalSidebarInspector extends LitElement {
             max-height: 70vh; overflow-y: auto;
         }
         .ctx-sub .ctx-item { overflow: hidden; text-overflow: ellipsis; }
+        /* U83: the align submenu is a fixed short list — no scrolling needed,
+           and it should not inherit the view list's generous width. */
+        .ctx-sub.align-sub { min-width: 180px; max-height: none; }
 
         /* ── Keyboard shortcuts modal ────────────────────────────────────── */
         .shortcuts-overlay {
@@ -335,12 +341,24 @@ class FeezalSidebarInspector extends LitElement {
         const stacking = cm.visible && cm.onElem && feezal.view
             ? stackingState(feezal.view, selNonView)
             : {canFront: false, canBack: false, canForward: false, canBackward: false};
+        // U83: align/distribute needs ≥2 unlocked absolutely-positioned
+        // elements (a flow view lays its children out itself, so moving them
+        // by inline offsets would do nothing).
+        const alignable = cm.visible && cm.onElem && feezal.view?.childPosition !== 'flow'
+            ? selNonView.filter(el => !el.hasAttribute('locked'))
+            : [];
+        const alignCount = alignable.length;
+        const canAlign = alignCount > 1;
         // E50: the Conditions tab is offered for a single selected element
         // (not the view, not component instances — those are a later
         // iteration; see the E50 archive entry).
         const canConditions = !this.viewSelected && this.selectedElems.length === 1 &&
             Boolean(this.selectedElems[0]?.localName?.startsWith?.('feezal-element-'));
         const condCount = canConditions ? this._conditionCount(this.selectedElems[0]) : 0;
+        // U88: the MQTT panel is single-element only — a tail of several
+        // elements' topics at once is noise, not a diagnosis.
+        const canDebug = !this.viewSelected && this.selectedElems.length === 1 &&
+            Boolean(this.selectedElems[0]?.localName?.startsWith?.('feezal-element-'));
         // E115: families the current selection can be switched to (union of each
         // element's twins in other installed families).
         const switchTargets = cm.visible && cm.onElem ? this._switchFamilyTargets() : [];
@@ -350,6 +368,10 @@ class FeezalSidebarInspector extends LitElement {
                 <sl-tab slot="nav" panel="styles">Styles</sl-tab>
                 ${canConditions ? html`
                     <sl-tab slot="nav" panel="conditions">Conditions${condCount ? ` · ${condCount}` : ''}</sl-tab>
+                ` : ''}
+                <sl-tab slot="nav" panel="layers" title="Elements in this view, top-most first">Layers</sl-tab>
+                ${canDebug ? html`
+                    <sl-tab slot="nav" panel="debug" title="Live MQTT wiring of the selected element">MQTT</sl-tab>
                 ` : ''}
                 ${selLabel ? html`<div slot="nav" class="sel-badge" title="${selLabel}">${selLabel}</div>` : ''}
                 <sl-tab-panel name="attributes">
@@ -368,6 +390,14 @@ class FeezalSidebarInspector extends LitElement {
                             .selectedElems="${this.selectedElems}"
                             @conditions-changed="${() => this.requestUpdate()}">
                         </feezal-sidebar-inspector-conditions>
+                    </sl-tab-panel>
+                ` : ''}
+                <sl-tab-panel name="layers">
+                    <feezal-sidebar-layers .selectedElems="${this.selectedElems}"></feezal-sidebar-layers>
+                </sl-tab-panel>
+                ${canDebug ? html`
+                    <sl-tab-panel name="debug">
+                        <feezal-sidebar-debug .selectedElems="${this.selectedElems}"></feezal-sidebar-debug>
                     </sl-tab-panel>
                 ` : ''}
             </sl-tab-group>
@@ -407,6 +437,33 @@ class FeezalSidebarInspector extends LitElement {
                             @click="${() => stacking.canBack && this._ctxAction('sendToBack')}">
                             Send to back <span class="ctx-kbd">Ctrl+Shift+[</span>
                         </div>
+                        ${canAlign ? html`
+                            <div class="ctx-sep"></div>
+                            <div class="ctx-item"
+                                @mouseenter="${() => this._openCtxSub('align')}"
+                                @mouseleave="${() => this._scheduleCtxSub(null)}">
+                                Align &amp; distribute… <span class="ctx-arrow">▶</span>
+                                ${cm.subMenu === 'align' ? html`
+                                    <div class="ctx-sub align-sub"
+                                        @mouseenter="${() => this._clearCtxSub()}"
+                                        @mouseleave="${() => this._scheduleCtxSub(null)}">
+                                        ${[['left', 'Align left'], ['hcenter', 'Centre horizontally'], ['right', 'Align right']]
+                                            .map(([m, label]) => html`
+                                                <div class="ctx-item" @click="${() => this._ctxAlign(m)}">${label}</div>`)}
+                                        <div class="ctx-sep"></div>
+                                        ${[['top', 'Align top'], ['vcenter', 'Centre vertically'], ['bottom', 'Align bottom']]
+                                            .map(([m, label]) => html`
+                                                <div class="ctx-item" @click="${() => this._ctxAlign(m)}">${label}</div>`)}
+                                        ${alignCount > 2 ? html`
+                                            <div class="ctx-sep"></div>
+                                            <div class="ctx-item" @click="${() => this._ctxAlign('horizontal')}">Distribute horizontally</div>
+                                            <div class="ctx-item" @click="${() => this._ctxAlign('vertical')}">Distribute vertically</div>` : ''}
+                                        <div class="ctx-sep"></div>
+                                        <div class="ctx-item" @click="${() => this._ctxAlign('width')}">Match width</div>
+                                        <div class="ctx-item" @click="${() => this._ctxAlign('height')}">Match height</div>
+                                        <div class="ctx-item" @click="${() => this._ctxAlign('both')}">Match size</div>
+                                    </div>` : ''}
+                            </div>` : ''}
                         <div class="ctx-sep"></div>
                         <div class="ctx-item"
                             @mouseenter="${() => this._openCtxSub('copy')}"
@@ -2216,6 +2273,56 @@ class FeezalSidebarInspector extends LitElement {
             feezal.app.change();
             this.selectedElems = [...this.selectedElems];   // refresh menu state
         }
+    }
+
+    /**
+     * U83: align / distribute / match-size the current selection.
+     *
+     * Geometry comes from the elements' RENDERED boxes (offsetLeft/Width),
+     * not the inline style — an element can be sized by a class or a preset
+     * and still has to line up. The engine returns only what changes; one
+     * undo snapshot covers the whole operation, and locked elements are
+     * skipped and reported.
+     *
+     * @param {string} op  an ALIGN_MODES entry, 'horizontal'|'vertical'
+     *                     (distribute) or 'width'|'height'|'both' (match size)
+     */
+    _ctxAlign(op) {
+        this._closeCtxMenu();
+        if (!feezal.view || feezal.view.childPosition === 'flow') return;
+        const selection = this.selectedElems.filter(el => el.tagName !== 'FEEZAL-VIEW');
+        const movable = selection.filter(el => !el.hasAttribute('locked'));
+        const skipped = selection.length - movable.length;
+        if (movable.length < 2) return;
+
+        const boxes = movable.map(el => ({
+            id: el,
+            left: el.offsetLeft, top: el.offsetTop,
+            width: el.offsetWidth, height: el.offsetHeight,
+        }));
+
+        let patches;
+        if (op === 'horizontal' || op === 'vertical') patches = distribute(boxes, op);
+        else if (['width', 'height', 'both'].includes(op)) patches = matchSize(boxes, op);
+        else patches = align(boxes, op);
+
+        if (!patches.length) {
+            feezal.app.toast?.(`Already ${op === 'both' ? 'the same size' : 'aligned'}`, {variant: 'info'});
+            return;
+        }
+
+        for (const p of patches) {
+            const el = p.id;
+            if ('left' in p)   el.style.left = Math.round(p.left) + 'px';
+            if ('top' in p)    el.style.top = Math.round(p.top) + 'px';
+            if ('width' in p)  el.style.width = Math.round(p.width) + 'px';
+            if ('height' in p) el.style.height = Math.round(p.height) + 'px';
+        }
+        // Reflect the new geometry in the Styles inspector, then ONE snapshot.
+        this.shadowRoot.querySelector('feezal-sidebar-inspector-styles')
+            ?.setStyle(this.selectedElems[0], ['left', 'top', 'width', 'height']);
+        feezal.app.change();
+        feezal.app.toast?.(operationLabel(op, patches.length, skipped), {variant: 'success'});
     }
 
     _duplicateElems() {

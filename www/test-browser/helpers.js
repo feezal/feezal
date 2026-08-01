@@ -26,7 +26,10 @@ export function fakeConnection() {
     const subs = new Map();          // topic → Set<callback>
     const published = [];
 
-    return {
+    // The real feezal-connection is a LitElement, i.e. an EventTarget — it
+    // announces outgoing traffic with a `feezal-publish` event (U88). Build the
+    // stand-in ON an EventTarget so listeners work exactly as in the app.
+    return Object.assign(new EventTarget(), {
         published,
         connected: true,
         sub(topic, options, callback) {
@@ -42,6 +45,9 @@ export function fakeConnection() {
         },
         pub(topic, payload) {
             published.push({topic, payload});
+            // U88: the real connection announces every publish so the editor's
+            // element debug panel can tail outgoing traffic.
+            this.dispatchEvent(new CustomEvent('feezal-publish', {detail: {topic, payload}}));
             this.deliver(topic, payload);
         },
         /** Simulate an incoming broker message (wildcards honoured). */
@@ -58,7 +64,7 @@ export function fakeConnection() {
             subs.forEach(set => { n += set.size; });
             return n;
         }
-    };
+    });
 }
 
 /** Fresh `feezal` global (viewer mode) + empty document body. */

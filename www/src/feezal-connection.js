@@ -245,7 +245,16 @@ class FeezalConnection extends LitElement {
     }
 
     pub(topic, payload, options = {}) {
-        console.log('[feezal-pub] topic=%s payload=%o conn=%o connected=%o', topic, payload, !!this.conn, this.connected);
+        // Gated like every other MQTT trace (it used to log on EVERY publish).
+        if (mqttDebugOn()) {
+            console.debug('%c[mqtt] PUB%c %s %o', 'color:#06c;font-weight:600', 'color:inherit', topic, payload);
+        }
+        // U88: let the editor's element debug panel observe outgoing traffic —
+        // publishes never come back through the subscription path, so they are
+        // otherwise invisible to a tail.
+        this.dispatchEvent(new CustomEvent('feezal-publish', {
+            detail: {topic, payload, retain: options.retain === true, local: options.local === true},
+        }));
         if (options.local) {
             this._spreadMessage({topic, payload});
         } else if (this.conn && this.connected) {

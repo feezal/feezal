@@ -68,12 +68,10 @@ Work in progress — priorities and scope are not final.
 - [U45 — Element insertion: palette sidebar + full-screen picker](#u45--element-insertion-palette-sidebar--full-screen-picker--to-refine) 💡 *(to refine)*
 - [U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow](#u61--editor-preview-fidelity-gradientbackground-in-a-percentage-sized-views-scroll-overflow)
 - [U63 — `layout-app`: split the content inset into per-side knobs](#u63--layout-app-split-the-content-inset-into-per-side-knobs)
-- [U83 — Alignment & distribution tools for multi-selection](#u83--alignment--distribution-tools-for-multi-selection)
 - [U84 — Canvas zoom, pan and fit-to-view](#u84--canvas-zoom-pan-and-fit-to-view)
 - [U85 — Toast/notification service: route the remaining call sites](#u85--toastnotification-service-route-the-remaining-call-sites--service-shipped) 🔨 *(service shipped)*
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
-- [U87 — Element outline / layers panel 💡](#u87--element-outline--layers-panel-)
-- [U88 — Selected-element MQTT debug panel 💡](#u88--selected-element-mqtt-debug-panel-)
+- [U89 — Equal-gap smart guides during drag](#u89--equal-gap-smart-guides-during-drag) 💡
 
 
 **Architecture & Infrastructure**
@@ -2243,13 +2241,6 @@ badges — deliberately deferred.
 - **Listener leaks**: `feezal-sidebar-inspector` wires 3 capture listeners per view and never removes them (`:1027/1046/1061` vs `disconnectedCallback:662`); 5 more src files add without removing (capacitor-dialog SSE, connection, presence, pwa-icon-dialog, site playlist). Uniform fix: per-wiring `AbortController`.
 - **querySelector churn**: `feezal-app-editor` re-queries the same selectors up to 9× (`feezal-sidebar-viewer` etc.) — cached getters.
 
-### U83 — Alignment & distribution tools for multi-selection
-
-**Found by audit (08/2026): none exist** — no align-left/center/right/top/middle/bottom, no distribute, no match-size (searched inspector/styles/app-editor). With edge-snapping and multi-select already solid, this is the biggest remaining canvas gap for tidy dashboards.
-- Context-menu group + small floating toolbar when ≥2 elements are selected: align 6 ways (to selection bounds; to view with one selected), distribute horizontally/vertically (equal gaps), match width/height/both.
-- One undo snapshot per operation; respects locked elements (skip, report count).
-- 💡 phase 2: equal-gap smart guides during drag (the snap engine at `_snap()` already computes sibling edges — extending it to equal-spacing hints is incremental).
-
 ### U84 — Canvas zoom, pan and fit-to-view
 
 **Found by audit (08/2026): none exist** — the canvas only scrolls (`feezal-site` overflow:auto); no zoom, no space-drag pan, no fit/overview for large dashboards.
@@ -2280,16 +2271,6 @@ AI apply results, and the asset upload/rename outcomes.
 - Remedy: a `json` control = the objectList editor's proven raw-fallback pattern (pretty-print on focus-out, parse check with an inline message line under the field, "fix it to get the editor" hint); a shared inline validation-message slot for every control (the red border gets a text); `validator` errors surface their string.
 - **Section collapse state is discarded on every selection change** (`_initCollapsedSections` re-runs per selection) — remember the user's expand/collapse per element TYPE for the session.
 
-### U87 — Element outline / layers panel 💡
-
-For dense views: a collapsible tree of the current view's elements (icon, label/tag, topic hint), click = select (scroll into view), drag = restack, per-row lock toggle; multi-select with ctrl/shift mirroring canvas selection. Complements U3 grouping (groups would nest). Not started — 💡 discuss priority; the inspector sidebar already has a tab structure to host it.
-
-### U88 — Selected-element MQTT debug panel 💡
-
-When an element is selected, show its live wiring: the topics it subscribes to (base class knows `_subscriptions`), the last payload per topic with a timestamp, and its publishes — a per-element tail of the broker conversation. Turns "why is this card empty" from console-debugging into a glance. Pairs with U38 (topic browser = broker-wide; this = element-scoped). 💡 discuss scope: read-only tail vs. publish-test field.
-
----
-
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
 
 **Found by audit (08/2026).** `routes/api.js` is a 1145-line factory with 56 routes and 8 concerns; `app.js` mixes 8 more in one 470-line function. Beyond size, the audit found systemic issues to fix WITH the split (each trivial in a decomposed layer, invasive without):
@@ -2310,3 +2291,22 @@ When an element is selected, show its live wiring: the topics it subscribes to (
 - Mechanical rule: extraction only, no rewrites; each move lands with its existing tests re-pointed and a browser smoke.
 
 **Relates:** N42 (querySelector caching lands naturally during extraction), A36 (the server twin).
+
+---
+
+### U89 — Equal-gap smart guides during drag 💡
+
+Carried out of **U83** ✅ (align & distribute), which covers the explicit
+operation but not the live hint. While dragging an element, show a guide when
+the gap to its neighbour matches an existing gap elsewhere in the row/column —
+the "equal spacing" affordance every design tool has, so a row can be laid out
+by hand without invoking Distribute at all.
+
+**Why it is incremental:** the snap engine (`_snap()` in
+`feezal-sidebar-inspector.js`) already measures every sibling edge on each drag
+frame to draw the four snap guides; equal-gap detection is another pass over
+the same measurements (compare the leading/trailing gaps rather than the edges),
+reusing the existing guide-line rendering.
+
+**Open:** how many gaps to consider (immediate neighbours vs. the whole row),
+and whether the guide should also SNAP to the equal-gap position or only hint.

@@ -360,6 +360,9 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U80 — Generate wizard: the App generator always creates a new site (name → deploy → viewer link) ✅ done](U80.md)
 - [U81 — First-run MQTT connect dialog (before the welcome tour) ✅ done](U81.md)
 - [U82 — Undo depth + redo + design-mode Ctrl+S ✅ done](U82.md)
+- [U83 — Alignment & distribution tools for multi-selection ✅ done](U83.md)
+- [U87 — Element outline / layers panel ✅ done](U87.md)
+- [U88 — Selected-element MQTT debug panel ✅ done](U88.md)
 
 ## Architecture & Infrastructure
 
