@@ -9,11 +9,21 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
+- [B97 — Security: `/assets/:site/*` path traversal + site-name validation applied to only 3 of ~20 routes](#b97--security-assetssite-path-traversal--site-name-validation-applied-to-only-3-of-20-routes)
+- [B98 — Deploy failure is reported as success (dirty flag cleared, no error surfaced)](#b98--deploy-failure-is-reported-as-success-dirty-flag-cleared-no-error-surfaced)
+- [B99 — Undo/dirty bookkeeping gaps: paste, add-view, dead delete-view code, wrong dialog copy](#b99--undodirty-bookkeeping-gaps-paste-add-view-dead-delete-view-code-wrong-dialog-copy)
+- [B100 — circle-value: stale private `parseRanges` fork — named colour ranges silently don't band the fill](#b100--circle-value-stale-private-parseranges-fork--named-colour-ranges-silently-dont-band-the-fill)
+- [B101 — Package installs: broken on Windows hosts and non-atomic on all hosts](#b101--package-installs-broken-on-windows-hosts-and-non-atomic-on-all-hosts)
+
 
 **Near-term Improvements**
 - [N2b — Repeater with live canvas sub-elements](#n2b--repeater-with-live-canvas-sub-elements-future) *(future)*
 - [N12 — Export bundle: strip mqtt.js for feezal-bridge users](#n12--export-bundle-strip-mqttjs-for-feezal-bridge-users-partial) *(partial)*
 - [N13 — Lighter MQTT client for export bundle](#n13--lighter-mqtt-client-for-export-bundle-️-tbd) ⚠️
+- [N41 — Shared-fragment dedupe: kill the copy-paste drift across elements](#n41--shared-fragment-dedupe-kill-the-copy-paste-drift-across-elements)
+- [N42 — Front-end hot-path hygiene: parse memoization, ungated logging, listener teardown](#n42--front-end-hot-path-hygiene-parse-memoization-ungated-logging-listener-teardown)
+- [N43 — Editor chrome tokens: one dark-mode/dialog stylesheet, one z-index scale](#n43--editor-chrome-tokens-one-dark-modedialog-stylesheet-one-z-index-scale)
+
 
 **Element Ecosystem**
 - [E20 — Weather forecast (`feezal-element-material-weather`)](#e20--weather-forecast-element-feezal-element-material-weather--moved)
@@ -64,6 +74,14 @@ Work in progress — priorities and scope are not final.
 - [U45 — Element insertion: palette sidebar + full-screen picker](#u45--element-insertion-palette-sidebar--full-screen-picker--to-refine) 💡 *(to refine)*
 - [U61 — Editor preview fidelity: gradient/background in a percentage-sized view's scroll overflow](#u61--editor-preview-fidelity-gradientbackground-in-a-percentage-sized-views-scroll-overflow)
 - [U63 — `layout-app`: split the content inset into per-side knobs](#u63--layout-app-split-the-content-inset-into-per-side-knobs)
+- [U82 — Undo depth + redo + design-mode Ctrl+S](#u82--undo-depth--redo--design-mode-ctrls)
+- [U83 — Alignment & distribution tools for multi-selection](#u83--alignment--distribution-tools-for-multi-selection)
+- [U84 — Canvas zoom, pan and fit-to-view](#u84--canvas-zoom-pan-and-fit-to-view)
+- [U85 — Toast/notification service + deploy and action feedback](#u85--toastnotification-service--deploy-and-action-feedback)
+- [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
+- [U87 — Element outline / layers panel 💡](#u87--element-outline--layers-panel-)
+- [U88 — Selected-element MQTT debug panel 💡](#u88--selected-element-mqtt-debug-panel-)
+
 
 **Architecture & Infrastructure**
 - [A7 — Git versioning for data directory](#a7--git-versioning-for-data-directory-in-progress) 🔨 *(in progress — bookmarks + push remaining)*
@@ -78,6 +96,9 @@ Work in progress — priorities and scope are not final.
 - [A27 — i18n: editor localization + language-aware element defaults 🔨 Phase 1 (de+es+fr+it+pl+pt+tr) ✅ shipped · phases 2–3 open](#a27--i18n-editor-localization--language-aware-element-defaults--phase-1-deesfritplpttr--shipped--phases-23-open)
 - [A29 — RTL layout support (Arabic, Hebrew)](#a29--rtl-layout-support-arabic-hebrew--future) 💡 *(future)*
 - [A35 — Theme-var discipline, part 2: family design tokens still default to fixed colours](#a35--theme-var-discipline-part-2-family-design-tokens-still-default-to-fixed-colours)
+- [A36 — Server API layer: decompose the monolith, one error contract, bounded caches](#a36--server-api-layer-decompose-the-monolith-one-error-contract-bounded-caches)
+- [A37 — Editor front-end: extract the four buried subsystems](#a37--editor-front-end-extract-the-four-buried-subsystems)
+
 
 **Documentation**
 - [D4 — README: "plays well with" ecosystem line](#d4--readme-plays-well-with-ecosystem-line--credits-shipped) 🔨 *(credits shipped)*
@@ -2205,3 +2226,142 @@ discovery, zigbee2mqtt, Homematic/CCU, Frigate, evcc, WLED (and the Scrypted →
 Frigate camera chain the camera docs describe). One line, links only, no
 badges — deliberately deferred.
 
+---
+
+### B97 — Security: `/assets/:site/*` path traversal + site-name validation applied to only 3 of ~20 routes
+
+**Found by audit (08/2026).** Two related holes:
+- `server/src/app.js:211-215` serves site assets via `res.sendFile(path.join(dataDir, 'sites', req.params.site, 'assets', req.params[0]))` with **no `root` option** — Express decodes `%2e%2e%2f`, `path.join` normalizes `..` away before `send`'s own traversal check runs, and the route is registered **before `editorAuth`** (public). Remedy: `sendFile(rel, {root})` + validate `:site`.
+- `isValidSiteName` (`routes/api.js:52`) guards only 3 routes; unvalidated `:name` reaches `fs.rm({recursive:true})` (delete site), git repo paths, PEM cert writes and exports. Four divergent copies of the rule exist (`api.js:52`, `app.js:160`, `pwa.js:228`, `export.js:939`). Remedy: one `assertSiteName()` util applied via `router.param('name'|'site', …)` and imported everywhere.
+
+**Ships with:** the `root`-anchored sendFile, the shared validator + router.param wiring, tests proving `..`/`%2e%2e` variants 400 on every site route.
+
+### B98 — Deploy failure is reported as success (dirty flag cleared, no error surfaced)
+
+**Found by audit (08/2026).** The deploy ack fires identically on success and failure: `server/src/socket/hub.js:79-136` catches every error, logs it, then `finally { callback(); }` — the callback carries no error. The client (`feezal-app-editor._deploy`) then clears `changes`/`hasChanges` and shows nothing. A failed save looks saved; the user closes the browser and loses work.
+
+**Ships with:** an error argument on the deploy ack (`callback({error})`), client keeps the dirty state and surfaces the message on failure, a client-side ack timeout (a dead socket must not hang "deploying" forever), tests for both paths. UX layer (toast) rides U85.
+
+### B99 — Undo/dirty bookkeeping gaps: paste, add-view, dead delete-view code, wrong dialog copy
+
+**Found by audit (08/2026).**
+- **Paste is neither undoable nor marked dirty** — `_pasteInternal` (`feezal-app-editor.js:2973`) never calls `change()` (duplicate does). A paste followed by close loses silently.
+- **`_addView` (:3136) calls no `change()`** — not dirty, not undoable.
+- The delete-view keyboard path is dead code with a "TECHNICAL DEBT: SKIP THIS FOR NOW" comment (`feezal-sidebar-inspector.js:1393-1400`) — decide and either implement (with the focus guard) or remove.
+- The delete-view confirm says **"This cannot be undone."** (`feezal-app-editor.js:3082`) — but it IS undoable (`:3098` snapshots). Fix the copy.
+
+**Ships with:** `change()` in both paths, the dead code resolved, the dialog copy corrected, browser tests for paste-undo and addView-dirty.
+
+### B100 — circle-value: stale private `parseRanges` fork — named colour ranges silently don't band the fill
+
+**Found by audit (08/2026).** `feezal-element-circle-value.js:21-31` is a copy of `feezal-gauge`'s parser **minus** the range-name branch, so `ranges="temp"` (a site-wide named colour range) renders an unbanded fill on circle-value while every gauge cards bands correctly. The fork exists because circle-value declares no dependency on `@feezal/feezal-gauge`.
+
+**Ships with:** delete the fork, depend on + import `parseRanges`/band resolution from `@feezal/feezal-gauge`, extend `u65-color-ranges` coverage to circle-value, patch bump.
+
+### B101 — Package installs: broken on Windows hosts and non-atomic on all hosts
+
+**Found by audit (08/2026).** Two defects in `server/src/build/install.js`:
+- `execFile('npm.cmd', …)` without `shell: true` (`install.js:50,159`) — Node ≥18.20/20.12 refuses `.cmd` spawns (CVE-2024-27980 hardening) → `spawn EINVAL`; the whole Package Manager fails on Windows with an opaque error. Keep the args array (never interpolate), add the platform-gated `shell` flag.
+- The installed package dir is `rm`'d **before** the new code is written (`install.js:330-332`, same per bundle member at `:250-252`), with no in-flight lock — a mid-install failure or a concurrent install leaves an empty dir that discovery still lists and viewers 404 on. Write to `<dest>.tmp` + rename; add a per-package lock; roll back written members when a later bundle member fails.
+
+Also: raw npm stdout/stderr (absolute server paths) is echoed to the browser in the 500 body (`api.js:688,705`) — log server-side, return the message only.
+
+---
+
+### N41 — Shared-fragment dedupe: kill the copy-paste drift across elements
+
+**Found by audit (08/2026).** The element corpus re-implements the same fragments with measurable drift — each bullet names the worst evidence:
+- **Availability attributes**: the 3-4 line descriptor block is copy-pasted into **57 files** with **8 different help wordings**; no `availabilityAttributes` export exists. Export one from `@feezal/feezal-element` (with a `section` option) and spread it — the established `multivalueAttributes` pattern.
+- **Availability badge**: the shared `availabilityBadge()`/`feezalAvailabilityStyles` helpers exist but are adopted by only 3 files; **14 elements hand-roll** the CSS/SVG with **three different glyphs** in the Circle family alone (wifi-off ×5 verbatim copies, local `UNAVAIL` consts ×5, a warning triangle in circle-multivalue). Adopt the helper everywhere.
+- **Rewire idiom**: `_wireSubscriptions`/`__wireSig` copy-pasted **12×** in two divergent variants (~170 lines). Hoist `rewireOnSignatureChange()` into `FeezalElement`; subclasses keep only their `_wireSignature`/`_wireSubscriptions`.
+- **Locale drift (user-visible)**: `displayValue` is byte-identical in circle-value/eink-value using raw `toFixed`, while glass-value was fixed for N38 locale — the same reading renders `1234.5` vs `1.234,5` per family. One `formatValueDisplay()` in `feezal-locale.js`; also migrate the 5 remaining `formatNumber` bypasses (controller-aiedge, material-tank, basic-table…).
+- **Truthy-payload parsing**: hand-rolled **17× with 6 different semantics** (some accept `'on'`, some `1`, some lowercase). Export one `asBool()` (the identical `feezal-hm-fault`/`evcc-loadpoint` version) and adopt.
+- **Multivalue grid/stack markup**: the ~22-line render block is character-identical ×4 families — export `renderMultivalueGrid/Stack(mv)` partials from the controller.
+- **Smaller**: wled effect/palette `<select>` builders ×3 (→ controller `effectOptions()/paletteOptions()`; also fix wled-lists.js's stale "duplicated verbatim in 3 packages" header comment — it is imported, not copied); `labelFor()` duplicated between the two history UIs; `formatKb`/`formatSize` per-file byte formatters; `_uniqueViewName` twice with different sanitization (the generate wizard can mint names the editor rejects).
+
+**Ships with:** the shared exports + adoption sweep, patch bumps across touched packages, and ratchet-style greps in existing guard tests where cheap (e.g. "no local `subscribe-availability` descriptor outside the fragment").
+
+### N42 — Front-end hot-path hygiene: parse memoization, ungated logging, listener teardown
+
+**Found by audit (08/2026).**
+- **JSON.parse per render/message**: `MultivalueController.config` re-parses the `values` attribute ≥2× per update cycle (per MQTT message, ×4 families); `basic-device-health:230`, `circle-fan:298`, `circle-value:267`, the inspector's `_conditionCount` parse per render. Memoize on the raw attribute string; fold `rowUnit` into `grid()` rows (currently 2 calls × rows, each allocating a Set).
+- **Ungated hot-path logging**: `feezal-connection.js:135` logs EVERY inbound MQTT message (holding a live payload reference), `:248` every publish; `feezal-connection-mqtt.js:168,183,187` more of the same — while the `mqttDebugOn()` gate exists three lines away. Gate them; delete the stray `console.log`s in paper-dropdown:112, paper-tabs:100, sidebar-inspector:583.
+- **`_spreadMessage`** allocates a filtered array and scans all subscriptions per message (`feezal-connection.js:148-150`) — plain loop + an exact-topic index.
+- **Listener leaks**: `feezal-sidebar-inspector` wires 3 capture listeners per view and never removes them (`:1027/1046/1061` vs `disconnectedCallback:662`); 5 more src files add without removing (capacitor-dialog SSE, connection, presence, pwa-icon-dialog, site playlist). Uniform fix: per-wiring `AbortController`.
+- **querySelector churn**: `feezal-app-editor` re-queries the same selectors up to 9× (`feezal-sidebar-viewer` etc.) — cached getters.
+
+### N43 — Editor chrome tokens: one dark-mode/dialog stylesheet, one z-index scale
+
+**Found by audit (08/2026), and the structural fix for the RECURRING dark-mode bug class** (the CLAUDE.md "Editor dark-mode discipline" section exists because every new dialog re-ships this by hand):
+- The `sl-button[variant='default']::part(base):hover` rule is copy-pasted in 4 dialogs; `sl-input::part(base)` theming in 7 places; the dark palette is hardcoded (`#0284c7` ×92, `#3d3d3d` ×26, `#f5f5f5` ×28, `#c62828` ×27) with no custom properties; `--sl-z-index-dialog` takes **5 different values** (9999→20005) plus raw z-indexes up to `2147483647` across 8 files.
+- Remedy: a `feezal-editor-chrome.js` exporting (a) `feezalDialogChrome` css (button hover + input parts + panel tokens) that every editor dialog composes into its `static styles`, (b) an editor token sheet (`--feezal-editor-*` palette incl. the dark values, a documented z-index ladder). New dialogs then get correct dark mode BY DEFAULT — the hand-registration in `feezal-app-editor`'s `:host(.dark)` selector lists shrinks to the token definitions, and the CLAUDE.md discipline section reduces to "compose `feezalDialogChrome`".
+
+**Relates:** the editor-dark-mode memory/CLAUDE.md discipline (this item obsoletes most of it), A35 (the dashboard-side token discipline — this is the EDITOR-side counterpart).
+
+---
+
+### U82 — Undo depth + redo + design-mode Ctrl+S
+
+**Found by audit (08/2026).** Undo is 5 whole-site `innerHTML` snapshots (max 4 steps, `feezal-app-editor.js:2287-2294`); there is **no redo at all** (design mode), and **Ctrl+S in design mode is not intercepted** — it opens the browser's save-page dialog while `Ctrl+S` works in source mode (`:1538`).
+- Raise the history cap (50 snapshots is fine at typical site sizes; measure — snapshots are strings, dedupe identical consecutive ones) and add a redo stack with `Ctrl+Shift+Z`/`Ctrl+Y`, a toolbar redo button next to undo, and entries in the shortcuts dialog.
+- Bind design-mode `Ctrl+S` to deploy (same guard chain as the canvas handler).
+- Consider labelled history entries ("moved 3 elements", "attribute label") surfaced as a tooltip on undo/redo — cheap since every `change()` call site knows what it did. 💡 phase 2.
+
+**Relates:** B99 (bookkeeping gaps — land first so redo replays a correct history).
+
+### U83 — Alignment & distribution tools for multi-selection
+
+**Found by audit (08/2026): none exist** — no align-left/center/right/top/middle/bottom, no distribute, no match-size (searched inspector/styles/app-editor). With edge-snapping and multi-select already solid, this is the biggest remaining canvas gap for tidy dashboards.
+- Context-menu group + small floating toolbar when ≥2 elements are selected: align 6 ways (to selection bounds; to view with one selected), distribute horizontally/vertically (equal gaps), match width/height/both.
+- One undo snapshot per operation; respects locked elements (skip, report count).
+- 💡 phase 2: equal-gap smart guides during drag (the snap engine at `_snap()` already computes sibling edges — extending it to equal-spacing hints is incremental).
+
+### U84 — Canvas zoom, pan and fit-to-view
+
+**Found by audit (08/2026): none exist** — the canvas only scrolls (`feezal-site` overflow:auto); no zoom, no space-drag pan, no fit/overview for large dashboards.
+- `Ctrl+wheel` zoom around the cursor, `Ctrl+0` = 100 %, `Ctrl+Shift+0` (or a toolbar control) = fit view; space-held drag pans; zoom % indicator in the toolbar.
+- Implementation sketch: `transform: scale()` on the view container with interact.js coordinate mapping (interact supports a `deltaScale`/transform-aware setup); the snap/guide math already corrects for scroll (B8) and must learn the scale factor. The drag-autoscroll compensation (`inspector.js:2006`) is the risky integration point — budget for it.
+- Out of scope here: minimap (💡 future note only).
+
+### U85 — Toast/notification service + deploy and action feedback
+
+**Found by audit (08/2026).** There is no general notification channel — only ad-hoc toasts (switch-family report, reconnect) and inline banners; deploy success is silent, deploy FAILURE is invisible (B98 fixes the transport). Add a small `feezal-toast` service in the editor shell (queue, severity, timeout, action button), then route through it: deploy success ("Deployed · site.name") and failure (error + Retry action), export ready, package install/update/remove results, component ops, switch-family report (replacing its bespoke toast), AI apply results.
+**Relates:** B98 (error channel), N43 (chrome tokens style the toasts).
+
+### U86 — Inspector: a real `json` attribute control + validation feedback + stable section state
+
+**Found by audit (08/2026).**
+- `type: 'json'` attributes (camera `chips`, lottie `map`, layout-app `items`, …) fall through to a **plain text input**; invalid JSON is written to the attribute silently. And where a `validator` rejects, the ONLY feedback is a red border (`.attr.invalid`) — no message, while the field keeps the rejected value.
+- Remedy: a `json` control = the objectList editor's proven raw-fallback pattern (pretty-print on focus-out, parse check with an inline message line under the field, "fix it to get the editor" hint); a shared inline validation-message slot for every control (the red border gets a text); `validator` errors surface their string.
+- **Section collapse state is discarded on every selection change** (`_initCollapsedSections` re-runs per selection) — remember the user's expand/collapse per element TYPE for the session.
+
+### U87 — Element outline / layers panel 💡
+
+For dense views: a collapsible tree of the current view's elements (icon, label/tag, topic hint), click = select (scroll into view), drag = restack, per-row lock toggle; multi-select with ctrl/shift mirroring canvas selection. Complements U3 grouping (groups would nest). Not started — 💡 discuss priority; the inspector sidebar already has a tab structure to host it.
+
+### U88 — Selected-element MQTT debug panel 💡
+
+When an element is selected, show its live wiring: the topics it subscribes to (base class knows `_subscriptions`), the last payload per topic with a timestamp, and its publishes — a per-element tail of the broker conversation. Turns "why is this card empty" from console-debugging into a glance. Pairs with U38 (topic browser = broker-wide; this = element-scoped). 💡 discuss scope: read-only tail vs. publish-test field.
+
+---
+
+### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
+
+**Found by audit (08/2026).** `routes/api.js` is a 1145-line factory with 56 routes and 8 concerns; `app.js` mixes 8 more in one 470-line function. Beyond size, the audit found systemic issues to fix WITH the split (each trivial in a decomposed layer, invasive without):
+- **asyncHandler + error middleware**: 33 hand-copied try/catch envelopes, 9 dataDir guards, **and 5 async routes with NO try/catch** — an fs error there is an unhandled rejection that kills the process (Express 4). No `(err,req,res,next)` middleware exists anywhere, so fall-through errors render stack traces (NODE_ENV is never set). One wrapper + one terminal handler + a `requireDataDir` middleware removes ~150 lines and the crash class.
+- **One error envelope** (5 shapes coexist today).
+- **Route split** by the audit's table (sites/assets/ai/discovery/themes/packages/history/export/apk/admin/pwa-icons); extract the 260-line `viewerHandler` into a pure `renderViewerPage()` (directly unit-testable — app.js sits at 62 % coverage precisely because of it).
+- **Bounded caches**: export `_bundleCache` (holds whole minified bundles, never evicted, stale after package installs — clear from `emitElementsChanged` + LRU cap), hub message cache + bridge topic trie (unbounded on busy brokers; the `lastPayloads` LRU pattern exists to copy), CSP violation site-map (publicly writable keys — record only known sites, LRU).
+- **Sync fs off request paths**: element discovery re-scans synchronously on every editor load AND every viewer render (`elements.js:236-282`); pwa.js does 5-10 sync calls per manifest/sw/icon request. Cache with `emitElementsChanged` + mtime invalidation (the `icons.js` pattern).
+- **Misc**: one exec wrapper (git's has NO timeout/maxBuffer — a long history can hang a request), `fetchWithTimeout` for registry/AI calls (currently unbounded fan-out, one fetch per installed package), a `readJson/writeJson` util (14 divergent read-modify-write sites; the prefs PUT is a lost-update race), fixed temp entry file in export (two concurrent exports corrupt each other — mkdtemp or a virtual module; also read-only in Docker).
+
+**Ships with:** the split + middlewares + envelope, caches bounded, sync-fs promoted/cached, exec/fetch/json utils adopted, coverage rising as a side effect (each extracted module is unit-testable).
+
+### A37 — Editor front-end: extract the four buried subsystems
+
+**Found by audit (08/2026).** `feezal-app-editor.js` (3667 lines) and `feezal-sidebar-inspector.js` (2350) each hide complete subsystems that are separable with no behavior change:
+- Out of app-editor: the **view folder tree** model (~365 lines, self-contained), the **component system** (~380), **source/Monaco mode** (~215), clipboard handlers.
+- Out of sidebar-inspector: the module-scope **canvas geometry helpers** (already pure exports — move to `feezal-canvas-geometry.js`), the **canvas interaction engine** (DragSelect+interact wiring, ~1000 lines), the **context menu**, the **switch-family migration**.
+- Mechanical rule: extraction only, no rewrites; each move lands with its existing tests re-pointed and a browser smoke.
+
+**Relates:** N42 (querySelector caching lands naturally during extraction), A36 (the server twin).
