@@ -29,7 +29,14 @@ const ALLOWED = new Set([
     'OFL-1.1',        // SIL Open Font License — bundled webfonts (icon/theme packages)
     'Unlicense', 'BlueOak-1.0.0', 'WTFPL',
     'Python-2.0', 'Zlib', 'Artistic-2.0', 'W3C',
-    'AGPL-3.0-only'   // feezal itself (workspace links in lockfiles)
+    'AGPL-3.0-only',  // feezal itself (workspace links in lockfiles)
+    // GPL-3.0: compatible with distributing feezal BECAUSE feezal is
+    // AGPL-3.0-only — AGPLv3 §13 / GPLv3 §13 explicitly permit combining
+    // the two, each part keeping its license. (For a permissive-licensed
+    // project this would NOT be acceptable — revisit if feezal ever
+    // relicenses.) Current user: dragselect (v2+ relicensed MIT→GPL-3.0),
+    // editor-only, so it never ships in viewer bundles / static exports.
+    'GPL-3.0', 'GPL-3.0-only', 'GPL-3.0-or-later'
 ]);
 
 function licenseAllowed(expr) {
