@@ -80,7 +80,7 @@ Work in progress — priorities and scope are not final.
 - [A35 — Theme-var discipline, part 2: family design tokens still default to fixed colours](#a35--theme-var-discipline-part-2-family-design-tokens-still-default-to-fixed-colours)
 
 **Documentation**
-- [D4 — README: credits for key dependencies + a "plays well with" ecosystem line](#d4--readme-credits-for-key-dependencies--a-plays-well-with-ecosystem-line)
+- [D4 — README: "plays well with" ecosystem line](#d4--readme-plays-well-with-ecosystem-line--credits-shipped) 🔨 *(credits shipped)*
 
 
 ---
@@ -2189,32 +2189,19 @@ Per-family passes (glass first — biggest count), each: the family base block o
 
 ---
 
-### D4 — README: credits for key dependencies + a "plays well with" ecosystem line
+### D4 — README: "plays well with" ecosystem line 🔨 credits shipped
 
-Add a **Credits** section to the README (between *Documentation* and *License*)
-naming the dependencies that deserve visible thanks, plus a separate **plays
-well with** line for the ecosystem feezal integrates with. One line per entry
-(link + a few words on the role), no badge walls; end with a pointer to the
-release SBOMs for the exhaustive dependency list.
+**Shipped (08/2026):** the README **Credits** section — Lit, interact.js,
+DragSelect, plus the licence-REQUIRED attributions found by the vendored-asset
+audit: Font Awesome Free (CC BY 4.0) and the KNX-UF icon set (CC BY-SA 3.0 DE);
+MDI/Material Symbols/Roboto are Apache-2.0 (no visible attribution needed) and
+the fancy family's animations are generated, not vendored art. Settled while
+writing: MQTT.js/Shoelace/Express are NOT credited (kept to the SBOM pointer),
+per the "only what's necessary licence-wise beyond the decided trio" call.
 
-**Decided (08/2026):**
-- **Credit:** Lit (everything is a Lit component), interact.js (canvas
-  drag/resize/snap), DragSelect (rubber-band multi-select; also good form to
-  credit visibly given its GPL-3.0 licence).
-- **Do NOT credit:** the element-family foundations (Material Web, Carbon Web
-  Components, Polymer paper-*) — their licences ship in the SBOM/licence gate;
-  the README stays about feezal.
-- **Undecided — settle when writing:** MQTT.js, Shoelace, Express (core
-  plumbing, but arguably below the "deserves README thanks" bar).
-- **Plays well with** (integration recognition, not dependencies): Home
-  Assistant MQTT discovery, zigbee2mqtt, Homematic/CCU, Frigate, evcc, WLED
-  (and the Scrypted → Frigate camera chain the camera docs describe).
-
-**Also check while writing:** the vendored icon/font sets (Material Symbols,
-Font Awesome Free, Material Design Icons, KNX-UF) — their licences (OFL /
-CC-BY / MIT) may *require* attribution somewhere user-visible; if so, that
-attribution belongs in this section regardless of taste.
-
-**Ships with:** the README section, a link check (no dead URLs), and — if the
-icon-set audit finds required attributions — those lines included.
+**Remaining — the "plays well with" line:** a separate README line naming the
+integration ecosystem (recognition, not dependencies): Home Assistant MQTT
+discovery, zigbee2mqtt, Homematic/CCU, Frigate, evcc, WLED (and the Scrypted →
+Frigate camera chain the camera docs describe). One line, links only, no
+badges — deliberately deferred.
 

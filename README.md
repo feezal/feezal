@@ -49,6 +49,26 @@ Then open [http://localhost:3000/editor/](http://localhost:3000/editor/) and fol
 
 ---
 
+## Credits
+
+feezal stands on the shoulders of some excellent open-source work:
+
+- [Lit](https://lit.dev) — every feezal element, the editor and the viewer are Lit components
+- [interact.js](https://interactjs.io) — drag, resize and snapping on the editor canvas
+- [DragSelect](https://dragselect.com) — rubber-band multi-selection in the editor (GPL-3.0)
+
+Bundled icon sets that require attribution:
+
+- [Font Awesome Free](https://fontawesome.com) icons by Fonticons, Inc. —
+  [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+- [KNX-UF icon set](https://knx-user-forum.de) by the KNX-User-Forum community —
+  [CC BY-SA 3.0 DE](https://creativecommons.org/licenses/by-sa/3.0/de/deed.en)
+
+The complete dependency tree ships as SPDX/CycloneDX SBOMs attached to every
+[release](https://github.com/feezal/feezal/releases).
+
+---
+
 ## License
 
 feezal uses a two-tier licensing model:
