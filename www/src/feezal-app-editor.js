@@ -657,6 +657,11 @@ class FeezalAppEditor extends LitElement {
         :host(.dark) feezal-generate-dialog,
         :host(.dark) feezal-connect-dialog,
         :host(.dark) feezal-connection-overlay,
+        /* B102 — feezal-toast consumes --feezal-bg/-color/-btn-hover with light
+           fallbacks, so leaving it off this list is what made deploy toasts
+           render white in a dark editor. Same shape as the connection overlay
+           before it: the component is dark-ready, the shell never fed it. */
+        :host(.dark) feezal-toast,
         :host(.dark) feezal-ai-chat {
             --feezal-bg:     #2e2e2e;
             --feezal-bg-sub: #262626;
@@ -833,6 +838,9 @@ class FeezalAppEditor extends LitElement {
         // Editor colour scheme: saved override, else dark by default (new users).
         this._themeMode = localStorage.getItem('themeMode') ?? 'dark';
         this._darkMode = this._computeDark(this._themeMode);
+        // U85: notifications on/off (editor settings, persisted server-side).
+        // Not reactive — it gates toast() and drives no rendering.
+        this.toastsEnabled = true;
         // Source view (N15)
         this._sourceMode  = false;
         this._sourceError = null;
@@ -1487,6 +1495,7 @@ class FeezalAppEditor extends LitElement {
 
     connectedCallback() {
         super.connectedCallback();
+        this._loadToastPref();   // U85
 
         // window.name survives navigation: if this tab once showed the viewer
         // (named 'feezal-<site>' by the View button) and was then navigated to
@@ -2533,7 +2542,21 @@ class FeezalAppEditor extends LitElement {
      * Safe before first render — the toast host simply may not exist yet.
      */
     toast(message, opts) {
+        // U85: notifications can be switched off in editor settings. Errors are
+        // deliberately exempt — a silently swallowed "Deploy failed" is how work
+        // gets lost (B98), so the setting governs confirmations, not failures.
+        if (this.toastsEnabled === false && opts?.variant !== 'danger') return undefined;
         return this.shadowRoot?.querySelector('feezal-toast')?.show(message, opts);
+    }
+
+    /** U85: read the persisted toast preference once, at boot. */
+    async _loadToastPref() {
+        try {
+            const r = await fetch('/api/editor/prefs');
+            if (!r.ok) return;
+            const p = await r.json();
+            if (typeof p.toastsEnabled === 'boolean') this.toastsEnabled = p.toastsEnabled;
+        } catch { /* serverless — keep the default (on) */ }
     }
 
     _export() {

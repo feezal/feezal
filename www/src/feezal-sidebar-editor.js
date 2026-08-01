@@ -18,6 +18,7 @@ class FeezalSidebarEditor extends LitElement {
         snapping:       {type: String, reflect: true},
         preventEditorMqtt: {type: Boolean, reflect: true},
         _clippy: {state: true},   // U46: opt-in help-popup easter egg (localStorage)
+        _toasts: {state: true},   // U85 notifications on/off (server pref)
         // Autodiscovery grace period (server pref in editor.json).
         _discoveryGrace:     {state: true},
         _discoveryGraceDays: {state: true},
@@ -103,6 +104,7 @@ class FeezalSidebarEditor extends LitElement {
         this.snapping = 'elements';
         this.preventEditorMqtt = true;
         this._clippy = localStorage.getItem('feezal-clippy') === 'true';   // U46
+        this._toasts = true;               // U85 toasts default ON
         this._discoveryGrace = true;       // default ON (matches server)
         this._discoveryGraceDays = 30;     // default 30-day grace
         this._aiProvider = 'openai-compatible';
@@ -133,6 +135,7 @@ class FeezalSidebarEditor extends LitElement {
             const p = await r.json();
             if (typeof p.discoveryGraceEnabled === 'boolean') this._discoveryGrace = p.discoveryGraceEnabled;
             if (Number.isFinite(p.discoveryGraceDays)) this._discoveryGraceDays = p.discoveryGraceDays;
+            if (typeof p.toastsEnabled === 'boolean') this._toasts = p.toastsEnabled;
         } catch { /* serverless — keep defaults */ }
     }
 
@@ -144,6 +147,20 @@ class FeezalSidebarEditor extends LitElement {
                 discoveryGraceEnabled: this._discoveryGrace,
                 discoveryGraceDays: this._discoveryGraceDays,
             }),
+        }).catch(() => { /* serverless — nothing to persist against */ });
+    }
+
+    /**
+     * U85 — toasts on/off. Applied to the running editor immediately (not only
+     * on the next load) and persisted alongside the other editor prefs.
+     */
+    _setToasts(enabled) {
+        this._toasts = enabled;
+        if (feezal.app) feezal.app.toastsEnabled = enabled;
+        fetch('/api/editor/prefs', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({toastsEnabled: enabled}),
         }).catch(() => { /* serverless — nothing to persist against */ });
     }
 
@@ -273,6 +290,14 @@ class FeezalSidebarEditor extends LitElement {
                         @click="${() => this.dispatchEvent(new CustomEvent('feezal-start-tour', {bubbles: true, composed: true}))}">
                         Show welcome tour
                     </button>
+                </div>
+                <sl-switch size="small" style="margin-top:8px;"
+                    .checked="${this._toasts}"
+                    @sl-change="${e => this._setToasts(e.target.checked)}">
+                    Show notifications
+                </sl-switch>
+                <div style="font-size:12px;opacity:0.7;line-height:1.4;margin:2px 0 0;">
+                    Brief confirmations at the bottom of the screen (“Deployed”, “Copied to view”…). Errors are always shown, so turning this off cannot hide a failed deploy.
                 </div>
                 <sl-switch size="small" style="margin-top:8px;"
                     .checked="${this._clippy}"

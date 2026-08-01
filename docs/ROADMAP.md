@@ -9,8 +9,6 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
-- [B102 — U85 toasts ignore the editor dark mode](#b102--u85-toasts-ignore-the-editor-dark-mode)
-- [B103 — Rubber-band selection rectangle grows beyond the canvas](#b103--rubber-band-selection-rectangle-grows-beyond-the-canvas)
 
 
 **Near-term Improvements**
@@ -305,26 +303,6 @@ This also **removes an existing ambiguity**: `slim` and `autohide` are independe
 **Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
 
 **Relates:** **[B62](roadmap-archive/B62.md)** ✅ (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
-
-### B102 — U85 toasts ignore the editor dark mode
-
-**Reported (08/2026).** The editor's toast notifications (U85 — e.g. the "Deployed" toast after a successful deploy) render light in a dark editor.
-
-**Root cause, already located:** `feezal-toast` ([feezal-toast.js](../www/src/feezal-toast.js)) correctly consumes the editor palette vars (`--feezal-bg`, `--feezal-color`, `--feezal-btn-hover`) with light fallbacks — but the tag is **missing from the `:host(.dark)` propagation list** in [feezal-app-editor.js](../www/src/feezal-app-editor.js) (search `:host(.dark) feezal-connection-overlay`), so in dark mode the vars are never supplied and the `#fff` fallback wins. Exactly the class of bug the connection-lost overlay had (fixed 07/2026): the component is dark-ready, the shell never feeds it.
-
-**Fix:** add `feezal-toast` to the dark-mode propagation selector list — one line — and extend the U85 browser test with the same propagated-palette regression the overlay got (set `--feezal-bg` on the host, assert the toast's computed background). While there, check the toast against the N43 chrome-adoption ratchet's expectations (it renders no Shoelace controls, so the ratchet does not catch this — which is WHY it slipped: the ratchet covers `sl-*` chrome, not the `--feezal-*` palette contract; consider a second ratchet that greps `www/src` components using `--feezal-bg/-color` fallbacks and asserts membership in the propagation list).
-
-**Relates:** U85 (the toast channel), the connection-overlay dark fix (same pattern, 07/2026), N43 (the chrome ratchet whose blind spot this exposes).
-
-
-### B103 — Rubber-band selection rectangle grows beyond the canvas
-
-**Reported (08/2026).** Dragging a rubber-band selection can draw the selection rectangle PAST the view/canvas bounds — the dotted rect grows bigger than the canvas instead of being clipped at its edges.
-
-**Where to look:** the selector div is created in `_initDragSelect` ([feezal-sidebar-inspector.js](../www/src/feezal-sidebar-inspector.js)) and positioned by DragSelect with the feezal-view as its `area`; the view has `overflow` visible in the editor, so nothing clips the rect when the pointer leaves the view. Candidate fixes: clip via the area (overflow) without breaking canvas overflow semantics, or clamp the rect geometry to the area box.
-
-**Relates:** **A38** (drop DragSelect — another strike for the hand-rolled replacement, where clamping the rect to the canvas box is one line; if A38 lands first this bug dissolves into it), B2/B35/B48 ✅ (the DragSelect lifecycle bug family).
-
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 

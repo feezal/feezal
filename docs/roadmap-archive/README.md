@@ -7,7 +7,7 @@ Each entry is filed under the section its **ID prefix** belongs to — `B` Bugs,
 Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastructure,
 `D` Documentation — and sorted by number within it, so a new entry has exactly one correct place.
 
-**368 items.**
+**370 items.**
 
 ## Bugs
 
@@ -107,6 +107,8 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B99 — Undo/dirty bookkeeping gaps: paste, add-view, dead delete-view code, wrong dialog copy ✅ done](B99.md)
 - [B100 — circle-value: stale private `parseRanges` fork — named colour ranges silently don't band the fill ✅ done](B100.md)
 - [B101 — Package installs: broken on Windows hosts and non-atomic on all hosts ✅ done](B101.md)
+- [B102 — U85 toasts ignore the editor dark mode ✅ fixed](B102.md)
+- [B103 — Rubber-band selection rectangle grows beyond the canvas ✅ fixed](B103.md)
 
 ## Near-term Improvements
 

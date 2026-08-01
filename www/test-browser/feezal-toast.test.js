@@ -93,3 +93,44 @@ describe('action button', () => {
         expect(toasts()[1].getAttribute('role')).toBe('status');
     });
 });
+
+/**
+ * B102 — the toast is dark-ready but the shell has to FEED it.
+ *
+ * feezal-toast styles itself from --feezal-bg/-color with light fallbacks, so
+ * it renders white unless feezal-app-editor's :host(.dark) block lists the
+ * tag. It did not, which is why deploy toasts were light in a dark editor —
+ * the same shape as the connection-lost overlay before it. The structural
+ * guard against a repeat is in test/editor-dark-palette-propagation.test.js;
+ * this asserts the component honours the palette once it IS supplied.
+ */
+describe('B102 — dark palette propagation', () => {
+    it('paints from the propagated palette instead of its light fallback', async () => {
+        const host = document.createElement('div');
+        host.style.cssText = '--feezal-bg: #2e2e2e; --feezal-color: rgba(255,255,255,0.85);';
+        document.body.append(host);
+
+        const toast = document.createElement('feezal-toast');
+        host.append(toast);
+        await toast.updateComplete;
+        toast.show({message: 'Deployed', variant: 'success'});
+        await toast.updateComplete;
+
+        const card = toast.shadowRoot.querySelector('.toast');
+        expect(card, 'toast card rendered').toBeTruthy();
+        const bg = getComputedStyle(card).backgroundColor;
+        expect(bg).toBe('rgb(46, 46, 46)');            // #2e2e2e, not the #fff fallback
+        host.remove();
+    });
+
+    it('falls back to light when no palette is supplied', async () => {
+        const toast = document.createElement('feezal-toast');
+        document.body.append(toast);
+        await toast.updateComplete;
+        toast.show({message: 'Deployed', variant: 'success'});
+        await toast.updateComplete;
+        const card = toast.shadowRoot.querySelector('.toast');
+        expect(getComputedStyle(card).backgroundColor).toBe('rgb(255, 255, 255)');
+        toast.remove();
+    });
+});

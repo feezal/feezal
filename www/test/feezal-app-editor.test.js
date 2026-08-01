@@ -393,3 +393,46 @@ describe('applyFolderDrop() — U55 self-drop + unresolved-target hardening', ()
         expect(committed).toEqual([{view: 'view2'}, {view: 'view3'}, {view: 'view1'}]);
     });
 });
+
+
+/**
+ * U85 — toasts are switchable in editor settings (default on).
+ *
+ * Errors are deliberately exempt: a silently swallowed "Deploy failed" is
+ * exactly how work gets lost, which B98 fixed at the deploy layer — the
+ * setting governs confirmations, not failures.
+ */
+describe('toast preference gate (U85)', () => {
+    /** Drive toast() on the prototype with a stub host — no editor instance. */
+    function driveToast(toastsEnabled, message, opts) {
+        const shown = [];
+        const self = Object.create(FeezalAppEditor.prototype);
+        self.toastsEnabled = toastsEnabled;
+        // shadowRoot is a getter inherited from HTMLElement — shadow it with an
+        // own property rather than assigning through it.
+        Object.defineProperty(self, 'shadowRoot', {
+            value: {querySelector: () => ({show: (m, o) => { shown.push({m, o}); return 'shown'; }})},
+        });
+        const result = FeezalAppEditor.prototype.toast.call(self, message, opts);
+        return {shown, result};
+    }
+
+    it('shows everything while enabled (the default)', () => {
+        expect(driveToast(true, 'Deployed', {variant: 'success'}).shown).toHaveLength(1);
+        expect(driveToast(undefined, 'Deployed').shown).toHaveLength(1);   // unset = on
+    });
+
+    it('suppresses confirmations when switched off', () => {
+        expect(driveToast(false, 'Deployed', {variant: 'success'}).shown).toHaveLength(0);
+        expect(driveToast(false, 'Copied to view', {variant: 'info'}).shown).toHaveLength(0);
+        expect(driveToast(false, 'Heads up', {variant: 'warning'}).shown).toHaveLength(0);
+        expect(driveToast(false, 'Deployed').result).toBeUndefined();
+    });
+
+    it('still shows errors when switched off', () => {
+        const {shown} = driveToast(false, 'Deploy failed: disk full',
+            {variant: 'danger', duration: 0});
+        expect(shown).toHaveLength(1);
+        expect(shown[0].m).toContain('Deploy failed');
+    });
+});
