@@ -38,7 +38,8 @@ import './feezal-capacitor-dialog.js';
 import './feezal-export-dialog.js';
 import './feezal-generate-dialog.js';
 import './feezal-connection-overlay.js';
-import './feezal-toast.js';   // U85: the editor's notification channel
+import './feezal-toast.js';    // U85: the editor's notification channel
+import './feezal-sidebar-layers.js';   // U87: the Layers sidebar panel
 import {clippyStyles, clippyMarkup, clippyEnabled} from './feezal-clippy.js';
 
 /** U82: undo snapshots kept (each is a site-HTML string). Was 5 = 4 steps. */
@@ -1053,6 +1054,7 @@ class FeezalAppEditor extends LitElement {
                 <div id="menu-right" style="${this.sidebarVisible ? `flex: 0 0 ${this._sidebarWidth}px` : 'display:none'}">
                     ${this._sourceMode ? '' : html`
                         <button class="icon-btn ${this.sidebar === 'inspector' ? 'active' : ''}" title="Inspector" @click="${() => this._setSidebar('inspector')}"><span class="material-icons">tune</span></button>
+                        <button class="icon-btn ${this.sidebar === 'layers' ? 'active' : ''}" title="Layers — every view and its elements" @click="${() => this._setSidebar('layers')}"><span class="material-icons">layers</span></button>
                         <button class="icon-btn ${this.sidebar === 'themes' ? 'active' : ''}" title="Theme" @click="${() => this._setSidebar('themes')}"><span class="material-icons">palette</span></button>
                         <button class="icon-btn ${this.sidebar === 'viewer' ? 'active' : ''}" title="Site Settings" @click="${() => this._setSidebar('viewer')}"><span class="material-icons">cast</span></button>
                         <button class="icon-btn ${this.sidebar === 'assets' ? 'active' : ''}" title="Assets" @click="${() => this._setSidebar('assets')}"><span class="material-icons">perm_media</span></button>
@@ -1219,6 +1221,10 @@ class FeezalAppEditor extends LitElement {
                         @view-selected-changed="${e => { this.viewSelected = e.detail.value; }}"
                         @delete-view="${e => this._confirmDeleteView(e.detail.name)}">
                     </feezal-sidebar-inspector>
+                    <feezal-sidebar-layers class="sidebar-panel"
+                        ?hidden="${this.sidebar !== 'layers'}"
+                        .view="${this._navView}">
+                    </feezal-sidebar-layers>
                     <feezal-sidebar-assets class="sidebar-panel" ?hidden="${this.sidebar !== 'assets'}"></feezal-sidebar-assets>
                     <feezal-sidebar-themes class="sidebar-panel" ?hidden="${this.sidebar !== 'themes'}" .viewSelected="${this.viewSelected}"></feezal-sidebar-themes>
                     <feezal-sidebar-packages class="sidebar-panel" ?hidden="${this.sidebar !== 'packages'}"></feezal-sidebar-packages>

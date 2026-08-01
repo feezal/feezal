@@ -91,15 +91,28 @@ describe('U83 — align & distribute', () => {
     });
 });
 
-describe('U87 — layers panel', () => {
-    const layers = () => inspector().locator('feezal-sidebar-layers');
+describe('U87 — layers panel (own sidebar tab)', () => {
+    const layers = () => page.locator('feezal-app-editor feezal-sidebar-layers');
     const openLayers = async () => {
-        await inspector().locator('sl-tab[panel="layers"]').click();
+        await page.locator('feezal-app-editor .icon-btn[title^="Layers"]').click();
         await expect.poll(() => layers().locator('li').count()).toBeGreaterThan(0);
     };
+    const filter = async text => {
+        const input = layers().locator('.search input');
+        await input.fill(text);
+    };
 
-    it('lists the view elements top-most first', async () => {
+    it('has its own sidebar tab, next to the inspector', async () => {
         await openLayers();
+        await expect.poll(() => layers().isVisible()).toBe(true);
+        // the inspector panel is hidden while Layers is showing
+        await expect.poll(() => inspector().isVisible()).toBe(false);
+    });
+
+    it('lists the view as a node with its elements top-most first', async () => {
+        await openLayers();
+        const views = await layers().locator('.view-row .view-name').allTextContents();
+        expect(views.map(t => t.trim())).toEqual(['main']);
         const labels = await layers().locator('li .label').allTextContents();
         expect(labels.map(t => t.trim())).toEqual(['c', 'b', 'a']);
     });
@@ -113,8 +126,41 @@ describe('U87 — layers panel', () => {
     it('the canvas selection is mirrored back into the list', async () => {
         await select(['b']);
         await openLayers();
-        const selectedLabels = await layers().locator('li.selected .label').allTextContents();
-        expect(selectedLabels.map(t => t.trim())).toEqual(['b']);
+        await expect.poll(async () =>
+            (await layers().locator('li.selected .label').allTextContents()).map(t => t.trim())
+        ).toEqual(['b']);
+    });
+
+    it('the fuzzy filter narrows by label and by topic', async () => {
+        await openLayers();
+        // give one element a distinctive label + topic (all three share the
+        // basic-number TYPE, so a one-letter query legitimately matches all)
+        await page.evaluate(() => {
+            const e = window.feezal.view.querySelector('[label="b"]');
+            e.setAttribute('label', 'Kitchen lamp');
+            e.setAttribute('subscribe', 'home/kitchen/lamp');
+        });
+
+        await filter('lamp');
+        await expect.poll(async () =>
+            (await layers().locator('li .label').allTextContents()).map(t => t.trim())
+        ).toEqual(['Kitchen lamp']);
+
+        await filter('home/kitchen');            // topic match
+        await expect.poll(() => layers().locator('li').count()).toBe(1);
+
+        await filter('zzzz');                    // no match at all
+        await expect.poll(() => layers().locator('li').count()).toBe(0);
+
+        await filter('');
+        await expect.poll(() => layers().locator('li').count()).toBe(3);
+
+        // restore the shared fixture — later tests address this element by label
+        await page.evaluate(() => {
+            const e = window.feezal.view.querySelector('[label="Kitchen lamp"]');
+            e.setAttribute('label', 'b');
+            e.removeAttribute('subscribe');
+        });
     });
 
     it('the lock toggle locks the element and survives a re-render', async () => {
@@ -142,7 +188,11 @@ describe('U87 — layers panel', () => {
 });
 
 describe('U88 — MQTT panel', () => {
+    // the Layers block above left its own sidebar tab active
+    const openInspector = () => page.locator('feezal-app-editor .icon-btn[title="Inspector"]').click();
+
     it('appears for a single element and lists what it subscribes to', async () => {
+        await openInspector();
         await page.evaluate(() => {
             window.feezal.view.querySelector('[label="a"]').setAttribute('subscribe', 'debug/topic');
         });

@@ -10,7 +10,6 @@ import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
 import './feezal-sidebar-inspector-styles.js';
 import './feezal-sidebar-inspector-attributes.js';
 import './feezal-sidebar-inspector-conditions.js';
-import './feezal-sidebar-layers.js';   // U87
 import './feezal-sidebar-debug.js';    // U88
 import {clippyStyles, clippyMarkup, clippyEnabled} from './feezal-clippy.js';
 import {align, distribute, matchSize, operationLabel} from './feezal-canvas-align.js';   // U83
@@ -369,7 +368,6 @@ class FeezalSidebarInspector extends LitElement {
                 ${canConditions ? html`
                     <sl-tab slot="nav" panel="conditions">Conditions${condCount ? ` · ${condCount}` : ''}</sl-tab>
                 ` : ''}
-                <sl-tab slot="nav" panel="layers" title="Elements in this view, top-most first">Layers</sl-tab>
                 ${canDebug ? html`
                     <sl-tab slot="nav" panel="debug" title="Live MQTT wiring of the selected element">MQTT</sl-tab>
                 ` : ''}
@@ -392,9 +390,6 @@ class FeezalSidebarInspector extends LitElement {
                         </feezal-sidebar-inspector-conditions>
                     </sl-tab-panel>
                 ` : ''}
-                <sl-tab-panel name="layers">
-                    <feezal-sidebar-layers .selectedElems="${this.selectedElems}"></feezal-sidebar-layers>
-                </sl-tab-panel>
                 ${canDebug ? html`
                     <sl-tab-panel name="debug">
                         <feezal-sidebar-debug .selectedElems="${this.selectedElems}"></feezal-sidebar-debug>

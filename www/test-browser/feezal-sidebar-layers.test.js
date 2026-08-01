@@ -1,25 +1,25 @@
 /**
- * U87 — the element outline / layers panel: paint-order listing, labels and
- * topic hints, selection mirroring (plain / ctrl / shift), the lock toggle,
- * drag-to-restack, and live tracking of DOM changes.
+ * U87 — the Layers sidebar panel: a tree of every view and its elements, only
+ * the current view expanded; fuzzy filtering across all views; selection
+ * mirroring (read from the canvas's own `feezal-selected` class); lock toggle;
+ * drag-to-restack; live DOM tracking.
  */
 import {describe, it, expect, beforeEach, vi} from 'vitest';
 import '../src/feezal-sidebar-layers.js';
 import {setupFeezal, until} from './helpers.js';
 
 let feezal;
-let view;
+let site;
 let inspector;
 
-/** A stand-in for the real inspector: the panel calls selectElement on it. */
-function fakeInspector() {
-    return {
-        selectElement: vi.fn(),
-        setLocked: vi.fn(),
-    };
+function addView(name) {
+    const view = document.createElement('feezal-view');
+    view.setAttribute('name', name);
+    site.append(view);
+    return view;
 }
 
-function addElement(tag, attrs = {}) {
+function addElement(view, tag, attrs = {}) {
     const el = document.createElement(tag);
     el.classList.add('feezal-editable');
     for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
@@ -27,164 +27,268 @@ function addElement(tag, attrs = {}) {
     return el;
 }
 
-async function mountPanel(selected = []) {
+async function mountPanel(currentView = 'main') {
     const panel = document.createElement('feezal-sidebar-layers');
-    panel.selectedElems = selected;
-    // the panel looks for the inspector via closest() then via feezal.app
-    feezal.app = {shadowRoot: {querySelector: () => inspector}, change: vi.fn(), toast: vi.fn()};
+    panel.view = currentView;
     document.body.append(panel);
     await panel.updateComplete;
     return panel;
 }
 
-const rows = panel => [...panel.shadowRoot.querySelectorAll('li')];
-const labels = panel => rows(panel).map(li => li.querySelector('.label').textContent.trim());
+const viewRows = p => [...p.shadowRoot.querySelectorAll('.view-row')];
+const viewNames = p => viewRows(p).map(r => r.querySelector('.view-name').textContent.trim());
+const rows = p => [...p.shadowRoot.querySelectorAll('li')];
+const labels = p => rows(p).map(li => li.querySelector('.label').textContent.trim());
+const type = async (p, text) => {
+    const input = p.shadowRoot.querySelector('.search input');
+    input.value = text;
+    input.dispatchEvent(new Event('input'));
+    await p.updateComplete;
+};
 
 beforeEach(() => {
     feezal = setupFeezal();
-    inspector = fakeInspector();
     document.body.innerHTML = '';
-    view = document.createElement('feezal-view');
-    document.body.append(view);
-    feezal.view = view;
+    site = document.createElement('feezal-site');
+    document.body.append(site);
+    site.view = 'main';
+    feezal.site = site;
+    inspector = {selectElement: vi.fn(), setLocked: vi.fn()};
+    feezal.app = {
+        shadowRoot: {querySelector: sel => (sel === 'feezal-sidebar-inspector' ? inspector : null)},
+        change: vi.fn(),
+        _setView: vi.fn(name => { site.view = name; }),
+    };
 });
 
-describe('listing', () => {
-    it('lists the view elements TOP-MOST first (reverse DOM/paint order)', async () => {
-        addElement('feezal-element-basic-number', {label: 'bottom'});
-        addElement('feezal-element-basic-icon', {label: 'middle'});
-        addElement('feezal-element-basic-text', {label: 'top'});
-        const panel = await mountPanel();
-        expect(labels(panel)).toEqual(['top', 'middle', 'bottom']);
+describe('tree structure', () => {
+    it('lists every view, with only the current one expanded', async () => {
+        const main = addView('main');
+        const other = addView('other');
+        addElement(main, 'feezal-element-basic-number', {label: 'in main'});
+        addElement(other, 'feezal-element-basic-icon', {label: 'in other'});
+
+        const panel = await mountPanel('main');
+        expect(viewNames(panel)).toEqual(['main', 'other']);
+        // only the current view's elements are rendered
+        expect(labels(panel)).toEqual(['in main']);
+        expect(viewRows(panel)[0].querySelector('.caret').textContent.trim()).toBe('▾');
+        expect(viewRows(panel)[1].querySelector('.caret').textContent.trim()).toBe('▸');
     });
 
-    it('falls back through label → name → tag, and shows a topic hint', async () => {
-        addElement('feezal-element-basic-number', {subscribe: 'home/kitchen/temp'});
-        addElement('feezal-element-basic-icon', {label: 'Lamp', publish: 'home/lamp/set'});
-        const panel = await mountPanel();
-        expect(labels(panel)).toEqual(['Lamp', 'basic-number']);
-        const topics = rows(panel).map(li => li.querySelector('.topic')?.textContent.trim());
-        expect(topics).toEqual(['home/lamp/set', 'home/kitchen/temp']);
+    it('shows the element count per view even while collapsed', async () => {
+        const main = addView('main');
+        const other = addView('other');
+        addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        addElement(other, 'feezal-element-basic-icon', {label: 'b'});
+        addElement(other, 'feezal-element-basic-icon', {label: 'c'});
+        const panel = await mountPanel('main');
+        expect(viewRows(panel).map(r => r.querySelector('.badge').textContent.trim())).toEqual(['1', '2']);
     });
 
-    it('ignores non-canvas children (the classes style block, text nodes)', async () => {
-        view.append(document.createElement('style'));
-        view.append(document.createTextNode('  '));
-        addElement('feezal-element-basic-number', {label: 'only'});
-        const panel = await mountPanel();
+    it('clicking a view header expands it, and can collapse the current one', async () => {
+        const main = addView('main');
+        const other = addView('other');
+        addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        addElement(other, 'feezal-element-basic-icon', {label: 'b'});
+        const panel = await mountPanel('main');
+
+        viewRows(panel)[1].click();                      // expand 'other'
+        await panel.updateComplete;
+        expect(labels(panel)).toEqual(['a', 'b']);
+
+        viewRows(panel)[0].click();                      // collapse 'main'
+        await panel.updateComplete;
+        expect(labels(panel)).toEqual(['b']);
+    });
+
+    it('lists a view element TOP-MOST first (reverse paint order)', async () => {
+        const main = addView('main');
+        addElement(main, 'feezal-element-basic-number', {label: 'bottom'});
+        addElement(main, 'feezal-element-basic-icon', {label: 'top'});
+        const panel = await mountPanel('main');
+        expect(labels(panel)).toEqual(['top', 'bottom']);
+    });
+
+    it('marks the current view and ignores non-canvas children', async () => {
+        const main = addView('main');
+        main.append(document.createElement('style'));
+        addElement(main, 'feezal-element-basic-number', {label: 'only'});
+        const panel = await mountPanel('main');
+        expect(viewRows(panel)[0].classList.contains('current')).toBe(true);
         expect(labels(panel)).toEqual(['only']);
     });
 
-    it('shows an empty state for a view with no elements', async () => {
-        const panel = await mountPanel();
-        expect(rows(panel)).toHaveLength(0);
+    it('empty site → an explanatory empty state', async () => {
+        const panel = await mountPanel('main');
         expect(panel.shadowRoot.querySelector('.empty').textContent).toContain('no elements');
     });
+});
 
-    it('tracks DOM changes made elsewhere (palette drop, delete)', async () => {
-        addElement('feezal-element-basic-number', {label: 'one'});
-        const panel = await mountPanel();
-        expect(rows(panel)).toHaveLength(1);
+describe('fuzzy filter', () => {
+    beforeEach(() => {
+        const main = addView('main');
+        const other = addView('other');
+        addElement(main, 'feezal-element-basic-number', {label: 'Kitchen temperature', subscribe: 'home/kt/temp'});
+        addElement(main, 'feezal-element-basic-icon', {label: 'Lamp', publish: 'home/lamp/set'});
+        addElement(other, 'feezal-element-basic-number', {label: 'Bath temp', subscribe: 'home/bath/temp'});
+    });
 
-        addElement('feezal-element-basic-icon', {label: 'two'});
-        await until(() => rows(panel).length === 2);
-        expect(labels(panel)).toEqual(['two', 'one']);
+    it('finds matches across ALL views, auto-expanding the ones that hit', async () => {
+        const panel = await mountPanel('main');
+        await type(panel, 'temp');
+        expect(labels(panel).sort()).toEqual(['Bath temp', 'Kitchen temperature']);
+        // 'other' was collapsed but its hit is visible
+        expect(viewNames(panel)).toEqual(['main', 'other']);
+    });
 
-        view.querySelector('[label="one"]').remove();
-        await until(() => rows(panel).length === 1);
-        expect(labels(panel)).toEqual(['two']);
+    it('matches on the topic as well as the label', async () => {
+        const panel = await mountPanel('main');
+        await type(panel, 'lamp/set');
+        expect(labels(panel)).toEqual(['Lamp']);
+    });
+
+    it('matches on the element type', async () => {
+        const panel = await mountPanel('main');
+        await type(panel, 'icon');
+        expect(labels(panel)).toEqual(['Lamp']);
+    });
+
+    it('accepts a scattered subsequence', async () => {
+        const panel = await mountPanel('main');
+        await type(panel, 'ktemp');
+        expect(labels(panel)).toContain('Kitchen temperature');
+    });
+
+    it('hides views with no hit and reports a miss', async () => {
+        const panel = await mountPanel('main');
+        await type(panel, 'lamp');
+        expect(viewNames(panel)).toEqual(['main']);        // 'other' has no hit
+        await type(panel, 'zzzz');
+        expect(rows(panel)).toHaveLength(0);
+        expect(panel.shadowRoot.querySelector('.empty').textContent).toContain('Nothing matches');
+    });
+
+    it('clearing the filter restores the default expansion', async () => {
+        const panel = await mountPanel('main');
+        await type(panel, 'temp');
+        await type(panel, '');
+        expect(labels(panel)).toEqual(['Lamp', 'Kitchen temperature']);   // main only
     });
 });
 
 describe('selection mirroring', () => {
-    it('a plain click selects just that element', async () => {
-        const a = addElement('feezal-element-basic-number', {label: 'a'});
-        addElement('feezal-element-basic-icon', {label: 'b'});
-        const panel = await mountPanel();
+    it('a plain click selects that element via the inspector', async () => {
+        const main = addView('main');
+        const a = addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        addElement(main, 'feezal-element-basic-icon', {label: 'b'});
+        const panel = await mountPanel('main');
         rows(panel)[1].click();                       // 'a' is the bottom row
+        await panel.updateComplete;
         expect(inspector.selectElement).toHaveBeenCalledWith([a]);
     });
 
-    it('ctrl+click adds and removes from the selection', async () => {
-        const a = addElement('feezal-element-basic-number', {label: 'a'});
-        const b = addElement('feezal-element-basic-icon', {label: 'b'});
-        const panel = await mountPanel([a]);
-        rows(panel)[0].dispatchEvent(new MouseEvent('click', {ctrlKey: true, bubbles: true}));
-        expect(inspector.selectElement).toHaveBeenCalledWith([a, b]);
+    it('reads the canvas selection from the feezal-selected class', async () => {
+        const main = addView('main');
+        const a = addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        addElement(main, 'feezal-element-basic-icon', {label: 'b'});
+        const panel = await mountPanel('main');
+        a.classList.add('feezal-selected');
+        await until(() => panel.shadowRoot.querySelectorAll('li.selected').length === 1);
+        expect(panel.shadowRoot.querySelector('li.selected .label').textContent.trim()).toBe('a');
+    });
 
-        inspector.selectElement.mockClear();
-        panel.selectedElems = [a, b];
+    it('ctrl+click extends and removes', async () => {
+        const main = addView('main');
+        const a = addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        const b = addElement(main, 'feezal-element-basic-icon', {label: 'b'});
+        a.classList.add('feezal-selected');
+        const panel = await mountPanel('main');
+        rows(panel)[0].dispatchEvent(new MouseEvent('click', {ctrlKey: true, bubbles: true}));
         await panel.updateComplete;
-        rows(panel)[0].dispatchEvent(new MouseEvent('click', {ctrlKey: true, bubbles: true}));
-        expect(inspector.selectElement).toHaveBeenCalledWith([a]);   // b removed
+        expect(inspector.selectElement).toHaveBeenCalledWith([a, b]);
     });
 
-    it('shift+click selects the range in list order', async () => {
-        const a = addElement('feezal-element-basic-number', {label: 'a'});
-        const b = addElement('feezal-element-basic-icon', {label: 'b'});
-        const c = addElement('feezal-element-basic-text', {label: 'c'});
-        const panel = await mountPanel([c]);            // c is the top row
-        rows(panel)[2].dispatchEvent(new MouseEvent('click', {shiftKey: true, bubbles: true}));
-        expect(inspector.selectElement).toHaveBeenCalledWith([c, b, a]);
-    });
-
-    it('marks the selected rows', async () => {
-        const a = addElement('feezal-element-basic-number', {label: 'a'});
-        addElement('feezal-element-basic-icon', {label: 'b'});
-        const panel = await mountPanel([a]);
-        expect(rows(panel).map(li => li.classList.contains('selected'))).toEqual([false, true]);
+    it('clicking an element in ANOTHER view switches to that view first', async () => {
+        const main = addView('main');
+        const other = addView('other');
+        addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        const b = addElement(other, 'feezal-element-basic-icon', {label: 'b'});
+        const panel = await mountPanel('main');
+        viewRows(panel)[1].click();                   // expand 'other'
+        await panel.updateComplete;
+        panel.shadowRoot.querySelectorAll('li')[1].click();
+        await until(() => inspector.selectElement.mock.calls.length > 0);
+        expect(feezal.app._setView).toHaveBeenCalledWith('other');
+        expect(inspector.selectElement).toHaveBeenCalledWith([b]);
     });
 });
 
-describe('lock toggle', () => {
-    it('toggles the attribute, tells the inspector and marks the site dirty', async () => {
-        const a = addElement('feezal-element-basic-number', {label: 'a'});
-        const panel = await mountPanel();
-        const lock = rows(panel)[0].querySelector('.lock');
-
-        lock.click();
+describe('lock and restack', () => {
+    it('the lock toggle locks without selecting the row', async () => {
+        const main = addView('main');
+        const a = addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        const panel = await mountPanel('main');
+        rows(panel)[0].querySelector('.lock').click();
         expect(a.hasAttribute('locked')).toBe(true);
         expect(inspector.setLocked).toHaveBeenCalledWith(a, true);
-        expect(feezal.app.change).toHaveBeenCalled();
-
-        await panel.updateComplete;
-        panel.shadowRoot.querySelector('.lock').click();
-        expect(a.hasAttribute('locked')).toBe(false);
-    });
-
-    it('a lock click does NOT also select the row', async () => {
-        addElement('feezal-element-basic-number', {label: 'a'});
-        const panel = await mountPanel();
-        rows(panel)[0].querySelector('.lock').click();
         expect(inspector.selectElement).not.toHaveBeenCalled();
+        expect(feezal.app.change).toHaveBeenCalled();
     });
-});
 
-describe('drag to restack', () => {
-    const dt = () => ({effectAllowed: '', setData() {}, getData: () => ''});
-
-    it('dropping a top row onto a lower one sends it back in paint order', async () => {
-        addElement('feezal-element-basic-number', {label: 'bottom'});
-        addElement('feezal-element-basic-icon', {label: 'top'});
-        const panel = await mountPanel();
+    it('dragging a top row onto a lower one sends it back in paint order', async () => {
+        const main = addView('main');
+        addElement(main, 'feezal-element-basic-number', {label: 'bottom'});
+        addElement(main, 'feezal-element-basic-icon', {label: 'top'});
+        const panel = await mountPanel('main');
         expect(labels(panel)).toEqual(['top', 'bottom']);
 
-        // drag row 0 ('top') onto row 1 ('bottom')
+        const dt = () => ({effectAllowed: '', setData() {}, getData: () => ''});
         rows(panel)[0].dispatchEvent(Object.assign(new Event('dragstart', {bubbles: true}), {dataTransfer: dt()}));
         rows(panel)[1].dispatchEvent(Object.assign(new Event('drop', {bubbles: true}), {dataTransfer: dt()}));
         await until(() => labels(panel)[0] === 'bottom');
-        expect(labels(panel)).toEqual(['bottom', 'top']);
         expect(feezal.app.change).toHaveBeenCalled();
     });
 
-    it('dropping a row on itself changes nothing', async () => {
-        addElement('feezal-element-basic-number', {label: 'a'});
-        addElement('feezal-element-basic-icon', {label: 'b'});
-        const panel = await mountPanel();
-        rows(panel)[0].dispatchEvent(Object.assign(new Event('dragstart', {bubbles: true}), {dataTransfer: dt()}));
-        rows(panel)[0].dispatchEvent(Object.assign(new Event('drop', {bubbles: true}), {dataTransfer: dt()}));
+    it('never moves an element across views', async () => {
+        const main = addView('main');
+        const other = addView('other');
+        const a = addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        const b = addElement(other, 'feezal-element-basic-icon', {label: 'b'});
+        const panel = await mountPanel('main');
+        viewRows(panel)[1].click();
         await panel.updateComplete;
-        expect(labels(panel)).toEqual(['b', 'a']);
-        expect(feezal.app.change).not.toHaveBeenCalled();
+
+        const dt = () => ({effectAllowed: '', setData() {}, getData: () => ''});
+        rows(panel)[0].dispatchEvent(Object.assign(new Event('dragstart', {bubbles: true}), {dataTransfer: dt()}));
+        rows(panel)[1].dispatchEvent(Object.assign(new Event('drop', {bubbles: true}), {dataTransfer: dt()}));
+        await panel.updateComplete;
+        expect(a.parentElement).toBe(main);
+        expect(b.parentElement).toBe(other);
+    });
+});
+
+describe('live tracking', () => {
+    it('picks up elements added and removed elsewhere', async () => {
+        const main = addView('main');
+        addElement(main, 'feezal-element-basic-number', {label: 'one'});
+        const panel = await mountPanel('main');
+        expect(rows(panel)).toHaveLength(1);
+
+        addElement(main, 'feezal-element-basic-icon', {label: 'two'});
+        await until(() => rows(panel).length === 2);
+        expect(labels(panel)).toEqual(['two', 'one']);
+
+        main.querySelector('[label="one"]').remove();
+        await until(() => rows(panel).length === 1);
+    });
+
+    it('picks up a whole new view', async () => {
+        addView('main');
+        const panel = await mountPanel('main');
+        const fresh = addView('fresh');
+        addElement(fresh, 'feezal-element-basic-number', {label: 'x'});
+        await until(() => viewNames(panel).length === 2);
+        expect(viewNames(panel)).toEqual(['main', 'fresh']);
     });
 });
