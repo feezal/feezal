@@ -97,7 +97,10 @@ class FeezalElementBasicCamera extends FeezalElement {
                 {property: '--feezal-camera-chip-color',  type: 'color', default: 'var(--primary-text-color)', help: 'State chip text colour.'},
             ],
             restrict:     {minWidth: 120, minHeight: 80},
-            defaultStyle: {width: '320px', height: '180px'},
+            // Sized to a whole 2x2 of the standard card cell (172x128), so a
+            // camera dropped into a grid view lands on clean cell boundaries
+            // instead of rounding to 2x1 and rendering squat.
+            defaultStyle: {width: '344px', height: '256px'},
         };
     }
 
