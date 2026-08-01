@@ -75,6 +75,7 @@ Work in progress — priorities and scope are not final.
 - [U89 — Equal-gap smart guides during drag](#u89--equal-gap-smart-guides-during-drag) 💡
 - [U91 — Distribute: pack mode (edge-to-edge, no overlap, no gap)](#u91--distribute-pack-mode-edge-to-edge-no-overlap-no-gap)
 - [U93 — Top-bar improvements: MQTT dot into the sidebar, labeled Generate/Source buttons, site switcher left](#u93--top-bar-improvements-mqtt-dot-into-the-sidebar-labeled-generatesource-buttons-site-switcher-left)
+- [U94 — layout-app: themed thin drawer scrollbar (thumb currently invisible)](#u94--layout-app-themed-thin-drawer-scrollbar-thumb-currently-invisible)
 
 
 **Architecture & Infrastructure**
@@ -2428,4 +2429,42 @@ icon-btn styles (no new tokens).
 **Relates:** U60 (connection overlay — unchanged), N15 (source-mode button),
 U58 ✅ (Generate button), the sidebar tab bar (U87 layers work established the
 tab-bar pattern).
+
+
+### U94 — layout-app: themed thin drawer scrollbar (thumb currently invisible)
+
+**Reported (08/2026).** When the drawer navigation overflows, the scrollbar
+looks broken: scrolling WORKS, but the **thumb is invisible** (observed with
+the midnight-blue theme — the default thumb colour disappears against the
+themed drawer background), and on Chrome/Windows the bar is the full-width
+native one, far too heavy for a navigation drawer. Wanted: a **thin**
+scrollbar whose thumb has **rounded ends**.
+
+**Where:** the drawer nav in
+[feezal-element-layout-app.js](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js)
+(`.nav { overflow-y: auto }`) has NO scrollbar styling — shadow-DOM content
+gets the platform default, and nothing ties the thumb to the theme.
+
+**Fix sketch:**
+- `scrollbar-width: thin` + `scrollbar-color` (Firefox) and
+  `::-webkit-scrollbar { width: ~8px }` with
+  `::-webkit-scrollbar-thumb { border-radius }` (the rounded ends) +
+  transparent track on the nav.
+- Thumb colour from the theme per the variable discipline: a new
+  `--feezal-app-scrollbar-color` style knob defaulting to a canonical var
+  (`--secondary-text-color` reads on both light and dark drawer surfaces;
+  verify against midnight-blue, the reporting theme, plus a light theme).
+- Apply the same styling to the **content area** (`.content`, overflow: auto)
+  so the app shell's two scroll surfaces match.
+- Note: the EDITOR's thin-scrollbar machinery (`_syncScrollbarStyle`,
+  editor-only, deliberately reverts feezal-site content to native) does not
+  reach viewer shadow roots — this is element styling, not editor chrome.
+
+**Test:** browser test asserting the nav carries the scrollbar rules and the
+thumb colour resolves from the knob/canonical var; visual check per
+TESTING.md on Chrome/Windows with midnight-blue and a light theme.
+
+**Relates:** N36 (the --feezal-app-* style-var family this extends), U63
+(layout-app inset knobs — same styles block), theme-var discipline (canonical
+vars bare).
 
