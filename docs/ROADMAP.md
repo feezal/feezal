@@ -10,7 +10,7 @@ Work in progress — priorities and scope are not final.
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
 - [B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces](#b106--discovery-ids-is-space-separated-but-mqtt-topics-may-contain-spaces)
-- [B108 — Layers tree: previous view's selection stays marked after cross-view select](#b108--layers-tree-previous-views-selection-stays-marked-after-cross-view-select)
+- [B109 — Layers tree: previous view's selection stays marked after cross-view select](#b108--layers-tree-previous-views-selection-stays-marked-after-cross-view-select)
 
 
 **Near-term Improvements**
@@ -76,6 +76,7 @@ Work in progress — priorities and scope are not final.
 - [U89 — Equal-gap smart guides during drag](#u89--equal-gap-smart-guides-during-drag) 💡
 - [U91 — Distribute: pack mode (edge-to-edge, no overlap, no gap)](#u91--distribute-pack-mode-edge-to-edge-no-overlap-no-gap)
 - [U94 — layout-app: themed thin drawer scrollbar (thumb currently invisible)](#u94--layout-app-themed-thin-drawer-scrollbar-thumb-currently-invisible)
+- [U95 — View inspector: Conditions and MQTT tabs for views 💡](#u95--view-inspector-conditions-and-mqtt-tabs-for-views-)
 
 
 **Architecture & Infrastructure**
@@ -345,7 +346,7 @@ names), N12 (re-sync — anything else reading discovery ids must use the same
 parser).
 
 
-### B108 — Layers tree: previous view's selection stays marked after cross-view select
+### B109 — Layers tree: previous view's selection stays marked after cross-view select
 
 **Reported (08/2026).** Selecting an element on ANOTHER view in the layers
 tree (U87) correctly switches the view and selects the element on the canvas
@@ -2467,4 +2468,40 @@ TESTING.md on Chrome/Windows with midnight-blue and a light theme.
 **Relates:** N36 (the --feezal-app-* style-var family this extends), U63
 (layout-app inset knobs — same styles block), theme-var discipline (canonical
 vars bare).
+
+
+### U95 — View inspector: Conditions and MQTT tabs for views 💡
+
+**Requested (08/2026).** Selecting a view shows only Attributes/Styles — the
+Conditions and MQTT tabs are gated on `_singleElementSelected`
+([feezal-sidebar-inspector.js](../www/src/feezal-sidebar-inspector.js)), which
+requires a `feezal-element-*` tag. Both would be useful on views:
+
+**Conditions on views.** Two halves — the gate AND the engine: `feezal-view`
+does not run the E50 conditions machinery at all today, so beyond widening the
+tab gate the view element must consume a `conditions` attribute
+(feezal-visibility). Effects that make sense per row type:
+- **class / style / attribute** — work as on elements (e.g. an MQTT-driven
+  view background or class);
+- **visibility** needs a semantics decision: a "hidden" view should disappear
+  from navigation surfaces (layout-app drawer entries, basic-navigation tabs,
+  swipe order) and refuse direct routing (fall through to the first visible
+  view) — NOT merely display:none of the active canvas. Spell this out before
+  building; it is the actually-wanted use case (hide an admin view unless a
+  flag topic is set).
+
+**MQTT tab on views.** Today the tab is the live-wiring debug panel over the
+selected element's subscriptions. For a view it should list the view-level
+wiring — which currently is only the conditions topics (above), so this half
+pairs with a small feature: **`subscribe-theme`** on the view (the U51
+per-view theme, today static, becomes MQTT-settable — payload = theme name,
+same values as the theme attribute; empty payload clears back to the site
+theme). The MQTT tab then shows exactly that subscription plus any condition
+topics, same renderer as for elements.
+
+**Relates:** E50 (conditions engine), U51 (per-view theme — gains the
+subscribe), U88 (the tab fallback when tabs disappear — the widened gate must
+keep that behaviour), N30 (view routing — the visibility-fall-through rule),
+layout-app / basic-navigation (navigation surfaces that must honour hidden
+views).
 
