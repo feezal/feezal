@@ -191,3 +191,72 @@ describe('B8 — vertical snap lines under horizontal canvas scroll', () => {
         expect(parseFloat(vsnap1.style.left)).toBeCloseTo(expectedLeft, 0);
     });
 });
+
+
+/**
+ * B104 — a multi-selection drag must not snap to its own members.
+ *
+ * The co-dragged elements ride along via the group-move logic, so leaving them
+ * in the snap-target set made the group magnet against itself and jitter while
+ * moving. The rule is scoped to an active drag: a selection parked elsewhere is
+ * stationary and stays a valid target.
+ */
+describe('B104 — co-dragged elements are not snap targets', () => {
+    /** Place an absolutely-positioned canvas element in the view. */
+    function place(left, top, width = 60, height = 40) {
+        const el = document.createElement('feezal-element-b104-probe');
+        el.className = 'feezal-editable';
+        el.feezalEditable = true;
+        el.style.cssText =
+            `position:absolute; left:${left}px; top:${top}px; width:${width}px; height:${height}px;`;
+        view.append(el);
+        return el;
+    }
+
+    /** Does _snap() report a snap at all for this pointer position? */
+    const snapAt = (ctx, x, y) => ctx._snap(x, y);
+
+    beforeEach(() => {
+        buildCanvas({viewWidth: '400px', viewHeight: '300px'});
+    });
+
+    it('ignores the OTHER selected elements while dragging the group', () => {
+        const a = place(100, 100);          // dragged
+        const b = place(100, 200);          // co-dragged: shares a left edge
+        const ctx = inspectorCtx({dragElement: a, selectedElems: [a, b]});
+
+        const vr = view.getBoundingClientRect();
+        // Pointer 3px off b's left edge — without the fix this snaps to it.
+        const snap = snapAt(ctx, vr.x + 103, vr.y + 100);
+        expect(snap?.x).toBeUndefined();
+    });
+
+    it('still snaps to a stationary element that is NOT in the selection', () => {
+        const a = place(100, 100);          // dragged
+        place(100, 200);                    // stationary, unselected
+        const ctx = inspectorCtx({dragElement: a, selectedElems: [a]});
+
+        const vr = view.getBoundingClientRect();
+        const snap = snapAt(ctx, vr.x + 103, vr.y + 100);
+        expect(snap?.x).toBeDefined();      // the shared left edge wins
+    });
+
+    it('a selection parked elsewhere still snaps when no drag is active', () => {
+        // Outside a drag the selection is stationary, so excluding it would
+        // cost real snapping — the rule is scoped to an active gesture.
+        const a = place(100, 100);
+        const b = place(100, 200);
+        const ctx = inspectorCtx({dragElement: null, resizeElement: a, selectedElems: [a, b]});
+
+        const vr = view.getBoundingClientRect();
+        const snap = snapAt(ctx, vr.x + 103, vr.y + 100);
+        expect(snap?.x).toBeDefined();      // b is still a target
+    });
+
+    it('never treats the resized element as its own target', () => {
+        const a = place(100, 100);
+        const ctx = inspectorCtx({dragElement: null, resizeElement: a, selectedElems: [a]});
+        const vr = view.getBoundingClientRect();
+        expect(snapAt(ctx, vr.x + 103, vr.y + 100)?.x).toBeUndefined();
+    });
+});

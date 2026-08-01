@@ -1454,6 +1454,22 @@ class FeezalSidebarInspector extends LitElement {
         const view = feezal.getView(this.view);
         const viewRect = view.getBoundingClientRect();
 
+        /**
+         * B104 — is this element MOVING with the current gesture?
+         *
+         * A moving element must never be a snap target. For a single drag that
+         * is just the dragged element; for a MULTI-selection drag the other
+         * selected elements ride along via the group-move logic, so they are
+         * moving too — leaving them in the target set made the group magnet
+         * against its own members and jitter while being dragged.
+         *
+         * The rule is scoped to an active drag: outside one, a parked selection
+         * is stationary and stays a perfectly good snap target.
+         */
+        const isMoving = element => element === this.resizeElement
+            || element === this.dragElement
+            || (Boolean(this.dragElement) && Boolean(this.selectedElems?.includes(element)));
+
         if (effective === 'grid') {
             return {
                 x: Math.floor(Math.round((x - viewRect.x) / this.gridSize) * this.gridSize + viewRect.x),
@@ -1497,7 +1513,7 @@ class FeezalSidebarInspector extends LitElement {
             let L = {dist: range}, R = {dist: range}, T = {dist: range}, B = {dist: range};
 
             [...view.children].forEach(element => {
-                if (!isCanvasElement(element) || element === this.resizeElement || element === this.dragElement) {
+                if (!isCanvasElement(element) || isMoving(element)) {
                     return;
                 }
                 const rect = element.getBoundingClientRect();
@@ -1569,7 +1585,7 @@ class FeezalSidebarInspector extends LitElement {
         let hsnapEl = null, hsnapOtherEl = null, hsnapPos;
 
         [...view.children].forEach(element => {
-            if (!isCanvasElement(element) || element === this.resizeElement || element === this.dragElement) {
+            if (!isCanvasElement(element) || isMoving(element)) {
                 return;
             }
 

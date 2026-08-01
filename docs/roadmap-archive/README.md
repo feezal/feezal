@@ -7,7 +7,7 @@ Each entry is filed under the section its **ID prefix** belongs to — `B` Bugs,
 Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastructure,
 `D` Documentation — and sorted by number within it, so a new entry has exactly one correct place.
 
-**370 items.**
+**372 items.**
 
 ## Bugs
 
@@ -109,6 +109,8 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B101 — Package installs: broken on Windows hosts and non-atomic on all hosts ✅ done](B101.md)
 - [B102 — U85 toasts ignore the editor dark mode ✅ fixed](B102.md)
 - [B103 — Rubber-band selection rectangle grows beyond the canvas ✅ fixed](B103.md)
+- [B104 — Multi-selection drag: elements snap to their co-dragged companions ✅ fixed](B104.md)
+- [B105 — Source formatting: line break inside closing tags, glued closing-tag runs ✅ fixed](B105.md)
 
 ## Near-term Improvements
 

@@ -9,8 +9,6 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
-- [B104 — Multi-selection drag: elements snap to their co-dragged companions](#b104--multi-selection-drag-elements-snap-to-their-co-dragged-companions)
-- [B105 — Source formatting: line break inside closing tags, glued closing-tag runs](#b105--source-formatting-line-break-inside-closing-tags-glued-closing-tag-runs)
 
 
 **Near-term Improvements**
@@ -306,86 +304,6 @@ This also **removes an existing ambiguity**: `slim` and `autohide` are independe
 **Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
 
 **Relates:** **[B62](roadmap-archive/B62.md)** ✅ (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
-
-### B104 — Multi-selection drag: elements snap to their co-dragged companions
-
-**Reported (08/2026).** Dragging a multi-selection makes the elements snap to
-THEMSELVES: the co-dragged elements act as snap targets for each other, so the
-group jitters/magnets against its own members while moving. Everything that is
-selected and currently being dragged must be excluded from the snap-target
-set.
-
-**Root cause, already located:** the element-snapping pass in `_snap()`
-([feezal-sidebar-inspector.js](../www/src/feezal-sidebar-inspector.js), the
-`[...view.children].forEach` sibling scan) excludes only `this.dragElement`
-and `this.resizeElement` — the single-drag case. In a multi-selection drag the
-OTHER selected elements ride along via the group-move logic but stay in the
-target set.
-
-**Fix:** while a drag is active, also skip every member of the current
-selection (`element.classList.contains('feezal-selected')` or membership in
-`this.selectedElems`) in that scan — snapping should only consider stationary
-elements. Guard so plain hovering/resizing with a selection parked elsewhere
-still snaps against selected-but-not-dragged elements only if desired —
-simplest correct rule: during a drag gesture, exclude the whole selection;
-outside a drag nothing changes.
-
-**Test:** browser test — two selected elements dragged together must produce
-no snap result derived from each other, but still snap to a third, stationary
-element (the existing snap suites in the inspector tests have the harness).
-
-**Relates:** N11 (four-side snap guides — same scan), U89 (equal-gap guides
-will reuse this scan and must inherit the same exclusion).
-
-
-### B105 — Source formatting: line break inside closing tags, glued closing-tag runs
-
-**Reported (08/2026).** The formatted site HTML (deploy + the N15 source view,
-both through `/api/format`) produces this:
-
-```html
-           subscribe-availability='…'></feezal-element-glass-light></feezal-view
-    ><feezal-view
-        name="view2"
-```
-
-— a line break INSIDE `</feezal-view` with the `>` hugging the next opening
-tag, and no break between the two closing tags. Wanted: conventional block
-formatting — every closing tag on its own line, indented:
-
-```html
-           subscribe-availability='…'>
-    </feezal-element-glass-light>
-  </feezal-view>
-  <feezal-view
-        name="view2"
-```
-
-**Root cause, already located:** [format-html.js](../server/src/format-html.js)
-runs prettier's HTML printer with the default `htmlWhitespaceSensitivity:
-"css"`. Custom elements count as inline (unknown display), so prettier refuses
-to introduce whitespace around their tags — the hugging-bracket
-`</feezal-view\n    ><feezal-view` construction IS prettier preserving
-whitespace-exactness, and the glued closing-tag run is the same rule.
-
-**Fix direction:** set `htmlWhitespaceSensitivity: "ignore"` in
-`FORMAT_OPTIONS` — prettier then formats every element as a block and closing
-tags land on their own lines. **Caveat to verify before shipping:** "ignore"
-also reflows TEXT content (a slotted button label may move onto its own line,
-introducing surrounding whitespace); rendered HTML collapses that whitespace,
-so it is usually invisible — but check the text-carrying elements (buttons,
-badges, template) and the round-trip (format → parse → serialize → format must
-be a fixed point). If a real regression shows up, the fallback is a targeted
-post-pass that only splits `></tag>` runs and unwraps broken closing tags,
-keeping sensitivity "css" for text.
-
-**Test:** unit-test `formatHtml` in `server/test` with the reported fragment —
-assert each closing tag sits alone on its line and no closing tag contains a
-line break; plus the fixed-point round-trip.
-
-**Relates:** N15 (source view — the visible consumer), the deploy path
-(`socket hub`) which persists this formatting into `views.html`.
-
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
