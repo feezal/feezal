@@ -25,7 +25,8 @@ class FeezalElementCircleMultivalue extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
-                {property: '--feezal-value-text-color',  type: 'color', default: 'var(--primary-text-color)', help: 'Value numeral colour.'},
+                {property: '--feezal-value-text-color',  type: 'color', default: 'var(--primary-text-color)', help: 'Primary value / grid cell colour. Drive it by a named colour range to tint the reading by its value.'},
+                {property: '--feezal-value-secondary-color', type: 'color', default: 'var(--primary-text-color)', help: 'Secondary readout colour (stack; defaults to the primary colour). Takes its own colour range, independent of the primary.'},
                 {property: '--feezal-value-label-color', type: 'color', default: 'var(--secondary-text-color)', help: 'Label / secondary readout colour.'},
                 {property: '--feezal-value-accent-color', type: 'color', default: 'var(--accent-color)', help: 'Grid row-header colour.'},
                 {property: '--feezal-value-font-size',  default: '16cqi', help: 'Primary value font size (cqi scales with card width).'},
@@ -62,6 +63,7 @@ class FeezalElementCircleMultivalue extends FeezalElement {
             --feezal-value-text-color:  var(--primary-text-color);
             --feezal-value-label-color: var(--secondary-text-color);
             --feezal-value-accent-color: var(--accent-color);
+            --feezal-value-secondary-color: var(--feezal-value-text-color);
             /* E139: currentColor drives the disc ring — anchor it to the text
                colour so the ring matches the other Circle cards. */
             color: var(--feezal-value-text-color);
@@ -86,7 +88,7 @@ class FeezalElementCircleMultivalue extends FeezalElement {
         }
         .sec { white-space: nowrap; }
         .sec .sec-label { font-weight: 600; margin-right: 2px; }
-        .sec .sec-value { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--feezal-value-text-color); }
+        .sec .sec-value { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--feezal-value-secondary-color); }
         .value {
             font-size: var(--feezal-value-font-size, 16cqi);
             font-weight: 700; line-height: 1.05;

@@ -166,3 +166,35 @@ describe('E165 — editor sample', () => {
         expect(sampleValues('grid').filter(v => v.row && v.col)).toHaveLength(9);
     });
 });
+
+describe('E165 — per-role colour vars (range-drivable style knobs)', () => {
+    const styleProps = tag => (customElements.get(tag).feezal.styles || [])
+        .map(s => s?.property).filter(Boolean);
+
+    it('glass/metro expose primary + secondary colour knobs; circle adds the secondary', () => {
+        expect(styleProps('feezal-element-glass-multivalue'))
+            .toEqual(expect.arrayContaining(['--feezal-glass-value-color', '--feezal-glass-secondary-color']));
+        expect(styleProps('feezal-element-metro-multivalue'))
+            .toEqual(expect.arrayContaining(['--feezal-metro-value-color', '--feezal-metro-secondary-color']));
+        expect(styleProps('feezal-element-circle-multivalue'))
+            .toEqual(expect.arrayContaining(['--feezal-value-text-color', '--feezal-value-secondary-color']));
+    });
+
+    it('eink stays 1-bit: no colour knobs at all', () => {
+        const colors = (customElements.get('feezal-element-eink-multivalue').feezal.styles || [])
+            .filter(s => s?.type === 'color');
+        expect(colors).toEqual([]);
+    });
+
+    it('the vars actually colour the primary and secondary independently', async () => {
+        const el = await mount('feezal-element-glass-multivalue', {
+            subscribe: 't', values: STACK_VALUES,
+        });
+        el.style.setProperty('--feezal-glass-value-color', 'rgb(255, 0, 0)');
+        el.style.setProperty('--feezal-glass-secondary-color', 'rgb(0, 0, 255)');
+        feezal.connection.deliver('t', {temperature: 21, humidity: 50});
+        await el.updateComplete;
+        expect(getComputedStyle(el.shadowRoot.querySelector('.value')).color).toBe('rgb(255, 0, 0)');
+        expect(getComputedStyle(el.shadowRoot.querySelector('.sec .sec-value')).color).toBe('rgb(0, 0, 255)');
+    });
+});

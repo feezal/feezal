@@ -24,6 +24,10 @@ class FeezalElementMetroMultivalue extends MetroTileBase {
             styles: [
                 ...MetroTileBase.tileStyles,
                 {property: '--feezal-metro-font-size-grid', default: '13px', help: 'Grid cell font size.'},
+                {property: '--feezal-metro-value-color', type: 'color',
+                    help: 'Primary value / grid cell colour (empty = tile text colour). Drive it by a named colour range to tint the reading by its value.'},
+                {property: '--feezal-metro-secondary-color', type: 'color',
+                    help: 'Secondary readout colour (stack; empty = tile text colour). Takes its own colour range, independent of the primary.'},
             ],
             restrict: {minWidth: 40, minHeight: 40},
             defaultStyle: {width: '150px', height: '150px'},
@@ -50,8 +54,8 @@ class FeezalElementMetroMultivalue extends MetroTileBase {
         }
         .sec { white-space: nowrap; }
         .sec .sec-label { opacity: 0.8; margin-right: 3px; }
-        .sec .sec-value { font-weight: 600; font-variant-numeric: tabular-nums; }
-        .value { font-size: min(var(--_metro-value-size), 30cqh); font-weight: 300; line-height: 1; }
+        .sec .sec-value { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--feezal-metro-secondary-color, inherit); }
+        .value { font-size: min(var(--_metro-value-size), 30cqh); font-weight: 300; line-height: 1; color: var(--feezal-metro-value-color, inherit); }
         .value .unit { font-size: var(--_metro-unit-size); opacity: 0.85; font-weight: 400; margin-left: 2px; }
         table.grid {
             border-collapse: collapse; max-width: 100%;
@@ -61,7 +65,7 @@ class FeezalElementMetroMultivalue extends MetroTileBase {
         table.grid thead th { font-weight: 600; opacity: 0.85; text-transform: uppercase; font-size: 0.8em; letter-spacing: 0.05em; }
         table.grid tbody th { text-align: left; font-weight: 600; }
         table.grid tbody th .row-unit { font-weight: 400; opacity: 0.7; margin-left: 3px; }
-        table.grid td { font-variant-numeric: tabular-nums; }
+        table.grid td { font-variant-numeric: tabular-nums; color: var(--feezal-metro-value-color, inherit); }
     `];
 
     constructor() {

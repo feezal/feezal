@@ -55,7 +55,6 @@ Work in progress — priorities and scope are not final.
 - [E159 — Re-add a Paper-family app shell (`paper-app`) with full layout-app parity](#e159--re-add-a-paper-family-app-shell-paper-app-with-full-layout-app-parity)
 - [E162 — Fancy family, take two: actually fancy — ready-made Lottie art over generated geometry](#e162--fancy-family-take-two-actually-fancy--ready-made-lottie-art-over-generated-geometry)
 - [E164 — Fancy family: finish and re-enable the disabled cards](#e164--fancy-family-finish-and-re-enable-the-disabled-cards)
-- [E165 — Multi-value readout card (`(glass|metro|circle|eink)-multivalue`)](#e165--multi-value-readout-card-glassmetrocircleeink-multivalue)
 
 **Editor UX**
 
@@ -1399,85 +1398,6 @@ Asked: would moving the fancy elements into their own repo + npm distribution ma
 **Ships with:** the curated vendored set + attribution, the no-recolour/full-colour path, upgraded generator art for the gap cards, the animation picker UX, lazy per-card asset loading, updated family tests (the palette-slot assertions become conditional on generated art), TESTING.md updates, patch bumps.
 
 **Relates:** **[E139](roadmap-archive/E139.md)** ✅ (the machinery this re-skins — player/segments/override attributes unchanged), **E89** ✅ (loader), **A25** (self-hosting + license hygiene — the vendoring pattern), **E113** (function × style), the E20/weather element (Noto's weather emoji would serve it too).
-
-### E165 — Multi-value readout card (`(glass|metro|circle|eink)-multivalue`) 🔨 mostly shipped
-
-**Status (08/2026): shipped** — controller + all four family cards, both layouts
-(grid inside the circle disc too), the `values` list editor + template
-generator, the ⚡ picker device-fill and the Generate auto-merge with the
-per-device combined/split badge (see TESTING.md §6 "Multivalue cards").
-**Remaining:** the per-value **U65 colour-range** field in the `values` list
-(today ranges can only drive the element-level colour vars via the style
-inspector, not a single value); and the merged card does not yet carry
-availability from its member entities.
-
-**Motivation.** Real devices rarely report one number. A zigbee 3-phase powermeter
-publishes `voltage_a/b/c`, `power_a/b/c`, `current_a/b/c` in one payload; a climate
-sensor reports temperature + humidity (+ pressure, battery). Today each datapoint
-needs its own `*-value` card — nine cards for one powermeter — and the visual
-relationship between the numbers is lost. One card that shows several values fixes
-both.
-
-**Two layouts, both on ALL four families** (decided 08/2026 — circle renders the
-grid inside the round card too, accepting the tighter fit; full parity beats a
-per-family feature matrix):
-
-- **`stack`** — one **primary** value rendered like the family's `*-value` card,
-  with smaller **secondary** readouts above/below it (the temperature-big,
-  humidity-small-above example). Secondary count flexible; label + unit per value.
-- **`grid`** — a pivot table: values carry optional `row` + `col` keys
-  (`row: Power, col: L1`) and the card renders rows × columns with row/column
-  headers (x/y/z phases as columns, power/voltage/current as rows).
-
-**Configuration — everything user-configurable.** A `values` JSON list attribute
-edited with the same list-editor control the table's `columns` and the camera's
-`chips` use. Per value: `subscribe` (optional — defaults to the element-level
-`subscribe`, the z2m one-topic-many-properties case), `message-property`, `label`,
-`unit`, `precision`/`factor`, `row`/`col` (grid), `role: primary|secondary`
-(stack), and a per-value **U65 named colour range** so e.g. voltage tints red out
-of band. Element-level: `layout` (stack|grid), typography/size knobs via
-`--feezal-*` custom properties per family look.
-
-**Grid config = "Both"** (decided 08/2026): a **template generator** in the
-inspector — enter rows (`power, voltage, current`), columns (`a, b, c`) and a
-property pattern (`{row}_{col}`) — which **expands into the `values` list**; the
-list stays fully editable afterwards (the generator is a fill helper, not a live
-mode, so irregular devices are hand-fixable).
-
-**Architecture (E137).** The function is new and shared by four families → extract
-**`@feezal/feezal-controller-multivalue`**: subscription wiring with topic
-de-duplication (N values on one topic = ONE subscription), per-value property
-extraction/casting/formatting, colour-range resolution. The four elements are
-views over it; register them in the controller-parity test.
-
-**Autodiscovery.**
-- **⚡ picker:** on a multivalue element the picker offers **device-level rows**
-  (E161 device groups): picking a device stamps `values[]` from all its numeric
-  `sensor` entities — label from the entity name, `unit` from
-  `unit_of_measurement`, `message-property` from `value_template`, shared
-  `state_topic` collapsed to the element-level subscribe.
-- **Generate wizard: auto-merge by default, de-combinable** (decided 08/2026): a
-  device with ≥2 numeric `sensor` entities becomes **one multivalue card**; the
-  review screen gets a per-device **"de-combine"** control that splits it back
-  into individual value cards (and back). Regular suffix patterns
-  (`_a/_b/_c`, `_l1/_l2/_l3`, `_x/_y/_z`) prefill the **grid** layout; otherwise
-  **stack** with a primary chosen by device-class preference (temperature >
-  humidity > power > first).
-- **Design point to settle during implementation:** the dupe-guard — a merged
-  card covers SEVERAL `discovery_id`s; either stamp the device-group id or a
-  joined id list, and teach the wizard's existing-id scan to read it.
-
-**Ships with:** controller package + four elements, `values` list editor +
-template generator, both layouts on all four families, U65 per-value ranges,
-picker device-fill + wizard auto-merge/de-combine, parity/unit/browser tests,
-TESTING.md §6 entries, `scripts/generate-elements.js` run, version bumps.
-
-**Relates:** **[E137](roadmap-archive/E137.md)** ✅ (controller architecture),
-**[U56](roadmap-archive/U56.md)** ✅ (multi-attribute entity → several picker rows
-— the inverse direction of this merge), **[E161](roadmap-archive/E161.md)** ✅
-(device groups — the merge key), **[U65](roadmap-archive/U65.md)** ✅ (named
-colour ranges), **[E75](roadmap-archive/E75.md)** ✅ (the `columns` list-editor
-precedent), E29 (tile — single-value compact sibling).
 
 ### A7 — Git versioning for data directory 🔨 in progress
 

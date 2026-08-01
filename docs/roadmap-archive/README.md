@@ -273,6 +273,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [E161 — HA discovery: consume friendly names, icons, and areas ✅ implemented](E161.md)
 
 - [E163 — Camera element upgrade: `basic-camera` (hard rename), HA-card parity, Frigate/Scrypted events ✅ done](E163.md)
+- [E165 — Multi-value readout card (`(glass|metro|circle|eink)-multivalue`) ✅ done](E165.md)
 
 ## Editor UX
 

@@ -27,7 +27,11 @@ class FeezalElementGlassMultivalue extends FeezalElement {
             ],
             styles: [
                 'top', 'left', 'width', 'height',
-                {property: '--feezal-glass-accent', type: 'color', default: '#ff9f0a', help: 'Primary value / row header accent colour.'},
+                {property: '--feezal-glass-accent', type: 'color', default: '#ff9f0a', help: 'Row header accent colour (grid).'},
+                {property: '--feezal-glass-value-color', type: 'color',
+                    help: 'Primary value / grid cell colour (empty = card text colour). Drive it by a named colour range to tint the reading by its value.'},
+                {property: '--feezal-glass-secondary-color', type: 'color',
+                    help: 'Secondary readout colour (stack; empty = card text colour). Takes its own colour range, independent of the primary.'},
                 {property: '--feezal-glass-tint', type: 'color', help: 'Frost tint (defaults from the theme).'},
                 {property: '--feezal-glass-font-size-value', default: '26px', help: 'Primary value font size (stack).'},
                 {property: '--feezal-glass-font-size-secondary', default: '12px', help: 'Secondary readout font size (stack).'},
@@ -61,11 +65,12 @@ class FeezalElementGlassMultivalue extends FeezalElement {
         }
         .sec { white-space: nowrap; }
         .sec .sec-label { font-weight: 600; color: var(--feezal-glass-muted, rgba(29,29,31,0.55)); margin-right: 4px; }
-        .sec .sec-value { font-weight: 700; font-variant-numeric: tabular-nums; }
+        .sec .sec-value { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--feezal-glass-secondary-color, inherit); }
         .sec .sec-unit { font-weight: 500; opacity: 0.6; margin-left: 1px; }
         .value {
             font-size: var(--feezal-glass-font-size-value, 26px); font-weight: 700; line-height: 1.05;
             font-variant-numeric: tabular-nums;
+            color: var(--feezal-glass-value-color, inherit);
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
         .value .unit { font-size: var(--feezal-glass-font-size-label, 12px); font-weight: 500; opacity: 0.6; margin-left: 2px; }
@@ -89,7 +94,7 @@ class FeezalElementGlassMultivalue extends FeezalElement {
             color: var(--feezal-glass-accent, #ff9f0a);
         }
         table.grid tbody th .row-unit { font-weight: 500; opacity: 0.6; margin-left: 3px; color: var(--feezal-glass-muted, rgba(29,29,31,0.55)); }
-        table.grid td { font-weight: 700; font-variant-numeric: tabular-nums; }
+        table.grid td { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--feezal-glass-value-color, inherit); }
     `];
 
     constructor() {

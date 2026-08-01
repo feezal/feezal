@@ -642,4 +642,24 @@ describe('E165 - multivalue device-fill (merge groups, grid derivation, stamping
         expect(values).toHaveLength(2);
         expect(values[0].label).toBe('Power A');
     });
+
+    it('one device = one availability: the first member record is stamped on the card', () => {
+        const el = document.createElement('div');
+        const avail = {
+            entries: [{topic: 'zigbee2mqtt/meter/availability'}],
+            payloadAvailable: 'online', payloadUnavailable: 'offline',
+        };
+        applyMultivalueFill(el, [
+            sensor('meter', 'power_a'),
+            sensor('meter', 'power_b', {availability_normalized: avail}),
+        ], {deviceId: 'meter', deviceName: 'METER'});
+        expect(el.getAttribute('subscribe-availability')).toBe('zigbee2mqtt/meter/availability');
+        expect(el.getAttribute('payload-available')).toBe('online');
+        expect(el.getAttribute('payload-unavailable')).toBe('offline');
+
+        // no record on any member → no availability attributes
+        const bare = document.createElement('div');
+        applyMultivalueFill(bare, [sensor('m2', 'a'), sensor('m2', 'b')], {deviceId: 'm2'});
+        expect(bare.hasAttribute('subscribe-availability')).toBe(false);
+    });
 });

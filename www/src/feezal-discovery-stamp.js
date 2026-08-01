@@ -220,16 +220,7 @@ export function stampDiscovery(el, entity, variant = null) {
 
     // N31: canonical availability applies to EVERY element automatically —
     // individual discovery maps no longer need availability_topic lines.
-    const avail = cfg.availability_normalized;
-    if (avail?.entries?.length) {
-        el.setAttribute('subscribe-availability',
-            avail.entries.length === 1 && !avail.entries[0].property
-                ? avail.entries[0].topic
-                : JSON.stringify(avail.entries));
-        if (avail.mode && avail.mode !== 'all') el.setAttribute('availability-mode', avail.mode);
-        if (avail.payloadAvailable !== undefined) el.setAttribute('payload-available', String(avail.payloadAvailable));
-        if (avail.payloadUnavailable !== undefined) el.setAttribute('payload-unavailable', String(avail.payloadUnavailable));
-    }
+    stampAvailability(el, cfg.availability_normalized);
 
     // E124/E132: canonical low-battery record — auto-stamped like availability,
     // but ONLY for elements that declare the attribute.
@@ -259,6 +250,20 @@ export function stampDiscovery(el, entity, variant = null) {
 
     // Store the discovery-id for future re-sync (N12) and Generate dupe-guard.
     if (entity.discovery_id) el.setAttribute('discovery-id', entity.discovery_id);
+    return true;
+}
+
+/** N31: stamp a canonical availability record onto an element (shared by
+ * stampDiscovery and the E165 multivalue device-fill). */
+function stampAvailability(el, avail) {
+    if (!avail?.entries?.length) return false;
+    el.setAttribute('subscribe-availability',
+        avail.entries.length === 1 && !avail.entries[0].property
+            ? avail.entries[0].topic
+            : JSON.stringify(avail.entries));
+    if (avail.mode && avail.mode !== 'all') el.setAttribute('availability-mode', avail.mode);
+    if (avail.payloadAvailable !== undefined) el.setAttribute('payload-available', String(avail.payloadAvailable));
+    if (avail.payloadUnavailable !== undefined) el.setAttribute('payload-unavailable', String(avail.payloadUnavailable));
     return true;
 }
 
@@ -601,6 +606,10 @@ export function applyMultivalueFill(el, entities, {deviceId = '', deviceName = '
     el.setAttribute('values', JSON.stringify(values));
     el.setAttribute('layout', layout);
     if (deviceName && !el.getAttribute('label')) el.setAttribute('label', deviceName);
+    // One device = one availability: stamp the first member's canonical
+    // record (all sensors of a device share the device LWT).
+    const withAvail = entities.find(e => e.config?.availability_normalized?.entries?.length);
+    if (withAvail) stampAvailability(el, withAvail.config.availability_normalized);
     if (deviceId) el.setAttribute('discovery-id', 'mv:' + deviceId);
     const memberIds = entities.map(e => e.discovery_id).filter(Boolean);
     if (memberIds.length) el.setAttribute('discovery-ids', memberIds.join(' '));
