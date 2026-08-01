@@ -76,6 +76,7 @@ Work in progress — priorities and scope are not final.
 - [U89 — Equal-gap smart guides during drag](#u89--equal-gap-smart-guides-during-drag) 💡
 - [U91 — Distribute: pack mode (edge-to-edge, no overlap, no gap)](#u91--distribute-pack-mode-edge-to-edge-no-overlap-no-gap)
 - [U92 — Source view: identifying attributes first + on the opening-tag line (fold-friendly) 🔨 decided](#u92--source-view-identifying-attributes-first--on-the-opening-tag-line-fold-friendly--decided)
+- [U93 — Top-bar improvements: MQTT dot into the sidebar, labeled Generate/Source buttons, site switcher left](#u93--top-bar-improvements-mqtt-dot-into-the-sidebar-labeled-generatesource-buttons-site-switcher-left)
 
 
 **Architecture & Infrastructure**
@@ -2488,4 +2489,39 @@ fixed point.
 **Relates:** B105 + B107 (same file, coordinate the passes — the closing-tag
 split and this join can live in one post-processing step), N15 (source view,
 Monaco folding), the deploy serialization path.
+
+
+### U93 — Top-bar improvements: MQTT dot into the sidebar, labeled Generate/Source buttons, site switcher left
+
+**Requested (08/2026).** Three changes to the editor top bar (all in the
+`#menu` markup of [feezal-app-editor.js](../www/src/feezal-app-editor.js)):
+
+1. **MQTT status dot moves into the sidebar.** Remove the green connection
+   dot (`#mqtt-dot-btn`) from the top bar; instead render it as a **very tiny
+   dot on the sidebar tab-bar icon of the "Connection" tab** (the sl-tab-group
+   in the viewer sidebar — the dot overlays the tab icon, badge-style, in the
+   same three states/colours as today). The dot's click-to-open-connection
+   behaviour comes free — it IS the Connection tab now. Keep the tooltip
+   (state label) on the tab.
+
+2. **Generate and Source become real labeled buttons** — like the existing
+   viewer button: their current icons (`auto_awesome`, `code`) plus the text
+   "Generate" / "Source". Same states as today (Generate hidden in source
+   mode, Source toggles active + carries the syntax-error badge next to it).
+
+3. **Site switcher moves LEFT, toolbar follows.** The `feezal-site-manager`
+   dropdown moves to the far left of `#menu-center` (where the copy/paste/cut/
+   delete/undo/redo `#toolbar` cluster sits today), and the toolbar icons
+   follow AFTER it: order = site switcher · toolbar icons · … · Generate ·
+   Source · viewer/deploy cluster on the right.
+
+**Notes:** the U60 connection-overlay behaviour is untouched (banner/modal on
+loss) — only the passive status dot relocates; TESTING.md rows referencing
+"the top-bar MQTT dot" (Connection settings, device health) need their steps
+updated; dark mode for the new labeled buttons comes from the existing
+icon-btn styles (no new tokens).
+
+**Relates:** U60 (connection overlay — unchanged), N15 (source-mode button),
+U58 ✅ (Generate button), the sidebar tab bar (U87 layers work established the
+tab-bar pattern).
 
