@@ -21,8 +21,13 @@ beforeEach(() => { feezal = setupFeezal(); });
 const ITEMS = JSON.stringify([{label: 'One', icon: 'home', view: 'page1'}]);
 const SLIM_WIDTH = 64;
 
-// .drawer animates width (0.18s); measure only once it has settled.
-const settle = () => new Promise(r => setTimeout(r, 320));
+// .drawer animates width (0.18s), and on slow CI runners (webkit especially —
+// see helpers.until) the ResizeObserver tick that STARTS the transition can
+// itself arrive late, so a fixed sleep flakes. Poll until the width settles at
+// the expected value (swallowing the poll timeout — the assert that follows
+// reports the real value on failure).
+const settleAt = (el, width) =>
+    until(() => drawerWidth(el) === width).catch(() => {});
 
 async function mountIn(container, attrs = {slim: ''}) {
     const el = document.createElement('feezal-element-layout-app');
@@ -57,7 +62,7 @@ describe('layout-app first paint (B84)', () => {
         view.style.display = 'block';
         await until(() => el.clientWidth > 0);
         await el.updateComplete;
-        await settle();
+        await settleAt(el, SLIM_WIDTH);
 
         expect(el._narrow, 'wide once revealed').toBe(false);
         expect(el.classList.contains('narrow')).toBe(false);
@@ -77,7 +82,7 @@ describe('layout-app first paint (B84)', () => {
         box.style.cssText = 'width:1000px;height:600px;';
         await until(() => el.clientWidth >= 1000);
         await el.updateComplete;
-        await settle();
+        await settleAt(el, SLIM_WIDTH);
 
         expect(el._narrow).toBe(false);
         expect(el.classList.contains('narrow'), 'stale narrow class').toBe(false);
@@ -113,7 +118,7 @@ describe('layout-app first paint (B84)', () => {
         box.style.cssText = 'width:1000px;height:600px;';
         await until(() => el.clientWidth >= 1000);
         await el.updateComplete;
-        await settle();
+        await settleAt(el, 8);
 
         expect(el.classList.contains('narrow')).toBe(false);
         expect(drawerWidth(el), 'autohide collapses to a thin edge when wide').toBe(8);
