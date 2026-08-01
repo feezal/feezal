@@ -306,3 +306,64 @@ describe('A38 rubber band — lifecycle (the DragSelect regression fence)', () =
         expect(ctx._rubberBand.stopped).toBe(true);
     });
 });
+
+describe('B103 — the band is clamped to the canvas', () => {
+    it('stops the drawn rectangle at the view edges', async () => {
+        const view = makeView('a', 2);
+        await switchTo('a');
+        const vr = view.getBoundingClientRect();
+
+        view.dispatchEvent(new PointerEvent('pointerdown', {
+            clientX: vr.left + 20, clientY: vr.top + 20, button: 0, pointerId: 1, bubbles: true,
+        }));
+        // Drag far past the bottom-right of the view — the old behaviour drew
+        // the rectangle over the sidebar and tab bar.
+        window.dispatchEvent(new PointerEvent('pointermove', {
+            clientX: vr.right + 400, clientY: vr.bottom + 400, pointerId: 1, bubbles: true,
+        }));
+        const rect = view.querySelector('.feezal-rubberband').getBoundingClientRect();
+        expect(Math.round(rect.right)).toBeLessThanOrEqual(Math.round(vr.right));
+        expect(Math.round(rect.bottom)).toBeLessThanOrEqual(Math.round(vr.bottom));
+
+        window.dispatchEvent(new PointerEvent('pointerup', {
+            clientX: vr.right + 400, clientY: vr.bottom + 400, pointerId: 1, bubbles: true,
+        }));
+    });
+
+    it('clamps the top-left too, when the drag runs back past the origin', async () => {
+        const view = makeView('a', 2);
+        await switchTo('a');
+        const vr = view.getBoundingClientRect();
+        view.dispatchEvent(new PointerEvent('pointerdown', {
+            clientX: vr.left + 40, clientY: vr.top + 40, button: 0, pointerId: 1, bubbles: true,
+        }));
+        window.dispatchEvent(new PointerEvent('pointermove', {
+            clientX: vr.left - 300, clientY: vr.top - 300, pointerId: 1, bubbles: true,
+        }));
+        const rect = view.querySelector('.feezal-rubberband').getBoundingClientRect();
+        expect(Math.round(rect.left)).toBeGreaterThanOrEqual(Math.round(vr.left));
+        expect(Math.round(rect.top)).toBeGreaterThanOrEqual(Math.round(vr.top));
+        window.dispatchEvent(new PointerEvent('pointerup', {
+            clientX: vr.left - 300, clientY: vr.top - 300, pointerId: 1, bubbles: true,
+        }));
+    });
+
+    it('still selects everything the clamped band covers', async () => {
+        makeView('a', 3);
+        await switchTo('a');
+        const view = feezal.getView('a');
+        const vr = view.getBoundingClientRect();
+        // Drag from beyond the bottom-right back over all three tiles: the
+        // clamp must not cost the selection.
+        view.dispatchEvent(new PointerEvent('pointerdown', {
+            clientX: vr.right - 2, clientY: vr.bottom - 2, button: 0, pointerId: 1, bubbles: true,
+        }));
+        window.dispatchEvent(new PointerEvent('pointermove', {
+            clientX: vr.left - 500, clientY: vr.top - 500, pointerId: 1, bubbles: true,
+        }));
+        window.dispatchEvent(new PointerEvent('pointerup', {
+            clientX: vr.left - 500, clientY: vr.top - 500, pointerId: 1, bubbles: true,
+        }));
+        expect(selected()).toEqual(['0', '1', '2']);
+    });
+});

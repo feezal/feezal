@@ -202,7 +202,10 @@ export class RubberBand {
         const box = this.currentBox();
         Object.assign(this._overlay.style, {
             left: `${box.left}px`, top: `${box.top}px`,
-            width: `${box.right - box.left}px`, height: `${box.bottom - box.top}px`,
+            // max(0): clamping can invert the box if the gesture ends up wholly
+            // outside the canvas, and a negative width throws off the layout.
+            width: `${Math.max(0, box.right - box.left)}px`,
+            height: `${Math.max(0, box.bottom - box.top)}px`,
         });
     }
 
@@ -211,10 +214,25 @@ export class RubberBand {
         this._overlay = null;
     }
 
-    /** The band's current client rect. */
+    /**
+     * The band's current client rect, CLAMPED to the canvas (B103).
+     *
+     * Without this the rectangle keeps growing with the pointer once it leaves
+     * the view — drawn over the sidebar and the tab bar, and selecting against
+     * a box the user cannot see. Clamping both the drawn rect and the hit test
+     * from one place keeps "what you see" and "what you select" identical.
+     */
     currentBox() {
         if (!this._origin || !this._pointer) return {left: 0, top: 0, right: 0, bottom: 0};
-        return boxBetween(this._origin.x, this._origin.y, this._pointer.x, this._pointer.y);
+        const box = boxBetween(this._origin.x, this._origin.y, this._pointer.x, this._pointer.y);
+        if (!this.view?.getBoundingClientRect) return box;
+        const area = this.view.getBoundingClientRect();
+        return {
+            left: Math.max(box.left, area.left),
+            top: Math.max(box.top, area.top),
+            right: Math.min(box.right, area.right),
+            bottom: Math.min(box.bottom, area.bottom),
+        };
     }
 
     /**
