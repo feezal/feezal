@@ -75,7 +75,7 @@ Work in progress — priorities and scope are not final.
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
 - [U89 — Equal-gap smart guides during drag](#u89--equal-gap-smart-guides-during-drag) 💡
 - [U91 — Distribute: pack mode (edge-to-edge, no overlap, no gap)](#u91--distribute-pack-mode-edge-to-edge-no-overlap-no-gap)
-- [U92 — Source view: identifying attributes first + on the opening-tag line (fold-friendly) 💡 analyzed](#u92--source-view-identifying-attributes-first--on-the-opening-tag-line-fold-friendly--analyzed)
+- [U92 — Source view: identifying attributes first + on the opening-tag line (fold-friendly) 🔨 decided](#u92--source-view-identifying-attributes-first--on-the-opening-tag-line-fold-friendly--decided)
 
 
 **Architecture & Infrastructure**
@@ -2426,7 +2426,7 @@ the drag-time sibling; pack is the explicit-operation form of "no gap"),
 follow-up).
 
 
-### U92 — Source view: identifying attributes first + on the opening-tag line (fold-friendly) 💡 analyzed
+### U92 — Source view: identifying attributes first + on the opening-tag line (fold-friendly) 🔨 decided
 
 **Requested (08/2026).** When collapsing an element in the Monaco source view,
 the fold shows only the FIRST line — which today is the bare opening tag, so
@@ -2454,27 +2454,38 @@ independent halves:
    existing order. Cheap, deterministic, and useful even without half 2 (the
    priority attrs land at the TOP of the attribute list).
 
-2. **First attributes ON the opening-tag line: NOT possible with prettier.**
-   Prettier's HTML printer knows only two shapes — everything on one line (if
-   it fits printWidth) or EVERY attribute on its own line with the tag alone
-   on the first line; `singleAttributePerLine` only forces the latter. There
-   is no "keep the first N attributes beside the tag" mode, and no option
-   combination produces it. Options:
-   - **js-beautify** has exactly this shape: `wrap_attributes: "force-aligned"`
-     keeps the FIRST attribute on the tag line and wraps + aligns the rest —
-     switching the shared formatter ([format-html.js](../server/src/format-html.js))
-     from prettier to js-beautify would deliver both B105/B107 fixes AND this
-     item's layout in one move (js-beautify does not fight whitespace
-     sensitivity either). Cost: a formatting-churn commit across saved sites,
-     and re-verifying the fixed-point round-trip.
-   - Or keep prettier and add a **post-pass** that pulls the priority
-     attributes up onto the tag line (they are first after half 1, so the pass
-     is a bounded join of lines 1..k). More code, no formatter migration.
+2. **First attributes ON the opening-tag line: NOT possible with prettier
+   options.** Prettier's HTML printer knows only two shapes — everything on
+   one line (if it fits printWidth) or EVERY attribute on its own line with
+   the tag alone on the first line; `singleAttributePerLine` only forces the
+   latter. There is no "keep the first N attributes beside the tag" mode.
 
-**Recommendation:** do half 1 (serializer-side reordering) immediately —
-independent win; decide js-beautify-vs-post-pass together with B105/B107,
-since a formatter migration would resolve all three in one change.
+**Decided (08/2026): no js-beautify — prettier stays, plus a post-pass.**
+After prettier, a post-processing step in the shared formatter
+([format-html.js](../server/src/format-html.js), so deploy and the source view
+stay identical) **removes the newline before the priority attributes**:
 
-**Relates:** B105 + B107 (the formatter decision), N15 (source view, Monaco
-folding), the deploy serialization path.
+- `name` for `feezal-view`;
+- `label` and `subscribe` for elements — **both joined when both are
+  present**;
+- **only when they are the first 1–2 attributes** of the element (which half
+  1's serializer-side reordering guarantees for stamped content; hand-written
+  source with the attributes elsewhere is left untouched — the pass never
+  reorders, it only joins lines).
+
+The pass is a bounded, regex-free line join over the prettier output: for an
+opening tag whose following line(s) start with a priority attribute, merge up
+to two of them onto the tag line (respecting printWidth is NOT required — the
+identifying line may run long, that is the point of the fold). Fixed-point
+rule: running format twice must be byte-identical (the pass must recognize
+already-joined lines as done).
+
+**Test:** unit tests on `formatHtml` — a view (name joins), an element with
+only `label`, only `subscribe`, both (both join), neither (untouched), a
+priority attribute NOT in first position (untouched), and the double-format
+fixed point.
+
+**Relates:** B105 + B107 (same file, coordinate the passes — the closing-tag
+split and this join can live in one post-processing step), N15 (source view,
+Monaco folding), the deploy serialization path.
 
