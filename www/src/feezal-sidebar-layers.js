@@ -1,6 +1,11 @@
 /* global feezal */
 import {LitElement, html, css} from 'lit';
 import {repeat} from 'lit/directives/repeat.js';
+
+import '@shoelace-style/shoelace/dist/components/tab-group/tab-group.js';
+import '@shoelace-style/shoelace/dist/components/tab/tab.js';
+import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
+
 import {fuzzyScoreAny} from './feezal-fuzzy.js';
 
 /**
@@ -45,6 +50,18 @@ class FeezalSidebarLayers extends LitElement {
             display: flex; flex-direction: column; height: 100%;
             font-size: 12.5px; box-sizing: border-box;
             background: var(--feezal-bg, #fff); color: var(--feezal-color, #222);
+        }
+        /* Same tab chrome as the inspector, so the two sidebar panels read as
+           one system (39px tab + 2px nav track = the 41px view tab bar). */
+        sl-tab-group { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        sl-tab-group::part(base) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        sl-tab-group::part(body) { flex: 1; min-height: 0; overflow: hidden; }
+        sl-tab-group::part(nav) { background: var(--feezal-bg-sub, #f5f5f5); }
+        sl-tab::part(base) { font-size: 14px; padding: 0 8px; height: 39px; }
+        sl-tab-panel { height: 100%; }
+        sl-tab-panel::part(base) {
+            height: 100%; padding: 0; box-sizing: border-box;
+            display: flex; flex-direction: column; overflow: hidden;
         }
         .search { padding: 8px; border-bottom: 1px solid var(--feezal-border, #e0e0e0); }
         .search input {
@@ -517,32 +534,37 @@ class FeezalSidebarLayers extends LitElement {
         const filtering = Boolean(this._filter.trim());
         const currentView = this.view || feezal?.site?.view;
         return html`
-            <div class="search">
-                <input type="search" placeholder="Filter elements — name, label or topic"
-                    .value="${this._filter}"
-                    @input="${e => { this._filter = e.target.value; }}"
-                    @keydown="${e => { if (e.key === 'Escape') { this._filter = ''; e.stopPropagation(); } }}">
-            </div>
-            <div class="tree">
-                ${tree.length ? repeat(tree, n => n.name, node => html`
-                    <div class="view-row ${node.name === currentView ? 'current' : ''}
-                                ${this._dropView === node.name ? 'drop-target' : ''}"
-                        @click="${() => this._toggleView(node.name)}"
-                        @contextmenu="${e => this._onViewContext(e, node)}"
-                        @dragover="${e => this._onViewDragOver(e, node)}"
-                        @drop="${e => this._onViewDrop(e, node)}">
-                        <span class="caret">${node.open ? '▾' : '▸'}</span>
-                        <span class="view-name" title="${node.name}">${node.name}</span>
-                        <span class="badge">${node.elements.length}</span>
+            <sl-tab-group>
+                <sl-tab slot="nav" panel="elements">Elements</sl-tab>
+                <sl-tab-panel name="elements">
+                    <div class="search">
+                        <input type="search" placeholder="Filter elements — name, label or topic"
+                            .value="${this._filter}"
+                            @input="${e => { this._filter = e.target.value; }}"
+                            @keydown="${e => { if (e.key === 'Escape') { this._filter = ''; e.stopPropagation(); } }}">
                     </div>
-                    ${node.open ? html`
-                        <ul>${repeat(node.elements, el => el, el => this._renderElement(el, node))}</ul>
-                    ` : ''}`)
-                : html`<div class="empty">${filtering
-                    ? html`Nothing matches “${this._filter}”.`
-                    : html`This site has no elements yet.<br>Drag one in from the palette.`}</div>`}
-            </div>
-            ${filtering ? '' : html`<div class="hint">Top-most first. Drag to restack or onto a view to move it there (Ctrl = copy).</div>`}
+                    <div class="tree">
+                        ${tree.length ? repeat(tree, n => n.name, node => html`
+                            <div class="view-row ${node.name === currentView ? 'current' : ''}
+                                        ${this._dropView === node.name ? 'drop-target' : ''}"
+                                @click="${() => this._toggleView(node.name)}"
+                                @contextmenu="${e => this._onViewContext(e, node)}"
+                                @dragover="${e => this._onViewDragOver(e, node)}"
+                                @drop="${e => this._onViewDrop(e, node)}">
+                                <span class="caret">${node.open ? '▾' : '▸'}</span>
+                                <span class="view-name" title="${node.name}">${node.name}</span>
+                                <span class="badge">${node.elements.length}</span>
+                            </div>
+                            ${node.open ? html`
+                                <ul>${repeat(node.elements, el => el, el => this._renderElement(el, node))}</ul>
+                            ` : ''}`)
+                        : html`<div class="empty">${filtering
+                            ? html`Nothing matches “${this._filter}”.`
+                            : html`This site has no elements yet.<br>Drag one in from the palette.`}</div>`}
+                    </div>
+                    ${filtering ? '' : html`<div class="hint">Top-most first. Drag to restack or onto a view to move it there (Ctrl = copy).</div>`}
+                </sl-tab-panel>
+            </sl-tab-group>
             ${this._renderMenu()}
         `;
     }

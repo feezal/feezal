@@ -61,6 +61,29 @@ beforeEach(() => {
     };
 });
 
+describe('panel chrome', () => {
+    it('carries a tab bar like the inspector, with the Elements tab', async () => {
+        addView('main');
+        const panel = await mountPanel('main');
+        const group = panel.shadowRoot.querySelector('sl-tab-group');
+        expect(group).not.toBeNull();
+        const tabs = [...panel.shadowRoot.querySelectorAll('sl-tab')];
+        expect(tabs.map(t => t.textContent.trim())).toEqual(['Elements']);
+        expect(tabs[0].getAttribute('panel')).toBe('elements');
+        expect(panel.shadowRoot.querySelector('sl-tab-panel[name="elements"]')).not.toBeNull();
+    });
+
+    it('the tree and filter live inside the tab panel', async () => {
+        const main = addView('main');
+        addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        const panel = await mountPanel('main');
+        const tabPanel = panel.shadowRoot.querySelector('sl-tab-panel[name="elements"]');
+        expect(tabPanel.querySelector('.search input')).not.toBeNull();
+        expect(tabPanel.querySelector('.tree')).not.toBeNull();
+        expect(tabPanel.querySelectorAll('li')).toHaveLength(1);
+    });
+});
+
 describe('tree structure', () => {
     it('lists every view, with only the current one expanded', async () => {
         const main = addView('main');
@@ -297,11 +320,20 @@ describe('icon column and tooltips', () => {
     it('reserves the icon column even when an element has no palette icon', async () => {
         const main = addView('main');
         addElement(main, 'feezal-element-basic-number', {label: 'no icon'});
+        addElement(main, 'feezal-element-glass-contact', {label: 'has icon'});
         const panel = await mountPanel('main');
-        const ico = panel.shadowRoot.querySelector('.ico');
-        expect(ico).not.toBeNull();
-        // fixed width, so labels in rows with and without a glyph line up
-        expect(Math.round(ico.getBoundingClientRect().width)).toBe(18);
+        // The rows live inside an <sl-tab-panel>, which Shoelace keeps
+        // display:none until it activates its first tab — so wait for layout
+        // rather than measuring on the first frame.
+        await until(() => panel.shadowRoot.querySelector('.ico')?.getBoundingClientRect().width > 0);
+
+        const icons = [...panel.shadowRoot.querySelectorAll('.ico')];
+        expect(icons.map(i => Math.round(i.getBoundingClientRect().width))).toEqual([18, 18]);
+        // the point of the fixed column: labels line up whether or not the
+        // element's package declares a palette icon
+        const xs = [...panel.shadowRoot.querySelectorAll('.label')]
+            .map(l => Math.round(l.getBoundingClientRect().left));
+        expect(xs[0]).toBe(xs[1]);
     });
 
     it('shows the element TYPE as the icon and label tooltip', async () => {
