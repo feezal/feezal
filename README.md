@@ -54,8 +54,10 @@ Then open [http://localhost:3000/editor/](http://localhost:3000/editor/) and fol
 feezal stands on the shoulders of some excellent open-source work:
 
 - [Lit](https://lit.dev) — every feezal element, the editor and the viewer are Lit components
+- [MQTT.js](https://github.com/mqttjs/MQTT.js) — the MQTT client behind both the browser's direct broker connection and the server bridge
 - [interact.js](https://interactjs.io) — drag, resize and snapping on the editor canvas
 - [DragSelect](https://dragselect.com) — rubber-band multi-selection in the editor (GPL-3.0)
+- [Monaco Editor](https://microsoft.github.io/monaco-editor/) — the editor's source view
 
 Bundled icon sets that require attribution:
 

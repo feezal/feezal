@@ -2191,13 +2191,13 @@ Per-family passes (glass first — biggest count), each: the family base block o
 
 ### D4 — README: "plays well with" ecosystem line 🔨 credits shipped
 
-**Shipped (08/2026):** the README **Credits** section — Lit, interact.js,
-DragSelect, plus the licence-REQUIRED attributions found by the vendored-asset
-audit: Font Awesome Free (CC BY 4.0) and the KNX-UF icon set (CC BY-SA 3.0 DE);
-MDI/Material Symbols/Roboto are Apache-2.0 (no visible attribution needed) and
-the fancy family's animations are generated, not vendored art. Settled while
-writing: MQTT.js/Shoelace/Express are NOT credited (kept to the SBOM pointer),
-per the "only what's necessary licence-wise beyond the decided trio" call.
+**Shipped (08/2026):** the README **Credits** section — Lit, MQTT.js,
+interact.js, DragSelect, Monaco Editor, plus the licence-REQUIRED attributions
+found by the vendored-asset audit: Font Awesome Free (CC BY 4.0) and the KNX-UF
+icon set (CC BY-SA 3.0 DE); MDI/Material Symbols/Roboto are Apache-2.0 (no
+visible attribution needed) and the fancy family's animations are generated,
+not vendored art. Settled while writing: Shoelace and Express are NOT credited
+(kept to the SBOM pointer).
 
 **Remaining — the "plays well with" line:** a separate README line naming the
 integration ecosystem (recognition, not dependencies): Home Assistant MQTT
