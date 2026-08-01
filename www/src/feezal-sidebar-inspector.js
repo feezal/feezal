@@ -1,6 +1,6 @@
 import {LitElement, html, css} from 'lit';
 
-import DragSelect from 'dragselect';
+import {RubberBand} from './feezal-canvas-rubberband.js';   // A38
 import interact from 'interactjs';
 
 import '@shoelace-style/shoelace/dist/components/tab-group/tab-group.js';
@@ -36,13 +36,14 @@ const FN_ALIAS = {};
 const FAMILY_LABELS = {eink: 'E-ink', tui: 'TUI', wled: 'WLED'};
 const familyLabel = f => FAMILY_LABELS[f] || (f ? f.charAt(0).toUpperCase() + f.slice(1) : f);
 
-// U33: canvas stacking is DOM order, period. DragSelect writes cumulative
-// inline z-index junk on every selection/drag (+1/-1 per add/remove, 9999
-// during drags) that would pollute saved sites and silently defeat DOM-order
-// stacking. Live on the canvas an injected !important rule neutralizes any
-// inline z-index (see the editor style below); at save time this helper
-// removes it from the serialized clone so views.html stays clean. z-index on
-// canvas elements is editor-managed — hand-set values do not survive a save.
+// U33: canvas stacking is DOM order, period. Drag gestures write inline
+// z-index (the lift uses 9999) that would pollute saved sites and silently
+// defeat DOM-order stacking; sites saved before A38 also carry DragSelect's
+// cumulative +1/-1-per-select junk, which this self-heals. Live on the canvas
+// an injected !important rule neutralizes any inline z-index (see the editor
+// style below); at save time this helper removes it from the serialized clone
+// so views.html stays clean. z-index on canvas elements is editor-managed —
+// hand-set values do not survive a save.
 export function stripCanvasZIndex(root) {
     root.querySelectorAll('.feezal-editable').forEach(el => {
         el.style.zIndex = '';
@@ -303,7 +304,7 @@ class FeezalSidebarInspector extends LitElement {
         this.gridSize = 24;
         this.gridVisible = false;
         this.gridColor = '#cccccc';
-        this.dragselect = {};
+        this._rubberBand = null;   // A38: one instance, retargeted per view
         this._ctxMenu = {visible: false, x: 0, y: 0, onElem: false, subMenu: null};
         this._switchReport = null;
         this._shortcutsOpen = false;
@@ -630,11 +631,12 @@ class FeezalSidebarInspector extends LitElement {
                     pointer-events: none;
                     z-index: 1000;
                 }
-                /* U33: canvas stacking is DOM order — neutralize the inline
-                   z-index junk DragSelect writes on selection/drag (cumulative
-                   ±1 per select, 9999 during drags), which would otherwise
-                   paint over the sanctioned stacking order. Stripped from the
-                   serialized HTML at save time (stripCanvasZIndex). */
+                /* U33: canvas stacking is DOM order — neutralize any inline
+                   z-index a drag gesture writes (the lift uses 9999), which
+                   would otherwise paint over the sanctioned stacking order.
+                   Also self-heals sites saved while DragSelect was accumulating
+                   its own ±1-per-select junk. Stripped from the serialized HTML
+                   at save time (stripCanvasZIndex). */
                 feezal-view > .feezal-editable {
                     z-index: auto !important;
                 }
@@ -770,25 +772,14 @@ class FeezalSidebarInspector extends LitElement {
         }
     }
 
-    /**
-     * B35: tear down every DragSelect instance before discarding the map —
-     * dropping the references without stop() leaks each instance's
-     * SelectorArea overlay div in document.body (and its listeners).
-     */
-    _disposeDragSelect() {
-        Object.values(this.dragselect || {}).forEach(ds => {
-            if (ds.stopped) return;
-            try {
-                ds.stop();
-            } catch (err) {
-                console.warn('[feezal] DragSelect stop failed:', err);
-            }
-        });
-        this.dragselect = {};
+    /** A38: drop the rubber band's listeners and any overlay in flight. */
+    _disposeRubberBand() {
+        this._rubberBand?.destroy();
+        this._rubberBand = null;
     }
 
     restoreViews(html) {
-        this._disposeDragSelect();
+        this._disposeRubberBand();
         if (html !== undefined) {
             feezal.site.innerHTML = html;
         }
@@ -799,6 +790,8 @@ class FeezalSidebarInspector extends LitElement {
         feezal.app._onRestoreViews?.();
 
         feezal.app.views = [...feezal.views];
+        // A38 legacy scrub: the band's overlay only exists mid-gesture, but
+        // sites saved before that still carry a serialized rectangle.
         feezal.site.querySelectorAll('.dragselect-rectangle').forEach(el => el.remove());
         feezal.app._removeClassesFromChildren(feezal.site, ['feezal-selected', 'feezal-editable', 'ds-selectable']);
         feezal.palette?.refresh?.();
@@ -809,7 +802,7 @@ class FeezalSidebarInspector extends LitElement {
     }
 
     loadViews(data, viewerConfig) {
-        this._disposeDragSelect();
+        this._disposeRubberBand();
         feezal.app.innerHTML = data;
         feezal.app.views = [...feezal.views];
         feezal.app._removeClassesFromChildren(feezal.site, ['feezal-selected']);
@@ -968,7 +961,7 @@ class FeezalSidebarInspector extends LitElement {
 
         // The view-level machinery differs per mode (rubber-band select is
         // absolute-only), so re-run that dispatch too.
-        this._disposeDragSelect();
+        this._disposeRubberBand();
         switch (view.childPosition) {
             case 'static':
             case 'flow':
@@ -976,7 +969,7 @@ class FeezalSidebarInspector extends LitElement {
                 this._attachCanvasSelection(view);
                 break;
             default:
-                this._initDragSelect();
+                this._initRubberBand();
         }
 
         for (const element of [...view.children]) {
@@ -986,7 +979,6 @@ class FeezalSidebarInspector extends LitElement {
             // conflicting models at once.
             try { interact(element).unset(); } catch { /* never bound */ }
             element.feezalEditable = false;
-            element._feezalInDragSelect = false;
             this.initElem(element);
         }
         this.selectElement();
@@ -1061,9 +1053,9 @@ class FeezalSidebarInspector extends LitElement {
     }
 
     _updateSelection() {
-        // Don't disrupt an in-progress interact drag — DragSelect fires callback
-        // via ds.break() in its dragstart handler and would otherwise reset
-        // selectedElems to [view] before interact's onmove runs.
+        // Don't disrupt an in-progress interact drag: re-reading the selection
+        // from the DOM mid-gesture would reset selectedElems to [view] before
+        // interact's onmove runs.
         if (this.dragElement) return;
 
         const view = feezal.getView(this.view);
@@ -1081,8 +1073,8 @@ class FeezalSidebarInspector extends LitElement {
 
     /**
      * U41 — click-select + context menu on the canvas via composedPath. Works
-     * for absolute (DragSelect) AND flow (interact.js reorder) views; the click never
-     * depends on the drag machinery. Attached once per view element.
+     * for absolute (rubber band) AND flow/grid (interact.js reorder) views; the
+     * click never depends on the drag machinery. Attached once per view element.
      */
     _attachCanvasSelection(view) {
         if (view._feezalSelectionWired) return;
@@ -1248,118 +1240,42 @@ class FeezalSidebarInspector extends LitElement {
         else view.appendChild(ph);
     }
 
-    _initDragSelect() {
+    /**
+     * A38 — rubber-band selection for an absolute view.
+     *
+     * One instance, retargeted at the live view node. Everything the DragSelect
+     * version needed here is gone with it: no per-view instance map, no
+     * selectables to seed or re-seed, and no requestAnimationFrame deferral —
+     * the band measures nothing until the gesture happens, so a view that is
+     * still display:none at wire-up time cannot produce a dead selector area
+     * (B2). See feezal-canvas-rubberband.js for how B2/B35/B48 dissolve.
+     */
+    _initRubberBand() {
         const view = feezal.getView(this.view);
-        if (!this.dragselect) {
-            this.dragselect = {};
+        if (!view) return;
+
+        if (!this._rubberBand) {
+            this._rubberBand = new RubberBand({
+                onSelection: () => {
+                    this._updateSelection();
+                    // Suppress the click that fires on pointerup after a band —
+                    // it would otherwise clear the selection just made.
+                    this._ignoreNextClick = true;
+                    setTimeout(() => { this._ignoreNextClick = false; }, 50);
+                },
+                scrollContainer: () => feezal.site,
+            });
         }
 
-        // B48: instances are keyed by VIEW NAME, but the view ELEMENT under a
-        // name can be replaced — the component-edit pseudo-view is destroyed
-        // on commit and recreated on the next edit under the same name. A
-        // stale instance is bound to the detached old node (its area, its
-        // click/contextmenu listeners), so re-entering edit mode had no click
-        // selection, no rubber-band and no context menu. Detect and dispose,
-        // then fall through to a fresh wire-up of the new node.
-        const stale = this.dragselect[this.view];
-        if (stale && stale.Area?.HTMLNode !== view) {
-            if (!stale.stopped) {
-                try {
-                    stale.stop();
-                } catch (err) {
-                    console.warn('[feezal] stale DragSelect stop failed:', err);
-                }
-            }
-            delete this.dragselect[this.view];
-        }
+        // B48: the view ELEMENT under a name can be replaced (the component-edit
+        // pseudo-view is destroyed on commit and recreated under the same name),
+        // so always retarget rather than trusting a cached instance.
+        this._rubberBand.bind(view);
+        this._rubberBand.start();
 
-        if (!this.dragselect[this.view]) {
-            const selector = document.createElement('div');
-            selector.style.cssText = 'position:absolute;background:rgba(0,0,0,0.1);border:1px dotted rgba(250,120,0,0.8);display:none;pointer-events:none';
-            selector.classList.add('dragselect-rectangle');
-            view.append(selector);
-
-            const ds = new DragSelect({
-                area: view,
-                selector,
-                selectedClass: 'feezal-selected',
-                keyboardDrag: false
-            });
-            ds.subscribe('dragstart', ({event}) => {
-                if (event && event.target && event.target.tagName !== 'FEEZAL-VIEW') {
-                    // dragselect v3: break() is gone - the continue flag skips
-                    // the current gesture and auto-resets on Interaction:end.
-                    ds.continue = true;
-                } else {
-                    // A real rubber-band drag is starting.
-                    this._dsDidDrag = true;
-                }
-            });
-            ds.subscribe('callback', ({items}) => {
-                const wasDrag = this._dsDidDrag;
-                this._dsDidDrag = false;
-
-                if (!wasDrag) {
-                    // ds.break() was called — this was a click on an element or an
-                    // interact.js drag gesture, not a rubber-band. Do nothing here:
-                    // the click handler (or selectElement called from onstart) manages
-                    // selectedElems and feezal-selected classes. Removing classes here
-                    // would strip the selection outline immediately after a drag ends.
-                    return;
-                }
-
-                // Rubber-band gesture (including zero-distance click on empty canvas).
-                // Synchronise feezal-selected with DragSelect's reported selection:
-                // clear all first, then re-apply what DragSelect says is selected.
-                // This handles the case where DragSelect does not clear previously
-                // selected elements for a zero-distance rubber band.
-                [...feezal.view.querySelectorAll('.feezal-selected')]
-                    .forEach(el => el.classList.remove('feezal-selected'));
-                items.forEach(el => el.classList.add('feezal-selected'));
-
-                this._updateSelection();
-                // Suppress the click event that fires on mouseup after a rubber-band
-                // drag — it would otherwise clear the selection we just set.
-                this._ignoreNextClick = true;
-                setTimeout(() => { this._ignoreNextClick = false; }, 50);
-            });
-            this.dragselect[this.view] = ds;
-
-            // Seed already-present editable elements (querySelectorAll with wildcard
-            // tag names is not valid CSS; use class-based query instead).
-            const existing = [...view.querySelectorAll('.feezal-editable')];
-            if (existing.length > 0) {
-                ds.addSelectables(existing);
-                existing.forEach(el => { el._feezalInDragSelect = true; });
-            }
-
-            // Reliable click-selection via composedPath — shared with flow views
-            // (U41), which have no DragSelect. Attached once per view.
-            this._attachCanvasSelection(view);
-        }
-
-        // Defer start() to the next animation frame so DragSelect computes
-        // the SelectorArea position AFTER feezal-view.style.display has been
-        // set to '' by feezal-view's own Lit update (which runs as a microtask
-        // after _viewChanged). Without this, the view is still display:none
-        // when updatePos() runs, giving a zero-size SelectorArea that blocks
-        // all clicks (B2).
-        const viewName = this.view;
-        requestAnimationFrame(() => {
-            if (this.view === viewName && this.dragselect && this.dragselect[viewName]) {
-                const ds = this.dragselect[viewName];
-                ds.start();
-                // B35: the stop() on switch-away cleared the SelectableSet —
-                // re-register this view's editable elements on re-entry, or the
-                // rubber-band draws but selects nothing.
-                const missing = [...(feezal.getView(viewName)?.querySelectorAll('.feezal-editable') ?? [])]
-                    .filter(el => !el._feezalInDragSelect);
-                if (missing.length > 0) {
-                    ds.addSelectables(missing);
-                    missing.forEach(el => { el._feezalInDragSelect = true; });
-                }
-            }
-        });
+        // Reliable click-selection via composedPath — shared with flow/grid
+        // views, which have no rubber band. Attached once per view element.
+        this._attachCanvasSelection(view);
     }
 
     _viewChanged() {
@@ -1374,27 +1290,9 @@ class FeezalSidebarInspector extends LitElement {
             location.hash = '/' + this.view;
         }
 
-        // Stop DragSelect on all other views so only the active view
-        // responds to pointer events. Without this, all views' DragSelect
-        // instances compete for the same events when views were still visible.
-        // B35: ds.stop() is NOT idempotent — DragSelect's SelectorArea does an
-        // unguarded removeChild, so a second stop() throws NotFoundError and
-        // aborts the rest of _viewChanged (no rubber-band / no element init on
-        // the new view). Only stop running instances (ds.stopped is DragSelect's
-        // own flag), and since stop() also clears the SelectableSet, drop the
-        // per-element registration flags so the restart path re-registers them.
-        Object.entries(this.dragselect).forEach(([name, ds]) => {
-            if (name === this.view || ds.stopped) return;
-            try {
-                ds.stop();
-            } catch (err) {
-                console.warn('[feezal] DragSelect stop failed:', err);
-            }
-            const v = feezal.getView(name);
-            if (v) {
-                v.querySelectorAll('.feezal-editable').forEach(el => { el._feezalInDragSelect = false; });
-            }
-        });
+        // A38: only the active view listens, and the single instance is
+        // retargeted below — there is no longer a set of per-view instances
+        // competing for the same pointer events to stop one by one.
 
         switch (view.childPosition) {
             case 'static':   // U41 — legacy alias, treated as flow
@@ -1403,18 +1301,17 @@ class FeezalSidebarInspector extends LitElement {
                              // container's placement algorithm differs.
                 // Flow reorder is per-element interact.js (initFlow) — the view
                 // only needs the shared click-selection / context menu.
+                this._rubberBand?.stop();
                 this._attachCanvasSelection(view);
                 break;
             default:
-                this._initDragSelect();
+                this._initRubberBand();
         }
 
         this.currentView = [view];
         [...view.children].forEach(element => {
             if (isCanvasElement(element) && !element.feezalEditable) {
                 this.initElem(element);
-            } else if (this.dragselect[this.view]) {
-                this.dragselect[this.view].removeSelection(element);
             }
         });
 
@@ -1605,18 +1502,10 @@ class FeezalSidebarInspector extends LitElement {
     }
 
     _deleteElems() {
-        // B18: drop the deleted elements from DragSelect's bookkeeping too —
-        // stale references to removed nodes otherwise linger in its selection
-        // and selectables sets.
-        const ds = this.dragselect && this.dragselect[this.view];
-        this.selectedElems.forEach(el => {
-            if (ds) {
-                ds.removeSelection(el);
-                ds.removeSelectables(el);
-            }
-
-            el.remove();
-        });
+        // B18 no longer needs bookkeeping here: A38's rubber band queries the
+        // DOM live at gesture end, so a removed node simply stops being found —
+        // there is no selectables set left holding a stale reference.
+        this.selectedElems.forEach(el => el.remove());
         // B18: don't leave an empty selection behind — select the active view
         // (exactly like a click on empty canvas), so the inspector shows the
         // view and the canvas/tab-bar state re-renders instead of going blank.
@@ -1939,10 +1828,9 @@ class FeezalSidebarInspector extends LitElement {
 
         if (absolute) {
             if (element.hasAttribute('locked')) {
-                // Locked: register for selection only, skip drag/resize interact
-                const ds = this.dragselect && this.dragselect[this.view];
-                if (ds) ds.addSelectables(element);
-                element._feezalInDragSelect = true;
+                // Locked: still rubber-band selectable (it carries
+                // .feezal-editable, which is what the band queries), just no
+                // drag/resize interact wiring.
             } else {
                 this.initAbsolute(element, elementOptions);
             }
@@ -2019,12 +1907,8 @@ class FeezalSidebarInspector extends LitElement {
         // restore what flow stashed, or fall back to where it is actually
         // rendered so nothing stacks in the corner.
         restoreAbsoluteGeometry(element);
-        // Register with DragSelect (guard against double-registration on re-init after unlock)
-        const ds = this.dragselect && this.dragselect[this.view];
-        if (ds && !element._feezalInDragSelect) {
-            ds.addSelectables(element);
-            element._feezalInDragSelect = true;
-        }
+        // A38: nothing to register — the rubber band finds elements by class at
+        // gesture time, so there is no double-registration case to guard.
 
         interact(element)
             .draggable({
@@ -2049,17 +1933,13 @@ class FeezalSidebarInspector extends LitElement {
                     // B8: fresh canvas-extent snapshot for this drag (the
                     // restriction closure caches it lazily on first use).
                     this._dragExtent = null;
-                    // Use selectedElems (authoritative state) rather than the CSS class —
-                    // DragSelect adds selectedClass on pointerdown before onstart fires,
-                    // so the CSS check would incorrectly skip selectElement().
+                    // Use selectedElems (authoritative state) rather than the
+                    // CSS class: the class is presentation, the array is truth.
                     if (!this.selectedElems.includes(element)) {
                         this.selectElement(element);
                     }
-                    // Re-apply feezal-selected to all selected elements. DragSelect
-                    // clears the class on all elements during ds.break() (which fires
-                    // on every pointer-down on an element), before our callback can
-                    // guard against it — leaving non-dragged elements without the
-                    // selection outline for the duration of the drag.
+                    // Re-assert the outline on every selected element for the
+                    // duration of the drag.
                     this.selectedElems.forEach(el => el.classList.add('feezal-selected'));
 
                     this.selectedElems

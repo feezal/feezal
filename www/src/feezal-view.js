@@ -65,6 +65,20 @@ class FeezalView extends LitElement {
     };
 
     static styles = css`
+        /* A38 — the view is the CONTAINING BLOCK for its absolutely positioned
+           children: every element's top/left is view-relative (that is what the
+           style inspector edits and what B80 stashes/restores), which only
+           holds while the view itself is positioned.
+           This was never declared. DragSelect happened to set position:relative
+           on its area element, so the editor worked by side effect and the
+           viewer got away with it because a 100%-sized view lines up with its
+           parent anyway. Dropping the library removed the containing block and
+           took element offsets, canvas scroll extent and align/distribute with
+           it — so it is declared here, in the view itself, where the viewer and
+           the static export see it too. */
+        :host([child-position="absolute"]) {
+            position: relative;
+        }
         :host([child-position="absolute"]) ::slotted(*) {
             position: absolute;
         }

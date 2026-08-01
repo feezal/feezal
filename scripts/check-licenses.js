@@ -30,13 +30,12 @@ const ALLOWED = new Set([
     'Unlicense', 'BlueOak-1.0.0', 'WTFPL',
     'Python-2.0', 'Zlib', 'Artistic-2.0', 'W3C',
     'AGPL-3.0-only',  // feezal itself (workspace links in lockfiles)
-    // GPL-3.0: compatible with distributing feezal BECAUSE feezal is
-    // AGPL-3.0-only — AGPLv3 §13 / GPLv3 §13 explicitly permit combining
-    // the two, each part keeping its license. (For a permissive-licensed
-    // project this would NOT be acceptable — revisit if feezal ever
-    // relicenses.) Current user: dragselect (v2+ relicensed MIT→GPL-3.0),
-    // editor-only, so it never ships in viewer bundles / static exports.
-    'GPL-3.0', 'GPL-3.0-only', 'GPL-3.0-or-later'
+    // GPL-3.0 is deliberately NOT allowlisted. It would be *compatible*
+    // with distributing feezal (AGPLv3 §13 / GPLv3 §13 permit the
+    // combination, each part keeping its license), but the only dependency
+    // that ever needed it was dragselect, dropped in A38. Keeping the gate
+    // tight means a future GPL dependency is a conscious decision with an
+    // argued exception, not a silent inheritance.
 ]);
 
 function licenseAllowed(expr) {

@@ -7,7 +7,7 @@ Each entry is filed under the section its **ID prefix** belongs to — `B` Bugs,
 Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastructure,
 `D` Documentation — and sorted by number within it, so a new entry has exactly one correct place.
 
-**331 items.**
+**368 items.**
 
 ## Bugs
 
@@ -367,6 +367,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 
 ## Architecture & Infrastructure
 
+- [A38 — Drop DragSelect: hand-rolled rubber-band selection ✅ done](A38.md)
 - [A2 — Site management UI in editor  ✅ implemented](A2.md)
 - [A5 — Testing & CI ✅ done](A5.md)
 - [A6 — Remove `/feezal` path prefix ⚡ high priority  ✅ implemented](A6.md)

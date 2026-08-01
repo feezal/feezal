@@ -165,3 +165,58 @@ describe('viewer theme class mirroring', () => {
         document.body.classList.remove('feezal-theme-dark-mint');
     });
 });
+
+/**
+ * A38 — an absolute view must be the CONTAINING BLOCK for its children.
+ *
+ * Every element's inline top/left is view-relative: that is what the style
+ * inspector writes, what B80 stashes and restores across a mode switch, and
+ * what align/distribute computes against. It only holds while the view itself
+ * is positioned — which was never declared, and worked for years only because
+ * DragSelect set position:relative on its area element. Dropping that library
+ * removed the containing block and silently broke element offsets, the canvas
+ * scroll extent and align/distribute at once. Hence an explicit test.
+ */
+describe('absolute views establish a containing block', () => {
+    it('positions a child relative to the VIEW, not an outer ancestor', async () => {
+        // An offset ancestor: without the rule the child would resolve against
+        // this instead, landing 40/30px off.
+        const outer = document.createElement('div');
+        outer.style.cssText = 'position:relative; padding:30px 0 0 40px;';
+        document.body.append(outer);
+
+        const view = document.createElement('feezal-view');
+        view.setAttribute('name', 'abs');
+        view.setAttribute('child-position', 'absolute');
+        view.style.cssText = 'display:block; width:400px; height:300px;';
+        const child = document.createElement('div');
+        child.style.cssText = 'width:20px; height:20px;';
+        child.style.left = '50px';
+        child.style.top = '100px';
+        view.append(child);
+        outer.append(view);
+        await view.updateComplete;
+
+        expect(getComputedStyle(view).position).toBe('relative');
+        const vr = view.getBoundingClientRect();
+        const cr = child.getBoundingClientRect();
+        expect(Math.round(cr.left - vr.left)).toBe(50);
+        expect(Math.round(cr.top - vr.top)).toBe(100);
+        outer.remove();
+    });
+
+    it('does not force position on container-placed views', async () => {
+        // flow/grid children are laid out by the container; the host does not
+        // need to be a containing block, and forcing it could change stacking.
+        for (const mode of ['flow', 'grid']) {
+            const view = document.createElement('feezal-view');
+            view.setAttribute('name', 'c-' + mode);
+            view.setAttribute('child-position', mode);
+            view.style.cssText = 'display:block; width:200px; height:200px;';
+            document.body.append(view);
+            await view.updateComplete;
+            expect(getComputedStyle(view).position, mode).toBe('static');
+            view.remove();
+        }
+    });
+});

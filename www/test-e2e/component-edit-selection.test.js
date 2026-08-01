@@ -79,14 +79,20 @@ describe('component edit mode selection (B48)', () => {
         await expect.poll(() => page.locator('#component-edit-banner').count()).toBe(0);
 
         await enterEditMode();
-        // The recreated pseudo-view must be freshly wired: the DragSelect area
-        // is the CURRENT node and the selection listeners are attached.
+        // The recreated pseudo-view must be freshly wired: the rubber band is
+        // bound to the CURRENT node (A38 — it retargets via bind(), which is
+        // what makes the B48 class of bug structurally impossible) and the
+        // selection listeners are attached.
         const state = await page.evaluate(() => {
             const view = feezal.site.querySelector('feezal-view[feezal-component-edit]');
-            const ds = feezal.editor.dragselect?.[feezal.editor.view];
-            return {wired: Boolean(view?._feezalSelectionWired), areaCurrent: ds?.Area?.HTMLNode === view};
+            const band = feezal.editor._rubberBand;
+            return {
+                wired: Boolean(view?._feezalSelectionWired),
+                boundToCurrent: band?.view === view,
+                running: band ? !band.stopped : false,
+            };
         });
-        expect(state).toEqual({wired: true, areaCurrent: true});
+        expect(state).toEqual({wired: true, boundToCurrent: true, running: true});
         await probeSelection('second session');
     }, 60_000);
 });

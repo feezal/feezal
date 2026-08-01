@@ -56,7 +56,6 @@ feezal stands on the shoulders of some excellent open-source work:
 - [Lit](https://lit.dev) — every feezal element, the editor and the viewer are Lit components
 - [MQTT.js](https://github.com/mqttjs/MQTT.js) — the MQTT client behind both the browser's direct broker connection and the server bridge
 - [interact.js](https://interactjs.io) — drag, resize and snapping on the editor canvas
-- [DragSelect](https://dragselect.com) — rubber-band multi-selection in the editor (GPL-3.0)
 - [Express](https://expressjs.com) — the feezal server's HTTP framework (API, editor/viewer hosting, assets)
 - [Socket.IO](https://socket.io) — the live editor/viewer ↔ server link relaying MQTT over WebSockets
 - [Shoelace](https://shoelace.style) — the editor chrome's UI components (dialogs, inputs, dropdowns, …)
