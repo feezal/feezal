@@ -123,6 +123,23 @@ describe('U87 — layers panel (own sidebar tab)', () => {
         await expect.poll(() => el('a').evaluate(e => e.classList.contains('feezal-selected'))).toBe(true);
     });
 
+    it('selecting from the tree KEEPS the sidebar on Layers', async () => {
+        await openLayers();
+        await layers().locator('li', {hasText: 'b'}).first().click();
+        await expect.poll(() => el('b').evaluate(e => e.classList.contains('feezal-selected'))).toBe(true);
+        // the panel must not swap out from under the user mid-task
+        await expect.poll(() => page.evaluate(() =>
+            document.querySelector('feezal-app-editor').sidebar)).toBe('layers');
+        await expect.poll(() => layers().isVisible()).toBe(true);
+    });
+
+    it('selecting on the CANVAS still reveals the Inspector', async () => {
+        await openLayers();
+        await el('c').click();
+        await expect.poll(() => page.evaluate(() =>
+            document.querySelector('feezal-app-editor').sidebar)).toBe('inspector');
+    });
+
     it('the canvas selection is mirrored back into the list', async () => {
         await select(['b']);
         await openLayers();
