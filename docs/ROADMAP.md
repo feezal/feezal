@@ -10,6 +10,7 @@ Work in progress — priorities and scope are not final.
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
 - [B102 — U85 toasts ignore the editor dark mode](#b102--u85-toasts-ignore-the-editor-dark-mode)
+- [B103 — Rubber-band selection rectangle grows beyond the canvas](#b103--rubber-band-selection-rectangle-grows-beyond-the-canvas)
 
 
 **Near-term Improvements**
@@ -314,6 +315,15 @@ This also **removes an existing ambiguity**: `slim` and `autohide` are independe
 **Fix:** add `feezal-toast` to the dark-mode propagation selector list — one line — and extend the U85 browser test with the same propagated-palette regression the overlay got (set `--feezal-bg` on the host, assert the toast's computed background). While there, check the toast against the N43 chrome-adoption ratchet's expectations (it renders no Shoelace controls, so the ratchet does not catch this — which is WHY it slipped: the ratchet covers `sl-*` chrome, not the `--feezal-*` palette contract; consider a second ratchet that greps `www/src` components using `--feezal-bg/-color` fallbacks and asserts membership in the propagation list).
 
 **Relates:** U85 (the toast channel), the connection-overlay dark fix (same pattern, 07/2026), N43 (the chrome ratchet whose blind spot this exposes).
+
+
+### B103 — Rubber-band selection rectangle grows beyond the canvas
+
+**Reported (08/2026).** Dragging a rubber-band selection can draw the selection rectangle PAST the view/canvas bounds — the dotted rect grows bigger than the canvas instead of being clipped at its edges.
+
+**Where to look:** the selector div is created in `_initDragSelect` ([feezal-sidebar-inspector.js](../www/src/feezal-sidebar-inspector.js)) and positioned by DragSelect with the feezal-view as its `area`; the view has `overflow` visible in the editor, so nothing clips the rect when the pointer leaves the view. Candidate fixes: clip via the area (overflow) without breaking canvas overflow semantics, or clamp the rect geometry to the area box.
+
+**Relates:** **A38** (drop DragSelect — another strike for the hand-rolled replacement, where clamping the rect to the canvas box is one line; if A38 lands first this bug dissolves into it), B2/B35/B48 ✅ (the DragSelect lifecycle bug family).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
@@ -2304,7 +2314,7 @@ AI apply results, and the asset upload/rename outcomes.
 
 **Relates:** N42 (querySelector caching lands naturally during extraction), A36 (the server twin).
 
-### U89 — Equal-gap smart guides during drag 💡
+### U89 — Equal-gap smart guides during drag 💡 refined 08/2026
 
 Carried out of **U83** ✅ (align & distribute), which covers the explicit
 operation but not the live hint. While dragging an element, show a guide when
@@ -2312,11 +2322,26 @@ the gap to its neighbour matches an existing gap elsewhere in the row/column —
 the "equal spacing" affordance every design tool has, so a row can be laid out
 by hand without invoking Distribute at all.
 
+**Refined (08/2026) — neighbour-gap propagation is the core case.** When the
+dragged element approaches a neighbour, look at THAT neighbour's gap to *its*
+next neighbour on the **other side** and propose the same gap for the dragged
+element: dropping a third card next to two cards spaced 16px apart proposes
+16px, so rows grow with consistent rhythm without ever measuring anything.
+- **Visualization — "gap arrows":** dotted markers in the style of the
+  existing helper lines, drawn in the gap itself: one for the **measured**
+  gap the neighbour pair already has, one for the **proposed** gap under the
+  dragged element, so the match is visible as "these two spans are equal"
+  (each arrow with its px value, like design tools annotate spacing).
+- **Snapping:** when element snapping is active, the drag **snaps to the
+  proposed-gap position** (same magnet strength as edge snapping); with
+  snapping off the arrows stay a pure hint.
+
 **Why it is incremental:** the snap engine (`_snap()` in
 `feezal-sidebar-inspector.js`) already measures every sibling edge on each drag
 frame to draw the four snap guides; equal-gap detection is another pass over
 the same measurements (compare the leading/trailing gaps rather than the edges),
-reusing the existing guide-line rendering.
+reusing the existing guide-line rendering — plus the new gap-arrow marker.
 
-**Open:** how many gaps to consider (immediate neighbours vs. the whole row),
-and whether the guide should also SNAP to the equal-gap position or only hint.
+**Open:** how many gaps to consider beyond the adjacent-pair case above
+(immediate neighbours vs. the whole row); gap-arrow styling details (arrowheads
+vs. plain dotted span with end ticks).
