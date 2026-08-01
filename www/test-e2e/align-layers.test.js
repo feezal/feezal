@@ -225,4 +225,39 @@ describe('U88 — MQTT panel', () => {
         await select(['a', 'b']);
         await expect.poll(() => inspector().locator('sl-tab[panel="debug"]').count()).toBe(0);
     });
+
+    /**
+     * The single-element tabs vanish when the selection becomes a view or a
+     * multi-selection. Without a fallback sl-tab-group keeps pointing at the
+     * missing panel and the inspector renders BLANK.
+     */
+    it('falls back to Attributes when the selection loses the MQTT tab', async () => {
+        await openInspector();
+        await select(['a']);
+        await inspector().locator('sl-tab[panel="debug"]').click();
+        await expect.poll(() => inspector().locator('feezal-sidebar-debug').isVisible()).toBe(true);
+
+        // select the VIEW — the MQTT tab disappears
+        await page.evaluate(() => {
+            window.feezal.app.shadowRoot.querySelector('feezal-sidebar-inspector').selectElement();
+        });
+        await expect.poll(() => inspector().locator('sl-tab[panel="debug"]').count()).toBe(0);
+        // …and the panel shows Attributes rather than nothing
+        await expect.poll(() =>
+            inspector().locator('feezal-sidebar-inspector-attributes').isVisible()).toBe(true);
+        await expect.poll(() => page.evaluate(() =>
+            window.feezal.app.shadowRoot.querySelector('feezal-sidebar-inspector')._activeTab
+        )).toBe('attributes');
+    });
+
+    it('falls back to Attributes from the MQTT tab on a multi-selection too', async () => {
+        await openInspector();
+        await select(['a']);
+        await inspector().locator('sl-tab[panel="debug"]').click();
+        await expect.poll(() => inspector().locator('feezal-sidebar-debug').isVisible()).toBe(true);
+
+        await select(['a', 'b']);
+        await expect.poll(() =>
+            inspector().locator('feezal-sidebar-inspector-attributes').isVisible()).toBe(true);
+    });
 });

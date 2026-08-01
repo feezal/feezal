@@ -21,6 +21,9 @@ import {align, distribute, matchSize, operationLabel} from './feezal-canvas-alig
 const isCanvasElement = el =>
     Boolean(el.localName) && (el.localName.startsWith('feezal-element-') || el.localName === 'feezal-component');
 
+/** Inspector tabs that only exist while exactly ONE element is selected. */
+const SINGLE_ELEMENT_TABS = ['conditions', 'debug'];
+
 // E115 — function-identity aliases for the Switch-family pairing: a family
 // whose tag suffix diverges for the SAME function is normalised here so its twin
 // pairs up (E138: the numeric readout is `*-value` everywhere but `eink-number`).
@@ -307,6 +310,13 @@ class FeezalSidebarInspector extends LitElement {
         this._ctrlDown = false;
     }
 
+    /** Exactly one feezal element (not a view, not a component, not several) —
+     *  the gate for the Conditions and MQTT tabs. */
+    get _singleElementSelected() {
+        return !this.viewSelected && this.selectedElems.length === 1 &&
+            Boolean(this.selectedElems[0]?.localName?.startsWith?.('feezal-element-'));
+    }
+
     _selectionLabel() {
         const n = this.selectedElems?.length ?? 0;
         if (!n) return '';
@@ -351,13 +361,13 @@ class FeezalSidebarInspector extends LitElement {
         // E50: the Conditions tab is offered for a single selected element
         // (not the view, not component instances — those are a later
         // iteration; see the E50 archive entry).
-        const canConditions = !this.viewSelected && this.selectedElems.length === 1 &&
-            Boolean(this.selectedElems[0]?.localName?.startsWith?.('feezal-element-'));
+        // E50 Conditions and U88 MQTT are both single-element panels (a
+        // condition set or a message tail for several elements at once is
+        // noise, not information) — one predicate, so the tabs and the
+        // fall-back-to-Attributes rule can never disagree.
+        const canConditions = this._singleElementSelected;
         const condCount = canConditions ? this._conditionCount(this.selectedElems[0]) : 0;
-        // U88: the MQTT panel is single-element only — a tail of several
-        // elements' topics at once is noise, not a diagnosis.
-        const canDebug = !this.viewSelected && this.selectedElems.length === 1 &&
-            Boolean(this.selectedElems[0]?.localName?.startsWith?.('feezal-element-'));
+        const canDebug = this._singleElementSelected;
         // E115: families the current selection can be switched to (union of each
         // element's twins in other installed families).
         const switchTargets = cm.visible && cm.onElem ? this._switchFamilyTargets() : [];
@@ -854,16 +864,14 @@ class FeezalSidebarInspector extends LitElement {
             this._viewChanged();
         }
 
-        // E50: if the selection changed away from a single element while the
-        // Conditions tab was active, the tab is gone — fall back to Attributes
-        // so sl-tab-group isn't left pointing at a missing panel.
-        if (changed.has('selectedElems') && this._activeTab === 'conditions') {
-            const single = !this.viewSelected && this.selectedElems.length === 1 &&
-                Boolean(this.selectedElems[0]?.localName?.startsWith?.('feezal-element-'));
-            if (!single) {
-                this._activeTab = 'attributes';
-                this.shadowRoot.querySelector('sl-tab-group')?.show?.('attributes');
-            }
+        // E50/U88: the single-element tabs (Conditions, MQTT) disappear when
+        // the selection changes to a view or a multi-selection — fall back to
+        // Attributes, or sl-tab-group is left pointing at a panel that no
+        // longer exists and the inspector renders BLANK.
+        if (changed.has('selectedElems') &&
+            SINGLE_ELEMENT_TABS.includes(this._activeTab) && !this._singleElementSelected) {
+            this._activeTab = 'attributes';
+            this.shadowRoot.querySelector('sl-tab-group')?.show?.('attributes');
         }
 
         // Keep the context menu (and its submenus) on-screen. The top-level menu
