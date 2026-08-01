@@ -10,6 +10,7 @@ Work in progress — priorities and scope are not final.
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
 - [B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces](#b106--discovery-ids-is-space-separated-but-mqtt-topics-may-contain-spaces)
+- [B108 — Layers tree: previous view's selection stays marked after cross-view select](#b108--layers-tree-previous-views-selection-stays-marked-after-cross-view-select)
 
 
 **Near-term Improvements**
@@ -342,6 +343,41 @@ stamp → parse → dupe-guard must match exactly.
 the dupe-guard consumer), E108 ✅ (native recognizers whose IDs carry channel
 names), N12 (re-sync — anything else reading discovery ids must use the same
 parser).
+
+
+### B108 — Layers tree: previous view's selection stays marked after cross-view select
+
+**Reported (08/2026).** Selecting an element on ANOTHER view in the layers
+tree (U87) correctly switches the view and selects the element on the canvas
+— but the element that was selected on the FIRST view still shows as selected
+in the tree.
+
+**Root cause direction:** the tree deliberately has no selection state of its
+own — it mirrors the `feezal-selected` class site-wide
+(`_selection()` in [feezal-sidebar-layers.js](../www/src/feezal-sidebar-layers.js)
+reads `feezal.site.querySelectorAll('.feezal-selected')`). So the stale tree
+row means the stale CLASS: the canvas selection path clears `feezal-selected`
+only within the active view (and DragSelect instances are per-view), so the
+element on the previous view keeps its class after the switch — the tree just
+faithfully shows it. The canvas itself hides the old view, which is why only
+the tree makes it visible.
+
+**Fix:** on the cross-view select path (the tree's `_onRowClick` →
+`_selectView` → inspector select), clear `feezal-selected` across ALL views
+(site-wide sweep) before applying the new selection — or fix it centrally in
+the inspector's view-switch/selectElement so every cross-view selection change
+(not just tree-initiated ones) strips the previous view's classes. Central fix
+preferred: the stale class is also latent state for anything else reading
+site-wide selection.
+
+**Test:** browser test in the layers suite — select element A on view 1,
+tree-select element B on view 2, assert A no longer carries
+`feezal-selected` and the tree shows exactly one selected row.
+
+**Relates:** U87 (the layers tree), B35/B48 (per-view DragSelect lifecycle —
+why the class survives the switch), the deploy `_clean` step (which strips
+`feezal-selected` on serialize — the stale class never reached saved HTML,
+which is why this stayed invisible until the tree mirrored it).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
