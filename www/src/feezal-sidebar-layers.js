@@ -233,7 +233,11 @@ class FeezalSidebarLayers extends LitElement {
     }
 
     /**
-     * A view's canvas elements, top-most first (paint order reversed).
+     * A view's canvas elements in DOM order — the same order the canvas reads
+     * in. This deliberately does NOT follow the usual layers-panel convention
+     * of listing the top-most element first: feezal's flow/grid views lay their
+     * children out in DOM order, so reversing made the tree run backwards
+     * against what the user is looking at.
      *
      * Identified by WHAT THEY ARE, not by the `feezal-editable` class: that
      * class is stamped by the editor when it initialises a view, so a view the
@@ -243,8 +247,7 @@ class FeezalSidebarLayers extends LitElement {
     _elementsOf(view) {
         return [...view.children]
             .filter(el => el.localName &&
-                (el.localName.startsWith('feezal-element-') || el.localName === 'feezal-component'))
-            .reverse();
+                (el.localName.startsWith('feezal-element-') || el.localName === 'feezal-component'));
     }
 
     _label(el) {
@@ -537,11 +540,13 @@ class FeezalSidebarLayers extends LitElement {
         const view = moved.parentElement;
         if (!view || target.parentElement !== view) return;
 
-        // The list is top-most first, the DOM is bottom-most first: dropping
-        // onto a row lower in the LIST means "go behind it" in the DOM.
+        // The list now runs in DOM order, so a drop takes the TARGET's row:
+        // dragging downwards lands after it, dragging upwards lands before it.
+        // (Both branches flipped when the tree stopped being reversed — with
+        // the old order the same intent needed the opposite insert.)
         const list = this._elementsOf(view);
-        if (list.indexOf(moved) < list.indexOf(target)) view.insertBefore(moved, target);
-        else view.insertBefore(moved, target.nextSibling);
+        if (list.indexOf(moved) < list.indexOf(target)) view.insertBefore(moved, target.nextSibling);
+        else view.insertBefore(moved, target);
 
         feezal.app?.change();
         this.requestUpdate();

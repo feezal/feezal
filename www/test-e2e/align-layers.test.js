@@ -109,12 +109,12 @@ describe('U87 — layers panel (own sidebar tab)', () => {
         await expect.poll(() => inspector().isVisible()).toBe(false);
     });
 
-    it('lists the view as a node with its elements top-most first', async () => {
+    it('lists the view as a node with its elements in canvas (DOM) order', async () => {
         await openLayers();
         const views = await layers().locator('.view-row .view-name').allTextContents();
         expect(views.map(t => t.trim())).toEqual(['main']);
         const labels = await layers().locator('li .label').allTextContents();
-        expect(labels.map(t => t.trim())).toEqual(['c', 'b', 'a']);
+        expect(labels.map(t => t.trim())).toEqual(['a', 'b', 'c']);
     });
 
     it('clicking a row selects that element on the canvas', async () => {
@@ -200,7 +200,10 @@ describe('U87 — layers panel (own sidebar tab)', () => {
         });
         await expect.poll(() => layers().locator('li').count()).toBe(before + 1);
         const labels = await layers().locator('li .label').allTextContents();
-        expect(labels[0].trim()).toBe('added');     // newest is top-most
+        // The tree runs in DOM order, so an appended element lands LAST —
+        // it is still the top-most one on the canvas (U33: paint order is DOM
+        // order), the list just no longer reads back-to-front.
+        expect(labels.at(-1).trim()).toBe('added');
     });
 });
 

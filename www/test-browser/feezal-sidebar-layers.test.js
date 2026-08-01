@@ -128,12 +128,15 @@ describe('tree structure', () => {
         expect(labels(panel)).toEqual(['b']);
     });
 
-    it('lists a view element TOP-MOST first (reverse paint order)', async () => {
+    it('lists a view element in DOM order, the order the canvas reads in', async () => {
+        // Deliberately NOT the usual layers-panel "top-most first": flow and
+        // grid views lay their children out in DOM order, so reversing ran the
+        // tree backwards against what the user is looking at.
         const main = addView('main');
-        addElement(main, 'feezal-element-basic-number', {label: 'bottom'});
-        addElement(main, 'feezal-element-basic-icon', {label: 'top'});
+        addElement(main, 'feezal-element-basic-number', {label: 'first'});
+        addElement(main, 'feezal-element-basic-icon', {label: 'second'});
         const panel = await mountPanel('main');
-        expect(labels(panel)).toEqual(['top', 'bottom']);
+        expect(labels(panel)).toEqual(['first', 'second']);
     });
 
     it('marks the current view and ignores non-canvas children', async () => {
@@ -212,10 +215,10 @@ describe('fuzzy filter', () => {
         // returns to whatever was open — it must not COLLAPSE anything the
         // user (or a selection) had opened.
         const panel = await mountPanel('main');
-        expect(labels(panel)).toEqual(['Lamp', 'Kitchen temperature']);   // main only
+        expect(labels(panel)).toEqual(['Kitchen temperature', 'Lamp']);   // main only
         await type(panel, 'temp');
         await type(panel, '');
-        expect(labels(panel)).toEqual(['Lamp', 'Kitchen temperature']);
+        expect(labels(panel)).toEqual(['Kitchen temperature', 'Lamp']);
     });
 });
 
@@ -225,7 +228,7 @@ describe('selection mirroring', () => {
         const a = addElement(main, 'feezal-element-basic-number', {label: 'a'});
         addElement(main, 'feezal-element-basic-icon', {label: 'b'});
         const panel = await mountPanel('main');
-        rows(panel)[1].click();                       // 'a' is the bottom row
+        rows(panel)[0].click();                       // 'a' is the first row
         await panel.updateComplete;
         expect(inspector.selectElement).toHaveBeenCalledWith([a], {revealInspector: false});
     });
@@ -258,7 +261,7 @@ describe('selection mirroring', () => {
         const b = addElement(main, 'feezal-element-basic-icon', {label: 'b'});
         a.classList.add('feezal-selected');
         const panel = await mountPanel('main');
-        rows(panel)[0].dispatchEvent(new MouseEvent('click', {ctrlKey: true, bubbles: true}));
+        rows(panel)[1].dispatchEvent(new MouseEvent('click', {ctrlKey: true, bubbles: true}));
         await panel.updateComplete;
         expect(inspector.selectElement).toHaveBeenCalledWith([a, b], {revealInspector: false});
     });
@@ -290,18 +293,40 @@ describe('lock and restack', () => {
         expect(feezal.app.change).toHaveBeenCalled();
     });
 
-    it('dragging a top row onto a lower one sends it back in paint order', async () => {
-        const main = addView('main');
-        addElement(main, 'feezal-element-basic-number', {label: 'bottom'});
-        addElement(main, 'feezal-element-basic-icon', {label: 'top'});
-        const panel = await mountPanel('main');
-        expect(labels(panel)).toEqual(['top', 'bottom']);
+    const DT = () => ({effectAllowed: '', setData() {}, getData: () => ''});
 
-        const dt = () => ({effectAllowed: '', setData() {}, getData: () => ''});
-        rows(panel)[0].dispatchEvent(Object.assign(new Event('dragstart', {bubbles: true}), {dataTransfer: dt()}));
-        rows(panel)[1].dispatchEvent(Object.assign(new Event('drop', {bubbles: true}), {dataTransfer: dt()}));
-        await until(() => labels(panel)[0] === 'bottom');
+    async function dragRow(panel, fromIdx, toIdx) {
+        rows(panel)[fromIdx].dispatchEvent(
+            Object.assign(new Event('dragstart', {bubbles: true}), {dataTransfer: DT()}));
+        rows(panel)[toIdx].dispatchEvent(
+            Object.assign(new Event('drop', {bubbles: true}), {dataTransfer: DT()}));
+    }
+
+    it('dragging a row DOWN drops it after the row it lands on', async () => {
+        const main = addView('main');
+        addElement(main, 'feezal-element-basic-number', {label: 'first'});
+        addElement(main, 'feezal-element-basic-icon', {label: 'second'});
+        const panel = await mountPanel('main');
+        expect(labels(panel)).toEqual(['first', 'second']);
+
+        await dragRow(panel, 0, 1);
+        await until(() => labels(panel)[0] === 'second');
+        expect(labels(panel)).toEqual(['second', 'first']);
         expect(feezal.app.change).toHaveBeenCalled();
+    });
+
+    it('dragging a row UP drops it before the row it lands on', async () => {
+        // The mirror case: both insert branches flipped when the tree stopped
+        // being reversed, so the upward direction needs its own guard.
+        const main = addView('main');
+        addElement(main, 'feezal-element-basic-number', {label: 'first'});
+        addElement(main, 'feezal-element-basic-icon', {label: 'second'});
+        addElement(main, 'feezal-element-basic-icon', {label: 'third'});
+        const panel = await mountPanel('main');
+
+        await dragRow(panel, 2, 0);
+        await until(() => labels(panel)[0] === 'third');
+        expect(labels(panel)).toEqual(['third', 'first', 'second']);
     });
 
     it('never moves an element across views', async () => {
@@ -313,9 +338,7 @@ describe('lock and restack', () => {
         viewRows(panel)[1].click();
         await panel.updateComplete;
 
-        const dt = () => ({effectAllowed: '', setData() {}, getData: () => ''});
-        rows(panel)[0].dispatchEvent(Object.assign(new Event('dragstart', {bubbles: true}), {dataTransfer: dt()}));
-        rows(panel)[1].dispatchEvent(Object.assign(new Event('drop', {bubbles: true}), {dataTransfer: dt()}));
+        await dragRow(panel, 0, 1);
         await panel.updateComplete;
         expect(a.parentElement).toBe(main);
         expect(b.parentElement).toBe(other);
@@ -331,7 +354,7 @@ describe('live tracking', () => {
 
         addElement(main, 'feezal-element-basic-icon', {label: 'two'});
         await until(() => rows(panel).length === 2);
-        expect(labels(panel)).toEqual(['two', 'one']);
+        expect(labels(panel)).toEqual(['one', 'two']);
 
         main.querySelector('[label="one"]').remove();
         await until(() => rows(panel).length === 1);
