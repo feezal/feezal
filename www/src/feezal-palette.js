@@ -1,5 +1,6 @@
 import interact from 'interactjs';
 import {LitElement, html, css} from 'lit';
+import {isFlowLike} from './feezal-view.js';   // U90
 
 import '@shoelace-style/shoelace/dist/components/input/input.js';
 
@@ -364,8 +365,8 @@ class FeezalPalette extends LitElement {
             return;
         }
 
-        // U41 — flow views place by DOM order, not top/left.
-        if (feezal.view && feezal.view.childPosition === 'flow') {
+        // U41 — flow views place by DOM order, not top/left (U90: and grid).
+        if (isFlowLike(feezal.view)) {
             this._flowReposition();
             return;
         }

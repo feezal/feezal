@@ -6,6 +6,7 @@ import '@shoelace-style/shoelace/dist/components/option/option.js';
 import '@shoelace-style/shoelace/dist/components/color-picker/color-picker.js';
 import {LIVE_APPLY_DEBOUNCE_MS} from './feezal-sidebar-inspector-attributes.js';
 import {resolveCssColor, composeThemeAlpha, normalizeHexa} from './feezal-color-util.js';
+import {isFlowLike} from './feezal-view.js';   // U90
 // U65: colour bindings — Static / Subscribe / Range modes on every colour row
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {getSiteColorRanges, rangeSwatchGradient, cssQuote, cssUnquote,
@@ -805,8 +806,9 @@ class FeezalSidebarInspectorStyles extends LitElement {
         let allDeclared = this.options.styles || [];
         // U41: children of a flow view are laid out by the flex container — top/
         // left are meaningless, so hide them (width/height + the % presets stay).
+        // U90: same for grid, where width/height instead drive the cell span.
         const inFlowView = !el.name && this.selectedElems.every(e =>
-            !e.name && e.parentElement?.localName === 'feezal-view' && e.parentElement.childPosition === 'flow');
+            !e.name && e.parentElement?.localName === 'feezal-view' && isFlowLike(e.parentElement));
         if (inFlowView) {
             allDeclared = allDeclared.filter(p => !['top', 'left'].includes(styleKey(p)));
         }

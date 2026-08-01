@@ -1,6 +1,7 @@
 import {describe, it, expect, vi} from 'vitest';
 
 import '../src/feezal-view.js';
+import {isFlowLike} from '../src/feezal-view.js';
 
 function makeView(name) {
     const view = document.createElement('feezal-view');
@@ -119,10 +120,11 @@ describe('feezal-view flow layout (U41)', () => {
         expect(gap).toBeTruthy();
         expect(gap.visibleWhen).toEqual({attr: 'child-position', equals: 'flow'});
         // The child-position dropdown is kebab-named so its value keys the U39
-        // visibleWhen map — and offers absolute | flow (no legacy "static").
+        // visibleWhen map — and offers absolute | flow | grid (U90; no legacy
+        // "static").
         const cp = attrs.find(a => a.name === 'child-position');
         expect(cp).toBeTruthy();
-        expect(cp.dropdown).toEqual(['absolute', 'flow']);
+        expect(cp.dropdown).toEqual(['absolute', 'flow', 'grid']);
         // Every flow knob keys off 'child-position' — the SAME name the
         // child-position descriptor exposes (regression: it was 'childPosition').
         for (const n of ['flow-gap', 'flow-direction', 'flow-justify', 'flow-align']) {
@@ -191,5 +193,155 @@ describe('per-view theme (U51)', () => {
         // time (browser-tested in test-browser/feezal-theme-select.test.js).
         const spec = customElements.get('feezal-view').feezal.attributes.find(a => a?.name === 'theme');
         expect(spec).toMatchObject({type: 'custom', component: 'feezal-theme-select'});
+    });
+});
+
+
+/**
+ * U90 — grid layout. The geometry itself (does a 2x2 tile actually leave room
+ * beside it?) is a real-CSS question and lives in the browser suite; what is
+ * unit-testable here is the arithmetic that feeds it: which cell size gets
+ * resolved, and which span rules that produces.
+ */
+describe('U90 grid mode', () => {
+    /** A grid view whose generated sheet is captured instead of applied. */
+    function gridView(children = [], props = {}) {
+        const view = document.createElement('feezal-view');
+        view.childPosition = 'grid';
+        Object.assign(view, props);
+        for (const [w, h] of children) {
+            const el = document.createElement('feezal-element-basic-number');
+            if (w) el.style.width = `${w}px`;
+            if (h) el.style.height = `${h}px`;
+            view.append(el);
+        }
+        let css = '';
+        view._gridSheet = {replaceSync: text => { css = text; }};
+        view._syncGrid();
+        return {view, css: () => css};
+    }
+
+    const spanRules = css => css.split('\n').filter(l => l.startsWith('::slotted'));
+
+    it('classifies container-placed modes, absolute excluded', () => {
+        const view = document.createElement('feezal-view');
+        for (const mode of ['flow', 'grid', 'static']) {
+            view.childPosition = mode;
+            expect(isFlowLike(view), mode).toBe(true);
+        }
+        view.childPosition = 'absolute';
+        expect(isFlowLike(view)).toBe(false);
+        expect(isFlowLike(null)).toBe(false);
+        expect(isFlowLike(undefined)).toBe(false);
+    });
+
+    it('derives the cell from the SMALLEST child, so a double tile spans 2x2', () => {
+        // The reported case: eleven 245x180 cards plus one 520x380 camera.
+        const {css} = gridView([[520, 380], [245, 180], [245, 180]]);
+        expect(css()).toContain('--feezal-grid-cell-width:245px');
+        expect(css()).toContain('--feezal-grid-cell-height:180px');
+        // Only the camera gets a rule; the cards are 1x1 and need none.
+        expect(spanRules(css())).toEqual(
+            ['::slotted(:nth-child(1)){grid-column:span 2;grid-row:span 2}']);
+    });
+
+    it('an explicit cell size wins over the derived one', () => {
+        const {css} = gridView([[240, 180], [120, 90]],
+            {gridCellWidth: '120', gridCellHeight: '90'});
+        expect(css()).toContain('--feezal-grid-cell-width:120px');
+        expect(spanRules(css())).toEqual(
+            ['::slotted(:nth-child(1)){grid-column:span 2;grid-row:span 2}']);
+    });
+
+    it('falls back to a usable cell when no child declares a size', () => {
+        const {css} = gridView([[0, 0], [0, 0]]);
+        expect(css()).toContain('--feezal-grid-cell-width:120px');
+        expect(css()).toContain('--feezal-grid-cell-height:60px');
+        expect(spanRules(css())).toEqual([]);   // everything is 1x1
+    });
+
+    it('rounds to the nearest cell count rather than always growing', () => {
+        // 250 is a hair over 2 cells (245) and must NOT become 3.
+        const {css} = gridView([[250, 90], [120, 90]],
+            {gridCellWidth: '120', gridCellHeight: '90'});
+        expect(spanRules(css())).toEqual(
+            ['::slotted(:nth-child(1)){grid-column:span 2;grid-row:span 1}']);
+    });
+
+    it('counts nth-child over ALL element children, including the drag placeholder', () => {
+        const {view, css} = gridView([[120, 90], [245, 90]],
+            {gridCellWidth: '120', gridCellHeight: '90'});
+        expect(spanRules(css())).toEqual(
+            ['::slotted(:nth-child(2)){grid-column:span 2;grid-row:span 1}']);
+
+        // The editor inserts a placeholder before the dragged tile; the wide
+        // tile is now the THIRD child and its rule has to follow it.
+        const ph = document.createElement('div');
+        ph.className = 'feezal-placeholder';
+        view.insertBefore(ph, view.children[1]);
+        view._syncGrid();
+        expect(spanRules(css())).toEqual(
+            ['::slotted(:nth-child(3)){grid-column:span 2;grid-row:span 1}']);
+    });
+
+    it('ignores percentage sizes instead of reading them as pixels', () => {
+        // `width: 50%` is a flow idiom. Parsed naively it would look like 50px
+        // and — because the cell is derived from the SMALLEST child — drag the
+        // whole grid down to 50px cells.
+        const view = document.createElement('feezal-view');
+        view.childPosition = 'grid';
+        for (const style of ['width:50%;height:100%', 'width:240px;height:180px']) {
+            const el = document.createElement('feezal-element-basic-number');
+            el.style.cssText = style;
+            view.append(el);
+        }
+        let css = '';
+        view._gridSheet = {replaceSync: text => { css = text; }};
+        view._syncGrid();
+
+        expect(css).toContain('--feezal-grid-cell-width:240px');
+        expect(css).toContain('--feezal-grid-cell-height:180px');
+        // The percentage tile just occupies one cell — no span rule at all.
+        expect(spanRules(css)).toEqual([]);
+    });
+
+    it('dense packing is opt-in', () => {
+        const {css} = gridView([[120, 90]]);
+        expect(css()).toContain('--feezal-grid-flow:row;');
+
+        const dense = gridView([[120, 90]], {gridDense: true});
+        expect(dense.css()).toContain('--feezal-grid-flow:row dense;');
+    });
+
+    it('honours the gap in both the variable and the span arithmetic', () => {
+        // gap 0 -> a 240px tile is exactly 2 cells of 120.
+        const {css} = gridView([[240, 90], [120, 90]],
+            {gridCellWidth: '120', gridCellHeight: '90', gridGap: '0'});
+        expect(css()).toContain('--feezal-grid-gap:0px');
+        expect(spanRules(css())).toEqual(
+            ['::slotted(:nth-child(1)){grid-column:span 2;grid-row:span 1}']);
+    });
+
+    it('empties the sheet and drops the observer when the view leaves grid mode', () => {
+        const {view, css} = gridView([[520, 380], [245, 180]]);
+        expect(css()).not.toBe('');
+        expect(view._gridObserver).toBeTruthy();
+
+        view.childPosition = 'flow';
+        view._syncGrid();
+        expect(css()).toBe('');
+        expect(view._gridObserver).toBe(null);
+    });
+
+    it('exposes the grid knobs only while the view is in grid mode', () => {
+        const attrs = customElements.get('feezal-view').feezal.attributes;
+        const names = attrs.filter(a => a?.name?.startsWith('grid-')).map(a => a.name);
+        expect(names).toEqual(['grid-cell-width', 'grid-cell-height', 'grid-gap',
+            'grid-justify', 'grid-dense']);
+        for (const a of attrs.filter(a => a?.name?.startsWith('grid-'))) {
+            expect(a.visibleWhen, a.name).toEqual({attr: 'child-position', equals: 'grid'});
+        }
+        const mode = attrs.find(a => a?.name === 'child-position');
+        expect(mode.dropdown).toEqual(['absolute', 'flow', 'grid']);
     });
 });

@@ -13,6 +13,7 @@ import './feezal-sidebar-inspector-conditions.js';
 import './feezal-sidebar-debug.js';    // U88
 import {clippyStyles, clippyMarkup, clippyEnabled} from './feezal-clippy.js';
 import {align, distribute, matchSize, operationLabel} from './feezal-canvas-align.js';   // U83
+import {isFlowLike} from './feezal-view.js';   // U90
 
 // U32: everything the canvas machinery treats as a first-class element —
 // regular feezal elements plus component instances. Stamped children inside a
@@ -353,7 +354,7 @@ class FeezalSidebarInspector extends LitElement {
         // U83: align/distribute needs ≥2 unlocked absolutely-positioned
         // elements (a flow view lays its children out itself, so moving them
         // by inline offsets would do nothing).
-        const alignable = cm.visible && cm.onElem && feezal.view?.childPosition !== 'flow'
+        const alignable = cm.visible && cm.onElem && !isFlowLike(feezal.view)
             ? selNonView.filter(el => !el.hasAttribute('locked'))
             : [];
         const alignCount = alignable.length;
@@ -971,6 +972,7 @@ class FeezalSidebarInspector extends LitElement {
         switch (view.childPosition) {
             case 'static':
             case 'flow':
+            case 'grid':     // U90 — container-placed, same as flow
                 this._attachCanvasSelection(view);
                 break;
             default:
@@ -1135,6 +1137,12 @@ class FeezalSidebarInspector extends LitElement {
      * fixed, following the pointer) while a placeholder holds its slot; moving
      * the placeholder among the siblings live-reflows the flex layout. Reorder
      * is DOM order (U33), committed to the dirty/undo pipeline on drop.
+     *
+     * U90 — grid views use this unchanged. The placeholder is sized from the
+     * dragged tile's RENDERED rect, which in grid mode is its cell area, so it
+     * claims the same span while the drag is in flight and the hit-test in
+     * _flowMovePlaceholder stays valid (grid places in row-major order, like
+     * flex, as long as `dense` is off).
      */
     initFlow(element) {
         // Flow tiles are laid out by the flex container, so an inline top/left
@@ -1166,6 +1174,12 @@ class FeezalSidebarInspector extends LitElement {
                         element.parentElement.insertBefore(ph, element);
                         element._flowPh = ph;
                         element._flowPos = {x: r.left, y: r.top};
+                        // U90: in a grid view the tile is normally stretched to
+                        // its cell area (width/height forced to auto). The lift
+                        // positions it fixed under the pointer, where it must
+                        // carry its own pixel size again — this class is the
+                        // stretch rule's exemption.
+                        element.classList.add('feezal-lift');
                         Object.assign(element.style, {
                             position: 'fixed', left: `${r.left}px`, top: `${r.top}px`,
                             width: `${r.width}px`, height: `${r.height}px`,
@@ -1185,6 +1199,7 @@ class FeezalSidebarInspector extends LitElement {
                         if (ph && ph.parentElement) ph.parentElement.insertBefore(element, ph);
                         ph?.remove();
                         element._flowPh = null;
+                        element.classList.remove('feezal-lift');   // U90
                         // Restore the authored inline values (top/left stay stripped).
                         const orig = element._flowOrig || {};
                         for (const p of LIFT_PROPS) {
@@ -1384,6 +1399,8 @@ class FeezalSidebarInspector extends LitElement {
         switch (view.childPosition) {
             case 'static':   // U41 — legacy alias, treated as flow
             case 'flow':
+            case 'grid':     // U90 — reorders exactly like flow; only the
+                             // container's placement algorithm differs.
                 // Flow reorder is per-element interact.js (initFlow) — the view
                 // only needs the shared click-selection / context menu.
                 this._attachCanvasSelection(view);
@@ -2305,7 +2322,7 @@ class FeezalSidebarInspector extends LitElement {
      */
     _ctxAlign(op) {
         this._closeCtxMenu();
-        if (!feezal.view || feezal.view.childPosition === 'flow') return;
+        if (!feezal.view || isFlowLike(feezal.view)) return;
         const selection = this.selectedElems.filter(el => el.tagName !== 'FEEZAL-VIEW');
         const movable = selection.filter(el => !el.hasAttribute('locked'));
         const skipped = selection.length - movable.length;

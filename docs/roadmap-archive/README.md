@@ -363,6 +363,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U83 — Alignment & distribution tools for multi-selection ✅ done](U83.md)
 - [U87 — Element outline / layers panel ✅ done](U87.md)
 - [U88 — Selected-element MQTT debug panel ✅ done](U88.md)
+- [U90 — Grid layout for views: `child-position: grid` ✅ done](U90.md)
 
 ## Architecture & Infrastructure
 

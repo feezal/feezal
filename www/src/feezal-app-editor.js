@@ -2565,7 +2565,9 @@ class FeezalAppEditor extends LitElement {
         // is removed (the helper matches on .feezal-editable). Also
         // self-heals sites saved while the leak existed.
         stripCanvasZIndex(container);
-        this._removeClassesFromChildren(container, ['feezal-editable', 'feezal-selected', 'iron-selected', 'ds-selectable']);
+        // U90: `feezal-lift` is the grid drag-lift exemption — normally removed
+        // on drop, but a drag interrupted mid-flight must not persist it.
+        this._removeClassesFromChildren(container, ['feezal-editable', 'feezal-selected', 'iron-selected', 'ds-selectable', 'feezal-lift']);
         container.querySelectorAll('.dragselect-rectangle').forEach(el => el.remove());
         // U32: instances persist as empty tags — stamped content is regenerated
         // from the <template feezal-component> on connect. Also drop any

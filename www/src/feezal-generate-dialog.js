@@ -13,6 +13,7 @@ import {stampDiscovery, resolveElementTag, layoutGrid, knownComponents, discover
     assignRoom, lexiconWordsForLabel, applyFrigateLiveFeed, guessFrigateUrl,
     multivalueMergeGroups, applyMultivalueFill} from './feezal-discovery-stamp.js';
 import {RangeSelect} from './feezal-range-select.js';
+import {isFlowLike} from './feezal-view.js';   // U90
 import './feezal-icon-input.js';   // U78: the shared icon picker for the room list
 
 // U74: a generated app adopts the theme that matches its element family, so the
@@ -985,7 +986,7 @@ class FeezalGenerateDialog extends LitElement {
             cellW = Math.max(cellW, parseFloat(ds.width) || 100);
             cellH = Math.max(cellH, parseFloat(ds.height) || 100);
         }
-        const absolute = view.childPosition !== 'flow';
+        const absolute = !isFlowLike(view);
         const positions = absolute
             ? layoutGrid(toCreate.length, {cellW, cellH, viewWidth: view.clientWidth || 1200})
             : [];
