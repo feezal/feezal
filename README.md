@@ -59,6 +59,8 @@ feezal stands on the shoulders of some excellent open-source work:
 - [DragSelect](https://dragselect.com) — rubber-band multi-selection in the editor (GPL-3.0)
 - [Express](https://expressjs.com) — the feezal server's HTTP framework (API, editor/viewer hosting, assets)
 - [Socket.IO](https://socket.io) — the live editor/viewer ↔ server link relaying MQTT over WebSockets
+- [Shoelace](https://shoelace.style) — the editor chrome's UI components (dialogs, inputs, dropdowns, …)
+- [Material Design](https://m3.material.io) — [Material Web](https://github.com/material-components/material-web) components power the Material element family, and [Material Symbols](https://fonts.google.com/icons) are the built-in icon set
 - [Monaco Editor](https://microsoft.github.io/monaco-editor/) — the editor's source view
 
 Bundled icon sets that require attribution:
