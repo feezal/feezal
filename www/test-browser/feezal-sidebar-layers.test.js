@@ -292,3 +292,177 @@ describe('live tracking', () => {
         expect(viewNames(panel)).toEqual(['main', 'fresh']);
     });
 });
+
+describe('icon column and tooltips', () => {
+    it('reserves the icon column even when an element has no palette icon', async () => {
+        const main = addView('main');
+        addElement(main, 'feezal-element-basic-number', {label: 'no icon'});
+        const panel = await mountPanel('main');
+        const ico = panel.shadowRoot.querySelector('.ico');
+        expect(ico).not.toBeNull();
+        // fixed width, so labels in rows with and without a glyph line up
+        expect(Math.round(ico.getBoundingClientRect().width)).toBe(18);
+    });
+
+    it('shows the element TYPE as the icon and label tooltip', async () => {
+        const main = addView('main');
+        addElement(main, 'feezal-element-glass-contact', {label: 'Front door'});
+        const panel = await mountPanel('main');
+        expect(panel.shadowRoot.querySelector('.ico').getAttribute('title')).toBe('glass-contact');
+        expect(panel.shadowRoot.querySelector('.label').getAttribute('title')).toBe('glass-contact');
+    });
+});
+
+describe('late site load', () => {
+    it('renders once the site appears, without needing a filter keystroke', async () => {
+        // the editor mounts its sidebar panels BEFORE the site markup arrives
+        feezal.site = null;
+        const panel = await mountPanel('main');
+        expect(panel.shadowRoot.querySelectorAll('.view-row')).toHaveLength(0);
+
+        feezal.site = site;
+        const main = addView('main');
+        addElement(main, 'feezal-element-basic-number', {label: 'late'});
+        await until(() => panel.shadowRoot.querySelectorAll('li').length === 1, {timeout: 3000});
+        expect(labels(panel)).toEqual(['late']);
+    });
+});
+
+describe('context menu', () => {
+    const ctx = p => p.shadowRoot.querySelector('.ctx');
+    const items = p => [...p.shadowRoot.querySelectorAll('.ctx-item')].map(i => i.textContent.trim());
+    const rightClick = node =>
+        node.dispatchEvent(new MouseEvent('contextmenu', {bubbles: true, clientX: 40, clientY: 60}));
+
+    it('right-clicking an element offers the canvas actions and delegates them', async () => {
+        const main = addView('main');
+        const a = addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        const panel = await mountPanel('main');
+        inspector._ctxAction = vi.fn();
+
+        rightClick(rows(panel)[0]);
+        await until(() => Boolean(ctx(panel)));
+        expect(items(panel)).toEqual(expect.arrayContaining(
+            ['Cut', 'Copy', 'Duplicate', 'Bring to front', 'Send to back', 'Lock', 'Delete']));
+
+        [...panel.shadowRoot.querySelectorAll('.ctx-item')]
+            .find(i => i.textContent.trim() === 'Duplicate').click();
+        expect(inspector._ctxAction).toHaveBeenCalledWith('duplicate');
+        await panel.updateComplete;
+        expect(ctx(panel)).toBeNull();          // closes after the action
+        expect(a.isConnected).toBe(true);
+    });
+
+    it('selects the row first when right-clicking an unselected element', async () => {
+        const main = addView('main');
+        const a = addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        const panel = await mountPanel('main');
+        rightClick(rows(panel)[0]);
+        await until(() => Boolean(ctx(panel)));
+        expect(inspector.selectElement).toHaveBeenCalledWith([a]);
+    });
+
+    it('offers move/copy to the OTHER views only, delegating to the inspector', async () => {
+        const main = addView('main');
+        addView('other');
+        addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        const panel = await mountPanel('main');
+        inspector._ctxCopyToView = vi.fn();
+
+        rightClick(rows(panel)[0]);
+        await until(() => Boolean(ctx(panel)));
+        expect(items(panel).filter(t => t === 'other')).toHaveLength(2);   // move + copy
+
+        [...panel.shadowRoot.querySelectorAll('.ctx-item')]
+            .filter(i => i.textContent.trim() === 'other')[0].click();
+        expect(inspector._ctxCopyToView).toHaveBeenCalledWith('other', true);   // move
+    });
+
+    it('right-clicking a view header offers view operations', async () => {
+        addView('main');
+        const panel = await mountPanel('main');
+        feezal.app._editView = vi.fn();
+        feezal.app._duplicateView = vi.fn();
+        feezal.app._confirmDeleteView = vi.fn();
+
+        rightClick(viewRows(panel)[0]);
+        await until(() => Boolean(ctx(panel)));
+        expect(items(panel)).toEqual(['Open view', 'Rename…', 'Duplicate', 'Delete view']);
+
+        [...panel.shadowRoot.querySelectorAll('.ctx-item')]
+            .find(i => i.textContent.trim() === 'Duplicate').click();
+        expect(feezal.app._duplicateView).toHaveBeenCalledWith('main');
+    });
+});
+
+describe('drag onto a view header', () => {
+    const dt = () => ({effectAllowed: '', dropEffect: '', setData() {}, getData: () => ''});
+    const fire = (node, type, init = {}) =>
+        node.dispatchEvent(Object.assign(new Event(type, {bubbles: true, cancelable: true}),
+            {dataTransfer: dt(), ...init}));
+
+    it('MOVES the element into the target view', async () => {
+        const main = addView('main');
+        const other = addView('other');
+        const a = addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        const panel = await mountPanel('main');
+        feezal.app._clone = el => el.cloneNode(true);
+
+        fire(rows(panel)[0], 'dragstart');
+        fire(viewRows(panel)[1], 'dragover');
+        fire(viewRows(panel)[1], 'drop');
+        await panel.updateComplete;
+
+        expect(a.isConnected).toBe(false);                       // original gone
+        expect(other.querySelectorAll('[label="a"]')).toHaveLength(1);
+        expect(main.querySelectorAll('[label="a"]')).toHaveLength(0);
+        expect(feezal.app.change).toHaveBeenCalled();
+    });
+
+    it('COPIES when Ctrl is held, leaving the original in place', async () => {
+        const main = addView('main');
+        const other = addView('other');
+        const a = addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        const panel = await mountPanel('main');
+        feezal.app._clone = el => el.cloneNode(true);
+
+        fire(rows(panel)[0], 'dragstart', {ctrlKey: true});
+        fire(viewRows(panel)[1], 'dragover', {ctrlKey: true});
+        fire(viewRows(panel)[1], 'drop', {ctrlKey: true});
+        await panel.updateComplete;
+
+        expect(a.isConnected).toBe(true);                        // original kept
+        expect(main.querySelectorAll('[label="a"]')).toHaveLength(1);
+        expect(other.querySelectorAll('[label="a"]')).toHaveLength(1);
+    });
+
+    it('sets the drop effect so the cursor shows copy vs move', async () => {
+        const main = addView('main');
+        addView('other');
+        addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        const panel = await mountPanel('main');
+
+        fire(rows(panel)[0], 'dragstart');
+        const move = dt();
+        viewRows(panel)[1].dispatchEvent(Object.assign(
+            new Event('dragover', {bubbles: true, cancelable: true}), {dataTransfer: move}));
+        expect(move.dropEffect).toBe('move');
+
+        const copy = dt();
+        viewRows(panel)[1].dispatchEvent(Object.assign(
+            new Event('dragover', {bubbles: true, cancelable: true}),
+            {dataTransfer: copy, ctrlKey: true}));
+        expect(copy.dropEffect).toBe('copy');
+    });
+
+    it('dropping on the element OWN view does nothing', async () => {
+        const main = addView('main');
+        const a = addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        const panel = await mountPanel('main');
+        fire(rows(panel)[0], 'dragstart');
+        fire(viewRows(panel)[0], 'drop');
+        await panel.updateComplete;
+        expect(a.parentElement).toBe(main);
+        expect(main.querySelectorAll('[label="a"]')).toHaveLength(1);
+    });
+});

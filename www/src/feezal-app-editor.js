@@ -646,6 +646,7 @@ class FeezalAppEditor extends LitElement {
         :host(.dark) feezal-sidebar-editor,
         :host(.dark) feezal-sidebar-assets,
         :host(.dark) feezal-sidebar-history,
+        :host(.dark) feezal-sidebar-layers,
         :host(.dark) feezal-sidebar-packages,
         :host(.dark) feezal-capacitor-dialog,
         :host(.dark) feezal-export-dialog,
@@ -685,6 +686,13 @@ class FeezalAppEditor extends LitElement {
             --feezal-clippy-bg:     #3a3626;
             --feezal-clippy-fg:     rgba(255,255,255,0.9);
             --feezal-clippy-border: #5a5330;
+        }
+        /* U87: the Layers tree — selection tint and the row/menu surfaces need
+           dark values, or the sticky view headers and the context menu render
+           on a light background inside the dark panel. */
+        :host(.dark) feezal-sidebar-layers {
+            --feezal-sel-bg: rgba(2,132,199,0.32);
+            --feezal-btn-hover: rgba(255,255,255,0.10);
         }
         /* Same panel color as the #viewdialog/#deletedialog family above */
         :host(.dark) feezal-capacitor-dialog,
