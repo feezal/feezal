@@ -26,10 +26,10 @@ const express = require('express');
 
 const silent = {debug() {}, info() {}, warn() {}, error() {}};
 
-const makeApp = storage => {
+const makeApp = (storage, logger = silent) => {
     const app = express();
     app.use(express.json());
-    app.use('/api', createApiRouter(storage, '/dev/null', silent, {emitElementsChanged: () => { app.elementsChanged = (app.elementsChanged || 0) + 1; }}));
+    app.use('/api', createApiRouter(storage, '/dev/null', logger, {emitElementsChanged: () => { app.elementsChanged = (app.elementsChanged || 0) + 1; }}));
     return app;
 };
 
@@ -143,16 +143,22 @@ describe('POST /api/elements — install / update / remove guard rails', () => {
         expect(app.elementsChanged).toBe(2);
     });
 
-    it('an installer failure carries its stdout/stderr through as 500', async () => {
+    // B101: the raw npm output carries absolute server paths, tmpdir names and
+    // registry URLs — it belongs in the server log, not in an HTTP body.
+    it('an installer failure returns the message only; npm output goes to the log', async () => {
         patch(pkgManager, 'installPackage', async () => {
             const err = new Error('npm died');
-            err.stdout = 'out';
-            err.stderr = 'err';
+            err.stdout = '/home/secret/tmp/staging-xyz out';
+            err.stderr = 'npm ERR! /home/secret/path';
             throw err;
         });
-        const res = await request(app).post('/api/elements').send({package: 'feezal-element-x-y'});
+        const logged = [];
+        const logging = makeApp(new FilesystemStorage(dataDir), {...silent, error: m => logged.push(m)});
+        const res = await request(logging).post('/api/elements').send({package: 'feezal-element-x-y'});
         expect(res.status).toBe(500);
-        expect(res.body).toEqual({ok: false, error: 'npm died', stdout: 'out', stderr: 'err'});
+        expect(res.body).toEqual({ok: false, error: 'npm died'});
+        expect(JSON.stringify(res.body)).not.toContain('/home/secret');
+        expect(logged.join('\n')).toContain('/home/secret');
     });
 
     it('remove runs and signals the change', async () => {

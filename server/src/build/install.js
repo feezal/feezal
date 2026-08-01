@@ -156,12 +156,50 @@ async function removePackage(dataDir, pkg) {
 
 function _runNpm(args, cwd) {
     return new Promise((resolve, reject) => {
-        execFile(NPM, args, {cwd, timeout: 180000, maxBuffer: 16 * 1024 * 1024, windowsHide: true},
+        // B101: on Windows the binary is `npm.cmd`, and since Node 18.20/20.12
+        // (the CVE-2024-27980 hardening) execFile REFUSES to spawn .cmd/.bat
+        // without a shell — the whole Package Manager failed with an opaque
+        // `spawn EINVAL`. Enable the shell only there. The arguments stay an
+        // ARRAY and the package name is validated upstream by
+        // isAllowedPackage(), so this does not open a command-injection path.
+        const opts = {cwd, timeout: 180000, maxBuffer: 16 * 1024 * 1024, windowsHide: true};
+        if (process.platform === 'win32') opts.shell = true;
+        execFile(NPM, args, opts,
             (err, stdout, stderr) => {
                 if (err) { err.stdout = stdout; err.stderr = stderr; return reject(err); }
                 resolve({stdout: stdout || '', stderr: stderr || ''});
             });
     });
+}
+
+/**
+ * B101: publish an install directory ATOMICALLY.
+ *
+ * The old flow was `rm(destDir)` → `mkdir` → write files. Any failure in
+ * between (or a second install of the same package racing it — nothing guards
+ * that) left an EMPTY package dir that discoverElements still lists and
+ * /user-elements/ still serves, so every viewer page 404'd on that module
+ * script until someone reinstalled.
+ *
+ * Now: fill a sibling `.tmp` dir, then swap it in. The window in which the
+ * package is missing shrinks to one rm+rename, and a failure before the swap
+ * leaves the PREVIOUS working install untouched.
+ *
+ * @param {string} destDir  final package dir
+ * @param {(stageDir: string) => Promise<void>} fill  writes the new contents
+ */
+async function _publishAtomically(destDir, fill) {
+    const stageDir = destDir + '.tmp';
+    await fsp.rm(stageDir, {recursive: true, force: true});
+    await fsp.mkdir(stageDir, {recursive: true});
+    try {
+        await fill(stageDir);
+        await fsp.rm(destDir, {recursive: true, force: true});
+        await fsp.rename(stageDir, destDir);
+    } catch (err) {
+        await fsp.rm(stageDir, {recursive: true, force: true}).catch(() => {});
+        throw err;
+    }
 }
 
 /**
@@ -246,14 +284,15 @@ async function _installBundleMembers({staging, wwwDir, dataDir, pkg, pj, logger}
         const memberPj  = JSON.parse(await fsp.readFile(path.join(memberDir, 'package.json'), 'utf8'));
         const code = await _bundle(wwwDir, path.join(memberDir, memberPj.main || 'index.js'), staging, logger);
 
-        const destDir = pkgDir(dataDir, member);
-        await fsp.rm(destDir, {recursive: true, force: true});
-        await fsp.mkdir(destDir, {recursive: true});
-        await fsp.writeFile(path.join(destDir, 'index.js'), code, 'utf8');
-        await fsp.writeFile(path.join(destDir, 'package.json'), JSON.stringify({
-            name: memberPj.name || member, version: memberPj.version || '0.0.0',
-            main: 'index.js', feezal: {type: 'element', set: setName},
-        }, null, 2));
+        // B101: atomic — a member that fails mid-write leaves the previous
+        // install of THAT member intact instead of an empty, 404-ing dir.
+        await _publishAtomically(pkgDir(dataDir, member), async stage => {
+            await fsp.writeFile(path.join(stage, 'index.js'), code, 'utf8');
+            await fsp.writeFile(path.join(stage, 'package.json'), JSON.stringify({
+                name: memberPj.name || member, version: memberPj.version || '0.0.0',
+                main: 'index.js', feezal: {type: 'element', set: setName},
+            }, null, 2));
+        });
         installed.push({name: memberPj.name || member, version: memberPj.version || '0.0.0'});
         logger.info?.(`install: bundled set member ${member}@${memberPj.version}`);
     }
@@ -326,20 +365,22 @@ async function installPackage({wwwDir, dataDir, pkg, version, logger = console})
 
         const code = await _bundle(wwwDir, entryAbs, staging, logger);
 
-        const destDir = pkgDir(dataDir, pkg);
-        await fsp.rm(destDir, {recursive: true, force: true});
-        await fsp.mkdir(destDir, {recursive: true});
-        await fsp.writeFile(path.join(destDir, 'index.js'), code, 'utf8');
-        // N23: icon sets ship font/SVG asset files (and license/attribution
-        // files) alongside the JS entry — copy them next to the bundle.
-        if (type === 'icons') {
-            const copied = await _copyAssets(installedDir, destDir);
-            logger.debug?.(`install: copied ${copied} sidecar asset file(s) for ${pkg}`);
-        }
         // Phase B family: the written manifest keeps the declared tag list.
         const feezalMeta = isFamily ? {type: 'elements', elements: pj.feezal.elements} : {type};
-        await fsp.writeFile(path.join(destDir, 'package.json'),
-            JSON.stringify({name: pj.name || pkg, version: pj.version || '0.0.0', main: 'index.js', feezal: feezalMeta}, null, 2));
+        // B101: atomic — fill a staging dir, then swap. A failure here (or a
+        // concurrent install of the same package) can no longer leave an empty
+        // package dir that discovery lists and viewers 404 on.
+        await _publishAtomically(pkgDir(dataDir, pkg), async stage => {
+            await fsp.writeFile(path.join(stage, 'index.js'), code, 'utf8');
+            // N23: icon sets ship font/SVG asset files (and license/attribution
+            // files) alongside the JS entry — copy them next to the bundle.
+            if (type === 'icons') {
+                const copied = await _copyAssets(installedDir, stage);
+                logger.debug?.(`install: copied ${copied} sidecar asset file(s) for ${pkg}`);
+            }
+            await fsp.writeFile(path.join(stage, 'package.json'),
+                JSON.stringify({name: pj.name || pkg, version: pj.version || '0.0.0', main: 'index.js', feezal: feezalMeta}, null, 2));
+        });
 
         return {ok: true, name: pj.name || pkg, version: pj.version || '0.0.0', type: feezalMeta.type, stdout, stderr};
     } catch (err) {
@@ -359,5 +400,6 @@ module.exports = {
     // exposed for a bundling smoke test / sidecar-asset tests
     bundleEntry: _bundle,
     copyAssets: _copyAssets,
+    publishAtomically: _publishAtomically,   // B101
     ELEMENTS_SUBDIR,
 };

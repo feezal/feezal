@@ -1,6 +1,7 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {readonlyClimateAxes, NUMERIC_SENSOR_ICONS} from '@feezal/feezal-element/feezal-discovery-fragments.js';
+import {parseRanges} from '@feezal/feezal-gauge';
 
 /**
  * feezal-element-circle-value (E114 / E139)
@@ -17,18 +18,10 @@ import {readonlyClimateAxes, NUMERIC_SENSOR_ICONS} from '@feezal/feezal-element/
  * (subscribe / message-property / unit / decimals + live rewire).
  */
 
-// Parse the `ranges` attribute → sorted [{from:Number, color:String}].
-function parseRanges(raw) {
-    if (!raw) return [];
-    try {
-        const a = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        if (!Array.isArray(a)) return [];
-        return a
-            .map(r => ({from: Number(r.from), color: String(r.color || '')}))
-            .filter(r => Number.isFinite(r.from) && r.color)
-            .sort((x, y) => x.from - y.from);
-    } catch { return []; }
-}
+// B100: `parseRanges` used to be a private copy here that predated U65 — it
+// handled only inline JSON, so a card given a site-wide NAMED colour range
+// ("temp") silently rendered an unbanded fill while every gauge banded
+// correctly. Import the one implementation instead.
 
 class FeezalElementCircleValue extends FeezalElement {
     static get feezal() {

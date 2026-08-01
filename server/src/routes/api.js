@@ -691,7 +691,10 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
             if (emitElementsChanged) emitElementsChanged();
             res.json(result);
         } catch (err) {
-            res.status(500).json({ok: false, error: err.message, stdout: err.stdout || '', stderr: err.stderr || ''});
+            // B101: the raw npm output carries absolute server paths, tmpdir
+            // names and registry URLs — log it, return only the message.
+            logger.error(`install failed: ${err.message}\n${err.stderr || ''}\n${err.stdout || ''}`.trimEnd());
+            res.status(500).json({ok: false, error: err.message});
         }
     });
 
@@ -708,7 +711,10 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
             if (emitElementsChanged) emitElementsChanged();
             res.json(result);
         } catch (err) {
-            res.status(500).json({ok: false, error: err.message, stdout: err.stdout || '', stderr: err.stderr || ''});
+            // B101: the raw npm output carries absolute server paths, tmpdir
+            // names and registry URLs — log it, return only the message.
+            logger.error(`install failed: ${err.message}\n${err.stderr || ''}\n${err.stdout || ''}`.trimEnd());
+            res.status(500).json({ok: false, error: err.message});
         }
     });
 

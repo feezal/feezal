@@ -41,6 +41,9 @@ import './feezal-connection-overlay.js';
 import './feezal-toast.js';   // U85: the editor's notification channel
 import {clippyStyles, clippyMarkup, clippyEnabled} from './feezal-clippy.js';
 
+/** U82: undo snapshots kept (each is a site-HTML string). Was 5 = 4 steps. */
+const HISTORY_LIMIT = 50;
+
 class FeezalAppEditor extends LitElement {
     static properties = {
         views:           {type: Array},
@@ -804,6 +807,7 @@ class FeezalAppEditor extends LitElement {
         this._navView         = '';
         this._bridge          = null;
         this._history         = [];
+        this._redo            = [];   // U82: states popped by undo
         this._clipboardTpl    = document.createElement('template');
         this.editViewName     = '';
         this._canScrollLeft   = false;
@@ -968,6 +972,7 @@ class FeezalAppEditor extends LitElement {
                         <button class="icon-btn" title="Cut (Ctrl+X)" ?disabled="${this.viewSelected && !this._sourceMode}" @click="${this._clickCut}"><span class="material-icons">content_cut</span></button>
                         <button class="icon-btn" title="Delete (Del)" ?disabled="${this.viewSelected && !this._sourceMode}" @click="${this._delete}"><span class="material-icons">delete</span></button>
                         <button class="icon-btn" title="Undo (Ctrl+Z)" ?disabled="${!hasHistory && !this._sourceMode}" @click="${this._undo}"><span class="material-icons">undo</span></button>
+                        <button class="icon-btn" title="Redo (Ctrl+Shift+Z)" ?disabled="${!this._redo.length && !this._sourceMode}" @click="${this._redoStep}"><span class="material-icons">redo</span></button>
                         <button class="icon-btn" style="margin-left:20px;font-size:15px;font-weight:600" title="Keyboard shortcuts (Ctrl+I)" @click="${this._openShortcuts}">?</button>
                     </div>
 
@@ -1536,13 +1541,20 @@ class FeezalAppEditor extends LitElement {
                 this._toggleSourceMode();
                 return;
             }
-            // Ctrl+S — save (applies source if in source mode, then deploys)
+            // Ctrl+S — save (applies source if in source mode, then deploys).
+            // U82: this used to act ONLY in source mode, so in design mode the
+            // browser's "save page" dialog opened instead — the one shortcut
+            // every user tries. Now it deploys in both modes.
             if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 's') {
-                if (this._sourceMode) {
-                    e.preventDefault();
-                    this._deploy();
-                }
+                if (this._inTextEntry(e)) return;
+                e.preventDefault();
+                this._deploy();
+                return;
             }
+            // U82: undo/redo (Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y) live in the CANVAS
+            // handler (feezal-sidebar-inspector), which gates them on canvas
+            // focus so a sidebar text field keeps its own undo. Source mode is
+            // handled there too, via _sourceEditorActive().
         };
         document.addEventListener('keydown', this._onDocKeySourceMode);
 
@@ -2287,11 +2299,23 @@ class FeezalAppEditor extends LitElement {
     }
 
     addHistory() {
-        if (this._history.length > 4) {
+        const html = feezal.site.innerHTML;
+        // U82: a change() that did not actually alter the markup (a re-applied
+        // identical attribute, a drag that landed where it started) used to
+        // consume one of the few history slots. Skip it.
+        if (this._history[this._history.length - 1] === html) return;
+
+        // U82: the cap was 5 snapshots = 4 undo steps, which ran out during
+        // any real editing session. Snapshots are HTML strings; HISTORY_LIMIT
+        // of them is a few MB at worst for a large site.
+        while (this._history.length >= HISTORY_LIMIT) {
             this._history.shift();
         }
 
-        this._history.push(feezal.site.innerHTML);
+        this._history.push(html);
+        // U82: a NEW edit invalidates the redo branch (standard undo-stack
+        // semantics — you cannot redo into a future that no longer follows).
+        this._redo = [];
         this.requestUpdate();
     }
 
@@ -2302,19 +2326,41 @@ class FeezalAppEditor extends LitElement {
             return;
         }
         if (this._history.length > 1) {
-            const inspector = this.shadowRoot.querySelector('feezal-sidebar-inspector');
-            // Keep the element selection across the undo: restoreViews()
-            // replaces the site's innerHTML (node references die), so capture
-            // a (tag, index) identity first and re-match on the restored DOM.
-            // A structural undo that removed/shifted the element falls back to
-            // the view selection.
-            const selection = inspector.captureSelection();
-            this._history.pop();
-            const prevHtml = this._history[this._history.length - 1];
-            this.requestUpdate();
-            inspector.restoreViews(prevHtml);
-            inspector.restoreSelection(selection);
+            // U82: the popped state is the redo branch.
+            this._redo.push(this._history.pop());
+            this._applyHistoryState(this._history[this._history.length - 1]);
         }
+    }
+
+    /** U82: step forward again after an undo (Ctrl+Shift+Z / Ctrl+Y). */
+    _redoStep() {
+        if (this._sourceEditorActive()) {
+            this._sourceEditor.focus();
+            this._sourceEditor.trigger('keyboard', 'redo', null);
+            return;
+        }
+        if (this._redo.length) {
+            const html = this._redo.pop();
+            this._history.push(html);
+            this._applyHistoryState(html);
+        }
+    }
+
+    /**
+     * Restore one history snapshot onto the canvas. Keeps the element
+     * selection: restoreViews() replaces the site's innerHTML (node references
+     * die), so capture a (tag, index) identity first and re-match on the
+     * restored DOM. A structural step that removed/shifted the element falls
+     * back to the view selection.
+     */
+    _applyHistoryState(html) {
+        const inspector = this.shadowRoot.querySelector('feezal-sidebar-inspector');
+        const selection = inspector.captureSelection();
+        this.changes = true;
+        feezal.hasChanges = true;
+        this.requestUpdate();
+        inspector.restoreViews(html);
+        inspector.restoreSelection(selection);
     }
 
     _openShortcuts() {
@@ -2445,6 +2491,22 @@ class FeezalAppEditor extends LitElement {
             // then call the event object and throw "done is not a function".
             if (typeof done === 'function') done();
         });
+    }
+
+    /**
+     * U82: is the user typing? Mirrors the canvas handler's guard — Shoelace
+     * controls delegate focus to an <input> inside their shadow root, so the
+     * active element alone is not enough. Monaco is deliberately NOT excluded
+     * for Ctrl+S (saving from the source editor is wanted) — it manages its
+     * own Ctrl+Z/Y internally via _sourceEditorActive().
+     */
+    _inTextEntry(event) {
+        const ae = event.composedPath?.()[0] ?? document.activeElement;
+        if (!ae || !ae.tagName) return false;
+        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(ae.tagName)) return true;
+        if (ae.isContentEditable) return true;
+        const shadowActive = ae.shadowRoot && ae.shadowRoot.activeElement;
+        return Boolean(shadowActive && ['INPUT', 'TEXTAREA'].includes(shadowActive.tagName));
     }
 
     /**

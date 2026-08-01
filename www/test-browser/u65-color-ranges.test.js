@@ -391,3 +391,42 @@ describe('gauge `ranges` accepts a named site range', () => {
         expect(parseRanges('nope')).toEqual([]);
     });
 });
+
+/**
+ * B100 — circle-value shipped a PRIVATE copy of parseRanges that predated
+ * U65: it handled inline JSON only, so a card given a named range rendered an
+ * unbanded fill while every gauge banded correctly. The fork is gone; this
+ * pins the shared behaviour on the element itself.
+ */
+describe('B100 — circle-value fill uses the shared range parser', () => {
+    beforeEach(() => mountSite());
+
+    it('a NAMED range produces the same bands as the inline JSON form', async () => {
+        const {FeezalElementCircleValue} = await import(
+            '../packages/@feezal/feezal-element-circle-value/feezal-element-circle-value.js');
+        expect(FeezalElementCircleValue).toBeTruthy();
+
+        const named = document.createElement('feezal-element-circle-value');
+        named.setAttribute('mode', 'fill');
+        named.setAttribute('ranges', 'temp');
+        document.body.append(named);
+        await named.updateComplete;
+
+        const inline = document.createElement('feezal-element-circle-value');
+        inline.setAttribute('mode', 'fill');
+        inline.setAttribute('ranges', JSON.stringify([
+            {from: 0, color: '#4caf50'}, {from: 21, color: '#ff9800'}, {from: 28, color: '#e53935'},
+        ]));
+        document.body.append(inline);
+        await inline.updateComplete;
+
+        const bandsOf = el => [...el.shadowRoot.querySelectorAll('.bands > span')]
+            .map(s => s.style.background);
+        // the named form used to render ZERO bands here
+        expect(bandsOf(named).length).toBeGreaterThan(0);
+        expect(bandsOf(named)).toEqual(bandsOf(inline));
+
+        named.remove();
+        inline.remove();
+    });
+});

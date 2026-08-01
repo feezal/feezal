@@ -505,6 +505,8 @@ class FeezalSidebarInspector extends LitElement {
                             <tr><td>Delete</td><td>Delete selected elements</td></tr>
                             <tr><td>Escape</td><td>Deselect / close dialog</td></tr>
                             <tr><td>Ctrl+Z</td><td>Undo</td></tr>
+                            <tr><td>Ctrl+Shift+Z / Ctrl+Y</td><td>Redo</td></tr>
+                            <tr><td>Ctrl+S</td><td>Deploy (save)</td></tr>
                             <tr><td>Ctrl+A</td><td>Select all elements</td></tr>
                             <tr><td>Ctrl+C / X / V</td><td>Copy / Cut / Paste</td></tr>
                             <tr><td>Ctrl+D</td><td>Duplicate selection</td></tr>
@@ -1426,8 +1428,24 @@ class FeezalSidebarInspector extends LitElement {
 
                         break;
                     case 'z':
-                        if ((event.metaKey || event.ctrlKey) && !this.viewSelected) {
-                            feezal.app._undo();
+                        // U82: undo/redo are EDITOR-level actions, not element
+                        // actions — this used to require an element selection
+                        // (`!this.viewSelected`), so undo was dead in exactly
+                        // the state the destructive operations leave behind:
+                        // deleting an element (or pressing Escape) selects the
+                        // view, and the deletion could then not be undone.
+                        if (event.metaKey || event.ctrlKey) {
+                            event.preventDefault();
+                            if (event.shiftKey) feezal.app._redoStep();
+                            else feezal.app._undo();
+                        }
+
+                        break;
+                    case 'y':
+                        // U82: the Windows redo idiom, same canvas-focus gate.
+                        if (event.metaKey || event.ctrlKey) {
+                            event.preventDefault();
+                            feezal.app._redoStep();
                         }
 
                         break;

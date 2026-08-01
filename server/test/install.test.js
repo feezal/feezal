@@ -1,6 +1,6 @@
 import {describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {createRequire} from 'module';
-import {mkdtemp, rm, mkdir, writeFile} from 'fs/promises';
+import {mkdtemp, rm, mkdir, writeFile, readFile} from 'fs/promises';
 import {tmpdir} from 'os';
 import {join} from 'path';
 
@@ -338,5 +338,57 @@ describe('usedUserPackages — installed packages a site uses (N27)', () => {
     it('returns [] without a user elements dir or when nothing is used', () => {
         expect(usedUserPackages({wwwDir, userElementsDir: null, siteHtml: '<feezal-element-acme-widget/>'})).toEqual([]);
         expect(usedUserPackages({wwwDir, userElementsDir: userDir, siteHtml: '<div></div>'})).toEqual([]);
+    });
+});
+
+
+/**
+ * B101 — installs must be atomic. The old flow was rm(destDir) -> mkdir ->
+ * write, so a failure in between (or a concurrent install of the same
+ * package) left an EMPTY package dir that discoverElements still lists and
+ * /user-elements/ still serves: every viewer page 404'd on that module script
+ * until someone reinstalled by hand.
+ */
+describe('publishAtomically (B101)', () => {
+    let dir;
+    beforeEach(async () => { dir = await mkdtemp(join(tmpdir(), 'feezal-b101-')); });
+    afterEach(async () => { await rm(dir, {recursive: true, force: true}); });
+
+    const dest = () => join(dir, 'elements', 'feezal-element-acme-x');
+    const readIndex = async () => readFile(join(dest(), 'index.js'), 'utf8');
+
+    it('publishes the new contents and leaves no staging dir behind', async () => {
+        await pm.publishAtomically(dest(), async stage => {
+            await writeFile(join(stage, 'index.js'), 'v1', 'utf8');
+        });
+        expect(await readIndex()).toBe('v1');
+        await expect(readFile(join(dest() + '.tmp', 'index.js'), 'utf8')).rejects.toThrow();
+    });
+
+    it('a failed install keeps the PREVIOUS working install intact', async () => {
+        await pm.publishAtomically(dest(), async stage => {
+            await writeFile(join(stage, 'index.js'), 'good', 'utf8');
+        });
+
+        await expect(pm.publishAtomically(dest(), async stage => {
+            await writeFile(join(stage, 'index.js'), 'half-written', 'utf8');
+            throw new Error('bundling blew up');
+        })).rejects.toThrow('bundling blew up');
+
+        // the old bundle is still there and still serveable - NOT an empty dir
+        expect(await readIndex()).toBe('good');
+        await expect(readFile(join(dest() + '.tmp', 'index.js'), 'utf8')).rejects.toThrow();
+    });
+
+    it('replaces the contents wholesale (stale files do not survive)', async () => {
+        await pm.publishAtomically(dest(), async stage => {
+            await writeFile(join(stage, 'index.js'), 'v1', 'utf8');
+            await writeFile(join(stage, 'old-asset.woff2'), 'x', 'utf8');
+        });
+        await pm.publishAtomically(dest(), async stage => {
+            await writeFile(join(stage, 'index.js'), 'v2', 'utf8');
+        });
+        expect(await readIndex()).toBe('v2');
+        await expect(readFile(join(dest(), 'old-asset.woff2'), 'utf8')).rejects.toThrow();
     });
 });
