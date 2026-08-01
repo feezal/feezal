@@ -7,7 +7,7 @@ Each entry is filed under the section its **ID prefix** belongs to — `B` Bugs,
 Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastructure,
 `D` Documentation — and sorted by number within it, so a new entry has exactly one correct place.
 
-**372 items.**
+**374 items.**
 
 ## Bugs
 
@@ -111,6 +111,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B103 — Rubber-band selection rectangle grows beyond the canvas ✅ fixed](B103.md)
 - [B104 — Multi-selection drag: elements snap to their co-dragged companions ✅ fixed](B104.md)
 - [B105 — Source formatting: line break inside closing tags, glued closing-tag runs ✅ fixed](B105.md)
+- [B107 — Source formatting: closing tag glued to the last attribute line ✅ fixed](B107.md)
 
 ## Near-term Improvements
 
@@ -368,6 +369,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U87 — Element outline / layers panel ✅ done](U87.md)
 - [U88 — Selected-element MQTT debug panel ✅ done](U88.md)
 - [U90 — Grid layout for views: `child-position: grid` ✅ done](U90.md)
+- [U92 — Source view: identifying attributes first + on the opening-tag line ✅ done](U92.md)
 
 ## Architecture & Infrastructure
 

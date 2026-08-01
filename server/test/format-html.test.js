@@ -153,3 +153,104 @@ describe('formatHtml — template bodies are user content, not formatting', () =
         expect(await fmt(once)).toBe(once);
     });
 });
+
+
+/**
+ * B107 — the closing tag of a multi-line EMPTY element gets its own line.
+ * bracketSameLine parks the `>` on the last attribute line, and with nothing
+ * between the tags the closer glued straight onto it.
+ */
+describe('formatHtml — closing tag of a multi-line empty element (B107)', () => {
+    const nav = '<feezal-site><feezal-view name="v" style="width:100%;height:100%;">' +
+        '<feezal-element-basic-navigation style="width:200px;height:40px;top:0px;left:6px;" ' +
+        'visible="" subscribe="home/nav" label="Nav"></feezal-element-basic-navigation>' +
+        '</feezal-view></feezal-site>';
+
+    it('breaks before the closing tag instead of gluing it to the last attribute', async () => {
+        const out = await fmt(nav);
+        expect(out).not.toMatch(/"><\/feezal-element-basic-navigation>/);
+        expect(out.split('\n').some(l => l.trim() === '</feezal-element-basic-navigation>')).toBe(true);
+    });
+
+    it('indents the closing tag level with its opening tag', async () => {
+        const lines = (await fmt(nav)).split('\n');
+        const indent = l => l.match(/^\s*/)[0].length;
+        const open = lines.findIndex(l => l.includes('<feezal-element-basic-navigation'));
+        const close = lines.findIndex(l => l.trim() === '</feezal-element-basic-navigation>');
+        expect(close).toBeGreaterThan(open);
+        expect(indent(lines[close])).toBe(indent(lines[open]));
+    });
+
+    it('leaves a COMPACT one-line element alone', async () => {
+        // `<tag a="1"></tag>` fits on one line — splitting it would be churn.
+        const out = await fmt('<feezal-site><feezal-view name="v"><feezal-element-basic-number label="a">' +
+            '</feezal-element-basic-number></feezal-view></feezal-site>');
+        expect(out).toContain('<feezal-element-basic-number label="a"></feezal-element-basic-number>');
+    });
+
+    it('is a fixed point', async () => {
+        const once = await fmt(nav);
+        expect(await fmt(once)).toBe(once);
+    });
+});
+
+/**
+ * U92 — identifying attributes on the opening-tag line, so a folded element in
+ * the Monaco source view still says which element it is.
+ */
+describe('formatHtml — identifying attributes lead the tag line (U92)', () => {
+    const wrap = inner => `<feezal-site><feezal-view name="v" style="width:100%;height:100%;">${inner}</feezal-view></feezal-site>`;
+    const bulk = 'class="feezal-element" style="position:absolute;left:20px;top:20px;width:344px;height:256px;"';
+    /** The line carrying the element's opening tag. */
+    const tagLine = (out, tag) => out.split('\n').find(l => l.includes(`<${tag}`));
+
+    it('joins label AND subscribe when both lead', async () => {
+        const out = await fmt(wrap(`<feezal-element-basic-camera label="Hof" subscribe="frigate/hof" ${bulk}></feezal-element-basic-camera>`));
+        expect(tagLine(out, 'feezal-element-basic-camera'))
+            .toContain('<feezal-element-basic-camera label="Hof" subscribe="frigate/hof"');
+    });
+
+    it('joins label alone', async () => {
+        const out = await fmt(wrap(`<feezal-element-basic-camera label="Hof" ${bulk}></feezal-element-basic-camera>`));
+        expect(tagLine(out, 'feezal-element-basic-camera')).toContain('label="Hof"');
+    });
+
+    it('joins subscribe alone', async () => {
+        const out = await fmt(wrap(`<feezal-element-basic-camera subscribe="frigate/hof" ${bulk}></feezal-element-basic-camera>`));
+        expect(tagLine(out, 'feezal-element-basic-camera')).toContain('subscribe="frigate/hof"');
+    });
+
+    it('joins name for a view, not label', async () => {
+        const out = await fmt('<feezal-site><feezal-view name="kitchen" label="ignored" ' +
+            'style="width:100%;height:100%;background-image:linear-gradient(160deg,#0ea5e9,#0369a1);">' +
+            '<feezal-element-basic-number label="a"></feezal-element-basic-number></feezal-view></feezal-site>');
+        const line = tagLine(out, 'feezal-view');
+        expect(line).toContain('name="kitchen"');
+        expect(line).not.toContain('label="ignored"');   // not an identifying attr for a view
+    });
+
+    it('leaves an element with no identifying attribute untouched', async () => {
+        const out = await fmt(wrap(`<feezal-element-basic-number ${bulk} publish="x/y"></feezal-element-basic-number>`));
+        expect(tagLine(out, 'feezal-element-basic-number').trim()).toBe('<feezal-element-basic-number');
+    });
+
+    it('does NOT reorder: an identifying attribute that is not first stays put', async () => {
+        // The pass only joins what already leads — serialization decides order,
+        // so hand-written source keeps the shape its author gave it.
+        const out = await fmt(wrap(`<feezal-element-basic-camera ${bulk} label="Hof"></feezal-element-basic-camera>`));
+        expect(tagLine(out, 'feezal-element-basic-camera').trim()).toBe('<feezal-element-basic-camera');
+    });
+
+    it('joins at most two attributes', async () => {
+        const out = await fmt(wrap(`<feezal-element-basic-camera label="Hof" subscribe="a/b" publish="c/d" ${bulk}></feezal-element-basic-camera>`));
+        const line = tagLine(out, 'feezal-element-basic-camera');
+        expect(line).toContain('label="Hof"');
+        expect(line).toContain('subscribe="a/b"');
+        expect(line).not.toContain('publish="c/d"');
+    });
+
+    it('is a fixed point — a joined line is recognised as already done', async () => {
+        const once = await fmt(wrap(`<feezal-element-basic-camera label="Hof" subscribe="frigate/hof" ${bulk}></feezal-element-basic-camera>`));
+        expect(await fmt(once)).toBe(once);
+    });
+});

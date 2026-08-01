@@ -1,6 +1,7 @@
 import {describe, it, expect, beforeEach} from 'vitest';
 
 import '../src/feezal-app-editor.js';
+import {reorderIdentifyingAttributes} from '../src/feezal-app-editor.js';
 import {reconcileFolders, applyFolderDrop} from '../src/feezal-view-folders.js';
 
 // U8 view-folder reconciliation (A37: the tree model moved to
@@ -434,5 +435,65 @@ describe('toast preference gate (U85)', () => {
             {variant: 'danger', duration: 0});
         expect(shown).toHaveLength(1);
         expect(shown[0].m).toContain('Deploy failed');
+    });
+});
+
+
+/**
+ * U92 — serialization puts the identifying attributes first.
+ *
+ * The formatter only JOINS attributes that already lead the element (it never
+ * reorders), so the order has to be decided here, when the document is written
+ * out. Cosmetic: attribute order carries no meaning in HTML.
+ */
+describe('reorderIdentifyingAttributes (U92)', () => {
+    const frag = html => {
+        const tpl = document.createElement('template');
+        tpl.innerHTML = html;
+        return tpl.content;
+    };
+    const attrsOf = (root, sel) => [...root.querySelector(sel).attributes].map(a => a.name);
+
+    it('moves label and subscribe to the front, keeping the rest in order', () => {
+        const f = frag('<feezal-element-basic-camera class="c" style="s" subscribe="a/b" publish="p" label="Hof">' +
+            '</feezal-element-basic-camera>');
+        reorderIdentifyingAttributes(f);
+        expect(attrsOf(f, 'feezal-element-basic-camera'))
+            .toEqual(['label', 'subscribe', 'class', 'style', 'publish']);
+    });
+
+    it('uses name for a view, not label', () => {
+        const f = frag('<feezal-view style="s" label="x" name="kitchen"></feezal-view>');
+        reorderIdentifyingAttributes(f);
+        expect(attrsOf(f, 'feezal-view')).toEqual(['name', 'style', 'label']);
+    });
+
+    it('keeps the values intact while moving them', () => {
+        const f = frag('<feezal-element-basic-camera style="left: 20px" label="Hof &amp; Co"></feezal-element-basic-camera>');
+        reorderIdentifyingAttributes(f);
+        const el = f.querySelector('feezal-element-basic-camera');
+        expect(el.getAttribute('label')).toBe('Hof & Co');
+        expect(el.getAttribute('style')).toBe('left: 20px');
+    });
+
+    it('leaves an element with no identifying attribute alone', () => {
+        const f = frag('<feezal-element-basic-number class="c" publish="p"></feezal-element-basic-number>');
+        reorderIdentifyingAttributes(f);
+        expect(attrsOf(f, 'feezal-element-basic-number')).toEqual(['class', 'publish']);
+    });
+
+    it('does not churn markup that is already in order', () => {
+        const f = frag('<feezal-element-basic-camera label="Hof" subscribe="a/b" class="c"></feezal-element-basic-camera>');
+        const before = f.querySelector('feezal-element-basic-camera').outerHTML;
+        reorderIdentifyingAttributes(f);
+        expect(f.querySelector('feezal-element-basic-camera').outerHTML).toBe(before);
+    });
+
+    it('walks the whole tree, not just the top level', () => {
+        const f = frag('<feezal-view style="s" name="v"><feezal-element-basic-number style="x" label="a">' +
+            '</feezal-element-basic-number></feezal-view>');
+        reorderIdentifyingAttributes(f);
+        expect(attrsOf(f, 'feezal-view')[0]).toBe('name');
+        expect(attrsOf(f, 'feezal-element-basic-number')[0]).toBe('label');
     });
 });

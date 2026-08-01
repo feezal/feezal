@@ -49,6 +49,40 @@ import {clippyStyles, clippyMarkup, clippyEnabled} from './feezal-clippy.js';
 /** U82: undo snapshots kept (each is a site-HTML string). Was 5 = 4 steps. */
 const HISTORY_LIMIT = 50;
 
+/**
+ * U92 — attributes that identify an element, in the order they should lead.
+ *
+ * Monaco's fold shows only an element's FIRST line, so with the bare opening
+ * tag every collapsed element looks identical. The formatter pulls these up
+ * onto the tag line (see server/src/format-html.js) — but it only joins
+ * attributes that are already first, and it never reorders. Serialization is
+ * where the order is decided, which is here.
+ */
+const IDENTIFYING_ATTRS = {'feezal-view': ['name']};
+const IDENTIFYING_DEFAULT = ['label', 'subscribe'];
+
+/**
+ * Move each element's identifying attributes to the front, in place.
+ *
+ * Attribute order is semantically irrelevant in HTML, so this only affects how
+ * the document READS. Runs on a detached clone in every caller, so removing and
+ * re-adding attributes cannot trigger a live element's reactive setters.
+ */
+export function reorderIdentifyingAttributes(root) {
+    for (const el of root.querySelectorAll('*')) {
+        const wanted = IDENTIFYING_ATTRS[el.localName] || IDENTIFYING_DEFAULT;
+        const names = [...el.attributes].map(a => a.name);
+        const lead = wanted.filter(n => names.includes(n));
+        if (!lead.length) continue;
+        const ordered = [...lead, ...names.filter(n => !lead.includes(n))];
+        // Already in order — leave it alone rather than churn the markup.
+        if (ordered.every((n, i) => n === names[i])) continue;
+        const values = new Map(names.map(n => [n, el.getAttribute(n)]));
+        for (const n of names) el.removeAttribute(n);
+        for (const n of ordered) el.setAttribute(n, values.get(n));
+    }
+}
+
 class FeezalAppEditor extends LitElement {
     static properties = {
         views:           {type: Array},
@@ -2592,6 +2626,9 @@ class FeezalAppEditor extends LitElement {
         // is removed (the helper matches on .feezal-editable). Also
         // self-heals sites saved while the leak existed.
         stripCanvasZIndex(container);
+        // U92: identifying attributes first, so a folded element stays readable
+        // in the source view. Cosmetic only — attribute order carries no meaning.
+        reorderIdentifyingAttributes(container);
         // U90: `feezal-lift` is the grid drag-lift exemption — normally removed
         // on drop, but a drag interrupted mid-flight must not persist it.
         this._removeClassesFromChildren(container, ['feezal-editable', 'feezal-selected', 'iron-selected', 'ds-selectable', 'feezal-lift']);

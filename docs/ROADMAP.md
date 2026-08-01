@@ -10,7 +10,6 @@ Work in progress — priorities and scope are not final.
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
 - [B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces](#b106--discovery-ids-is-space-separated-but-mqtt-topics-may-contain-spaces)
-- [B107 — Source formatting: closing tag glued to the last attribute line](#b107--source-formatting-closing-tag-glued-to-the-last-attribute-line)
 
 
 **Near-term Improvements**
@@ -75,7 +74,6 @@ Work in progress — priorities and scope are not final.
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
 - [U89 — Equal-gap smart guides during drag](#u89--equal-gap-smart-guides-during-drag) 💡
 - [U91 — Distribute: pack mode (edge-to-edge, no overlap, no gap)](#u91--distribute-pack-mode-edge-to-edge-no-overlap-no-gap)
-- [U92 — Source view: identifying attributes first + on the opening-tag line (fold-friendly) 🔨 decided](#u92--source-view-identifying-attributes-first--on-the-opening-tag-line-fold-friendly--decided)
 - [U93 — Top-bar improvements: MQTT dot into the sidebar, labeled Generate/Source buttons, site switcher left](#u93--top-bar-improvements-mqtt-dot-into-the-sidebar-labeled-generatesource-buttons-site-switcher-left)
 
 
@@ -344,36 +342,6 @@ stamp → parse → dupe-guard must match exactly.
 the dupe-guard consumer), E108 ✅ (native recognizers whose IDs carry channel
 names), N12 (re-sync — anything else reading discovery ids must use the same
 parser).
-
-
-### B107 — Source formatting: closing tag glued to the last attribute line
-
-**Reported (08/2026).** Multi-line elements close like this:
-
-```html
-            style="width: 200px; height: 40px; top: 0px; left: 6px"
-            visible=""></feezal-element-basic-navigation>
-```
-
-Wanted — a line break BEFORE the closing tag:
-
-```html
-            visible="">
-        </feezal-element-basic-navigation>
-```
-
-**Same family as B105** (prettier's whitespace-sensitive HTML printer refuses
-to introduce whitespace around inline-classified custom elements, and
-`bracketSameLine: true` parks the `>` on the last attribute line — for an
-empty element the closer then glues on). Fix together with B105: verify
-whether `htmlWhitespaceSensitivity: "ignore"` alone already yields
-`>` + newline + indented closer for empty elements; if prettier still prints
-empty elements compactly, the targeted post-pass (split `></tag>` with the
-parent indent) covers this case too. Extend the B105 unit test with the empty
-multi-line-element fixture above.
-
-**Relates:** **B105** (one fix, one test suite — do not land these
-separately), N15 (source view).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
@@ -2425,70 +2393,6 @@ extends — same sorting, same undo semantics), U89 (equal-gap smart guides —
 the drag-time sibling; pack is the explicit-operation form of "no gap"),
 [U90](roadmap-archive/U90.md) ✅ (grid layout — the possible gap-source
 follow-up).
-
-
-### U92 — Source view: identifying attributes first + on the opening-tag line (fold-friendly) 🔨 decided
-
-**Requested (08/2026).** When collapsing an element in the Monaco source view,
-the fold shows only the FIRST line — which today is the bare opening tag, so
-every collapsed element looks identical. Wanted: the identifying attributes on
-the same line as the opening tag so folds stay readable — `name` for
-`feezal-view`, `label` and `subscribe` for elements:
-
-```html
-        <feezal-element-basic-camera label="Hof" subscribe="frigate/hof/…"
-            class="feezal-element"
-            …>
-```
-
-**Analysis — is this possible with the current formatting system?** Two
-independent halves:
-
-1. **Attribute ORDER (name/label/subscribe first): yes, but not in prettier.**
-   Prettier never reorders attributes — it prints them in source order, which
-   is the live-DOM insertion order feezal serializes (`feezal.site.outerHTML`
-   in the deploy path). The order must be fixed at **serialization time**: in
-   the deploy/clean step ([feezal-app-editor.js](../www/src/feezal-app-editor.js),
-   the `deployTpl` clone), for each element re-append every attribute except
-   the priority set (remove + re-add reorders; operating on the clone is
-   side-effect-free). Priority: `name`, `label`, `subscribe`, then the rest in
-   existing order. Cheap, deterministic, and useful even without half 2 (the
-   priority attrs land at the TOP of the attribute list).
-
-2. **First attributes ON the opening-tag line: NOT possible with prettier
-   options.** Prettier's HTML printer knows only two shapes — everything on
-   one line (if it fits printWidth) or EVERY attribute on its own line with
-   the tag alone on the first line; `singleAttributePerLine` only forces the
-   latter. There is no "keep the first N attributes beside the tag" mode.
-
-**Decided (08/2026): no js-beautify — prettier stays, plus a post-pass.**
-After prettier, a post-processing step in the shared formatter
-([format-html.js](../server/src/format-html.js), so deploy and the source view
-stay identical) **removes the newline before the priority attributes**:
-
-- `name` for `feezal-view`;
-- `label` and `subscribe` for elements — **both joined when both are
-  present**;
-- **only when they are the first 1–2 attributes** of the element (which half
-  1's serializer-side reordering guarantees for stamped content; hand-written
-  source with the attributes elsewhere is left untouched — the pass never
-  reorders, it only joins lines).
-
-The pass is a bounded, regex-free line join over the prettier output: for an
-opening tag whose following line(s) start with a priority attribute, merge up
-to two of them onto the tag line (respecting printWidth is NOT required — the
-identifying line may run long, that is the point of the fold). Fixed-point
-rule: running format twice must be byte-identical (the pass must recognize
-already-joined lines as done).
-
-**Test:** unit tests on `formatHtml` — a view (name joins), an element with
-only `label`, only `subscribe`, both (both join), neither (untouched), a
-priority attribute NOT in first position (untouched), and the double-format
-fixed point.
-
-**Relates:** B105 + B107 (same file, coordinate the passes — the closing-tag
-split and this join can live in one post-processing step), N15 (source view,
-Monaco folding), the deploy serialization path.
 
 
 ### U93 — Top-bar improvements: MQTT dot into the sidebar, labeled Generate/Source buttons, site switcher left

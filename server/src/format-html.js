@@ -60,6 +60,104 @@ function unshieldTemplates(html, bodies) {
     }, html)
 }
 
+// ── post-pass ───────────────────────────────────────────────────────────────
+// Two shapes prettier cannot be configured into, applied to its output. Both
+// run on the SHIELDED text, so template bodies are never touched by them.
+
+const TAB = FORMAT_OPTIONS.tabWidth
+
+/**
+ * U92 — which attributes identify an element, in the order they should lead.
+ * Monaco's fold shows only an element's FIRST line, so with the bare opening
+ * tag there every collapsed element looks identical.
+ */
+const IDENTIFYING = {'feezal-view': ['name']}
+const IDENTIFYING_DEFAULT = ['label', 'subscribe']
+const MAX_JOINED = 2
+
+const OPEN_TAG_ALONE = /^(\s*)<([a-zA-Z][\w-]*)$/
+const ATTRIBUTE_LINE = /^\s*([a-zA-Z_:][\w:.-]*)=/
+
+/**
+ * U92 — pull the identifying attributes up onto the opening-tag line.
+ *
+ * Prettier's HTML printer knows exactly two shapes: everything on one line, or
+ * the tag alone with EVERY attribute on its own line. There is no "keep the
+ * first N attributes beside the tag", hence this join.
+ *
+ * Deliberately not width-aware: the identifying line may run past printWidth,
+ * which is the entire point — it is what you read when the element is folded.
+ * Only attributes that are already FIRST are joined; the pass never reorders
+ * (serialization does that), so hand-written source with `label` further down
+ * is left exactly as written.
+ */
+function joinIdentifyingAttributes(lines) {
+    const out = []
+    for (let i = 0; i < lines.length; i++) {
+        const open = OPEN_TAG_ALONE.exec(lines[i])
+        if (!open) {
+            out.push(lines[i])
+            continue
+        }
+        const wanted = IDENTIFYING[open[2]] || IDENTIFYING_DEFAULT
+        let joined = lines[i]
+        let count = 0
+        while (count < MAX_JOINED && i + 1 < lines.length) {
+            const next = lines[i + 1]
+            const attr = ATTRIBUTE_LINE.exec(next)
+            // Stop at the first non-identifying attribute, and never swallow the
+            // line that CLOSES the opening tag — that would change its shape.
+            if (!attr || !wanted.includes(attr[1]) || next.trimEnd().endsWith('>')) break
+            joined += ' ' + next.trim()
+            i++
+            count++
+        }
+        out.push(joined)
+    }
+    return out
+}
+
+// B107 — an attribute line ending `></tag>`: prettier parks the `>` on the last
+// attribute line (bracketSameLine) and, for an EMPTY element, glues the closer
+// straight onto it. Group 2 must start with a non-`<` character so a compact
+// one-line element (`<tag a="1"></tag>`) is left alone — only a continuation
+// line is split.
+const GLUED_CLOSE = /^(\s*)([^<\s].*?)><\/([a-zA-Z][\w-]*)>\s*$/
+
+/**
+ * B107 — put the closing tag of a multi-line empty element on its own line.
+ *
+ * The closer is indented one level out from the attribute lines, which is where
+ * the opening tag sits — no need to track it, prettier's indentation is
+ * regular.
+ */
+function splitGluedClosingTag(lines) {
+    const out = []
+    for (const line of lines) {
+        const glued = GLUED_CLOSE.exec(line)
+        if (!glued) {
+            out.push(line)
+            continue
+        }
+        const [, indent, body, tag] = glued
+        out.push(`${indent}${body}>`)
+        out.push(`${' '.repeat(Math.max(0, indent.length - TAB))}</${tag}>`)
+    }
+    return out
+}
+
+/**
+ * Both passes are idempotent, which is what keeps formatting a fixed point:
+ * a joined opening tag no longer matches OPEN_TAG_ALONE, and a split closing
+ * tag no longer matches GLUED_CLOSE.
+ */
+function postProcess(html) {
+    let lines = html.split('\n')
+    lines = joinIdentifyingAttributes(lines)
+    lines = splitGluedClosingTag(lines)
+    return lines.join('\n')
+}
+
 /**
  * Pretty-print feezal site HTML with prettier's HTML printer.
  *
@@ -72,7 +170,9 @@ async function formatHtml(html) {
     try {
         const {shielded, bodies} = shieldTemplates(html)
         const formatted = await prettier.format(shielded, FORMAT_OPTIONS)
-        return {html: unshieldTemplates(formatted, bodies), error: null}
+        // Post-process while still shielded, so the passes cannot reach into
+        // template bodies either.
+        return {html: unshieldTemplates(postProcess(formatted), bodies), error: null}
     } catch (error) {
         return {html, error}
     }
