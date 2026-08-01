@@ -2369,9 +2369,13 @@ AI apply results, and the asset upload/rename outcomes.
 ### A37 — Editor front-end: extract the four buried subsystems
 
 **Found by audit (08/2026).** `feezal-app-editor.js` (3667 lines) and `feezal-sidebar-inspector.js` (2350) each hide complete subsystems that are separable with no behavior change:
-- Out of app-editor: the **view folder tree** model (~365 lines, self-contained), the **component system** (~380), **source/Monaco mode** (~215), clipboard handlers.
+- Out of app-editor: ✅ the **view folder tree** model (done — `feezal-view-folders.js`; `_reconcile` lost its `feezal.views` global and `_applyDrop` became tree-in/tree-or-null-out, so the existing suites call the model directly and 14 new tests cover helpers that were previously only reachable by driving the tab bar). Still open: the **component system** (~380), **source/Monaco mode** (~215), clipboard handlers.
 - Out of sidebar-inspector: ✅ the module-scope **canvas geometry helpers** (done — moved to `feezal-canvas-geometry.js`: `isCanvasElement`, the U33 stacking model and the B80 geometry hand-off, ~140 lines, importers re-pointed), the **canvas interaction engine** (interact.js wiring + the rubber band; A38 already lifted the marquee out into `feezal-canvas-rubberband.js`, so this is materially smaller than the ~1000 lines originally scoped), the **context menu**, the **switch-family migration**.
 - Mechanical rule: extraction only, no rewrites; each move lands with its existing tests re-pointed and a browser smoke.
+
+**Progress note (08/2026).** Two moves landed: the canvas geometry helpers and the folder tree. Both were *pure models* — array/DOM in, value out — which is why they extracted cleanly and gained tests as a side effect.
+
+**The remaining pieces are a different kind of work, and scoping them as "extraction" undersells them.** The component system, source/Monaco mode and the clipboard handlers are component *orchestration*: they touch `this` state, dialogs, `feezal.site` and the render template (source mode alone gates ~15 places in `render()`). Moving them means introducing controller objects that hold a reference back to the editor — a legitimate design, but a refactor with real regression surface, not a cut-and-paste. Worth doing deliberately rather than opportunistically: A38 is the cautionary example — a change that looked like a pure removal broke seven e2e tests through a layout invariant no one had written down.
 
 **Relates:** N42 (querySelector caching lands naturally during extraction), A36 (the server twin).
 
