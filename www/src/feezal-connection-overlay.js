@@ -176,10 +176,10 @@ class FeezalConnectionOverlay extends LitElement {
         }
         .actions button:hover { background: var(--feezal-btn-hover, rgba(0,0,0,0.06)); }
         .actions button.primary {
-            background: var(--sl-color-primary-600, #0284c7);
-            border-color: var(--sl-color-primary-600, #0284c7); color: #fff;
+            background: var(--primary-color);
+            border-color: var(--primary-color); color: #fff;
         }
-        .actions button.primary:hover { background: var(--sl-color-primary-500, #0ea5e9); }
+        .actions button.primary:hover { filter: brightness(1.1); }
         .toast {
             position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
             padding: 8px 16px; font-size: 13px; font-weight: 600; color: #fff;
