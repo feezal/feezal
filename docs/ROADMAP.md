@@ -9,6 +9,7 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
+- [B104 — Multi-selection drag: elements snap to their co-dragged companions](#b104--multi-selection-drag-elements-snap-to-their-co-dragged-companions)
 
 
 **Near-term Improvements**
@@ -304,6 +305,37 @@ This also **removes an existing ambiguity**: `slim` and `autohide` are independe
 **Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
 
 **Relates:** **[B62](roadmap-archive/B62.md)** ✅ (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
+
+### B104 — Multi-selection drag: elements snap to their co-dragged companions
+
+**Reported (08/2026).** Dragging a multi-selection makes the elements snap to
+THEMSELVES: the co-dragged elements act as snap targets for each other, so the
+group jitters/magnets against its own members while moving. Everything that is
+selected and currently being dragged must be excluded from the snap-target
+set.
+
+**Root cause, already located:** the element-snapping pass in `_snap()`
+([feezal-sidebar-inspector.js](../www/src/feezal-sidebar-inspector.js), the
+`[...view.children].forEach` sibling scan) excludes only `this.dragElement`
+and `this.resizeElement` — the single-drag case. In a multi-selection drag the
+OTHER selected elements ride along via the group-move logic but stay in the
+target set.
+
+**Fix:** while a drag is active, also skip every member of the current
+selection (`element.classList.contains('feezal-selected')` or membership in
+`this.selectedElems`) in that scan — snapping should only consider stationary
+elements. Guard so plain hovering/resizing with a selection parked elsewhere
+still snaps against selected-but-not-dragged elements only if desired —
+simplest correct rule: during a drag gesture, exclude the whole selection;
+outside a drag nothing changes.
+
+**Test:** browser test — two selected elements dragged together must produce
+no snap result derived from each other, but still snap to a third, stationary
+element (the existing snap suites in the inspector tests have the harness).
+
+**Relates:** N11 (four-side snap guides — same scan), U89 (equal-gap guides
+will reuse this scan and must inherit the same exclusion).
+
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
