@@ -12,7 +12,7 @@
  */
 import {describe, it, expect, beforeEach} from 'vitest';
 
-import {stashAbsoluteGeometry, restoreAbsoluteGeometry} from '../src/feezal-sidebar-inspector.js';
+import {stashAbsoluteGeometry, restoreAbsoluteGeometry} from '../src/feezal-canvas-geometry.js';
 
 function makeEl({top = '', left = '', absTop = null, absLeft = null, rect = null} = {}) {
     const el = document.createElement('div');

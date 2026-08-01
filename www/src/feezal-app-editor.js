@@ -25,7 +25,7 @@ import './feezal-component.js';
 import './feezal-icon.js';
 import './feezal-icon-input.js';
 import './feezal-sidebar-inspector.js';
-import {stripCanvasZIndex} from './feezal-sidebar-inspector.js';
+import {stripCanvasZIndex} from './feezal-canvas-geometry.js';   // A37
 import './feezal-sidebar-assets.js';
 import './feezal-sidebar-themes.js';
 import './feezal-sidebar-viewer.js';

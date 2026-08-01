@@ -1,7 +1,7 @@
 import {describe, it, expect, beforeEach} from 'vitest';
 
 // U33 — element stacking order via DOM sibling order (no z-index).
-import {stackingSiblings, stackingState, reorderElements} from '../src/feezal-sidebar-inspector.js';
+import {stackingSiblings, stackingState, reorderElements} from '../src/feezal-canvas-geometry.js';
 
 /** A fake view: children a..e are editable; a <style> node never counts. */
 let view;

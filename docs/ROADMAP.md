@@ -2299,7 +2299,7 @@ AI apply results, and the asset upload/rename outcomes.
 
 **Found by audit (08/2026).** `feezal-app-editor.js` (3667 lines) and `feezal-sidebar-inspector.js` (2350) each hide complete subsystems that are separable with no behavior change:
 - Out of app-editor: the **view folder tree** model (~365 lines, self-contained), the **component system** (~380), **source/Monaco mode** (~215), clipboard handlers.
-- Out of sidebar-inspector: the module-scope **canvas geometry helpers** (already pure exports — move to `feezal-canvas-geometry.js`), the **canvas interaction engine** (interact.js wiring + the rubber band; A38 already lifted the marquee out into `feezal-canvas-rubberband.js`, so this is materially smaller than the ~1000 lines originally scoped), the **context menu**, the **switch-family migration**.
+- Out of sidebar-inspector: ✅ the module-scope **canvas geometry helpers** (done — moved to `feezal-canvas-geometry.js`: `isCanvasElement`, the U33 stacking model and the B80 geometry hand-off, ~140 lines, importers re-pointed), the **canvas interaction engine** (interact.js wiring + the rubber band; A38 already lifted the marquee out into `feezal-canvas-rubberband.js`, so this is materially smaller than the ~1000 lines originally scoped), the **context menu**, the **switch-family migration**.
 - Mechanical rule: extraction only, no rewrites; each move lands with its existing tests re-pointed and a browser smoke.
 
 **Relates:** N42 (querySelector caching lands naturally during extraction), A36 (the server twin).
