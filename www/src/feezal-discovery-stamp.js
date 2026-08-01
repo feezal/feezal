@@ -298,6 +298,8 @@ const FUNCTION_CANDIDATES = {
     // Routing a numeric sensor to `-sensor` produced a boolean card that can't
     // display a value (e.g. a power-meter channel).
     sensor: ['value', 'gauge'],
+    // E165: the synthetic merged-device component (Generate auto-merge).
+    multivalue: ['multivalue'],
     // E109: evcc native entities. The site entity binds to the generic
     // energy-flow diagram (material family only); each loadpoint to the
     // loadpoint control card (glass/metro/circle).
@@ -496,6 +498,134 @@ export async function guessFrigateUrl() {
         if (m) return `http://${m[1]}:5000`;
     } catch { /* no bridge */ }
     return '';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// E165 — multivalue device-fill: several numeric `sensor` entities of ONE
+// device → one multivalue card config. Shared by the ⚡ picker's device rows
+// and the Generate wizard's auto-merge.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Stack primary preference when no grid pattern emerges — the reading a human
+// wants big. Lower index wins; unlisted classes rank after all listed ones.
+const MV_PRIMARY_PREFERENCE = ['temperature', 'humidity', 'power', 'energy', 'pressure'];
+
+/**
+ * Detect a phases-style grid in the value list: property leaves shaped
+ * `<base>_<suffix>` where ≥2 bases share the same ≥2 suffixes (power_a/b/c ×
+ * voltage_a/b/c). Mutates matching entries with row/col keys and returns true
+ * when the grid covers at least half the list (→ layout grid).
+ */
+export function deriveMultivalueGrid(values) {
+    const parts = values.map(v => {
+        const leaf = String(v.property || '').replace(/^payload\.?/, '');
+        const i = leaf.lastIndexOf('_');
+        return i > 0 ? {base: leaf.slice(0, i), suf: leaf.slice(i + 1)} : null;
+    });
+    const bySuf = new Map();
+    parts.forEach(p => {
+        if (!p) return;
+        if (!bySuf.has(p.suf)) bySuf.set(p.suf, new Set());
+        bySuf.get(p.suf).add(p.base);
+    });
+    const cols = new Set([...bySuf.entries()].filter(([, bases]) => bases.size >= 2).map(([suf]) => suf));
+    if (cols.size < 2) return false;
+    const rowSufs = new Map();   // base → count of column suffixes
+    parts.forEach(p => {
+        if (p && cols.has(p.suf)) rowSufs.set(p.base, (rowSufs.get(p.base) || 0) + 1);
+    });
+    const rows = new Set([...rowSufs.entries()].filter(([, n]) => n >= 2).map(([base]) => base));
+    let gridded = 0;
+    values.forEach((v, i) => {
+        const p = parts[i];
+        if (p && rows.has(p.base) && cols.has(p.suf)) {
+            v.row = p.base;
+            v.col = p.suf;
+            gridded++;
+        }
+    });
+    return gridded >= 4 && gridded * 2 >= values.length;
+}
+
+/**
+ * Build a multivalue card config from a device's numeric sensor entities:
+ * {subscribe, values, layout}. One shared state_topic collapses to the
+ * element-level subscribe; per-entity topics otherwise. Suffix patterns
+ * (power_a/b/c) derive the grid; else stack with a device-class-preferred
+ * primary (temperature > humidity > power > …).
+ */
+export function multivalueFromEntities(entities) {
+    const values = entities.map(entity => {
+        const cfg = entity.config || {};
+        const leaf = valueTemplateLeaf(cfg.value_template);
+        const v = {
+            property: leaf ? `payload.${leaf}` : 'payload',
+            label: friendlyName(discoveryAttributeSuffix(entity) || discoveryLabel(entity)),
+            topic: cfg.state_topic || '',
+        };
+        if (cfg.unit_of_measurement) v.unit = cfg.unit_of_measurement;
+        return v;
+    });
+    const topics = new Set(values.map(v => v.topic).filter(Boolean));
+    let subscribe = '';
+    if (topics.size === 1) {
+        subscribe = [...topics][0];
+        values.forEach(v => delete v.topic);
+    }
+    let layout = 'stack';
+    if (deriveMultivalueGrid(values)) {
+        layout = 'grid';
+    } else {
+        // primary by device-class preference (fall back to the first entry)
+        const rank = e => {
+            const i = MV_PRIMARY_PREFERENCE.indexOf(e.config?.device_class || '');
+            return i === -1 ? MV_PRIMARY_PREFERENCE.length : i;
+        };
+        let best = 0;
+        entities.forEach((e, i) => { if (rank(e) < rank(entities[best])) best = i; });
+        values[best].role = 'primary';
+    }
+    return {subscribe, values, layout};
+}
+
+/**
+ * Stamp a multivalue element from a device's sensor entities (the ⚡ picker
+ * device row / wizard merge path). Dupe-guard: the card carries the synthetic
+ * `mv:<deviceId>` discovery-id PLUS the member ids in `discovery-ids`, so
+ * both a re-merge and a later split run recognize it.
+ */
+export function applyMultivalueFill(el, entities, {deviceId = '', deviceName = ''} = {}) {
+    if (!entities?.length) return false;
+    const {subscribe, values, layout} = multivalueFromEntities(entities);
+    if (subscribe) el.setAttribute('subscribe', subscribe); else el.removeAttribute('subscribe');
+    el.setAttribute('values', JSON.stringify(values));
+    el.setAttribute('layout', layout);
+    if (deviceName && !el.getAttribute('label')) el.setAttribute('label', deviceName);
+    if (deviceId) el.setAttribute('discovery-id', 'mv:' + deviceId);
+    const memberIds = entities.map(e => e.discovery_id).filter(Boolean);
+    if (memberIds.length) el.setAttribute('discovery-ids', memberIds.join(' '));
+    return true;
+}
+
+/**
+ * Group a discovery entity list into multivalue merge candidates:
+ * Map<deviceId, {name, entities}> — numeric `sensor` entities sharing a
+ * device (E161 identifiers), groups of ≥2 only.
+ */
+export function multivalueMergeGroups(entities) {
+    const groups = new Map();
+    for (const e of entities || []) {
+        if (e.component !== 'sensor') continue;
+        const dev = e.config?.device;
+        const id = dev?.identifiers?.[0];
+        if (!id || !e.config?.state_topic) continue;
+        if (!groups.has(id)) groups.set(id, {name: dev.name || String(id), entities: []});
+        groups.get(id).entities.push(e);
+    }
+    for (const [id, g] of groups) {
+        if (g.entities.length < 2) groups.delete(id);
+    }
+    return groups;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

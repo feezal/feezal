@@ -20,7 +20,7 @@ class FeezalElementEinkMultivalue extends EinkBase {
             palette: {name: 'Multivalue', category: 'Eink', color: '#222222', icon: 'data_table'},
             description: 'E-ink multi-value card — several values from one device: primary + smaller secondaries ' +
                 '(stack) or a rows × columns table (grid). 1-bit, redraw-deduped, display-only.',
-            discovery: {component: 'sensor', map: multivalueDiscoveryMap},
+            discovery: {component: 'sensor', map: multivalueDiscoveryMap, multivalueDeviceFill: true},
             attributes: [
                 {name: 'label', type: 'string', help: 'Label under the values (rendered uppercase).'},
                 ...multivalueAttributes,

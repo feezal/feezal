@@ -27,7 +27,7 @@ class FeezalElementMetroMultivalue extends MetroTileBase {
             ],
             restrict: {minWidth: 40, minHeight: 40},
             defaultStyle: {width: '150px', height: '150px'},
-            discovery: {component: 'sensor', map: multivalueDiscoveryMap},
+            discovery: {component: 'sensor', map: multivalueDiscoveryMap, multivalueDeviceFill: true},
         };
     }
 

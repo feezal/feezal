@@ -10,7 +10,8 @@ export const LIVE_APPLY_DEBOUNCE_MS = 250;
 // valueTemplateLeaf is re-exported here for back-compat with existing importers.
 import {stampDiscovery, valueTemplateLeaf, discoveryLabel, discoveryAttributeSuffix, elementAcceptsComponent,
     discoveryCandidates, acceptedComponents, DISCOVERY_ROW_SEP,
-    applyFrigateLiveFeed, guessFrigateUrl} from './feezal-discovery-stamp.js';
+    applyFrigateLiveFeed, guessFrigateUrl,
+    multivalueMergeGroups, applyMultivalueFill} from './feezal-discovery-stamp.js';
 export {valueTemplateLeaf};
 
 import '@shoelace-style/shoelace/dist/components/input/input.js';
@@ -1765,6 +1766,11 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         // single declared `component` — a slider has none at all.
         if (!acceptedComponents(cls).length) return '';
 
+        // E165: multivalue cards pick a whole DEVICE, not one sensor entity —
+        // one pick fills the values list from every numeric sensor the device
+        // groups (E161 identifiers).
+        if (cls?.feezal?.discovery?.multivalueDeviceFill) return this._renderDeviceFillPicker(el);
+
         // One row per (entity × accepted variant): a light offered to a slider
         // yields a brightness row AND a colour-temp row (U56's shape).
         const allMatches = discoveryCandidates(cls, this.__discoveryEntities || []);
@@ -1825,6 +1831,64 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                 ${linkedId ? html`<button class="dp-clear" title="Unlink device" @click="${this._onClearDiscovery}">&#x2715;</button>` : ''}
             </div>
         `;
+    }
+
+    /** E165: device rows for multivalue cards — one option per E161 device
+     * group with ≥2 numeric sensors; picking one stamps the whole values list. */
+    _renderDeviceFillPicker(el) {
+        const groups = [...multivalueMergeGroups(this.__discoveryEntities || []).entries()]
+            .sort((a, b) => a[1].name.localeCompare(b[1].name));
+        if (!groups.length) return '';
+        const q = (this._discoveryFilter || '').toLowerCase().trim();
+        const matches = q ? groups.filter(([, g]) => g.name.toLowerCase().includes(q)) : groups;
+        const linkedId = el.getAttribute('discovery-id') || '';
+        const linkedIndex = linkedId.startsWith('mv:')
+            ? groups.findIndex(([id]) => 'mv:' + id === linkedId) : -1;
+        const showSearch = groups.length > 5;
+        return html`
+            <div class="discovery-picker">
+                <span class="dp-icon" title="Auto-discovered multi-sensor devices (${groups.length})">⚡</span>
+                <sl-select class="dp-select" size="small" hoist
+                    placeholder="Fill from a discovered device…"
+                    value="${linkedIndex >= 0 ? String(linkedIndex) : ''}"
+                    @sl-after-show="${() => this.renderRoot.querySelector('.dp-search')?.focus()}"
+                    @sl-hide="${() => { this._discoveryFilter = ''; }}"
+                    @sl-change="${e => this._onPickDeviceFill(e.target.value)}">
+                    ${showSearch ? html`
+                        <div class="dp-search-wrap"
+                            @click="${e => e.stopPropagation()}"
+                            @mousedown="${e => e.stopPropagation()}">
+                            <input class="dp-search" type="text"
+                                placeholder="Filter ${groups.length} devices…"
+                                .value="${this._discoveryFilter || ''}"
+                                @input="${e => { e.stopPropagation(); this._discoveryFilter = e.target.value; }}"
+                                @keydown="${e => e.stopPropagation()}">
+                        </div>` : ''}
+                    ${matches.map(([id, g]) => html`<sl-option
+                        value="${groups.findIndex(([gid]) => gid === id)}"
+                        >${g.name} — ${g.entities.length} values</sl-option>`)}
+                    ${!matches.length ? html`<sl-option value="" disabled>No matches for “${this._discoveryFilter}”</sl-option>` : ''}
+                </sl-select>
+                ${linkedId ? html`<button class="dp-clear" title="Unlink device" @click="${this._onClearDiscovery}">&#x2715;</button>` : ''}
+            </div>
+        `;
+    }
+
+    _onPickDeviceFill(indexValue) {
+        if (indexValue === '' || indexValue === undefined) return;
+        const el = this.selectedElems?.[0];
+        if (!el) return;
+        const groups = [...multivalueMergeGroups(this.__discoveryEntities || []).entries()]
+            .sort((a, b) => a[1].name.localeCompare(b[1].name));
+        const picked = groups[Number(indexValue)];
+        if (!picked) {
+            console.warn('feezal: device-fill pick did not resolve to a device group', {value: indexValue});
+            return;
+        }
+        const [deviceId, group] = picked;
+        applyMultivalueFill(el, group.entities, {deviceId, deviceName: group.name});
+        this._rebuildItems();
+        feezal.app.change();
     }
 
     // Build a meaningful option label from the discovery payload. The entity

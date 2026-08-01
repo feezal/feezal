@@ -1400,7 +1400,16 @@ Asked: would moving the fancy elements into their own repo + npm distribution ma
 
 **Relates:** **[E139](roadmap-archive/E139.md)** ✅ (the machinery this re-skins — player/segments/override attributes unchanged), **E89** ✅ (loader), **A25** (self-hosting + license hygiene — the vendoring pattern), **E113** (function × style), the E20/weather element (Noto's weather emoji would serve it too).
 
-### E165 — Multi-value readout card (`(glass|metro|circle|eink)-multivalue`)
+### E165 — Multi-value readout card (`(glass|metro|circle|eink)-multivalue`) 🔨 mostly shipped
+
+**Status (08/2026): shipped** — controller + all four family cards, both layouts
+(grid inside the circle disc too), the `values` list editor + template
+generator, the ⚡ picker device-fill and the Generate auto-merge with the
+per-device combined/split badge (see TESTING.md §6 "Multivalue cards").
+**Remaining:** the per-value **U65 colour-range** field in the `values` list
+(today ranges can only drive the element-level colour vars via the style
+inspector, not a single value); and the merged card does not yet carry
+availability from its member entities.
 
 **Motivation.** Real devices rarely report one number. A zigbee 3-phase powermeter
 publishes `voltage_a/b/c`, `power_a/b/c`, `current_a/b/c` in one payload; a climate

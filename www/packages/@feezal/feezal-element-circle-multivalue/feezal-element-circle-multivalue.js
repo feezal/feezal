@@ -18,7 +18,7 @@ class FeezalElementCircleMultivalue extends FeezalElement {
             palette: {name: 'Multivalue', category: 'Circle', color: '#1565c0', icon: 'data_table'},
             description: 'Multi-value card — a Circle-family disc showing several values from one device: primary + ' +
                 'smaller secondaries (stack) or a rows × columns table (grid). Display-only.',
-            discovery: {component: 'sensor', map: multivalueDiscoveryMap},
+            discovery: {component: 'sensor', map: multivalueDiscoveryMap, multivalueDeviceFill: true},
             attributes: [
                 {name: 'label', type: 'string', help: 'Label shown under the disc.'},
                 ...multivalueAttributes,

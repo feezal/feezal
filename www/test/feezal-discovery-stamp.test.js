@@ -16,6 +16,9 @@ import {
     slugifyViewName,
     UNKNOWN_ROOM,
     applyFrigateLiveFeed,
+    multivalueMergeGroups,
+    multivalueFromEntities,
+    applyMultivalueFill,
 } from '../src/feezal-discovery-stamp.js';
 
 // U62: a fixture that routes the entity `name` → `label` (like every E137
@@ -584,5 +587,59 @@ describe('applyFrigateLiveFeed (live MJPEG tiles from the Frigate base URL)', ()
         expect(el.getAttribute('type')).toBe('mqtt-image');
         expect(el.getAttribute('subscribe')).toBe('frigate/front_door/person/snapshot');
         expect(el.hasAttribute('src')).toBe(false);
+    });
+});
+
+describe('E165 - multivalue device-fill (merge groups, grid derivation, stamping)', () => {
+    const sensor = (dev, key, extra = {}) => ({
+        component: 'sensor', discovery_id: `sensor/${dev}/${key}`,
+        config: {
+            name: key, state_topic: `zigbee2mqtt/${dev}`,
+            value_template: `{{ value_json.${key} }}`,
+            device: {identifiers: [dev], name: dev.toUpperCase()},
+            ...extra,
+        },
+    });
+
+    it('groups >=2 numeric sensors per device, ignores singles and other components', () => {
+        const groups = multivalueMergeGroups([
+            sensor('meter', 'power_a'), sensor('meter', 'power_b'),
+            sensor('lonely', 'temperature'),
+            {component: 'light', config: {device: {identifiers: ['meter']}, state_topic: 'x'}},
+        ]);
+        expect([...groups.keys()]).toEqual(['meter']);
+        expect(groups.get('meter').entities).toHaveLength(2);
+        expect(groups.get('meter').name).toBe('METER');
+    });
+
+    it('a 3-phase meter derives the grid; a temp+humidity pair stays a stack with temperature primary', () => {
+        const meter = multivalueFromEntities([
+            ...['power_a', 'power_b', 'power_c'].map(k => sensor('meter', k, {unit_of_measurement: 'W'})),
+            ...['voltage_a', 'voltage_b', 'voltage_c'].map(k => sensor('meter', k, {unit_of_measurement: 'V'})),
+        ]);
+        expect(meter.layout).toBe('grid');
+        expect(meter.subscribe).toBe('zigbee2mqtt/meter');   // one shared topic collapses
+        expect(meter.values[0]).toMatchObject({property: 'payload.power_a', row: 'power', col: 'a', unit: 'W'});
+        expect(meter.values.every(v => !v.topic)).toBe(true);
+
+        const climate = multivalueFromEntities([
+            sensor('clima', 'humidity', {device_class: 'humidity', unit_of_measurement: '%'}),
+            sensor('clima', 'temperature', {device_class: 'temperature', unit_of_measurement: '°C'}),
+        ]);
+        expect(climate.layout).toBe('stack');
+        expect(climate.values.find(v => v.role === 'primary').property).toBe('payload.temperature');
+    });
+
+    it('applyMultivalueFill stamps the card incl. the dual dupe-guard ids', () => {
+        const el = document.createElement('div');
+        const ents = [sensor('meter', 'power_a'), sensor('meter', 'power_b')];
+        expect(applyMultivalueFill(el, ents, {deviceId: 'meter', deviceName: 'METER'})).toBe(true);
+        expect(el.getAttribute('subscribe')).toBe('zigbee2mqtt/meter');
+        expect(el.getAttribute('discovery-id')).toBe('mv:meter');
+        expect(el.getAttribute('discovery-ids')).toBe('sensor/meter/power_a sensor/meter/power_b');
+        expect(el.getAttribute('label')).toBe('METER');
+        const values = JSON.parse(el.getAttribute('values'));
+        expect(values).toHaveLength(2);
+        expect(values[0].label).toBe('Power A');
     });
 });

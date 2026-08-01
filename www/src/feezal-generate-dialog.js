@@ -10,7 +10,8 @@ import '@shoelace-style/shoelace/dist/components/spinner/spinner.js';
 
 import {stampDiscovery, resolveElementTag, layoutGrid, knownComponents, discoveryLabel,
     groupForApp, functionBucket, slugifyViewName, UNKNOWN_ROOM,
-    assignRoom, lexiconWordsForLabel, applyFrigateLiveFeed, guessFrigateUrl} from './feezal-discovery-stamp.js';
+    assignRoom, lexiconWordsForLabel, applyFrigateLiveFeed, guessFrigateUrl,
+    multivalueMergeGroups, applyMultivalueFill} from './feezal-discovery-stamp.js';
 import {RangeSelect} from './feezal-range-select.js';
 import './feezal-icon-input.js';   // U78: the shared icon picker for the room list
 
@@ -109,6 +110,7 @@ class FeezalGenerateDialog extends LitElement {
         _newRoomFor: {state: true},// U70/U75: entity key(s) awaiting a new-room name, or null
         _newRoomName: {state: true},
         _frigateUrl: {state: true},// Frigate base URL → live MJPEG tiles (empty = MQTT snapshots)
+        _demerged: {state: true},  // E165: device ids the user split out of the auto-merge
     };
 
     static styles = css`
@@ -183,6 +185,13 @@ class FeezalGenerateDialog extends LitElement {
             background: var(--feezal-badge-bg, #e2e8f0); color: var(--feezal-badge-fg, #64748b);
         }
         .row .r-gap { font-size: 11px; color: var(--sl-color-warning-600, #d97706); flex: 0 0 auto; }
+        /* E165: clickable combine/split badge on multi-sensor devices */
+        .r-badge.mv {
+            cursor: pointer;
+            background: var(--sl-color-primary-100, #e0f2fe);
+            color: var(--sl-color-primary-700, #0369a1);
+        }
+        .r-badge.mv.off { background: var(--feezal-badge-bg, #e2e8f0); color: var(--feezal-badge-fg, #64748b); }
         /* U75: review row SELECTION highlight (distinct from the include checkbox). */
         .row.selected, .row.selected:hover { background: var(--feezal-sel-bg, #cfe5fb); }
 
@@ -397,6 +406,7 @@ class FeezalGenerateDialog extends LitElement {
         this._newRoomFor = null;
         this._newRoomName = '';
         this._frigateUrl = '';
+        this._demerged = new Set();
         this._bucketMeta = new Map();
         this.__devices = [];
         // U68: the range/drag helper driving the CHECKBOXES (device list + the
@@ -679,6 +689,7 @@ class FeezalGenerateDialog extends LitElement {
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
                 this.__devices = await this._fetchDevices(stage);
+                this.__mvGroups = null;   // E165: merge-group memo follows the list
                 this._error = null;
                 if (this.__devices.length || attempt === maxAttempts) break;
             } catch (err) {
@@ -737,6 +748,84 @@ class FeezalGenerateDialog extends LitElement {
         if (this._frigateUrl && applyFrigateLiveFeed(el, entity, this._frigateUrl)) {
             localStorage.setItem('feezal.frigateUrl', this._frigateUrl.trim());
         }
+    }
+
+    // ── E165: multivalue auto-merge (decided 08/2026: merged by default, the
+    // user can de-combine per device) ─────────────────────────────────────────
+
+    /** Does the current family ship a multivalue card at all? */
+    _mvTag() {
+        return resolveElementTag('multivalue', this._family);
+    }
+
+    /** The merge-group id an entity belongs to (family-gated), or null. */
+    _mvGroupOf(entity) {
+        if (!this._mvTag() || entity.component !== 'sensor') return null;
+        const id = entity.config?.device?.identifiers?.[0];
+        if (!id || !entity.config?.state_topic) return null;
+        return (this.__mvGroups ??= multivalueMergeGroups(this.__devices)).has(id) ? id : null;
+    }
+
+    _toggleDemerge(id) {
+        const next = new Set(this._demerged);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        this._demerged = next;
+    }
+
+    /** The E165 merge badge on a device-list / review row. */
+    _mvBadge(entity) {
+        const id = this._mvGroupOf(entity);
+        if (!id) return '';
+        const split = this._demerged.has(id);
+        return html`<span class="r-badge mv ${split ? 'off' : ''}"
+            title="${split
+                ? 'This device’s sensors generate as individual value cards — click to combine them into one multivalue card again'
+                : 'This device’s sensors combine into ONE multivalue card — click to generate individual value cards instead'}"
+            @pointerdown="${ev => ev.stopPropagation()}"
+            @click="${ev => { ev.stopPropagation(); this._toggleDemerge(id); }}">${split ? 'split' : 'combined'}</span>`;
+    }
+
+    /**
+     * Turn the chosen entities into a creation plan, merging each device's
+     * numeric sensors into one multivalue card (unless de-combined or the
+     * family ships no multivalue element). Plan rows are either
+     * {entity, tag} or {entities, tag, mv: {deviceId, deviceName}} — in the
+     * chosen order, a merged card at its first member's position.
+     */
+    _mvPlan(chosen) {
+        const mvTag = this._mvTag();
+        const groups = mvTag ? multivalueMergeGroups(chosen) : new Map();
+        for (const id of [...groups.keys()]) {
+            if (this._demerged.has(id)) groups.delete(id);
+        }
+        const memberOf = new Map();
+        for (const [id, g] of groups) g.entities.forEach(e => memberOf.set(e, id));
+        const plans = [];
+        const planned = new Set();
+        for (const e of chosen) {
+            const id = memberOf.get(e);
+            if (id) {
+                if (planned.has(id)) continue;
+                planned.add(id);
+                const g = groups.get(id);
+                plans.push({tag: mvTag, entities: g.entities, mv: {deviceId: id, deviceName: g.name}});
+            } else {
+                plans.push({entity: e, tag: this._tagFor(e)});
+            }
+        }
+        return plans;
+    }
+
+    /** Site dupe-guard ids of an element — discovery-id plus the E165 member
+     * list (discovery-ids), so both a re-merge and a later split run match. */
+    static _elementIds(el) {
+        const out = [];
+        const id = el.getAttribute?.('discovery-id');
+        if (id) out.push(id);
+        for (const m of (el.getAttribute?.('discovery-ids') || '').split(/\s+/)) {
+            if (m) out.push(m);
+        }
+        return out;
     }
 
     // Devices matching the filter, grouped by source (only generatable rows).
@@ -867,18 +956,28 @@ class FeezalGenerateDialog extends LitElement {
         if (!view) { this._error = 'No active view.'; this.requestUpdate(); return; }
 
         const existing = new Set(
-            [...view.children].map(c => c.getAttribute?.('discovery-id')).filter(Boolean)
+            [...view.children].flatMap(c => FeezalGenerateDialog._elementIds(c))
         );
         const chosen = this.__devices.filter(e => this._checked.has(e.__key));
 
         const toCreate = [];
         const skippedDupe = [];
         const skippedNoElem = [];
-        for (const entity of chosen) {
-            const tag = this._tagFor(entity);
-            if (!tag) { skippedNoElem.push(entity); continue; }
+        for (const plan of this._mvPlan(chosen)) {
+            if (plan.mv) {
+                // E165 merged card: a dupe on the synthetic id OR any member.
+                if (existing.has('mv:' + plan.mv.deviceId) ||
+                    plan.entities.some(e => e.discovery_id && existing.has(e.discovery_id))) {
+                    skippedDupe.push(...plan.entities);
+                    continue;
+                }
+                toCreate.push(plan);
+                continue;
+            }
+            const entity = plan.entity;
+            if (!plan.tag) { skippedNoElem.push(entity); continue; }
             if (entity.discovery_id && existing.has(entity.discovery_id)) { skippedDupe.push(entity); continue; }
-            toCreate.push({entity, tag});
+            toCreate.push(plan);
         }
 
         // Uniform cell from the resolved tags' defaultStyle (largest wins).
@@ -894,11 +993,15 @@ class FeezalGenerateDialog extends LitElement {
             ? layoutGrid(toCreate.length, {cellW, cellH, viewWidth: view.clientWidth || 1200})
             : [];
 
-        toCreate.forEach(({entity, tag}, i) => {
-            const el = document.createElement(tag);
+        toCreate.forEach((plan, i) => {
+            const el = document.createElement(plan.tag);
             view.append(el);
             feezal.editor.initElem(el, true);   // applies defaultStyle
-            this._stampEntity(el, entity);
+            if (plan.mv) {
+                applyMultivalueFill(el, plan.entities, plan.mv);
+            } else {
+                this._stampEntity(el, plan.entity);
+            }
             if (absolute && positions[i]) {
                 el.style.left = positions[i].left + 'px';
                 el.style.top = positions[i].top + 'px';
@@ -1204,8 +1307,10 @@ class FeezalGenerateDialog extends LitElement {
         this._applyFamilyTheme();
 
         // ── site-wide dupe guard: a device carded ANYWHERE is not re-added ──
+        // (E165: incl. the members a merged multivalue card carries in
+        // discovery-ids, so a later split run recognizes them too.)
         const existing = new Set(
-            [...site.querySelectorAll('[discovery-id]')].map(el => el.getAttribute('discovery-id')).filter(Boolean)
+            [...site.querySelectorAll('[discovery-id]')].flatMap(el => FeezalGenerateDialog._elementIds(el))
         );
 
         const buckets = this._reviewBuckets();
@@ -1263,11 +1368,27 @@ class FeezalGenerateDialog extends LitElement {
                     (functionBucket(a).order ?? 99) - (functionBucket(b).order ?? 99) ||
                     this._label(a).localeCompare(this._label(b), undefined, {sensitivity: 'base'}));
             }
-            for (const entity of chosen) {
+            for (const plan of this._mvPlan(chosen)) {
+                if (plan.mv) {
+                    // E165 merged card: dupe on the synthetic id OR any member.
+                    if (existing.has('mv:' + plan.mv.deviceId) ||
+                        plan.entities.some(e => e.discovery_id && existing.has(e.discovery_id))) {
+                        skippedDupe.push(...plan.entities);
+                        continue;
+                    }
+                    const el = document.createElement(plan.tag);
+                    view.append(el);
+                    feezal.editor.initElem(el, true);
+                    applyMultivalueFill(el, plan.entities, plan.mv);
+                    existing.add('mv:' + plan.mv.deviceId);
+                    plan.entities.forEach(e => e.discovery_id && existing.add(e.discovery_id));
+                    added++;
+                    continue;
+                }
+                const entity = plan.entity;
                 if (entity.discovery_id && existing.has(entity.discovery_id)) { skippedDupe.push(entity); continue; }
-                const tag = this._tagFor(entity);
-                if (!tag) continue;   // review only holds resolvable rows, belt & braces
-                const el = document.createElement(tag);
+                if (!plan.tag) continue;   // review only holds resolvable rows, belt & braces
+                const el = document.createElement(plan.tag);
                 view.append(el);
                 feezal.editor.initElem(el, true);
                 this._stampEntity(el, entity);
@@ -1632,6 +1753,7 @@ class FeezalGenerateDialog extends LitElement {
                                 </span>
                                 <span class="r-label">${this._label(e)}</span>
                                 <span class="r-badge">${e.component}</span>
+                                ${this._mvBadge(e)}
                                 <select class="r-move" .value="${b.label}"
                                     @pointerdown="${ev => ev.stopPropagation()}"
                                     @change="${ev => this._onReassignChange(e.__key, ev.target.value)}">
@@ -1700,6 +1822,7 @@ class FeezalGenerateDialog extends LitElement {
                 <sl-checkbox ?checked="${on}"></sl-checkbox>
                 <span class="r-label">${this._label(entity)}</span>
                 <span class="r-badge">${entity.component}</span>
+                ${this._mvBadge(entity)}
             </div>`;
     }
 
