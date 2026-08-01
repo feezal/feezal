@@ -72,6 +72,7 @@ Work in progress — priorities and scope are not final.
 - [U85 — Toast/notification service: route the remaining call sites](#u85--toastnotification-service-route-the-remaining-call-sites--service-shipped) 🔨 *(service shipped)*
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
 - [U89 — Equal-gap smart guides during drag](#u89--equal-gap-smart-guides-during-drag) 💡
+- [U91 — Distribute: pack mode (edge-to-edge, no overlap, no gap)](#u91--distribute-pack-mode-edge-to-edge-no-overlap-no-gap)
 
 
 **Architecture & Infrastructure**
@@ -2323,3 +2324,30 @@ reusing the existing guide-line rendering — plus the new gap-arrow marker.
 **Open:** how many gaps to consider beyond the adjacent-pair case above
 (immediate neighbours vs. the whole row); gap-arrow styling details (arrowheads
 vs. plain dotted span with end ticks).
+
+### U91 — Distribute: pack mode (edge-to-edge, no overlap, no gap)
+
+**Requested (08/2026).** The U83 distribute operations space elements by
+equalizing gaps or centers — but there is no way to say "put them side by
+side, touching": element beside element, **no overlapping, no gap** (gap = 0).
+
+**Design:** a **Pack** pair next to the existing Distribute entries (toolbar +
+context menu, horizontal and vertical): keep the selection sort order along
+the axis (same ordering rule U83 uses), keep the first element in place, then
+place each following element flush against the previous one — next.left =
+prev.left + prev.width (resp. top/height). Cross-axis positions stay untouched
+(pack is one-dimensional, like the other distribute operations). Elements that
+overlap before packing come out cleanly tiled — that is the point: turn a
+rough overlapping pile into a clean strip in one click.
+
+**Notes:** one undo entry for the batch (U83 rule); respects locked elements
+the same way the other operations do; a follow-up idea (not v1) is pack with
+the grid gap when the view uses U90 grid layout — for absolute views gap = 0
+per the request.
+
+**Relates:** [U83](roadmap-archive/U83.md) ✅ (the distribute family this
+extends — same sorting, same undo semantics), U89 (equal-gap smart guides —
+the drag-time sibling; pack is the explicit-operation form of "no gap"),
+[U90](roadmap-archive/U90.md) ✅ (grid layout — the possible gap-source
+follow-up).
+
