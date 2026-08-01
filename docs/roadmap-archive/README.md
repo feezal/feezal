@@ -7,7 +7,7 @@ Each entry is filed under the section its **ID prefix** belongs to — `B` Bugs,
 Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastructure,
 `D` Documentation — and sorted by number within it, so a new entry has exactly one correct place.
 
-**375 items.**
+**376 items.**
 
 ## Bugs
 
@@ -112,6 +112,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B104 — Multi-selection drag: elements snap to their co-dragged companions ✅ fixed](B104.md)
 - [B105 — Source formatting: line break inside closing tags, glued closing-tag runs ✅ fixed](B105.md)
 - [B107 — Source formatting: closing tag glued to the last attribute line ✅ fixed](B107.md)
+- [B108 — Stale viewers linger in the Clients list ✅ fixed](B108.md)
 
 ## Near-term Improvements
 

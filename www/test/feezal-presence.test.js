@@ -2,7 +2,8 @@ import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 
 import '../src/feezal-site.js';
 import '../src/feezal-view.js';
-import {clientId, statusTopic, presenceEnabled, presenceWill, rename, toast, _reset} from '../src/feezal-presence.js';
+import {clientId, statusTopic, presenceEnabled, presenceWill, rename, toast, _reset,
+    PRESENCE_HEARTBEAT_MS} from '../src/feezal-presence.js';
 
 let subs;       // topic → [callbacks]
 let published;  // [{topic, payload, options}]
@@ -10,6 +11,8 @@ let published;  // [{topic, payload, options}]
 function fakeConnection() {
     return {
         backend: 'mqtt',
+        connected: true,   // the real connection exposes this; the heartbeat reads it
+
         sub: vi.fn((topic, cb) => {
             (subs[topic] ||= []).push(cb);
             return {topic, cb};
@@ -242,5 +245,78 @@ describe('toast()', () => {
         expect(el.textContent).toContain('hello');
         el.querySelector('button').click();
         expect(document.querySelector('#feezal-presence-toasts')?.contains(el)).toBe(false);
+    });
+});
+
+
+/**
+ * B108 — the heartbeat. The last-will only fires on an ungraceful disconnect,
+ * and MQTT allows one will per connection, so several real cases leave a
+ * retained status behind forever (a site with its own configured LWT, a
+ * renamed viewer whose will still points at the old topic, a changed site
+ * publish topic). Re-publishing turns "gone" into something a listener can
+ * observe.
+ */
+describe('presence heartbeat (B108)', () => {
+    const beats = topic => published.filter(p => p.topic === topic && p.payload !== '');
+
+    it('re-publishes the retained status on an interval', async () => {
+        vi.useFakeTimers();
+        try {
+            await boot();
+            const topic = statusTopic();
+            const afterConnect = beats(topic).length;
+            expect(afterConnect).toBeGreaterThan(0);
+
+            vi.advanceTimersByTime(PRESENCE_HEARTBEAT_MS * 3 + 100);
+            const extra = beats(topic).slice(afterConnect);
+            expect(extra).toHaveLength(3);
+            // retained, exactly like the first announcement — a listener that
+            // subscribes later still sees the viewer.
+            for (const b of extra) expect(b.options).toEqual({retain: true});
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('stops beating once presence is torn down', async () => {
+        vi.useFakeTimers();
+        try {
+            await boot();
+            const topic = statusTopic();
+            _reset();
+            const before = beats(topic).length;
+            vi.advanceTimersByTime(PRESENCE_HEARTBEAT_MS * 3);
+            expect(beats(topic)).toHaveLength(before);   // no stray timer left
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('does not beat while the connection is down', async () => {
+        // A publish into a dead connection is pointless noise; the reconnect
+        // republishes anyway.
+        vi.useFakeTimers();
+        try {
+            await boot();
+            const topic = statusTopic();
+            const before = beats(topic).length;
+            feezal.connection.connected = false;
+            vi.advanceTimersByTime(PRESENCE_HEARTBEAT_MS * 2 + 100);
+            expect(beats(topic)).toHaveLength(before);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('does not beat when presence is switched off for the site', async () => {
+        vi.useFakeTimers();
+        try {
+            await boot({presence: 'off'});
+            vi.advanceTimersByTime(PRESENCE_HEARTBEAT_MS * 2 + 100);
+            expect(published.filter(p => p.topic.endsWith('/status'))).toHaveLength(0);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

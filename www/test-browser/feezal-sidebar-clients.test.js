@@ -103,3 +103,93 @@ describe('feezal-sidebar-clients late-site wiring (N24)', () => {
         expect(feezal.connection.subCount()).toBe(0);   // no zombie rewire
     });
 });
+
+
+/**
+ * B108 — a retained status that stops being refreshed is a ghost.
+ *
+ * The last-will covers the common ungraceful disconnect, but it cannot cover
+ * everything: MQTT allows ONE will per connection (a site with its own
+ * configured LWT has none left for presence), a renamed viewer's will still
+ * points at its old topic, and changing the site's publish topic strands the
+ * old retained status for good. The viewer heartbeat makes that absence
+ * observable; this panel acts on it.
+ */
+describe('inactive viewers (B108)', () => {
+    const Panel = customElements.get('feezal-sidebar-clients');
+
+    /** Mount a panel with two clients and control how long ago each was seen. */
+    async function panelWith(seenAgo) {
+        const site = document.createElement('feezal-site');
+        site.setAttribute('publish', 'site');
+        site.setAttribute('subscribe', 'site/set');
+        app.append(site);
+        const panel = document.createElement('feezal-sidebar-clients');
+        document.body.append(panel);
+        await panel.updateComplete;
+        await tick();
+
+        panel._clients = Object.fromEntries(Object.keys(seenAgo).map(id => [id, {...STATUS}]));
+        panel._seenAt = Object.fromEntries(
+            Object.entries(seenAgo).map(([id, ago]) => [id, Date.now() - ago]));
+        panel._now = Date.now();
+        await panel.updateComplete;
+        return panel;
+    }
+
+    const shownIds = panel => [...panel.shadowRoot.querySelectorAll('.client .head span:nth-child(2)')]
+        .map(el => el.textContent.trim());
+
+    it('hides a client whose heartbeat stopped, keeping the live one', async () => {
+        const panel = await panelWith({live: 5_000, ghost: 10 * 60_000});
+        expect(shownIds(panel)).toEqual(['live']);
+        panel.remove();
+    });
+
+    it('says how many are hidden rather than losing them silently', async () => {
+        const panel = await panelWith({live: 5_000, ghost: 10 * 60_000});
+        const note = panel.shadowRoot.querySelector('.stale-note');
+        expect(note).toBeTruthy();
+        expect(note.textContent).toContain('1 inactive viewer');
+        panel.remove();
+    });
+
+    it('can reveal them, greyed out', async () => {
+        const panel = await panelWith({live: 5_000, ghost: 10 * 60_000});
+        panel._showStale = true;
+        await panel.updateComplete;
+        expect(shownIds(panel).sort()).toEqual(['ghost', 'live']);
+        const stale = panel.shadowRoot.querySelector('.client.stale');
+        expect(stale).toBeTruthy();
+        panel.remove();
+    });
+
+    it('tolerates a single missed beat', async () => {
+        // One dropped publish, or a viewer briefly offline, must not make it
+        // vanish — the threshold is several beats, not one.
+        const panel = await panelWith({blip: 90_000});
+        expect(shownIds(panel)).toEqual(['blip']);
+        expect(panel.shadowRoot.querySelector('.stale-note')).toBeNull();
+        panel.remove();
+    });
+
+    it('forgetting a ghost clears its retained status on the broker', async () => {
+        const panel = await panelWith({ghost: 10 * 60_000});
+        const sent = [];
+        feezal.connection.pub = (topic, payload, opts) => sent.push({topic, payload, opts});
+        panel.shadowRoot.querySelector('.stale-note a:last-of-type').click();
+        expect(sent).toEqual([{topic: 'site/clients/ghost/status', payload: '', opts: {retain: true}}]);
+        panel.remove();
+    });
+
+    it('drops a client from the seen-map when its status is cleared', async () => {
+        const panel = await panelWith({gone: 5_000});
+        expect(panel._seenAt.gone).toBeDefined();
+        // an empty retained payload = the viewer went offline cleanly
+        panel._clients = {};
+        panel._seenAt = {};
+        await panel.updateComplete;
+        expect(shownIds(panel)).toEqual([]);
+        panel.remove();
+    });
+});

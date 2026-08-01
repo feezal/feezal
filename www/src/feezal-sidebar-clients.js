@@ -18,6 +18,8 @@ import '@shoelace-style/shoelace/dist/components/button/button.js';
 class FeezalSidebarClients extends LitElement {
     static properties = {
         _clients: {state: true},   // id → status object
+        _showStale: {state: true}, // reveal the inactive ones (B108)
+        _now: {state: true},       // ticks the staleness re-render
         _renames: {state: true},   // id → pending rename input value
         _topic:   {state: true},   // subscribed wildcard (for the empty-state hint)
         _cmdBase: {state: true},   // site subscribe topic (command tree; '' = commands unavailable)
@@ -37,6 +39,10 @@ class FeezalSidebarClients extends LitElement {
             background: var(--feezal-bg-sub, #f5f5f5); border-radius: 6px 6px 0 0;
         }
         .dot { width: 8px; height: 8px; border-radius: 50%; background: #2e7d32; flex: 0 0 auto; }
+        /* B108 — a viewer whose heartbeat stopped: shown greyed when revealed. */
+        .client.stale { opacity: 0.55; }
+        .client.stale .dot { background: #9ca3af; }
+        .stale-note a { color: var(--sl-color-primary-600, #0284c7); cursor: pointer; }
         .conn { font-weight: 400; font-size: 10px; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.04em; }
         .body { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
         .meta { font-size: 11px; opacity: 0.7; line-height: 1.5; word-break: break-all; }
@@ -52,6 +58,9 @@ class FeezalSidebarClients extends LitElement {
     constructor() {
         super();
         this._clients = {};
+        this._seenAt = {};         // id → local ms when its status last arrived
+        this._showStale = false;
+        this._now = Date.now();
         this._renames = {};
         this._topic = '';
         this._cmdBase = '';
@@ -68,6 +77,10 @@ class FeezalSidebarClients extends LitElement {
         // then resolves no topic and the panel stayed dead until a tab
         // switch. feezal.site is a live getter over feezal.app's light DOM:
         // watch feezal.app for the site element (re)appearing.
+        // B108: staleness is time-based, so it has to be re-evaluated while
+        // the panel sits open — nothing else would trigger a re-render once a
+        // viewer goes quiet (its silence IS the event).
+        this._tick = setInterval(() => { this._now = Date.now(); }, 15_000);
         this._appObserver = new MutationObserver(() => this.activate());
         if (feezal.app) {
             this._appObserver.observe(feezal.app, {childList: true});
@@ -78,6 +91,8 @@ class FeezalSidebarClients extends LitElement {
 
     disconnectedCallback() {
         super.disconnectedCallback();
+        clearInterval(this._tick);
+        this._tick = null;
         this._appObserver?.disconnect();
         this._appObserver = null;
         this._siteObserver?.disconnect();
@@ -136,8 +151,15 @@ class FeezalSidebarClients extends LitElement {
             }
             if (p && typeof p === 'object' && p.connectedSince) {
                 next[id] = p;
+                // B108: LOCAL arrival time, not a timestamp from the payload —
+                // the viewer's clock may be minutes or hours off ours, and a
+                // skewed clock must not make a live viewer look dead.
+                this._seenAt = {...this._seenAt, [id]: Date.now()};
             } else {
                 delete next[id];   // cleared retained status → offline
+                const seen = {...this._seenAt};
+                delete seen[id];
+                this._seenAt = seen;
             }
 
             this._clients = next;
@@ -165,8 +187,41 @@ class FeezalSidebarClients extends LitElement {
         return `${Math.floor(mins / 60)} h ${mins % 60} min`;
     }
 
+    /**
+     * B108 — a viewer counts as inactive when its heartbeat has been missing
+     * for a while.
+     *
+     * The last-will handles the common ungraceful disconnect, but it cannot
+     * cover every case: MQTT allows ONE will per connection, so a site with its
+     * own configured LWT has none left for presence; a renamed viewer's will
+     * still points at its old topic; and changing the site's publish topic
+     * strands the old retained status permanently. Those all leave a retained
+     * status that looks online forever — which is what a missing heartbeat
+     * makes visible.
+     *
+     * Three missed beats before hiding: one dropped publish (or a viewer
+     * briefly offline) must not make it vanish.
+     */
+    static STALE_AFTER_MS = 3 * 60_000;
+
+    _isStale(id) {
+        const seen = this._seenAt[id];
+        // Never seen a live update (only the retained replay) — give it the
+        // same grace as everyone else, counted from when the panel first saw it.
+        return seen !== undefined && this._now - seen > FeezalSidebarClients.STALE_AFTER_MS;
+    }
+
+    /** Drop a viewer's retained status from the broker, so it stops coming back. */
+    _forget(id) {
+        const base = this._topic ? this._topic.slice(0, -'/+/status'.length) : '';
+        if (!base) return;
+        feezal.connection.pub(`${base}/${id}/status`, '', {retain: true});
+    }
+
     render() {
-        const ids = Object.keys(this._clients).sort();
+        const all = Object.keys(this._clients).sort();
+        const stale = all.filter(id => this._isStale(id));
+        const ids = this._showStale ? all : all.filter(id => !this._isStale(id));
         return html`
             <h3>Clients</h3>
             <div class="hint">
@@ -177,10 +232,22 @@ class FeezalSidebarClients extends LitElement {
                 — automations can do the same.
             </div>
             ${ids.length === 0 ? html`<div class="hint">No viewers online.</div>` : ''}
+            ${stale.length ? html`
+                <div class="hint stale-note">
+                    ${stale.length} inactive viewer${stale.length > 1 ? 's' : ''}
+                    (no heartbeat for over ${Math.round(FeezalSidebarClients.STALE_AFTER_MS / 60000)} min)
+                    ${this._showStale ? '' : 'hidden'}.
+                    <a href="#" @click="${e => { e.preventDefault(); this._showStale = !this._showStale; }}"
+                        >${this._showStale ? 'Hide' : 'Show'}</a>
+                    ·
+                    <a href="#" title="Clear their retained status on the broker"
+                        @click="${e => { e.preventDefault(); stale.forEach(id => this._forget(id)); }}"
+                        >Forget ${stale.length > 1 ? 'them' : 'it'}</a>
+                </div>` : ''}
             ${ids.map(id => {
                 const c = this._clients[id];
                 return html`
-                    <div class="client">
+                    <div class="client ${this._isStale(id) ? 'stale' : ''}">
                         <div class="head">
                             <span class="dot"></span>
                             <span>${id}</span>

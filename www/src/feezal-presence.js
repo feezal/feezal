@@ -39,7 +39,25 @@ const COMMANDS = ['view', 'reload', 'theme', 'playlist', 'addclass', 'removeclas
 // Topic-safe client IDs — no MQTT separators/wildcards, no whitespace.
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 
+/**
+ * B108 — how often a viewer re-publishes its retained status.
+ *
+ * The last-will covers an UNGRACEFUL disconnect, but it does not cover
+ * everything: MQTT allows one will per connection, so a site with its own
+ * configured LWT has none left for presence; a renamed viewer's will still
+ * points at its old topic; and changing the site's publish topic strands the
+ * old retained status for good. In all of those the retained status simply
+ * stays on the broker and the viewer looks online forever.
+ *
+ * A heartbeat makes absence observable: a listener that stops hearing from a
+ * client knows it is gone, whatever the reason. 60s is frequent enough to spot
+ * a dead viewer quickly and far below any sane broker's traffic concern (one
+ * small retained publish per viewer per minute).
+ */
+export const PRESENCE_HEARTBEAT_MS = 60_000;
+
 let _subs = [];
+let _heartbeat = null;
 let _connectedSince = null;
 let _collisionWarned = false;
 let _started = false;
@@ -106,6 +124,23 @@ function statusPayload() {
 
 function publishStatus() {
     window.feezal.connection.pub(statusTopic(), statusPayload(), {retain: true});
+}
+
+/**
+ * Keep re-publishing the retained status so listeners can tell a live viewer
+ * from a retained ghost. Idempotent — a reconnect restarts the timer rather
+ * than stacking a second one.
+ */
+function startHeartbeat() {
+    stopHeartbeat();
+    _heartbeat = setInterval(() => {
+        if (presenceEnabled() && window.feezal?.connection?.connected) publishStatus();
+    }, PRESENCE_HEARTBEAT_MS);
+}
+
+function stopHeartbeat() {
+    if (_heartbeat) clearInterval(_heartbeat);
+    _heartbeat = null;
 }
 
 // ── Toasts (plain DOM — the viewer bundle carries no UI library) ────────────
@@ -242,6 +277,7 @@ export function presenceWill() {
 
 /** Test hook — tear down all module state so a fresh start() can run. */
 export function _reset() {
+    stopHeartbeat();
     unsubscribeClientTopics();
     _viewObserver?.disconnect();
     _viewObserver = null;
@@ -265,5 +301,6 @@ if (typeof window !== 'undefined') {
         } else {
             start();
         }
+        startHeartbeat();
     });
 }

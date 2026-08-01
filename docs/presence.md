@@ -63,7 +63,8 @@ the publish topic, incoming commands under the subscribe topic:
 
 ## Status payload
 
-Published retained on connect and republished on every view change:
+Published retained on connect, on every view change, and as a **heartbeat
+every 60 seconds** while connected:
 
 ```json
 {
@@ -77,12 +78,24 @@ Published retained on connect and republished on every view change:
 
 - `connection` is `direct` (viewer speaks MQTT-WS itself) or `bridge` (viewer
   goes through the feezal server's Socket.IO bridge).
-- **Offline = cleared topic** (empty retained publish). There is no heartbeat:
+- **Offline = cleared topic** (empty retained publish):
   - *Direct-MQTT viewers* register a broker **LWT** (last-will) that clears
     the status on ungraceful disconnect. An explicitly configured LWT in the
     connection settings takes precedence over the presence will.
   - *Bridge viewers* register their status topic with the server, which
     publishes the retained clear when the socket disconnects.
+- **Heartbeat (B108).** The clear covers the common case but cannot cover
+  every case, so the status is also **re-published every 60 s**. MQTT allows
+  exactly one will per connection, so a site with its own configured LWT has
+  none left for presence; a renamed viewer's will still points at its old
+  topic; and changing the site's publish topic strands the old retained status
+  for good. In all of those the status would otherwise sit on the broker
+  looking online forever. A consumer can therefore treat a client as gone once
+  its status stops being refreshed — the editor's Clients panel hides one after
+  three missed beats (3 min) and offers to clear the retained topic.
+- **Judging staleness:** compare against **when you received** the status, not
+  against `lastChange` in the payload. That timestamp comes from the viewer's
+  clock, which may be badly wrong; arrival time is yours and cannot be skewed.
 
 ## Commands
 
