@@ -102,6 +102,11 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B94 — Generate review: room-move dropdown leaves a stale value on the row beneath ✅ fixed](B94.md)
 - [B95 — Default playlist attributes serialized onto every `<feezal-site>` ✅ fixed](B95.md)
 - [B96 — Source editor for a big site: PayloadTooLargeError + unformatted one-line HTML ✅ fixed](B96.md)
+- [B97 — Security: `/assets/:site/*` path traversal + site-name validation applied to only 3 of ~20 routes ✅ done](B97.md)
+- [B98 — Deploy failure is reported as success (dirty flag cleared, no error surfaced) ✅ done](B98.md)
+- [B99 — Undo/dirty bookkeeping gaps: paste, add-view, dead delete-view code, wrong dialog copy ✅ done](B99.md)
+- [B100 — circle-value: stale private `parseRanges` fork — named colour ranges silently don't band the fill ✅ done](B100.md)
+- [B101 — Package installs: broken on Windows hosts and non-atomic on all hosts ✅ done](B101.md)
 
 ## Near-term Improvements
 
@@ -144,6 +149,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [N38 — Site locale: localized number formatting (decimal separator & friends) ✅ done](N38.md)
 - [N39 — layout-app: header-only-on-small-screens, and active-subview label in the header ✅ implemented](N39.md)
 - [N40 — Lazy view subscriptions: subscribe a view's topics only when it is first shown ✅ done](N40.md)
+- [N43 — Editor chrome tokens: one dark-mode/dialog stylesheet, one z-index scale ✅ done](N43.md)
 
 ## Element Ecosystem
 
@@ -353,6 +359,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U79 — Generate wizard: a hidden "System" view with the splash + connection-status chrome ✅ done](U79.md)
 - [U80 — Generate wizard: the App generator always creates a new site (name → deploy → viewer link) ✅ done](U80.md)
 - [U81 — First-run MQTT connect dialog (before the welcome tour) ✅ done](U81.md)
+- [U82 — Undo depth + redo + design-mode Ctrl+S ✅ done](U82.md)
 
 ## Architecture & Infrastructure
 
