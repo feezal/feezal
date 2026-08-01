@@ -1,0 +1,11 @@
+{
+    "name": "@feezal/feezal-element-glass-multivalue",
+    "version": "3.0.0",
+    "main": "feezal-element-glass-multivalue.js",
+    "license": "MIT",
+    "dependencies": {
+        "@feezal/feezal-controller-multivalue": "*",
+        "@feezal/feezal-element": "*",
+        "@feezal/feezal-glass": "*"
+    }
+}

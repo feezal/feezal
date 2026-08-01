@@ -35,6 +35,7 @@ import '@feezal/feezal-element-circle-lock';
 import '@feezal/feezal-element-circle-media';
 import '@feezal/feezal-element-circle-meter';
 import '@feezal/feezal-element-circle-motion';
+import '@feezal/feezal-element-circle-multivalue';
 import '@feezal/feezal-element-circle-plant';
 import '@feezal/feezal-element-circle-sensor';
 import '@feezal/feezal-element-circle-switch';
@@ -51,6 +52,7 @@ import '@feezal/feezal-element-eink-dialog-view';
 import '@feezal/feezal-element-eink-fan';
 import '@feezal/feezal-element-eink-light';
 import '@feezal/feezal-element-eink-motion';
+import '@feezal/feezal-element-eink-multivalue';
 import '@feezal/feezal-element-eink-sensor';
 import '@feezal/feezal-element-eink-switch';
 import '@feezal/feezal-element-eink-value';
@@ -69,6 +71,7 @@ import '@feezal/feezal-element-glass-loadpoint';
 import '@feezal/feezal-element-glass-lock';
 import '@feezal/feezal-element-glass-meter';
 import '@feezal/feezal-element-glass-motion';
+import '@feezal/feezal-element-glass-multivalue';
 import '@feezal/feezal-element-glass-sensor';
 import '@feezal/feezal-element-glass-switch';
 import '@feezal/feezal-element-glass-value';
@@ -113,6 +116,7 @@ import '@feezal/feezal-element-metro-lock';
 import '@feezal/feezal-element-metro-media';
 import '@feezal/feezal-element-metro-meter';
 import '@feezal/feezal-element-metro-motion';
+import '@feezal/feezal-element-metro-multivalue';
 import '@feezal/feezal-element-metro-sensor';
 import '@feezal/feezal-element-metro-switch';
 import '@feezal/feezal-element-metro-value';
@@ -200,6 +204,7 @@ window.feezal.elements = [
   "feezal-element-circle-media",
   "feezal-element-circle-meter",
   "feezal-element-circle-motion",
+  "feezal-element-circle-multivalue",
   "feezal-element-circle-plant",
   "feezal-element-circle-sensor",
   "feezal-element-circle-switch",
@@ -216,6 +221,7 @@ window.feezal.elements = [
   "feezal-element-eink-fan",
   "feezal-element-eink-light",
   "feezal-element-eink-motion",
+  "feezal-element-eink-multivalue",
   "feezal-element-eink-sensor",
   "feezal-element-eink-switch",
   "feezal-element-eink-value",
@@ -234,6 +240,7 @@ window.feezal.elements = [
   "feezal-element-glass-lock",
   "feezal-element-glass-meter",
   "feezal-element-glass-motion",
+  "feezal-element-glass-multivalue",
   "feezal-element-glass-sensor",
   "feezal-element-glass-switch",
   "feezal-element-glass-value",
@@ -278,6 +285,7 @@ window.feezal.elements = [
   "feezal-element-metro-media",
   "feezal-element-metro-meter",
   "feezal-element-metro-motion",
+  "feezal-element-metro-multivalue",
   "feezal-element-metro-sensor",
   "feezal-element-metro-switch",
   "feezal-element-metro-value",

@@ -1,0 +1,11 @@
+{
+    "name": "@feezal/feezal-element-eink-multivalue",
+    "version": "3.0.0",
+    "main": "feezal-element-eink-multivalue.js",
+    "license": "MIT",
+    "dependencies": {
+        "@feezal/feezal-controller-multivalue": "*",
+        "@feezal/feezal-eink": "*",
+        "@feezal/feezal-element": "*"
+    }
+}

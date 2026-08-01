@@ -1,0 +1,10 @@
+{
+    "name": "@feezal/feezal-element-circle-multivalue",
+    "version": "3.0.0",
+    "main": "feezal-element-circle-multivalue.js",
+    "license": "MIT",
+    "dependencies": {
+        "@feezal/feezal-controller-multivalue": "*",
+        "@feezal/feezal-element": "*"
+    }
+}

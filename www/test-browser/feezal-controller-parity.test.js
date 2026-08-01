@@ -25,6 +25,7 @@ import {COVER_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-cover';
 import {WLED_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-wled';
 import {LOCK_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-lock';
 import {AIEDGE_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-aiedge';
+import {MULTIVALUE_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-multivalue';
 import {EVCC_LOADPOINT_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-evcc-loadpoint';
 import '../packages/@feezal/feezal-element-circle-lock/feezal-element-circle-lock.js';
 import '../packages/@feezal/feezal-element-glass-lock/feezal-element-glass-lock.js';
@@ -73,6 +74,10 @@ import '../packages/@feezal/feezal-element-circle-fan/feezal-element-circle-fan.
 import '../packages/@feezal/feezal-element-glass-fan/feezal-element-glass-fan.js';
 import '../packages/@feezal/feezal-element-eink-fan/feezal-element-eink-fan.js';
 import '../packages/@feezal/feezal-element-circle-value/feezal-element-circle-value.js';
+import '../packages/@feezal/feezal-element-circle-multivalue/feezal-element-circle-multivalue.js';
+import '../packages/@feezal/feezal-element-glass-multivalue/feezal-element-glass-multivalue.js';
+import '../packages/@feezal/feezal-element-metro-multivalue/feezal-element-metro-multivalue.js';
+import '../packages/@feezal/feezal-element-eink-multivalue/feezal-element-eink-multivalue.js';
 import '../packages/@feezal/feezal-element-glass-value/feezal-element-glass-value.js';
 import '../packages/@feezal/feezal-element-metro-value/feezal-element-metro-value.js';
 // E139: the Fancy family adopts five controllers + lock — all six register.
@@ -120,6 +125,11 @@ const CASES = [
     {tag: 'feezal-element-glass-wled',       consumed: WLED_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-metro-wled',       consumed: WLED_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-eink-wled',        consumed: WLED_CONSUMED_ATTRIBUTES},
+    // E165 multivalue slice — all four families adopt the multivalue controller.
+    {tag: 'feezal-element-circle-multivalue', consumed: MULTIVALUE_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-glass-multivalue',  consumed: MULTIVALUE_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-metro-multivalue',  consumed: MULTIVALUE_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-eink-multivalue',   consumed: MULTIVALUE_CONSUMED_ATTRIBUTES},
     // E143 lock slice — circle/glass/metro adopt the lock controller (incl. the
     // E124 battery trio, E135 error signal, and the Homematic OPEN action).
     {tag: 'feezal-element-circle-lock',    consumed: LOCK_CONSUMED_ATTRIBUTES},
