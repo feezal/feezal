@@ -14,6 +14,7 @@ const mqttBridge = require('./mqtt/bridge.js');
 const createHub = require('./socket/hub.js');
 const pwa = require('./build/pwa.js');
 const csp = require('./csp.js');
+const {isValidSiteName} = require('./util/site-name.js');
 const {discoverElements, generateElementsModule, usedUserPackages} = require('./build/elements.js');
 const {siteIconArtifacts} = require('./build/icons.js');
 
@@ -157,7 +158,9 @@ async function createApp(config) {
         express.json({type: ['application/csp-report', 'application/json'], limit: '10kb'}),
         (req, res) => {
             const site = req.params.site;
-            if (typeof site === 'string' && site.length <= 128 && !/[\\/]/.test(site)) {
+            // B97: the shared validator (stays silent-204 on bad input — CSP
+            // report endpoints must never leak validation behaviour).
+            if (isValidSiteName(site)) {
                 try { csp.recordViolation(site, req.body); } catch { /* malformed report */ }
             }
             res.status(204).end();
@@ -209,9 +212,18 @@ async function createApp(config) {
     if (storage.dataDir) {
         app.use('/assets/global', express.static(path.join(storage.dataDir, 'global', 'assets'), staticCacheHeaders));
         app.get('/assets/:site/*', (req, res, next) => {
-            const file = path.join(storage.dataDir, 'sites', req.params.site, 'assets', req.params[0]);
+            // B97: BOTH params are attacker-controlled and URL-decoded by
+            // Express (a %2e%2e survives into the value), and this route is
+            // public (registered before editorAuth). Validate the site name
+            // as a single segment and let sendFile's own traversal check run
+            // against an anchored root — never a pre-joined absolute path,
+            // which path.join would have normalized before the check.
+            if (!isValidSiteName(req.params.site)) return next();
             res.setHeader('Cache-Control', 'no-cache');   // B52: user content revalidates
-            res.sendFile(file, err => { if (err) next(); });
+            res.sendFile(req.params[0], {
+                root: path.join(storage.dataDir, 'sites', req.params.site, 'assets'),
+                dotfiles: 'deny',
+            }, err => { if (err) next(); });
         });
         app.use('/themes', express.static(path.join(storage.dataDir, 'themes'), staticCacheHeaders));
 
@@ -266,6 +278,10 @@ async function createApp(config) {
             return res.redirect(301, req.path + '/' + search);
         }
         try {
+            // B97: the param reaches storage path joins — validate before use.
+            if (req.params.site && !isValidSiteName(req.params.site)) {
+                return res.status(404).end();
+            }
             const siteName = req.params.site || defaultSiteName;
             const {html: siteHtml, config} = await storage.getSite(siteName);
 

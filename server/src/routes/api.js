@@ -47,13 +47,8 @@ async function _extractCertCn(certPath) {
     }
 }
 
-// A14: sites live under <dataDir>/sites/, so they no longer collide with system
-// dirs — a site name only has to be a safe single path segment.
-const isValidSiteName = name =>
-    typeof name === 'string' &&
-    name.length > 0 && name.length <= 128 &&
-    !/[\\/]/.test(name) &&
-    !name.startsWith('.');
+// B97: single shared implementation — see util/site-name.js.
+const {isValidSiteName} = require('../util/site-name.js');
 
 // Read current version from package.json once at module load time.
 const { version: currentVersion } = require(path.join(__dirname, '../../package.json'));
@@ -70,6 +65,17 @@ const { version: currentVersion } = require(path.join(__dirname, '../../package.
  */
 function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, getDiscoveredEntities = null, getDiscoveredEntity = null, getDeviceGroups = null, setDiscoveryStale = null, emitElementsChanged = null} = {}) {
     const router = express.Router();
+
+    // B97: every `:name` / `:site` param in this router IS a site name and
+    // reaches the filesystem (delete-site rm, git repo dirs, cert writes,
+    // asset ops, exports). Validate centrally instead of per-route — the
+    // handful of explicit isValidSiteName checks below stay as belt-and-braces.
+    const siteNameParam = (req, res, next, value) => {
+        if (!isValidSiteName(value)) return res.status(400).json({error: 'invalid site name'});
+        next();
+    };
+    router.param('name', siteNameParam);
+    router.param('site', siteNameParam);
 
     // Version info
     router.get('/version', (_req, res) => {

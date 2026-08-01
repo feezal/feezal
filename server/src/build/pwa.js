@@ -225,9 +225,8 @@ function injectPwaTags(html, {manifestUrl, appleTouchIconUrl, themeColor, swUrl,
  * All three 404 unless the site's config has viewer.pwa set.
  */
 function registerPwaRoutes(app, {storage, wwwDir}) {
-    // safe single path segment (mirrors the API's isValidSiteName)
-    const safeName = n => typeof n === 'string' && n.length > 0 && n.length <= 128 &&
-        !/[\\/]/.test(n) && !n.startsWith('.');
+    // B97: the shared validator (was a hand-mirrored copy).
+    const safeName = require('../util/site-name.js').isValidSiteName;
     const guard = async (req, res) => {
         if (!safeName(req.params.site)) { res.status(404).end(); return null; }
         try {
