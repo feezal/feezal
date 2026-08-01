@@ -577,8 +577,11 @@ describe('feezal-generate-dialog (U58 App mode)', () => {
         expect(shell.getAttribute('active-view')).toBe(items[0].view);
 
         const kitchen = site.querySelector('feezal-view[name="kitchen"]');
-        expect(kitchen.getAttribute('child-position')).toBe('flow');
-        expect(kitchen.getAttribute('flow-justify')).toBe('start');   // U67: left-aligned
+        // U90: generated views are grid, so a card larger than its neighbours
+        // (a camera among sensor tiles) does not leave the space beside it dead.
+        expect(kitchen.getAttribute('child-position')).toBe('grid');
+        expect(kitchen.getAttribute('grid-justify')).toBe('center');
+        expect(kitchen.getAttribute('grid-gap')).toBe('10');   // non-glass family
         expect(kitchen.querySelectorAll('[discovery-id]')).toHaveLength(2);
         expect(site.querySelector('feezal-view[name="living-room"]').querySelectorAll('[discovery-id]')).toHaveLength(1);
         expect(dlg._result.added).toBe(3);
@@ -586,6 +589,32 @@ describe('feezal-generate-dialog (U58 App mode)', () => {
         // U67: Menu is the default (first view) AND is selected after generation
         expect(site.querySelector('feezal-view').getAttribute('name')).toBe('Menu');
         expect(window.feezal.__selectedView).toBe('Menu');
+    });
+
+    it('U90: glass drops the grid gap, the flatter families keep one', async () => {
+        // Glass cards carry their own outer spacing, so a gap on top of it
+        // reads as a double gutter — the only per-family difference here.
+        const gapFor = async (family) => {
+            site.innerHTML = '';
+            const dlg = await makeDialog();
+            dlg._family = family;
+            dlg._axis = 'room';
+            dlg.__devices = DEVICES();
+            dlg._checked = new Set(['d-wz', 'd-ku', 'd-x']);
+            dlg._toReview();
+            dlg._generateApp();
+            const views = [...site.querySelectorAll('feezal-view')];
+            const chrome = views.filter(v => ['Menu', 'System'].includes(v.getAttribute('name')));
+            const content = views.filter(v => !chrome.includes(v));
+            expect(content.length).toBeGreaterThan(0);
+            // The chrome views are explicitly NOT converted.
+            expect(chrome.map(v => v.getAttribute('child-position')))
+                .not.toContain('grid');
+            return [...new Set(content.map(v => [v.getAttribute('child-position'),
+                v.getAttribute('grid-gap'), v.getAttribute('grid-justify')].join('/')))];
+        };
+        expect(await gapFor('glass')).toEqual(['grid/0/center']);
+        expect(await gapFor('circle')).toEqual(['grid/10/center']);
     });
 
     it('U67: Menu first, generated sub-views next, pre-existing views last', async () => {

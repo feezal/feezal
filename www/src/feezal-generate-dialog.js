@@ -1342,10 +1342,16 @@ class FeezalGenerateDialog extends LitElement {
             if (!view) {
                 view = document.createElement('feezal-view');
                 view.setAttribute('name', slug);
-                view.setAttribute('child-position', 'flow');
-                // U67: left-align — cards fill from the top-left as the row
-                // grows rather than floating centered.
-                view.setAttribute('flow-justify', 'start');
+                // U90: generated views are grid, not flow — a card that is
+                // deliberately larger than the others (a camera among sensor
+                // tiles) then has the following cards flow into the space
+                // beside it instead of leaving it dead.
+                view.setAttribute('child-position', 'grid');
+                // Glass cards carry their own outer spacing, so a grid gap on
+                // top of it reads as a double gutter; the flatter families
+                // need the gap to separate the tiles at all.
+                view.setAttribute('grid-gap', this._family === 'glass' ? '0' : '10');
+                view.setAttribute('grid-justify', 'center');
                 view.style.width = '100%';
                 view.style.height = '100%';
                 // U74: glass sub-views carry the default gradient behind the
