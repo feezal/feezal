@@ -48,6 +48,9 @@ const type = async (p, text) => {
 
 beforeEach(() => {
     feezal = setupFeezal();
+    // The panel persists its open views — clear it so each test starts from
+    // the documented default (only the current view expanded).
+    localStorage.removeItem('feezal-layers-open-views');
     document.body.innerHTML = '';
     site = document.createElement('feezal-site');
     document.body.append(site);
@@ -142,6 +145,18 @@ describe('tree structure', () => {
         expect(labels(panel)).toEqual(['only']);
     });
 
+    it('lists elements of a view the editor has not initialised yet', async () => {
+        // `feezal-editable` is stamped when the editor initialises a view, so
+        // a view not visited in this session has none — its elements must
+        // still appear (after a reload that is EVERY view but the current one).
+        const main = addView('main');
+        const el = document.createElement('feezal-element-basic-number');
+        el.setAttribute('label', 'never visited');      // deliberately no class
+        main.append(el);
+        const panel = await mountPanel('main');
+        expect(labels(panel)).toEqual(['never visited']);
+    });
+
     it('empty site → an explanatory empty state', async () => {
         const panel = await mountPanel('main');
         expect(panel.shadowRoot.querySelector('.empty').textContent).toContain('no elements');
@@ -192,11 +207,15 @@ describe('fuzzy filter', () => {
         expect(panel.shadowRoot.querySelector('.empty').textContent).toContain('Nothing matches');
     });
 
-    it('clearing the filter restores the default expansion', async () => {
+    it('clearing the filter leaves the expansion state alone', async () => {
+        // Filtering force-expands matching views transiently; clearing it
+        // returns to whatever was open — it must not COLLAPSE anything the
+        // user (or a selection) had opened.
         const panel = await mountPanel('main');
+        expect(labels(panel)).toEqual(['Lamp', 'Kitchen temperature']);   // main only
         await type(panel, 'temp');
         await type(panel, '');
-        expect(labels(panel)).toEqual(['Lamp', 'Kitchen temperature']);   // main only
+        expect(labels(panel)).toEqual(['Lamp', 'Kitchen temperature']);
     });
 });
 
@@ -406,7 +425,7 @@ describe('context menu', () => {
         expect(inspector.selectElement).toHaveBeenCalledWith([a], {revealInspector: false});
     });
 
-    it('offers move/copy to the OTHER views only, delegating to the inspector', async () => {
+    it('offers move/copy as hover submenus listing the OTHER views', async () => {
         const main = addView('main');
         addView('other');
         addElement(main, 'feezal-element-basic-number', {label: 'a'});
@@ -415,11 +434,56 @@ describe('context menu', () => {
 
         rightClick(rows(panel)[0]);
         await until(() => Boolean(ctx(panel)));
-        expect(items(panel).filter(t => t === 'other')).toHaveLength(2);   // move + copy
+        // the views are behind flyouts, not listed flat
+        expect(items(panel)).toEqual(expect.arrayContaining(['Copy to view… ▶', 'Move to view… ▶']));
+        expect(items(panel)).not.toContain('other');
 
-        [...panel.shadowRoot.querySelectorAll('.ctx-item')]
-            .filter(i => i.textContent.trim() === 'other')[0].click();
+        const moveItem = [...panel.shadowRoot.querySelectorAll('.ctx-item.has-sub')]
+            .find(i => i.textContent.includes('Move to view'));
+        moveItem.dispatchEvent(new MouseEvent('mouseenter', {bubbles: true}));
+        await until(() => Boolean(panel.shadowRoot.querySelector('.ctx-sub')));
+
+        const subItems = [...panel.shadowRoot.querySelectorAll('.ctx-sub .ctx-item')];
+        expect(subItems.map(i => i.textContent.trim())).toEqual(['other']);   // never itself
+        subItems[0].click();
         expect(inspector._ctxCopyToView).toHaveBeenCalledWith('other', true);   // move
+    });
+
+    it('the copy submenu copies instead of moving', async () => {
+        const main = addView('main');
+        addView('other');
+        addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        const panel = await mountPanel('main');
+        inspector._ctxCopyToView = vi.fn();
+
+        rightClick(rows(panel)[0]);
+        await until(() => Boolean(ctx(panel)));
+        const copyItem = [...panel.shadowRoot.querySelectorAll('.ctx-item.has-sub')]
+            .find(i => i.textContent.includes('Copy to view'));
+        copyItem.dispatchEvent(new MouseEvent('mouseenter', {bubbles: true}));
+        await until(() => Boolean(panel.shadowRoot.querySelector('.ctx-sub')));
+        panel.shadowRoot.querySelector('.ctx-sub .ctx-item').click();
+        expect(inspector._ctxCopyToView).toHaveBeenCalledWith('other', false);
+    });
+
+    it('clamps a menu opened near the bottom/right back into the viewport', async () => {
+        const main = addView('main');
+        addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        const panel = await mountPanel('main');
+        // open it beyond the viewport's bottom-right corner
+        rows(panel)[0].dispatchEvent(new MouseEvent('contextmenu', {
+            bubbles: true, clientX: window.innerWidth - 5, clientY: window.innerHeight - 5,
+        }));
+        await until(() => Boolean(ctx(panel)));
+        await until(() => {
+            const r = ctx(panel).getBoundingClientRect();
+            return r.right <= window.innerWidth && r.bottom <= window.innerHeight;
+        });
+        const r = ctx(panel).getBoundingClientRect();
+        expect(r.right).toBeLessThanOrEqual(window.innerWidth);
+        expect(r.bottom).toBeLessThanOrEqual(window.innerHeight);
+        expect(r.left).toBeGreaterThanOrEqual(0);
+        expect(r.top).toBeGreaterThanOrEqual(0);
     });
 
     it('right-clicking a view header offers view operations', async () => {
@@ -508,5 +572,84 @@ describe('drag onto a view header', () => {
         await panel.updateComplete;
         expect(a.parentElement).toBe(main);
         expect(main.querySelectorAll('[label="a"]')).toHaveLength(1);
+    });
+});
+
+describe('expansion model (never auto-collapse, persist)', () => {
+    it('starts with only the current view open', async () => {
+        const main = addView('main');
+        const other = addView('other');
+        addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        addElement(other, 'feezal-element-basic-icon', {label: 'b'});
+        const panel = await mountPanel('main');
+        expect(labels(panel)).toEqual(['a']);
+    });
+
+    it('switching the current view OPENS it and leaves the previous one open', async () => {
+        const main = addView('main');
+        const other = addView('other');
+        addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        addElement(other, 'feezal-element-basic-icon', {label: 'b'});
+        const panel = await mountPanel('main');
+        expect(labels(panel)).toEqual(['a']);
+
+        panel.view = 'other';                       // the editor switched view
+        await panel.updateComplete;
+        await panel.updateComplete;
+        // 'main' must NOT have collapsed behind the user's back
+        expect(labels(panel).sort()).toEqual(['a', 'b']);
+    });
+
+    it('selecting an element opens the view that holds it', async () => {
+        const main = addView('main');
+        const other = addView('other');
+        addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        const b = addElement(other, 'feezal-element-basic-icon', {label: 'b'});
+        const panel = await mountPanel('main');
+        expect(labels(panel)).toEqual(['a']);
+
+        b.classList.add('feezal-selected');          // selected on the canvas
+        await until(() => labels(panel).includes('b'));
+        expect(labels(panel).sort()).toEqual(['a', 'b']);
+    });
+
+    it('a header click still collapses deliberately', async () => {
+        const main = addView('main');
+        addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        const panel = await mountPanel('main');
+        expect(labels(panel)).toEqual(['a']);
+        viewRows(panel)[0].click();
+        await panel.updateComplete;
+        expect(labels(panel)).toEqual([]);
+    });
+
+    it('persists the open set across a remount', async () => {
+        const main = addView('main');
+        const other = addView('other');
+        addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        addElement(other, 'feezal-element-basic-icon', {label: 'b'});
+        const panel = await mountPanel('main');
+        viewRows(panel)[1].click();                  // open 'other' by hand
+        await panel.updateComplete;
+        expect(labels(panel).sort()).toEqual(['a', 'b']);
+        panel.remove();
+
+        const reopened = await mountPanel('main');   // e.g. after a reload
+        await reopened.updateComplete;
+        expect(labels(reopened).sort()).toEqual(['a', 'b']);
+    });
+
+    it('a collapsed view stays collapsed across a remount', async () => {
+        const main = addView('main');
+        addElement(main, 'feezal-element-basic-number', {label: 'a'});
+        const panel = await mountPanel('main');
+        viewRows(panel)[0].click();                  // collapse the current view
+        await panel.updateComplete;
+        panel.remove();
+
+        const reopened = await mountPanel('main');
+        await reopened.updateComplete;
+        // the current view re-opens on mount (it is what you are working in)
+        expect(labels(reopened)).toEqual(['a']);
     });
 });

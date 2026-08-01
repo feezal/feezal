@@ -8,6 +8,9 @@ import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
 
 import {fuzzyScoreAny} from './feezal-fuzzy.js';
 
+/** Expanded view names, so the tree looks the same after a reload. */
+const OPEN_VIEWS_KEY = 'feezal-layers-open-views';
+
 /**
  * U87 — the site outline: a Layers sidebar panel.
  *
@@ -36,7 +39,7 @@ class FeezalSidebarLayers extends LitElement {
         /** current view name — drives which node starts expanded */
         view: {type: String},
         _filter: {state: true},
-        _toggled: {state: true},     // view names whose expand state the user flipped
+        _open: {state: true},        // view names currently expanded (persisted)
         _dragEl: {state: true},
         _dropEl: {state: true},
         _dropView: {state: true},    // view header being hovered during a drag
@@ -142,18 +145,26 @@ class FeezalSidebarLayers extends LitElement {
         .ctx-item:hover:not(.ctx-disabled) { background: var(--sl-color-primary-600, #0284c7); color: #fff; }
         .ctx-item.danger:hover { background: #c62828; color: #fff; }
         .ctx-item.ctx-disabled { opacity: 0.4; cursor: default; }
+        .ctx-item.has-sub { position: relative; display: flex; align-items: center; gap: 10px; }
+        .ctx-arrow { margin-left: auto; font-size: 9px; opacity: 0.7; }
         .ctx-sep { height: 1px; margin: 4px 0; background: var(--feezal-border, #e0e0e0); }
-        .ctx-sub-title {
-            padding: 4px 14px; font-size: 10.5px; text-transform: uppercase;
-            letter-spacing: 0.05em; opacity: 0.55;
+        /* The flyout is fixed-positioned by _positionSub(), which flips it left
+           and caps its height against the viewport (a site can have any number
+           of views). */
+        .ctx-sub {
+            position: fixed; min-width: 150px; max-width: 280px; padding: 4px 0;
+            background: var(--feezal-bg, #fff); color: var(--feezal-color, #222);
+            border: 1px solid var(--feezal-border, #ccc); border-radius: 6px;
+            box-shadow: 0 4px 20px rgba(0,0,0,.25);
         }
+        .ctx-sub .ctx-item { overflow: hidden; text-overflow: ellipsis; }
     `;
 
     constructor() {
         super();
         this.view = '';
         this._filter = '';
-        this._toggled = new Set();
+        this._open = this._restoreOpen() ?? new Set();
         this._dragEl = null;
         this._dropEl = null;
         this._dropView = null;
@@ -186,6 +197,9 @@ class FeezalSidebarLayers extends LitElement {
 
     updated() {
         if (this._observed !== feezal?.site) this._observe();
+        // Opening a view or selecting an element must reveal it in the tree.
+        this._syncOpenToSelection();
+        if (this._menu) this._clampMenu();
     }
 
     /**
@@ -218,10 +232,19 @@ class FeezalSidebarLayers extends LitElement {
         return [...(feezal?.site?.querySelectorAll?.('feezal-view') || [])];
     }
 
+    /**
+     * A view's canvas elements, top-most first (paint order reversed).
+     *
+     * Identified by WHAT THEY ARE, not by the `feezal-editable` class: that
+     * class is stamped by the editor when it initialises a view, so a view the
+     * user has not visited in this session carries none — after a reload its
+     * elements were simply missing from the tree.
+     */
     _elementsOf(view) {
         return [...view.children]
-            .filter(el => el.classList?.contains('feezal-editable'))
-            .reverse();                       // top-most first (paint order)
+            .filter(el => el.localName &&
+                (el.localName.startsWith('feezal-element-') || el.localName === 'feezal-component'))
+            .reverse();
     }
 
     _label(el) {
@@ -269,19 +292,56 @@ class FeezalSidebarLayers extends LitElement {
     }
 
     /**
-     * Default: only the current view is expanded (a 20-view site stays
-     * readable). `_toggled` holds the views the user flipped by hand, so one
-     * rule covers both directions and switching views re-applies the default.
+     * Expansion model (U87 feedback — the earlier invert-the-default rule
+     * "did not feel good" because switching views silently collapsed the one
+     * you had just been working in):
+     *
+     *  - start with only the current view open (a 20-view site stays readable);
+     *  - NEVER auto-collapse — opening a view, or selecting an element on it,
+     *    only ever ADDS to the open set, so nothing closes behind your back;
+     *  - collapsing is a deliberate click on the header;
+     *  - the open set is persisted, so the tree looks the same after a reload.
      */
     _isOpen(name) {
-        const isCurrent = name === (this.view || feezal?.site?.view);
-        return this._toggled.has(name) ? !isCurrent : isCurrent;
+        return this._open.has(name);
     }
 
     _toggleView(name) {
-        const next = new Set(this._toggled);
+        const next = new Set(this._open);
         if (next.has(name)) next.delete(name); else next.add(name);
-        this._toggled = next;
+        this._open = next;
+        this._persistOpen();
+    }
+
+    /** Open a view (idempotent) — never closes anything else. */
+    _openView(name) {
+        if (!name || this._open.has(name)) return;
+        this._open = new Set(this._open).add(name);
+        this._persistOpen();
+    }
+
+    _persistOpen() {
+        try {
+            localStorage.setItem(OPEN_VIEWS_KEY, JSON.stringify([...this._open]));
+        } catch { /* private mode / quota — the tree just won't persist */ }
+    }
+
+    _restoreOpen() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(OPEN_VIEWS_KEY) || 'null');
+            if (Array.isArray(saved)) return new Set(saved.filter(n => typeof n === 'string'));
+        } catch { /* corrupt value — fall through to the default */ }
+        return null;
+    }
+
+    /** Keep the open set in step with what the user is working on: the current
+     *  view, and the view holding the current selection. */
+    _syncOpenToSelection() {
+        this._openView(this.view || feezal?.site?.view);
+        for (const el of this._selection()) {
+            const view = el.parentElement;
+            if (view?.tagName === 'FEEZAL-VIEW') this._openView(view.getAttribute('name'));
+        }
     }
 
     // ── interaction ─────────────────────────────────────────────────────────
@@ -370,6 +430,72 @@ class FeezalSidebarLayers extends LitElement {
     _menuMoveTo(viewName, removeOriginal) {
         this._menu = null;
         this._inspector?._ctxCopyToView?.(viewName, removeOriginal);
+    }
+
+    /** Keep the just-opened menu inside the viewport: a menu opened near the
+     *  bottom/right edge would otherwise render off-screen (the canvas menu
+     *  clamps the same way). Updates the stored x/y once; the settled
+     *  measurement then fits and no further change is made. */
+    _clampMenu() {
+        const menu = this.renderRoot?.querySelector('.ctx');
+        if (!menu || !this._menu) return;
+        const r = menu.getBoundingClientRect();
+        const margin = 8;
+        const {x, y} = this._menu;
+        let nx = x;
+        let ny = y;
+        if (y + r.height > window.innerHeight - margin) {
+            ny = Math.max(margin, window.innerHeight - margin - r.height);
+        }
+        if (x + r.width > window.innerWidth - margin) {
+            nx = Math.max(margin, window.innerWidth - margin - r.width);
+        }
+        if (nx !== x || ny !== y) this._menu = {...this._menu, x: nx, y: ny};
+        if (this._menu.sub) this._positionSub();
+    }
+
+    /** Place an open Move/Copy submenu against the viewport: flip it to the
+     *  item's left when it would overflow the right edge, shift it up at the
+     *  bottom, and cap its height (a site can have any number of views). */
+    _positionSub() {
+        const sub = this.renderRoot?.querySelector('.ctx-sub');
+        const item = sub?.parentElement;
+        if (!sub || !item) return;
+        const r = item.getBoundingClientRect();
+        const margin = 8;
+        sub.style.maxHeight = 'none';
+        const subW = sub.offsetWidth;
+        const natural = sub.scrollHeight;
+
+        let left = r.right - 2;
+        if (left + subW > window.innerWidth - margin) left = Math.max(margin, r.left - subW + 2);
+        const used = Math.min(natural, window.innerHeight - 2 * margin);
+        let top = r.top - 4;
+        if (top + used > window.innerHeight - margin) top = window.innerHeight - margin - used;
+        if (top < margin) top = margin;
+
+        sub.style.left = `${left}px`;
+        sub.style.top = `${top}px`;
+        sub.style.maxHeight = `${used}px`;
+        sub.style.overflowY = natural > used ? 'auto' : '';
+    }
+
+    _openSub(type) {
+        clearTimeout(this._subTimer);
+        this._subTimer = null;
+        this._menu = {...this._menu, sub: type};
+    }
+
+    _scheduleSubClose() {
+        this._subTimer = setTimeout(() => {
+            this._menu = this._menu ? {...this._menu, sub: null} : null;
+            this._subTimer = null;
+        }, 120);
+    }
+
+    _clearSubTimer() {
+        clearTimeout(this._subTimer);
+        this._subTimer = null;
     }
 
     _viewAction(action, name) {
@@ -491,12 +617,30 @@ class FeezalSidebarLayers extends LitElement {
                 <div class="ctx-item" @click="${() => this._menuAction('sendToBack')}">Send to back</div>
                 ${otherViews.length ? html`
                     <div class="ctx-sep"></div>
-                    <div class="ctx-sub-title">Move to view</div>
-                    ${otherViews.map(v => html`
-                        <div class="ctx-item" @click="${() => this._menuMoveTo(v, true)}">${v}</div>`)}
-                    <div class="ctx-sub-title">Copy to view</div>
-                    ${otherViews.map(v => html`
-                        <div class="ctx-item" @click="${() => this._menuMoveTo(v, false)}">${v}</div>`)}` : ''}
+                    <div class="ctx-item has-sub"
+                        @mouseenter="${() => this._openSub('copy')}"
+                        @mouseleave="${() => this._scheduleSubClose()}">
+                        Copy to view… <span class="ctx-arrow">▶</span>
+                        ${m.sub === 'copy' ? html`
+                            <div class="ctx-sub"
+                                @mouseenter="${() => this._clearSubTimer()}"
+                                @mouseleave="${() => this._scheduleSubClose()}">
+                                ${otherViews.map(v => html`
+                                    <div class="ctx-item" @click="${() => this._menuMoveTo(v, false)}">${v}</div>`)}
+                            </div>` : ''}
+                    </div>
+                    <div class="ctx-item has-sub"
+                        @mouseenter="${() => this._openSub('move')}"
+                        @mouseleave="${() => this._scheduleSubClose()}">
+                        Move to view… <span class="ctx-arrow">▶</span>
+                        ${m.sub === 'move' ? html`
+                            <div class="ctx-sub"
+                                @mouseenter="${() => this._clearSubTimer()}"
+                                @mouseleave="${() => this._scheduleSubClose()}">
+                                ${otherViews.map(v => html`
+                                    <div class="ctx-item" @click="${() => this._menuMoveTo(v, true)}">${v}</div>`)}
+                            </div>` : ''}
+                    </div>` : ''}
                 <div class="ctx-sep"></div>
                 <div class="ctx-item" @click="${() => this._menuAction('lock')}">${locked ? 'Unlock' : 'Lock'}</div>
                 <div class="ctx-item danger" @click="${() => this._menuAction('delete')}">Delete</div>
