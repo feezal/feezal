@@ -9,7 +9,6 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces](#b106--discovery-ids-is-space-separated-but-mqtt-topics-may-contain-spaces)
-- [B111 — App generation: Frigate camera elements come out with empty `src` despite a configured Frigate URL](#b111--app-generation-frigate-camera-elements-come-out-with-empty-src-despite-a-configured-frigate-url)
 
 
 **Near-term Improvements**
@@ -305,61 +304,6 @@ stamp → parse → dupe-guard must match exactly.
 the dupe-guard consumer), E108 ✅ (native recognizers whose IDs carry channel
 names), N12 (re-sync — anything else reading discovery ids must use the same
 parser).
-
-
-### B111 — App generation: Frigate camera elements come out with empty `src` despite a configured Frigate URL
-
-**Reported + refined (08/2026).** The expected contract, spelled out:
-
-1. The **Frigate URL field** at the start of the App-generation wizard
-   (entered: `http://172.16.23.240:5000`) is **hidden when no Frigate cameras
-   were discovered** — visible otherwise.
-2. Generating the app created a camera element with `events-camera=terrasse`
-   (so the Frigate wiring itself ran) — **expected**
-   `src="http://172.16.23.240:5000/api/terrasse"` (Frigate's per-camera MJPEG
-   endpoint), **actual: `src` empty**.
-
-**The machinery for exactly this already exists** — `applyFrigateLiveFeed`
-([feezal-discovery-stamp.js](../www/src/feezal-discovery-stamp.js)) stamps
-`src = <base>/api/<camera_name>` + `type=mjpeg` (+ `pause-when-hidden`,
-subscribe removed), and BOTH wizard modes stamp through `_stampEntity`
-([feezal-generate-dialog.js](../www/src/feezal-generate-dialog.js)), which
-calls it when `_frigateUrl` is set. Since `events-camera` WAS stamped, the
-entity reached the camera map — the live-feed rewrite specifically did not
-run. Narrowed suspects, in likelihood order:
-
-**Narrowed to one suspect (08/2026), measured:**
-
-1. ~~`_frigateUrl` empty at generate time~~ — **ruled out.** The row binds
-   `@sl-input`, so it commits on every keystroke, not on blur.
-2. **`entity.source !== 'frigate'` on the App path — THIS ONE.** Driving
-   `applyFrigateLiveFeed` with a recognizer-shaped entity returns `true` and
-   stamps `src=<base>/api/terrasse` + `type=mjpeg` + `pause-when-hidden`
-   correctly; it returns `false` in exactly two cases — no `source: 'frigate'`,
-   or no resolvable camera name. Since `events-camera` **was** stamped,
-   `config.camera_name` survived, so `config` reached the stamp intact while
-   `source` did not.
-3. ~~A camera path bypassing `_stampEntity`~~ — **ruled out.** There are exactly
-   two stamp call sites (`feezal-generate-dialog.js` ~1001 and ~1399) and both
-   go through `_stampEntity`.
-
-**So: find where the entity is rebuilt without `source`** between the
-recognizer (`server/src/mqtt/recognizers/frigate.js`, which sets
-`source: 'frigate'`) and `plan.entity` in the App bucket loop — the review /
-room-assign / `_mvPlan` round-trip is the place to look, i.e. something
-constructing `{…}` from picked fields instead of passing the object through.
-Fix by preserving the whole entity (preferred — a field-picking copy will keep
-losing new fields), and add a regression test that stamps a Frigate camera
-through the **App** path and asserts a non-empty `src`, since the helper's own
-unit coverage passes today and did not catch this.
-
-**Also part of the fix:** a browser test in the wizard suite — App mode with
-`_frigateUrl` set generates a camera whose `src` is
-`<base>/api/<camera_name>` and `type=mjpeg`; plus one asserting the URL typed
-into the field (without blur) reaches the stamp.
-
-**Relates:** E163 ✅ (camera wiring + Frigate recognizer), U58 ✅ (App wizard
-stamp path), the Frigate-URL wizard row (`guessFrigateUrl` prefill).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*

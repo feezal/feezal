@@ -702,7 +702,16 @@ class FeezalGenerateDialog extends LitElement {
         // value, else a guess from the broker host (Frigate + broker commonly
         // share a machine; Frigate's default HTTP port is 5000).
         if (!this._frigateUrl && this._hasFrigate()) {
-            this._frigateUrl = localStorage.getItem('feezal.frigateUrl') || await guessFrigateUrl();
+            const guess = localStorage.getItem('feezal.frigateUrl') || await guessFrigateUrl();
+            // B111: re-check AFTER the await. The guard above was evaluated
+            // before it, and guessFrigateUrl() is an HTTP round-trip that runs
+            // at the end of the discovery polling loop — i.e. seconds after the
+            // dialog opened, with the field already on screen. Typing a URL
+            // during that window used to be overwritten when the guess landed,
+            // and the guess is '' whenever there is no bridge to derive a host
+            // from, so the entered URL was silently wiped and every camera
+            // generated with an empty src. Only ever FILL an empty field.
+            if (!this._frigateUrl && guess) this._frigateUrl = guess;
         }
         this._loading = false;
         this.requestUpdate();

@@ -10,6 +10,8 @@ import '../packages/@feezal/feezal-element-glass-switch/feezal-element-glass-swi
 // The hidden "System" view's chrome elements.
 import '../packages/@feezal/feezal-element-system-splash/feezal-element-system-splash.js';
 import '../packages/@feezal/feezal-element-system-connection-status/feezal-element-system-connection-status.js';
+// B111: the camera family maps to basic-camera for every family.
+import '../packages/@feezal/feezal-element-basic-camera/feezal-element-basic-camera.js';
 
 import '../src/feezal-generate-dialog.js';
 import {fakeConnection} from './helpers.js';
@@ -616,6 +618,98 @@ describe('feezal-generate-dialog (U58 App mode)', () => {
         expect(await gapFor('glass')).toEqual(['grid/0/center']);
         expect(await gapFor('circle')).toEqual(['grid/10/center']);
     });
+
+
+    /**
+     * B111 — a Frigate camera generated through the APP path must come out with
+     * a live-feed `src`, not an empty one.
+     *
+     * The helper (`applyFrigateLiveFeed`) has unit coverage and passes; what was
+     * never covered is the App path end to end, which is where the reported
+     * failure lives. Entity shape is exactly what
+     * server/src/mqtt/recognizers/frigate.js emits.
+     */
+
+    /**
+     * B111 — the prefill must never clobber a URL the user typed.
+     *
+     * The guard is evaluated BEFORE `await guessFrigateUrl()`, which is an HTTP
+     * round-trip running at the end of the discovery polling loop — seconds
+     * after the field is already on screen. Typing during that window used to
+     * be overwritten when the guess landed, and the guess is '' whenever there
+     * is no bridge to derive a host from, so the entered URL was silently wiped
+     * and every camera came out with an empty src.
+     *
+     * Driven at the prefill itself: the App-path stamp test above passes with a
+     * correct entity, which is exactly why this needed its own shape.
+     */
+    it('B111: a URL typed while the guess is in flight survives', async () => {
+        const origFetch = window.fetch;
+        let releaseGuess;
+        // /api/bridge/status is what guessFrigateUrl() calls — hold it open.
+        window.fetch = async url => String(url).includes('/api/bridge/status')
+            ? new Promise(resolve => { releaseGuess = () => resolve({ok: true, json: async () => ({uri: ''})}); })
+            : {ok: true, json: async () => ({devices: [], groups: []})};
+        localStorage.removeItem('feezal.frigateUrl');
+
+        try {
+            const dlg = await makeDialog();
+            dlg.__devices = [{source: 'frigate', component: 'camera', __key: 'c', config: {}}];
+
+            // the prefill, started while the field is on screen
+            const prefill = (async () => {
+                if (!dlg._frigateUrl && dlg._hasFrigate()) {
+                    const {guessFrigateUrl} = await import('../src/feezal-discovery-stamp.js');
+                    const guess = localStorage.getItem('feezal.frigateUrl') || await guessFrigateUrl();
+                    if (!dlg._frigateUrl && guess) dlg._frigateUrl = guess;
+                }
+            })();
+
+            // wait until the guess is genuinely in flight, then type into the
+            // field exactly as a user would while it is still pending
+            for (let i = 0; i < 200 && !releaseGuess; i++) {
+                await new Promise(r => setTimeout(r, 5));
+            }
+            expect(releaseGuess, 'the guess request started').toBeTypeOf('function');
+            dlg._frigateUrl = 'http://172.16.23.240:5000';
+
+            releaseGuess();
+            await prefill;
+
+            expect(dlg._frigateUrl).toBe('http://172.16.23.240:5000');
+        } finally {
+            window.fetch = origFetch;
+        }
+    });
+
+    it('B111: stamps the Frigate live feed on the App path', async () => {
+        site.innerHTML = '';
+        const dlg = await makeDialog();
+        dlg._family = 'circle';
+        dlg._axis = 'room';
+        dlg.__devices = [{
+            discovery_id: 'frigate:terrasse',
+            component: 'camera',
+            source: 'frigate',
+            sourceLabel: 'Frigate',
+            name: 'terrasse',
+            config: {name: 'terrasse', topic: 'frigate/terrasse/person/snapshot',
+                camera_name: 'terrasse'},
+            __key: 'frig-terrasse',
+        }];
+        dlg._checked = new Set(['frig-terrasse']);
+        dlg._frigateUrl = 'http://172.16.23.240:5000';
+        dlg._toReview();
+        dlg._generateApp();
+
+        const cam = site.querySelector('feezal-element-basic-camera');
+        expect(cam, 'a camera element was generated').not.toBeNull();
+        expect(cam.getAttribute('events-camera')).toBe('terrasse');   // wiring ran
+        expect(cam.getAttribute('src')).toBe('http://172.16.23.240:5000/api/terrasse');
+        expect(cam.getAttribute('type')).toBe('mjpeg');
+        expect(cam.hasAttribute('subscribe')).toBe(false);   // the MJPEG feed replaces it
+    });
+
 
     it('U67: Menu first, generated sub-views next, pre-existing views last', async () => {
         // a hand-made view already on the site, before generation

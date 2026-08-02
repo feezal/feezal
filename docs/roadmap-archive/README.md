@@ -7,7 +7,7 @@ Each entry is filed under the section its **ID prefix** belongs to — `B` Bugs,
 Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastructure,
 `D` Documentation — and sorted by number within it, so a new entry has exactly one correct place.
 
-**382 items.**
+**383 items.**
 
 ## Bugs
 
@@ -116,6 +116,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B108 — Stale viewers linger in the Clients list ✅ fixed](B108.md)
 - [B109 — Layers tree: previous view's selection stays marked after cross-view select ✅ fixed](B109.md)
 - [B110 — e2e suite intermittently red on a passing run (temp-dir teardown race) ✅ fixed](B110.md)
+- [B111 — App generation: Frigate camera elements come out with empty `src` ✅ fixed](B111.md)
 
 ## Near-term Improvements
 
