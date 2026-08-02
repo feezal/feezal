@@ -78,6 +78,7 @@ Work in progress — priorities and scope are not final.
 - [U97 — Slim editor footer/status line 💡](#u97--slim-editor-footerstatus-line-)
 - [U98 — Palette colors in editor light mode ⚠️ needs refinement](#u98--palette-colors-in-editor-light-mode-️-needs-refinement)
 - [U99 — Snap helper lines: position readout on each line 💡](#u99--snap-helper-lines-position-readout-on-each-line-)
+- [U100 — Editor min-width instead of broken narrow layouts](#u100--editor-min-width-instead-of-broken-narrow-layouts)
 
 
 **Architecture & Infrastructure**
@@ -2439,6 +2440,37 @@ the same readout.
 [U89](roadmap-archive/U89.md) ✅ (the px-label precedent + styling), B113
 (gap-snap canvas lines — same label treatment), B114 (coordinate-space audit
 — the readout must use the corrected values).
+
+
+### U100 — Editor min-width instead of broken narrow layouts
+
+**Reported (08/2026).** Below roughly **1484px** browser width the editor
+layout degrades — e.g. the sidebar tab items misbehave in position and
+behaviour. The editor is not meant to be responsive down to arbitrary widths;
+**the deliberate fix is a `min-width` on the editor shell** so the layout
+never enters the broken regime — the browser window then scrolls the whole
+editor horizontally instead of the layout collapsing.
+
+**Design notes:**
+- Apply on the editor root (`feezal-app-editor` host or its top container):
+  `min-width` around the measured threshold — measure precisely where the
+  first breakage occurs and round to a sane floor (e.g. 1280–1480px; pick by
+  testing which panels actually break first, don't hard-code 1484 blindly).
+- The document/body must allow horizontal scrolling for the editor route
+  (check nothing clips at `overflow: hidden` on html/body for the editor
+  page).
+- VIEWER stays untouched — dashboards are responsive by design; this is
+  editor chrome only.
+- Cheap alternative rejected implicitly: making every sidebar panel truly
+  responsive is real work for a window size nobody edits in; the min-width
+  is the honest fix.
+
+**Test:** resize below the floor → the editor keeps its layout and the window
+scrolls horizontally; sidebar tabs render correctly at every width above the
+floor (spot-check around the old ~1484px breakage).
+
+**Relates:** U93 (top-bar rearrangement — reduces top-bar width pressure),
+the sidebar tab bar (U87-established pattern — the reported victim).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
