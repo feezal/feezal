@@ -11,6 +11,7 @@ Work in progress — priorities and scope are not final.
 - [B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces](#b106--discovery-ids-is-space-separated-but-mqtt-topics-may-contain-spaces)
 - [B118 — Undo dead after deleting via the layers-tree context menu (until the canvas is clicked)](#b118--undo-dead-after-deleting-via-the-layers-tree-context-menu-until-the-canvas-is-clicked)
 - [B119 — Right-click menu dead after the tab was backgrounded (footer selector crash)](#b119--right-click-menu-dead-after-the-tab-was-backgrounded-footer-selector-crash)
+- [B120 — iOS PWA: a view SHORTER than the screen scrolls, revealing grey/white bars; layout-app bar moves](#b120--ios-pwa-a-view-shorter-than-the-screen-scrolls-revealing-greywhite-bars-layout-app-bar-moves)
 
 
 **Near-term Improvements**
@@ -400,6 +401,48 @@ unknown/hostile child and asserts the ctx menu still opens would pin it.
 wildcard-selector trap, already documented there), B118 (another
 sidebar-interaction global breakage — the editor needs fault isolation
 between panels).
+
+
+### B120 — iOS PWA: a view SHORTER than the screen scrolls, revealing grey/white bars; layout-app bar moves
+
+**Reported (08/2026).** In the installed iOS PWA: a view **taller** than the
+screen behaves correctly — but when the view is **shorter** than the screen,
+the page can be scrolled down, revealing a **grey and a white bar** below the
+content, and the **layout-app top bar scrolls away** with it (it must read as
+sticky/fixed, always).
+
+**Analysis pointers:**
+- The B62-era machinery already mirrors the view background onto html/body
+  ([feezal-site.js](../www/src/feezal-site.js), "overscroll bounce shows the
+  view's colour") — but it assumed *"the document itself does not scroll"*.
+  The short-view case breaks that assumption: something in the height chain
+  (html/body/#app/feezal-site/feezal-view) leaves the DOCUMENT taller than
+  the visual viewport (classic iOS: `100vh` exceeds the visible area in
+  standalone mode / dynamic toolbar metrics) → real scrolling, not just
+  bounce → areas beyond the mirrored background show (grey bar + white bar =
+  two different unpainted layers; identify which elements they are).
+- The moving layout-app bar is the same root cause seen from inside: the
+  DOCUMENT scrolls, carrying the whole app element. Eliminating document
+  scroll fixes the bar for free; a `position: sticky` fallback on the bar is
+  defence-in-depth at most.
+
+**Fix direction (viewer route only, editor untouched):** the standalone-PWA
+viewer must never have a scrollable document — `height: 100dvh` (with
+`-webkit-fill-available` fallback for older iOS) instead of any `100vh` in
+the chain, `overflow: hidden` + `overscroll-behavior: none` on html/body,
+and a view shorter than the screen sits in a full-height feezal-site whose
+background (already mirrored) fills the remainder. Verify both orientations,
+with and without the iOS home-indicator inset (`viewport-fit=cover` +
+safe-area padding already in place per B62/A18 work).
+
+**Test:** manual on an installed iOS PWA (short view: no scroll, no bars,
+bar pinned; tall view: unchanged scrolling inside the view). Automated
+approximation: viewport-sized harness asserting document scrollHeight ==
+innerHeight for a short view on the viewer route.
+
+**Relates:** B62 ✅ (background mirroring — the assumption this breaks), A18
+(kiosk/wall-panel — same standalone-display concerns), the PWA machinery
+(manifest/standalone), layout-app (the visible victim).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
