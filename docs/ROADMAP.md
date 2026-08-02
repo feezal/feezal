@@ -74,6 +74,8 @@ Work in progress — priorities and scope are not final.
 - [U84 — Canvas zoom, pan and fit-to-view](#u84--canvas-zoom-pan-and-fit-to-view)
 - [U85 — Toast/notification service: route the remaining call sites](#u85--toastnotification-service-route-the-remaining-call-sites--service-shipped) 🔨 *(service shipped)*
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
+- [U97 — Slim editor footer/status line 💡](#u97--slim-editor-footerstatus-line-)
+- [U98 — Palette colors in editor light mode ⚠️ needs refinement](#u98--palette-colors-in-editor-light-mode-️-needs-refinement)
 
 
 **Architecture & Infrastructure**
@@ -2315,6 +2317,72 @@ AI apply results, and the asset upload/rename outcomes.
 - `type: 'json'` attributes (camera `chips`, lottie `map`, layout-app `items`, …) fall through to a **plain text input**; invalid JSON is written to the attribute silently. And where a `validator` rejects, the ONLY feedback is a red border (`.attr.invalid`) — no message, while the field keeps the rejected value.
 - Remedy: a `json` control = the objectList editor's proven raw-fallback pattern (pretty-print on focus-out, parse check with an inline message line under the field, "fix it to get the editor" hint); a shared inline validation-message slot for every control (the red border gets a text); `validator` errors surface their string.
 - **Section collapse state is discarded on every selection change** (`_initCollapsedSections` re-runs per selection) — remember the user's expand/collapse per element TYPE for the session.
+
+### U97 — Slim editor footer/status line 💡
+
+**Requested (08/2026).** A slim, always-visible status line at the bottom of
+the editor — the classic IDE footer. Candidate content (pick and arrange
+during design; all cheap reads of existing state):
+
+- **Selection echo** — the currently selected element(s): tag + label (a
+  second place beside the inspector header; useful while the sidebar shows
+  another tab).
+- **Site stats** — number of views, number of elements, serialized-size
+  estimate, number of MQTT subscriptions (live from the connection wrapper),
+  maybe active theme.
+- **Zoom state** — the current canvas zoom (and fit/100% controls), so
+  **U84's floating zoom tray could be removed** in favour of this fixed home.
+- Later candidates: connection state (pairs with U93's dot relocation),
+  source-mode caret position, last-deploy time.
+
+Slim = one text-height line, editor-chrome styling (dark-mode via the
+--feezal-* palette propagation — put the footer in the :host(.dark) list from
+day one, B102's lesson), never overlapping the canvas (layout row, not
+overlay). Every segment optional/configurable is NOT required for v1 — start
+with a sensible fixed set.
+
+**Relates:** U84 (zoom tray — absorbed here), U93 (top-bar slimming — the
+footer takes load off the top bar), B102 ✅ (dark-mode propagation lesson),
+N42/A37 (app-editor structure — add the footer as its own small component).
+
+
+### U98 — Palette colors in editor light mode ⚠️ needs refinement
+
+**Reported (08/2026).** The element palette looks wrong in editor **light
+mode** — the per-element `palette.color` values are designed against the dark
+editor and are kept AS-IS there (dark mode is great and must not change). In
+light mode the same colors read poorly, and some families break outright:
+**e-ink tiles render dark text on a dark tile**. The tile background is the
+raw `palette.color` ([feezal-palette.js](../www/src/feezal-palette.js),
+`background-color: ${el.color}`) with a fixed text color — no contrast logic.
+
+**Constraint:** NO second per-element color configuration — whatever the fix,
+it derives from the existing single `palette.color`.
+
+**Suggested directions (one global algorithm, no element changes):**
+1. **Contrast-correct text (minimal):** keep the tile colors in both modes,
+   but pick the label color per tile from the background's relative luminance
+   (WCAG threshold → black/white text). Fixes dark-on-dark outright; light
+   mode still shows the dark-designed palette, which may remain heavy.
+2. **Pastelize for light mode (recommended candidate):** transform each color
+   for light mode only — same hue, lifted lightness / reduced saturation
+   (HSL/OKLCH transform) for the tile background, dark text; dark mode stays
+   byte-identical. Family recognizability survives (hue is preserved), and
+   one pure function covers every element incl. third-party packages.
+3. **Accent instead of fill:** in light mode render neutral light tiles with
+   the element color as an accent (left stripe / icon tint). Cleanest look,
+   but changes the palette's visual language between modes.
+
+**Open questions (the ⚠ part):** which direction (2 vs 3 — mock both against
+the same palette page); exact transform numbers for 2 (must keep families
+distinguishable — test with e-ink/tui/panel, the darkest sets); whether the
+category header chips need the same treatment; contrast floor (WCAG AA for
+the tile labels).
+
+**Relates:** the editor dark-mode discipline (N43 — this is its light-mode
+mirror), element-spec `palette.color` (docs note: color is authored against
+the dark editor; light mode derives), U45 (palette/picker — same tiles).
+
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
 
