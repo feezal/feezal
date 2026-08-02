@@ -9,6 +9,7 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces](#b106--discovery-ids-is-space-separated-but-mqtt-topics-may-contain-spaces)
+- [B118 — Undo dead after deleting via the layers-tree context menu (until the canvas is clicked)](#b118--undo-dead-after-deleting-via-the-layers-tree-context-menu-until-the-canvas-is-clicked)
 
 
 **Near-term Improvements**
@@ -304,6 +305,45 @@ stamp → parse → dupe-guard must match exactly.
 the dupe-guard consumer), E108 ✅ (native recognizers whose IDs carry channel
 names), N12 (re-sync — anything else reading discovery ids must use the same
 parser).
+
+
+### B118 — Undo dead after deleting via the layers-tree context menu (until the canvas is clicked)
+
+**Reported (08/2026).** Delete an element through the **layers view's context
+menu**, then press **Ctrl+Z** → nothing is restored. Click into the view
+first → Ctrl+Z works again. Smells like keyboard focus: after the ctx-menu
+click, the keystroke does not reach (or is bailed out of) the undo handler.
+
+**Where to look:** the shortcut handler is `_keyHandler`
+([feezal-sidebar-inspector.js](../www/src/feezal-sidebar-inspector.js)),
+registered on `window`, with a focus guard that bails when
+`document.activeElement` is INPUT/TEXTAREA/SELECT/contentEditable or a
+Shoelace host whose shadow activeElement is an input. Candidates:
+
+1. After the layers ctx-menu click, focus rests on a sidebar element that
+   trips the guard (e.g. an `sl-*` host whose shadow activeElement matches, or
+   a filter input in the layers panel keeping focus) — check what
+   `document.activeElement` actually is right after the delete.
+2. The handler (or the inspector) may be wired/active only in canvas
+   context — verify `window` registration is unconditional and not torn down
+   while the sidebar has focus.
+3. Rule out a history gap: confirm the layers-tree delete path records the
+   change (`feezal.app.change()`) — if the entry is missing, clicking the
+   canvas would not fix it, so focus is the prime suspect, but verify while
+   in there.
+
+**Fix direction:** after ctx-menu actions in the layers panel, either blur the
+panel (return focus to the canvas/host) or narrow the guard so
+non-text-editing sidebar focus does not swallow global shortcuts — global
+edit shortcuts (undo/redo at minimum) should work regardless of which editor
+panel holds focus, as long as no text field is being edited.
+
+**Test:** browser test — delete via the layers ctx menu, dispatch Ctrl+Z
+without any intervening click, assert the element is restored (and the same
+for redo).
+
+**Relates:** the layers tree (U87 family), the `_keyHandler` focus guard,
+B108 (layers/selection interplay — same neighbourhood).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
