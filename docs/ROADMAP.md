@@ -71,7 +71,6 @@ Work in progress — priorities and scope are not final.
 - [U84 — Canvas zoom, pan and fit-to-view](#u84--canvas-zoom-pan-and-fit-to-view)
 - [U85 — Toast/notification service: route the remaining call sites](#u85--toastnotification-service-route-the-remaining-call-sites--service-shipped) 🔨 *(service shipped)*
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
-- [U91 — Distribute: never overlap (edge-to-edge fallback when the span is too tight)](#u91--distribute-never-overlap-edge-to-edge-fallback-when-the-span-is-too-tight)
 - [U95 — View inspector: Conditions and MQTT tabs for views 💡](#u95--view-inspector-conditions-and-mqtt-tabs-for-views-)
 
 
@@ -2286,42 +2285,6 @@ AI apply results, and the asset upload/rename outcomes.
 **The remaining pieces are a different kind of work, and scoping them as "extraction" undersells them.** The component system, source/Monaco mode and the clipboard handlers are component *orchestration*: they touch `this` state, dialogs, `feezal.site` and the render template (source mode alone gates ~15 places in `render()`). Moving them means introducing controller objects that hold a reference back to the editor — a legitimate design, but a refactor with real regression surface, not a cut-and-paste. Worth doing deliberately rather than opportunistically: A38 is the cautionary example — a change that looked like a pure removal broke seven e2e tests through a layout invariant no one had written down.
 
 **Relates:** N42 (querySelector caching lands naturally during extraction), A36 (the server twin).
-
-### U91 — Distribute: never overlap (edge-to-edge fallback when the span is too tight)
-
-**Requested (08/2026), refined.** NOT a separate Pack operation — the existing
-U83 distribute behaviour stays exactly as it is (equal gaps between the
-left-/rightmost resp. top-/bottommost elements, outer anchors fixed) and is
-liked. The refinement is a single rule on top: **never overlap — gaps are
-allowed.**
-
-- **Normal case (unchanged):** the span between the outermost elements is
-  large enough → equalize the gaps within it, anchors stay put.
-- **Tight case (new):** the summed sizes of the selection exceed the span
-  (equal-gap would mean NEGATIVE gaps → overlapping elements). Instead of
-  overlapping, fall back to **edge-to-edge**: keep the first element in place
-  and lay each following element flush against the previous one
-  (`next.left = prev.left + prev.width`, resp. top/height) — the strip then
-  extends past the old outermost position; that is acceptable, overlap is
-  not.
-- Equivalently: `gap = max(0, (span − Σsizes) / (n − 1))` with anchor-fixed
-  placement when gap > 0 and first-element-fixed flush placement when
-  gap = 0.
-
-Cross-axis positions stay untouched; selection sort order along the axis is
-U83's existing ordering rule; one undo entry; locked elements respected as in
-the other operations.
-
-**Test:** unit/browser cases — roomy span (behaviour byte-identical to
-today), exactly-fitting span (gap 0, anchors coincide), overflowing span
-(edge-to-edge, no pair overlaps, order preserved), and the U83 suites stay
-green unchanged.
-
-**Relates:** [U83](roadmap-archive/U83.md) ✅ (this refines its distribute
-operations in place — same sorting, same undo semantics, no new toolbar
-entry), U89 (equal-gap smart guides — the drag-time sibling),
-[U90](roadmap-archive/U90.md) ✅ (grid layout).
-
 
 ### U95 — View inspector: Conditions and MQTT tabs for views 💡
 

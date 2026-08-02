@@ -89,21 +89,26 @@ export function distribute(boxes, axis) {
     const last = sorted[sorted.length - 1];
     const span = (start(last) + size(last)) - start(first);
     const totalSize = sorted.reduce((sum, b) => sum + size(b), 0);
-    // Negative when the elements overlap more than the span allows — the gap
-    // simply goes negative, which still spaces them evenly (and predictably).
-    const gap = (span - totalSize) / (sorted.length - 1);
+    const rawGap = (span - totalSize) / (sorted.length - 1);
+    // U91 — never overlap. An equal gap goes NEGATIVE once the elements sum to
+    // more than the span between the outermost two, which used to space them
+    // "evenly" by stacking them on top of each other. Gaps are allowed;
+    // overlap is not, so a too-tight span falls back to edge-to-edge.
+    const tight = rawGap < 0;
+    const gap = tight ? 0 : rawGap;
 
     let cursor = start(first);
     return changed(sorted.map((b, i) => {
         const patch = {id: b.id, _was: b};
-        // The outermost two keep their exact position (no rounding drift).
-        if (i === 0 || i === sorted.length - 1) {
-            cursor = (i === 0 ? start(b) : cursor) + size(b) + gap;
-            if (horizontal) patch.left = start(b); else patch.top = start(b);
-            return patch;
-        }
-        if (horizontal) patch.left = cursor; else patch.top = cursor;
-        cursor += size(b) + gap;
+        // Normally BOTH outermost elements are pinned: the selection keeps its
+        // bounds and rounding cannot drift them. Packed edge-to-edge the strip
+        // has to grow past the old outer edge, so only the first is pinned —
+        // that is the whole trade U91 makes, and it is why the last element
+        // moves in the tight case but never in the normal one.
+        const pinned = i === 0 || (!tight && i === sorted.length - 1);
+        const position = pinned ? start(b) : cursor;
+        if (horizontal) patch.left = position; else patch.top = position;
+        cursor = position + size(b) + gap;
         return patch;
     }));
 }
