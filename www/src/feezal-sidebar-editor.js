@@ -138,6 +138,13 @@ class FeezalSidebarEditor extends LitElement {
         this._loadDiscoveryPrefs();
     }
 
+    updated(changed) {
+        super.updated?.(changed);
+        // U101: cheap after the first pass — each picker is patched once and
+        // then skipped, but the pickers only exist once the panel has rendered.
+        this._stretchColorPickers();
+    }
+
     async _loadDiscoveryPrefs() {
         try {
             const r = await fetch('/api/editor/prefs');
@@ -457,6 +464,41 @@ class FeezalSidebarEditor extends LitElement {
      * the user drags the alpha slider, and every one of those writes to
      * localStorage and restyles the canvas.
      */
+    /**
+     * U101 — stretch the colour pickers to the width of their settings field.
+     *
+     * `::part(trigger) { width: 100% }` is not enough on its own: sl-color-picker
+     * renders its trigger inside an `<sl-dropdown class="color-dropdown">` in its
+     * OWN shadow root, that host is `display: inline-block`, and no part is
+     * exposed for it. So the trigger's 100% resolves against a box that
+     * shrink-wraps the trigger — circular, and the swatch stays at its natural
+     * size while the label above it spans the field.
+     *
+     * A sheet adopted by the picker's shadow root is the only way in. Done once
+     * per picker (the flag), after its own first update, since the shadow root
+     * does not exist before that.
+     */
+    async _stretchColorPickers() {
+        for (const picker of this.shadowRoot.querySelectorAll('sl-color-picker')) {
+            await picker.updateComplete;
+            const root = picker.shadowRoot;
+            if (!root || root.__feezalStretched) continue;
+            const rule = '.color-dropdown { width: 100%; }';
+            try {
+                const sheet = new CSSStyleSheet();
+                sheet.replaceSync(rule);
+                root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
+            } catch {
+                // Engine without constructable stylesheets: a style node in the
+                // same root behaves identically.
+                const style = document.createElement('style');
+                style.textContent = rule;
+                root.append(style);
+            }
+            root.__feezalStretched = true;
+        }
+    }
+
     _colorSetting(label, prop, event) {
         return html`
             <label class="color-label">
