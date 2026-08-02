@@ -74,6 +74,7 @@ Work in progress — priorities and scope are not final.
 - [U97 — Slim editor footer/status line 💡](#u97--slim-editor-footerstatus-line-)
 - [U98 — Palette colors in editor light mode ⚠️ needs refinement](#u98--palette-colors-in-editor-light-mode-️-needs-refinement)
 - [U101 — Snap helper-line color configurable + alpha in the editor color pickers](#u101--snap-helper-line-color-configurable--alpha-in-the-editor-color-pickers)
+- [U102 — Vertical guide-line label: flip 180°, right of the line, near the top](#u102--vertical-guide-line-label-flip-180-right-of-the-line-near-the-top)
 
 
 **Architecture & Infrastructure**
@@ -2357,6 +2358,21 @@ gap helper lines), [B117](roadmap-archive/B117.md) ✅ (one paint per
 coordinate — a colour with alpha makes a double-draw visible again, so the
 dedupe has to hold) — plus U65/U66 ✅ (the alpha picker to reuse) and the
 editor-settings persistence (selection/grid color precedent).
+
+
+### U102 — Vertical guide-line label: flip 180°, right of the line, near the top
+
+**Requested (08/2026).** Placement change for the **left-coordinate readout**
+on vertical snap helper lines ([U99](roadmap-archive/U99.md) ✅ shipped it
+rotated 90° left / reading bottom-up, left of the line, near the canvas
+bottom): **rotate it 180° from that** — i.e. reading top-down (90° clockwise)
+— and place it **to the RIGHT of the helper line, near the TOP canvas
+border**. Horizontal-line labels stay as shipped (unrotated, above the line,
+near the left end). The B117 label rules (bare value, deduped with the line)
+apply unchanged.
+
+**Relates:** [U99](roadmap-archive/U99.md) ✅ (the readout this repositions),
+B117 (bare-value labels + dedupe), U101 (guide color — same rendering).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
