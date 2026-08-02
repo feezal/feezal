@@ -9,10 +9,8 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces](#b106--discovery-ids-is-space-separated-but-mqtt-topics-may-contain-spaces)
-- [B112 — Gap snapping: vertical and horizontal indicators fight instead of showing together](#b112--gap-snapping-vertical-and-horizontal-indicators-fight-instead-of-showing-together)
-- [B113 — Gap snapping: draw full-canvas helper lines so the gap arrows meet them at 90°](#b113--gap-snapping-draw-full-canvas-helper-lines-so-the-gap-arrows-meet-them-at-90)
-- [B114 — Snapping misplaced by the scroll offset on an undersized, scrolled browser](#b114--snapping-misplaced-by-the-scroll-offset-on-an-undersized-scrolled-browser)
 - [B115 — Context menus: Delete entries must ALL get the danger red hover](#b115--context-menus-delete-entries-must-all-get-the-danger-red-hover)
+- [B116 — Gap-snap helper lines: show only the line being snapped to, not all four](#b116--gap-snap-helper-lines-show-only-the-line-being-snapped-to-not-all-four)
 
 
 **Near-term Improvements**
@@ -312,59 +310,6 @@ names), N12 (re-sync — anything else reading discovery ids must use the same
 parser).
 
 
-### B112 — Gap snapping: vertical and horizontal indicators fight instead of showing together
-
-**Reported (08/2026).** In a drag position where BOTH a vertical and a
-horizontal gap snap apply (U89), the two indicator sets "fight" — only one is
-visible at a time, flickering by which snap wins. Wanted: **both shown
-simultaneously** — the axes are independent (x-snap and y-snap already resolve
-independently in `_snap()`), so their gap arrows/indicators must render
-independently too, not share one visibility slot.
-
-**Relates:** [U89](roadmap-archive/U89.md) ✅ (the gap guides), N11 (the
-four-side guide model — same both-axes-at-once principle), B113 (the
-full-canvas helper lines — same rendering area).
-
-
-### B113 — Gap snapping: draw full-canvas helper lines so the gap arrows meet them at 90°
-
-**Reported (08/2026).** The U89 gap arrows float in the gaps alone. Wanted:
-like the edge-snap guides, gap snapping should ALSO draw its **helper lines
-across the whole canvas** (the edge the gap is measured against), so each
-dotted gap arrow visibly ends ON a helper line at a right angle — the
-Figma-style reading "this span runs between these two edges". Same dotted
-style as the existing guide lines; appears/disappears with the gap indicators
-(both axes, per B112).
-
-**Relates:** [U89](roadmap-archive/U89.md) ✅, N11 (the guide-line renderer to
-reuse), B112 (show both axes — implement together).
-
-
-### B114 — Snapping misplaced by the scroll offset on an undersized, scrolled browser
-
-**Reported (08/2026).** With the browser window undersized and the canvas
-scrolled to the right, snapping lands in the wrong place — offset by what
-looks like **exactly the scroll width**; most likely the same vertically.
-
-**Where to look:** the B8 fix in `_snap()`
-([feezal-sidebar-inspector.js](../www/src/feezal-sidebar-inspector.js))
-translates the GUIDE-LINE positions by the `#container-view` scroll delta
-(`viewLeftInCv`) — but the reported symptom is the SNAP POSITION itself being
-off, which points at a coordinate-space mismatch between the snap targets
-(measured via `getBoundingClientRect`, viewport coords — scroll-corrected by
-nature) and whatever interact.js feeds/receives (`_snap(x, y)` inputs and the
-returned target): one side appears to use unscrolled coordinates. Reproduce
-with a horizontally scrolled canvas, snap to a known element edge, measure
-the delta against `scrollLeft` — then audit every coordinate handoff in the
-snap path (inputs from interact, target math, and the U89 gap pass which
-inherits the same spaces) for the missing scroll term. Fix must cover both
-axes and keep the B8 guide-line correction intact.
-
-**Relates:** B8 ✅ (guide-line drift — the sibling symptom, already fixed),
-N11, [U89](roadmap-archive/U89.md) ✅ (gap pass shares the coordinate spaces),
-B104 (multi-drag exclusion — same scan, coordinate audit can cover both).
-
-
 ### B115 — Context menus: Delete entries must ALL get the danger red hover
 
 **Reported (08/2026).** The element context menu's **Delete** entry hovers
@@ -393,6 +338,27 @@ menu entry cannot ship un-red.
 **Relates:** the context-menu family (sidebar-inspector / palette /
 app-editor view tabs / layers), N43 (the ratchet philosophy — one shared
 definition beats four copies).
+
+
+### B116 — Gap-snap helper lines: show only the line being snapped to, not all four
+
+**Reported (08/2026).** Follow-up on [B113](roadmap-archive/B113.md) ✅ (gap
+snapping draws full-canvas helper lines): when a gap snap activates, **four**
+lines appear. Wanted: **exactly one** — the line at the border of the
+currently dragged element where the snap will land (the edge the drag is
+being magnetted to). Suppress the other three (the neighbour-pair edges and
+the dragged element's opposite edge); the gap arrows already tell the
+between-which-edges story, the extra lines only add noise.
+
+**Rule:** per active gap snap (and per axis, with both axes independent per
+[B112](roadmap-archive/B112.md) ✅), render ONE helper line: at the dragged
+element's snapped edge position. Everything else stays — arrows, px labels,
+the U99 position readout applies to this one line.
+
+**Relates:** [B113](roadmap-archive/B113.md) ✅ (the lines this prunes),
+[B112](roadmap-archive/B112.md) ✅ (both axes — one line PER axis when both
+snap), [U89](roadmap-archive/U89.md) ✅ (the gap arrows carry the span
+story), U99 (position readout — applies to the surviving line).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
@@ -2429,17 +2395,19 @@ pixel distance:
   line**, placed **near the left end of the canvas**.
 
 Values are view-relative pixels (the coordinates the element's `left`/`top`
-styles use, not viewport coords — and B114's scroll-offset audit applies here
+styles use, not viewport coords — and [B114](roadmap-archive/B114.md) ✅'s scroll-offset audit applies here
 too: the readout must stay correct on a scrolled canvas). Same styling family
 as the gap-arrow px labels (small, dotted-guide-colored, never intercepting
 pointer events). Applies to all four N11 guide lines (both vertical, both
-horizontal) and, where sensible, the B113 full-canvas gap-snap lines carry
+horizontal) and, where sensible, the [B113](roadmap-archive/B113.md) ✅
+full-canvas gap-snap lines carry
 the same readout.
 
 **Relates:** N11 (the four-side guide lines this labels),
-[U89](roadmap-archive/U89.md) ✅ (the px-label precedent + styling), B113
-(gap-snap canvas lines — same label treatment), B114 (coordinate-space audit
-— the readout must use the corrected values).
+[U89](roadmap-archive/U89.md) ✅ (the px-label precedent + styling),
+[B113](roadmap-archive/B113.md) ✅ (gap-snap canvas lines — same label
+treatment), [B114](roadmap-archive/B114.md) ✅ (coordinate-space audit — the
+readout must use the corrected values).
 
 
 ### U100 — Editor min-width instead of broken narrow layouts
