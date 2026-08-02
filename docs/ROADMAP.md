@@ -9,7 +9,6 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces](#b106--discovery-ids-is-space-separated-but-mqtt-topics-may-contain-spaces)
-- [B117 — Coinciding gap + edge snap draws the helper line twice ("fat" artifact); drop the label prefixes](#b117--coinciding-gap--edge-snap-draws-the-helper-line-twice-fat-artifact-drop-the-label-prefixes)
 
 
 **Near-term Improvements**
@@ -74,6 +73,7 @@ Work in progress — priorities and scope are not final.
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
 - [U97 — Slim editor footer/status line 💡](#u97--slim-editor-footerstatus-line-)
 - [U98 — Palette colors in editor light mode ⚠️ needs refinement](#u98--palette-colors-in-editor-light-mode-️-needs-refinement)
+- [U101 — Snap helper-line color configurable + alpha in the editor color pickers](#u101--snap-helper-line-color-configurable--alpha-in-the-editor-color-pickers)
 
 
 **Architecture & Infrastructure**
@@ -305,33 +305,6 @@ stamp → parse → dupe-guard must match exactly.
 the dupe-guard consumer), E108 ✅ (native recognizers whose IDs carry channel
 names), N12 (re-sync — anything else reading discovery ids must use the same
 parser).
-
-
-### B117 — Coinciding gap + edge snap draws the helper line twice ("fat" artifact); drop the label prefixes
-
-**Reported (08/2026).** When a **gap snap and an element-edge snap land on the
-same coordinate** (which is common — the gap-snapped position IS an aligned
-edge), both passes draw their helper line at the same top/left: the doubled
-dotted line renders as a **"fat" artifact**, and the label doubles up too.
-
-**Fix — dedupe at draw time:** the guide renderer collects the lines both
-passes request (N11 edge guides + the gap-snap line, per axis) and draws each
-unique coordinate ONCE — same-axis lines within <1px collapse into one line
-with one label. Ordering/priority does not matter visually (they are
-identical); what matters is a single paint per coordinate.
-
-**Also (label format):** remove the `top:` / `left:` prefixes from the U99
-position readouts — **the value alone is enough** (`240` instead of
-`left: 240`); the orientation and placement of the label already disambiguate
-the axis.
-
-**Test:** browser case with an element positioned so a gap snap and an edge
-snap coincide — assert exactly one guide-line element per coordinate and one
-label; label text is the bare number.
-
-**Relates:** [B113](roadmap-archive/B113.md) ✅ / B116 (the gap-snap lines),
-N11 (edge guides — the other pass), U99 (the readout whose format this
-trims).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
@@ -2354,6 +2327,32 @@ the tile labels).
 **Relates:** the editor dark-mode discipline (N43 — this is its light-mode
 mirror), element-spec `palette.color` (docs note: color is authored against
 the dark editor; light mode derives), U45 (palette/picker — same tiles).
+
+
+### U101 — Snap helper-line color configurable + alpha in the editor color pickers
+
+**Requested (08/2026).** Two related editor-settings additions:
+
+1. **Snap guide color** becomes a **third color setting** beside the existing
+   "Selection color" and "Grid color"
+   ([feezal-sidebar-editor.js](../www/src/feezal-sidebar-editor.js) —
+   `selectionColor` / `gridColor`): one color for the snap/gap helper lines,
+   their labels (U99 readouts) and the gap arrows, so the guides can be tuned
+   against any canvas background instead of inheriting whatever they use
+   today. Persisted like the other two, live-applied while dragging.
+
+2. **The editor-settings color pickers offer transparency** — all three
+   (selection, grid, snap guides) accept an alpha channel; a semi-transparent
+   guide/grid is exactly what busy dashboards want. Reuse the U65/U66 alpha
+   color-picker machinery the dashboard styles already have rather than a
+   second picker widget; store as rgba/8-digit hex, and verify the consumers
+   (grid background-image lines, selection ring rgb-var, guide lines) render
+   alpha correctly — the selection ring uses an `--feezal-selection-rgb`
+   triplet, which needs a small adaptation for alpha.
+
+**Relates:** U99/B113/B116/B117 (the guide-line family this colors), U65/U66
+✅ (the alpha picker to reuse), the editor-settings persistence
+(selection/grid color precedent).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
