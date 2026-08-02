@@ -6,7 +6,7 @@
  * two judgement calls it encodes — adjacent pair only, and same lane only.
  */
 import {describe, it, expect} from 'vitest';
-import {equalGapCandidates, bestEqualGap} from '../src/feezal-canvas-gaps.js';
+import {equalGapCandidates, centeredCandidates, bestEqualGap} from '../src/feezal-canvas-gaps.js';
 
 /** A box from left/top/width/height, the way the canvas thinks. */
 const box = (left, top, w = 100, h = 50) =>
@@ -107,5 +107,49 @@ describe('bestEqualGap', () => {
         const a = bestEqualGap(box(235, 0), PAIR, 'x', {range: 8});
         const b = bestEqualGap(box(235, 0), PAIR, 'x', {range: 8});
         expect(a).toEqual(b);
+    });
+});
+
+/**
+ * Dropping into a HOLE has no rhythm to echo, so the offer is the middle:
+ * equal gaps left and right. Same candidate shape, measured differently.
+ */
+describe('centeredCandidates', () => {
+    // 0..100 and 460..560 -> 360px free
+    const HOLE = [box(0, 0), box(460, 0)];
+
+    it('proposes the position with equal gaps on both sides', () => {
+        const [c] = centeredCandidates(box(200, 0), HOLE, 'x');
+        expect(c.gap).toBe(130);              // (360 - 100) / 2
+        expect(c.lead).toBe(230);             // 100 + 130
+        expect(c.kind).toBe('centered');
+        // the two spans it annotates really are equal
+        expect(c.measured.to - c.measured.from).toBe(c.proposed.to - c.proposed.from);
+    });
+
+    it('ignores a hole too small for the element', () => {
+        const tight = [box(0, 0), box(180, 0)];   // 80px free, element is 100
+        expect(centeredCandidates(box(120, 0), tight, 'x')).toEqual([]);
+    });
+
+    it('works vertically', () => {
+        const column = [box(0, 0), box(0, 400)];  // 350px free below the first
+        const [c] = centeredCandidates(box(0, 200), column, 'y');
+        expect(c.gap).toBe(150);              // (350 - 50) / 2
+        expect(c.lead).toBe(200);
+    });
+
+    it('is offered by bestEqualGap alongside the rhythm cases', () => {
+        const best = bestEqualGap(box(236, 0), HOLE, 'x', {range: 24});
+        expect(best.kind).toBe('centered');
+        expect(best.lead).toBe(230);
+    });
+
+    it('loses a tie to an existing rhythm — echoing beats centring', () => {
+        // a rhythm proposal and a centring proposal the same distance away
+        const row = [box(0, 0), box(116, 0), box(500, 0)];
+        const dragged = box(232, 0);
+        const best = bestEqualGap(dragged, row, 'x', {range: 24});
+        expect(best.kind).toBe('rhythm');
     });
 });

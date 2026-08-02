@@ -1450,49 +1450,54 @@ class FeezalSidebarInspector extends LitElement {
 
     /**
      * U89 — draw the two gap arrows: the span the neighbour pair already has,
-     * and the equal one being proposed under the drag.
+     * and the equal one being proposed.
      *
-     * Both are drawn at the dragged element's own centre line rather than at
-     * the neighbours', so the eye compares two spans at the same height — which
-     * is the whole point of showing them.
+     * Positioned STATICALLY, on the cross-axis centre of the neighbour that
+     * supplies the gap. An earlier version put them on the dragged element's
+     * centre line, which meant they slid up and down with the pointer while
+     * measuring something that was not moving — the annotation has to stay put
+     * for the two spans to read as equal.
+     *
+     * Coordinate note: the markers live inside #container-view, so y is already
+     * container-relative (boxes were built as `rect.y - cvTop`) while x needs
+     * `viewLeftInCv` to get there.
      */
-    _drawGapArrows(gapX, gapY, dragged, viewLeftInCv, cvTop, viewRect) {
+    _drawGapArrows(gapX, gapY, viewLeftInCv = 0) {
         const gap1 = feezal.container?.querySelector('#gap1');
         const gap2 = feezal.container?.querySelector('#gap2');
         if (!gap1 || !gap2) return;
-        const hide = el => { el.style.display = 'none'; el.textContent = ''; };
+        const hide = el => { el.style.display = 'none'; el.textContent = ''; el.classList.remove('vertical'); };
 
-        const best = gapX || gapY;
+        // Both axes can propose at once; annotate the one the drag is actually
+        // closest to, which is also the one that wins the snap. Preferring x
+        // unconditionally drew a horizontal span while the element snapped
+        // vertically.
+        const useX = gapX && (!gapY || gapX.distance <= gapY.distance);
+        const best = useX ? gapX : gapY;
         if (!best) { hide(gap1); hide(gap2); return; }
+        const label = `${Math.round(best.gap)}`;
+        const {anchor} = best;
 
-        if (gapX) {
-            // horizontal spans, at the dragged element's vertical centre
-            const y = (dragged.top + dragged.bottom) / 2;
-            const draw = (el, span) => {
-                el.textContent = `${Math.round(best.gap)}`;
-                el.style.cssText =
-                    `display:block;top:${y}px;` +
-                    `left:${span.from + viewLeftInCv}px;width:${span.to - span.from}px;`;
-            };
-            draw(gap1, gapX.measured);
-            draw(gap2, gapX.proposed);
+        if (useX) {
+            // horizontal spans, parked on the anchor's vertical centre
+            const top = (anchor.top + anchor.bottom) / 2;
+            for (const [el, span] of [[gap1, best.measured], [gap2, best.proposed]]) {
+                el.classList.remove('vertical');
+                el.textContent = label;
+                el.style.cssText = `display:block;top:${top}px;` +
+                    `left:${span.from + viewLeftInCv}px;width:${Math.max(0, span.to - span.from)}px;`;
+            }
             return;
         }
 
-        // vertical spans: a 1px-wide column with the ticks turned sideways is a
-        // different shape, so reuse the same element rotated by drawing it as a
-        // narrow box and labelling it beside the span.
-        const x = (dragged.left + dragged.right) / 2 + viewLeftInCv;
-        const draw = (el, span) => {
-            el.textContent = `${Math.round(gapY.gap)}`;
-            el.style.cssText =
-                `display:block;left:${x}px;width:0;` +
-                `top:${span.from + cvTop - viewRect.y + viewRect.y}px;` +
-                `height:${span.to - span.from}px;` +
-                'border-top:0;border-left:1px dotted currentColor;padding:0 0 0 4px;text-align:left;';
-        };
-        draw(gap1, gapY.measured);
-        draw(gap2, gapY.proposed);
+        // vertical spans, parked on the anchor's horizontal centre
+        const left = (anchor.left + anchor.right) / 2 + viewLeftInCv;
+        for (const [el, span] of [[gap1, best.measured], [gap2, best.proposed]]) {
+            el.classList.add('vertical');
+            el.textContent = label;
+            el.style.cssText = `display:block;left:${left}px;top:${span.from}px;` +
+                `height:${Math.max(0, span.to - span.from)}px;width:0;`;
+        }
     }
 
     _snap(x, y) {
@@ -1607,7 +1612,7 @@ class FeezalSidebarInspector extends LitElement {
                 });
             const gapX = bestEqualGap(draggedBox, laneBoxes, 'x', {range});
             const gapY = bestEqualGap(draggedBox, laneBoxes, 'y', {range});
-            this._drawGapArrows(gapX, gapY, draggedBox, viewLeftInCv, cvTop, viewRect);
+            this._drawGapArrows(gapX, gapY, viewLeftInCv);
 
             // interact.js snaps to one position per axis — the closer side wins.
             const object = {};

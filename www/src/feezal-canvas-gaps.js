@@ -69,7 +69,7 @@ export function equalGapCandidates(dragged, others, axis, {minGap = 1} = {}) {
             if (gap >= minGap) {
                 out.push({
                     lead: trail(anchor, axis) + gap,
-                    gap, anchor, reference: before, side: 'after',
+                    gap, anchor, reference: before, side: 'after', kind: 'rhythm',
                     measured: {from: trail(before, axis), to: lead(anchor, axis)},
                     proposed: {from: trail(anchor, axis), to: trail(anchor, axis) + gap},
                 });
@@ -81,12 +81,49 @@ export function equalGapCandidates(dragged, others, axis, {minGap = 1} = {}) {
             if (gap >= minGap) {
                 out.push({
                     lead: lead(anchor, axis) - gap - span,
-                    gap, anchor, reference: after, side: 'before',
+                    gap, anchor, reference: after, side: 'before', kind: 'rhythm',
                     measured: {from: trail(anchor, axis), to: lead(after, axis)},
                     proposed: {from: lead(anchor, axis) - gap, to: lead(anchor, axis)},
                 });
             }
         }
+    }
+    return out;
+}
+
+/**
+ * Centred candidates: drop an element BETWEEN two others and get equal gaps on
+ * both sides.
+ *
+ * The propagation case above needs an existing rhythm to echo. Dropping into a
+ * hole between two elements has no rhythm to copy — what people want there is
+ * the middle, and "equal gap left and right" is exactly the same idea measured
+ * differently. So it is the same candidate shape, and the two arrows drawn for
+ * it are the left and right gaps, which are equal at the proposed position.
+ *
+ * @returns candidates with `kind: 'centered'`
+ */
+export function centeredCandidates(dragged, others, axis, {minGap = 1} = {}) {
+    const span = size(dragged, axis);
+    const lane = others
+        .filter(o => sharesLane(dragged, o, axis))
+        .sort((a, b) => lead(a, axis) - lead(b, axis));
+    const out = [];
+
+    for (let i = 0; i + 1 < lane.length; i++) {
+        const before = lane[i];
+        const after = lane[i + 1];
+        const free = lead(after, axis) - trail(before, axis);
+        const gap = (free - span) / 2;
+        // A hole too small for the element (or for a visible gap) is not an offer.
+        if (gap < minGap) continue;
+        const start = trail(before, axis) + gap;
+        out.push({
+            lead: start, gap, anchor: before, reference: after,
+            side: 'between', kind: 'centered',
+            measured: {from: trail(before, axis), to: start},
+            proposed: {from: start + span, to: lead(after, axis)},
+        });
     }
     return out;
 }
@@ -101,14 +138,22 @@ export function equalGapCandidates(dragged, others, axis, {minGap = 1} = {}) {
  */
 export function bestEqualGap(dragged, others, axis, {range = 8, minGap = 1} = {}) {
     const current = lead(dragged, axis);
+    const candidates = [
+        ...equalGapCandidates(dragged, others, axis, {minGap}),
+        ...centeredCandidates(dragged, others, axis, {minGap}),
+    ];
     let best = null;
-    for (const candidate of equalGapCandidates(dragged, others, axis, {minGap})) {
+    for (const candidate of candidates) {
         const distance = Math.abs(candidate.lead - current);
         if (distance > range) continue;
-        if (!best || distance < best.distance ||
-            (distance === best.distance && candidate.gap < best.gap)) {
-            best = {...candidate, distance};
-        }
+        // Nearer wins; on a tie prefer echoing an existing rhythm over
+        // centring, then the smaller gap — deterministic either way, so the
+        // guide cannot flicker between two answers on consecutive frames.
+        const better = !best
+            || distance < best.distance
+            || (distance === best.distance && best.kind === 'centered' && candidate.kind !== 'centered')
+            || (distance === best.distance && best.kind === candidate.kind && candidate.gap < best.gap);
+        if (better) best = {...candidate, distance};
     }
     return best;
 }

@@ -508,6 +508,20 @@ class FeezalAppEditor extends LitElement {
         }
         #gap1::before, #gap2::before { left: 0; }
         #gap1::after,  #gap2::after  { right: 0; }
+        /* Vertical gaps get a vertical span: the dotted rule turns on its side
+           and the end ticks with it, otherwise a column of cards was annotated
+           with a horizontal bar that measured nothing. */
+        #gap1.vertical, #gap2.vertical {
+            border-top: 0; border-left: 1px dotted currentColor;
+            padding: 0 0 0 5px; text-align: left;
+            display: flex; align-items: center;
+        }
+        #gap1.vertical::before, #gap2.vertical::before,
+        #gap1.vertical::after,  #gap2.vertical::after {
+            left: -4px; width: 9px; height: 1px;
+        }
+        #gap1.vertical::before, #gap2.vertical::before { top: 0; }
+        #gap1.vertical::after,  #gap2.vertical::after  { top: auto; bottom: 0; }
 
         /* Rename view dialog — now using sl-dialog (respects dark/light mode) */
         #viewdialog::part(panel) { min-width: 300px; }
