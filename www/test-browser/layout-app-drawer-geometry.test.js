@@ -190,12 +190,30 @@ describe('U94 — themed thin scrollbars', () => {
     const surfaces = el => ['.drawer', '.content']
         .map(sel => [sel, el.shadowRoot.querySelector(sel)]);
 
+    /** The element's own CSS, as the browser parsed it. */
+    function ownRules(el) {
+        const sheets = el.shadowRoot.adoptedStyleSheets?.length
+            ? [...el.shadowRoot.adoptedStyleSheets]
+            : [...el.shadowRoot.querySelectorAll('style')].map(n => n.sheet).filter(Boolean);
+        return sheets.flatMap(sheet => [...sheet.cssRules]);
+    }
+
     it('both scroll surfaces ask for a thin scrollbar', async () => {
         const {el} = await mount({});
-        for (const [sel, node] of surfaces(el)) {
-            expect(node, sel).toBeTruthy();
-            expect(getComputedStyle(node).scrollbarWidth, sel).toBe('thin');
-        }
+        for (const [sel, node] of surfaces(el)) expect(node, sel).toBeTruthy();
+
+        // Asserted on the DECLARED rule, not the computed value: headless
+        // Firefox hides scrollbars, which forces computed `scrollbar-width` to
+        // `none` even for a bare `overflow:auto; scrollbar-width:thin` div in a
+        // plain shadow root (verified — and CSS.supports still reports true).
+        // A computed-value check there tests the browser, not this element.
+        // `scrollbar-color` is not overridden, so those assertions stay
+        // computed-value based below.
+        const rule = ownRules(el).find(r =>
+            r.selectorText && r.style?.scrollbarWidth &&
+            r.selectorText.includes('.drawer') && r.selectorText.includes('.content'));
+        expect(rule, 'a rule covering both scroll surfaces').toBeTruthy();
+        expect(rule.style.scrollbarWidth).toBe('thin');
     });
 
     it('the thumb takes its colour from the theme, over a transparent track', async () => {
