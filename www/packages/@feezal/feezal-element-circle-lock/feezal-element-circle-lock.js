@@ -3,6 +3,7 @@ import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatte
 import {LockController, lockAttributes, lockDiscoveryMap} from '@feezal/feezal-controller-lock';
 import {feezalMovementStyles} from '@feezal/feezal-element/feezal-movement.js';
 import {svg} from 'lit';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 // ── Unavailability badge ─────────────────────────────────────────────────────
 const UNAVAIL = html`<svg viewBox="0 0 24 24"><path fill="currentColor"
@@ -52,10 +53,7 @@ class FeezalElementCircleLock extends FeezalElement {
             attributes: [
                 ...lockAttributes,
                 {name: 'label',                  type: 'string', default: '',         help: 'Optional card label.'},
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Availability topic.'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
-                {name: 'payload-available',      type: 'string', default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable',    type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes(),
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',

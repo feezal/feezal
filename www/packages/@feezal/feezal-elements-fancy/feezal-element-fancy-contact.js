@@ -5,6 +5,7 @@ import {sabotageBadge, faultBadge, feezalFaultStyles} from '@feezal/feezal-eleme
 import {ContactController, contactAttributes, contactDiscoveryMap} from '@feezal/feezal-controller-contact';
 import {FancyBase, fancyCardStyles, fancyStyleDescriptors, fancyCommonAttributes,
     fancyBadgeStyles} from './fancy-shared.js';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-fancy-contact (E139) — the window/door/garage visibly swings
@@ -32,10 +33,7 @@ class FeezalElementFancyContact extends FancyBase {
                 {name: 'text-open',   type: 'string', default: '', defaultI18n: {de: 'Offen', es: 'Abierta', fr: 'Ouverte', it: 'Aperta', pl: 'Otwarte', pt: 'Aberta', tr: 'Açık'}, help: 'State word while open. Blank = "Open".'},
                 {name: 'text-closed', type: 'string', default: '', defaultI18n: {de: 'Geschlossen', es: 'Cerrada', fr: 'Fermée', it: 'Chiusa', pl: 'Zamknięte', pt: 'Fechada', tr: 'Kapalı'}, help: 'State word while closed. Blank = "Closed".'},
                 {name: 'text-tilted', type: 'string', default: '', defaultI18n: {de: 'Gekippt', es: 'Inclinada', fr: 'Entrouverte', it: 'Ribaltata', pl: 'Uchylone', pt: 'Inclinada', tr: 'Aralık'}, help: 'State word while tilted. Blank = "Tilted". Window type only.'},
-                {name: 'subscribe-availability', type: 'mqttTopic', section: 'Availability', help: 'Topic reporting device availability — a badge appears while unavailable.'},
-                {name: 'message-property-availability', type: 'string', section: 'Availability', default: 'payload', help: 'Property path within availability messages.'},
-                {name: 'payload-available',   type: 'string', section: 'Availability', default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable', type: 'string', section: 'Availability', default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes({section: 'Availability'}),
             ],
             styles: fancyStyleDescriptors,
             defaultStyle: {width: '140px', height: '150px'},

@@ -4,6 +4,7 @@ import {EinkBase, einkCardStyles} from '@feezal/feezal-eink';
 // E137: the light behavior lives in the shared controller — this element
 // is a VIEW (eink chrome: state word, oversized brightness %, −/+ steppers).
 import {LightController, lightAttributes, lightDiscoveryMap} from '@feezal/feezal-controller-light';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-eink-light (E57)
@@ -49,10 +50,7 @@ class FeezalElementEinkLight extends EinkBase {
                 // never rendered on 1-bit e-ink (see doc comment).
                 ...lightAttributes,
                 // ── Availability (N31) ──
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability — a ! badge appears while unavailable, the card stays usable.'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
-                {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes(),
                 {name: 'label', type: 'string', help: 'Label line (rendered uppercase).'},
                 {name: 'label-on',  type: 'string', default: 'On', defaultI18n: {de: 'Ein', es: 'Encendido', fr: 'Allumé', it: 'Acceso', pl: 'Włączony', pt: 'Ligado', tr: 'Açık'},  help: 'Displayed state word while the light is on (localise, e.g. "Ein"). Display only — NOT the MQTT payload (payload-on) and NOT the card title (label).'},
                 {name: 'label-off', type: 'string', default: 'Off', defaultI18n: {de: 'Aus', es: 'Apagado', fr: 'Éteint', it: 'Spento', pl: 'Wyłączony', pt: 'Desligado', tr: 'Kapalı'}, help: 'Displayed state word while the light is off (localise, e.g. "Aus"). Display only — NOT the MQTT payload (payload-off) and NOT the card title (label).'},

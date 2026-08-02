@@ -1,6 +1,6 @@
 {
   "name": "@feezal/feezal-element-metro-motion",
-  "version": "3.0.10",
+  "version": "3.0.11",
   "license": "MIT",
   "main": "feezal-element-metro-motion.js",
   "dependencies": {

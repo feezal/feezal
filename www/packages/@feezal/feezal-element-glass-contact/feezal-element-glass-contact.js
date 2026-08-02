@@ -3,6 +3,7 @@ import {FeezalElement, feezalBaseStyles, html, css, feezalBatteryStyles} from '@
 import {feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
 import {ContactController, contactAttributes, contactDiscoveryMap} from '@feezal/feezal-controller-contact';
 import {applySizePreset, glassCardStyles, glassBadgeTray} from '@feezal/feezal-glass';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-glass-contact (E58)
@@ -47,10 +48,7 @@ class FeezalElementGlassContact extends FeezalElement {
                 {name: 'text-closed', type: 'string', default: 'Closed', defaultI18n: {de: 'Geschlossen', es: 'Cerrada', fr: 'Fermée', it: 'Chiusa', pl: 'Zamknięte', pt: 'Fechada', tr: 'Kapalı'}, help: 'State text while closed.'},
                 {name: 'text-tilted', type: 'string', default: 'Tilted', defaultI18n: {de: 'Gekippt', es: 'Inclinada', fr: 'Entrouverte', it: 'Ribaltata', pl: 'Uchylone', pt: 'Inclinada', tr: 'Aralık'}, help: 'State text while tilted.'},
                 {name: 'label', type: 'string', help: 'Card label.'},
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability.'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
-                {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes(),
                 {name: 'degrade', type: 'boolean', default: false,
                     help: 'Replace the live backdrop blur with a semi-opaque solid card — no per-frame GPU cost (weak wall-tablet hardware).'},
             ],

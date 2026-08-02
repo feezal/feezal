@@ -26,7 +26,7 @@
  * a switch has no colour ring, so ON must read as clearly coloured/active).
  */
 import {FeezalElement, feezalBaseStyles, html, css, payloadMatch} from '@feezal/feezal-element';
-import {switchAcceptsLight} from '@feezal/feezal-element/feezal-discovery-fragments.js';
+import {switchAcceptsLight, availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 import {svg} from 'lit';
 
 // Arc geometry (matches feezal-element-circle-light so the button footprint is
@@ -67,10 +67,7 @@ class FeezalElementCircleSwitch extends FeezalElement {
                 {name: 'publish', type: 'mqttTopic', help: 'Topic to publish payload-on / payload-off to on tap.'},
                 {name: 'payload-on',  type: 'string', default: 'on',  help: 'Payload published for / matched against the ON state. Default: on'},
                 {name: 'payload-off', type: 'string', default: 'off', help: 'Payload published for / matched against the OFF state. Default: off'},
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability. When unavailable a small badge is shown; the control stays usable.'},
-                {name: 'payload-available',      type: 'string', default: 'online',  help: 'Payload meaning the device is available.'},
-                {name: 'payload-unavailable',    type: 'string', default: 'offline', help: 'Payload meaning the device is unavailable.'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path for availability topic. Defaults to message-property.'},
+                ...availabilityAttributes(),
                 {name: 'label', type: 'string', default: '', help: 'Optional label shown below the button.'},
                 {name: 'label-off', type: 'string', default: 'off', defaultI18n: {de: 'aus', es: 'apagado', fr: 'éteint', it: 'spento', pl: 'wyłączony', pt: 'desligado', tr: 'kapalı'}, help: 'Displayed centre text while the outlet is off (localise, e.g. "aus"). Display only — NOT the MQTT payload (payload-off).'}
             ],

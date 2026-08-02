@@ -1,6 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
-import {readonlyClimateAxes, NUMERIC_SENSOR_ICONS} from '@feezal/feezal-element/feezal-discovery-fragments.js';
+import {readonlyClimateAxes, NUMERIC_SENSOR_ICONS, availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 import {parseRanges} from '@feezal/feezal-gauge';
 import {formatValueDisplay} from '@feezal/feezal-element/feezal-locale.js';
 
@@ -71,10 +71,7 @@ class FeezalElementCircleValue extends FeezalElement {
                         'Each band colours values from its "from" up to the next band. Empty = single fill colour.'},
                 // B67: opt-in availability — a badge appears while unavailable
                 // (only shown when an availability topic is wired).
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Optional availability topic — a badge appears while unavailable (the last value stays shown).'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
-                {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes(),
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',

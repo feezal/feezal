@@ -6,6 +6,7 @@ import {MetroTileBase} from '@feezal/feezal-metro';
 // E137: the light behavior lives in the shared controller — this element
 // is a VIEW (Metro tile chrome: flip faces, back-face sliders, state icons).
 import {LightController, lightAttributes, lightDiscoveryMap, pctToRaw, rgbToHsv} from '@feezal/feezal-controller-light';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-metro-light (E55)
@@ -47,10 +48,7 @@ class FeezalElementMetroLight extends MetroTileBase {
                 {name: 'icon-on',  type: 'icon', help: 'Icon shown while ON (empty = the base icon).'},
                 {name: 'icon-off', type: 'icon', help: 'Icon shown while OFF (empty = the base icon).'},
                 // B67: availability — a ! badge appears while unavailable.
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability — a ! badge appears while unavailable.'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
-                {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes(),
             ],
             styles: [
                 ...MetroTileBase.tileStyles,

@@ -7,6 +7,7 @@ import {sabotageBadge, faultBadge, feezalFaultStyles} from '@feezal/feezal-eleme
 // state disc moved to the sibling feezal-element-circle-sensor card.
 import {SensorController, sensorAttributesFor, sensorDiscoveryMapFor} from '@feezal/feezal-controller-sensor';
 import {svg} from 'lit';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 // ── Unavailability badge ─────────────────────────────────────────────────────
 const UNAVAIL = html`<svg viewBox="0 0 24 24"><path fill="currentColor"
@@ -107,10 +108,7 @@ class FeezalElementCircleMotion extends FeezalElement {
                 // ONCE by the controller package, spread by every family view.
                 ...sensorAttributesFor('motion'),
                 {name: 'label',                  type: 'string',    default: '',    help: 'Optional card label shown below the visual.'},
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability.'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
-                {name: 'payload-available',      type: 'string',    default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable',    type: 'string',    default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes(),
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',

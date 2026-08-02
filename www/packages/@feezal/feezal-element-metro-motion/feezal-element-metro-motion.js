@@ -8,6 +8,7 @@ import {sabotageBadge, faultBadge, feezalFaultStyles} from '@feezal/feezal-eleme
 // → --accent-color for every motion-slice type).
 import {SensorController, sensorAttributesFor, sensorDiscoveryMapFor} from '@feezal/feezal-controller-sensor';
 import {MetroTileBase} from '@feezal/feezal-metro';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-metro-motion (E55, E138)
@@ -35,10 +36,7 @@ class FeezalElementMetroMotion extends MetroTileBase {
                 // icons/texts + the E124 battery trio) — MOTION slice of the
                 // vocabulary, declared ONCE by the controller package.
                 ...sensorAttributesFor('motion'),
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability — a ! badge appears while unavailable.'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
-                {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes(),
             ],
             styles: [
                 ...MetroTileBase.tileStyles,

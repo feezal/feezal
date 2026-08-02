@@ -409,3 +409,52 @@ export const readonlyClimateAxes = [
         },
     },
 ];
+
+
+/**
+ * N41 — the availability attribute block, in one place.
+ *
+ * This 4-line descriptor set was copy-pasted into 57 element files and the help
+ * text drifted into eight wordings for the same four knobs ("a ! badge appears
+ * while unavailable" / "a badge appears while unavailable" / nothing at all).
+ * Users read those strings; they should not depend on which family an element
+ * happens to belong to.
+ *
+ * Only the genuinely per-element parts are options. The payload defaults are
+ * options because three meter elements legitimately speak `connected` /
+ * `connection lost` rather than `online` / `offline` — flattening those would
+ * be a behaviour change, not a cleanup.
+ *
+ * @param {object}  [opts]
+ * @param {string}  [opts.section]      inspector section for all four
+ * @param {string}  [opts.available]    default payload meaning available
+ * @param {string}  [opts.unavailable]  default payload meaning unavailable
+ * @param {boolean} [opts.mode]         add `availability-mode` (elements that
+ *                                      accept several availability topics)
+ */
+export function availabilityAttributes({
+    section,
+    available = 'online',
+    unavailable = 'offline',
+    mode = false,
+} = {}) {
+    const withSection = descriptor => (section ? {...descriptor, section} : descriptor);
+    const attrs = [
+        {name: 'subscribe-availability', type: 'mqttTopic',
+            help: 'Topic reporting device availability — a badge appears while the device is unavailable.'},
+        {name: 'message-property-availability', type: 'string', default: 'payload',
+            help: 'Property path within availability messages. Defaults to message-property.'},
+        {name: 'payload-available', type: 'string', default: available,
+            help: 'Payload meaning available.'},
+        {name: 'payload-unavailable', type: 'string', default: unavailable,
+            help: 'Payload meaning unavailable.'},
+    ];
+    if (mode) {
+        attrs.push({name: 'availability-mode', type: 'select', options: ['all', 'any'], default: 'all',
+            help: 'With multiple availability topics: all = every topic must report available; any = at least one.'});
+    }
+    return attrs.map(withSection);
+}
+
+/** The attribute names the availability fragment owns (for parity guards). */
+export const AVAILABILITY_ATTRIBUTES = availabilityAttributes({mode: true}).map(a => a.name);

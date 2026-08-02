@@ -1,6 +1,7 @@
 /* global feezal */
 import {feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {EinkBase, einkCardStyles} from '@feezal/feezal-eink';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-eink-fan (E57)
@@ -65,10 +66,7 @@ class FeezalElementEinkFan extends EinkBase {
                 {name: 'preset-modes',           type: 'objectList', itemFields: [{key: '', placeholder: 'preset name'}], default: '[]',
                     help: 'JSON array of preset mode names, e.g. ["low","medium","high"]. When set, preset buttons replace the speed-step buttons.'},
                 {name: 'label',                  type: 'string',    default: '', help: 'Label line (rendered uppercase).'},
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability — a ! badge appears while unavailable.'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
-                {name: 'payload-available',      type: 'string',    default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable',    type: 'string',    default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes(),
                 {name: 'speed-range-min', type: 'number', default: 1,   help: 'Raw speed minimum (from discovery speed_range_min). Buttons/numeral show 0–100%; raw values are scaled to this range.'},
                 {name: 'speed-range-max', type: 'number', default: 100, help: 'Raw speed maximum (from discovery speed_range_max). e.g. 9 for IKEA STARKVIND.'},
             ],

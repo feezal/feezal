@@ -7,7 +7,7 @@ Each entry is filed under the section its **ID prefix** belongs to — `B` Bugs,
 Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastructure,
 `D` Documentation — and sorted by number within it, so a new entry has exactly one correct place.
 
-**378 items.**
+**379 items.**
 
 ## Bugs
 
@@ -114,6 +114,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B107 — Source formatting: closing tag glued to the last attribute line ✅ fixed](B107.md)
 - [B108 — Stale viewers linger in the Clients list ✅ fixed](B108.md)
 - [B109 — Layers tree: previous view's selection stays marked after cross-view select ✅ fixed](B109.md)
+- [B110 — e2e suite intermittently red on a passing run (temp-dir teardown race) ✅ fixed](B110.md)
 
 ## Near-term Improvements
 

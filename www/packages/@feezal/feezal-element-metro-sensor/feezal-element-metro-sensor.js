@@ -9,6 +9,7 @@ import {sabotageBadge, faultBadge, feezalFaultStyles} from '@feezal/feezal-eleme
 // a triggered fire/leak alarm is not a neutral state chip.
 import {SensorController, sensorAttributesFor, sensorDiscoveryMapFor} from '@feezal/feezal-controller-sensor';
 import {MetroTileBase} from '@feezal/feezal-metro';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-metro-sensor (E138)
@@ -37,10 +38,7 @@ class FeezalElementMetroSensor extends MetroTileBase {
                 // icons/texts + the E124 battery trio) — ALARM slice of the
                 // vocabulary, declared ONCE by the controller package.
                 ...sensorAttributesFor('alarm'),
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability — a ! badge appears while unavailable.'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
-                {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes(),
             ],
             styles: [
                 ...MetroTileBase.tileStyles,

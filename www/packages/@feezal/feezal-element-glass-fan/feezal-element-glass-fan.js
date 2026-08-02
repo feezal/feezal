@@ -1,6 +1,7 @@
 /* global feezal */
 import {feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard, glassBadgeTray} from '@feezal/feezal-glass';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-glass-fan (E100)
@@ -75,10 +76,7 @@ class FeezalElementGlassFan extends FeezalGlassCard {
                     help: 'JSON array of preset mode names, e.g. ["low","medium","high"].'},
                 {name: 'label',                  type: 'string',    default: '', help: 'Optional card label.'},
                 {name: 'icon',                   type: 'string',    default: 'toys', help: 'Icon name.'},
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Availability topic.'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
-                {name: 'payload-available',      type: 'string',    default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable',    type: 'string',    default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes(),
                 {name: 'speed-range-min', type: 'number', default: 1,   help: 'Raw speed minimum (from discovery speed_range_min). Slider shows 0–100%; raw values are scaled to this range.'},
                 {name: 'speed-range-max', type: 'number', default: 100, help: 'Raw speed maximum (from discovery speed_range_max). e.g. 9 for IKEA STARKVIND.'},
                 {name: 'degrade', type: 'boolean', default: false,

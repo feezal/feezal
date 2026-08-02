@@ -5,6 +5,7 @@ import {sabotageBadge, faultBadge, feezalFaultStyles} from '@feezal/feezal-eleme
 import {SensorController, sensorAttributesFor, sensorDiscoveryMapFor} from '@feezal/feezal-controller-sensor';
 import {FancyBase, fancyCardStyles, fancyStyleDescriptors, fancyCommonAttributes,
     fancyBadgeStyles} from './fancy-shared.js';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-fancy-sensor (E139) — animated ALARM sensor card (the E138
@@ -30,10 +31,7 @@ class FeezalElementFancySensor extends FancyBase {
             attributes: [
                 ...sensorAttributesFor('alarm'),
                 ...fancyCommonAttributes,
-                {name: 'subscribe-availability', type: 'mqttTopic', section: 'Availability', help: 'Topic reporting device availability — a badge appears while unavailable.'},
-                {name: 'message-property-availability', type: 'string', section: 'Availability', default: 'payload', help: 'Property path within availability messages.'},
-                {name: 'payload-available',   type: 'string', section: 'Availability', default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable', type: 'string', section: 'Availability', default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes({section: 'Availability'}),
             ],
             styles: fancyStyleDescriptors,
             defaultStyle: {width: '140px', height: '150px'},

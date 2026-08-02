@@ -4,6 +4,7 @@ import {sabotageBadge, faultBadge, feezalFaultStyles} from '@feezal/feezal-eleme
 import {svg} from 'lit';
 import {ContactController, contactAttributes, contactDiscoveryMap} from '@feezal/feezal-controller-contact';
 import {MetroTileBase} from '@feezal/feezal-metro';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-metro-contact (E55)
@@ -110,10 +111,7 @@ class FeezalElementMetroContact extends MetroTileBase {
                 {name: 'text-open',   type: 'string', default: 'open', defaultI18n: {de: 'offen', es: 'abierta', fr: 'ouverte', it: 'aperta', pl: 'otwarte', pt: 'aberta', tr: 'açık'},   help: 'State text while open.'},
                 {name: 'text-tilted', type: 'string', default: 'tilted', defaultI18n: {de: 'gekippt', es: 'inclinada', fr: 'entrouverte', it: 'ribaltata', pl: 'uchylone', pt: 'inclinada', tr: 'aralık'}, help: 'State text while tilted.'},
                 {name: 'text-closed', type: 'string', default: 'closed', defaultI18n: {de: 'geschlossen', es: 'cerrada', fr: 'fermée', it: 'chiusa', pl: 'zamknięte', pt: 'fechada', tr: 'kapalı'}, help: 'State text while closed.'},
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability — a ! badge appears while unavailable.'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
-                {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes(),
             ],
             styles: [
                 ...MetroTileBase.tileStyles,

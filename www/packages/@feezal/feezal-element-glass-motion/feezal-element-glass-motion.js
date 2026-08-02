@@ -6,6 +6,7 @@ import {feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
 // E138: narrowed to the MOTION slice (motion / presence / radar / zone).
 import {SensorController, sensorAttributesFor, sensorDiscoveryMapFor} from '@feezal/feezal-controller-sensor';
 import {applySizePreset, glassCardStyles, glassBadgeTray} from '@feezal/feezal-glass';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-glass-motion (E58, E138)
@@ -42,10 +43,7 @@ class FeezalElementGlassMotion extends FeezalElement {
                 ...sensorAttributesFor('motion'),
                 {name: 'icon',  type: 'string', help: 'Explicit icon name — overrides the type default in BOTH states.'},
                 {name: 'label', type: 'string', help: 'Card label.'},
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability.'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
-                {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes(),
                 {name: 'degrade', type: 'boolean', default: false,
                     help: 'Replace the live backdrop blur with a semi-opaque solid card — no per-frame GPU cost (weak wall-tablet hardware).'},
             ],

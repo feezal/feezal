@@ -5,6 +5,7 @@ import {EinkBase, einkCardStyles} from '@feezal/feezal-eink';
 // E137: the contact behavior lives in the shared controller — this element
 // is a VIEW (eink chrome: inverted block while not closed).
 import {ContactController, contactAttributes, contactDiscoveryMap} from '@feezal/feezal-controller-contact';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-eink-contact (E57)
@@ -29,10 +30,7 @@ class FeezalElementEinkContact extends EinkBase {
                 {name: 'text-closed', type: 'string', default: '', defaultI18n: {de: 'Geschlossen', es: 'Cerrada', fr: 'Fermée', it: 'Chiusa', pl: 'Zamknięte', pt: 'Fechada', tr: 'Kapalı'}, help: 'State word while closed. Blank = "Closed".'},
                 {name: 'text-tilted', type: 'string', default: '', defaultI18n: {de: 'Gekippt', es: 'Inclinada', fr: 'Entrouverte', it: 'Ribaltata', pl: 'Uchylone', pt: 'Inclinada', tr: 'Aralık'}, help: 'State word while tilted. Blank = "Tilted".'},
                 {name: 'label', type: 'string', help: 'Label under the state (rendered uppercase).'},
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability — a ! badge appears while unavailable.'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
-                {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes(),
             ],
             styles: [
                 'top', 'left', 'width', 'height',

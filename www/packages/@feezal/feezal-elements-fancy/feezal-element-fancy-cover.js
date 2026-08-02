@@ -4,6 +4,7 @@ import {svg} from 'lit';
 import {CoverController, coverAttributes, coverDiscoveryMap} from '@feezal/feezal-controller-cover';
 import {FancyBase, fancyCardStyles, fancyStyleDescriptors, fancyCommonAttributes,
     fancyBadgeStyles} from './fancy-shared.js';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-fancy-cover (E139) — the blind actually travels: the
@@ -22,10 +23,7 @@ class FeezalElementFancyCover extends FancyBase {
             attributes: [
                 ...coverAttributes,
                 ...fancyCommonAttributes,
-                {name: 'subscribe-availability', type: 'mqttTopic', section: 'Availability', help: 'Topic reporting device availability — a badge appears while unavailable.'},
-                {name: 'message-property-availability', type: 'string', section: 'Availability', default: 'payload', help: 'Property path within availability messages.'},
-                {name: 'payload-available',   type: 'string', section: 'Availability', default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable', type: 'string', section: 'Availability', default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes({section: 'Availability'}),
             ],
             styles: fancyStyleDescriptors,
             defaultStyle: {width: '140px', height: '150px'},

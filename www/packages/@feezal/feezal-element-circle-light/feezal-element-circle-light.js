@@ -6,6 +6,7 @@ import {LightController, lightAttributes, lightDiscoveryMap, pctToRaw, rgbToHsv}
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {svg, LitElement} from 'lit';
 import '@material/web/slider/slider.js';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 // ─── Arc geometry (0° = top, clockwise, matches feezal-element-material-gauge convention) ───
 const CX = 50;
@@ -70,10 +71,7 @@ class FeezalElementCircleLight extends FeezalElement {
                 // white channels) — declared ONCE by the controller package.
                 ...lightAttributes,
                 // Availability
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability. When unavailable a small badge is shown; the control stays usable.'},
-                {name: 'payload-available',      type: 'string', default: 'online',  help: 'Payload meaning the device is available.'},
-                {name: 'payload-unavailable',    type: 'string', default: 'offline', help: 'Payload meaning the device is unavailable.'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path for availability topic. Defaults to message-property.'},
+                ...availabilityAttributes(),
                 // Label
                 {name: 'label', type: 'string', default: '', help: 'Optional label shown below the circle.'},
                 {name: 'label-off', type: 'string', default: 'off', defaultI18n: {de: 'aus', es: 'apagado', fr: 'éteint', it: 'spento', pl: 'wyłączony', pt: 'desligado', tr: 'kapalı'}, help: 'Displayed centre text while the light is off (localise, e.g. "aus"). Display only — NOT the MQTT payload (payload-off) and NOT the card label.'}

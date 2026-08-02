@@ -5,6 +5,7 @@ import {faultBadge, feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fa
 import {LockController, lockAttributes, lockDiscoveryMap} from '@feezal/feezal-controller-lock';
 import {FancyBase, fancyCardStyles, fancyStyleDescriptors, fancyCommonAttributes,
     fancyBadgeStyles} from './fancy-shared.js';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-fancy-lock (E139) — the shackle visibly lifts and swings
@@ -25,10 +26,7 @@ class FeezalElementFancyLock extends FancyBase {
                 {name: 'text-locked',   type: 'string', default: '', defaultI18n: {de: 'Verriegelt', es: 'Bloqueado', fr: 'Verrouillé', it: 'Bloccato', pl: 'Zablokowany', pt: 'Trancado', tr: 'Kilitli'}, help: 'State word while locked. Blank = "Locked".'},
                 {name: 'text-unlocked', type: 'string', default: '', defaultI18n: {de: 'Entriegelt', es: 'Desbloqueado', fr: 'Déverrouillé', it: 'Sbloccato', pl: 'Odblokowany', pt: 'Destrancado', tr: 'Kilit Açık'}, help: 'State word while unlocked. Blank = "Unlocked".'},
                 {name: 'text-jammed',   type: 'string', default: '', defaultI18n: {de: 'Blockiert', es: 'Atascado', fr: 'Bloqué', it: 'Inceppato', pl: 'Zacięty', pt: 'Emperrado', tr: 'Sıkışmış'}, help: 'State word while jammed. Blank = "Jammed".'},
-                {name: 'subscribe-availability', type: 'mqttTopic', section: 'Availability', help: 'Topic reporting device availability — a badge appears while unavailable.'},
-                {name: 'message-property-availability', type: 'string', section: 'Availability', default: 'payload', help: 'Property path within availability messages.'},
-                {name: 'payload-available',   type: 'string', section: 'Availability', default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable', type: 'string', section: 'Availability', default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes({section: 'Availability'}),
             ],
             styles: fancyStyleDescriptors,
             defaultStyle: {width: '140px', height: '150px'},

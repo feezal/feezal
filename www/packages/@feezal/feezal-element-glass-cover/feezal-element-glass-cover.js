@@ -8,6 +8,7 @@ import {feezalMovementStyles, movementBadge} from '@feezal/feezal-element/feezal
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
 import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard, glassBadgeTray} from '@feezal/feezal-glass';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-glass-cover (E58)
@@ -49,10 +50,7 @@ class FeezalElementGlassCover extends FeezalGlassCard {
                 {name: 'show-position', type: 'boolean', default: true,  help: 'Show the numeric position in the state line.'},
                 {name: 'label', type: 'string', help: 'Card label.'},
                 {name: 'icon',  type: 'string', default: 'blinds', help: 'Icon name.'},
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Optional availability topic — badge when unavailable, controls stay enabled.'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
-                {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning online.'},
-                {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning offline.'},
+                ...availabilityAttributes(),
                 {name: 'degrade', type: 'boolean', default: false,
                     help: 'Replace the live backdrop blur with a semi-opaque solid card — no per-frame GPU cost (weak wall-tablet hardware).'},
             ],

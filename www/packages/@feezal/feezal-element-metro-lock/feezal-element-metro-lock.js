@@ -3,6 +3,7 @@ import {html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-el
 import {LockController, lockAttributes, lockDiscoveryMap} from '@feezal/feezal-controller-lock';
 import {feezalMovementStyles} from '@feezal/feezal-element/feezal-movement.js';
 import {MetroTileBase} from '@feezal/feezal-metro';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-metro-lock (E143)
@@ -28,10 +29,7 @@ class FeezalElementMetroLock extends MetroTileBase {
                 // E137: the shared lock contract — declared ONCE by the controller
                 // (incl. the E135 error signal + E124 battery trio).
                 ...lockAttributes,
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability — a ! badge appears while unavailable.'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
-                {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes(),
             ],
             styles: [
                 ...MetroTileBase.tileStyles,

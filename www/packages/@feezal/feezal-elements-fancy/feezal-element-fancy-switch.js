@@ -1,7 +1,7 @@
 /* global feezal */
 import {html, css, payloadMatch} from '@feezal/feezal-element';
 import {svg} from 'lit';
-import {switchAcceptsLight} from '@feezal/feezal-element/feezal-discovery-fragments.js';
+import {switchAcceptsLight, availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 import {FancyBase, fancyCardStyles, fancyStyleDescriptors, fancyCommonAttributes,
     fancyBadgeStyles} from './fancy-shared.js';
 
@@ -48,10 +48,7 @@ class FeezalElementFancySwitch extends FancyBase {
                 {name: 'text-on',  type: 'string', default: 'On', defaultI18n: {de: 'Ein', es: 'Encendido', fr: 'Allumé', it: 'Acceso', pl: 'Włączony', pt: 'Ligado', tr: 'Açık'},  help: 'State text while on.'},
                 {name: 'text-off', type: 'string', default: 'Off', defaultI18n: {de: 'Aus', es: 'Apagado', fr: 'Éteint', it: 'Spento', pl: 'Wyłączony', pt: 'Desligado', tr: 'Kapalı'}, help: 'State text while off.'},
                 ...fancyCommonAttributes,
-                {name: 'subscribe-availability', type: 'mqttTopic', section: 'Availability', help: 'Topic reporting device availability — a badge appears while unavailable.'},
-                {name: 'message-property-availability', type: 'string', section: 'Availability', default: 'payload', help: 'Property path within availability messages.'},
-                {name: 'payload-available',   type: 'string', section: 'Availability', default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable', type: 'string', section: 'Availability', default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes({section: 'Availability'}),
             ],
             styles: fancyStyleDescriptors,
             defaultStyle: {width: '140px', height: '150px'},

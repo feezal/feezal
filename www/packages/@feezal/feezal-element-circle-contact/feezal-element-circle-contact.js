@@ -6,6 +6,7 @@ import {sabotageBadge, faultBadge, feezalFaultStyles} from '@feezal/feezal-eleme
 // material-light). E138 dropped the leak/fire alarm "types" — those are
 // alarm-character sensors and belong on the material-sensor card.
 import {ContactController, contactAttributes, contactDiscoveryMap} from '@feezal/feezal-controller-contact';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 // ── Unavailability badge ─────────────────────────────────────────────────────
 const UNAVAIL = html`<svg viewBox="0 0 24 24"><path fill="currentColor"
@@ -30,10 +31,7 @@ class FeezalElementCircleContact extends FeezalElement {
                 {name: 'text-tilted', type: 'string', default: '', defaultI18n: {de: 'Gekippt', es: 'Inclinada', fr: 'Entrouverte', it: 'Ribaltata', pl: 'Uchylone', pt: 'Inclinada', tr: 'Aralık'}, help: 'State word while tilted. Blank = "Tilted". Window type only.'},
                 {name: 'text-closed', type: 'string', default: '', defaultI18n: {de: 'Geschlossen', es: 'Cerrada', fr: 'Fermée', it: 'Chiusa', pl: 'Zamknięte', pt: 'Fechada', tr: 'Kapalı'}, help: 'State word while closed. Blank = "Closed".'},
                 {name: 'label',                  type: 'string',    default: '',      help: 'Optional card label shown below the disc.'},
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability.'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
-                {name: 'payload-available',      type: 'string',    default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable',    type: 'string',    default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes(),
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',

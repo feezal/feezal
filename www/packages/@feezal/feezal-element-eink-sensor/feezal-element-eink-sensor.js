@@ -6,6 +6,7 @@ import {EinkBase, einkCardStyles} from '@feezal/feezal-eink';
 // element is a VIEW (eink chrome: inverted block while active).
 // E138: alarm slice of the type vocabulary (motion lives in eink-motion).
 import {SensorController, sensorAttributesFor, sensorDiscoveryMapFor} from '@feezal/feezal-controller-sensor';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-eink-sensor (E57 · E138 alarm slice)
@@ -32,10 +33,7 @@ class FeezalElementEinkSensor extends EinkBase {
                 // E124 battery trio) — declared ONCE.
                 ...sensorAttributesFor('alarm'),
                 {name: 'label', type: 'string', help: 'Label under the state (rendered uppercase).'},
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability — a ! badge appears while unavailable.'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
-                {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes(),
             ],
             styles: [
                 'top', 'left', 'width', 'height',

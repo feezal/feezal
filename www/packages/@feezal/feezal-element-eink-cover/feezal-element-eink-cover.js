@@ -4,6 +4,7 @@ import {EinkBase, einkCardStyles} from '@feezal/feezal-eink';
 // E137: the cover behavior lives in the shared controller — this element
 // is a VIEW (1-bit chrome: position numeral, black-fill bar, ▲ ■ ▼ buttons).
 import {CoverController, coverAttributes, coverDiscoveryMap} from '@feezal/feezal-controller-cover';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-eink-cover (E57)
@@ -49,10 +50,7 @@ class FeezalElementEinkCover extends EinkBase {
                 {name: 'show-position', type: 'boolean', default: true,  help: 'Show the numeric position % as the oversized value (state word otherwise).'},
                 {name: 'label', type: 'string', help: 'Label line (rendered uppercase).'},
                 // ── Availability (N31) ──
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability — a ! badge appears while unavailable.'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
-                {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes(),
             ],
             styles: [
                 'top', 'left', 'width', 'height',

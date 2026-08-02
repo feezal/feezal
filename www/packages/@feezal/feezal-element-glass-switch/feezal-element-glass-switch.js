@@ -2,7 +2,7 @@
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {applySizePreset, payloadMatch, glassCardStyles, glassBadgeTray} from '@feezal/feezal-glass';
 
-import {switchAcceptsLight} from '@feezal/feezal-element/feezal-discovery-fragments.js';
+import {switchAcceptsLight, availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 /**
  * feezal-element-glass-switch (E58)
  *
@@ -47,10 +47,7 @@ class FeezalElementGlassSwitch extends FeezalElement {
                 {name: 'text-off', type: 'string', default: 'Off', defaultI18n: {de: 'Aus', es: 'Apagado', fr: 'Éteint', it: 'Spento', pl: 'Wyłączony', pt: 'Desligado', tr: 'Kapalı'}, help: 'State text while off.'},
                 {name: 'icon-on',  type: 'icon', help: 'Icon shown while ON (empty = the base icon).'},
                 {name: 'icon-off', type: 'icon', help: 'Icon shown while OFF (empty = the base icon).'},
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability — a badge appears when unavailable, the card stays usable.'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path for the availability topic. Defaults to message-property.'},
-                {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes(),
                 {name: 'label', type: 'string', help: 'Card label.'},
                 {name: 'icon',  type: 'string', default: 'power_settings_new', help: 'Icon name.'},
                 {name: 'degrade', type: 'boolean', default: false,

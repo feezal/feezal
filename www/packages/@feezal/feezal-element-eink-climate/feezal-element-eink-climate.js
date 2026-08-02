@@ -5,6 +5,7 @@ import {EinkBase, einkCardStyles} from '@feezal/feezal-eink';
 // E137: the thermostat behavior lives in the shared controller — this element
 // is a VIEW (eink chrome: big actual, setpoint line, +/- tap targets).
 import {ClimateController, climateAttributes, climateDiscoveryMap} from '@feezal/feezal-controller-climate';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-eink-climate (E57)
@@ -27,10 +28,7 @@ class FeezalElementEinkClimate extends EinkBase {
                 // E137: the shared climate contract — declared ONCE.
                 ...climateAttributes,
                 {name: 'label', type: 'string', help: 'Label line (rendered uppercase).'},
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability — a ! badge appears while unavailable.'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
-                {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes(),
             ],
             styles: [
                 'top', 'left', 'width', 'height',

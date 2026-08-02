@@ -3,6 +3,7 @@ import {feezalBaseStyles, html, css, feezalBatteryStyles} from '@feezal/feezal-e
 import {LockController, lockAttributes, lockDiscoveryMap} from '@feezal/feezal-controller-lock';
 import {feezalMovementStyles} from '@feezal/feezal-element/feezal-movement.js';
 import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard, glassBadgeTray} from '@feezal/feezal-glass';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
  * feezal-element-glass-lock (E143)
@@ -34,10 +35,7 @@ class FeezalElementGlassLock extends FeezalGlassCard {
                 // E137: the shared lock contract — declared ONCE by the controller.
                 ...lockAttributes,
                 {name: 'label', type: 'string', help: 'Card label.'},
-                {name: 'subscribe-availability', type: 'mqttTopic', help: 'Topic reporting device availability.'},
-                {name: 'message-property-availability', type: 'string', default: 'payload', help: 'Property path within availability messages. Defaults to message-property.'},
-                {name: 'payload-available',   type: 'string', default: 'online',  help: 'Payload meaning available.'},
-                {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning unavailable.'},
+                ...availabilityAttributes(),
                 {name: 'degrade', type: 'boolean', default: false,
                     help: 'Replace the live backdrop blur with a semi-opaque solid card — no per-frame GPU cost (weak wall-tablet hardware).'},
             ],
