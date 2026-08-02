@@ -72,8 +72,7 @@ Work in progress — priorities and scope are not final.
 - [U84 — Canvas zoom, pan and fit-to-view](#u84--canvas-zoom-pan-and-fit-to-view)
 - [U85 — Toast/notification service: route the remaining call sites](#u85--toastnotification-service-route-the-remaining-call-sites--service-shipped) 🔨 *(service shipped)*
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
-- [U89 — Equal-gap smart guides during drag](#u89--equal-gap-smart-guides-during-drag) 💡
-- [U91 — Distribute: pack mode (edge-to-edge, no overlap, no gap)](#u91--distribute-pack-mode-edge-to-edge-no-overlap-no-gap)
+- [U91 — Distribute: never overlap (edge-to-edge fallback when the span is too tight)](#u91--distribute-never-overlap-edge-to-edge-fallback-when-the-span-is-too-tight)
 - [U95 — View inspector: Conditions and MQTT tabs for views 💡](#u95--view-inspector-conditions-and-mqtt-tabs-for-views-)
 
 
@@ -2324,63 +2323,40 @@ AI apply results, and the asset upload/rename outcomes.
 
 **Relates:** N42 (querySelector caching lands naturally during extraction), A36 (the server twin).
 
-### U89 — Equal-gap smart guides during drag 💡 refined 08/2026
+### U91 — Distribute: never overlap (edge-to-edge fallback when the span is too tight)
 
-Carried out of **U83** ✅ (align & distribute), which covers the explicit
-operation but not the live hint. While dragging an element, show a guide when
-the gap to its neighbour matches an existing gap elsewhere in the row/column —
-the "equal spacing" affordance every design tool has, so a row can be laid out
-by hand without invoking Distribute at all.
+**Requested (08/2026), refined.** NOT a separate Pack operation — the existing
+U83 distribute behaviour stays exactly as it is (equal gaps between the
+left-/rightmost resp. top-/bottommost elements, outer anchors fixed) and is
+liked. The refinement is a single rule on top: **never overlap — gaps are
+allowed.**
 
-**Refined (08/2026) — neighbour-gap propagation is the core case.** When the
-dragged element approaches a neighbour, look at THAT neighbour's gap to *its*
-next neighbour on the **other side** and propose the same gap for the dragged
-element: dropping a third card next to two cards spaced 16px apart proposes
-16px, so rows grow with consistent rhythm without ever measuring anything.
-- **Visualization — "gap arrows":** dotted markers in the style of the
-  existing helper lines, drawn in the gap itself: one for the **measured**
-  gap the neighbour pair already has, one for the **proposed** gap under the
-  dragged element, so the match is visible as "these two spans are equal"
-  (each arrow with its px value, like design tools annotate spacing).
-- **Snapping:** when element snapping is active, the drag **snaps to the
-  proposed-gap position** (same magnet strength as edge snapping); with
-  snapping off the arrows stay a pure hint.
+- **Normal case (unchanged):** the span between the outermost elements is
+  large enough → equalize the gaps within it, anchors stay put.
+- **Tight case (new):** the summed sizes of the selection exceed the span
+  (equal-gap would mean NEGATIVE gaps → overlapping elements). Instead of
+  overlapping, fall back to **edge-to-edge**: keep the first element in place
+  and lay each following element flush against the previous one
+  (`next.left = prev.left + prev.width`, resp. top/height) — the strip then
+  extends past the old outermost position; that is acceptable, overlap is
+  not.
+- Equivalently: `gap = max(0, (span − Σsizes) / (n − 1))` with anchor-fixed
+  placement when gap > 0 and first-element-fixed flush placement when
+  gap = 0.
 
-**Why it is incremental:** the snap engine (`_snap()` in
-`feezal-sidebar-inspector.js`) already measures every sibling edge on each drag
-frame to draw the four snap guides; equal-gap detection is another pass over
-the same measurements (compare the leading/trailing gaps rather than the edges),
-reusing the existing guide-line rendering — plus the new gap-arrow marker.
+Cross-axis positions stay untouched; selection sort order along the axis is
+U83's existing ordering rule; one undo entry; locked elements respected as in
+the other operations.
 
-**Open:** how many gaps to consider beyond the adjacent-pair case above
-(immediate neighbours vs. the whole row); gap-arrow styling details (arrowheads
-vs. plain dotted span with end ticks).
+**Test:** unit/browser cases — roomy span (behaviour byte-identical to
+today), exactly-fitting span (gap 0, anchors coincide), overflowing span
+(edge-to-edge, no pair overlaps, order preserved), and the U83 suites stay
+green unchanged.
 
-### U91 — Distribute: pack mode (edge-to-edge, no overlap, no gap)
-
-**Requested (08/2026).** The U83 distribute operations space elements by
-equalizing gaps or centers — but there is no way to say "put them side by
-side, touching": element beside element, **no overlapping, no gap** (gap = 0).
-
-**Design:** a **Pack** pair next to the existing Distribute entries (toolbar +
-context menu, horizontal and vertical): keep the selection sort order along
-the axis (same ordering rule U83 uses), keep the first element in place, then
-place each following element flush against the previous one — next.left =
-prev.left + prev.width (resp. top/height). Cross-axis positions stay untouched
-(pack is one-dimensional, like the other distribute operations). Elements that
-overlap before packing come out cleanly tiled — that is the point: turn a
-rough overlapping pile into a clean strip in one click.
-
-**Notes:** one undo entry for the batch (U83 rule); respects locked elements
-the same way the other operations do; a follow-up idea (not v1) is pack with
-the grid gap when the view uses U90 grid layout — for absolute views gap = 0
-per the request.
-
-**Relates:** [U83](roadmap-archive/U83.md) ✅ (the distribute family this
-extends — same sorting, same undo semantics), U89 (equal-gap smart guides —
-the drag-time sibling; pack is the explicit-operation form of "no gap"),
-[U90](roadmap-archive/U90.md) ✅ (grid layout — the possible gap-source
-follow-up).
+**Relates:** [U83](roadmap-archive/U83.md) ✅ (this refines its distribute
+operations in place — same sorting, same undo semantics, no new toolbar
+entry), U89 (equal-gap smart guides — the drag-time sibling),
+[U90](roadmap-archive/U90.md) ✅ (grid layout).
 
 
 ### U95 — View inspector: Conditions and MQTT tabs for views 💡
