@@ -9,7 +9,7 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces](#b106--discovery-ids-is-space-separated-but-mqtt-topics-may-contain-spaces)
-- [B111 — App generation: Frigate camera elements come out with empty `src`](#b111--app-generation-frigate-camera-elements-come-out-with-empty-src)
+- [B111 — App generation: Frigate camera elements come out with empty `src` despite a configured Frigate URL](#b111--app-generation-frigate-camera-elements-come-out-with-empty-src-despite-a-configured-frigate-url)
 
 
 **Near-term Improvements**
@@ -307,44 +307,45 @@ names), N12 (re-sync — anything else reading discovery ids must use the same
 parser).
 
 
-### B111 — App generation: Frigate camera elements come out with empty `src`
+### B111 — App generation: Frigate camera elements come out with empty `src` despite a configured Frigate URL
 
-**Reported (08/2026).** The Frigate server URL was configured correctly, yet
-the App wizard (U58) created camera elements with an **empty `src`** — the
-cameras appear unwired.
+**Reported + refined (08/2026).** The expected contract, spelled out:
 
-**Investigate — several distinct candidate causes, find which one it is:**
+1. The **Frigate URL field** at the start of the App-generation wizard
+   (entered: `http://172.16.23.240:5000`) is **hidden when no Frigate cameras
+   were discovered** — visible otherwise.
+2. Generating the app created a camera element with `events-camera=terrasse`
+   (so the Frigate wiring itself ran) — **expected**
+   `src="http://172.16.23.240:5000/api/terrasse"` (Frigate's per-camera MJPEG
+   endpoint), **actual: `src` empty**.
 
-1. **`src` empty is EXPECTED for Frigate cameras** — the E163 wiring is
-   `topic → subscribe + type=mqtt-image` (frames arrive as MQTT snapshot
-   payloads, no URL involved). If `subscribe`/`type` ARE stamped, the element
-   is wired correctly and the bug is a **display/expectation problem**: the
-   snapshot topic (`frigate/<cam>/person/snapshot`) is retained only after the
-   FIRST detection, so a freshly wired camera shows the empty placeholder
-   until a person is seen — indistinguishable from "not wired". Fix ideas:
-   placeholder text "waiting for first snapshot" when subscribe is set but no
-   frame arrived; and/or the recognizer falling back to a topic that always
-   exists.
-2. **`subscribe` is ALSO empty** → a real stamping bug: check whether the App
-   wizard's per-bucket stamp path applies the camera map's `alsoSet`
-   (`type=mqtt-image`) and the native record's `topic` — and whether
-   `resolveElementTag('camera', <family>)` routed to `basic-camera` at all for
-   the chosen family (only basic ships a camera; other families skip-and-
-   report — did the report show?).
-3. **The configured Frigate URL is consumed by NOTHING today** — there is no
-   setting that feeds a Frigate base URL into camera generation; streams need
-   go2rtc/MediaMTX URLs feezal cannot derive from MQTT. If the user-entered
-   URL was expected to become `src`/`popup-src`, that is a missing feature,
-   not a stamp bug: consider an optional "Frigate base URL" that the
-   recognizer/wizard turns into `popup-src` (live-on-demand via go2rtc) while
-   the tile stays on mqtt-image.
+**The machinery for exactly this already exists** — `applyFrigateLiveFeed`
+([feezal-discovery-stamp.js](../www/src/feezal-discovery-stamp.js)) stamps
+`src = <base>/api/<camera_name>` + `type=mjpeg` (+ `pause-when-hidden`,
+subscribe removed), and BOTH wizard modes stamp through `_stampEntity`
+([feezal-generate-dialog.js](../www/src/feezal-generate-dialog.js)), which
+calls it when `_frigateUrl` is set. Since `events-camera` WAS stamped, the
+entity reached the camera map — the live-feed rewrite specifically did not
+run. Narrowed suspects, in likelihood order:
 
-**Repro to capture:** run the App wizard against a live Frigate, inspect one
-generated camera's attributes (`subscribe`, `type`, `src`, `events-topic`,
-`chips`) and note which are empty.
+1. **`_frigateUrl` empty at generate time** — the URL row's `sl-input` may
+   commit on `sl-change` (blur) only; typing the URL and clicking straight
+   into the flow can leave the state unset. Check the binding (`sl-input` →
+   use `@sl-input` or read the field value at generate).
+2. **`entity.source !== 'frigate'` on the App path** — the guard in
+   `applyFrigateLiveFeed` requires `source: 'frigate'`; verify the entity
+   objects the App bucket loop stamps still carry `source` (the review/assign
+   round-trips might strip or copy entities).
+3. **A camera-specific stamp path bypassing `_stampEntity`** (multivalue/merge
+   branches).
+
+**Also part of the fix:** a browser test in the wizard suite — App mode with
+`_frigateUrl` set generates a camera whose `src` is
+`<base>/api/<camera_name>` and `type=mjpeg`; plus one asserting the URL typed
+into the field (without blur) reaches the stamp.
 
 **Relates:** E163 ✅ (camera wiring + Frigate recognizer), U58 ✅ (App wizard
-stamp path), U67 (wizard post-ship polish — same neighbourhood).
+stamp path), the Frigate-URL wizard row (`guessFrigateUrl` prefill).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
