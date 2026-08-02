@@ -130,6 +130,49 @@ export async function startStack() {
     return stack;
 }
 
+/**
+ * B110 — wait for the server to actually be gone before deleting its data dir.
+ *
+ * kill() only REQUESTS the exit. Deleting the tree while the server (or a git
+ * child it spawned for version history) is still writing into
+ * `sites/<name>/.git/objects` makes rm's rmdir step fail with ENOTEMPTY: the
+ * directory it just emptied gained a new file. `force: true` does not help —
+ * that only ignores paths that are already missing.
+ */
+function waitForExit(proc, ms = 5000) {
+    if (!proc || proc.exitCode !== null || proc.signalCode !== null) return Promise.resolve();
+    return new Promise(resolve => {
+        const done = () => { clearTimeout(timer); resolve(); };
+        const timer = setTimeout(done, ms);
+        proc.once('exit', done);
+    });
+}
+
+/**
+ * Remove the temp data dir, retrying the races the server's children can still
+ * lose us.
+ *
+ * Cleanup failure must never fail a passing suite: these dirs live under the
+ * OS temp dir and this ran AFTER every assertion. A red run on a green suite
+ * teaches you to distrust the signal, so the last resort is a warning, not a
+ * throw.
+ */
+async function removeDataDir(dir, attempts = 5) {
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+        try {
+            await rm(dir, {recursive: true, force: true});
+            return;
+        } catch (err) {
+            if (!['ENOTEMPTY', 'EBUSY', 'EPERM'].includes(err.code)) throw err;
+            if (attempt === attempts) {
+                console.warn(`[e2e] could not remove ${dir} after ${attempts} attempts: ${err.code}`);
+                return;
+            }
+            await new Promise(resolve => setTimeout(resolve, 100 * attempt));
+        }
+    }
+}
+
 export async function stopStack(stack) {
     if (collectCoverage && stack._coveragePages) {
         for (const page of [...stack._coveragePages]) {
@@ -145,7 +188,8 @@ export async function stopStack(stack) {
     }
     await stack.browser?.close();
     stack.serverProc?.kill('SIGKILL');
-    await rm(stack.dataDir, {recursive: true, force: true});
+    await waitForExit(stack.serverProc);   // B110: SIGKILL only REQUESTS the exit
+    await removeDataDir(stack.dataDir);
 }
 
 /** Deploy a site through the server's own Socket.IO API. */
