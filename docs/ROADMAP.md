@@ -2352,10 +2352,64 @@ coordinate conversions themselves are straightforward and were written (drag
 delta and palette drop divide by the scale, `_dragRestriction` multiplies the
 layout figures it mixes with client rects).
 
+**Research (08/2026) — interact.js × zoomed views, docs + source verified:**
+
+1. **interact.js has NO native transform/zoom awareness — confirmed, and it
+   never will be a config flag.** The FAQ is silent on transforms; the
+   upstream issues asking for it have been open for years
+   ([#137](https://github.com/taye/interact.js/issues/137),
+   [#400](https://github.com/taye/interact.js/issues/400),
+   [#430](https://github.com/taye/interact.js/issues/430),
+   [#609](https://github.com/taye/interact.js/issues/609)). There is no
+   `deltaScale`/transform option (the earlier sketch's assumption was wrong).
+   The library measures rects via `getBoundingClientRect` and reports dx/dy
+   in client/page pixels; the entire ecosystem recipe is: **let interact run
+   in screen space, divide `event.dx`/`dy` by the zoom in your own move
+   listeners, and derive positions from client rects** (which scale
+   automatically).
+2. **Hooks interact DOES provide** (verified in the bundled 1.10.27):
+   `interactable.rectChecker(fn)` overrides rect measurement per
+   interactable; `deltaSource: 'page' | 'client'` picks the delta coordinate
+   pair; `origin` shifts the coordinate origin. None applies a scale — they
+   are useful for keeping ONE consistent space, not for converting.
+   feezal's snap `targets` callbacks already live in page space (client-rect
+   derived), so the snap pass survives zoom by construction as long as its
+   inputs stay screen-space.
+3. **The no-start mystery is feezal-specific — reframe the open question.**
+   Every upstream report describes drags that DO start but track wrongly
+   (offset/speed ∝ scale); nobody reports zero-start. So the earlier
+   measurement (pointerdown at visual centre → no interaction, zero snap
+   calls, in BOTH `zoom` and `transform: scale` probes) is almost certainly
+   caused by feezal's own stack. Prime suspects, in order: **(a) the legacy
+   `restrict` option** on the absolute-mode draggable
+   (`restriction: () => this._restrictionForInteract()`, page coords — B114
+   just reworked exactly this space; a restriction rect disagreeing with the
+   zoomed pointer coords can clamp the gesture into nothing), **(b)** the
+   per-element glass-overlay hit layers, **(c)** autoScroll
+   (`container: feezal.site`) geometry. **Diagnostic first step:** a minimal
+   repro OUTSIDE feezal (plain page, scaled wrapper, one interact draggable)
+   — expected to drag-with-offset; then bisect feezal's layers (disable
+   restrict → glass → autoScroll) at zoom ≠ 1 until the start comes back.
+4. **Recommended architecture** (ecosystem consensus + feezal structure):
+   one source of truth `feezal.editorZoom`; `transform: scale(zoom)` +
+   `transform-origin: 0 0` on the view container; scroll extent via a sized
+   wrapper (layout size × zoom) — NOT the margin trick (measured badly:
+   flex-child layout shifts mid-gesture); screen space stays screen space
+   (`_snap` in/out, restriction rects, autoScroll — all client-rect derived);
+   layout-space conversion at exactly two boundaries: writing styles
+   (`left = old + dx / zoom`) and wherever layout numbers mix with client
+   rects (`_dragRestriction`, `_viewContentExtent`, the drag-autoscroll
+   compensation at `inspector.js:2006` — still the budgeted risky spot).
+   Cursor-centric `Ctrl+wheel`: adjust scroll so the cursor's canvas point
+   stays fixed (`scroll' = (scroll + cursor)·z'/z − cursor`).
+5. **Fallback if the no-start resists:** an unscaled transparent interaction
+   overlay above the scaled canvas forwarding gestures (heavy — last
+   resort); longer-term, A38's hand-rolled direction shows drag/resize could
+   eventually follow the same interact-free route.
+
 The zoom indicator's home is settled: the [U97](roadmap-archive/U97.md) ✅
 footer, not a floating tray.
 
-- Implementation sketch: `transform: scale()` on the view container with interact.js coordinate mapping (interact supports a `deltaScale`/transform-aware setup); the snap/guide math already corrects for scroll (B8) and must learn the scale factor. The drag-autoscroll compensation (`inspector.js:2006`) is the risky integration point — budget for it.
 - Out of scope here: minimap (💡 future note only).
 
 ### U85 — Toast/notification service: route the remaining call sites 🔨 service shipped
