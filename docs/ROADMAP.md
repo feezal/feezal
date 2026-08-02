@@ -2317,6 +2317,17 @@ goes LAST so nothing ever shows an empty panel):
    `FeezalConditions` instance, `getProperty()`, and connect/disconnect on the
    same lifecycle points elements use. No new bundle weight: the viewer already
    carries `feezal-conditions.js` for elements.
+   **Start with an extraction, though (found 08/2026 while scoping).**
+   `FeezalConditions` reads the payload via `host.getProperty(msg, row.property)`
+   and falls back to plain `msg.payload` when the host has no such method — so a
+   view without it would silently ignore `property` and never match a condition
+   on a nested JSON payload. Worse than no feature. But `getProperty` is not a
+   standalone helper: it is an instance method on `FeezalElement` that depends on
+   `this.split()`, a non-trivial path parser (bracket/quote segments). Lift both
+   to module scope in `feezal-element.js` and let the base class delegate, so the
+   view shares ONE implementation instead of growing a second, subtly different
+   path parser — the N41 pattern. That extraction is the first commit; the view
+   wiring is the second.
 2. **`subscribe-theme` on the view** — the U51 per-view theme becomes
    MQTT-settable. This is what gives the MQTT tab something to list beyond the
    conditions topics.
