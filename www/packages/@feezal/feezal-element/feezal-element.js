@@ -49,6 +49,76 @@ export const feezalBaseStyles = css`
  *   - this.$.id becomes this.renderRoot.querySelector('#id')
  *   - Lit needs explicit attribute: 'kebab-name' for camelCase properties
  */
+/**
+ * U95 — message-property access, as standalone functions.
+ *
+ * These were instance methods, which meant anything that is not a
+ * `FeezalElement` could not read a payload path. `FeezalConditions` asks its
+ * host for `getProperty()` and quietly falls back to plain `msg.payload`
+ * otherwise — so wiring conditions to `feezal-view` (a LitElement, not a
+ * FeezalElement) would have silently ignored the configured property path and
+ * never matched on a nested JSON payload. Copying the parser into the view
+ * would have created a second, subtly different one for the same job.
+ *
+ * The class keeps both as methods, delegating, so every existing caller and any
+ * subclass override behaves exactly as before.
+ */
+
+/**
+ * Split a property path on unescaped dots. `a.b` → ['a','b'];
+ * `a\\.b` is one literal segment `a.b`.
+ */
+export function splitPropertyPath(str) {
+    str = String(str);
+    if (str.indexOf('\\') === -1) {
+        return str.split('.');
+    }
+    const res = [];
+    let pos = 0;
+    function chunk(start, end) {
+        res.push(str.slice(start, end).replace(/\\\\/g, '\\').replace(/\\\./g, '.'));
+        pos = end + 1;
+    }
+    let esc, j;
+    const l = str.length;
+    let i;
+    for (i = 0; i < l; i++) {
+        if (str[i] === '.') {
+            esc = false;
+            for (j = i - 1; str[j] === '\\'; j--) {
+                esc = !esc;
+            }
+            if (!esc) {
+                chunk(pos, i);
+            }
+        }
+    }
+    chunk(pos, i);
+    return res;
+}
+
+/**
+ * Read `prop` out of a message. A non-object payload is returned as-is (an
+ * MQTT payload is often a bare value, and asking for a path into it should not
+ * invent one).
+ *
+ * @param {Function} [split] path splitter, so a subclass override still applies
+ */
+export function getMessageProperty(obj, prop, split = splitPropertyPath) {
+    const type = typeof obj;
+    if (type !== 'object' && type !== 'function') {
+        return typeof prop === 'undefined' ? obj : undefined;
+    }
+    const arr = split(String(prop));
+    let res = obj;
+    for (let i = 0, l = arr.length; i < l; i++) {
+        if (res) {
+            res = res[arr[i]];
+        }
+    }
+    return res;
+}
+
 export class FeezalElement extends LitElement {
     static styles = feezalBaseStyles;
 
@@ -493,48 +563,14 @@ export class FeezalElement extends LitElement {
         };
     }
 
+    /** @see splitPropertyPath — kept as a method so subclasses can still override. */
     split(str) {
-        str = String(str);
-        if (str.indexOf('\\') === -1) {
-            return str.split('.');
-        }
-        const res = [];
-        let pos = 0;
-        function chunk(start, end) {
-            res.push(str.slice(start, end).replace(/\\\\/g, '\\').replace(/\\\./g, '.'));
-            pos = end + 1;
-        }
-        let esc, j;
-        const l = str.length;
-        let i;
-        for (i = 0; i < l; i++) {
-            if (str[i] === '.') {
-                esc = false;
-                for (j = i - 1; str[j] === '\\'; j--) {
-                    esc = !esc;
-                }
-                if (!esc) {
-                    chunk(pos, i);
-                }
-            }
-        }
-        chunk(pos, i);
-        return res;
+        return splitPropertyPath(str);
     }
 
+    /** @see getMessageProperty — routed through this.split so an override still applies. */
     getProperty(obj, prop) {
-        const type = typeof obj;
-        if (type !== 'object' && type !== 'function') {
-            return typeof prop === 'undefined' ? obj : undefined;
-        }
-        const arr = this.split(String(prop));
-        let res = obj;
-        for (let i = 0, l = arr.length; i < l; i++) {
-            if (res) {
-                res = res[arr[i]];
-            }
-        }
-        return res;
+        return getMessageProperty(obj, prop, path => this.split(path));
     }
 }
 
