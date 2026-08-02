@@ -111,6 +111,41 @@ describe('U97 — the footer reports the site', () => {
         expect(footer._topics).toBe(2);
     });
 
+    /**
+     * The dot sits with the topic count on purpose: a number of subscriptions
+     * means something quite different depending on whether the broker behind
+     * them is up. The state itself is fed in from the shell's `_mqttDot()`, so
+     * the footer renders U93's mapping rather than owning a second copy.
+     */
+    it('shows the broker state as a dot beside the topic count', async () => {
+        window.feezal.site = makeSite();
+        const footer = await mountFooter();
+        footer.mqtt = {cls: 'ok', label: 'MQTT: connected — mqtt://pi'};
+        await footer.updateComplete;
+
+        const dot = footer.shadowRoot.querySelector('.mqtt-dot');
+        expect(dot).not.toBeNull();
+        expect(dot.classList.contains('ok')).toBe(true);
+        // Left of the icon it qualifies, not somewhere else in the row.
+        expect(dot.nextElementSibling.textContent).toBe('rss_feed');
+        expect(dot.closest('.seg').getAttribute('title')).toContain('connected');
+    });
+
+    it('renders each broker state, and stays grey when it knows nothing', async () => {
+        window.feezal.site = makeSite();
+        const footer = await mountFooter();
+        const cls = async state => {
+            footer.mqtt = state;
+            await footer.updateComplete;
+            return [...footer.shadowRoot.querySelector('.mqtt-dot').classList];
+        };
+        expect(await cls({cls: 'err', label: 'MQTT: not connected'})).toContain('err');
+        expect(await cls({cls: 'connecting', label: 'applying'})).toContain('connecting');
+        expect(await cls({cls: 'unknown', label: 'no broker'})).toContain('unknown');
+        // Never fed at all (the shell has not rendered yet) → the grey default.
+        expect(await cls(undefined)).toContain('unknown');
+    });
+
     it('names the active theme, defaulting when the site carries none', async () => {
         window.feezal.site = makeSite({theme: 'midnight-blue'});
         const footer = await mountFooter();

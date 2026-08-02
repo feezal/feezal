@@ -1476,7 +1476,7 @@ class FeezalAppEditor extends LitElement {
                  container's height is reduced by exactly this strip, so the
                  footer cannot cover the bottom edge of the canvas, which is
                  where elements get dragged to. -->
-            <feezal-footer id="footer"></feezal-footer>
+            <feezal-footer id="footer" .mqtt="${this._mqttDot()}"></feezal-footer>
 
             <sl-dialog id="viewdialog" label="Rename View"
                 @sl-initial-focus="${e => { e.preventDefault(); this.shadowRoot.querySelector('#viewnameinput')?.focus(); }}">

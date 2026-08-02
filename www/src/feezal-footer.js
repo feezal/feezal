@@ -40,6 +40,14 @@ class FeezalFooter extends LitElement {
         // Structure-only revision: the size estimate walks the whole site, so it
         // must not be recomputed on every class change during a drag.
         _structure: {state: true},
+        /**
+         * `{cls, label}` from the shell's `_mqttDot()` — the broker state, fed
+         * in rather than derived here. That mapping (deploying → connecting, no
+         * uri → unknown, connected → ok, else err) is U93's, it is unit-tested
+         * against that method, and two copies of it would drift the first time
+         * a state is added.
+         */
+        mqtt: {type: Object},
     };
 
     static styles = css`
@@ -65,6 +73,21 @@ class FeezalFooter extends LitElement {
         .muted { opacity: 0.65; }
         .selection { min-width: 0; }
         .selection .what { font-weight: 600; }
+        /* The broker state, in the segment that counts its topics — a number of
+           subscriptions means something quite different depending on whether
+           the connection behind them is up. Same four states and the same
+           colours as the U93 badge on the Site Settings tab, because they read
+           the same source; a second palette for one dot would be a lie waiting
+           to happen. */
+        .mqtt-dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: #9ca3af; flex: 0 0 auto;
+            transition: background 0.2s;
+        }
+        .mqtt-dot.ok  { background: #2e9d4f; }
+        .mqtt-dot.err { background: #d64545; }
+        .mqtt-dot.connecting { background: #eab308; animation: mqtt-pulse 1s ease-in-out infinite; }
+        @keyframes mqtt-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
         .material-icons {
             font-family: 'Material Icons';
             font-weight: normal; font-style: normal;
@@ -224,7 +247,8 @@ class FeezalFooter extends LitElement {
             <div class="seg" title="Views in this site">${plural(this._views.length, 'view')}</div>
             <div class="seg" title="Elements across all views">${plural(this._elements.length, 'element')}</div>
             <div class="seg" title="Approximate serialized size of the site">${formatBytes(this._size)}</div>
-            <div class="seg" title="Distinct MQTT topics currently subscribed">
+            <div class="seg" title="${this.mqtt?.label || 'MQTT'} · distinct topics currently subscribed">
+                <span class="mqtt-dot ${this.mqtt?.cls || 'unknown'}"></span>
                 <span class="material-icons">rss_feed</span>${this._topics}
             </div>
             <div class="seg" title="Active site theme">${this._theme}</div>
