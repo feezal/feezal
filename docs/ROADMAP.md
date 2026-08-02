@@ -2451,23 +2451,35 @@ behaviour. The editor is not meant to be responsive down to arbitrary widths;
 never enters the broken regime — the browser window then scrolls the whole
 editor horizontally instead of the layout collapsing.
 
+**Refined (08/2026) — tried live, one blocker found.** Setting
+`min-width: 1484px` on `feezal-app-editor` in the console confirms **1484px is
+a solid floor** — adopt it. But below the floor the **right sidebar
+misbehaves**: it keeps sticking to the **viewport's** right border, and
+scrolling the window right reveals **empty space behind/past the sidebar** —
+i.e. the sidebar (or its column) is anchored/sized against the viewport, not
+the editor's layout width. The min-width alone is not enough; the shell must
+be audited for **viewport-anchored chrome** (fixed positioning, `100vw`-based
+sizing, `right: 0` against the viewport): with the min-width active, every
+piece of editor chrome must lay out against the editor's (min-)width — the
+right sidebar sits at the editor's right edge (x = 1484 when the window is
+narrower) and scrolls together with the rest.
+
 **Design notes:**
-- Apply on the editor root (`feezal-app-editor` host or its top container):
-  `min-width` around the measured threshold — measure precisely where the
-  first breakage occurs and round to a sane floor (e.g. 1280–1480px; pick by
-  testing which panels actually break first, don't hard-code 1484 blindly).
+- `min-width: 1484px` on the editor root (`feezal-app-editor` host).
+- Fix the right-sidebar anchoring per the audit above; sweep for further
+  viewport-anchored shell pieces (top bar? footer once U97 exists? overlays
+  like the U60 modal may legitimately stay viewport-fixed — decide per
+  piece: chrome = editor-anchored, overlays/modals = viewport-anchored).
 - The document/body must allow horizontal scrolling for the editor route
   (check nothing clips at `overflow: hidden` on html/body for the editor
   page).
 - VIEWER stays untouched — dashboards are responsive by design; this is
   editor chrome only.
-- Cheap alternative rejected implicitly: making every sidebar panel truly
-  responsive is real work for a window size nobody edits in; the min-width
-  is the honest fix.
 
-**Test:** resize below the floor → the editor keeps its layout and the window
-scrolls horizontally; sidebar tabs render correctly at every width above the
-floor (spot-check around the old ~1484px breakage).
+**Test:** resize below 1484px → the editor keeps its layout, the window
+scrolls horizontally, and the right sidebar sits flush at the editor's right
+edge with NO empty space beyond it; sidebar tabs render correctly at every
+width above the floor.
 
 **Relates:** U93 (top-bar rearrangement — reduces top-bar width pressure),
 the sidebar tab bar (U87-established pattern — the reported victim).
