@@ -2299,12 +2299,30 @@ tab gate the view element must consume a `conditions` attribute
 (feezal-visibility). Effects that make sense per row type:
 - **class / style / attribute** — work as on elements (e.g. an MQTT-driven
   view background or class);
-- **visibility** needs a semantics decision: a "hidden" view should disappear
-  from navigation surfaces (layout-app drawer entries, basic-navigation tabs,
-  swipe order) and refuse direct routing (fall through to the first visible
-  view) — NOT merely display:none of the active canvas. Spell this out before
-  building; it is the actually-wanted use case (hide an admin view unless a
-  flag topic is set).
+- **visibility — DECIDED (08/2026): not offered.** Views do not get the
+  show/hide actions at all. The semantics a hidden view would need are
+  invasive (disappear from layout-app drawer entries, basic-navigation tabs and
+  swipe order, and refuse direct routing by falling through to the first
+  visible view — anything less is a `display:none` that leaves dead navigation
+  pointing at it), and that reach is not worth the one use case. The
+  Conditions panel must therefore offer only **class / style / attribute** when
+  a view is selected: `ACTIONS` in
+  [feezal-sidebar-inspector-conditions.js](../www/src/feezal-sidebar-inspector-conditions.js)
+  is filtered for views, not just left to fail at runtime.
+
+**Remaining scope, in build order** (each shippable on its own; the tab gate
+goes LAST so nothing ever shows an empty panel):
+1. **Engine on `feezal-view`** — a `conditions` attribute plus a
+   `FeezalConditions` instance, `getProperty()`, and connect/disconnect on the
+   same lifecycle points elements use. No new bundle weight: the viewer already
+   carries `feezal-conditions.js` for elements.
+2. **`subscribe-theme` on the view** — the U51 per-view theme becomes
+   MQTT-settable. This is what gives the MQTT tab something to list beyond the
+   conditions topics.
+3. **Widen the tab gate** — `_singleElementSelected` in
+   [feezal-sidebar-inspector.js](../www/src/feezal-sidebar-inspector.js)
+   currently requires a `feezal-element-*` tag; views need their own predicate,
+   and the Conditions panel needs the view-filtered `ACTIONS`.
 
 **MQTT tab on views.** Today the tab is the live-wiring debug panel over the
 selected element's subscriptions. For a view it should list the view-level
