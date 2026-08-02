@@ -1998,7 +1998,7 @@ Feezal's "widgets are plain npm packages" model is better infrastructure than vi
 
 ### A23 — Externalize element families: own git repos + npm publish (paper, tui, panel)
 
-**Goal: keep the element set shipped with feezal small.** Three families move out of `www/packages/@feezal/` into their own GitHub repos and are published to npm — exactly the `feezal-elements-rail` pattern (local reference: `/mnt/c/Users/basti/source/repos/feezal-elements-rail`; also `feezal-elements-lcars`). Core keeps basic, material (Device), glass, layout, system — **and metro for now** (its externalization is deferred to A24).
+**Goal: keep the element set shipped with feezal small.** Three families move out of `www/packages/@feezal/` into their own GitHub repos and are published to npm — exactly the `feezal-elements-rail` pattern (local reference: `/mnt/c/Users/basti/source/repos/feezal-elements-rail`; also `feezal-elements-lcars`). Core keeps basic, material (Device), glass, layout, system — **and metro permanently** ([A24](roadmap-archive/A24.md) ❌ rejected 08/2026: metro stays in feezal).
 
 **Decided (07/2026):**
 - **N29 bundle per family** — each repo ships **one** `@feezal/feezal-elements-<family>` package (`feezal.type: elements` + `elements: [tags]` manifest) consolidating today's single-element packages. **Element tag names do not change**, so saved dashboards are untouched by the packaging change. TUI additionally carries its theme as a second package in `theme/` (rail precedent: `@feezal/feezal-theme-tui`).
@@ -2031,9 +2031,9 @@ Feezal's "widgets are plain npm packages" model is better infrastructure than vi
 9. ☐ Install the family from npm via the feezal packages sidebar on a scratch site; verify palette/theme/uninstall.
 10. ☐ Only then: core-side removal PR (see above) + release note.
 
-**Sequencing:** pilot with **panel** (smallest, 5 elements, no theme), then tui, paper. The detection feature lands with the pilot's core-removal PR. E63 (schematic family) starts external from day one and never enters core; metro follows later as A24.
+**Sequencing:** pilot with **panel** (smallest, 5 elements, no theme), then tui, paper. The detection feature lands with the pilot's core-removal PR. E63 (schematic family) starts external from day one and never enters core; metro stays in core ([A24](roadmap-archive/A24.md) ❌ rejected).
 
-**Relates:** N29 (bundle mechanism), A20 (scaffolding/ecosystem tooling — this creates the de-facto template), rail/lcars repos (living precedent incl. PUBLISHING.md), E63 (first born-external family), A24 (metro — deferred follow-up), E106 (the glass shared-code lessons apply when consolidating families), packages sidebar + `server/src/build/install.js` (install path under test).
+**Relates:** N29 (bundle mechanism), A20 (scaffolding/ecosystem tooling — this creates the de-facto template), rail/lcars repos (living precedent incl. PUBLISHING.md), E63 (first born-external family), [A24](roadmap-archive/A24.md) ❌ (metro stays in core — rejected 08/2026), E106 (the glass shared-code lessons apply when consolidating families), packages sidebar + `server/src/build/install.js` (install path under test).
 
 
 ### A27 — i18n: editor localization + language-aware element defaults 🔨 Phase 1 (de+es+fr+it+pl+pt+tr) ✅ shipped · phases 2–3 open
@@ -2053,7 +2053,7 @@ feezal is English-only today — and not just the editor chrome: **element attri
 **Proposed scope split (phased — the phases are independently shippable):**
 
 1. **Phase 1 — language-aware element text defaults** (smallest string count, highest end-user value). The *runtime display defaults* of text attributes become locale-aware; **explicitly set attributes always win**, and **serialized HTML stays locale-independent** (an unset `label-on` stores nothing — a shared dashboard renders "On" on an English tablet and "Ein" on a German one; that's a feature, not a bug).
-   - **Mechanism suggestion:** attribute descriptors gain inline dictionaries — e.g. `default: 'On', defaultI18n: {de: 'Ein'}` — resolved at render time against the active locale (fallback chain: exact locale → language → `default`). Inline dicts keep **element packages self-contained** (critical for A23/A24 externalized families — no central catalog dependency), and the inspector shows the localized default as the field placeholder.
+   - **Mechanism suggestion:** attribute descriptors gain inline dictionaries — e.g. `default: 'On', defaultI18n: {de: 'Ein'}` — resolved at render time against the active locale (fallback chain: exact locale → language → `default`). Inline dicts keep **element packages self-contained** (critical for A23 externalized families — no central catalog dependency), and the inspector shows the localized default as the field placeholder.
    - Locale source: a **site-level `lang` setting** (site attribute; default = browser `navigator.language`) — the *viewer's* texts follow the site/browser, not the editor.
    - Date/number elements (`basic-datetime`, clock, sensor decimals) should pass the same locale to the `Intl` APIs they already use.
 2. **Phase 2 — editor chrome** (menus, dialogs, sidebar labels, context menus, toasts). Needs a real message catalog. **Library decision to discuss:** `@lit/localize` (Lit-3-native, XLIFF workflow, runtime or build-time transform mode, small and self-hosted — A25-compatible) vs. a hand-rolled `t()` + JSON dictionaries (zero dependency, no tooling, fine for two languages). Editor language = editor user preference (separate from the site `lang`).
@@ -2132,7 +2132,7 @@ The concrete first deliverable is **Phase 1 restricted to en + de**: a German wa
 
 **1. What counts as "localizable" → the presence of the i18n dict IS the opt-in.** No separate boolean flag. A descriptor that carries a `defaultI18n` map is localizable; one that does not is never touched. This makes the one real trap disappear for free: `payload-on: 'ON'` and every other wire-protocol attribute simply carries no dict, so it can never be localized. Element authors opt each display string in, one at a time, and the audit below is exactly "which descriptors get a dict".
 
-**2. Carry all locales or lazy-load → ship both inline for en+de.** The strings are single state-words; en+de across every element is a few kB, far under any threshold worth lazy-loading machinery for. Inline keeps packages self-contained (the A23/A24 requirement). Re-measure only when the language count grows — not now.
+**2. Carry all locales or lazy-load → ship both inline for en+de.** The strings are single state-words; en+de across every element is a few kB, far under any threshold worth lazy-loading machinery for. Inline keeps packages self-contained (the A23 requirement). Re-measure only when the language count grows — not now.
 
 ### Mechanism (concrete)
 
@@ -2169,7 +2169,7 @@ Every `type: 'string'` DISPLAY default across the element packages gets a `defau
 
 **Ships with (first step):** the `defaultI18n` descriptor field honoured by the inspector placeholder; `feezal.locale` + the `feezal-locale-change` event set from the viewer (browser-language default); `resolveLocaleChain`; the base-class `_applyLocalizedDefaults` on connect + locale-change; German dicts on every display-text descriptor across all families; per-element patch bumps; unit tests (a set attribute wins over the de default; an unset one renders "Ein" under `de` and "On" under `en`; a locale change re-applies live; `payload-*` is never localized; the saved HTML is unchanged either way); and a `docs/TESTING.md` row (switch `feezal.locale`/browser lang to `de` → state texts flip, saved HTML identical). **Explicitly deferred to later A27 phases:** editor chrome (Phase 2), help texts (Phase 3), every language past de, and climate/enum mode words.
 
-**Relates:** A23/A24 (externalized element packages must carry their own translations — the inline-dict design exists because of this), A25 (no-CDN rule — any i18n lib must be bundled/self-hosted), **A29** (RTL — layout mode, deliberately split out), **N38** (site locale — the foundation attribute), E99 ✅-era label work (`label-on`/`label-off` — the attributes phase 1 localizes were introduced for exactly this localisation need, just manually), U37 (welcome wizard — early editor-chrome translation candidate), basic-datetime/clock (Intl locale pass-through).
+**Relates:** A23 (externalized element packages must carry their own translations — the inline-dict design exists because of this), A25 (no-CDN rule — any i18n lib must be bundled/self-hosted), **A29** (RTL — layout mode, deliberately split out), **N38** (site locale — the foundation attribute), E99 ✅-era label work (`label-on`/`label-off` — the attributes phase 1 localizes were introduced for exactly this localisation need, just manually), U37 (welcome wizard — early editor-chrome translation candidate), basic-datetime/clock (Intl locale pass-through).
 
 ### A29 — RTL layout support (Arabic, Hebrew) 💡 future
 
