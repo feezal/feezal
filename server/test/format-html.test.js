@@ -254,3 +254,42 @@ describe('formatHtml — identifying attributes lead the tag line (U92)', () => 
         expect(await fmt(once)).toBe(once);
     });
 });
+
+/**
+ * U96 — elements that have NO `label` need their own identifying attributes.
+ * With only the U92 default they fold to a bare tag, which is exactly the
+ * problem U92 set out to fix; the default just could not see them.
+ */
+describe('formatHtml — label-less elements lead with their own identity (U96)', () => {
+    const wrap = inner => `<feezal-site><feezal-view name="v" style="width:100%;height:100%;">${inner}</feezal-view></feezal-site>`;
+    const bulk = 'class="feezal-element" style="position:absolute;left:20px;top:20px;width:344px;height:256px;"';
+    const tagLine = (out, tag) => out.split('\n').find(l => l.includes(`<${tag}`));
+
+    it('basic-icon leads with icon, then subscribe', async () => {
+        const out = await fmt(wrap(`<feezal-element-basic-icon icon="lightbulb" subscribe="home/lamp" ${bulk}></feezal-element-basic-icon>`));
+        expect(tagLine(out, 'feezal-element-basic-icon'))
+            .toContain('<feezal-element-basic-icon icon="lightbulb" subscribe="home/lamp"');
+    });
+
+    it('basic-image leads with src', async () => {
+        const out = await fmt(wrap(`<feezal-element-basic-image src="/assets/plan.png" ${bulk}></feezal-element-basic-image>`));
+        expect(tagLine(out, 'feezal-element-basic-image')).toContain('src="/assets/plan.png"');
+    });
+
+    it('a dialog-view leads with the view it embeds', async () => {
+        const out = await fmt(wrap(`<feezal-element-glass-dialog-view view="details" ${bulk}></feezal-element-glass-dialog-view>`));
+        expect(tagLine(out, 'feezal-element-glass-dialog-view')).toContain('view="details"');
+    });
+
+    it('does not apply an override to an element that has a label', async () => {
+        // The default still governs everything not in the table.
+        const out = await fmt(wrap(`<feezal-element-basic-camera label="Hof" subscribe="frigate/hof" ${bulk}></feezal-element-basic-camera>`));
+        expect(tagLine(out, 'feezal-element-basic-camera'))
+            .toContain('label="Hof" subscribe="frigate/hof"');
+    });
+
+    it('is a fixed point', async () => {
+        const once = await fmt(wrap(`<feezal-element-basic-icon icon="lightbulb" subscribe="home/lamp" ${bulk}></feezal-element-basic-icon>`));
+        expect(await fmt(once)).toBe(once);
+    });
+});

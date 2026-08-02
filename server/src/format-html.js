@@ -71,7 +71,27 @@ const TAB = FORMAT_OPTIONS.tabWidth
  * Monaco's fold shows only an element's FIRST line, so with the bare opening
  * tag there every collapsed element looks identical.
  */
-const IDENTIFYING = {'feezal-view': ['name']}
+const IDENTIFYING = {
+    // U92: a view is identified by its name, not by label/subscribe.
+    'feezal-view': ['name'],
+    // U96 — elements with NO `label`, whose fold would otherwise show a bare
+    // tag. Audited by listing every element without a `label` attribute and
+    // keeping only those that have something genuinely identifying; the ones
+    // that merely have `subscribe` need no entry, since the default already
+    // ends in `subscribe`.
+    'feezal-element-basic-icon': ['icon', 'subscribe'],
+    'feezal-element-basic-icon-value': ['icon', 'subscribe'],
+    'feezal-element-material-icon-button': ['icon', 'subscribe'],
+    'feezal-element-basic-image': ['src', 'subscribe'],
+    'feezal-element-basic-svg': ['src', 'subscribe'],
+    'feezal-element-system-script': ['name', 'subscribe'],
+    'feezal-element-circle-plant': ['name', 'subscribe'],
+    // the dialog-view family embeds a view — which one it is IS its identity
+    'feezal-element-eink-dialog-view': ['view', 'subscribe'],
+    'feezal-element-glass-dialog-view': ['view', 'subscribe'],
+    'feezal-element-material-dialog-view': ['view', 'subscribe'],
+    'feezal-element-paper-dialog-view': ['view', 'subscribe'],
+}
 const IDENTIFYING_DEFAULT = ['label', 'subscribe']
 const MAX_JOINED = 2
 
@@ -178,4 +198,4 @@ async function formatHtml(html) {
     }
 }
 
-module.exports = {formatHtml, FORMAT_OPTIONS}
+module.exports = {formatHtml, FORMAT_OPTIONS, IDENTIFYING, IDENTIFYING_DEFAULT}

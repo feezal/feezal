@@ -72,7 +72,6 @@ Work in progress — priorities and scope are not final.
 - [U85 — Toast/notification service: route the remaining call sites](#u85--toastnotification-service-route-the-remaining-call-sites--service-shipped) 🔨 *(service shipped)*
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
 - [U95 — View inspector: Conditions and MQTT tabs for views 💡](#u95--view-inspector-conditions-and-mqtt-tabs-for-views-)
-- [U96 — Identifying attributes: `basic-icon` leads with `icon`](#u96--identifying-attributes-basic-icon-leads-with-icon)
 
 
 **Architecture & Infrastructure**
@@ -2350,30 +2349,4 @@ subscribe), U88 (the tab fallback when tabs disappear — the widened gate must
 keep that behaviour), N30 (view routing — the visibility-fall-through rule),
 layout-app / basic-navigation (navigation surfaces that must honour hidden
 views).
-
-
-### U96 — Identifying attributes: `basic-icon` leads with `icon`
-
-**Requested (08/2026).** Follow-up to [U92](roadmap-archive/U92.md) ✅ (the
-identifying attributes sorted first + kept on the opening-tag line so
-collapsed elements in the source view stay readable). The shipped map
-([format-html.js](../server/src/format-html.js): `IDENTIFYING` per tag,
-default `['label', 'subscribe']`) needs a per-element override:
-**`feezal-element-basic-icon` has no `label`** — its identifying attribute is
-**`icon`**, which should come FIRST (then `subscribe`, per the default).
-
-**Fix:** add `'feezal-element-basic-icon': ['icon', 'subscribe']` to the
-`IDENTIFYING` map (plus the matching entry on the serializer-side reordering
-if that carries its own list — the two must not drift; consider deriving both
-from one shared table). Extend the U92 unit tests with a basic-icon fixture.
-
-**While in there — audit for other label-less elements** whose folds are
-currently anonymous: candidates `basic-image` (`src`/`subscribe`),
-`basic-iframe` (`src`), `basic-qrcode`, `system-*` (pseudo-elements — their
-identifying attribute may be the topic), `basic-icon-value` (has label? icon
-first if not). Add overrides only where the first line would otherwise carry
-nothing identifying.
-
-**Relates:** [U92](roadmap-archive/U92.md) ✅ (the mechanism), N15 (source
-view folding).
 
