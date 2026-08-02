@@ -377,6 +377,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U94 — layout-app: themed thin drawer scrollbar ✅ done](U94.md)
 
 ## Architecture & Infrastructure
+- [A24 — Externalize the metro element family ❌ rejected — metro stays in feezal](A24.md)
 
 - [A38 — Drop DragSelect: hand-rolled rubber-band selection ✅ done](A38.md)
 - [A2 — Site management UI in editor  ✅ implemented](A2.md)

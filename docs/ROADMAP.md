@@ -86,7 +86,6 @@ Work in progress — priorities and scope are not final.
 - [A20 — Element/theme scaffolding and community ecosystem tooling](#a20--elementtheme-scaffolding-and-community-ecosystem-tooling)
 - [A21 — Accessibility: adopt the web-components Gold Standard for feezal elements](#a21--accessibility-adopt-the-web-components-gold-standard-for-feezal-elements)
 - [A23 — Externalize element families: own git repos + npm publish (paper, tui, panel)](#a23--externalize-element-families-own-git-repos--npm-publish-paper-tui-panel)
-- [A24 — Externalize the metro element family](#a24--externalize-the-metro-element-family-future--will-be-done-later) *(future)*
 - [A27 — i18n: editor localization + language-aware element defaults 🔨 Phase 1 (de+es+fr+it+pl+pt+tr) ✅ shipped · phases 2–3 open](#a27--i18n-editor-localization--language-aware-element-defaults--phase-1-deesfritplpttr--shipped--phases-23-open)
 - [A29 — RTL layout support (Arabic, Hebrew)](#a29--rtl-layout-support-arabic-hebrew--future) 💡 *(future)*
 - [A35 — Theme-var discipline, part 2: family design tokens still default to fixed colours](#a35--theme-var-discipline-part-2-family-design-tokens-still-default-to-fixed-colours)
@@ -2036,18 +2035,6 @@ Feezal's "widgets are plain npm packages" model is better infrastructure than vi
 
 **Relates:** N29 (bundle mechanism), A20 (scaffolding/ecosystem tooling — this creates the de-facto template), rail/lcars repos (living precedent incl. PUBLISHING.md), E63 (first born-external family), A24 (metro — deferred follow-up), E106 (the glass shared-code lessons apply when consolidating families), packages sidebar + `server/src/build/install.js` (install path under test).
 
-
-### A24 — Externalize the metro element family *(future — will be done later)*
-
-Metro **stays bundled with feezal for now** (decided 07/2026) — it moves out **after** the A23 families (panel, tui, paper) have proven the path. When it happens, it is a straight application of the A23 playbook, nothing metro-specific to design:
-
-- Repo `feezal/feezal-elements-metro`, one N29 bundle `@feezal/feezal-elements-metro` (10 elements: climate, contact, cover, light, media, occupancy, sensor, switch, tile, wled) + `@feezal/feezal-theme-metro` in `theme/`.
-- Follow the A23 per-family ops checklist verbatim (repo, clone, `git filter-repo` history extraction, rail scaffold, manual first publish incl. theme, npmjs OIDC per package, automated-publish test, sidebar install verification, core-removal PR).
-- The A23 missing-element detection map gains the `metro-* → @feezal/feezal-elements-metro` entry **already in A23's implementation** (it costs nothing and future-proofs dashboards for this move).
-
-**Not before:** A23 complete for all three families and the detection/install flow proven in a release.
-
-**Relates:** A23 (the playbook — do that first), N29, E106 (metro shares the same consolidation considerations glass had).
 
 ### A27 — i18n: editor localization + language-aware element defaults 🔨 Phase 1 (de+es+fr+it+pl+pt+tr) ✅ shipped · phases 2–3 open
 
