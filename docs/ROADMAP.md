@@ -12,6 +12,7 @@ Work in progress — priorities and scope are not final.
 - [B118 — Undo dead after deleting via the layers-tree context menu (until the canvas is clicked)](#b118--undo-dead-after-deleting-via-the-layers-tree-context-menu-until-the-canvas-is-clicked)
 - [B119 — Right-click menu dead after the tab was backgrounded (footer selector crash)](#b119--right-click-menu-dead-after-the-tab-was-backgrounded-footer-selector-crash)
 - [B120 — iOS PWA: a view SHORTER than the screen scrolls, revealing grey/white bars; layout-app bar moves](#b120--ios-pwa-a-view-shorter-than-the-screen-scrolls-revealing-greywhite-bars-layout-app-bar-moves)
+- [B121 — Glass popups are not transparent — expected the cards' frost](#b121--glass-popups-are-not-transparent--expected-the-cards-frost)
 
 
 **Near-term Improvements**
@@ -443,6 +444,44 @@ innerHeight for a short view on the viewer route.
 **Relates:** B62 ✅ (background mirroring — the assumption this breaks), A18
 (kiosk/wall-panel — same standalone-display concerns), the PWA machinery
 (manifest/standalone), layout-app (the visible victim).
+
+
+### B121 — Glass popups are not transparent — expected the cards' frost
+
+**Reported (08/2026).** The details popups of the glass cards (light /
+climate / cover / fan / wled) render with a solid-looking background.
+Expected: the popup behaves like the glass elements themselves — frost tint
+over a live backdrop blur.
+
+**The styling EXISTS — find out why it does not take effect.** The shared
+`glassPopupStyles` ([feezal-glass.js](../www/packages/@feezal/feezal-glass/feezal-glass.js))
+declares exactly the frost: `background: var(--feezal-glass-tint,
+rgba(255,255,255,0.7))` + `backdrop-filter: blur(var(--feezal-glass-blur,
+20px))`. Hypotheses, in likelihood order:
+
+1. **Backdrop-root containment.** The popup lives inside the card's shadow
+   DOM, and the card's `.card` itself has a `backdrop-filter` — per spec an
+   ancestor with a (backdrop-)filter becomes the descendant's backdrop root,
+   so the popup's blur samples only the card subtree instead of the page →
+   the frost has nothing to blur and the tint reads as flat/solid. The
+   escape is the **top layer**: check whether the `.details` popover is
+   actually promoted via the popover API (`showPopover()` — the
+   basic-camera popup does this; E155 turned `.details` into a centred
+   `position: fixed` box, but fixed ≠ top layer) — if it is plain fixed,
+   promote it, and the ancestor rule stops applying.
+2. **The tint value** — with a heavy `--feezal-glass-tint` (theme-supplied,
+   e.g. a dark glass theme at high alpha) the popup may look opaque even
+   with working blur; compare against the card's own tint on the same theme.
+3. **Degrade path** — `degrade` swaps to the solid background by design;
+   confirm the report is not simply degrade being on (it is per-element).
+
+**Fix expectation:** popup frost = card frost, same tint/blur vars, on every
+theme; `::backdrop` dimming stays. Verify on Chrome + Safari (the
+-webkit- prefix path) and with a per-view theme.
+
+**Relates:** the glass family (E58/E106 shared chrome), E155 (the popup
+centring rework that made `.details` fixed), B61 (glass backdrop-filter
+repaint quirks — same rendering machinery).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
