@@ -1,4 +1,4 @@
-# feezal
+# Feezal
 
 <img src="www/favicon/apple-touch-icon.png" align="left"><br><h3>Visually build MQTT-driven Apps and Dashboards</h3><br><br><br><br><br>
 
@@ -51,7 +51,7 @@ Then open [http://localhost:3000/editor/](http://localhost:3000/editor/) and fol
 
 ## Credits
 
-feezal stands on the shoulders of some excellent open-source work:
+Feezal stands on the shoulders of some excellent open-source work:
 
 - [Lit](https://lit.dev) — every feezal element, the editor and the viewer are Lit components
 - [MQTT.js](https://github.com/mqttjs/MQTT.js) — the MQTT client behind both the browser's direct broker connection and the server bridge
@@ -77,7 +77,7 @@ The complete dependency tree ships as SPDX/CycloneDX SBOMs attached to every
 
 ## License
 
-feezal uses a two-tier licensing model:
+Feezal uses a two-tier licensing model:
 
 - **Server and editor:** [AGPL-3.0-only](LICENSE) © Sebastian Raff
 - **Element SDK (`@feezal/feezal-element`), all official elements and themes, and the
