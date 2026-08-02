@@ -1915,7 +1915,16 @@ class FeezalSidebarInspector extends LitElement {
     selectElement(elems, opts = {}) {
         this._revealInspector = opts.revealInspector === true;
         const view = feezal.getView(this.view);
-        [...view.querySelectorAll('.feezal-selected')].forEach(el => el.classList.remove('feezal-selected'));
+        // B109: clear the class SITE-WIDE, not just within the active view.
+        // Selecting an element on another view (the Layers tree does this, and
+        // it switches the view first) used to leave the previous view's element
+        // carrying `feezal-selected` — invisible on the canvas because that view
+        // is hidden, but the Layers tree mirrors the class site-wide and showed
+        // two selected rows. The stale class is latent state for anything else
+        // reading selection across views, so it is cleared centrally here
+        // rather than patched on the tree's path.
+        const scope = feezal.site || view;
+        [...scope.querySelectorAll('.feezal-selected')].forEach(el => el.classList.remove('feezal-selected'));
 
         if (!elems) {
             this.selectedElems = [view];
