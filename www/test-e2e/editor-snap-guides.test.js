@@ -31,11 +31,17 @@ const at = (label, left, top, w = 100, h = 50) =>
  * G[500..] — wide enough for D (100) with 75px either side, which is the
  * CENTRING case. Its own rhythms (gap 250) land far outside snap range, so it
  * cannot disturb the two above.
+ *
+ * The exact coordinates matter more than they look. E/F sit at x=330 and the
+ * row at y=210 so that NEITHER rhythm's proposal (300 / 200) lands on an
+ * element edge — otherwise B117 would dedupe the gap line away and most of
+ * these cases would be testing the wrong thing. The one case that WANTS the
+ * collision builds it itself, by moving E onto the proposal for that test.
  */
 const SITE_HTML =
     '<feezal-site><feezal-view name="main" style="width:100%;height:100%;">' +
-    at('a', 0, 200) + at('b', 150, 200) + at('g', 500, 200) +
-    at('e', 300, 0) + at('f', 300, 100) +
+    at('a', 0, 210) + at('b', 150, 210) + at('g', 500, 210) +
+    at('e', 330, 0) + at('f', 330, 100) +
     at('d', 600, 400) +
     '</feezal-view></feezal-site>';
 
@@ -224,10 +230,38 @@ describe('B113 + B116 — one helper line per axis, across the canvas', () => {
 
         expect(g.vlines).toBe(2);
         expect(g.hlines).toBe(0);          // the y axis proposes nothing here
-        expect(r.gapV.map(l => l.pos)).toEqual(['left: 325', 'left: 425']);
+        expect(r.gapV.map(l => l.pos)).toEqual(['325', '425']);
         // …and the arrows still measure the two equal 75px gaps either side.
         expect(g.horizontalArrows).toBe(2);
         expect(g.labels).toEqual(['75']);
+    });
+
+    /**
+     * B117 — a gap-snapped position usually IS an aligned edge, and both passes
+     * drew their own line there: two dotted lines on one coordinate paint as a
+     * single fat smudge with the label written twice.
+     */
+    it('draws the line ONCE when a gap snap and an edge snap coincide', async () => {
+        // Build the collision: put E's left edge exactly on the x rhythm's
+        // proposal (300), so the N11 pass and the gap pass both want a vertical
+        // line there. Restored afterwards — every other case needs E at 330.
+        const moveE = left => page.evaluate(l => {
+            window.feezal.view.querySelector('[label="e"]').style.left = l + 'px';
+        }, left);
+        await moveE(300);
+        try {
+            await resetD();
+            await dragHold('d', 296, 196);
+            const r = await readouts();
+            await release();
+
+            const at300 = [...r.vsnap, ...r.gapV].filter(l => l.pos === '300');
+            expect(at300).toHaveLength(1);                          // one line, not two
+            expect(r.gapV.map(l => l.pos)).not.toContain('300');    // the edge guide kept it
+            expect(at300[0].rendered).toBe('"300"');                // …and one label
+        } finally {
+            await moveE(330);
+        }
     });
 
     it('draws no helper lines when no gap is proposed', async () => {
@@ -303,8 +337,9 @@ describe('U99 — every guide line reads out its position', () => {
         // d and a are the same size, so BOTH dragged edges find a target on
         // each axis (N11 tracks four sides) — the leading edge is the one the
         // readout has to name.
-        expect(r.vsnap.map(l => l.pos)).toContain(`left: ${a.left}`);
-        expect(r.hsnap.map(l => l.pos)).toContain(`top: ${a.top}`);
+        // B117: the bare value — the label's orientation already says the axis.
+        expect(r.vsnap.map(l => l.pos)).toContain(`${a.left}`);
+        expect(r.hsnap.map(l => l.pos)).toContain(`${a.top}`);
         // …and every line paints exactly what it carries.
         for (const line of [...r.vsnap, ...r.hsnap]) {
             expect(line.rendered).toBe(`"${line.pos}"`);
@@ -342,9 +377,9 @@ describe('U99 — every guide line reads out its position', () => {
 
         // B116 leaves one line per axis: where the dragged element's own edge
         // lands — x at 300, y at 200, which is exactly the proposed position.
-        expect(r.gapV.map(l => l.pos)).toEqual(['left: 300']);
-        expect(r.gapH.map(l => l.pos)).toEqual(['top: 200']);
-        expect(r.gapV[0].rendered).toBe('"left: 300"');
+        expect(r.gapV.map(l => l.pos)).toEqual(['300']);
+        expect(r.gapH.map(l => l.pos)).toEqual(['200']);
+        expect(r.gapV[0].rendered).toBe('"300"');
     });
 
     it('keeps the readout view-relative when the canvas is scrolled', async () => {
@@ -359,7 +394,7 @@ describe('U99 — every guide line reads out its position', () => {
         await release();
         await page.evaluate(() => { window.feezal.site.scrollLeft = 0; });
 
-        expect(r.vsnap[0].pos).toBe(`left: ${a.left}`);
-        expect(r.hsnap[0].pos).toBe(`top: ${a.top}`);
+        expect(r.vsnap[0].pos).toBe(`${a.left}`);
+        expect(r.hsnap[0].pos).toBe(`${a.top}`);
     });
 });

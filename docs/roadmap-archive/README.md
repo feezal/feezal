@@ -122,6 +122,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B114 — Snapping misplaced by the scroll offset on an undersized, scrolled browser ✅ fixed](B114.md)
 - [B115 — Context menus: Delete entries must ALL get the danger red hover ✅ fixed](B115.md)
 - [B116 — Gap-snap helper lines: show only the line being snapped to, not all four ✅ fixed](B116.md)
+- [B117 — Coinciding gap + edge snap draws the helper line twice ("fat" artifact); drop the label prefixes ✅ fixed](B117.md)
 
 ## Near-term Improvements
 

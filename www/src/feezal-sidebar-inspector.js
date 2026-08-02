@@ -1484,7 +1484,8 @@ class FeezalSidebarInspector extends LitElement {
      * container-relative (boxes were built as `rect.y - cvTop`) while x needs
      * `viewLeftInCv` to get there.
      */
-    _drawGapGuides(gapX, gapY, {viewLeftInCv = 0, viewTopInCv = 0, snapLineTop = 0} = {}) {
+    _drawGapGuides(gapX, gapY, {viewLeftInCv = 0, viewTopInCv = 0, snapLineTop = 0,
+        takenX = [], takenY = []} = {}) {
         const pool = selector => [...(feezal.container?.querySelectorAll(selector) || [])];
         const arrows = pool('.gap-arrow');
         const vlines = pool('.gap-vline');
@@ -1544,19 +1545,32 @@ class FeezalSidebarInspector extends LitElement {
                 : [side === 'after' ? proposed.to : proposed.from];
 
             // U99: the readout is view-relative, which for y means undoing the
-            // container offset the boxes were built with.
+            // container offset the boxes were built with. B117: the value alone,
+            // no `left:`/`top:` prefix — the label's orientation says the axis.
             for (const edge of edges) {
                 const at = Math.round(edge);
+                // B117 — a gap-snapped position IS usually an aligned edge, so
+                // the N11 pass has often just drawn a line here. Two dotted
+                // lines on (or within a pixel of) the same coordinate render as
+                // one fat smudge with a doubled label. Same coordinate → one
+                // line, and the edge guide already there is it.
+                const taken = axis === 'x' ? takenX : takenY;
+                if (taken.some(other => Math.abs(other - edge) < 1)) continue;
+
                 if (axis === 'x') {
                     wantVlines.push({
-                        pos: `left: ${at}`,
-                        css: `display:block;left:${at + viewLeftInCv}px;` +
+                        pos: `${at}`,
+                        // -1 like the N11 guides: the 1px box plus its 1px
+                        // border puts the painted line one px right of `left`,
+                        // and two lines a pixel apart look exactly as fat as
+                        // two on the same one.
+                        css: `display:block;left:${at + viewLeftInCv - 1}px;` +
                             `top:${snapLineTop}px;height:calc(100% - ${snapLineTop}px);`,
                     });
                 } else {
                     wantHlines.push({
-                        pos: `top: ${Math.round(at - viewTopInCv)}`,
-                        css: `display:block;top:${at}px;`,
+                        pos: `${Math.round(at - viewTopInCv)}`,
+                        css: `display:block;top:${at - 1.5}px;`,
                     });
                 }
             }
@@ -1671,18 +1685,27 @@ class FeezalSidebarInspector extends LitElement {
 
             // Show/hide each guide line independently.
             // U99: each carries its view-relative position as `data-pos`; the CSS
-            // renders it as the line's readout (see feezal-app-editor).
+            // renders it as the line's readout (see feezal-app-editor). B117: the
+            // value alone — the label's orientation and placement already say
+            // which axis it is, so a `left:`/`top:` prefix is just noise.
+            // B117: the coordinates taken by this pass, so the gap pass below can
+            // skip any line that would land on one of them.
+            const takenX = [], takenY = [];
             const vLine = (el, t) => {
-                el.style.cssText = t.dist < range
+                const on = t.dist < range;
+                el.style.cssText = on
                     ? `left:${t.pos + viewLeftInCv - 1}px;display:block;top:${snapLineTop}px;height:calc(100% - ${snapLineTop}px)`
                     : 'display:none';
-                el.dataset.pos = `left: ${Math.round(t.pos)}`;
+                el.dataset.pos = `${Math.round(t.pos)}`;
+                if (on) takenX.push(t.pos);
             };
             const hLine = (el, t) => {
-                el.style.cssText = t.dist < range
+                const on = t.dist < range;
+                el.style.cssText = on
                     ? `top:${t.pos - 1.5}px;display:block`
                     : 'display:none';
-                el.dataset.pos = `top: ${Math.round(t.pos - viewTopInCv)}`;
+                el.dataset.pos = `${Math.round(t.pos - viewTopInCv)}`;
+                if (on) takenY.push(t.pos);
             };
             vLine(vsnap1, L); vLine(vsnap2, R);
             hLine(hsnap1, T); hLine(hsnap2, B);
@@ -1703,7 +1726,7 @@ class FeezalSidebarInspector extends LitElement {
                 });
             const gapX = bestEqualGap(draggedBox, laneBoxes, 'x', {range});
             const gapY = bestEqualGap(draggedBox, laneBoxes, 'y', {range});
-            this._drawGapGuides(gapX, gapY, {viewLeftInCv, viewTopInCv, snapLineTop});
+            this._drawGapGuides(gapX, gapY, {viewLeftInCv, viewTopInCv, snapLineTop, takenX, takenY});
 
             // interact.js snaps to one position per axis — the closer side wins.
             const object = {};
@@ -1812,7 +1835,7 @@ class FeezalSidebarInspector extends LitElement {
         // edges and deserves the same annotation.
         if (vsnapEl) {
             vsnapEl.style.cssText = `left:${vsnapPos + viewLeftInCv - 1}px;display:block;top:${snapLineTop}px;height:calc(100% - ${snapLineTop}px)`;
-            vsnapEl.dataset.pos = `left: ${Math.round(vsnapPos)}`;
+            vsnapEl.dataset.pos = `${Math.round(vsnapPos)}`;
             vsnapOtherEl.style.display = 'none';
         } else {
             vsnap1.style.display = 'none';
@@ -1820,7 +1843,7 @@ class FeezalSidebarInspector extends LitElement {
         }
         if (hsnapEl) {
             hsnapEl.style.cssText = `top:${hsnapPos - 1.5}px;display:block`;
-            hsnapEl.dataset.pos = `top: ${Math.round(hsnapPos - viewTopInCv)}`;
+            hsnapEl.dataset.pos = `${Math.round(hsnapPos - viewTopInCv)}`;
             hsnapOtherEl.style.display = 'none';
         } else {
             hsnap1.style.display = 'none';

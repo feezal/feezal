@@ -270,8 +270,11 @@ describe('_drawGapGuides — both axes, plus the helper lines', () => {
         expect(shown(container.vlines)).toHaveLength(1);
         expect(shown(container.hlines)).toHaveLength(1);
         // side 'after' → the dragged box's LEADING edge closes the proposed gap.
-        expect(shown(container.vlines)[0].style.left).toBe('300px');   // proposed.to
-        expect(shown(container.hlines)[0].style.top).toBe('200px');
+        // B117: -1, so the painted line (1px box + 1px border) lands ON 300 —
+        // the same convention the N11 edge guides use, or two lines that
+        // agree on the coordinate still render a pixel apart.
+        expect(shown(container.vlines)[0].style.left).toBe('299px');
+        expect(shown(container.hlines)[0].style.top).toBe('198.5px');
     });
 
     it('uses the TRAILING edge when the element is placed before the anchor', () => {
@@ -283,7 +286,7 @@ describe('_drawGapGuides — both axes, plus the helper lines', () => {
         });
         const el = inspector();
         el._drawGapGuides(before, null, {snapLineTop: 35});
-        expect(shown(container.vlines).map(l => l.style.left)).toEqual(['250px']);
+        expect(shown(container.vlines).map(l => l.style.left)).toEqual(['249px']);
     });
 
     it('marks BOTH borders when the element is centred between two', () => {
@@ -297,10 +300,36 @@ describe('_drawGapGuides — both axes, plus the helper lines', () => {
         });
         const el = inspector();
         el._drawGapGuides(centred, null, {snapLineTop: 35});
-        expect(shown(container.vlines).map(l => l.style.left)).toEqual(['140px', '240px']);
+        expect(shown(container.vlines).map(l => l.style.left)).toEqual(['139px', '239px']);
         // …and both read the border they sit on.
         expect(shown(container.vlines).map(l => l.dataset.pos))
-            .toEqual(['left: 140', 'left: 240']);
+            .toEqual(['140', '240']);
+    });
+
+    // B117 — a gap-snapped position IS usually an aligned edge, so the N11 pass
+    // has often already drawn a line there. Two dotted lines on the same
+    // coordinate paint as one fat smudge with a doubled label.
+    it('skips a line the edge-guide pass has already drawn', () => {
+        const el = inspector();
+        el._drawGapGuides(gapX, gapY, {snapLineTop: 35, takenX: [300], takenY: [200]});
+        expect(shown(container.vlines)).toHaveLength(0);
+        expect(shown(container.hlines)).toHaveLength(0);
+        // The arrows are unaffected — they are the gap's own annotation.
+        expect(shown(container.arrows)).toHaveLength(4);
+    });
+
+    it('treats within-a-pixel as the same coordinate', () => {
+        // Sub-pixel geometry is normal (percentage sizes, zoom): 299.6 and 300
+        // paint on the same pixel, so they must not both be drawn.
+        const el = inspector();
+        el._drawGapGuides(gapX, null, {snapLineTop: 35, takenX: [299.6]});
+        expect(shown(container.vlines)).toHaveLength(0);
+    });
+
+    it('still draws when the edge guide is somewhere else entirely', () => {
+        const el = inspector();
+        el._drawGapGuides(gapX, null, {snapLineTop: 35, takenX: [120]});
+        expect(shown(container.vlines).map(l => l.dataset.pos)).toEqual(['300']);
     });
 
     it('centres on the other axis too', () => {
@@ -310,14 +339,14 @@ describe('_drawGapGuides — both axes, plus the helper lines', () => {
         });
         const el = inspector();
         el._drawGapGuides(null, centred, {snapLineTop: 35});
-        expect(shown(container.hlines).map(l => l.style.top)).toEqual(['90px', '140px']);
+        expect(shown(container.hlines).map(l => l.style.top)).toEqual(['88.5px', '138.5px']);
     });
 
     it('translates x by the canvas scroll delta, y is already container-relative', () => {
         const el = inspector();
         el._drawGapGuides(gapX, gapY, {viewLeftInCv: 40, snapLineTop: 35});
-        expect(shown(container.vlines)[0].style.left).toBe('340px');   // 300 + 40
-        expect(shown(container.hlines)[0].style.top).toBe('200px');    // unchanged
+        expect(shown(container.vlines)[0].style.left).toBe('339px');   // 300 + 40 - 1
+        expect(shown(container.hlines)[0].style.top).toBe('198.5px');  // unchanged by scroll
     });
 
     it('clears every marker when there is nothing to propose', () => {
@@ -337,8 +366,8 @@ describe('_drawGapGuides — both axes, plus the helper lines', () => {
     it('labels the helper line with its view-relative position', () => {
         const el = inspector();
         el._drawGapGuides(gapX, gapY, {snapLineTop: 35});
-        expect(shown(container.vlines).map(l => l.dataset.pos)).toEqual(['left: 300']);
-        expect(shown(container.hlines).map(l => l.dataset.pos)).toEqual(['top: 200']);
+        expect(shown(container.vlines).map(l => l.dataset.pos)).toEqual(['300']);
+        expect(shown(container.hlines).map(l => l.dataset.pos)).toEqual(['200']);
     });
 
     it('keeps the readout view-relative on a scrolled canvas', () => {
@@ -347,11 +376,11 @@ describe('_drawGapGuides — both axes, plus the helper lines', () => {
         const el = inspector();
         el._drawGapGuides(gapX, gapY, {viewLeftInCv: 40, viewTopInCv: 25, snapLineTop: 35});
         const [vline] = shown(container.vlines);
-        expect(vline.style.left).toBe('340px');       // drawn 40 further right…
-        expect(vline.dataset.pos).toBe('left: 300');  // …but reads the same number
+        expect(vline.style.left).toBe('339px');       // drawn 40 further right…
+        expect(vline.dataset.pos).toBe('300');  // …but reads the same number
         const [hline] = shown(container.hlines);
-        expect(hline.style.top).toBe('200px');        // drawn where the box was measured…
-        expect(hline.dataset.pos).toBe('top: 175');   // …and reads 200 - 25
+        expect(hline.style.top).toBe('198.5px');      // drawn where the box was measured…
+        expect(hline.dataset.pos).toBe('175');   // …and reads 200 - 25
     });
 });
 
