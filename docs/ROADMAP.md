@@ -9,6 +9,9 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces](#b106--discovery-ids-is-space-separated-but-mqtt-topics-may-contain-spaces)
+- [B112 — Gap snapping: vertical and horizontal indicators fight instead of showing together](#b112--gap-snapping-vertical-and-horizontal-indicators-fight-instead-of-showing-together)
+- [B113 — Gap snapping: draw full-canvas helper lines so the gap arrows meet them at 90°](#b113--gap-snapping-draw-full-canvas-helper-lines-so-the-gap-arrows-meet-them-at-90)
+- [B114 — Snapping misplaced by the scroll offset on an undersized, scrolled browser](#b114--snapping-misplaced-by-the-scroll-offset-on-an-undersized-scrolled-browser)
 
 
 **Near-term Improvements**
@@ -302,6 +305,59 @@ stamp → parse → dupe-guard must match exactly.
 the dupe-guard consumer), E108 ✅ (native recognizers whose IDs carry channel
 names), N12 (re-sync — anything else reading discovery ids must use the same
 parser).
+
+
+### B112 — Gap snapping: vertical and horizontal indicators fight instead of showing together
+
+**Reported (08/2026).** In a drag position where BOTH a vertical and a
+horizontal gap snap apply (U89), the two indicator sets "fight" — only one is
+visible at a time, flickering by which snap wins. Wanted: **both shown
+simultaneously** — the axes are independent (x-snap and y-snap already resolve
+independently in `_snap()`), so their gap arrows/indicators must render
+independently too, not share one visibility slot.
+
+**Relates:** [U89](roadmap-archive/U89.md) ✅ (the gap guides), N11 (the
+four-side guide model — same both-axes-at-once principle), B113 (the
+full-canvas helper lines — same rendering area).
+
+
+### B113 — Gap snapping: draw full-canvas helper lines so the gap arrows meet them at 90°
+
+**Reported (08/2026).** The U89 gap arrows float in the gaps alone. Wanted:
+like the edge-snap guides, gap snapping should ALSO draw its **helper lines
+across the whole canvas** (the edge the gap is measured against), so each
+dotted gap arrow visibly ends ON a helper line at a right angle — the
+Figma-style reading "this span runs between these two edges". Same dotted
+style as the existing guide lines; appears/disappears with the gap indicators
+(both axes, per B112).
+
+**Relates:** [U89](roadmap-archive/U89.md) ✅, N11 (the guide-line renderer to
+reuse), B112 (show both axes — implement together).
+
+
+### B114 — Snapping misplaced by the scroll offset on an undersized, scrolled browser
+
+**Reported (08/2026).** With the browser window undersized and the canvas
+scrolled to the right, snapping lands in the wrong place — offset by what
+looks like **exactly the scroll width**; most likely the same vertically.
+
+**Where to look:** the B8 fix in `_snap()`
+([feezal-sidebar-inspector.js](../www/src/feezal-sidebar-inspector.js))
+translates the GUIDE-LINE positions by the `#container-view` scroll delta
+(`viewLeftInCv`) — but the reported symptom is the SNAP POSITION itself being
+off, which points at a coordinate-space mismatch between the snap targets
+(measured via `getBoundingClientRect`, viewport coords — scroll-corrected by
+nature) and whatever interact.js feeds/receives (`_snap(x, y)` inputs and the
+returned target): one side appears to use unscrolled coordinates. Reproduce
+with a horizontally scrolled canvas, snap to a known element edge, measure
+the delta against `scrollLeft` — then audit every coordinate handoff in the
+snap path (inputs from interact, target math, and the U89 gap pass which
+inherits the same spaces) for the missing scroll term. Fix must cover both
+axes and keep the B8 guide-line correction intact.
+
+**Relates:** B8 ✅ (guide-line drift — the sibling symptom, already fixed),
+N11, [U89](roadmap-archive/U89.md) ✅ (gap pass shares the coordinate spaces),
+B104 (multi-drag exclusion — same scan, coordinate audit can cover both).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
