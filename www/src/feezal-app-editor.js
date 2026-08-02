@@ -16,6 +16,7 @@ import {loadMonaco, syncMonacoStyles} from './feezal-monaco-loader.js';
 // U89/B112/B113 — the gap-guide marker pool sizes follow from the candidate
 // shape, so they come from the geometry module rather than being repeated here.
 import {GAP_ARROW_COUNT, GAP_LINE_COUNT} from './feezal-canvas-gaps.js';
+import {hexToRgbAlpha} from './feezal-color-util.js';   // U101
 import {viewFromHash} from './hash-view.js';
 import './feezal-welcome-tour.js';
 import './feezal-connect-dialog.js';
@@ -125,6 +126,7 @@ class FeezalAppEditor extends LitElement {
         gridSize:        {type: Number},
         selectionColor:  {type: String},
         gridColor:       {type: String},
+        snapColor:       {type: String},   // U101
         snapping:        {type: String},
         preventEditorMqtt: {type: Boolean},
         _canScrollLeft:  {state: true},
@@ -530,13 +532,13 @@ class FeezalAppEditor extends LitElement {
         }
         #hsnap1, #hsnap2 {
             position: absolute; width: 100%; height: 1px;
-            border-bottom: 1px dotted #cccccc; left: 0; display: none;
-            color: #cccccc;
+            border-bottom: 1px dotted var(--feezal-snap-color, #cccccc); left: 0; display: none;
+            color: var(--feezal-snap-color, #cccccc);
         }
         #vsnap1, #vsnap2 {
             position: absolute; height: calc(100% - 35px); width: 1px;
-            border-right: 1px dotted #cccccc; top: 35px; display: none;
-            color: #cccccc;
+            border-right: 1px dotted var(--feezal-snap-color, #cccccc); top: 35px; display: none;
+            color: var(--feezal-snap-color, #cccccc);
         }
         /* U99 — each guide line reads out the canvas position it sits on, in the
            view-relative pixels the element's own left/top styles use. The value
@@ -550,12 +552,16 @@ class FeezalAppEditor extends LitElement {
             position: absolute; pointer-events: none; white-space: nowrap;
             font: 10px/1 Roboto, Arial, sans-serif; color: inherit;
         }
-        /* Vertical lines: rotated a quarter turn left so the text runs parallel
-           to the line, parked near the BOTTOM of the canvas. The origin is the
-           label's own bottom-left, so the rotated text grows upwards from there. */
+        /* U102 — vertical lines: the text runs top-down (a quarter turn
+           CLOCKWISE, i.e. 180° from the bottom-up reading U99 shipped), to the
+           RIGHT of the line and near the TOP of the canvas.
+           writing-mode rather than a rotate(): a transform would need its
+           origin nudged by the label's own line-height to clear the line, which
+           is exactly the sort of arithmetic that drifts. Vertical writing puts
+           the glyph band beside the line by construction. */
         #vsnap1::after, #vsnap2::after, .gap-vline::after {
-            left: 4px; bottom: 6px;
-            transform: rotate(-90deg); transform-origin: 0 100%;
+            left: 4px; top: 6px;
+            writing-mode: vertical-rl;
         }
         /* Horizontal lines: unrotated, above the line, near its LEFT end. */
         #hsnap1::after, #hsnap2::after, .gap-hline::after {
@@ -568,8 +574,8 @@ class FeezalAppEditor extends LitElement {
            a passive alignment hint. */
         .gap-arrow {
             position: absolute; display: none; z-index: 6; pointer-events: none;
-            border-top: 1px dotted var(--sl-color-primary-600, #0284c7);
-            color: var(--sl-color-primary-600, #0284c7);
+            border-top: 1px dotted var(--feezal-snap-color, #cccccc);
+            color: var(--feezal-snap-color, #cccccc);
             font: 10px/1 Roboto, Arial, sans-serif; text-align: center;
             padding-top: 3px; box-sizing: content-box;
         }
@@ -599,10 +605,10 @@ class FeezalAppEditor extends LitElement {
            proposal, not the proposal itself (which stays in the accent colour). */
         .gap-vline, .gap-hline {
             position: absolute; display: none; z-index: 5; pointer-events: none;
-            color: #cccccc;
+            color: var(--feezal-snap-color, #cccccc);
         }
-        .gap-vline { width: 1px; border-right: 1px dotted #cccccc; }
-        .gap-hline { height: 1px; width: 100%; left: 0; border-bottom: 1px dotted #cccccc; }
+        .gap-vline { width: 1px; border-right: 1px dotted var(--feezal-snap-color, #cccccc); }
+        .gap-hline { height: 1px; width: 100%; left: 0; border-bottom: 1px dotted var(--feezal-snap-color, #cccccc); }
 
         /* Rename view dialog — now using sl-dialog (respects dark/light mode) */
         #viewdialog::part(panel) { min-width: 300px; }
@@ -966,6 +972,9 @@ class FeezalAppEditor extends LitElement {
         this.gridSize        = JSON.parse(localStorage.getItem('gridSize')        ?? '24');
         this.selectionColor  = localStorage.getItem('selectionColor')            ?? '#0284c7';
         this.gridColor       = localStorage.getItem('gridColor')                 ?? '#cccccc';
+        // U101: defaults to the grey the snap/gap guides shipped with, so an
+        // untouched setting looks exactly as it did before.
+        this.snapColor       = localStorage.getItem('snapColor')                 ?? '#cccccc';
         this.snapping        = localStorage.getItem('snapping')                  ?? 'elements';
         this.preventEditorMqtt = JSON.parse(localStorage.getItem('preventEditorMqtt') ?? 'true');
         this.sidebar         = localStorage.getItem('sidebar')                    ?? 'inspector';
@@ -1099,6 +1108,9 @@ class FeezalAppEditor extends LitElement {
         }
         if (changed.has('selectionColor')) {
             this._syncSelectionColor();
+        }
+        if (changed.has('snapColor')) {
+            this._syncSnapColor();
         }
         if (changed.has('_darkMode') && this._sourceEditor) {
             this._sourceEditor.updateOptions({theme: this._darkMode ? 'vs-dark' : 'vs'});
@@ -1417,6 +1429,7 @@ class FeezalAppEditor extends LitElement {
                         .themeMode="${this._themeMode}"
                         .selectionColor="${this.selectionColor}"
                         .gridColor="${this.gridColor}"
+                        .snapColor="${this.snapColor}"
                         .gridSize="${this.gridSize}"
                         .gridVisible="${this.gridVisible}"
                         .snapping="${this.snapping}"
@@ -1424,6 +1437,7 @@ class FeezalAppEditor extends LitElement {
                         @theme-mode-changed="${e => this._setThemeMode(e.detail.value)}"
                         @selection-color-changed="${e => { this.selectionColor = e.detail.value; localStorage.setItem('selectionColor', this.selectionColor); }}"
                         @grid-color-changed="${e => { this.gridColor = e.detail.value; localStorage.setItem('gridColor', this.gridColor); }}"
+                        @snap-color-changed="${e => { this.snapColor = e.detail.value; localStorage.setItem('snapColor', this.snapColor); }}"
                         @grid-size-changed="${e => { this.gridSize = e.detail.value; localStorage.setItem('gridSize', this.gridSize); }}"
                         @grid-visible-changed="${e => { this.gridVisible = e.detail.value; localStorage.setItem('gridVisible', this.gridVisible); }}"
                         @snapping-changed="${e => { this.snapping = e.detail.value; localStorage.setItem('snapping', this.snapping); }}"
@@ -2562,12 +2576,38 @@ class FeezalAppEditor extends LitElement {
     // -------------------------------------------------------------------
     // Deploy
 
+    /**
+     * The selection colour reaches its consumers as an `r,g,b` TRIPLET, because
+     * each of them composes its own alpha on top — the rubber band fills at
+     * 0.12 and borders at 0.8, the selection outline sits at 0.9.
+     *
+     * U101 — so when the setting itself carries alpha, the two have to multiply
+     * rather than one replacing the other: the alpha travels beside the triplet
+     * as `--feezal-selection-alpha`, and the consumers scale their own figure by
+     * it. Untouched (opaque) settings put 1 there, which is exactly the old
+     * rendering.
+     */
     _syncSelectionColor() {
-        const hex = this.selectionColor || '#0284c7';
-        const r = parseInt(hex.slice(1, 3), 16);
-        const g = parseInt(hex.slice(3, 5), 16);
-        const b = parseInt(hex.slice(5, 7), 16);
-        this.style.setProperty('--feezal-selection-rgb', `${r},${g},${b}`);
+        const {rgb, alpha} = hexToRgbAlpha(this.selectionColor, '#0284c7');
+        this.style.setProperty('--feezal-selection-rgb', rgb);
+        this.style.setProperty('--feezal-selection-alpha', String(alpha));
+    }
+
+    /**
+     * U101 — the snap/gap guide colour, published as ONE property for every
+     * piece of the overlay: the N11 edge guides, the gap helper lines, the gap
+     * arrows and both label families (the arrows' px value and the U99 position
+     * readouts, which inherit it).
+     *
+     * That deliberately collapses B113's grey-lines/accent-arrows distinction:
+     * the request was one configured colour for the whole overlay, and a
+     * proposal drawn in a colour the user did not choose is the thing being
+     * fixed. Alpha needs no special handling here — unlike the selection
+     * colour, nothing composes a second alpha on top, so the value is used as
+     * authored.
+     */
+    _syncSnapColor() {
+        this.style.setProperty('--feezal-snap-color', this.snapColor || '#cccccc');
     }
 
     _setThemeMode(mode) {

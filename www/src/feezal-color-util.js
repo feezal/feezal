@@ -22,6 +22,28 @@ export function normalizeHexa(value) {
     return v;
 }
 
+/**
+ * U101 — a hex colour split into the two pieces CSS needs separately: an
+ * `r,g,b` triplet and the alpha as a 0–1 number.
+ *
+ * The editor publishes the selection colour as a triplet (`--feezal-selection-rgb`)
+ * because its consumers compose their OWN alpha on top — a rubber band at 0.12,
+ * its border at 0.8, the selection outline at 0.9. Once the setting itself can
+ * carry alpha those two have to multiply, so the alpha travels as its own
+ * custom property rather than being baked into the colour.
+ *
+ * Accepts 3/4/6/8-digit hex; anything else falls back to `fallback` so a
+ * half-typed value can never blank the selection ring mid-keystroke.
+ */
+export function hexToRgbAlpha(value, fallback = '#0284c7') {
+    const hex = expandHex(/^#[0-9a-f]{3,8}$/i.test(String(value || '').trim())
+        ? String(value).trim().toLowerCase()
+        : fallback);
+    const byte = at => parseInt(hex.slice(at, at + 2), 16);
+    const alpha = hex.length === 9 ? byte(7) / 255 : 1;
+    return {rgb: `${byte(1)},${byte(3)},${byte(5)}`, alpha};
+}
+
 /** `#rgb`/`#rgba` → `#rrggbb`/`#rrggbbaa`; longhand passes through lowercase. */
 function expandHex(v) {
     return v.length <= 5

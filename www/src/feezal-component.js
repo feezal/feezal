@@ -42,7 +42,7 @@ class FeezalComponent extends HTMLElement {
         style.textContent = `
             :host { display: block; position: relative; box-sizing: border-box; overflow: hidden; }
             ::slotted(*) { position: absolute; }
-            :host(.feezal-editable) { outline: 1px dashed rgba(var(--feezal-selection-rgb, 2,132,199), 0.8); }
+            :host(.feezal-editable) { outline: 1px dashed rgba(var(--feezal-selection-rgb, 2,132,199), calc(0.8 * var(--feezal-selection-alpha, 1))); }
             :host(.feezal-editable) ::slotted(*) { pointer-events: none; }
             .feezal-component-missing {
                 display: flex; align-items: center; justify-content: center;

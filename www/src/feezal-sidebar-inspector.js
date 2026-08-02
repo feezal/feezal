@@ -486,7 +486,7 @@ class FeezalSidebarInspector extends LitElement {
                     position: absolute;
                     top: -1px; right: -1px;
                     width: 14px; height: 14px;
-                    background-color: rgba(var(--feezal-selection-rgb, 2,132,199), 0.9);
+                    background-color: rgba(var(--feezal-selection-rgb, 2,132,199), calc(0.9 * var(--feezal-selection-alpha, 1)));
                     -webkit-mask: ${url} center / contain no-repeat;
                     mask: ${url} center / contain no-repeat;
                     pointer-events: none;
@@ -498,7 +498,7 @@ class FeezalSidebarInspector extends LitElement {
                     position: absolute;
                     top: -1px; left: -1px;
                     width: 14px; height: 14px;
-                    background-color: rgba(var(--feezal-selection-rgb, 2,132,199), 0.9);
+                    background-color: rgba(var(--feezal-selection-rgb, 2,132,199), calc(0.9 * var(--feezal-selection-alpha, 1)));
                     -webkit-mask: ${eyeUrl} center / contain no-repeat;
                     mask: ${eyeUrl} center / contain no-repeat;
                     pointer-events: none;
@@ -875,14 +875,11 @@ class FeezalSidebarInspector extends LitElement {
             this._positionGrid(grid);
         }
 
-        // Keep snap helper line colors in sync with the configured grid color.
-        // NOT the U89 gap arrows: those are deliberately drawn in the selection
-        // colour, because they are an active proposal rather than a passive
-        // alignment hint.
-        for (const id of ['#vsnap1', '#vsnap2', '#hsnap1', '#hsnap2']) {
-            const el = feezal.app.shadowRoot.querySelector(id);
-            if (el) el.style.borderColor = this.gridColor;
-        }
+        // U101 — the snap guides used to borrow the GRID colour here, as an
+        // inline borderColor. They have their own setting now
+        // (`--feezal-snap-color`, applied in the editor shell's stylesheet), and
+        // an inline style would win over it — so the coupling is gone rather
+        // than merely redirected.
     }
 
     /**
@@ -1889,7 +1886,7 @@ class FeezalSidebarInspector extends LitElement {
                 (resizableGrip ? '\n:host(.feezal-editable.feezal-selected:not([locked]):hover)::before{' +
                     'content:"";position:absolute;right:0;bottom:0;width:12px;height:12px;z-index:6;' +
                     'pointer-events:none;' +
-                    'background:linear-gradient(135deg,transparent 50%,rgba(var(--feezal-selection-rgb, 2,132,199),0.9) 50%);' +
+                    'background:linear-gradient(135deg,transparent 50%,rgba(var(--feezal-selection-rgb, 2,132,199), calc(0.9 * var(--feezal-selection-alpha, 1))) 50%);' +
                     '}' : '');
             element.shadowRoot.appendChild(glassStyle);
         }

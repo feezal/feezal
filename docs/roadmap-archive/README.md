@@ -389,6 +389,8 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U96 — Identifying attributes: label-less elements lead with their own identity ✅ done](U96.md)
 - [U99 — Snap helper lines: position readout on each line ✅ done](U99.md)
 - [U100 — Editor min-width instead of broken narrow layouts ✅ done](U100.md)
+- [U101 — Snap helper-line color configurable + alpha in the editor color pickers ✅ done](U101.md)
+- [U102 — Vertical guide-line label: flip 180°, right of the line, near the top ✅ done](U102.md)
 
 ## Architecture & Infrastructure
 - [A24 — Externalize the metro element family ❌ rejected — metro stays in feezal](A24.md)

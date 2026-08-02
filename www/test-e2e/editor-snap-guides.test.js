@@ -107,20 +107,45 @@ const guides = () => page.evaluate(() => {
 const readouts = () => page.evaluate(() => {
     const shown = sel => [...window.feezal.container.querySelectorAll(sel)]
         .filter(el => getComputedStyle(el).display !== 'none');
-    const read = el => ({
-        pos: el.dataset.pos,
-        // Chromium resolves attr() here, so this is the text actually painted.
-        rendered: getComputedStyle(el, '::after').content,
-        transform: getComputedStyle(el, '::after').transform,
-        pointerEvents: getComputedStyle(el, '::after').pointerEvents,
-    });
+    const read = el => {
+        const label = getComputedStyle(el, '::after');
+        const own = getComputedStyle(el);
+        return {
+            pos: el.dataset.pos,
+            // Chromium resolves attr() here, so this is the text actually painted.
+            rendered: label.content,
+            transform: label.transform,
+            writingMode: label.writingMode,
+            pointerEvents: label.pointerEvents,
+            // U101: the line's own ink, and the label's — the label inherits it.
+            lineColor: own.borderRightColor === 'rgba(0, 0, 0, 0)' || !own.borderRightWidth.startsWith('1')
+                ? own.borderBottomColor : own.borderRightColor,
+            labelColor: label.color,
+        };
+    };
     return {
         vsnap: shown('#vsnap1, #vsnap2').map(read),
         hsnap: shown('#hsnap1, #hsnap2').map(read),
         gapV: shown('.gap-vline').map(read),
         gapH: shown('.gap-hline').map(read),
+        // U101: the gap arrows and their px labels are part of the same overlay.
+        arrows: shown('.gap-arrow').map(el => {
+            const own = getComputedStyle(el);
+            return {
+                color: own.color,
+                border: el.classList.contains('vertical') ? own.borderLeftColor : own.borderTopColor,
+                tick: getComputedStyle(el, '::before').backgroundColor,
+            };
+        }),
     };
 });
+
+/** U101 — set a guide colour through the real editor-settings panel. */
+const setSnapColor = value => page.evaluate(v => {
+    const app = window.feezal.app;
+    app.snapColor = v;
+    localStorage.setItem('snapColor', v);
+}, value);
 
 /** Press, move to (targetLeft, targetTop) in view coordinates, and HOLD. */
 async function dragHold(label, targetLeft, targetTop) {
@@ -346,17 +371,9 @@ describe('U99 — every guide line reads out its position', () => {
         }
     });
 
-    it('rotates the vertical readout a quarter turn and leaves the horizontal upright', async () => {
-        await resetD();
-        const a = await box('a');
-        await dragHold('d', a.left + 6, a.top + 6);
-        const r = await readouts();
-        await release();
-
-        // rotate(-90deg) → matrix(0, -1, 1, 0, …)
-        expect(r.vsnap[0].transform).toMatch(/^matrix\(0, -1, 1, 0/);
-        expect(r.hsnap[0].transform).toBe('none');
-    });
+    // (The vertical readout's orientation and placement moved in U102 — its own
+    // describe below owns that assertion now, rather than two tests disagreeing
+    // about which quarter turn is current.)
 
     it('never lets a readout intercept the pointer mid-drag', async () => {
         await resetD();
@@ -396,5 +413,133 @@ describe('U99 — every guide line reads out its position', () => {
 
         expect(r.vsnap[0].pos).toBe(`${a.left}`);
         expect(r.hsnap[0].pos).toBe(`${a.top}`);
+    });
+});
+
+describe('U101 — the whole overlay follows the configured guide colour', () => {
+    const RED = 'rgb(220, 20, 60)';
+
+    afterAll(() => setSnapColor('#cccccc'));
+
+    /**
+     * The refinement this item shipped with, verbatim: element-snap lines, gap
+     * lines, gap arrows, helper-line labels AND gap-arrow labels — all of them.
+     * Before U101 the lines borrowed the GRID colour and the arrows used the
+     * editor accent, so neither followed a setting of their own.
+     */
+    it('paints every guide, arrow and label in the configured colour', async () => {
+        await setSnapColor('#dc143c');
+        await resetD();
+        // (307, 196) lights up ALL FOUR families at once: both gap axes propose
+        // (300 / 200) and both dragged edges are in range of an element edge
+        // (E's left at 330, A's top at 210). A position missing one family
+        // would let that family keep a hardcoded colour unnoticed.
+        await dragHold('d', 307, 196);
+        const r = await readouts();
+        await release();
+
+        expect(r.vsnap.length).toBeGreaterThan(0);        // element-snap, vertical
+        expect(r.hsnap.length).toBeGreaterThan(0);        // element-snap, horizontal
+        expect(r.gapV.length).toBeGreaterThan(0);         // gap helper, vertical
+        expect(r.gapH.length).toBeGreaterThan(0);         // gap helper, horizontal
+
+        const lines = [...r.vsnap, ...r.hsnap, ...r.gapV, ...r.gapH];
+        for (const line of lines) {
+            expect(line.lineColor).toBe(RED);             // the dotted rule
+            expect(line.labelColor).toBe(RED);            // …and its readout
+        }
+        expect(r.arrows.length).toBe(4);
+        for (const arrow of r.arrows) {
+            expect(arrow.color).toBe(RED);                // the px label
+            expect(arrow.border).toBe(RED);               // the span rule
+            expect(arrow.tick).toBe(RED);                 // and its end ticks
+        }
+    });
+
+    /**
+     * Before U101 the guides took the GRID colour, as an inline borderColor
+     * written whenever the grid was re-rendered — an inline style that would
+     * beat the new setting. The coupling had to be removed, not redirected, and
+     * it only bites once the grid has actually been re-rendered.
+     */
+    it('does not fall back to the grid colour when the grid re-renders mid-drag', async () => {
+        await setSnapColor('#dc143c');
+        await resetD();
+        await dragHold('d', 307, 196);
+        // MID-DRAG on purpose. The guides' own positioning writes cssText, which
+        // wipes any inline style — so the old coupling could only ever show
+        // through in the window between a grid re-render and the next pointer
+        // move. Narrow, but it is the window the removal is about.
+        await page.evaluate(() => {
+            const app = window.feezal.app;
+            app.gridColor = '#00ff00';
+            app.shadowRoot.querySelector('feezal-sidebar-inspector').gridColor = '#00ff00';
+            app.shadowRoot.querySelector('feezal-sidebar-inspector')._gridSizeChanged();
+        });
+        const r = await readouts();
+        await release();
+
+        for (const line of [...r.vsnap, ...r.hsnap]) {
+            expect(line.lineColor).toBe(RED);            // not the green grid
+        }
+    });
+
+    it('applies a new colour without a reload, mid-session', async () => {
+        await setSnapColor('#008000');
+        await resetD();
+        await dragHold('d', 296, 196);
+        const r = await readouts();
+        await release();
+        expect(r.gapV[0].lineColor).toBe('rgb(0, 128, 0)');
+        expect(r.arrows[0].color).toBe('rgb(0, 128, 0)');
+    });
+
+    it('carries alpha through to the painted colour', async () => {
+        // Half-transparent guides over a busy dashboard are the point of the
+        // alpha channel; the value must survive as authored, not flatten.
+        await setSnapColor('#dc143c80');
+        await resetD();
+        await dragHold('d', 296, 196);
+        const r = await readouts();
+        await release();
+        expect(r.gapV[0].lineColor).toMatch(/^rgba\(220, 20, 60, 0\.5/);
+        expect(r.arrows[0].color).toMatch(/^rgba\(220, 20, 60, 0\.5/);
+    });
+});
+
+describe('U102 — the vertical readout reads top-down, right of the line', () => {
+    it('is vertical writing near the TOP, not a bottom-up rotation', async () => {
+        await resetD();
+        const a = await box('a');
+        await dragHold('d', a.left + 6, a.top + 6);
+        const r = await readouts();
+        const geometry = await page.evaluate(() => {
+            const line = [...window.feezal.container.querySelectorAll('#vsnap1, #vsnap2')]
+                .find(el => getComputedStyle(el).display !== 'none');
+            const lineBox = line.getBoundingClientRect();
+            // The ::after box is not directly measurable; its offset comes from
+            // the declared left/top, which is what decides the side and the end.
+            const label = getComputedStyle(line, '::after');
+            return {left: label.left, top: label.top, lineWidth: Math.round(lineBox.width)};
+        });
+        await release();
+
+        // U99 shipped rotate(-90deg) reading bottom-up; U102 is 180° from that.
+        expect(r.vsnap[0].writingMode).toBe('vertical-rl');
+        expect(r.vsnap[0].transform).toBe('none');
+        // …to the RIGHT of the line (positive offset past its 1px width)…
+        expect(Number.parseFloat(geometry.left)).toBeGreaterThan(geometry.lineWidth);
+        // …and anchored at the TOP, not the bottom.
+        expect(Number.parseFloat(geometry.top)).toBeLessThan(20);
+    });
+
+    it('leaves the horizontal readout upright, as shipped', async () => {
+        await resetD();
+        const a = await box('a');
+        await dragHold('d', a.left + 6, a.top + 6);
+        const r = await readouts();
+        await release();
+        expect(r.hsnap[0].transform).toBe('none');
+        expect(r.hsnap[0].writingMode).toBe('horizontal-tb');
     });
 });

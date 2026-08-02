@@ -4,6 +4,9 @@ import '@shoelace-style/shoelace/dist/components/select/select.js';
 import '@shoelace-style/shoelace/dist/components/option/option.js';
 import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/switch/switch.js';
+import '@shoelace-style/shoelace/dist/components/color-picker/color-picker.js';
+
+import {normalizeHexa} from './feezal-color-util.js';   // U101
 import '@shoelace-style/shoelace/dist/components/tab-group/tab-group.js';
 import '@shoelace-style/shoelace/dist/components/tab/tab.js';
 import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
@@ -13,6 +16,7 @@ class FeezalSidebarEditor extends LitElement {
         themeMode:      {type: String, reflect: true},
         selectionColor: {type: String, reflect: true},
         gridColor:      {type: String, reflect: true},
+        snapColor:      {type: String, reflect: true},   // U101
         gridSize:       {type: Number, reflect: true},
         gridVisible:    {type: Boolean, reflect: true},
         snapping:       {type: String, reflect: true},
@@ -61,10 +65,15 @@ class FeezalSidebarEditor extends LitElement {
             font-size: var(--sl-input-label-font-size-small, 12px);
             color: var(--sl-input-label-color, inherit);
         }
-        input[type="color"] {
-            width: 100%; height: 28px; padding: 2px 3px;
-            border: 1px solid var(--feezal-border, #ccc); border-radius: 4px;
-            background: var(--feezal-bg, white); cursor: pointer;
+        /* U101 — sl-color-picker in place of input[type=color], for the same
+           reason U66 swapped it in the styles inspector: the native control has
+           no alpha channel, and a semi-transparent guide over a busy dashboard
+           is exactly what these three settings are for. The trigger is stretched
+           to the old swatch's footprint so the row still reads as two (now
+           three) equal colour fields. */
+        sl-color-picker::part(trigger) {
+            width: 100%; height: 28px; border-radius: 4px;
+            border: 1px solid var(--feezal-border, #ccc);
             box-sizing: border-box;
         }
         .material-icons {
@@ -99,6 +108,7 @@ class FeezalSidebarEditor extends LitElement {
         this.themeMode = 'os';
         this.selectionColor = '#0284c7';
         this.gridColor = '#cccccc';
+        this.snapColor = '#cccccc';   // U101: the grey the guides shipped with
         this.gridSize = 24;
         this.gridVisible = false;
         this.snapping = 'elements';
@@ -248,16 +258,9 @@ class FeezalSidebarEditor extends LitElement {
                     <sl-option value="dark">Dark</sl-option>
                 </sl-select>
                 <div class="row">
-                    <label class="color-label">
-                        Selection color
-                        <input type="color" .value="${this.selectionColor}"
-                            @input="${e => { this.selectionColor = e.target.value; this._notify('selection-color'); }}">
-                    </label>
-                    <label class="color-label">
-                        Grid color
-                        <input type="color" .value="${this.gridColor}"
-                            @input="${e => { this.gridColor = e.target.value; this._notify('grid-color'); }}">
-                    </label>
+                    ${this._colorSetting('Selection color', 'selectionColor', 'selection-color')}
+                    ${this._colorSetting('Grid color', 'gridColor', 'grid-color')}
+                    ${this._colorSetting('Snap guide color', 'snapColor', 'snap-color')}
                 </div>
                 <sl-select label="Snapping" size="small"
                     .value="${this.snapping}"
@@ -441,6 +444,28 @@ class FeezalSidebarEditor extends LitElement {
             this._serverStatus = 'err:' + err.message;
             this._serverBusy = false;
         }
+    }
+
+    /**
+     * U101 — one of the three editor colour settings.
+     *
+     * All three are the same control with a different target, so they are one
+     * template: a third copy of the picker markup is exactly how the two
+     * existing ones would have drifted apart.
+     *
+     * `sl-change` rather than `sl-input`: the picker fires continuously while
+     * the user drags the alpha slider, and every one of those writes to
+     * localStorage and restyles the canvas.
+     */
+    _colorSetting(label, prop, event) {
+        return html`
+            <label class="color-label">
+                ${label}
+                <sl-color-picker size="small" hoist opacity no-format-toggle format="hex"
+                    .value="${this[prop]}"
+                    @sl-change="${e => { this[prop] = normalizeHexa(e.target.value); this._notify(event); }}">
+                </sl-color-picker>
+            </label>`;
     }
 
     _notify(attr) {

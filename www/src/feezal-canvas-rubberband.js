@@ -191,8 +191,8 @@ export class RubberBand {
         // border-box so the drawn rectangle measures exactly the dragged box —
         // with the default content-box the 1px border inflates it by 2px.
         el.style.cssText = 'position:fixed;z-index:1000;pointer-events:none;box-sizing:border-box;' +
-            'background:rgba(var(--feezal-selection-rgb, 2,132,199),0.12);' +
-            'border:1px solid rgba(var(--feezal-selection-rgb, 2,132,199),0.8);';
+            'background:rgba(var(--feezal-selection-rgb, 2,132,199), calc(0.12 * var(--feezal-selection-alpha, 1)));' +
+            'border:1px solid rgba(var(--feezal-selection-rgb, 2,132,199), calc(0.8 * var(--feezal-selection-alpha, 1)));';
         this.view.append(el);
         this._overlay = el;
     }
