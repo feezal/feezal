@@ -365,6 +365,26 @@ wildcard TAG selector — which is not valid CSS and throws. The current source
 reported session was running the earlier build — **first step: confirm a
 rebuild/redeploy makes the SyntaxError disappear**, then close that half.
 
+**Refined (08/2026) — a plain reload does NOT fix it.** The menu stays dead
+after reloading, while at the same time (a) `www/dist` is freshly rebuilt and
+**no longer contains** the invalid selector, and (b) the context-menu wiring
+and its browser suites are green in current source (ctx-submenu,
+switch-family, cross-view-select). Two branches to distinguish when picking
+this up:
+
+1. **Stale bundle survives the reload.** The crashing trace named
+   `editor-C498CFC_.js` — that hash fingerprints the broken build. Check
+   whether the browser still loads that hash after a HARD reload (service
+   worker / PWA cache reviving the old bundle?) and whether the running
+   server process serves a pre-fix dist (needs restart). If stale delivery is
+   the cause, the actionable bug becomes: **editor bundle caching must not
+   survive a rebuild** (cache-busting / SW update flow for the editor route)
+   — that is a real defect on its own, reload-should-mean-current.
+2. **A second, genuinely new breakage** — if the menu is dead on a
+   confirmed-new bundle hash, capture the fresh console output; the
+   fault-isolation half below is then the active lead (the suites do not
+   exercise the live constellation).
+
 **What must still be fixed — the resilience half:** one component throwing in
 `render()` must not take the editor's right-click down with it. The footer's
 attribute MutationObserver → `requestUpdate` → throwing render left an
