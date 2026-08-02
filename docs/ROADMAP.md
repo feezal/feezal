@@ -9,6 +9,7 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces](#b106--discovery-ids-is-space-separated-but-mqtt-topics-may-contain-spaces)
+- [B117 — Coinciding gap + edge snap draws the helper line twice ("fat" artifact); drop the label prefixes](#b117--coinciding-gap--edge-snap-draws-the-helper-line-twice-fat-artifact-drop-the-label-prefixes)
 
 
 **Near-term Improvements**
@@ -304,6 +305,33 @@ stamp → parse → dupe-guard must match exactly.
 the dupe-guard consumer), E108 ✅ (native recognizers whose IDs carry channel
 names), N12 (re-sync — anything else reading discovery ids must use the same
 parser).
+
+
+### B117 — Coinciding gap + edge snap draws the helper line twice ("fat" artifact); drop the label prefixes
+
+**Reported (08/2026).** When a **gap snap and an element-edge snap land on the
+same coordinate** (which is common — the gap-snapped position IS an aligned
+edge), both passes draw their helper line at the same top/left: the doubled
+dotted line renders as a **"fat" artifact**, and the label doubles up too.
+
+**Fix — dedupe at draw time:** the guide renderer collects the lines both
+passes request (N11 edge guides + the gap-snap line, per axis) and draws each
+unique coordinate ONCE — same-axis lines within <1px collapse into one line
+with one label. Ordering/priority does not matter visually (they are
+identical); what matters is a single paint per coordinate.
+
+**Also (label format):** remove the `top:` / `left:` prefixes from the U99
+position readouts — **the value alone is enough** (`240` instead of
+`left: 240`); the orientation and placement of the label already disambiguate
+the axis.
+
+**Test:** browser case with an element positioned so a gap snap and an edge
+snap coincide — assert exactly one guide-line element per coordinate and one
+label; label text is the bare number.
+
+**Relates:** [B113](roadmap-archive/B113.md) ✅ / B116 (the gap-snap lines),
+N11 (edge guides — the other pass), U99 (the readout whose format this
+trims).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
