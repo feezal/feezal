@@ -76,6 +76,7 @@ Work in progress — priorities and scope are not final.
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
 - [U97 — Slim editor footer/status line 💡](#u97--slim-editor-footerstatus-line-)
 - [U98 — Palette colors in editor light mode ⚠️ needs refinement](#u98--palette-colors-in-editor-light-mode-️-needs-refinement)
+- [U99 — Snap helper lines: position readout on each line 💡](#u99--snap-helper-lines-position-readout-on-each-line-)
 
 
 **Architecture & Infrastructure**
@@ -2382,6 +2383,31 @@ the tile labels).
 **Relates:** the editor dark-mode discipline (N43 — this is its light-mode
 mirror), element-spec `palette.color` (docs note: color is authored against
 the dark editor; light mode derives), U45 (palette/picker — same tiles).
+
+
+### U99 — Snap helper lines: position readout on each line 💡
+
+**Requested (08/2026).** The snap guide lines should carry a small label with
+the line's canvas position — the same treatment the U89 gap arrows give their
+pixel distance:
+
+- **Vertical lines:** the text (e.g. `left: 240`) **rotated 90° to the left**
+  so it runs parallel to the line, placed **near the bottom of the canvas**.
+- **Horizontal lines:** the text (e.g. `top: 320`) **unrotated, above the
+  line**, placed **near the left end of the canvas**.
+
+Values are view-relative pixels (the coordinates the element's `left`/`top`
+styles use, not viewport coords — and B114's scroll-offset audit applies here
+too: the readout must stay correct on a scrolled canvas). Same styling family
+as the gap-arrow px labels (small, dotted-guide-colored, never intercepting
+pointer events). Applies to all four N11 guide lines (both vertical, both
+horizontal) and, where sensible, the B113 full-canvas gap-snap lines carry
+the same readout.
+
+**Relates:** N11 (the four-side guide lines this labels),
+[U89](roadmap-archive/U89.md) ✅ (the px-label precedent + styling), B113
+(gap-snap canvas lines — same label treatment), B114 (coordinate-space audit
+— the readout must use the corrected values).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
