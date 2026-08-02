@@ -220,3 +220,102 @@ describe('absolute views establish a containing block', () => {
         }
     });
 });
+
+
+/**
+ * U95 — E50 conditions on a view.
+ *
+ * feezal-view is a LitElement, not a FeezalElement, so it needs the host
+ * contract itself: a `conditions` attribute, a FeezalConditions instance,
+ * getProperty(), and connect/disconnect on the right lifecycle points.
+ *
+ * The action allowlist is the interesting part. Hiding a view was decided
+ * against, and it is enforced in the ENGINE rather than only in the inspector —
+ * a hand-edited attribute (source mode, an import, an AI edit) must not be able
+ * to reintroduce a display:none view with navigation still pointing at it.
+ */
+describe('conditions on a view (U95)', () => {
+    const rows = list => JSON.stringify(list);
+    let subscribed, released;
+
+    /** Record what the view wires, whatever the shared harness provides. */
+    function recordConnection() {
+        subscribed = [];
+        released = [];
+        feezal.connection.sub = (topic, cb) => {
+            subscribed.push(topic);
+            return {topic, cb};
+        };
+        feezal.connection.unsubscribe = sub => released.push(sub?.topic);
+    }
+
+    function makeView(conditions) {
+        const view = document.createElement('feezal-view');
+        view.setAttribute('name', 'main');
+        if (conditions) view.setAttribute('conditions', conditions);
+        document.body.append(view);
+        return view;
+    }
+
+    beforeEach(() => recordConnection());
+
+    it('declares only class/style/attribute as accepted actions', async () => {
+        const {VIEW_CONDITION_ACTIONS} = await import('../src/feezal-view.js');
+        expect(VIEW_CONDITION_ACTIONS).toEqual(['class', 'style', 'attribute']);
+        expect(VIEW_CONDITION_ACTIONS).not.toContain('hide');
+        expect(VIEW_CONDITION_ACTIONS).not.toContain('show');
+    });
+
+    it('reads a nested payload path — the fallback would have ignored it', async () => {
+        // getProperty() is the whole reason step 1a existed: without it the
+        // engine reads plain msg.payload and `property` is silently dropped.
+        const view = makeView();
+        await view.updateComplete;
+        expect(view.getProperty({payload: {val: 7}}, 'payload.val')).toBe(7);
+        expect(view.getProperty({payload: 'ON'}, 'payload')).toBe('ON');
+        view.remove();
+    });
+
+    it('subscribes to its condition topics in the viewer', async () => {
+        feezal.isEditor = false;
+        const view = makeView(rows([
+            {subscribe: 'home/flag', action: 'class', value: '1', class: 'lit'},
+        ]));
+        await view.updateComplete;
+        expect(subscribed).toContain('home/flag');
+        view.remove();
+    });
+
+    it('DROPS a hide row instead of acting on it', async () => {
+        feezal.isEditor = false;
+        const view = makeView(rows([
+            {subscribe: 'home/secret', action: 'hide', value: '1'},
+            {subscribe: 'home/flag', action: 'class', value: '1', class: 'lit'},
+        ]));
+        await view.updateComplete;
+        expect(subscribed).toContain('home/flag');          // the allowed row wired
+        expect(subscribed).not.toContain('home/secret');    // the hide row did not
+        view.remove();
+    });
+
+    it('releases its subscriptions when the view goes away', async () => {
+        feezal.isEditor = false;
+        const view = makeView(rows([
+            {subscribe: 'home/flag', action: 'class', value: '1', class: 'lit'},
+        ]));
+        await view.updateComplete;
+        view.remove();
+        expect(released).toContain('home/flag');
+    });
+
+    it('does nothing at all in the editor', async () => {
+        feezal.isEditor = true;
+        const view = makeView(rows([
+            {subscribe: 'home/flag', action: 'class', value: '1', class: 'lit'},
+        ]));
+        await view.updateComplete;
+        expect(subscribed).not.toContain('home/flag');
+        view.remove();
+        feezal.isEditor = false;
+    });
+});

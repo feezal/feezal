@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2019-2026 Sebastian Raff — feezal viewer runtime
 import {LitElement, html, css} from 'lit';
+import {FeezalConditions} from '@feezal/feezal-element/feezal-conditions.js';   // U95
+import {getMessageProperty} from '@feezal/feezal-element';   // U95
 
 /**
  * U90 — child-position values whose children are laid out by the CONTAINER
@@ -11,6 +13,17 @@ import {LitElement, html, css} from 'lit';
  * container mode never has to be hunted down across the editor again.
  * `static` is U41's legacy alias for `flow`.
  */
+/**
+ * U95 — the condition actions a VIEW accepts.
+ *
+ * Deliberately no show/hide. A hidden view is not a `display:none`: it would
+ * have to disappear from layout-app drawer entries, basic-navigation tabs and
+ * swipe order, and refuse direct routing by falling through to the first
+ * visible view. Anything less leaves navigation pointing at something that is
+ * not there, so the action is not offered at all.
+ */
+export const VIEW_CONDITION_ACTIONS = ['class', 'style', 'attribute'];
+
 const FLOW_LIKE = new Set(['flow', 'grid', 'static']);
 export const isFlowLike = view => FLOW_LIKE.has(view?.childPosition);
 
@@ -48,6 +61,9 @@ class FeezalView extends LitElement {
         // U51 — per-view theme (full class name or bare suffix; empty = site theme)
         theme: {type: String, reflect: true},
         childPosition: {type: String, attribute: 'child-position', reflect: true},
+        // U95 — E50 conditions on a view. Class/style/attribute only; see
+        // VIEW_CONDITION_ACTIONS below for why hiding is not among them.
+        conditions: {type: String, attribute: 'conditions'},
         // U41 — flow layout knobs (only meaningful when child-position="flow").
         flowGap:       {type: String, attribute: 'flow-gap', reflect: true},
         flowDirection: {type: String, attribute: 'flow-direction', reflect: true},
@@ -254,6 +270,7 @@ class FeezalView extends LitElement {
     constructor() {
         super();
         this.childPosition = 'absolute';
+        this._conditions = new FeezalConditions(this, {actions: VIEW_CONDITION_ACTIONS});
         this._gridSheet = null;
         this._gridObserver = null;
         this._gridSyncPending = false;
@@ -261,6 +278,7 @@ class FeezalView extends LitElement {
 
     disconnectedCallback() {
         super.disconnectedCallback();
+        this._conditions.disconnect();   // U95 — releases its subscriptions
         this._gridObserver?.disconnect();
         this._gridObserver = null;
     }
@@ -296,6 +314,11 @@ class FeezalView extends LitElement {
         }
         if (changed.has('theme')) {
             this._applyThemeClass();
+        }
+        // U95 — the attribute can change under the editor (source mode, undo,
+        // history restore), and connect() re-reads it and rewires itself.
+        if (changed.has('conditions')) {
+            this._conditions.connect();
         }
         // U41 — the legacy `static` value is aliased to `flow` at load (no file
         // migration; the next save writes `flow`).
@@ -426,6 +449,15 @@ class FeezalView extends LitElement {
         set('--feezal-flow-align', this.flowAlign || '');
     }
 
+    /**
+     * U95 — the host contract FeezalConditions needs. Without it the engine
+     * falls back to plain `msg.payload` and silently ignores a configured
+     * property path, so a condition on nested JSON would never match.
+     */
+    getProperty(obj, prop) {
+        return getMessageProperty(obj, prop);
+    }
+
     _visibleChange(visible) {
         // Hide/show the view itself so inactive views don't stack on screen.
         this.style.display = visible ? '' : 'none';
@@ -468,6 +500,10 @@ class FeezalView extends LitElement {
         // switches move nodes around) — no property changes, so updated()
         // would not fire.
         this._syncGrid();
+        // U95: connect() is idempotent and no-ops in the editor, so calling it
+        // here AND from updated() is safe — which is what makes a view that is
+        // re-attached on a view switch pick its subscriptions back up.
+        this._conditions.connect();
         if (!feezal.isEditor && this.subscribe) {
             feezal.connection.sub(this.subscribe + '/addclass', message => {
                 this.classList.add(message.payload);

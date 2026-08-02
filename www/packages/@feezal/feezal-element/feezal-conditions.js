@@ -91,9 +91,22 @@ export function evalCondition(operator, compareValue, payload) {
 }
 
 export class FeezalConditions {
-    /** @param {HTMLElement} host element the effects apply to (needs getProperty()) */
-    constructor(host) {
+    /**
+     * @param {HTMLElement} host element the effects apply to (needs getProperty())
+     * @param {object}   [opts]
+     * @param {string[]} [opts.actions]  restrict the accepted actions.
+     *
+     * U95: `feezal-view` accepts only class/style/attribute. Hiding a view was
+     * decided against — a `display:none` view leaves drawer entries, navigation
+     * tabs and direct routes pointing at something invisible, and doing it
+     * properly means reaching into every navigation surface. Enforced HERE
+     * rather than only in the inspector, so a hand-edited `conditions`
+     * attribute (source mode, an import, an AI edit) cannot reintroduce the
+     * state we rejected.
+     */
+    constructor(host, {actions} = {}) {
         this.host = host;
+        this._allowed = actions ? new Set(actions) : null;
         this._subs = [];
         this._rows = [];
         this._matched = [];
@@ -116,7 +129,8 @@ export class FeezalConditions {
         this._lastRaw = raw;
         if (typeof feezal === 'undefined' || feezal.isEditor) return;
 
-        this._rows = parseConditions(raw);
+        this._rows = parseConditions(raw)
+            .filter(row => !this._allowed || this._allowed.has(row.action));
         if (this._rows.length === 0) return;
 
         this._matched = this._rows.map(() => false);
