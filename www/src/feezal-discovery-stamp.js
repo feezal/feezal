@@ -819,6 +819,28 @@ export function slugifyViewName(label) {
     return s || 'view';
 }
 
+/**
+ * N41 — one collision-free view name, sanitized the same way everywhere.
+ *
+ * There were two of these: the editor's stripped `"'<>`, trimmed and capped the
+ * length; the generate wizard's did no sanitizing at all, so the wizard could
+ * mint a view name the editor itself would have rejected (quotes and angle
+ * brackets go into an attribute selector and into serialized markup, and an
+ * unbounded label makes an unusable tab).
+ *
+ * @param {string} base            the desired name
+ * @param {Set<string>|Iterable}   taken  names already in use
+ */
+export function uniqueViewName(base, taken = []) {
+    const used = taken instanceof Set ? taken : new Set(taken);
+    const clean = String(base || '').replace(/["'<>]/g, '').trim().slice(0, 60) || 'view';
+    if (!used.has(clean)) return clean;
+    let n = 2;
+    while (used.has(`${clean} ${n}`)) n++;
+    return `${clean} ${n}`;
+}
+
+
 // ── U77: data-driven zone clustering ────────────────────────────────────────
 // The lexicon only knows dictionary room words. People also label devices with
 // custom zones a lexicon can never hold — a nickname, a person's/pet's name, a

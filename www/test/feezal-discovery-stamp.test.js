@@ -19,6 +19,7 @@ import {
     multivalueMergeGroups,
     multivalueFromEntities,
     applyMultivalueFill,
+    uniqueViewName
 } from '../src/feezal-discovery-stamp.js';
 
 // U62: a fixture that routes the entity `name` → `label` (like every E137
@@ -661,5 +662,53 @@ describe('E165 - multivalue device-fill (merge groups, grid derivation, stamping
         const bare = document.createElement('div');
         applyMultivalueFill(bare, [sensor('m2', 'a'), sensor('m2', 'b')], {deviceId: 'm2'});
         expect(bare.hasAttribute('subscribe-availability')).toBe(false);
+    });
+});
+
+
+/**
+ * N41 — one view-name rule for the editor and the generate wizard.
+ *
+ * There were two implementations: the editor's sanitized (stripped `"'<>`,
+ * trimmed, capped the length); the wizard's did not sanitize at all, so the
+ * wizard could mint a name the editor itself would have rejected. Quotes and
+ * angle brackets end up in an attribute selector and in serialized markup, and
+ * an unbounded label makes an unusable tab.
+ */
+describe('uniqueViewName (N41)', () => {
+    it('returns the name unchanged when it is free', () => {
+        expect(uniqueViewName('Kitchen', ['Hall'])).toBe('Kitchen');
+    });
+
+    it('suffixes on collision, and keeps counting past an existing suffix', () => {
+        expect(uniqueViewName('Kitchen', ['Kitchen'])).toBe('Kitchen 2');
+        expect(uniqueViewName('Kitchen', ['Kitchen', 'Kitchen 2'])).toBe('Kitchen 3');
+    });
+
+    it('strips quotes and angle brackets — they break selectors and markup', () => {
+        // This is the case the wizard used to let through.
+        expect(uniqueViewName('Bob\'s "Room" <b>', [])).toBe('Bobs Room b');
+    });
+
+    it('trims and caps the length', () => {
+        expect(uniqueViewName('   Padded   ', [])).toBe('Padded');
+        expect(uniqueViewName('x'.repeat(200), [])).toHaveLength(60);
+    });
+
+    it('falls back to "view" when nothing usable is left', () => {
+        for (const junk of ['', '   ', '"""', null, undefined]) {
+            expect(uniqueViewName(junk, [])).toBe('view');
+        }
+    });
+
+    it('accepts a Set or any iterable of taken names', () => {
+        expect(uniqueViewName('Kitchen', new Set(['Kitchen']))).toBe('Kitchen 2');
+        expect(uniqueViewName('Kitchen', [])).toBe('Kitchen');
+        expect(uniqueViewName('Kitchen')).toBe('Kitchen');       // taken omitted
+    });
+
+    it('collides on the SANITIZED name, not the raw one', () => {
+        // "Room" is taken; a raw '"Room"' must not sneak past as a new name.
+        expect(uniqueViewName('"Room"', ['Room'])).toBe('Room 2');
     });
 });

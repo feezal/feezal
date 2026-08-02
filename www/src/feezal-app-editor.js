@@ -26,6 +26,7 @@ import './feezal-icon.js';
 import './feezal-icon-input.js';
 import './feezal-sidebar-inspector.js';
 import {stripCanvasZIndex} from './feezal-canvas-geometry.js';   // A37
+import {uniqueViewName} from './feezal-discovery-stamp.js';   // N41
 import {reconcileFolders, cloneTree, folderViewCount, folderContainsView,
     locateNode, findFolder, collectFolders, maxFolderDepth, folderNameExists,
     findViewParent, renameViewInTree, tabItems, applyFolderDrop}
@@ -1786,14 +1787,9 @@ class FeezalAppEditor extends LitElement {
         else this._applyAiHtml(htmlStr);
     }
 
-    /** A collision-free view name derived from `base`. */
+    /** A collision-free view name derived from `base` (N41: one shared rule). */
     _uniqueViewName(base) {
-        const clean = String(base || '').replace(/["'<>]/g, '').trim().slice(0, 60) || 'view';
-        const names = new Set([...feezal.views].map(v => v.getAttribute('name')));
-        if (!names.has(clean)) return clean;
-        let n = 2;
-        while (names.has(`${clean} ${n}`)) n++;
-        return `${clean} ${n}`;
+        return uniqueViewName(base, [...feezal.views].map(v => v.getAttribute('name')));
     }
 
     /** Create a new view from AI-proposed HTML (design mode) and navigate to it. */

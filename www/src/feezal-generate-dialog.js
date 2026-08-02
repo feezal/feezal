@@ -11,7 +11,7 @@ import '@shoelace-style/shoelace/dist/components/spinner/spinner.js';
 import {stampDiscovery, resolveElementTag, layoutGrid, knownComponents, discoveryLabel,
     groupForApp, functionBucket, slugifyViewName, UNKNOWN_ROOM,
     assignRoom, lexiconWordsForLabel, applyFrigateLiveFeed, guessFrigateUrl,
-    multivalueMergeGroups, applyMultivalueFill} from './feezal-discovery-stamp.js';
+    multivalueMergeGroups, applyMultivalueFill, uniqueViewName} from './feezal-discovery-stamp.js';
 import {RangeSelect} from './feezal-range-select.js';
 import {isFlowLike} from './feezal-view.js';   // U90
 import './feezal-icon-input.js';   // U78: the shared icon picker for the room list
@@ -1231,12 +1231,13 @@ class FeezalGenerateDialog extends LitElement {
         this._newRoomName = '';
     }
 
-    /** Unique view name (the buckets may collide with non-view names only). */
+    /**
+     * Unique view name (the buckets may collide with non-view names only).
+     * N41: this used to skip sanitizing entirely, so the wizard could mint a
+     * name the editor would have rejected — both go through one rule now.
+     */
     _uniqueViewName(base, taken) {
-        let name = base;
-        let i = 2;
-        while (taken.has(name)) name = `${base} ${i++}`;
-        return name;
+        return uniqueViewName(base, taken);
     }
 
     /** U74: apply the chosen family's site theme — through the themes sidebar's
