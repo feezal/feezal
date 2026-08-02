@@ -387,6 +387,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U94 — layout-app: themed thin drawer scrollbar ✅ done](U94.md)
 - [U95 — View inspector: Conditions and MQTT tabs for views ✅ done](U95.md)
 - [U96 — Identifying attributes: label-less elements lead with their own identity ✅ done](U96.md)
+- [U97 — Slim editor footer/status line ✅ done](U97.md)
 - [U99 — Snap helper lines: position readout on each line ✅ done](U99.md)
 - [U100 — Editor min-width instead of broken narrow layouts ✅ done](U100.md)
 - [U101 — Snap helper-line color configurable + alpha in the editor color pickers ✅ done](U101.md)

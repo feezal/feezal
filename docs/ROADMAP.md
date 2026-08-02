@@ -73,7 +73,6 @@ Work in progress — priorities and scope are not final.
 - [U84 — Canvas zoom, pan and fit-to-view](#u84--canvas-zoom-pan-and-fit-to-view)
 - [U85 — Toast/notification service: route the remaining call sites](#u85--toastnotification-service-route-the-remaining-call-sites--service-shipped) 🔨 *(service shipped)*
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
-- [U97 — Slim editor footer/status line 💡](#u97--slim-editor-footerstatus-line-)
 - [U98 — Palette colors in editor light mode ⚠️ needs refinement](#u98--palette-colors-in-editor-light-mode-️-needs-refinement)
 
 
@@ -2333,6 +2332,29 @@ badges — deliberately deferred.
 
 **Found by audit (08/2026): none exist** — the canvas only scrolls (`feezal-site` overflow:auto); no zoom, no space-drag pan, no fit/overview for large dashboards.
 - `Ctrl+wheel` zoom around the cursor, `Ctrl+0` = 100 %, `Ctrl+Shift+0` (or a toolbar control) = fit view; space-held drag pans; zoom % indicator in the toolbar.
+**Attempted 08/2026 — reverted, with two measurements to start from.**
+
+1. **CSS `zoom` is not the shortcut it looks like.** It scales layout, so
+   `feezal-site`'s scroll extent adapts by itself and no wrapper is needed —
+   but probed in a real editor at 0.5, a pointerdown on the element's visual
+   centre produced **no interact drag at all** (zero snap-target calls, element
+   unmoved), while its rect had halved correctly.
+2. **`transform: scale()` alone fails the same way**, and the margin trick for
+   the scroll extent (`margin-right: offsetWidth * (z - 1)`, avoiding a wrapper
+   the VIEWER would share) has its own problem: the view is a flex child, so a
+   large negative margin changes its layout size and the element moves out from
+   under the cursor mid-gesture. Mid-drag `elementFromPoint` returned the view,
+   not the element.
+
+So the open question is not which scaling property to use — it is why interact
+never picks up the gesture inside a scaled subtree. Answer that first; the
+coordinate conversions themselves are straightforward and were written (drag
+delta and palette drop divide by the scale, `_dragRestriction` multiplies the
+layout figures it mixes with client rects).
+
+The zoom indicator's home is settled: the [U97](roadmap-archive/U97.md) ✅
+footer, not a floating tray.
+
 - Implementation sketch: `transform: scale()` on the view container with interact.js coordinate mapping (interact supports a `deltaScale`/transform-aware setup); the snap/guide math already corrects for scroll (B8) and must learn the scale factor. The drag-autoscroll compensation (`inspector.js:2006`) is the risky integration point — budget for it.
 - Out of scope here: minimap (💡 future note only).
 
@@ -2358,34 +2380,6 @@ AI apply results, and the asset upload/rename outcomes.
 - `type: 'json'` attributes (camera `chips`, lottie `map`, layout-app `items`, …) fall through to a **plain text input**; invalid JSON is written to the attribute silently. And where a `validator` rejects, the ONLY feedback is a red border (`.attr.invalid`) — no message, while the field keeps the rejected value.
 - Remedy: a `json` control = the objectList editor's proven raw-fallback pattern (pretty-print on focus-out, parse check with an inline message line under the field, "fix it to get the editor" hint); a shared inline validation-message slot for every control (the red border gets a text); `validator` errors surface their string.
 - **Section collapse state is discarded on every selection change** (`_initCollapsedSections` re-runs per selection) — remember the user's expand/collapse per element TYPE for the session.
-
-### U97 — Slim editor footer/status line 💡
-
-**Requested (08/2026).** A slim, always-visible status line at the bottom of
-the editor — the classic IDE footer. Candidate content (pick and arrange
-during design; all cheap reads of existing state):
-
-- **Selection echo** — the currently selected element(s): tag + label (a
-  second place beside the inspector header; useful while the sidebar shows
-  another tab).
-- **Site stats** — number of views, number of elements, serialized-size
-  estimate, number of MQTT subscriptions (live from the connection wrapper),
-  maybe active theme.
-- **Zoom state** — the current canvas zoom (and fit/100% controls), so
-  **U84's floating zoom tray could be removed** in favour of this fixed home.
-- Later candidates: connection state (pairs with U93's dot relocation),
-  source-mode caret position, last-deploy time.
-
-Slim = one text-height line, editor-chrome styling (dark-mode via the
---feezal-* palette propagation — put the footer in the :host(.dark) list from
-day one, B102's lesson), never overlapping the canvas (layout row, not
-overlay). Every segment optional/configurable is NOT required for v1 — start
-with a sensible fixed set.
-
-**Relates:** U84 (zoom tray — absorbed here), U93 (top-bar slimming — the
-footer takes load off the top bar), B102 ✅ (dark-mode propagation lesson),
-N42/A37 (app-editor structure — add the footer as its own small component).
-
 
 ### U98 — Palette colors in editor light mode ⚠️ needs refinement
 

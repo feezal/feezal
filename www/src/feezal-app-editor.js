@@ -48,6 +48,7 @@ import './feezal-export-dialog.js';
 import './feezal-generate-dialog.js';
 import './feezal-connection-overlay.js';
 import './feezal-toast.js';    // U85: the editor's notification channel
+import './feezal-footer.js';   // U97: the status line
 import './feezal-sidebar-layers.js';   // U87: the Layers sidebar panel
 import {clippyStyles, clippyMarkup, clippyEnabled} from './feezal-clippy.js';
 
@@ -227,9 +228,17 @@ class FeezalAppEditor extends LitElement {
         }
         .nav-btn:hover { color: #333; background: rgba(0,0,0,0.07); }
         .nav-btn.active { color: #333; background: rgba(0,0,0,0.1); }
+        /* U97 — the two chrome strips the canvas has to make room for: the 42px
+           top bar and the footer. Named once so the footer's height lives in a
+           single place; #container measures against both. */
+        :host { --feezal-footer-height: 22px; }
         #container {
             width: 100%; display: flex; flex-flow: row; position: absolute;
-            height: calc(100% - 42px);
+            height: calc(100% - 42px - var(--feezal-footer-height));
+        }
+        #footer {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            height: var(--feezal-footer-height);
         }
         #container-view {
             display: flex; flex-direction: column; position: relative; width: 100%; height: 100%;
@@ -822,6 +831,10 @@ class FeezalAppEditor extends LitElement {
            render white in a dark editor. Same shape as the connection overlay
            before it: the component is dark-ready, the shell never fed it. */
         :host(.dark) feezal-toast,
+        /* U97 — on the list from day one, which is the whole of B102's lesson:
+           the footer reads the palette with light fallbacks, so being absent
+           here would render it white in a dark editor. */
+        :host(.dark) feezal-footer,
         :host(.dark) feezal-ai-chat {
             --feezal-bg:     #2e2e2e;
             --feezal-bg-sub: #262626;
@@ -1459,6 +1472,12 @@ class FeezalAppEditor extends LitElement {
                     </div>` : ''}
             </div>
 
+            <!-- U97 — a layout ROW under the container, never an overlay: the
+                 container's height is reduced by exactly this strip, so the
+                 footer cannot cover the bottom edge of the canvas, which is
+                 where elements get dragged to. -->
+            <feezal-footer id="footer"></feezal-footer>
+
             <sl-dialog id="viewdialog" label="Rename View"
                 @sl-initial-focus="${e => { e.preventDefault(); this.shadowRoot.querySelector('#viewnameinput')?.focus(); }}">
                 <sl-input id="viewnameinput" label="View name"
@@ -1761,6 +1780,7 @@ class FeezalAppEditor extends LitElement {
             // handled there too, via _sourceEditorActive().
         };
         document.addEventListener('keydown', this._onDocKeySourceMode);
+
 
         // Fetch version info (non-blocking — best effort).
         fetch('/api/version')
