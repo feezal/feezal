@@ -13,6 +13,9 @@ import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/button/button.js';
 
 import {loadMonaco, syncMonacoStyles} from './feezal-monaco-loader.js';
+// U89/B112/B113 — the gap-guide marker pool sizes follow from the candidate
+// shape, so they come from the geometry module rather than being repeated here.
+import {GAP_ARROW_COUNT, GAP_LINE_COUNT} from './feezal-canvas-gaps.js';
 import {viewFromHash} from './hash-view.js';
 import './feezal-welcome-tour.js';
 import './feezal-connect-dialog.js';
@@ -518,7 +521,7 @@ class FeezalAppEditor extends LitElement {
            match reads as "these two are the same". Drawn in the selection
            colour rather than the guides' grey: this is an active proposal, not
            a passive alignment hint. */
-        #gap1, #gap2 {
+        .gap-arrow {
             position: absolute; display: none; z-index: 6; pointer-events: none;
             border-top: 1px dotted var(--sl-color-primary-600, #0284c7);
             color: var(--sl-color-primary-600, #0284c7);
@@ -526,26 +529,34 @@ class FeezalAppEditor extends LitElement {
             padding-top: 3px; box-sizing: content-box;
         }
         /* end ticks, so a short span still reads as a measured span */
-        #gap1::before, #gap2::before, #gap1::after, #gap2::after {
+        .gap-arrow::before, .gap-arrow::after {
             content: ''; position: absolute; top: -4px;
             width: 1px; height: 9px; background: currentColor;
         }
-        #gap1::before, #gap2::before { left: 0; }
-        #gap1::after,  #gap2::after  { right: 0; }
+        .gap-arrow::before { left: 0; }
+        .gap-arrow::after  { right: 0; }
         /* Vertical gaps get a vertical span: the dotted rule turns on its side
            and the end ticks with it, otherwise a column of cards was annotated
            with a horizontal bar that measured nothing. */
-        #gap1.vertical, #gap2.vertical {
+        .gap-arrow.vertical {
             border-top: 0; border-left: 1px dotted currentColor;
             padding: 0 0 0 5px; text-align: left;
             display: flex; align-items: center;
         }
-        #gap1.vertical::before, #gap2.vertical::before,
-        #gap1.vertical::after,  #gap2.vertical::after {
+        .gap-arrow.vertical::before, .gap-arrow.vertical::after {
             left: -4px; width: 9px; height: 1px;
         }
-        #gap1.vertical::before, #gap2.vertical::before { top: 0; }
-        #gap1.vertical::after,  #gap2.vertical::after  { top: auto; bottom: 0; }
+        .gap-arrow.vertical::before { top: 0; }
+        .gap-arrow.vertical::after  { top: auto; bottom: 0; }
+        /* B113 — the edges a gap is measured against, drawn across the whole
+           canvas so every arrow visibly ends ON a line at a right angle. Same
+           dotted grey as the edge-snap guides: these are context for the
+           proposal, not the proposal itself (which stays in the accent colour). */
+        .gap-vline, .gap-hline {
+            position: absolute; display: none; z-index: 5; pointer-events: none;
+        }
+        .gap-vline { width: 1px; border-right: 1px dotted #cccccc; }
+        .gap-hline { height: 1px; width: 100%; left: 0; border-bottom: 1px dotted #cccccc; }
 
         /* Rename view dialog — now using sl-dialog (respects dark/light mode) */
         #viewdialog::part(panel) { min-width: 300px; }
@@ -1328,8 +1339,9 @@ class FeezalAppEditor extends LitElement {
                     <div id="vsnap1"></div>
                     <div id="hsnap2"></div>
                     <div id="vsnap2"></div>
-                    <div id="gap1"></div>
-                    <div id="gap2"></div>
+                    ${Array.from({length: GAP_ARROW_COUNT}, () => html`<div class="gap-arrow"></div>`)}
+                    ${Array.from({length: GAP_LINE_COUNT}, () => html`<div class="gap-vline"></div>`)}
+                    ${Array.from({length: GAP_LINE_COUNT}, () => html`<div class="gap-hline"></div>`)}
                 </div>
 
                 <div id="sidebar-resize"

@@ -1,6 +1,7 @@
 import interact from 'interactjs';
 import {LitElement, html, css} from 'lit';
 import {isFlowLike} from './feezal-view.js';   // U90
+import {hideSnapOverlays} from './feezal-canvas-geometry.js';   // A37 / B112
 
 import '@shoelace-style/shoelace/dist/components/input/input.js';
 
@@ -436,12 +437,7 @@ class FeezalPalette extends LitElement {
                     // B32(palette): the final _applySnappedPos() below calls the
                     // inspector's _snap(), which REDRAWS the guide lines — so
                     // hiding must happen AFTER it, on every exit path.
-                    const hideSnapLines = () => {
-                        for (const id of ['#vsnap1', '#vsnap2', '#hsnap1', '#hsnap2', '#gap1', '#gap2']) {
-                            const line = feezal.container.querySelector(id);
-                            if (line) line.style.display = 'none';
-                        }
-                    };
+                    const hideSnapLines = () => hideSnapOverlays(feezal.container);
 
                     if (!this.newElem) {
                         hideSnapLines();

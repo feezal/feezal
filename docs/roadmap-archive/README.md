@@ -117,6 +117,9 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B109 — Layers tree: previous view's selection stays marked after cross-view select ✅ fixed](B109.md)
 - [B110 — e2e suite intermittently red on a passing run (temp-dir teardown race) ✅ fixed](B110.md)
 - [B111 — App generation: Frigate camera elements come out with empty `src` ✅ fixed](B111.md)
+- [B112 — Gap snapping: vertical and horizontal indicators fight instead of showing together ✅ fixed](B112.md)
+- [B113 — Gap snapping: draw full-canvas helper lines so the gap arrows meet them at 90° ✅ fixed](B113.md)
+- [B114 — Snapping misplaced by the scroll offset on an undersized, scrolled browser ✅ fixed](B114.md)
 
 ## Near-term Improvements
 

@@ -2,7 +2,7 @@ import {LitElement, html, css} from 'lit';
 
 import {RubberBand} from './feezal-canvas-rubberband.js';   // A38
 import {isCanvasElement, stripCanvasZIndex, stackingSiblings, stackingState,
-    reorderElements, stashAbsoluteGeometry, restoreAbsoluteGeometry}
+    reorderElements, stashAbsoluteGeometry, restoreAbsoluteGeometry, hideSnapOverlays}
     from './feezal-canvas-geometry.js';   // A37
 import interact from 'interactjs';
 
@@ -585,10 +585,7 @@ class FeezalSidebarInspector extends LitElement {
             // immediately — they will redraw on next mousemove when still appropriate.
             if ((this._shiftDown !== prevShift || this._ctrlDown !== prevCtrl) &&
                     (this.dragElement || this.resizeElement)) {
-                for (const id of ['#vsnap1', '#vsnap2', '#hsnap1', '#hsnap2', '#gap1', '#gap2']) {
-                    const el = feezal.container.querySelector(id);
-                    if (el) el.style.display = 'none';
-                }
+                hideSnapOverlays(feezal.container);
             }
         };
         this._snapKeyUp = e => {
@@ -1463,55 +1460,88 @@ class FeezalSidebarInspector extends LitElement {
     }
 
     /**
-     * U89 — draw the two gap arrows: the span the neighbour pair already has,
-     * and the equal one being proposed.
+     * U89 — draw the gap guides: per axis, the span the neighbour pair already
+     * has and the equal one being proposed.
      *
-     * Positioned STATICALLY, on the cross-axis centre of the neighbour that
-     * supplies the gap. An earlier version put them on the dragged element's
-     * centre line, which meant they slid up and down with the pointer while
-     * measuring something that was not moving — the annotation has to stay put
-     * for the two spans to read as equal.
+     * The spans are positioned STATICALLY, on the cross-axis centre of the
+     * neighbour that supplies the gap. An earlier version put them on the
+     * dragged element's centre line, which meant they slid up and down with the
+     * pointer while measuring something that was not moving — the annotation has
+     * to stay put for the two spans to read as equal.
+     *
+     * B112 — both axes render at once. They used to share one pair of markers
+     * and the axis "closest to the drag" claimed it, so on a position where both
+     * proposals were live the two sets fought and flickered by whichever won
+     * that frame. The axes already resolve independently in `_snap()`; the
+     * annotation now does too, out of its own marker pool.
+     *
+     * B113 — every span end also gets a helper line across the whole canvas,
+     * perpendicular to the arrow, so an arrow visibly terminates ON a line at a
+     * right angle: "this span runs between these two edges". Ends are deduped —
+     * the measured and proposed spans of a rhythm candidate can share one.
      *
      * Coordinate note: the markers live inside #container-view, so y is already
      * container-relative (boxes were built as `rect.y - cvTop`) while x needs
      * `viewLeftInCv` to get there.
      */
-    _drawGapArrows(gapX, gapY, viewLeftInCv = 0) {
-        const gap1 = feezal.container?.querySelector('#gap1');
-        const gap2 = feezal.container?.querySelector('#gap2');
-        if (!gap1 || !gap2) return;
-        const hide = el => { el.style.display = 'none'; el.textContent = ''; el.classList.remove('vertical'); };
+    _drawGapGuides(gapX, gapY, viewLeftInCv = 0, snapLineTop = 0) {
+        const pool = selector => [...(feezal.container?.querySelectorAll(selector) || [])];
+        const arrows = pool('.gap-arrow');
+        const vlines = pool('.gap-vline');
+        const hlines = pool('.gap-hline');
+        if (!arrows.length) return;
 
-        // Both axes can propose at once; annotate the one the drag is actually
-        // closest to, which is also the one that wins the snap. Preferring x
-        // unconditionally drew a horizontal span while the element snapped
-        // vertically.
-        const useX = gapX && (!gapY || gapX.distance <= gapY.distance);
-        const best = useX ? gapX : gapY;
-        if (!best) { hide(gap1); hide(gap2); return; }
-        const label = `${Math.round(best.gap)}`;
-        const {anchor} = best;
+        // Collected first, applied second: the pools are shared by both axes, so
+        // nothing can be written until it is known how many each axis wants.
+        const wantArrows = [];
+        const wantVlines = [];
+        const wantHlines = [];
 
-        if (useX) {
-            // horizontal spans, parked on the anchor's vertical centre
-            const top = (anchor.top + anchor.bottom) / 2;
-            for (const [el, span] of [[gap1, best.measured], [gap2, best.proposed]]) {
-                el.classList.remove('vertical');
-                el.textContent = label;
-                el.style.cssText = `display:block;top:${top}px;` +
-                    `left:${span.from + viewLeftInCv}px;width:${Math.max(0, span.to - span.from)}px;`;
+        for (const [axis, best] of [['x', gapX], ['y', gapY]]) {
+            if (!best) continue;
+            const label = `${Math.round(best.gap)}`;
+            const {anchor} = best;
+            const ends = new Set();
+            // Cross-axis centre of the anchor — where the annotation parks.
+            const centre = axis === 'x'
+                ? (anchor.top + anchor.bottom) / 2
+                : (anchor.left + anchor.right) / 2 + viewLeftInCv;
+
+            for (const span of [best.measured, best.proposed]) {
+                const length = Math.max(0, span.to - span.from);
+                wantArrows.push({
+                    label,
+                    vertical: axis === 'y',
+                    css: axis === 'x'
+                        ? `display:block;top:${centre}px;left:${span.from + viewLeftInCv}px;width:${length}px;`
+                        : `display:block;left:${centre}px;top:${span.from}px;height:${length}px;width:0;`,
+                });
+                ends.add(Math.round(span.from));
+                ends.add(Math.round(span.to));
             }
-            return;
+
+            for (const at of ends) {
+                if (axis === 'x') {
+                    wantVlines.push(`display:block;left:${at + viewLeftInCv}px;` +
+                        `top:${snapLineTop}px;height:calc(100% - ${snapLineTop}px);`);
+                } else {
+                    wantHlines.push(`display:block;top:${at}px;`);
+                }
+            }
         }
 
-        // vertical spans, parked on the anchor's horizontal centre
-        const left = (anchor.left + anchor.right) / 2 + viewLeftInCv;
-        for (const [el, span] of [[gap1, best.measured], [gap2, best.proposed]]) {
-            el.classList.add('vertical');
-            el.textContent = label;
-            el.style.cssText = `display:block;left:${left}px;top:${span.from}px;` +
-                `height:${Math.max(0, span.to - span.from)}px;width:0;`;
-        }
+        arrows.forEach((el, i) => {
+            const want = wantArrows[i];
+            if (!want) { el.style.display = 'none'; el.textContent = ''; el.classList.remove('vertical'); return; }
+            el.classList.toggle('vertical', want.vertical);
+            el.textContent = want.label;
+            el.style.cssText = want.css;
+        });
+        const applyLines = (els, want) => els.forEach((el, i) => {
+            el.style.cssText = want[i] || 'display:none';
+        });
+        applyLines(vlines, wantVlines);
+        applyLines(hlines, wantHlines);
     }
 
     _snap(x, y) {
@@ -1626,7 +1656,7 @@ class FeezalSidebarInspector extends LitElement {
                 });
             const gapX = bestEqualGap(draggedBox, laneBoxes, 'x', {range});
             const gapY = bestEqualGap(draggedBox, laneBoxes, 'y', {range});
-            this._drawGapArrows(gapX, gapY, viewLeftInCv);
+            this._drawGapGuides(gapX, gapY, viewLeftInCv, snapLineTop);
 
             // interact.js snaps to one position per axis — the closer side wins.
             const object = {};
@@ -1877,6 +1907,44 @@ class FeezalSidebarInspector extends LitElement {
         };
     }
 
+    /**
+     * B114 — the page↔client seam for interact.js.
+     *
+     * interact works in PAGE coordinates (client + window scroll); every
+     * measurement in this file comes from `getBoundingClientRect`, which is
+     * CLIENT space. The two are identical while the page does not scroll — and
+     * the editor shell is a fixed flex layout, so normally it does not. But an
+     * UNDERSIZED window makes the shell overflow horizontally and the page
+     * itself scrolls, and then both handoffs are off by exactly that amount:
+     * measured with a 300px page scroll, the drag restriction let an element
+     * land 300px past the view's left edge and snapping stopped engaging at
+     * all (every distance inflated by 300, far outside the 24px range).
+     *
+     * Converted HERE rather than inside `_snap()` / `_dragRestriction()`: both
+     * have other callers in client space — `_snapSize()` derives client
+     * coordinates itself (interact hands size snapping plain width/height,
+     * which carries no origin) and feeds them straight in. So the shared
+     * implementations stay client-space and this is the one documented seam.
+     */
+    _snapForInteract(x, y) {
+        const {scrollX, scrollY} = window;
+        const snap = this._snap(x - scrollX, y - scrollY);
+        if (!snap) return snap;
+        if (snap.x !== undefined) snap.x += scrollX;
+        if (snap.y !== undefined) snap.y += scrollY;
+        return snap;
+    }
+
+    /** B114 — `_dragRestriction()` in the page coordinates interact expects. */
+    _restrictionForInteract() {
+        const {scrollX, scrollY} = window;
+        const r = this._dragRestriction();
+        return {
+            left: r.left + scrollX, right: r.right + scrollX,
+            top: r.top + scrollY, bottom: r.bottom + scrollY,
+        };
+    }
+
     initAbsolute(element) {
         // B80: coming back from flow, the element has no inline top/left —
         // restore what flow stashed, or fall back to where it is actually
@@ -1890,7 +1958,8 @@ class FeezalSidebarInspector extends LitElement {
                 restrict: {
                     // Always recompute — feezal.view moves in the viewport as the
                     // canvas container scrolls, so a cached rect would become stale.
-                    restriction: () => this._dragRestriction(),
+                    // B114: …and in PAGE coordinates, which is what interact reads.
+                    restriction: () => this._restrictionForInteract(),
                     elementRect: {top: 0, left: 0, bottom: 1, right: 1}
                 },
                 autoScroll: {
@@ -1900,7 +1969,9 @@ class FeezalSidebarInspector extends LitElement {
                     margin: 40
                 },
                 snap: {
-                    targets: [(x, y) => this._snap(x, y)],
+                    // B114: interact hands these PAGE coordinates and reads the
+                    // returned target back as page coordinates too.
+                    targets: [(x, y) => this._snapForInteract(x, y)],
                     relativePoints: [{x: 0, y: 0}]
                 },
                 onstart: event => {
@@ -1938,7 +2009,7 @@ class FeezalSidebarInspector extends LitElement {
                 onend: () => {
                     this.dragElement = null;
                     this._dragExtent = null;
-                    this._drawGapArrows(null, null);   // U89
+                    this._drawGapGuides(null, null);   // U89
                     // Suppress the click that browsers fire on mouseup after a drag
                     // — it would otherwise reset a multi-selection to a single element.
                     this._ignoreNextClick = true;
@@ -1990,10 +2061,7 @@ class FeezalSidebarInspector extends LitElement {
                 onend: () => {
                     this.resizeElement = null;
                     feezal.app.change();
-                    for (const id of ['#vsnap1', '#vsnap2', '#hsnap1', '#hsnap2', '#gap1', '#gap2']) {
-                        const el = feezal.container.querySelector(id);
-                        if (el) el.style.display = 'none';
-                    }
+                    hideSnapOverlays(feezal.container);
                 }
             });
     }

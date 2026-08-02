@@ -17,6 +17,26 @@
 export const isCanvasElement = el =>
     Boolean(el.localName) && (el.localName.startsWith('feezal-element-') || el.localName === 'feezal-component');
 
+/**
+ * Every canvas overlay a gesture can leave behind: the N11 edge guides and the
+ * U89 gap guides.
+ *
+ * One selector because there are three places that must hide ALL of them — drag
+ * end, palette drop, and a modifier key changing mid-gesture — and B112/B113
+ * turned the gap markers into pools. The fixed id lists those places carried
+ * silently stopped covering the second axis and the helper lines the moment the
+ * pools appeared, which is a stale-overlay bug nothing would have caught.
+ */
+export const SNAP_OVERLAY_SELECTOR =
+    '#vsnap1, #vsnap2, #hsnap1, #hsnap2, .gap-arrow, .gap-vline, .gap-hline';
+
+/** Hide every snap/gap overlay inside `root` (no-op when there is no root). */
+export function hideSnapOverlays(root) {
+    for (const el of root?.querySelectorAll?.(SNAP_OVERLAY_SELECTOR) || []) {
+        el.style.display = 'none';
+    }
+}
+
 // U33: canvas stacking is DOM order, period. Drag gestures write inline
 // z-index (the lift uses 9999) that would pollute saved sites and silently
 // defeat DOM-order stacking; sites saved before A38 also carry DragSelect's

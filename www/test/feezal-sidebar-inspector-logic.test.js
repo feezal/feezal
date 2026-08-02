@@ -204,6 +204,173 @@ describe('_dragRestriction — B8, per-axis on the view sizing mode', () => {
     });
 });
 
+/**
+ * B112/B113 — the gap guides, drawn from candidates the U89 geometry produced.
+ *
+ * The e2e suite proves this against a real drag; this pins the arithmetic that
+ * decides how many markers light up and where, which is where the two bugs were:
+ * one pair of markers shared by both axes (B112), and no helper lines at all
+ * (B113).
+ */
+describe('_drawGapGuides — both axes, plus the helper lines', () => {
+    /** Marker pools, as feezal-app-editor renders them. */
+    function makeContainer() {
+        const root = document.createElement('div');
+        const add = (cls, n) => Array.from({length: n}, () => {
+            const el = document.createElement('div');
+            el.className = cls;
+            root.append(el);
+            return el;
+        });
+        return {root, arrows: add('gap-arrow', 4), vlines: add('gap-vline', 4), hlines: add('gap-hline', 4)};
+    }
+
+    const candidate = ({gap, measured, proposed, anchor}) => ({gap, measured, proposed, anchor, distance: 3});
+    const shown = els => els.filter(el => el.style.display === 'block');
+
+    let container;
+    beforeEach(() => { container = makeContainer(); });
+
+    /** makeInspector() replaces window.feezal wholesale, so the pools go in after. */
+    function inspector() {
+        const el = makeInspector(makeView());
+        window.feezal.container = container.root;
+        return el;
+    }
+
+    const gapX = candidate({
+        gap: 50, anchor: {left: 150, right: 250, top: 0, bottom: 100},
+        measured: {from: 100, to: 150}, proposed: {from: 250, to: 300},
+    });
+    const gapY = candidate({
+        gap: 50, anchor: {left: 300, right: 400, top: 100, bottom: 150},
+        measured: {from: 50, to: 100}, proposed: {from: 150, to: 200},
+    });
+
+    it('draws BOTH axes at once — they no longer share one pair of markers', () => {
+        const el = inspector();
+        el._drawGapGuides(gapX, gapY, 0, 35);
+
+        const arrows = shown(container.arrows);
+        expect(arrows).toHaveLength(4);
+        expect(arrows.filter(a => a.classList.contains('vertical'))).toHaveLength(2);
+        expect(arrows.filter(a => !a.classList.contains('vertical'))).toHaveLength(2);
+        expect(arrows.every(a => a.textContent === '50')).toBe(true);
+    });
+
+    it('puts a helper line at every distinct span end, per axis', () => {
+        const el = inspector();
+        el._drawGapGuides(gapX, gapY, 0, 35);
+        // x ends 100/150/250/300 → four verticals; y ends 50/100/150/200 → four horizontals.
+        expect(shown(container.vlines)).toHaveLength(4);
+        expect(shown(container.hlines)).toHaveLength(4);
+        expect(shown(container.vlines).map(l => l.style.left))
+            .toEqual(['100px', '150px', '250px', '300px']);
+        expect(shown(container.hlines).map(l => l.style.top))
+            .toEqual(['50px', '100px', '150px', '200px']);
+    });
+
+    it('dedupes an end the two spans share', () => {
+        // A centred candidate whose proposed span starts where the measured one ends.
+        const touching = candidate({
+            gap: 20, anchor: {left: 0, right: 100, top: 0, bottom: 50},
+            measured: {from: 100, to: 120}, proposed: {from: 120, to: 140},
+        });
+        const el = inspector();
+        el._drawGapGuides(touching, null, 0, 35);
+        expect(shown(container.vlines).map(l => l.style.left)).toEqual(['100px', '120px', '140px']);
+    });
+
+    it('translates x by the canvas scroll delta, y is already container-relative', () => {
+        const el = inspector();
+        el._drawGapGuides(gapX, gapY, 40, 35);
+        expect(shown(container.vlines)[0].style.left).toBe('140px');   // 100 + 40
+        expect(shown(container.hlines)[0].style.top).toBe('50px');     // unchanged
+    });
+
+    it('clears every marker when there is nothing to propose', () => {
+        const el = inspector();
+        el._drawGapGuides(gapX, gapY, 0, 35);
+        el._drawGapGuides(null, null);
+        expect(shown(container.arrows)).toHaveLength(0);
+        expect(shown(container.vlines)).toHaveLength(0);
+        expect(shown(container.hlines)).toHaveLength(0);
+        expect(container.arrows.every(a => a.textContent === '')).toBe(true);
+    });
+});
+
+/**
+ * B114 — the page↔client seam.
+ *
+ * interact.js works in PAGE coordinates; every measurement in the inspector
+ * comes from getBoundingClientRect, which is CLIENT space. Identical until the
+ * page itself scrolls — which an undersized editor window makes it do — and
+ * then snapping and the drag restriction were both off by exactly the scroll.
+ *
+ * Tested here rather than only in the browser because the vertical half cannot
+ * be held still in a real drag: pulling the pointer toward the top of the window
+ * makes the browser re-scroll the page mid-gesture.
+ */
+describe('B114 — page↔client conversion at the interact boundary', () => {
+    const withScroll = (x, y, fn) => {
+        const [ox, oy] = [window.scrollX, window.scrollY];
+        Object.defineProperty(window, 'scrollX', {value: x, configurable: true});
+        Object.defineProperty(window, 'scrollY', {value: y, configurable: true});
+        try {
+            return fn();
+        } finally {
+            Object.defineProperty(window, 'scrollX', {value: ox, configurable: true});
+            Object.defineProperty(window, 'scrollY', {value: oy, configurable: true});
+        }
+    };
+
+    it('shifts the query into client space and the answer back into page space', () => {
+        const el = makeInspector(makeView());
+        el._snap = vi.fn(() => ({x: 100, y: 200, range: 24}));
+
+        const out = withScroll(300, 150, () => el._snapForInteract(340, 170));
+        // asked in client space…
+        expect(el._snap).toHaveBeenCalledWith(40, 20);
+        // …answered in page space
+        expect(out).toEqual({x: 400, y: 350, range: 24});
+    });
+
+    it('leaves an axis alone when that axis did not snap', () => {
+        const el = makeInspector(makeView());
+        el._snap = vi.fn(() => ({y: 200, range: 24}));
+        const out = withScroll(300, 150, () => el._snapForInteract(340, 170));
+        expect(out.x).toBeUndefined();
+        expect(out.y).toBe(350);
+    });
+
+    it('passes a no-snap result straight through', () => {
+        const el = makeInspector(makeView());
+        el._snap = () => undefined;
+        expect(withScroll(300, 150, () => el._snapForInteract(340, 170))).toBeUndefined();
+    });
+
+    it('is the identity while the page is not scrolled — the normal case', () => {
+        const el = makeInspector(makeView());
+        el._snap = vi.fn(() => ({x: 100, y: 200, range: 24}));
+        const out = withScroll(0, 0, () => el._snapForInteract(340, 170));
+        expect(el._snap).toHaveBeenCalledWith(340, 170);
+        expect(out).toEqual({x: 100, y: 200, range: 24});
+    });
+
+    it('offsets the restriction rect on both axes', () => {
+        const el = makeInspector(makeView({
+            x: 10, y: 20, w: 800, h: 600,
+            styleWidth: '800px', styleHeight: '600px', offsetWidth: 800, offsetHeight: 600,
+        }));
+        const client = el._dragRestriction();
+        const page = withScroll(300, 150, () => el._restrictionForInteract());
+        expect(page).toEqual({
+            left: client.left + 300, right: client.right + 300,
+            top: client.top + 150, bottom: client.bottom + 150,
+        });
+    });
+});
+
 describe('selection', () => {
     it('selecting nothing selects the view itself and announces it', () => {
         const view = makeView();

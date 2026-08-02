@@ -25,6 +25,19 @@
  * coordinate space and decides what to do with the result (draw arrows, snap).
  */
 
+/**
+ * How many markers the canvas has to hold — derived here rather than guessed in
+ * the template, because it follows straight from the candidate shape above.
+ *
+ * Every candidate draws TWO spans (the gap a neighbour pair already has, and
+ * the one being proposed), and B112 draws both axes at once, so four arrows.
+ * B113 puts a full-canvas helper line at each span END so an arrow visibly
+ * terminates on one at 90° — two spans × two ends = four lines per axis, and
+ * the two axes need different orientations, hence a pool each.
+ */
+export const GAP_ARROW_COUNT = 4;
+export const GAP_LINE_COUNT = 4;
+
 /** Do two boxes overlap on the axis ACROSS the one being measured? */
 function sharesLane(a, b, axis) {
     return axis === 'x'
