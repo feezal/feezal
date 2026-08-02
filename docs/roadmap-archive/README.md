@@ -7,7 +7,7 @@ Each entry is filed under the section its **ID prefix** belongs to — `B` Bugs,
 Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastructure,
 `D` Documentation — and sorted by number within it, so a new entry has exactly one correct place.
 
-**380 items.**
+**381 items.**
 
 ## Bugs
 
@@ -69,6 +69,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B59 — Generate wizard: numeric zigbee power sensor becomes a contact element ✅ fixed](B59.md)
 - [B60 — Homematic settling: `*-light` slider jumps with WORKING + LEVEL_NOTWORKING both wired ✅ fixed](B60.md)
 - [B62 — Gradient view background tiles/scrolls instead of staying put (Safari/iOS, PWA) ✅ fixed](B62.md)
+- [B63 — "Open viewer" does nothing on Safari/iOS (regression) ❌ no longer reproducible](B63.md)
 - [B64 — `*-switch` autodiscovery misses multi-output HmIP switch actuators (virtual-receiver grouping) ✅ fixed](B64.md)
 - [B65 — Homematic `:0` correlation (availability + battery) breaks for custom-named channels ✅ fixed](B65.md)
 - [B66 — Glass badges (battery / unavailable) overlap the card label ✅ fixed](B66.md)

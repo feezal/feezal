@@ -8,7 +8,6 @@ Work in progress — priorities and scope are not final.
 
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
-- [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
 - [B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces](#b106--discovery-ids-is-space-separated-but-mqtt-topics-may-contain-spaces)
 
 
@@ -269,41 +268,6 @@ This also **removes an existing ambiguity**: `slim` and `autohide` are independe
 **Ships with:** the missing `layout-app` controls, the generic guard test (+ its allow-list), a `docs/TESTING.md` note under the N36 block, and a line in `CLAUDE.md`'s element-authoring checklist — *"if the element has a custom inspector, add the control there too"* — since the existing checklist covers the manifest, tests and version bump but not this.
 
 **Relates:** **N6** (the custom-inspector mechanism this is inherent to), **B84** / **U64** (each adds attributes to this very element — do not repeat the gap), **E47** / **U47** (the layout-app inspector), `CLAUDE.md` §"Creating new feezal elements" (checklist that should mention it), **A32** (the sibling "declare what you use" packaging guard — same "make CI enforce the convention" idea).
-
-### B63 — "Open viewer" does nothing on Safari/iOS (regression)
-
-**Reported (07/2026).** From the editor on **Safari / iOS**, using the **open-viewer** action **does nothing** — no new tab/window opens. It **worked previously**. Surfaced while testing B62. **Clarified by reporter:** the editor was running as a **normal Safari tab with browser chrome — NOT an installed Home-Screen (standalone) app** — and the site had the **"Enable PWA" switch turned on** shortly before. **Further observations (reporter):** the failed attempts did **not** refresh the viewer that was open in the other tab; and after **closing** that other tab and trying again, **still no new viewer tab opened**.
-
-**Retracted hypothesis.** An earlier draft blamed the "`window.open` is a no-op inside an installed standalone PWA" behaviour. The reporter confirms they were in a **normal Safari tab**, so that explanation does **not** apply. In a normal iOS Safari tab, `window.open` from a genuine tap normally *does* open a tab.
-
-**What the new observations rule in/out.** "Did not refresh the other tab" + "closed it and still nothing" together mean the `window.open` call is **fully no-op'ing** — it is neither creating a tab nor navigating/reusing a background one. That **weakens** the plain "reuse-and-refresh" quirk and the SW-interference idea, and **strengthens a stale *named-window* binding**: iOS Safari keeps the `feezal-<site>` window *name*→handle mapping alive for the browsing-context session, so after the first (working) open the name is bound to a window the browser will no longer surface *or* recreate — and **closing the visible tab does not clear that session-level name binding**, which is exactly why the retry also does nothing. This fits all three facts: it worked the first time, doesn't refresh, and won't reopen after closing. It is also **independent of the PWA toggle** (the editor page is outside any service-worker scope, so nothing intercepts the `open()` call itself) — enabling PWA was most likely coincidental / just what prompted the retry.
-
-**Gesture path is fine (checked).** The action is an action-menu item ([feezal-app-editor.js:973](../www/src/feezal-app-editor.js#L973)) whose handler runs `this._actionMenuPos = null; this._view();` **synchronously** — setting a reactive property doesn't await, so user-activation is preserved into the `window.open` call. So "lost user gesture / popup-blocked" is unlikely to be the cause.
-
-**What "Enable PWA" does (relevant context).** The switch sets `viewer.pwa: true` and is **viewer-scoped only**: it registers a `display: standalone` **manifest** and a **service worker** (`sw.js`) at **`/viewer/<site>/`** ([server/src/build/pwa.js:191-259](../server/src/build/pwa.js#L191-L259)); the PWA tags are injected only into the viewer/export page. **The editor is never made a PWA** (no manifest/SW on the editor page) — matching the expectation that an editor PWA would be useless. But note: `/viewer/<site>/` is *exactly* the URL the editor's open-viewer button targets.
-
-**Analysis (do NOT fix yet).** The action is `_view()` → `window.open(base + hash, 'feezal-' + feezal.siteName)` ([feezal-app-editor.js:2222-2228](../www/src/feezal-app-editor.js#L2222-L2228)) — a **named** window target, not `_blank`. Ordered by fit with the observations:
-1. **Stale named-window binding (leading).** iOS Safari retains the `feezal-<site>` *name*→window handle for the browsing session; once bound (first, working open), later `window.open(url, 'feezal-<site>')` calls target that stale handle and no-op instead of creating a fresh tab, and **closing the visible tab doesn't clear the binding**. Explains *all three* facts (worked once · no refresh · won't reopen after close). Independent of PWA.
-2. **Named-window reuse-not-foregrounding.** A softer variant: a background tab exists/updates but iOS won't surface it. **Partly contradicted** by "did not refresh the other tab" — but keep it until the tab-switcher check (below) rules it out.
-3. **Viewer service worker / standalone manifest interfering** (from the PWA toggle). **Downgraded:** the SW is scoped to `/viewer/<site>/`, and the failing `window.open` runs on the **editor** page (out of scope), so the SW cannot intercept the `open()` call itself — it could only affect what loads *after* a tab opens, which isn't what's happening here.
-
-**Decisive experiments (run in this order):**
-1. **`_blank`/unique-name probe (most diagnostic).** Try opening the viewer URL with `target="_blank"` / `window.open(url, '_blank')` instead of the fixed `feezal-<site>` name. **Works → confirms the stale named-window binding (cause 1)** and points straight at the fix.
-2. **Reload the editor page, then open-viewer once.** A fresh page/browsing context clears Safari's name map. **First open works again → confirms the session-scoped stale-name binding.**
-3. **Tab-switcher check** right after a failed tap: is a viewer tab sitting in the background (updated or not)? **Present → cause 2 (non-foregrounding); absent → cause 1 (open fully no-op'd).**
-4. **PWA off + retry** (to formally clear the SW/manifest from the picture): expected **still broken** (confirms PWA was coincidental). If it unexpectedly *fixes* it, re-open cause 3.
-
-**Fix direction (note only, not yet implemented):** reconsider the **named target** — iOS's stale-name behaviour makes a fixed `feezal-<site>` name a poor fit. Options: use `_blank` (simplest; loses the "reuse one viewer tab" convenience — acceptable), or open via a **real anchor** the user taps (`<a href=… target="_blank" rel="noopener">`, which iOS honours most reliably) and, if tab-reuse is still wanted on desktop, keep a handle from the returned `Window` and `focus()` it rather than relying on the browser's name map. Whatever the mechanism, verify it survives repeated opens and tab-close on iOS.
-
-**Further diagnosis if still inconclusive:**
-1. **iOS version + device model**, and Safari build.
-2. **Does a plain link work?** Type/tap the viewer URL directly (`/viewer/<Site>/`) in Safari — if that opens but the button doesn't, it's the `window.open` mechanism, not the URL/route.
-3. **Remote Web Inspector** (macOS Safari → Develop → *iPhone*): watch the **console** on tap and confirm `_view()` fires and what `window.open` **returns** — `null` = blocked/suppressed; a `Window` object whose tab never surfaces = the stale/hidden named-window case.
-4. **Regression bisect (only if `_blank` also fails):** was the trailing-slash **B39** change or any recent top-bar/action-menu rework in the window that "previously worked"?
-
-**Ships with (once diagnosed):** the reworked open mechanism (named-target dropped/reconsidered, or anchor-based), a TESTING.md note (open viewer from editor works repeatedly in a Safari tab on iOS — including after closing the viewer tab — PWA on **and** off), and a regression guard if a code change is implicated.
-
-**Relates:** **[B62](roadmap-archive/B62.md)** ✅ (found in the same iOS session), `feezal-app-editor` `_view()` / the top-bar open-viewer action, **`server/src/build/pwa.js`** (the viewer-scoped SW/manifest the PWA toggle registers — a suspect for cause 2), A18 (kiosk / iOS is a primary target — opening/navigating the viewer must work there), the history-panel preview which uses the same `window.open` pattern ([feezal-sidebar-history.js:183](../www/src/feezal-sidebar-history.js#L183)) and likely shares the fault on iOS.
 
 ### B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces
 
