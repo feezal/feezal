@@ -2350,9 +2350,13 @@ the dark editor; light mode derives), U45 (palette/picker — same tiles).
    alpha correctly — the selection ring uses an `--feezal-selection-rgb`
    triplet, which needs a small adaptation for alpha.
 
-**Relates:** U99/B113/B116/B117 (the guide-line family this colors), U65/U66
-✅ (the alpha picker to reuse), the editor-settings persistence
-(selection/grid color precedent).
+**Relates:** the guide-line family this colors — [U99](roadmap-archive/U99.md)
+✅ (the position readout, which inherits the line's colour),
+[B113](roadmap-archive/B113.md) ✅ / [B116](roadmap-archive/B116.md) ✅ (the
+gap helper lines), [B117](roadmap-archive/B117.md) ✅ (one paint per
+coordinate — a colour with alpha makes a double-draw visible again, so the
+dedupe has to hold) — plus U65/U66 ✅ (the alpha picker to reuse) and the
+editor-settings persistence (selection/grid color precedent).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
