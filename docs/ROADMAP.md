@@ -328,16 +328,30 @@ calls it when `_frigateUrl` is set. Since `events-camera` WAS stamped, the
 entity reached the camera map — the live-feed rewrite specifically did not
 run. Narrowed suspects, in likelihood order:
 
-1. **`_frigateUrl` empty at generate time** — the URL row's `sl-input` may
-   commit on `sl-change` (blur) only; typing the URL and clicking straight
-   into the flow can leave the state unset. Check the binding (`sl-input` →
-   use `@sl-input` or read the field value at generate).
-2. **`entity.source !== 'frigate'` on the App path** — the guard in
-   `applyFrigateLiveFeed` requires `source: 'frigate'`; verify the entity
-   objects the App bucket loop stamps still carry `source` (the review/assign
-   round-trips might strip or copy entities).
-3. **A camera-specific stamp path bypassing `_stampEntity`** (multivalue/merge
-   branches).
+**Narrowed to one suspect (08/2026), measured:**
+
+1. ~~`_frigateUrl` empty at generate time~~ — **ruled out.** The row binds
+   `@sl-input`, so it commits on every keystroke, not on blur.
+2. **`entity.source !== 'frigate'` on the App path — THIS ONE.** Driving
+   `applyFrigateLiveFeed` with a recognizer-shaped entity returns `true` and
+   stamps `src=<base>/api/terrasse` + `type=mjpeg` + `pause-when-hidden`
+   correctly; it returns `false` in exactly two cases — no `source: 'frigate'`,
+   or no resolvable camera name. Since `events-camera` **was** stamped,
+   `config.camera_name` survived, so `config` reached the stamp intact while
+   `source` did not.
+3. ~~A camera path bypassing `_stampEntity`~~ — **ruled out.** There are exactly
+   two stamp call sites (`feezal-generate-dialog.js` ~1001 and ~1399) and both
+   go through `_stampEntity`.
+
+**So: find where the entity is rebuilt without `source`** between the
+recognizer (`server/src/mqtt/recognizers/frigate.js`, which sets
+`source: 'frigate'`) and `plan.entity` in the App bucket loop — the review /
+room-assign / `_mvPlan` round-trip is the place to look, i.e. something
+constructing `{…}` from picked fields instead of passing the object through.
+Fix by preserving the whole entity (preferred — a field-picking copy will keep
+losing new fields), and add a regression test that stamps a Frigate camera
+through the **App** path and asserts a non-empty `src`, since the helper's own
+unit coverage passes today and did not catch this.
 
 **Also part of the fix:** a browser test in the wizard suite — App mode with
 `_frigateUrl` set generates a camera whose `src` is
