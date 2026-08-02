@@ -556,6 +556,24 @@ export const feezalAvailabilityStyles = css`
     }
 `;
 
+/**
+ * N41 — the unavailable glyph the Circle family draws, in one place.
+ *
+ * Five elements carried a byte-identical `UNAVAIL` const (MDI alert-circle).
+ * This is the const, not a badge: each family positions it with its own
+ * `.unavail` rule, so lifting the markup out changes nothing visually.
+ *
+ * NOTE — the badge concern still has THREE glyphs across the corpus and
+ * unifying them is a design decision, not a refactor:
+ *   - alert-circle (this one) — 5 Circle elements;
+ *   - a warning triangle — circle-multivalue;
+ *   - the `⚠` text glyph — `availabilityBadge()` below and its 3 adopters.
+ * (The wifi-off icon in device-health / qrcode / connection-status is a
+ * different concern: those show CONNECTION state, not per-device availability.)
+ */
+export const unavailableIcon = html`<svg viewBox="0 0 24 24"><path fill="currentColor"
+    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>`;
+
 /** Badge template partial: renders nothing while available. */
 export function availabilityBadge(available) {
     return available ? '' : html`<span class="feezal-unavail-badge" title="Device unavailable">⚠</span>`;

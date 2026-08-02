@@ -1,13 +1,11 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles, unavailableIcon} from '@feezal/feezal-element';
 import {LockController, lockAttributes, lockDiscoveryMap} from '@feezal/feezal-controller-lock';
 import {feezalMovementStyles} from '@feezal/feezal-element/feezal-movement.js';
 import {svg} from 'lit';
 import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 // ── Unavailability badge ─────────────────────────────────────────────────────
-const UNAVAIL = html`<svg viewBox="0 0 24 24"><path fill="currentColor"
-    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>`;
 
 // ── Padlock SVG ───────────────────────────────────────────────────────────────
 // state: 'locked' | 'unlocked' | 'jammed' | null (unknown)
@@ -210,7 +208,7 @@ class FeezalElementCircleLock extends FeezalElement {
                 : '\u2014');
 
         return html`
-            ${!this._available ? html`<div class="unavail">${UNAVAIL}</div>` : ''}
+            ${!this._available ? html`<div class="unavail">${unavailableIcon}</div>` : ''}
             ${batteryLowBadge(this.lock.batteryLow)}
             <div class="disc-wrap">
                 <div class="disc ${dispState} ${this.lock.moving ? 'feezal-moving' : ''}">

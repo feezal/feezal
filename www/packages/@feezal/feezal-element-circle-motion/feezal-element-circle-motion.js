@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles, unavailableIcon} from '@feezal/feezal-element';
 import {sabotageBadge, faultBadge, feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
 // E137/E138: the boolean-sensor behavior lives in the shared controller — this
 // element is a VIEW (Circle chrome: the four dedicated motion SVG visuals). E138
@@ -10,8 +10,6 @@ import {svg} from 'lit';
 import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 // ── Unavailability badge ─────────────────────────────────────────────────────
-const UNAVAIL = html`<svg viewBox="0 0 24 24"><path fill="currentColor"
-    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>`;
 
 // ── SVG helpers ───────────────────────────────────────────────────────────────
 
@@ -242,7 +240,7 @@ class FeezalElementCircleMotion extends FeezalElement {
     render() {
         const s = this.sensor;
         return html`
-            ${!this._available ? html`<div class="unavail">${UNAVAIL}</div>` : ''}
+            ${!this._available ? html`<div class="unavail">${unavailableIcon}</div>` : ''}
             ${batteryLowBadge(s.batteryLow)}
             ${sabotageBadge(s.sabotage)}${faultBadge(s.error)}
             <div class="disc-wrap">

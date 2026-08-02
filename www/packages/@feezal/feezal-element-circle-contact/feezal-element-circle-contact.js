@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, batteryLowBadge, feezalBatteryStyles, unavailableIcon} from '@feezal/feezal-element';
 import {sabotageBadge, faultBadge, feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
 // E137: the contact behavior lives in the shared controller — this element
 // is a VIEW (Circle chrome: the E134 state disc, mirroring material-sensor /
@@ -9,8 +9,6 @@ import {ContactController, contactAttributes, contactDiscoveryMap} from '@feezal
 import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 // ── Unavailability badge ─────────────────────────────────────────────────────
-const UNAVAIL = html`<svg viewBox="0 0 24 24"><path fill="currentColor"
-    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>`;
 
 // ── Element ───────────────────────────────────────────────────────────────────
 class FeezalElementCircleContact extends FeezalElement {
@@ -182,7 +180,7 @@ class FeezalElementCircleContact extends FeezalElement {
     render() {
         const state = this.contact.state; // 'closed' | 'open' | 'tilted'
         return html`
-            ${!this._available ? html`<div class="unavail">${UNAVAIL}</div>` : ''}
+            ${!this._available ? html`<div class="unavail">${unavailableIcon}</div>` : ''}
             ${batteryLowBadge(this.contact.batteryLow)}
             ${sabotageBadge(this.contact.sabotage)}${faultBadge(this.contact.error)}
             <div class="disc-wrap">

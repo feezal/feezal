@@ -1,12 +1,10 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, unavailableIcon} from '@feezal/feezal-element';
 import '@material/web/switch/switch.js';
 import '@material/web/slider/slider.js';
 import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 // ── Unavailability badge ─────────────────────────────────────────────────────
-const UNAVAIL = html`<svg viewBox="0 0 24 24"><path fill="currentColor"
-    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>`;
 
 // Speed % → rotation duration: faster = shorter period
 function speedDuration(pct) {
@@ -298,7 +296,7 @@ class FeezalElementCircleFan extends FeezalElement {
         const speedPct = this._speed ?? 0;
 
         return html`
-            ${!this._available ? html`<div class="unavail">${UNAVAIL}</div>` : ''}
+            ${!this._available ? html`<div class="unavail">${unavailableIcon}</div>` : ''}
             <div class="disc-wrap">
                 <div class="disc ${this._on ? 'on' : ''}">${this._fanSvg(this._on, speedPct)}</div>
             </div>
