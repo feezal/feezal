@@ -10,6 +10,7 @@ Work in progress — priorities and scope are not final.
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces](#b106--discovery-ids-is-space-separated-but-mqtt-topics-may-contain-spaces)
 - [B118 — Undo dead after deleting via the layers-tree context menu (until the canvas is clicked)](#b118--undo-dead-after-deleting-via-the-layers-tree-context-menu-until-the-canvas-is-clicked)
+- [B119 — Right-click menu dead after the tab was backgrounded (footer selector crash)](#b119--right-click-menu-dead-after-the-tab-was-backgrounded-footer-selector-crash)
 
 
 **Near-term Improvements**
@@ -344,6 +345,42 @@ for redo).
 
 **Relates:** the layers tree (U87 family), the `_keyHandler` focus guard,
 B108 (layers/selection interplay — same neighbourhood).
+
+
+### B119 — Right-click menu dead after the tab was backgrounded (footer selector crash)
+
+**Reported (08/2026).** After the browser tab sat in the background for a
+while, the editor's right-click menu stopped working. Console:
+
+```
+Uncaught (in promise) SyntaxError: Failed to execute 'querySelectorAll' on
+'Element': 'feezal-element-*, feezal-component' is not a valid selector.
+    at get _elements (editor-…)  at render …  at Ss._observer (attributes)
+```
+
+**Diagnosis:** the crash is the U97 **footer**'s `_elements` getter using a
+wildcard TAG selector — which is not valid CSS and throws. The current source
+([feezal-footer.js](../www/src/feezal-footer.js)) already replaced it with the
+`isCanvasElement` predicate (with a comment naming exactly this trap), so the
+reported session was running the earlier build — **first step: confirm a
+rebuild/redeploy makes the SyntaxError disappear**, then close that half.
+
+**What must still be fixed — the resilience half:** one component throwing in
+`render()` must not take the editor's right-click down with it. The footer's
+attribute MutationObserver → `requestUpdate` → throwing render left an
+unhandled rejection storm (re-triggered per mutation — plausibly why the
+backgrounded tab, replaying batched mutations on resume, surfaced it), and the
+breakage escaped the footer: the context menu died. Investigate the coupling
+(shared render scheduling? the selectElement path in the stack?) and add a
+containment rule: the footer (and similar passive chrome) wraps its cheap
+DOM-derived getters defensively, and a render error in one panel must degrade
+that panel only. A regression test that feeds the footer a view holding an
+unknown/hostile child and asserts the ctx menu still opens would pin it.
+
+**Relates:** U97 ✅ (the footer), the earlier stamp-code lesson (same
+wildcard-selector trap, already documented there), B118 (another
+sidebar-interaction global breakage — the editor needs fault isolation
+between panels).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
