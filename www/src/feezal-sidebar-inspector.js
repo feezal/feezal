@@ -1517,35 +1517,48 @@ class FeezalSidebarInspector extends LitElement {
                 });
             }
 
-            // B116 — ONE helper line per axis, not one per span end.
+            // B116 — helper lines only on the DRAGGED element's own borders,
+            // i.e. where the snap will actually put it.
             //
-            // B113 drew all four ends, which is the complete "between which
+            // B113 drew all four span ends, which is the complete "between which
             // edges" story — but the two arrows already tell that story, so the
-            // other three lines were noise. The one that earns its place is the
-            // dragged element's own edge: where the snap will actually put it.
+            // neighbours' edges were noise. What is left is the moving box's
+            // own edges, and how many of those there are depends on the kind of
+            // proposal:
             //
-            // Which edge that is depends on the side the candidate proposes.
-            // Placing AFTER the anchor, the dragged box's LEADING edge closes
-            // the proposed gap (`proposed.to`); placing before it — or centring
-            // between two — its TRAILING edge does (`proposed.from`). Either
-            // way it is the end of the proposed span that belongs to the moving
-            // element rather than to a stationary neighbour, so the proposed
-            // arrow still terminates ON the line at 90°.
-            const {proposed, side} = best;
-            const at = Math.round(side === 'after' ? proposed.to : proposed.from);
+            // - a RHYTHM echoes one gap, so exactly one border of the dragged
+            //   box closes it. Placing AFTER the anchor that is its LEADING edge
+            //   (`proposed.to`); placing BEFORE, its TRAILING edge
+            //   (`proposed.from`). The other border touches nothing.
+            // - CENTRING has a gap on each side, so BOTH borders are snapped-to
+            //   and both get a line — the leading edge closes the measured gap
+            //   (`measured.to`) and the trailing edge opens the proposed one
+            //   (`proposed.from`). One line there would draw half the story the
+            //   snap is actually making.
+            //
+            // Either way every line is an end of a span, so the arrows still
+            // terminate ON one at 90°.
+            const {measured, proposed, side} = best;
+            const edges = side === 'between'
+                ? [measured.to, proposed.from]
+                : [side === 'after' ? proposed.to : proposed.from];
+
             // U99: the readout is view-relative, which for y means undoing the
             // container offset the boxes were built with.
-            if (axis === 'x') {
-                wantVlines.push({
-                    pos: `left: ${at}`,
-                    css: `display:block;left:${at + viewLeftInCv}px;` +
-                        `top:${snapLineTop}px;height:calc(100% - ${snapLineTop}px);`,
-                });
-            } else {
-                wantHlines.push({
-                    pos: `top: ${Math.round(at - viewTopInCv)}`,
-                    css: `display:block;top:${at}px;`,
-                });
+            for (const edge of edges) {
+                const at = Math.round(edge);
+                if (axis === 'x') {
+                    wantVlines.push({
+                        pos: `left: ${at}`,
+                        css: `display:block;left:${at + viewLeftInCv}px;` +
+                            `top:${snapLineTop}px;height:calc(100% - ${snapLineTop}px);`,
+                    });
+                } else {
+                    wantHlines.push({
+                        pos: `top: ${Math.round(at - viewTopInCv)}`,
+                        css: `display:block;top:${at}px;`,
+                    });
+                }
             }
         }
 

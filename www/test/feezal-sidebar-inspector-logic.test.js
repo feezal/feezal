@@ -222,8 +222,9 @@ describe('_drawGapGuides — both axes, plus the helper lines', () => {
             root.append(el);
             return el;
         });
-        // B116: one helper line per axis, so the line pools hold exactly one.
-        return {root, arrows: add('gap-arrow', 4), vlines: add('gap-vline', 1), hlines: add('gap-hline', 1)};
+        // B116: lines mark the DRAGGED element's borders — one for a rhythm,
+        // two when centring (a gap on each side), so two per axis.
+        return {root, arrows: add('gap-arrow', 4), vlines: add('gap-vline', 2), hlines: add('gap-hline', 2)};
     }
 
     const candidate = ({gap, measured, proposed, anchor, side = 'after'}) =>
@@ -274,8 +275,8 @@ describe('_drawGapGuides — both axes, plus the helper lines', () => {
     });
 
     it('uses the TRAILING edge when the element is placed before the anchor', () => {
-        // Placing before (or centring between two), it is the dragged box's far
-        // edge that closes the proposed gap — the near one touches nothing.
+        // Placing before, it is the dragged box's far edge that closes the
+        // proposed gap — the near one touches nothing.
         const before = candidate({
             side: 'before', gap: 50, anchor: {left: 300, right: 400, top: 0, bottom: 100},
             measured: {from: 400, to: 450}, proposed: {from: 250, to: 300},
@@ -283,6 +284,33 @@ describe('_drawGapGuides — both axes, plus the helper lines', () => {
         const el = inspector();
         el._drawGapGuides(before, null, {snapLineTop: 35});
         expect(shown(container.vlines).map(l => l.style.left)).toEqual(['250px']);
+    });
+
+    it('marks BOTH borders when the element is centred between two', () => {
+        // Centring puts a gap on each side, so both of the dragged box's edges
+        // are snapped-to — one line there would draw half the story.
+        // before[0..100] gap40 [140..240 dragged] gap40 after[280..380]
+        const centred = candidate({
+            side: 'between', gap: 40, anchor: {left: 0, right: 100, top: 0, bottom: 50},
+            measured: {from: 100, to: 140},     // before.right → the box's leading edge
+            proposed: {from: 240, to: 280},     // the box's trailing edge → after.left
+        });
+        const el = inspector();
+        el._drawGapGuides(centred, null, {snapLineTop: 35});
+        expect(shown(container.vlines).map(l => l.style.left)).toEqual(['140px', '240px']);
+        // …and both read the border they sit on.
+        expect(shown(container.vlines).map(l => l.dataset.pos))
+            .toEqual(['left: 140', 'left: 240']);
+    });
+
+    it('centres on the other axis too', () => {
+        const centred = candidate({
+            side: 'between', gap: 30, anchor: {left: 0, right: 100, top: 0, bottom: 60},
+            measured: {from: 60, to: 90}, proposed: {from: 140, to: 170},
+        });
+        const el = inspector();
+        el._drawGapGuides(null, centred, {snapLineTop: 35});
+        expect(shown(container.hlines).map(l => l.style.top)).toEqual(['90px', '140px']);
     });
 
     it('translates x by the canvas scroll delta, y is already container-relative', () => {

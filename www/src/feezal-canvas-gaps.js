@@ -33,13 +33,14 @@
  * the one being proposed), and B112 draws both axes at once, so four arrows.
  *
  * Helper lines: B113 put one at every span END (four per axis), B116 cut that
- * to the single line the dragged element's own edge lands on — the arrows
- * already tell the between-which-edges story, so the other three were noise.
- * One per axis, and the two axes need different orientations, hence a pool each
- * of exactly one.
+ * to the DRAGGED element's own borders — the arrows already tell the
+ * between-which-edges story, so the neighbours' edges were noise. A rhythm
+ * leaves one such border, centring leaves two (a gap on each side), so the
+ * per-axis pool is two, and the axes need different orientations, hence one
+ * pool each.
  */
 export const GAP_ARROW_COUNT = 4;
-export const GAP_LINE_COUNT = 1;
+export const GAP_LINE_COUNT = 2;
 
 /** Do two boxes overlap on the axis ACROSS the one being measured? */
 function sharesLane(a, b, axis) {

@@ -26,10 +26,15 @@ const at = (label, left, top, w = 100, h = 50) =>
  *   y — E[0..50]  gap50 F[100..150]  → the next equal gap starts at 200
  * A/B share D's row only; E/F share D's column only, so neither rhythm can
  * accidentally satisfy the other axis.
+ *
+ * G sits far along A/B's row, leaving a 250px hole between B[..250] and
+ * G[500..] — wide enough for D (100) with 75px either side, which is the
+ * CENTRING case. Its own rhythms (gap 250) land far outside snap range, so it
+ * cannot disturb the two above.
  */
 const SITE_HTML =
     '<feezal-site><feezal-view name="main" style="width:100%;height:100%;">' +
-    at('a', 0, 200) + at('b', 150, 200) +
+    at('a', 0, 200) + at('b', 150, 200) + at('g', 500, 200) +
     at('e', 300, 0) + at('f', 300, 100) +
     at('d', 600, 400) +
     '</feezal-view></feezal-site>';
@@ -201,6 +206,28 @@ describe('B113 + B116 — one helper line per axis, across the canvas', () => {
         // arrow can only ever terminate ON it.
         for (const width of g.hlineWidths) expect(width).toBe(canvas.w);
         for (const height of g.vlineHeights) expect(height).toBeGreaterThan(canvas.h * 0.8);
+    });
+
+    /**
+     * Centring has a gap on EACH side, so both borders of the dragged element
+     * are snapped-to — one line there would draw half the story the snap makes.
+     */
+    it('marks both borders of the element when centring it between two', async () => {
+        await resetD();
+        // The hole runs B[..250] → G[500..]; D (100 wide) centres at 325, so its
+        // borders land on 325 and 425. Dropped 4px short of that, and at y=230,
+        // which is inside A/B/G's row but 30px off the y rhythm — one axis only.
+        await dragHold('d', 321, 230);
+        const g = await guides();
+        const r = await readouts();
+        await release();
+
+        expect(g.vlines).toBe(2);
+        expect(g.hlines).toBe(0);          // the y axis proposes nothing here
+        expect(r.gapV.map(l => l.pos)).toEqual(['left: 325', 'left: 425']);
+        // …and the arrows still measure the two equal 75px gaps either side.
+        expect(g.horizontalArrows).toBe(2);
+        expect(g.labels).toEqual(['75']);
     });
 
     it('draws no helper lines when no gap is proposed', async () => {
