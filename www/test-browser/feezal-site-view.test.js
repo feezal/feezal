@@ -319,3 +319,152 @@ describe('conditions on a view (U95)', () => {
         feezal.isEditor = false;
     });
 });
+
+describe('subscribe-theme on a view (U95)', () => {
+    let subscribed, released, handlers;
+
+    /** Record the wiring AND keep the callbacks so messages can be delivered. */
+    function recordConnection() {
+        subscribed = [];
+        released = [];
+        handlers = {};
+        feezal.connection.sub = (topic, cb) => {
+            subscribed.push(topic);
+            handlers[topic] = cb;
+            return {topic, cb};
+        };
+        feezal.connection.unsubscribe = sub => released.push(sub?.topic);
+    }
+
+    function makeView(topic, theme) {
+        const view = document.createElement('feezal-view');
+        view.setAttribute('name', 'main');
+        if (topic) view.setAttribute('subscribe-theme', topic);
+        if (theme) view.setAttribute('theme', theme);
+        document.body.append(view);
+        return view;
+    }
+
+    beforeEach(() => {
+        recordConnection();
+        feezal.isEditor = false;
+    });
+
+    it('applies a theme name from the topic', async () => {
+        const view = makeView('home/view/theme');
+        await view.updateComplete;
+        expect(subscribed).toContain('home/view/theme');
+
+        handlers['home/view/theme']({topic: 'home/view/theme', payload: 'dark'});
+        await view.updateComplete;
+        expect(view.theme).toBe('dark');
+        expect(view.classList.contains('feezal-theme-dark')).toBe(true);
+        view.remove();
+    });
+
+    it('accepts the full class name as well as the bare suffix', async () => {
+        // Same two spellings the Theme attribute and the site command accept.
+        const view = makeView('home/view/theme');
+        await view.updateComplete;
+        handlers['home/view/theme']({payload: 'feezal-theme-glass'});
+        await view.updateComplete;
+        expect(view.classList.contains('feezal-theme-glass')).toBe(true);
+        view.remove();
+    });
+
+    it('an empty payload clears back to the site theme', async () => {
+        const view = makeView('home/view/theme', 'dark');
+        await view.updateComplete;
+        expect(view.classList.contains('feezal-theme-dark')).toBe(true);
+
+        handlers['home/view/theme']({payload: ''});
+        await view.updateComplete;
+        expect(view.theme).toBe('');
+        expect([...view.classList].some(c => c.startsWith('feezal-theme-'))).toBe(false);
+        view.remove();
+    });
+
+    it('`default` clears too — same word the site theme command uses', async () => {
+        const view = makeView('home/view/theme', 'dark');
+        await view.updateComplete;
+        handlers['home/view/theme']({payload: 'default'});
+        await view.updateComplete;
+        expect(view.theme).toBe('');
+        expect([...view.classList].some(c => c.startsWith('feezal-theme-'))).toBe(false);
+        view.remove();
+    });
+
+    it('re-wires when the topic changes, releasing the old one', async () => {
+        const view = makeView('home/a');
+        await view.updateComplete;
+        view.setAttribute('subscribe-theme', 'home/b');
+        await view.updateComplete;
+        expect(released).toContain('home/a');
+        expect(subscribed).toContain('home/b');
+        view.remove();
+    });
+
+    it('subscribes ONCE on mount, not once per lifecycle hook', async () => {
+        // connectedCallback and the first updated() both wire; a retained
+        // message is delivered to the handle that existed when it arrived, so
+        // a churning resubscribe would drop it.
+        const view = makeView('home/view/theme');
+        await view.updateComplete;
+        expect(subscribed.filter(t => t === 'home/view/theme')).toHaveLength(1);
+        expect(released).toHaveLength(0);
+        view.remove();
+    });
+
+    it('picks its subscription back up after a view switch moves the node', async () => {
+        const view = makeView('home/view/theme');
+        await view.updateComplete;
+        view.remove();
+        document.body.append(view);
+        await view.updateComplete;
+        expect(subscribed.filter(t => t === 'home/view/theme')).toHaveLength(2);
+        expect(released).toContain('home/view/theme');   // the detach released it
+        view.remove();
+    });
+
+    it('releases the subscription when the view goes away', async () => {
+        const view = makeView('home/view/theme');
+        await view.updateComplete;
+        view.remove();
+        expect(released).toContain('home/view/theme');
+    });
+
+    it('is listed in _subscriptions, which is what the MQTT panel reads', async () => {
+        const view = makeView('home/view/theme');
+        await view.updateComplete;
+        expect(view._subscriptions.map(s => s.topic)).toContain('home/view/theme');
+        view.remove();
+        expect(view._subscriptions).toHaveLength(0);
+    });
+
+    it('wires in the editor but does not APPLY the value while prevented', async () => {
+        // The topic is wired so the U88 MQTT tab can show live traffic; the
+        // value is withheld because `theme` REFLECTS — applying it would write
+        // a broker value into the saved view, which is what the setting is for.
+        feezal.isEditor = true;
+        feezal.preventEditorMqtt = true;
+        const view = makeView('home/view/theme');
+        await view.updateComplete;
+        expect(subscribed).toContain('home/view/theme');
+
+        handlers['home/view/theme']({payload: 'dark'});
+        await view.updateComplete;
+        expect(view.theme).toBeUndefined();
+        expect(view.hasAttribute('theme')).toBe(false);
+        view.remove();
+
+        // …and with the setting off, the canvas themes live, same as elements.
+        feezal.preventEditorMqtt = false;
+        const live = makeView('home/view/theme');
+        await live.updateComplete;
+        handlers['home/view/theme']({payload: 'dark'});
+        await live.updateComplete;
+        expect(live.theme).toBe('dark');
+        live.remove();
+        feezal.isEditor = false;
+    });
+});

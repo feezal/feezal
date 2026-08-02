@@ -138,12 +138,20 @@ class FeezalSidebarDebug extends LitElement {
         }
     }
 
+    /**
+     * The single selection this panel reports on.
+     *
+     * U95: a view counts now. It was excluded because a view wired nothing;
+     * with `subscribe-theme` and view-level conditions it keeps the same
+     * `_subscriptions` registry an element's base class does, so the panel
+     * needs no other change.
+     */
     get _element() {
         const sel = this.selectedElems || [];
-        return sel.length === 1 && sel[0]?.tagName !== 'FEEZAL-VIEW' ? sel[0] : null;
+        return sel.length === 1 ? sel[0] : null;
     }
 
-    /** Topics the element ACTUALLY wired (base class registry), de-duplicated. */
+    /** Topics the selection ACTUALLY wired (registry, not attributes), deduped. */
     get _topics() {
         const el = this._element;
         if (!el?._subscriptions) return [];
@@ -188,7 +196,7 @@ class FeezalSidebarDebug extends LitElement {
     render() {
         const el = this._element;
         if (!el) {
-            return html`<div class="empty">Select a single element to see its live MQTT wiring.</div>`;
+            return html`<div class="empty">Select a single element or view to see its live MQTT wiring.</div>`;
         }
         const topics = this._topics;
         const outs = publishTopics(el);
@@ -205,8 +213,11 @@ class FeezalSidebarDebug extends LitElement {
                     </div>
                     <div class="value ${seen ? '' : 'waiting'}">${
                         seen ? previewPayload(seen.payload) : 'waiting for a message…'}</div>`;
-            }) : html`<div class="note">This element subscribes to nothing —
-                set a topic in the Attributes tab.</div>`}
+            }) : html`<div class="note">${el.tagName === 'FEEZAL-VIEW'
+                ? html`This view subscribes to nothing — set Subscribe theme, or add a
+                    condition, in the Attributes/Conditions tab.`
+                : html`This element subscribes to nothing —
+                    set a topic in the Attributes tab.`}</div>`}
 
             <h4>Publishes (${outs.length})</h4>
             ${outs.length ? outs.map(p => html`
@@ -222,7 +233,7 @@ class FeezalSidebarDebug extends LitElement {
                     <button ?disabled="${!feezal.connection?.connected}"
                         @click="${() => this._publishTest(p.topic)}">Publish</button>
                 </div>`)
-                : html`<div class="note">This element publishes nothing.</div>`}
+                : html`<div class="note">This ${el.tagName === 'FEEZAL-VIEW' ? 'view' : 'element'} publishes nothing.</div>`}
 
             <h4>Live tail</h4>
             ${this._tail.length ? html`

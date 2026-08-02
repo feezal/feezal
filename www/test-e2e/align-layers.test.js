@@ -233,27 +233,29 @@ describe('U88 — MQTT panel', () => {
     });
 
     /**
-     * The single-element tabs vanish when the selection becomes a view or a
-     * multi-selection. Without a fallback sl-tab-group keeps pointing at the
-     * missing panel and the inspector renders BLANK.
+     * U95 — selecting the VIEW keeps both tabs: a view runs the conditions
+     * engine and can carry a subscribe-theme topic, so it has wiring of its
+     * own to show. (Before U95 the tabs vanished here; the fall-back rule is
+     * still exercised by the multi-selection case below, which is the shape
+     * that would otherwise leave sl-tab-group pointing at a missing panel.)
      */
-    it('falls back to Attributes when the selection loses the MQTT tab', async () => {
+    it('stays on the MQTT tab when the selection becomes a view', async () => {
         await openInspector();
         await select(['a']);
         await inspector().locator('sl-tab[panel="debug"]').click();
         await expect.poll(() => inspector().locator('feezal-sidebar-debug').isVisible()).toBe(true);
 
-        // select the VIEW — the MQTT tab disappears
         await page.evaluate(() => {
             window.feezal.app.shadowRoot.querySelector('feezal-sidebar-inspector').selectElement();
         });
-        await expect.poll(() => inspector().locator('sl-tab[panel="debug"]').count()).toBe(0);
-        // …and the panel shows Attributes rather than nothing
-        await expect.poll(() =>
-            inspector().locator('feezal-sidebar-inspector-attributes').isVisible()).toBe(true);
+        await expect.poll(() => inspector().locator('sl-tab[panel="debug"]').count()).toBe(1);
+        await expect.poll(() => inspector().locator('sl-tab[panel="conditions"]').count()).toBe(1);
         await expect.poll(() => page.evaluate(() =>
             window.feezal.app.shadowRoot.querySelector('feezal-sidebar-inspector')._activeTab
-        )).toBe('attributes');
+        )).toBe('debug');
+        // and it reports on the VIEW, not the element that was selected before
+        await expect.poll(() => inspector().locator('feezal-sidebar-debug .note, feezal-sidebar-debug .topic')
+            .first().textContent()).toContain('view');
     });
 
     it('falls back to Attributes from the MQTT tab on a multi-selection too', async () => {

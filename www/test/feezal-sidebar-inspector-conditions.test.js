@@ -183,3 +183,70 @@ describe('conditions inspector panel (E50)', () => {
         expect(panel.shadowRoot.querySelector('.btn')).toBeNull();
     });
 });
+
+/**
+ * U95 — the same panel now serves a selected VIEW, which accepts fewer actions.
+ * Filtering here is not cosmetic: the engine DROPS a show/hide row on a view,
+ * so offering one would produce a row that silently does nothing.
+ */
+describe('conditions inspector on a view (U95)', () => {
+    const makeView = conditions => {
+        const view = document.createElement('feezal-view');
+        if (conditions) view.setAttribute('conditions', JSON.stringify(conditions));
+        document.body.append(view);
+        return view;
+    };
+    const actionOptions = panel => [...panel.shadowRoot.querySelectorAll('sl-select')]
+        .flatMap(sel => [...sel.querySelectorAll('sl-option')].map(o => o.getAttribute('value')))
+        .filter(v => ['show', 'hide', 'class', 'style', 'attribute'].includes(v));
+
+    it('offers class/style/attribute only — no show, no hide', async () => {
+        const panel = await mountPanel(makeView([{subscribe: 'a', value: '1', action: 'class', class: 'x'}]));
+        const offered = actionOptions(panel);
+        expect(offered).toContain('class');
+        expect(offered).toContain('style');
+        expect(offered).toContain('attribute');
+        expect(offered).not.toContain('show');
+        expect(offered).not.toContain('hide');
+    });
+
+    it('an element still gets all five', async () => {
+        const panel = await mountPanel(makeTarget([{subscribe: 'a', value: '1', action: 'hide'}]));
+        expect(actionOptions(panel)).toEqual(
+            expect.arrayContaining(['show', 'hide', 'class', 'style', 'attribute']));
+    });
+
+    it('a new row on a view starts on an offered action, not on hide', async () => {
+        const view = makeView();
+        const panel = await mountPanel(view);
+        panel.shadowRoot.querySelector('.btn').click();
+        await panel.updateComplete;
+        const row = JSON.parse(view.getAttribute('conditions'))[0];
+        expect(row.action).toBe('class');
+        expect(row.action).not.toBe('hide');
+    });
+
+    it('an element keeps `hide` as its default row', async () => {
+        // The view filter must not change the element default by accident.
+        const target = makeTarget();
+        const panel = await mountPanel(target);
+        panel.shadowRoot.querySelector('.btn').click();
+        await panel.updateComplete;
+        expect(JSON.parse(target.getAttribute('conditions'))[0].action).toBe('hide');
+    });
+
+    it('flags a hand-edited row whose action a view cannot run', async () => {
+        // Source mode / an import can still write one; the select would render
+        // blank, so say why instead of leaving it mysterious.
+        const panel = await mountPanel(makeView([{subscribe: 'a', value: '1', action: 'hide'}]));
+        expect(panel.shadowRoot.querySelector('.warn')?.textContent)
+            .toContain('does nothing on a view');
+    });
+
+    it('says so in the intro, and does not promise show/hide there', async () => {
+        const panel = await mountPanel(makeView());
+        const intro = panel.shadowRoot.querySelector('.intro').textContent;
+        expect(intro).toContain('cannot be shown or hidden');
+        expect(intro).not.toContain('AND-combine');
+    });
+});

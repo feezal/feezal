@@ -60,6 +60,9 @@ class FeezalView extends LitElement {
         visible: {type: Boolean},
         // U51 — per-view theme (full class name or bare suffix; empty = site theme)
         theme: {type: String, reflect: true},
+        // U95 — topic that sets `theme` at runtime (see _wireTheme for how the
+        // editor's prevent-MQTT setting applies).
+        subscribeTheme: {type: String, attribute: 'subscribe-theme', reflect: true},
         childPosition: {type: String, attribute: 'child-position', reflect: true},
         // U95 — E50 conditions on a view. Class/style/attribute only; see
         // VIEW_CONDITION_ACTIONS below for why hiding is not among them.
@@ -209,6 +212,17 @@ class FeezalView extends LitElement {
                     default: '',
                 },
                 {
+                    // U95 — the U51 theme, MQTT-settable. Payload is a theme
+                    // name (the same values the Theme control offers, bare
+                    // suffix or full class); an empty payload or `default`
+                    // clears back to the site theme, which is what makes a
+                    // "reset" publish possible without knowing the site's
+                    // theme name.
+                    name: 'subscribe-theme',
+                    type: 'mqttTopic',
+                    help: 'Topic that sets this view’s theme at runtime (viewer). Payload = a theme name, same values as Theme; an empty payload or “default” clears back to the site theme.'
+                },
+                {
                     // N37 — per-view override of the site's pause-hidden-
                     // subscriptions default. `never` = the escape hatch for
                     // views with non-retained data that must not miss
@@ -271,6 +285,13 @@ class FeezalView extends LitElement {
         super();
         this.childPosition = 'absolute';
         this._conditions = new FeezalConditions(this, {actions: VIEW_CONDITION_ACTIONS});
+        // U95/U88 — the MQTT inspector panel reads `_subscriptions` to show what
+        // the selection REALLY wired, so a view keeps the same bookkeeping an
+        // element's base class does. Real handles only; nothing declared-but-
+        // unwired goes in here, or unsubscribe() would be handed a non-handle.
+        this._subscriptions = [];
+        this._themeSub = null;
+        this._themeTopic = '';
         this._gridSheet = null;
         this._gridObserver = null;
         this._gridSyncPending = false;
@@ -279,6 +300,7 @@ class FeezalView extends LitElement {
     disconnectedCallback() {
         super.disconnectedCallback();
         this._conditions.disconnect();   // U95 — releases its subscriptions
+        this._unwireTheme();             // U95 — and so does the theme topic
         this._gridObserver?.disconnect();
         this._gridObserver = null;
     }
@@ -319,6 +341,12 @@ class FeezalView extends LitElement {
         // history restore), and connect() re-reads it and rewires itself.
         if (changed.has('conditions')) {
             this._conditions.connect();
+        }
+        // U95 — same for the theme topic. NOT gated on `theme` changing: a
+        // message arriving on the topic sets `theme`, and rewiring from that
+        // would tear down the subscription that just fired.
+        if (changed.has('subscribeTheme')) {
+            this._wireTheme();
         }
         // U41 — the legacy `static` value is aliased to `flow` at load (no file
         // migration; the next save writes `flow`).
@@ -491,11 +519,69 @@ class FeezalView extends LitElement {
         if (wanted) this.classList.add(wanted);
     }
 
+    /**
+     * U95 — release the theme subscription. Split out because three callers
+     * need it: the rewire below, disconnect, and a topic cleared to empty.
+     */
+    _unwireTheme() {
+        if (!this._themeSub) return;
+        feezal?.connection?.unsubscribe?.(this._themeSub);
+        this._subscriptions = this._subscriptions.filter(s => s !== this._themeSub);
+        this._themeSub = null;
+    }
+
+    /**
+     * U95 — (re)wire `subscribe-theme`: the U51 per-view theme, MQTT-settable.
+     *
+     * An empty payload clears back to the site theme — that is the documented
+     * reset, and it means a publisher can hand a view back without knowing
+     * which theme the site runs. `theme` reflects, so setting the property is
+     * enough: the attribute follows and `updated()` re-derives the class.
+     *
+     * The editor gate sits INSIDE the callback, not before the subscribe. The
+     * topic is wired either way — that is what lets the U88 MQTT tab show the
+     * live payload, which is the panel's whole point — but the value is not
+     * APPLIED while "prevent MQTT element manipulation" is on: `theme`
+     * reflects, so a broker value would be written into the saved views.html.
+     * Turning the setting off gives live theming on the canvas, same as
+     * elements.
+     */
+    _wireTheme() {
+        const topic = (this.subscribeTheme || '').trim();
+        // Idempotent for an unchanged topic: connectedCallback and the first
+        // updated() both call this for the same value, and a resubscribe there
+        // would drop a retained message already delivered to the old handle.
+        if (this._themeSub && topic === this._themeTopic) return;
+
+        this._unwireTheme();
+        this._themeTopic = topic;
+        if (!topic) return;
+        if (typeof feezal === 'undefined') return;
+        if (!feezal.connection?.sub) return;
+
+        this._themeSub = feezal.connection.sub(topic, message => {
+            if (feezal.isEditor && feezal.preventEditorMqtt !== false) return;
+            // Read through getProperty (the U95 step-1 extraction) rather than
+            // message.payload directly — the view has ONE payload reader and
+            // this is it, even though the default path is equivalent today.
+            const raw = String(this.getProperty(message, 'payload') ?? '').trim();
+            // Same vocabulary as the site-level `theme` control command (E91):
+            // both '' and 'default' clear. Someone who knows one should not
+            // have to learn the other.
+            this.theme = !raw || raw === 'default' ? '' : raw;
+        });
+        this._subscriptions.push(this._themeSub);
+    }
+
     connectedCallback() {
         super.connectedCallback();
         // U51: strip stale serialized theme classes / apply the attribute on
         // mount — the updated() hook only fires when the property changes.
         this._applyThemeClass();
+        // U95: re-wire after a detach/re-attach (a view switch moves nodes) —
+        // the property has not changed, so updated() would not fire. _wireTheme
+        // drops the previous handle first, so this cannot double-subscribe.
+        this._wireTheme();
         // U90: re-arm the child observer after a detach/re-attach (view
         // switches move nodes around) — no property changes, so updated()
         // would not fire.

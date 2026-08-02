@@ -4,6 +4,7 @@ import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/select/select.js';
 import '@shoelace-style/shoelace/dist/components/option/option.js';
 import '@shoelace-style/shoelace/dist/components/checkbox/checkbox.js';
+import {VIEW_CONDITION_ACTIONS} from './feezal-view.js';   // U95
 
 /**
  * E50 — Conditions tab of the element inspector.
@@ -40,6 +41,9 @@ class FeezalSidebarInspectorConditions extends LitElement {
     static styles = css`
         :host { display: block; padding: 8px; font-size: 12px; color: var(--feezal-color, #333); }
         .intro { font-size: 11px; opacity: 0.65; line-height: 1.45; margin: 2px 2px 10px; }
+        /* U95 — a hand-edited row whose action this selection does not accept:
+           the select shows blank, so say why rather than leaving it mysterious. */
+        .warn { font-size: 10.5px; line-height: 1.35; margin-top: 3px; color: #c62828; }
         .row-card { border: 1px solid var(--feezal-border, #e0e0e0); border-radius: 6px; padding: 6px; margin-bottom: 8px; }
         .row-head { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; }
         .row-num {
@@ -107,6 +111,26 @@ class FeezalSidebarInspectorConditions extends LitElement {
         return (this.selectedElems && this.selectedElems.length === 1) ? this.selectedElems[0] : null;
     }
 
+    /** U95 — the panel also serves a selected view, which accepts fewer actions. */
+    get _isView() {
+        return this._element?.localName === 'feezal-view';
+    }
+
+    /**
+     * U95 — the actions offered for the current selection.
+     *
+     * A view gets no show/hide: hiding one would have to remove it from drawer
+     * entries, navigation tabs and routing, and anything less leaves navigation
+     * pointing at something that is not there. The engine drops such a row
+     * anyway (VIEW_CONDITION_ACTIONS), so offering it here would only produce a
+     * row that silently does nothing.
+     */
+    get _actions() {
+        return this._isView
+            ? ACTIONS.filter(a => VIEW_CONDITION_ACTIONS.includes(a.value))
+            : ACTIONS;
+    }
+
     _rows() {
         try {
             const r = JSON.parse(this._element?.getAttribute('conditions') || '[]');
@@ -145,7 +169,12 @@ class FeezalSidebarInspectorConditions extends LitElement {
 
     _add() {
         const rows = this._rows();
-        rows.push({subscribe: '', operator: '=', value: '', action: 'hide'});
+        // U95: 'hide' stays the default wherever it is offered; on a view, which
+        // has no show/hide, a new row starts on the first action that IS
+        // offered — never on one the engine would silently drop.
+        const actions = this._actions;
+        const action = actions.some(a => a.value === 'hide') ? 'hide' : actions[0].value;
+        rows.push({subscribe: '', operator: '=', value: '', action});
         this._save(rows);
     }
 
@@ -362,8 +391,14 @@ class FeezalSidebarInspectorConditions extends LitElement {
         const rows = this._rows();
         return html`
             <div class="intro">
-                Bind this element's visibility, classes, styles or attributes to MQTT topics.
-                Rows evaluate independently; <b>show</b>/<b>hide</b> rows AND-combine.
+                ${this._isView ? html`
+                    Bind this view's classes, styles or attributes to MQTT topics.
+                    Rows evaluate independently. A view cannot be shown or hidden this way —
+                    navigation would still point at it.
+                ` : html`
+                    Bind this element's visibility, classes, styles or attributes to MQTT topics.
+                    Rows evaluate independently; <b>show</b>/<b>hide</b> rows AND-combine.
+                `}
                 Effects apply in the viewer only.
             </div>
             ${rows.map((row, i) => html`
@@ -416,8 +451,11 @@ class FeezalSidebarInspectorConditions extends LitElement {
                             <label>action</label>
                             <sl-select size="small" hoist .value="${row.action || 'hide'}"
                                 @sl-change="${e => this._patch(i, 'action', e.target.value)}">
-                                ${ACTIONS.map(a => html`<sl-option value="${a.value}">${a.label}</sl-option>`)}
+                                ${this._actions.map(a => html`<sl-option value="${a.value}">${a.label}</sl-option>`)}
                             </sl-select>
+                            ${this._isView && row.action && !this._actions.some(a => a.value === row.action) ? html`
+                                <div class="warn">This action does nothing on a view — pick another.</div>
+                            ` : ''}
                         </div>
                     </div>
                     ${this._actionFields(row, i)}

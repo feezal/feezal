@@ -149,12 +149,32 @@ describe('publishes and the live tail', () => {
 });
 
 describe('selection gate', () => {
-    it('asks for a single element when nothing or several are selected', async () => {
+    it('asks for a single selection when nothing or several are selected', async () => {
         const none = await mountPanel([]);
-        expect(none.shadowRoot.querySelector('.empty').textContent).toContain('single element');
+        expect(none.shadowRoot.querySelector('.empty').textContent).toContain('single element or view');
 
         const many = await mountPanel([fakeElement(), fakeElement()]);
         expect(many.shadowRoot.querySelector('.empty')).not.toBeNull();
+    });
+
+    /**
+     * U95 — a view was excluded because it wired nothing. With subscribe-theme
+     * and view-level conditions it keeps the same `_subscriptions` registry an
+     * element's base class does, so it reports through the same panel.
+     */
+    it('reports on a selected view', async () => {
+        const view = fakeElement('feezal-view', {'subscribe-theme': 'home/view/theme'},
+            ['home/view/theme']);
+        const panel = await mountPanel([view]);
+        expect(panel.shadowRoot.querySelector('.empty')).toBeNull();
+        expect(topicRows(panel)).toEqual(['home/view/theme']);
+    });
+
+    it('tells a wireless view what to set, in view vocabulary', async () => {
+        const panel = await mountPanel([fakeElement('feezal-view', {}, [])]);
+        const note = panel.shadowRoot.querySelector('.note').textContent;
+        expect(note).toContain('This view subscribes to nothing');
+        expect(note).toContain('Subscribe theme');
     });
 
     it('re-wires when the selection changes and drops the previous tail', async () => {

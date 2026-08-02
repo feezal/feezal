@@ -173,11 +173,23 @@ class FeezalSidebarInspector extends LitElement {
         this._ctrlDown = false;
     }
 
-    /** Exactly one feezal element (not a view, not a component, not several) —
-     *  the gate for the Conditions and MQTT tabs. */
+    /** Exactly one feezal element (not a view, not a component, not several). */
     get _singleElementSelected() {
         return !this.viewSelected && this.selectedElems.length === 1 &&
             Boolean(this.selectedElems[0]?.localName?.startsWith?.('feezal-element-'));
+    }
+
+    /** U95 — exactly one selected VIEW. Views carry conditions and (via
+     *  subscribe-theme) MQTT wiring of their own, so they earn the same tabs. */
+    get _singleViewSelected() {
+        return Boolean(this.viewSelected) && this.selectedElems.length === 1 &&
+            this.selectedElems[0]?.localName === 'feezal-view';
+    }
+
+    /** The selection the Conditions and MQTT tabs operate on — ONE predicate, so
+     *  the tabs and the U88 fall-back-to-Attributes rule can never disagree. */
+    get _wiringTarget() {
+        return this._singleElementSelected || this._singleViewSelected;
     }
 
     _selectionLabel() {
@@ -221,16 +233,16 @@ class FeezalSidebarInspector extends LitElement {
             : [];
         const alignCount = alignable.length;
         const canAlign = alignCount > 1;
-        // E50: the Conditions tab is offered for a single selected element
-        // (not the view, not component instances — those are a later
-        // iteration; see the E50 archive entry).
-        // E50 Conditions and U88 MQTT are both single-element panels (a
+        // E50 Conditions and U88 MQTT are both single-SELECTION panels (a
         // condition set or a message tail for several elements at once is
         // noise, not information) — one predicate, so the tabs and the
         // fall-back-to-Attributes rule can never disagree.
-        const canConditions = this._singleElementSelected;
+        // U95 widened both to a single selected VIEW, which now runs the
+        // conditions engine and can carry a subscribe-theme topic. Component
+        // instances are still out (a later iteration; see the E50 archive).
+        const canConditions = this._wiringTarget;
         const condCount = canConditions ? this._conditionCount(this.selectedElems[0]) : 0;
-        const canDebug = this._singleElementSelected;
+        const canDebug = this._wiringTarget;
         // E115: families the current selection can be switched to (union of each
         // element's twins in other installed families).
         const switchTargets = cm.visible && cm.onElem ? this._switchFamilyTargets() : [];
@@ -242,7 +254,7 @@ class FeezalSidebarInspector extends LitElement {
                     <sl-tab slot="nav" panel="conditions">Conditions${condCount ? ` · ${condCount}` : ''}</sl-tab>
                 ` : ''}
                 ${canDebug ? html`
-                    <sl-tab slot="nav" panel="debug" title="Live MQTT wiring of the selected element">MQTT</sl-tab>
+                    <sl-tab slot="nav" panel="debug" title="Live MQTT wiring of the selection">MQTT</sl-tab>
                 ` : ''}
                 ${selLabel ? html`<div slot="nav" class="sel-badge" title="${selLabel}">${selLabel}</div>` : ''}
                 <sl-tab-panel name="attributes">
@@ -719,12 +731,14 @@ class FeezalSidebarInspector extends LitElement {
             this._viewChanged();
         }
 
-        // E50/U88: the single-element tabs (Conditions, MQTT) disappear when
-        // the selection changes to a view or a multi-selection — fall back to
-        // Attributes, or sl-tab-group is left pointing at a panel that no
-        // longer exists and the inspector renders BLANK.
-        if (changed.has('selectedElems') &&
-            SINGLE_ELEMENT_TABS.includes(this._activeTab) && !this._singleElementSelected) {
+        // E50/U88: the Conditions and MQTT tabs disappear when the selection
+        // becomes a multi-selection (U95: no longer when it becomes a view) —
+        // fall back to Attributes, or sl-tab-group is left pointing at a panel
+        // that no longer exists and the inspector renders BLANK.
+        // U95: viewSelected is a separate property, and the gate now depends on
+        // it — a selection change that only flips that flag must still be seen.
+        if ((changed.has('selectedElems') || changed.has('viewSelected')) &&
+            SINGLE_ELEMENT_TABS.includes(this._activeTab) && !this._wiringTarget) {
             this._activeTab = 'attributes';
             this.shadowRoot.querySelector('sl-tab-group')?.show?.('attributes');
         }

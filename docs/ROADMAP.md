@@ -71,7 +71,6 @@ Work in progress — priorities and scope are not final.
 - [U84 — Canvas zoom, pan and fit-to-view](#u84--canvas-zoom-pan-and-fit-to-view)
 - [U85 — Toast/notification service: route the remaining call sites](#u85--toastnotification-service-route-the-remaining-call-sites--service-shipped) 🔨 *(service shipped)*
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
-- [U95 — View inspector: Conditions and MQTT tabs for views 💡](#u95--view-inspector-conditions-and-mqtt-tabs-for-views-)
 
 
 **Architecture & Infrastructure**
@@ -2285,68 +2284,3 @@ AI apply results, and the asset upload/rename outcomes.
 **The remaining pieces are a different kind of work, and scoping them as "extraction" undersells them.** The component system, source/Monaco mode and the clipboard handlers are component *orchestration*: they touch `this` state, dialogs, `feezal.site` and the render template (source mode alone gates ~15 places in `render()`). Moving them means introducing controller objects that hold a reference back to the editor — a legitimate design, but a refactor with real regression surface, not a cut-and-paste. Worth doing deliberately rather than opportunistically: A38 is the cautionary example — a change that looked like a pure removal broke seven e2e tests through a layout invariant no one had written down.
 
 **Relates:** N42 (querySelector caching lands naturally during extraction), A36 (the server twin).
-
-### U95 — View inspector: Conditions and MQTT tabs for views 💡
-
-**Requested (08/2026).** Selecting a view shows only Attributes/Styles — the
-Conditions and MQTT tabs are gated on `_singleElementSelected`
-([feezal-sidebar-inspector.js](../www/src/feezal-sidebar-inspector.js)), which
-requires a `feezal-element-*` tag. Both would be useful on views:
-
-**Conditions on views.** Two halves — the gate AND the engine: `feezal-view`
-does not run the E50 conditions machinery at all today, so beyond widening the
-tab gate the view element must consume a `conditions` attribute
-(feezal-visibility). Effects that make sense per row type:
-- **class / style / attribute** — work as on elements (e.g. an MQTT-driven
-  view background or class);
-- **visibility — DECIDED (08/2026): not offered.** Views do not get the
-  show/hide actions at all. The semantics a hidden view would need are
-  invasive (disappear from layout-app drawer entries, basic-navigation tabs and
-  swipe order, and refuse direct routing by falling through to the first
-  visible view — anything less is a `display:none` that leaves dead navigation
-  pointing at it), and that reach is not worth the one use case. The
-  Conditions panel must therefore offer only **class / style / attribute** when
-  a view is selected: `ACTIONS` in
-  [feezal-sidebar-inspector-conditions.js](../www/src/feezal-sidebar-inspector-conditions.js)
-  is filtered for views, not just left to fail at runtime.
-
-**Remaining scope, in build order** (each shippable on its own; the tab gate
-goes LAST so nothing ever shows an empty panel):
-1. **Engine on `feezal-view`** — a `conditions` attribute plus a
-   `FeezalConditions` instance, `getProperty()`, and connect/disconnect on the
-   same lifecycle points elements use. No new bundle weight: the viewer already
-   carries `feezal-conditions.js` for elements.
-   **Start with an extraction, though (found 08/2026 while scoping).**
-   `FeezalConditions` reads the payload via `host.getProperty(msg, row.property)`
-   and falls back to plain `msg.payload` when the host has no such method — so a
-   view without it would silently ignore `property` and never match a condition
-   on a nested JSON payload. Worse than no feature. But `getProperty` is not a
-   standalone helper: it is an instance method on `FeezalElement` that depends on
-   `this.split()`, a non-trivial path parser (bracket/quote segments). Lift both
-   to module scope in `feezal-element.js` and let the base class delegate, so the
-   view shares ONE implementation instead of growing a second, subtly different
-   path parser — the N41 pattern. That extraction is the first commit; the view
-   wiring is the second.
-2. **`subscribe-theme` on the view** — the U51 per-view theme becomes
-   MQTT-settable. This is what gives the MQTT tab something to list beyond the
-   conditions topics.
-3. **Widen the tab gate** — `_singleElementSelected` in
-   [feezal-sidebar-inspector.js](../www/src/feezal-sidebar-inspector.js)
-   currently requires a `feezal-element-*` tag; views need their own predicate,
-   and the Conditions panel needs the view-filtered `ACTIONS`.
-
-**MQTT tab on views.** Today the tab is the live-wiring debug panel over the
-selected element's subscriptions. For a view it should list the view-level
-wiring — which currently is only the conditions topics (above), so this half
-pairs with a small feature: **`subscribe-theme`** on the view (the U51
-per-view theme, today static, becomes MQTT-settable — payload = theme name,
-same values as the theme attribute; empty payload clears back to the site
-theme). The MQTT tab then shows exactly that subscription plus any condition
-topics, same renderer as for elements.
-
-**Relates:** E50 (conditions engine), U51 (per-view theme — gains the
-subscribe), U88 (the tab fallback when tabs disappear — the widened gate must
-keep that behaviour), N30 (view routing — the visibility-fall-through rule),
-layout-app / basic-navigation (navigation surfaces that must honour hidden
-views).
-

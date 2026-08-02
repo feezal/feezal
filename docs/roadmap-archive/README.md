@@ -379,6 +379,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U92 — Source view: identifying attributes first + on the opening-tag line ✅ done](U92.md)
 - [U93 — Top-bar improvements: MQTT dot into the sidebar, labeled Generate/Source buttons, site switcher left ✅ done](U93.md)
 - [U94 — layout-app: themed thin drawer scrollbar ✅ done](U94.md)
+- [U95 — View inspector: Conditions and MQTT tabs for views ✅ done](U95.md)
 - [U96 — Identifying attributes: label-less elements lead with their own identity ✅ done](U96.md)
 
 ## Architecture & Infrastructure
