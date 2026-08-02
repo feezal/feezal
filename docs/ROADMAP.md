@@ -12,6 +12,7 @@ Work in progress — priorities and scope are not final.
 - [B112 — Gap snapping: vertical and horizontal indicators fight instead of showing together](#b112--gap-snapping-vertical-and-horizontal-indicators-fight-instead-of-showing-together)
 - [B113 — Gap snapping: draw full-canvas helper lines so the gap arrows meet them at 90°](#b113--gap-snapping-draw-full-canvas-helper-lines-so-the-gap-arrows-meet-them-at-90)
 - [B114 — Snapping misplaced by the scroll offset on an undersized, scrolled browser](#b114--snapping-misplaced-by-the-scroll-offset-on-an-undersized-scrolled-browser)
+- [B115 — Context menus: Delete entries must ALL get the danger red hover](#b115--context-menus-delete-entries-must-all-get-the-danger-red-hover)
 
 
 **Near-term Improvements**
@@ -361,6 +362,36 @@ axes and keep the B8 guide-line correction intact.
 **Relates:** B8 ✅ (guide-line drift — the sibling symptom, already fixed),
 N11, [U89](roadmap-archive/U89.md) ✅ (gap pass shares the coordinate spaces),
 B104 (multi-drag exclusion — same scan, coordinate audit can cover both).
+
+
+### B115 — Context menus: Delete entries must ALL get the danger red hover
+
+**Reported (08/2026).** The element context menu's **Delete** entry hovers
+like a normal item — no red danger background, unlike the delete entries in
+the other context menus. Wanted as a blanket rule: **every delete/remove
+entry in every context menu gets the red hover background.**
+
+**Root cause, already located:** the machinery exists right next to the bug —
+[feezal-sidebar-inspector.js](../www/src/feezal-sidebar-inspector.js) styles
+`.ctx-item.danger:hover { background: #c62828 }` and applies the class to
+"Delete component…", but the plain element **Delete** row lacks the `danger`
+class. One-word fix there.
+
+**Sweep (the "everywhere" part):** audit every context menu for delete-like
+entries missing the class — known menus: the canvas element ctx
+(sidebar-inspector: Delete ✗, Delete component ✓), the palette component ctx
+(✓), the view-tab ctx (app-editor: ✓ ×2), the layers-tree ctx (✓). Also any
+"Remove"/"Clear" destructive rows added since. While in there: the red is
+`#c62828` copy-pasted in FOUR stylesheets — hoist it to one shared token
+(e.g. `--feezal-ctx-danger`) so the next menu cannot drift.
+
+**Guard:** a browser assertion per menu that the delete row carries `.danger`
+(cheap: query the rendered ctx menus in the existing suites), so a future
+menu entry cannot ship un-red.
+
+**Relates:** the context-menu family (sidebar-inspector / palette /
+app-editor view tabs / layers), N43 (the ratchet philosophy — one shared
+definition beats four copies).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
