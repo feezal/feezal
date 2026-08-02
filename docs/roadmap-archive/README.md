@@ -120,6 +120,8 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B112 — Gap snapping: vertical and horizontal indicators fight instead of showing together ✅ fixed](B112.md)
 - [B113 — Gap snapping: draw full-canvas helper lines so the gap arrows meet them at 90° ✅ fixed](B113.md)
 - [B114 — Snapping misplaced by the scroll offset on an undersized, scrolled browser ✅ fixed](B114.md)
+- [B115 — Context menus: Delete entries must ALL get the danger red hover ✅ fixed](B115.md)
+- [B116 — Gap-snap helper lines: show only the line being snapped to, not all four ✅ fixed](B116.md)
 
 ## Near-term Improvements
 

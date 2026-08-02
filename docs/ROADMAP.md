@@ -9,8 +9,6 @@ Work in progress — priorities and scope are not final.
 **Bugs**
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces](#b106--discovery-ids-is-space-separated-but-mqtt-topics-may-contain-spaces)
-- [B115 — Context menus: Delete entries must ALL get the danger red hover](#b115--context-menus-delete-entries-must-all-get-the-danger-red-hover)
-- [B116 — Gap-snap helper lines: show only the line being snapped to, not all four](#b116--gap-snap-helper-lines-show-only-the-line-being-snapped-to-not-all-four)
 
 
 **Near-term Improvements**
@@ -306,58 +304,6 @@ stamp → parse → dupe-guard must match exactly.
 the dupe-guard consumer), E108 ✅ (native recognizers whose IDs carry channel
 names), N12 (re-sync — anything else reading discovery ids must use the same
 parser).
-
-
-### B115 — Context menus: Delete entries must ALL get the danger red hover
-
-**Reported (08/2026).** The element context menu's **Delete** entry hovers
-like a normal item — no red danger background, unlike the delete entries in
-the other context menus. Wanted as a blanket rule: **every delete/remove
-entry in every context menu gets the red hover background.**
-
-**Root cause, already located:** the machinery exists right next to the bug —
-[feezal-sidebar-inspector.js](../www/src/feezal-sidebar-inspector.js) styles
-`.ctx-item.danger:hover { background: #c62828 }` and applies the class to
-"Delete component…", but the plain element **Delete** row lacks the `danger`
-class. One-word fix there.
-
-**Sweep (the "everywhere" part):** audit every context menu for delete-like
-entries missing the class — known menus: the canvas element ctx
-(sidebar-inspector: Delete ✗, Delete component ✓), the palette component ctx
-(✓), the view-tab ctx (app-editor: ✓ ×2), the layers-tree ctx (✓). Also any
-"Remove"/"Clear" destructive rows added since. While in there: the red is
-`#c62828` copy-pasted in FOUR stylesheets — hoist it to one shared token
-(e.g. `--feezal-ctx-danger`) so the next menu cannot drift.
-
-**Guard:** a browser assertion per menu that the delete row carries `.danger`
-(cheap: query the rendered ctx menus in the existing suites), so a future
-menu entry cannot ship un-red.
-
-**Relates:** the context-menu family (sidebar-inspector / palette /
-app-editor view tabs / layers), N43 (the ratchet philosophy — one shared
-definition beats four copies).
-
-
-### B116 — Gap-snap helper lines: show only the line being snapped to, not all four
-
-**Reported (08/2026).** Follow-up on [B113](roadmap-archive/B113.md) ✅ (gap
-snapping draws full-canvas helper lines): when a gap snap activates, **four**
-lines appear. Wanted: **exactly one** — the line at the border of the
-currently dragged element where the snap will land (the edge the drag is
-being magnetted to). Suppress the other three (the neighbour-pair edges and
-the dragged element's opposite edge); the gap arrows already tell the
-between-which-edges story, the extra lines only add noise.
-
-**Rule:** per active gap snap (and per axis, with both axes independent per
-[B112](roadmap-archive/B112.md) ✅), render ONE helper line: at the dragged
-element's snapped edge position. Everything else stays — arrows, px labels,
-the [U99](roadmap-archive/U99.md) ✅ position readout applies to this one line.
-
-**Relates:** [B113](roadmap-archive/B113.md) ✅ (the lines this prunes),
-[B112](roadmap-archive/B112.md) ✅ (both axes — one line PER axis when both
-snap), [U89](roadmap-archive/U89.md) ✅ (the gap arrows carry the span
-story), [U99](roadmap-archive/U99.md) ✅ (position readout — applies to the
-surviving line).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*

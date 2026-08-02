@@ -203,7 +203,7 @@ class FeezalSidebarAssets extends LitElement {
             user-select: none;
         }
         .ctx-item:hover { background: var(--feezal-bg-sub, #f0f0f0); }
-        .ctx-item.del { color: #c00; }
+        .ctx-item.danger:hover { background: var(--feezal-ctx-danger, #c62828); color: #fff; }
         .ctx-item .material-icons { font-size: 16px; color: inherit; }
 
         /* N33: hover fly-out submenu (Set as background → Current/All views) */
@@ -1405,7 +1405,7 @@ class FeezalSidebarAssets extends LitElement {
                             <span class="material-icons">file_copy</span>Copy to global
                         </div>
                     ` : ''}
-                    <div class="ctx-item del" @click="${() => {
+                    <div class="ctx-item danger" @click="${() => {
                         if (this._ctxMenu.isFolder) { const fn = this._ctxMenu.folderName; this._ctxMenu = null; this._deleteFolder(fn); }
                         else { const f = this._ctxMenu.file; this._ctxMenu = null; this._delete(f); }
                     }}">

@@ -171,6 +171,12 @@ class FeezalAppEditor extends LitElement {
         :host {
             display: block; position: relative;
             width: 100%; height: 100%; min-width: 1484px;
+            /* B115 — ONE definition of the context-menu danger red. Custom
+               properties cross shadow boundaries, so every menu in the editor
+               (inspector, layers, palette, assets, view tabs) reads it from
+               here; before this it was copy-pasted per stylesheet and had
+               already drifted to #c00 in one of them. */
+            --feezal-ctx-danger: #c62828;
         }
 
         #menu {
@@ -621,7 +627,7 @@ class FeezalAppEditor extends LitElement {
             display: flex; align-items: center; gap: 10px;
         }
         .view-ctx-item:hover { background: var(--sl-color-primary-600, #0284c7); color: #fff; }
-        .view-ctx-item.danger:hover { background: #c62828; }
+        .view-ctx-item.danger:hover { background: var(--feezal-ctx-danger, #c62828); color: #fff; }
         .view-ctx-sep { height: 1px; background: var(--feezal-border, #ddd); margin: 4px 0; }
         :host(.dark) .view-ctx-menu {
             background: #2e2e2e;

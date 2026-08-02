@@ -143,7 +143,7 @@ class FeezalSidebarLayers extends LitElement {
         }
         .ctx-item { padding: 5px 14px; cursor: pointer; white-space: nowrap; }
         .ctx-item:hover:not(.ctx-disabled) { background: var(--sl-color-primary-600, #0284c7); color: #fff; }
-        .ctx-item.danger:hover { background: #c62828; color: #fff; }
+        .ctx-item.danger:hover { background: var(--feezal-ctx-danger, #c62828); color: #fff; }
         .ctx-item.ctx-disabled { opacity: 0.4; cursor: default; }
         .ctx-item.has-sub { position: relative; display: flex; align-items: center; gap: 10px; }
         .ctx-arrow { margin-left: auto; font-size: 9px; opacity: 0.7; }

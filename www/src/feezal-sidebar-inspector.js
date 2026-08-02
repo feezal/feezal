@@ -94,7 +94,7 @@ class FeezalSidebarInspector extends LitElement {
             white-space: nowrap;
         }
         .ctx-item:hover:not(.ctx-disabled) { background: var(--sl-color-primary-600, #0284c7); color: #fff; }
-        .ctx-item.danger:hover:not(.ctx-disabled) { background: #c62828; }
+        .ctx-item.danger:hover:not(.ctx-disabled) { background: var(--feezal-ctx-danger, #c62828); color: #fff; }
         .ctx-disabled { opacity: 0.4; pointer-events: none; }
         .ctx-sep { height: 1px; background: var(--feezal-border, #ddd); margin: 4px 0; }
         .ctx-kbd { font-size: 11px; opacity: 0.65; font-family: monospace; margin-left: auto; }
@@ -414,7 +414,7 @@ class FeezalSidebarInspector extends LitElement {
                             </div>
                             <div class="ctx-sep"></div>
                         ` : ''}
-                        <div class="ctx-item" @click="${() => this._ctxAction('delete')}">
+                        <div class="ctx-item danger" @click="${() => this._ctxAction('delete')}">
                             Delete <span class="ctx-kbd">Del</span>
                         </div>
                         <div class="ctx-sep"></div>
@@ -1501,7 +1501,6 @@ class FeezalSidebarInspector extends LitElement {
             if (!best) continue;
             const label = `${Math.round(best.gap)}`;
             const {anchor} = best;
-            const ends = new Set();
             // Cross-axis centre of the anchor — where the annotation parks.
             const centre = axis === 'x'
                 ? (anchor.top + anchor.bottom) / 2
@@ -1516,26 +1515,37 @@ class FeezalSidebarInspector extends LitElement {
                         ? `display:block;top:${centre}px;left:${span.from + viewLeftInCv}px;width:${length}px;`
                         : `display:block;left:${centre}px;top:${span.from}px;height:${length}px;width:0;`,
                 });
-                ends.add(Math.round(span.from));
-                ends.add(Math.round(span.to));
             }
 
-            // U99: the helper lines carry the same readout the N11 guides do —
-            // view-relative, which for y means undoing the container offset the
-            // boxes were built with.
-            for (const at of ends) {
-                if (axis === 'x') {
-                    wantVlines.push({
-                        pos: `left: ${at}`,
-                        css: `display:block;left:${at + viewLeftInCv}px;` +
-                            `top:${snapLineTop}px;height:calc(100% - ${snapLineTop}px);`,
-                    });
-                } else {
-                    wantHlines.push({
-                        pos: `top: ${Math.round(at - viewTopInCv)}`,
-                        css: `display:block;top:${at}px;`,
-                    });
-                }
+            // B116 — ONE helper line per axis, not one per span end.
+            //
+            // B113 drew all four ends, which is the complete "between which
+            // edges" story — but the two arrows already tell that story, so the
+            // other three lines were noise. The one that earns its place is the
+            // dragged element's own edge: where the snap will actually put it.
+            //
+            // Which edge that is depends on the side the candidate proposes.
+            // Placing AFTER the anchor, the dragged box's LEADING edge closes
+            // the proposed gap (`proposed.to`); placing before it — or centring
+            // between two — its TRAILING edge does (`proposed.from`). Either
+            // way it is the end of the proposed span that belongs to the moving
+            // element rather than to a stationary neighbour, so the proposed
+            // arrow still terminates ON the line at 90°.
+            const {proposed, side} = best;
+            const at = Math.round(side === 'after' ? proposed.to : proposed.from);
+            // U99: the readout is view-relative, which for y means undoing the
+            // container offset the boxes were built with.
+            if (axis === 'x') {
+                wantVlines.push({
+                    pos: `left: ${at}`,
+                    css: `display:block;left:${at + viewLeftInCv}px;` +
+                        `top:${snapLineTop}px;height:calc(100% - ${snapLineTop}px);`,
+                });
+            } else {
+                wantHlines.push({
+                    pos: `top: ${Math.round(at - viewTopInCv)}`,
+                    css: `display:block;top:${at}px;`,
+                });
             }
         }
 

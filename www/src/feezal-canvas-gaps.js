@@ -31,12 +31,15 @@
  *
  * Every candidate draws TWO spans (the gap a neighbour pair already has, and
  * the one being proposed), and B112 draws both axes at once, so four arrows.
- * B113 puts a full-canvas helper line at each span END so an arrow visibly
- * terminates on one at 90° — two spans × two ends = four lines per axis, and
- * the two axes need different orientations, hence a pool each.
+ *
+ * Helper lines: B113 put one at every span END (four per axis), B116 cut that
+ * to the single line the dragged element's own edge lands on — the arrows
+ * already tell the between-which-edges story, so the other three were noise.
+ * One per axis, and the two axes need different orientations, hence a pool each
+ * of exactly one.
  */
 export const GAP_ARROW_COUNT = 4;
-export const GAP_LINE_COUNT = 4;
+export const GAP_LINE_COUNT = 1;
 
 /** Do two boxes overlap on the axis ACROSS the one being measured? */
 function sharesLane(a, b, axis) {

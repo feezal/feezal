@@ -169,7 +169,7 @@ describe('B112 — both axes annotate at once', () => {
         expect(g.horizontalArrows).toBe(2);
         expect(g.verticalArrows).toBe(0);
         expect(g.hlines).toBe(0);
-        expect(g.vlines).toBe(4);
+        expect(g.vlines).toBe(1);   // B116: one per ACTIVE axis
     });
 
     it('clears every marker when the drag ends', async () => {
@@ -181,8 +181,8 @@ describe('B112 — both axes annotate at once', () => {
     });
 });
 
-describe('B113 — helper lines across the canvas', () => {
-    it('draws a full-canvas line at every span end, perpendicular to the arrow', async () => {
+describe('B113 + B116 — one helper line per axis, across the canvas', () => {
+    it('draws a single full-canvas line per axis, perpendicular to the arrow', async () => {
         await resetD();
         await dragHold('d', 296, 196);
         const g = await guides();
@@ -193,12 +193,12 @@ describe('B113 — helper lines across the canvas', () => {
         });
         await release();
 
-        // x spans end at a.right(100) b.left(150) b.right(250) and 300 → four
-        // verticals; y spans at 50/100/150/200 → four horizontals.
-        expect(g.vlines).toBe(4);
-        expect(g.hlines).toBe(4);
-        // "Across the whole canvas": each line spans its axis, so an arrow can
-        // only ever terminate ON one of them.
+        // B116: not one per span end — one per axis, at the dragged element's
+        // own edge (where the snap lands). Both axes propose here, so one each.
+        expect(g.vlines).toBe(1);
+        expect(g.hlines).toBe(1);
+        // "Across the whole canvas": each line spans its axis, so the proposed
+        // arrow can only ever terminate ON it.
         for (const width of g.hlineWidths) expect(width).toBe(canvas.w);
         for (const height of g.vlineHeights) expect(height).toBeGreaterThan(canvas.h * 0.8);
     });
@@ -307,19 +307,17 @@ describe('U99 — every guide line reads out its position', () => {
         }
     });
 
-    it('labels the gap helper lines too, with the same view-relative values', async () => {
+    it('labels the gap helper line too, with the same view-relative value', async () => {
         await resetD();
         await dragHold('d', 296, 196);          // both rhythms live
         const r = await readouts();
         await release();
 
-        // The x spans end at a.right(100) b.left(150) b.right(250) and 300.
-        expect(r.gapV.map(l => l.pos))
-            .toEqual(['left: 100', 'left: 150', 'left: 250', 'left: 300']);
-        // The y spans end at e.bottom(50) f.top(100) f.bottom(150) and 200.
-        expect(r.gapH.map(l => l.pos))
-            .toEqual(['top: 50', 'top: 100', 'top: 150', 'top: 200']);
-        expect(r.gapV[0].rendered).toBe('"left: 100"');
+        // B116 leaves one line per axis: where the dragged element's own edge
+        // lands — x at 300, y at 200, which is exactly the proposed position.
+        expect(r.gapV.map(l => l.pos)).toEqual(['left: 300']);
+        expect(r.gapH.map(l => l.pos)).toEqual(['top: 200']);
+        expect(r.gapV[0].rendered).toBe('"left: 300"');
     });
 
     it('keeps the readout view-relative when the canvas is scrolled', async () => {

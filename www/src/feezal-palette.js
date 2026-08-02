@@ -98,7 +98,7 @@ class FeezalPalette extends LitElement {
         }
         .component-ctx .item { padding: 5px 12px; cursor: pointer; }
         .component-ctx .item:hover { background: var(--sl-color-primary-600, #0284c7); color: #fff; }
-        .component-ctx .item.danger:hover { background: #c62828; }
+        .component-ctx .item.danger:hover { background: var(--feezal-ctx-danger, #c62828); color: #fff; }
     `;
 
     constructor() {
