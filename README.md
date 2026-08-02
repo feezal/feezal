@@ -83,7 +83,7 @@ Feezal uses a two-tier licensing model:
 - **Element SDK (`@feezal/feezal-element`), all official elements and themes, and the
   viewer runtime bundled into static exports:** MIT
 
-In practice: run feezal freely, self-host it, modify it — no strings attached beyond the
+In practice: run Feezal freely, self-host it, modify it — no strings attached beyond the
 AGPL's share-alike terms. Your **exported dashboards are MIT-clean artifacts** you can
 publish anywhere, and **community element packages are not affected by copyleft** — build
 and distribute your own elements under any license you like
