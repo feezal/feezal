@@ -437,7 +437,7 @@ class FeezalPalette extends LitElement {
                     // inspector's _snap(), which REDRAWS the guide lines — so
                     // hiding must happen AFTER it, on every exit path.
                     const hideSnapLines = () => {
-                        for (const id of ['#vsnap1', '#vsnap2', '#hsnap1', '#hsnap2']) {
+                        for (const id of ['#vsnap1', '#vsnap2', '#hsnap1', '#hsnap2', '#gap1', '#gap2']) {
                             const line = feezal.container.querySelector(id);
                             if (line) line.style.display = 'none';
                         }

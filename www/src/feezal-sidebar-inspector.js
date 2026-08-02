@@ -17,6 +17,7 @@ import './feezal-sidebar-debug.js';    // U88
 import {clippyStyles, clippyMarkup, clippyEnabled} from './feezal-clippy.js';
 import {align, distribute, matchSize, operationLabel} from './feezal-canvas-align.js';   // U83
 import {isFlowLike} from './feezal-view.js';   // U90
+import {bestEqualGap} from './feezal-canvas-gaps.js';   // U89
 
 /** Inspector tabs that only exist while exactly ONE element is selected. */
 const SINGLE_ELEMENT_TABS = ['conditions', 'debug'];
@@ -572,7 +573,7 @@ class FeezalSidebarInspector extends LitElement {
             // immediately — they will redraw on next mousemove when still appropriate.
             if ((this._shiftDown !== prevShift || this._ctrlDown !== prevCtrl) &&
                     (this.dragElement || this.resizeElement)) {
-                for (const id of ['#vsnap1', '#vsnap2', '#hsnap1', '#hsnap2']) {
+                for (const id of ['#vsnap1', '#vsnap2', '#hsnap1', '#hsnap2', '#gap1', '#gap2']) {
                     const el = feezal.container.querySelector(id);
                     if (el) el.style.display = 'none';
                 }
@@ -864,6 +865,9 @@ class FeezalSidebarInspector extends LitElement {
         }
 
         // Keep snap helper line colors in sync with the configured grid color.
+        // NOT the U89 gap arrows: those are deliberately drawn in the selection
+        // colour, because they are an active proposal rather than a passive
+        // alignment hint.
         for (const id of ['#vsnap1', '#vsnap2', '#hsnap1', '#hsnap2']) {
             const el = feezal.app.shadowRoot.querySelector(id);
             if (el) el.style.borderColor = this.gridColor;
@@ -1444,6 +1448,53 @@ class FeezalSidebarInspector extends LitElement {
         return base;
     }
 
+    /**
+     * U89 — draw the two gap arrows: the span the neighbour pair already has,
+     * and the equal one being proposed under the drag.
+     *
+     * Both are drawn at the dragged element's own centre line rather than at
+     * the neighbours', so the eye compares two spans at the same height — which
+     * is the whole point of showing them.
+     */
+    _drawGapArrows(gapX, gapY, dragged, viewLeftInCv, cvTop, viewRect) {
+        const gap1 = feezal.container?.querySelector('#gap1');
+        const gap2 = feezal.container?.querySelector('#gap2');
+        if (!gap1 || !gap2) return;
+        const hide = el => { el.style.display = 'none'; el.textContent = ''; };
+
+        const best = gapX || gapY;
+        if (!best) { hide(gap1); hide(gap2); return; }
+
+        if (gapX) {
+            // horizontal spans, at the dragged element's vertical centre
+            const y = (dragged.top + dragged.bottom) / 2;
+            const draw = (el, span) => {
+                el.textContent = `${Math.round(best.gap)}`;
+                el.style.cssText =
+                    `display:block;top:${y}px;` +
+                    `left:${span.from + viewLeftInCv}px;width:${span.to - span.from}px;`;
+            };
+            draw(gap1, gapX.measured);
+            draw(gap2, gapX.proposed);
+            return;
+        }
+
+        // vertical spans: a 1px-wide column with the ticks turned sideways is a
+        // different shape, so reuse the same element rotated by drawing it as a
+        // narrow box and labelling it beside the span.
+        const x = (dragged.left + dragged.right) / 2 + viewLeftInCv;
+        const draw = (el, span) => {
+            el.textContent = `${Math.round(gapY.gap)}`;
+            el.style.cssText =
+                `display:block;left:${x}px;width:0;` +
+                `top:${span.from + cvTop - viewRect.y + viewRect.y}px;` +
+                `height:${span.to - span.from}px;` +
+                'border-top:0;border-left:1px dotted currentColor;padding:0 0 0 4px;text-align:left;';
+        };
+        draw(gap1, gapY.measured);
+        draw(gap2, gapY.proposed);
+    }
+
     _snap(x, y) {
         const effective = this._effectiveSnapping();
         if (effective === 'off') {
@@ -1540,13 +1591,43 @@ class FeezalSidebarInspector extends LitElement {
             vLine(vsnap1, L); vLine(vsnap2, R);
             hLine(hsnap1, T); hLine(hsnap2, B);
 
+            // U89 — equal-gap propagation. Another pass over the SAME sibling
+            // measurements: instead of matching edges, match the gap a
+            // neighbouring pair already has. Edge snapping wins ties, because an
+            // exact alignment is a stronger intent than a rhythm.
+            const draggedBox = {left: cxL, right: cxR, top: cyT, bottom: cyB};
+            const laneBoxes = [...view.children]
+                .filter(element => isCanvasElement(element) && !isMoving(element))
+                .map(element => {
+                    const r = element.getBoundingClientRect();
+                    return {
+                        left: r.x - viewRect.x, right: r.x + r.width - viewRect.x,
+                        top: r.y - cvTop, bottom: r.y + r.height - cvTop,
+                    };
+                });
+            const gapX = bestEqualGap(draggedBox, laneBoxes, 'x', {range});
+            const gapY = bestEqualGap(draggedBox, laneBoxes, 'y', {range});
+            this._drawGapArrows(gapX, gapY, draggedBox, viewLeftInCv, cvTop, viewRect);
+
             // interact.js snaps to one position per axis — the closer side wins.
             const object = {};
             let nearX = range, nearY = range;
+            // U89: edge and equal-gap compete on DISTANCE — an edge that merely
+            // happens to be in range must not beat a gap proposal three times
+            // closer. Edges win an exact tie: aligning is a stronger intent
+            // than continuing a rhythm.
             const xWin = L.dist <= R.dist ? L : R;
-            if (xWin.dist < range) { object.x = xWin.target; nearX = xWin.dist; }
+            if (xWin.dist < range && !(gapX && gapX.distance < xWin.dist)) {
+                object.x = xWin.target; nearX = xWin.dist;
+            } else if (gapX) {
+                object.x = gapX.lead + viewRect.x; nearX = gapX.distance;
+            }
             const yWin = T.dist <= B.dist ? T : B;
-            if (yWin.dist < range) { object.y = yWin.target; nearY = yWin.dist; }
+            if (yWin.dist < range && !(gapY && gapY.distance < yWin.dist)) {
+                object.y = yWin.target; nearY = yWin.dist;
+            } else if (gapY) {
+                object.y = gapY.lead + cvTop; nearY = gapY.distance;
+            }
 
             if (object.x !== undefined || object.y !== undefined) {
                 object.range = (object.x !== undefined && object.y !== undefined)
@@ -1838,6 +1919,7 @@ class FeezalSidebarInspector extends LitElement {
                 onend: () => {
                     this.dragElement = null;
                     this._dragExtent = null;
+                    this._drawGapArrows(null, null);   // U89
                     // Suppress the click that browsers fire on mouseup after a drag
                     // — it would otherwise reset a multi-selection to a single element.
                     this._ignoreNextClick = true;
@@ -1889,7 +1971,7 @@ class FeezalSidebarInspector extends LitElement {
                 onend: () => {
                     this.resizeElement = null;
                     feezal.app.change();
-                    for (const id of ['#vsnap1', '#vsnap2', '#hsnap1', '#hsnap2']) {
+                    for (const id of ['#vsnap1', '#vsnap2', '#hsnap1', '#hsnap2', '#gap1', '#gap2']) {
                         const el = feezal.container.querySelector(id);
                         if (el) el.style.display = 'none';
                     }

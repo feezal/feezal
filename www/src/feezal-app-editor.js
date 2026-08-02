@@ -489,6 +489,25 @@ class FeezalAppEditor extends LitElement {
             position: absolute; height: calc(100% - 35px); width: 1px;
             border-right: 1px dotted #cccccc; top: 35px; display: none;
         }
+        /* U89 — equal-gap arrows: one span over the gap a neighbour pair
+           already has, one over the gap being proposed under the drag, so the
+           match reads as "these two are the same". Drawn in the selection
+           colour rather than the guides' grey: this is an active proposal, not
+           a passive alignment hint. */
+        #gap1, #gap2 {
+            position: absolute; display: none; z-index: 6; pointer-events: none;
+            border-top: 1px dotted var(--sl-color-primary-600, #0284c7);
+            color: var(--sl-color-primary-600, #0284c7);
+            font: 10px/1 Roboto, Arial, sans-serif; text-align: center;
+            padding-top: 3px; box-sizing: content-box;
+        }
+        /* end ticks, so a short span still reads as a measured span */
+        #gap1::before, #gap2::before, #gap1::after, #gap2::after {
+            content: ''; position: absolute; top: -4px;
+            width: 1px; height: 9px; background: currentColor;
+        }
+        #gap1::before, #gap2::before { left: 0; }
+        #gap1::after,  #gap2::after  { right: 0; }
 
         /* Rename view dialog — now using sl-dialog (respects dark/light mode) */
         #viewdialog::part(panel) { min-width: 300px; }
@@ -1271,6 +1290,8 @@ class FeezalAppEditor extends LitElement {
                     <div id="vsnap1"></div>
                     <div id="hsnap2"></div>
                     <div id="vsnap2"></div>
+                    <div id="gap1"></div>
+                    <div id="gap2"></div>
                 </div>
 
                 <div id="sidebar-resize"

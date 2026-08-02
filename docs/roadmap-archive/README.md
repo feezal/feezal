@@ -7,7 +7,7 @@ Each entry is filed under the section its **ID prefix** belongs to — `B` Bugs,
 Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastructure,
 `D` Documentation — and sorted by number within it, so a new entry has exactly one correct place.
 
-**379 items.**
+**380 items.**
 
 ## Bugs
 
@@ -371,6 +371,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U83 — Alignment & distribution tools for multi-selection ✅ done](U83.md)
 - [U87 — Element outline / layers panel ✅ done](U87.md)
 - [U88 — Selected-element MQTT debug panel ✅ done](U88.md)
+- [U89 — Equal-gap smart guides during drag ✅ done](U89.md)
 - [U90 — Grid layout for views: `child-position: grid` ✅ done](U90.md)
 - [U92 — Source view: identifying attributes first + on the opening-tag line ✅ done](U92.md)
 - [U93 — Top-bar improvements: MQTT dot into the sidebar, labeled Generate/Source buttons, site switcher left ✅ done](U93.md)

@@ -1,0 +1,114 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2019-2026 Sebastian Raff — feezal editor
+/**
+ * U89 — equal-gap detection for the canvas drag.
+ *
+ * U83 gave the explicit Distribute operation; this is the live hint, so a row
+ * can be laid out by hand without invoking it. The core case is **neighbour-gap
+ * propagation**: when the dragged element approaches a stationary element, look
+ * at THAT element's gap to its own next neighbour on the other side, and
+ * propose the same gap on this side. Dropping a third card beside two cards
+ * spaced 16px apart proposes 16px — rows grow with a consistent rhythm without
+ * anyone measuring anything.
+ *
+ * Two decisions the roadmap left open, settled here:
+ *
+ * 1. **How far to look: the adjacent pair only.** A candidate needs an anchor
+ *    and that anchor's other-side neighbour — two stationary elements. Scanning
+ *    the whole row would offer gaps that are not visually adjacent to where the
+ *    pointer is, which reads as the canvas guessing rather than helping.
+ * 2. **Only elements sharing the row/column count.** A gap between boxes that
+ *    do not overlap on the cross axis is not a gap anyone can see, so the
+ *    overlap test is what keeps the proposals meaningful.
+ *
+ * Pure geometry: boxes in, candidates out. The caller supplies boxes in one
+ * coordinate space and decides what to do with the result (draw arrows, snap).
+ */
+
+/** Do two boxes overlap on the axis ACROSS the one being measured? */
+function sharesLane(a, b, axis) {
+    return axis === 'x'
+        ? a.top < b.bottom && a.bottom > b.top
+        : a.left < b.right && a.right > b.left;
+}
+
+const lead = (box, axis) => (axis === 'x' ? box.left : box.top);
+const trail = (box, axis) => (axis === 'x' ? box.right : box.bottom);
+const size = (box, axis) => trail(box, axis) - lead(box, axis);
+
+/**
+ * Equal-gap candidates for one axis.
+ *
+ * @param {object} dragged  the moving box (only its SIZE matters — its position
+ *                          is what we are proposing)
+ * @param {object[]} others stationary boxes
+ * @param {'x'|'y'} axis
+ * @param {object} [opts]
+ * @param {number} [opts.minGap=1]  ignore touching/overlapping pairs: a 0px gap
+ *                                  proposes "stack them", which is noise
+ * @returns {Array<{lead:number, gap:number, anchor:object, reference:object,
+ *                  measured:{from:number,to:number}, proposed:{from:number,to:number},
+ *                  side:'after'|'before'}>}
+ *   `lead` is where the dragged box's leading edge would go.
+ */
+export function equalGapCandidates(dragged, others, axis, {minGap = 1} = {}) {
+    const span = size(dragged, axis);
+    const lane = others.filter(o => sharesLane(dragged, o, axis));
+    const out = [];
+
+    for (const anchor of lane) {
+        // …the anchor's neighbours on each side, nearest first.
+        const before = lane.filter(o => o !== anchor && trail(o, axis) <= lead(anchor, axis))
+            .sort((a, b) => trail(b, axis) - trail(a, axis))[0];
+        const after = lane.filter(o => o !== anchor && lead(o, axis) >= trail(anchor, axis))
+            .sort((a, b) => lead(a, axis) - lead(b, axis))[0];
+
+        // Place AFTER the anchor, echoing the gap it already has BEFORE it.
+        if (before) {
+            const gap = lead(anchor, axis) - trail(before, axis);
+            if (gap >= minGap) {
+                out.push({
+                    lead: trail(anchor, axis) + gap,
+                    gap, anchor, reference: before, side: 'after',
+                    measured: {from: trail(before, axis), to: lead(anchor, axis)},
+                    proposed: {from: trail(anchor, axis), to: trail(anchor, axis) + gap},
+                });
+            }
+        }
+        // …and the mirror: place BEFORE the anchor, echoing its gap AFTER.
+        if (after) {
+            const gap = lead(after, axis) - trail(anchor, axis);
+            if (gap >= minGap) {
+                out.push({
+                    lead: lead(anchor, axis) - gap - span,
+                    gap, anchor, reference: after, side: 'before',
+                    measured: {from: trail(anchor, axis), to: lead(after, axis)},
+                    proposed: {from: lead(anchor, axis) - gap, to: lead(anchor, axis)},
+                });
+            }
+        }
+    }
+    return out;
+}
+
+/**
+ * The candidate the dragged box is closest to, within `range`.
+ *
+ * Ties break toward the SMALLER gap: when two rhythms are equally close, the
+ * tighter one is the one the user is more likely to be continuing, and picking
+ * deterministically keeps the guide from flickering between two answers on
+ * consecutive frames.
+ */
+export function bestEqualGap(dragged, others, axis, {range = 8, minGap = 1} = {}) {
+    const current = lead(dragged, axis);
+    let best = null;
+    for (const candidate of equalGapCandidates(dragged, others, axis, {minGap})) {
+        const distance = Math.abs(candidate.lead - current);
+        if (distance > range) continue;
+        if (!best || distance < best.distance ||
+            (distance === best.distance && candidate.gap < best.gap)) {
+            best = {...candidate, distance};
+        }
+    }
+    return best;
+}
