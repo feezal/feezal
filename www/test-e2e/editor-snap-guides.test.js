@@ -89,6 +89,28 @@ const guides = () => page.evaluate(() => {
     };
 });
 
+/**
+ * U99 — what each visible guide line reads out. The label is a ::after fed by
+ * `data-pos`, so the computed style is the only place the rendered text exists.
+ */
+const readouts = () => page.evaluate(() => {
+    const shown = sel => [...window.feezal.container.querySelectorAll(sel)]
+        .filter(el => getComputedStyle(el).display !== 'none');
+    const read = el => ({
+        pos: el.dataset.pos,
+        // Chromium resolves attr() here, so this is the text actually painted.
+        rendered: getComputedStyle(el, '::after').content,
+        transform: getComputedStyle(el, '::after').transform,
+        pointerEvents: getComputedStyle(el, '::after').pointerEvents,
+    });
+    return {
+        vsnap: shown('#vsnap1, #vsnap2').map(read),
+        hsnap: shown('#hsnap1, #hsnap2').map(read),
+        gapV: shown('.gap-vline').map(read),
+        gapH: shown('.gap-hline').map(read),
+    };
+});
+
 /** Press, move to (targetLeft, targetTop) in view coordinates, and HOLD. */
 async function dragHold(label, targetLeft, targetTop) {
     // Select first, so the inspector re-render that selection triggers happens
@@ -238,5 +260,81 @@ describe('B114 — a scrolled page must not move the snap', () => {
 
         expect(unscrolled).toBe(0);           // the view's left edge
         expect(scrolled).toBe(unscrolled);    // …and the scroll does not move it
+    });
+});
+
+describe('U99 — every guide line reads out its position', () => {
+    it('an edge guide shows the view-relative left/top it sits on', async () => {
+        await resetD();
+        const a = await box('a');       // a is at (0, 200)
+        // 6px off a's left edge and 6px off a's top edge: both axes snap, so
+        // one vertical and one horizontal guide are up at once.
+        await dragHold('d', a.left + 6, a.top + 6);
+        const r = await readouts();
+        await release();
+
+        // d and a are the same size, so BOTH dragged edges find a target on
+        // each axis (N11 tracks four sides) — the leading edge is the one the
+        // readout has to name.
+        expect(r.vsnap.map(l => l.pos)).toContain(`left: ${a.left}`);
+        expect(r.hsnap.map(l => l.pos)).toContain(`top: ${a.top}`);
+        // …and every line paints exactly what it carries.
+        for (const line of [...r.vsnap, ...r.hsnap]) {
+            expect(line.rendered).toBe(`"${line.pos}"`);
+        }
+    });
+
+    it('rotates the vertical readout a quarter turn and leaves the horizontal upright', async () => {
+        await resetD();
+        const a = await box('a');
+        await dragHold('d', a.left + 6, a.top + 6);
+        const r = await readouts();
+        await release();
+
+        // rotate(-90deg) → matrix(0, -1, 1, 0, …)
+        expect(r.vsnap[0].transform).toMatch(/^matrix\(0, -1, 1, 0/);
+        expect(r.hsnap[0].transform).toBe('none');
+    });
+
+    it('never lets a readout intercept the pointer mid-drag', async () => {
+        await resetD();
+        const a = await box('a');
+        await dragHold('d', a.left + 6, a.top + 6);
+        const r = await readouts();
+        await release();
+        for (const line of [...r.vsnap, ...r.hsnap]) {
+            expect(line.pointerEvents).toBe('none');
+        }
+    });
+
+    it('labels the gap helper lines too, with the same view-relative values', async () => {
+        await resetD();
+        await dragHold('d', 296, 196);          // both rhythms live
+        const r = await readouts();
+        await release();
+
+        // The x spans end at a.right(100) b.left(150) b.right(250) and 300.
+        expect(r.gapV.map(l => l.pos))
+            .toEqual(['left: 100', 'left: 150', 'left: 250', 'left: 300']);
+        // The y spans end at e.bottom(50) f.top(100) f.bottom(150) and 200.
+        expect(r.gapH.map(l => l.pos))
+            .toEqual(['top: 50', 'top: 100', 'top: 150', 'top: 200']);
+        expect(r.gapV[0].rendered).toBe('"left: 100"');
+    });
+
+    it('keeps the readout view-relative when the canvas is scrolled', async () => {
+        // The label must show the number the element's own `left` style uses,
+        // not where the line lands inside the scrolled container (B114's audit
+        // applied to the readout).
+        await page.evaluate(() => { window.feezal.site.scrollLeft = 120; });
+        await resetD();
+        const a = await box('a');
+        await dragHold('d', a.left + 6, a.top + 6);
+        const r = await readouts();
+        await release();
+        await page.evaluate(() => { window.feezal.site.scrollLeft = 0; });
+
+        expect(r.vsnap[0].pos).toBe(`left: ${a.left}`);
+        expect(r.hsnap[0].pos).toBe(`top: ${a.top}`);
     });
 });

@@ -1484,7 +1484,7 @@ class FeezalSidebarInspector extends LitElement {
      * container-relative (boxes were built as `rect.y - cvTop`) while x needs
      * `viewLeftInCv` to get there.
      */
-    _drawGapGuides(gapX, gapY, viewLeftInCv = 0, snapLineTop = 0) {
+    _drawGapGuides(gapX, gapY, {viewLeftInCv = 0, viewTopInCv = 0, snapLineTop = 0} = {}) {
         const pool = selector => [...(feezal.container?.querySelectorAll(selector) || [])];
         const arrows = pool('.gap-arrow');
         const vlines = pool('.gap-vline');
@@ -1520,12 +1520,21 @@ class FeezalSidebarInspector extends LitElement {
                 ends.add(Math.round(span.to));
             }
 
+            // U99: the helper lines carry the same readout the N11 guides do —
+            // view-relative, which for y means undoing the container offset the
+            // boxes were built with.
             for (const at of ends) {
                 if (axis === 'x') {
-                    wantVlines.push(`display:block;left:${at + viewLeftInCv}px;` +
-                        `top:${snapLineTop}px;height:calc(100% - ${snapLineTop}px);`);
+                    wantVlines.push({
+                        pos: `left: ${at}`,
+                        css: `display:block;left:${at + viewLeftInCv}px;` +
+                            `top:${snapLineTop}px;height:calc(100% - ${snapLineTop}px);`,
+                    });
                 } else {
-                    wantHlines.push(`display:block;top:${at}px;`);
+                    wantHlines.push({
+                        pos: `top: ${Math.round(at - viewTopInCv)}`,
+                        css: `display:block;top:${at}px;`,
+                    });
                 }
             }
         }
@@ -1538,7 +1547,8 @@ class FeezalSidebarInspector extends LitElement {
             el.style.cssText = want.css;
         });
         const applyLines = (els, want) => els.forEach((el, i) => {
-            el.style.cssText = want[i] || 'display:none';
+            el.style.cssText = want[i]?.css || 'display:none';
+            el.dataset.pos = want[i]?.pos || '';
         });
         applyLines(vlines, wantVlines);
         applyLines(hlines, wantHlines);
@@ -1592,6 +1602,12 @@ class FeezalSidebarInspector extends LitElement {
         // this delta when writing CSS `left`, or the lines drift by the scroll
         // amount on an oversized, scrolled canvas.
         const viewLeftInCv = viewRect.left - cvRect.left;
+        // U99: the vertical twin, for the readout only. Horizontal guide positions
+        // are carried in CONTAINER-relative y (`rect.y - cvTop`), but the label has
+        // to show the number the element's `top` style uses — view-relative. Same
+        // correction the B114 audit calls for: on a scrolled canvas the view origin
+        // moves inside the container, and an uncorrected readout drifts with it.
+        const viewTopInCv = viewRect.top - cvRect.top;
         // snapLineTop: how far down (in px, relative to #container-view) the vertical
         // snap lines should start — measured from the bottom of the tab menu bar so
         // the lines never bleed into the tab switcher.
@@ -1631,12 +1647,20 @@ class FeezalSidebarInspector extends LitElement {
             });
 
             // Show/hide each guide line independently.
-            const vLine = (el, t) => { el.style.cssText = t.dist < range
-                ? `left:${t.pos + viewLeftInCv - 1}px;display:block;top:${snapLineTop}px;height:calc(100% - ${snapLineTop}px)`
-                : 'display:none'; };
-            const hLine = (el, t) => { el.style.cssText = t.dist < range
-                ? `top:${t.pos - 1.5}px;display:block`
-                : 'display:none'; };
+            // U99: each carries its view-relative position as `data-pos`; the CSS
+            // renders it as the line's readout (see feezal-app-editor).
+            const vLine = (el, t) => {
+                el.style.cssText = t.dist < range
+                    ? `left:${t.pos + viewLeftInCv - 1}px;display:block;top:${snapLineTop}px;height:calc(100% - ${snapLineTop}px)`
+                    : 'display:none';
+                el.dataset.pos = `left: ${Math.round(t.pos)}`;
+            };
+            const hLine = (el, t) => {
+                el.style.cssText = t.dist < range
+                    ? `top:${t.pos - 1.5}px;display:block`
+                    : 'display:none';
+                el.dataset.pos = `top: ${Math.round(t.pos - viewTopInCv)}`;
+            };
             vLine(vsnap1, L); vLine(vsnap2, R);
             hLine(hsnap1, T); hLine(hsnap2, B);
 
@@ -1656,7 +1680,7 @@ class FeezalSidebarInspector extends LitElement {
                 });
             const gapX = bestEqualGap(draggedBox, laneBoxes, 'x', {range});
             const gapY = bestEqualGap(draggedBox, laneBoxes, 'y', {range});
-            this._drawGapGuides(gapX, gapY, viewLeftInCv, snapLineTop);
+            this._drawGapGuides(gapX, gapY, {viewLeftInCv, viewTopInCv, snapLineTop});
 
             // interact.js snaps to one position per axis — the closer side wins.
             const object = {};
@@ -1760,9 +1784,12 @@ class FeezalSidebarInspector extends LitElement {
             }
         });
 
-        // Show the winning snap line, hide the other in each axis.
+        // Show the winning snap line, hide the other in each axis. U99: same
+        // view-relative readout as the drag path — a resize snaps to the same
+        // edges and deserves the same annotation.
         if (vsnapEl) {
             vsnapEl.style.cssText = `left:${vsnapPos + viewLeftInCv - 1}px;display:block;top:${snapLineTop}px;height:calc(100% - ${snapLineTop}px)`;
+            vsnapEl.dataset.pos = `left: ${Math.round(vsnapPos)}`;
             vsnapOtherEl.style.display = 'none';
         } else {
             vsnap1.style.display = 'none';
@@ -1770,6 +1797,7 @@ class FeezalSidebarInspector extends LitElement {
         }
         if (hsnapEl) {
             hsnapEl.style.cssText = `top:${hsnapPos - 1.5}px;display:block`;
+            hsnapEl.dataset.pos = `top: ${Math.round(hsnapPos - viewTopInCv)}`;
             hsnapOtherEl.style.display = 'none';
         } else {
             hsnap1.style.display = 'none';

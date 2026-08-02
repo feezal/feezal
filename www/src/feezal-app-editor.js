@@ -157,7 +157,21 @@ class FeezalAppEditor extends LitElement {
     };
 
     static styles = css`
-        :host { display: block; width: 100%; height: 100%; }
+        /* U100 — the editor is not responsive down to arbitrary widths, and
+           pretending otherwise produced a degraded layout (the sidebar tab items
+           misbehaving) rather than an honest scrollbar. Below this floor the
+           WINDOW scrolls the whole editor horizontally instead.
+           position:relative is not cosmetic: #container is absolutely
+           positioned at width:100%, and with an unpositioned host its containing
+           block was the VIEWPORT — so below the floor the right sidebar kept
+           hugging the viewport edge and scrolling right revealed empty space
+           past it. Positioning the host makes every piece of chrome lay out
+           against the editor's (min-)width, which is what makes the floor work.
+           Viewer untouched: dashboards are responsive by design. */
+        :host {
+            display: block; position: relative;
+            width: 100%; height: 100%; min-width: 1484px;
+        }
 
         #menu {
             height: 42px; background-color: #f8f8f8; width: 100%;
@@ -511,10 +525,35 @@ class FeezalAppEditor extends LitElement {
         #hsnap1, #hsnap2 {
             position: absolute; width: 100%; height: 1px;
             border-bottom: 1px dotted #cccccc; left: 0; display: none;
+            color: #cccccc;
         }
         #vsnap1, #vsnap2 {
             position: absolute; height: calc(100% - 35px); width: 1px;
             border-right: 1px dotted #cccccc; top: 35px; display: none;
+            color: #cccccc;
+        }
+        /* U99 — each guide line reads out the canvas position it sits on, in the
+           view-relative pixels the element's own left/top styles use. The value
+           is written to data-pos by the inspector and rendered here, so no extra
+           DOM per line and nothing to keep in sync when a line moves.
+           Never intercepts pointer events: the whole overlay is drawn during an
+           active drag, and a label that could take a hit would break it. */
+        #hsnap1::after, #hsnap2::after, #vsnap1::after, #vsnap2::after,
+        .gap-vline::after, .gap-hline::after {
+            content: attr(data-pos);
+            position: absolute; pointer-events: none; white-space: nowrap;
+            font: 10px/1 Roboto, Arial, sans-serif; color: inherit;
+        }
+        /* Vertical lines: rotated a quarter turn left so the text runs parallel
+           to the line, parked near the BOTTOM of the canvas. The origin is the
+           label's own bottom-left, so the rotated text grows upwards from there. */
+        #vsnap1::after, #vsnap2::after, .gap-vline::after {
+            left: 4px; bottom: 6px;
+            transform: rotate(-90deg); transform-origin: 0 100%;
+        }
+        /* Horizontal lines: unrotated, above the line, near its LEFT end. */
+        #hsnap1::after, #hsnap2::after, .gap-hline::after {
+            left: 6px; bottom: 4px;
         }
         /* U89 — equal-gap arrows: one span over the gap a neighbour pair
            already has, one over the gap being proposed under the drag, so the
@@ -554,6 +593,7 @@ class FeezalAppEditor extends LitElement {
            proposal, not the proposal itself (which stays in the accent colour). */
         .gap-vline, .gap-hline {
             position: absolute; display: none; z-index: 5; pointer-events: none;
+            color: #cccccc;
         }
         .gap-vline { width: 1px; border-right: 1px dotted #cccccc; }
         .gap-hline { height: 1px; width: 100%; left: 0; border-bottom: 1px dotted #cccccc; }

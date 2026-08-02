@@ -249,7 +249,7 @@ describe('_drawGapGuides — both axes, plus the helper lines', () => {
 
     it('draws BOTH axes at once — they no longer share one pair of markers', () => {
         const el = inspector();
-        el._drawGapGuides(gapX, gapY, 0, 35);
+        el._drawGapGuides(gapX, gapY, {snapLineTop: 35});
 
         const arrows = shown(container.arrows);
         expect(arrows).toHaveLength(4);
@@ -260,7 +260,7 @@ describe('_drawGapGuides — both axes, plus the helper lines', () => {
 
     it('puts a helper line at every distinct span end, per axis', () => {
         const el = inspector();
-        el._drawGapGuides(gapX, gapY, 0, 35);
+        el._drawGapGuides(gapX, gapY, {snapLineTop: 35});
         // x ends 100/150/250/300 → four verticals; y ends 50/100/150/200 → four horizontals.
         expect(shown(container.vlines)).toHaveLength(4);
         expect(shown(container.hlines)).toHaveLength(4);
@@ -277,25 +277,51 @@ describe('_drawGapGuides — both axes, plus the helper lines', () => {
             measured: {from: 100, to: 120}, proposed: {from: 120, to: 140},
         });
         const el = inspector();
-        el._drawGapGuides(touching, null, 0, 35);
+        el._drawGapGuides(touching, null, {snapLineTop: 35});
         expect(shown(container.vlines).map(l => l.style.left)).toEqual(['100px', '120px', '140px']);
     });
 
     it('translates x by the canvas scroll delta, y is already container-relative', () => {
         const el = inspector();
-        el._drawGapGuides(gapX, gapY, 40, 35);
+        el._drawGapGuides(gapX, gapY, {viewLeftInCv: 40, snapLineTop: 35});
         expect(shown(container.vlines)[0].style.left).toBe('140px');   // 100 + 40
         expect(shown(container.hlines)[0].style.top).toBe('50px');     // unchanged
     });
 
     it('clears every marker when there is nothing to propose', () => {
         const el = inspector();
-        el._drawGapGuides(gapX, gapY, 0, 35);
+        el._drawGapGuides(gapX, gapY, {snapLineTop: 35});
         el._drawGapGuides(null, null);
         expect(shown(container.arrows)).toHaveLength(0);
         expect(shown(container.vlines)).toHaveLength(0);
         expect(shown(container.hlines)).toHaveLength(0);
         expect(container.arrows.every(a => a.textContent === '')).toBe(true);
+        expect(container.vlines.every(l => l.dataset.pos === '')).toBe(true);
+    });
+
+    // U99 — the readout each helper line carries, rendered by the CSS from
+    // data-pos. View-relative, which is the number the element's own left/top
+    // style uses — NOT where the line happens to sit inside the container.
+    it('labels each helper line with its view-relative position', () => {
+        const el = inspector();
+        el._drawGapGuides(gapX, gapY, {snapLineTop: 35});
+        expect(shown(container.vlines).map(l => l.dataset.pos))
+            .toEqual(['left: 100', 'left: 150', 'left: 250', 'left: 300']);
+        expect(shown(container.hlines).map(l => l.dataset.pos))
+            .toEqual(['top: 50', 'top: 100', 'top: 150', 'top: 200']);
+    });
+
+    it('keeps the readout view-relative on a scrolled canvas', () => {
+        // The line is DRAWN at the container offset but READS the view-relative
+        // value — B114's audit, applied to the label.
+        const el = inspector();
+        el._drawGapGuides(gapX, gapY, {viewLeftInCv: 40, viewTopInCv: 25, snapLineTop: 35});
+        const [vline] = shown(container.vlines);
+        expect(vline.style.left).toBe('140px');       // drawn 40 further right…
+        expect(vline.dataset.pos).toBe('left: 100');  // …but reads the same number
+        const [hline] = shown(container.hlines);
+        expect(hline.style.top).toBe('50px');         // drawn where the box was measured…
+        expect(hline.dataset.pos).toBe('top: 25');    // …and reads 50 - 25
     });
 });
 

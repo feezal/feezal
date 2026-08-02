@@ -75,8 +75,6 @@ Work in progress — priorities and scope are not final.
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
 - [U97 — Slim editor footer/status line 💡](#u97--slim-editor-footerstatus-line-)
 - [U98 — Palette colors in editor light mode ⚠️ needs refinement](#u98--palette-colors-in-editor-light-mode-️-needs-refinement)
-- [U99 — Snap helper lines: position readout on each line 💡](#u99--snap-helper-lines-position-readout-on-each-line-)
-- [U100 — Editor min-width instead of broken narrow layouts](#u100--editor-min-width-instead-of-broken-narrow-layouts)
 
 
 **Architecture & Infrastructure**
@@ -353,12 +351,13 @@ between-which-edges story, the extra lines only add noise.
 **Rule:** per active gap snap (and per axis, with both axes independent per
 [B112](roadmap-archive/B112.md) ✅), render ONE helper line: at the dragged
 element's snapped edge position. Everything else stays — arrows, px labels,
-the U99 position readout applies to this one line.
+the [U99](roadmap-archive/U99.md) ✅ position readout applies to this one line.
 
 **Relates:** [B113](roadmap-archive/B113.md) ✅ (the lines this prunes),
 [B112](roadmap-archive/B112.md) ✅ (both axes — one line PER axis when both
 snap), [U89](roadmap-archive/U89.md) ✅ (the gap arrows carry the span
-story), U99 (position readout — applies to the surviving line).
+story), [U99](roadmap-archive/U99.md) ✅ (position readout — applies to the
+surviving line).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
@@ -2381,76 +2380,6 @@ the tile labels).
 **Relates:** the editor dark-mode discipline (N43 — this is its light-mode
 mirror), element-spec `palette.color` (docs note: color is authored against
 the dark editor; light mode derives), U45 (palette/picker — same tiles).
-
-
-### U99 — Snap helper lines: position readout on each line 💡
-
-**Requested (08/2026).** The snap guide lines should carry a small label with
-the line's canvas position — the same treatment the U89 gap arrows give their
-pixel distance:
-
-- **Vertical lines:** the text (e.g. `left: 240`) **rotated 90° to the left**
-  so it runs parallel to the line, placed **near the bottom of the canvas**.
-- **Horizontal lines:** the text (e.g. `top: 320`) **unrotated, above the
-  line**, placed **near the left end of the canvas**.
-
-Values are view-relative pixels (the coordinates the element's `left`/`top`
-styles use, not viewport coords — and [B114](roadmap-archive/B114.md) ✅'s scroll-offset audit applies here
-too: the readout must stay correct on a scrolled canvas). Same styling family
-as the gap-arrow px labels (small, dotted-guide-colored, never intercepting
-pointer events). Applies to all four N11 guide lines (both vertical, both
-horizontal) and, where sensible, the [B113](roadmap-archive/B113.md) ✅
-full-canvas gap-snap lines carry
-the same readout.
-
-**Relates:** N11 (the four-side guide lines this labels),
-[U89](roadmap-archive/U89.md) ✅ (the px-label precedent + styling),
-[B113](roadmap-archive/B113.md) ✅ (gap-snap canvas lines — same label
-treatment), [B114](roadmap-archive/B114.md) ✅ (coordinate-space audit — the
-readout must use the corrected values).
-
-
-### U100 — Editor min-width instead of broken narrow layouts
-
-**Reported (08/2026).** Below roughly **1484px** browser width the editor
-layout degrades — e.g. the sidebar tab items misbehave in position and
-behaviour. The editor is not meant to be responsive down to arbitrary widths;
-**the deliberate fix is a `min-width` on the editor shell** so the layout
-never enters the broken regime — the browser window then scrolls the whole
-editor horizontally instead of the layout collapsing.
-
-**Refined (08/2026) — tried live, one blocker found.** Setting
-`min-width: 1484px` on `feezal-app-editor` in the console confirms **1484px is
-a solid floor** — adopt it. But below the floor the **right sidebar
-misbehaves**: it keeps sticking to the **viewport's** right border, and
-scrolling the window right reveals **empty space behind/past the sidebar** —
-i.e. the sidebar (or its column) is anchored/sized against the viewport, not
-the editor's layout width. The min-width alone is not enough; the shell must
-be audited for **viewport-anchored chrome** (fixed positioning, `100vw`-based
-sizing, `right: 0` against the viewport): with the min-width active, every
-piece of editor chrome must lay out against the editor's (min-)width — the
-right sidebar sits at the editor's right edge (x = 1484 when the window is
-narrower) and scrolls together with the rest.
-
-**Design notes:**
-- `min-width: 1484px` on the editor root (`feezal-app-editor` host).
-- Fix the right-sidebar anchoring per the audit above; sweep for further
-  viewport-anchored shell pieces (top bar? footer once U97 exists? overlays
-  like the U60 modal may legitimately stay viewport-fixed — decide per
-  piece: chrome = editor-anchored, overlays/modals = viewport-anchored).
-- The document/body must allow horizontal scrolling for the editor route
-  (check nothing clips at `overflow: hidden` on html/body for the editor
-  page).
-- VIEWER stays untouched — dashboards are responsive by design; this is
-  editor chrome only.
-
-**Test:** resize below 1484px → the editor keeps its layout, the window
-scrolls horizontally, and the right sidebar sits flush at the editor's right
-edge with NO empty space beyond it; sidebar tabs render correctly at every
-width above the floor.
-
-**Relates:** U93 (top-bar rearrangement — reduces top-bar width pressure),
-the sidebar tab bar (U87-established pattern — the reported victim).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
