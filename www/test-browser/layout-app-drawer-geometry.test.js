@@ -173,3 +173,55 @@ describe('drawer entry geometry is identical in every mode (B90)', () => {
         await park();
     });
 });
+
+
+/**
+ * U94 — the drawer nav and the content area scroll with a THIN, themed
+ * scrollbar.
+ *
+ * Reported on the midnight-blue theme: scrolling worked but the thumb was
+ * invisible, because shadow-DOM content gets the platform default and nothing
+ * tied the thumb to the theme. Asserted on computed style rather than by
+ * screenshot: headless Linux draws overlay scrollbars (zero gutter, thumb only
+ * while scrolling), so a pixel check here would prove nothing about the
+ * Chrome/Windows bar this was reported against.
+ */
+describe('U94 — themed thin scrollbars', () => {
+    const surfaces = el => ['.drawer', '.content']
+        .map(sel => [sel, el.shadowRoot.querySelector(sel)]);
+
+    it('both scroll surfaces ask for a thin scrollbar', async () => {
+        const {el} = await mount({});
+        for (const [sel, node] of surfaces(el)) {
+            expect(node, sel).toBeTruthy();
+            expect(getComputedStyle(node).scrollbarWidth, sel).toBe('thin');
+        }
+    });
+
+    it('the thumb takes its colour from the theme, over a transparent track', async () => {
+        const {el, box} = await mount({});
+        box.style.setProperty('--secondary-text-color', 'rgb(159, 179, 200)');
+        await new Promise(r => setTimeout(r, 50));
+        for (const [sel, node] of surfaces(el)) {
+            const color = getComputedStyle(node).scrollbarColor;
+            expect(color, sel).toContain('rgb(159, 179, 200)');
+            expect(color, sel).toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
+        }
+    });
+
+    it('the style knob overrides the theme default', async () => {
+        const {el, box} = await mount({});
+        box.style.setProperty('--feezal-app-scrollbar-color', 'rgb(255, 122, 24)');
+        await new Promise(r => setTimeout(r, 50));
+        for (const [sel, node] of surfaces(el)) {
+            expect(getComputedStyle(node).scrollbarColor, sel).toContain('rgb(255, 122, 24)');
+        }
+    });
+
+    it('declares the knob as a style descriptor, so the inspector offers it', () => {
+        const styles = customElements.get('feezal-element-layout-app').feezal.styles;
+        const knob = styles.find(s => s && s.property === '--feezal-app-scrollbar-color');
+        expect(knob).toBeTruthy();
+        expect(knob.default).toBe('var(--secondary-text-color)');
+    });
+});

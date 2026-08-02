@@ -10,7 +10,6 @@ Work in progress — priorities and scope are not final.
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B63 — "Open viewer" does nothing on Safari/iOS (regression)](#b63--open-viewer-does-nothing-on-safariios-regression)
 - [B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces](#b106--discovery-ids-is-space-separated-but-mqtt-topics-may-contain-spaces)
-- [B109 — Layers tree: previous view's selection stays marked after cross-view select](#b108--layers-tree-previous-views-selection-stays-marked-after-cross-view-select)
 
 
 **Near-term Improvements**
@@ -75,7 +74,6 @@ Work in progress — priorities and scope are not final.
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
 - [U89 — Equal-gap smart guides during drag](#u89--equal-gap-smart-guides-during-drag) 💡
 - [U91 — Distribute: pack mode (edge-to-edge, no overlap, no gap)](#u91--distribute-pack-mode-edge-to-edge-no-overlap-no-gap)
-- [U94 — layout-app: themed thin drawer scrollbar (thumb currently invisible)](#u94--layout-app-themed-thin-drawer-scrollbar-thumb-currently-invisible)
 - [U95 — View inspector: Conditions and MQTT tabs for views 💡](#u95--view-inspector-conditions-and-mqtt-tabs-for-views-)
 
 
@@ -344,41 +342,6 @@ stamp → parse → dupe-guard must match exactly.
 the dupe-guard consumer), E108 ✅ (native recognizers whose IDs carry channel
 names), N12 (re-sync — anything else reading discovery ids must use the same
 parser).
-
-
-### B109 — Layers tree: previous view's selection stays marked after cross-view select
-
-**Reported (08/2026).** Selecting an element on ANOTHER view in the layers
-tree (U87) correctly switches the view and selects the element on the canvas
-— but the element that was selected on the FIRST view still shows as selected
-in the tree.
-
-**Root cause direction:** the tree deliberately has no selection state of its
-own — it mirrors the `feezal-selected` class site-wide
-(`_selection()` in [feezal-sidebar-layers.js](../www/src/feezal-sidebar-layers.js)
-reads `feezal.site.querySelectorAll('.feezal-selected')`). So the stale tree
-row means the stale CLASS: the canvas selection path clears `feezal-selected`
-only within the active view (and DragSelect instances are per-view), so the
-element on the previous view keeps its class after the switch — the tree just
-faithfully shows it. The canvas itself hides the old view, which is why only
-the tree makes it visible.
-
-**Fix:** on the cross-view select path (the tree's `_onRowClick` →
-`_selectView` → inspector select), clear `feezal-selected` across ALL views
-(site-wide sweep) before applying the new selection — or fix it centrally in
-the inspector's view-switch/selectElement so every cross-view selection change
-(not just tree-initiated ones) strips the previous view's classes. Central fix
-preferred: the stale class is also latent state for anything else reading
-site-wide selection.
-
-**Test:** browser test in the layers suite — select element A on view 1,
-tree-select element B on view 2, assert A no longer carries
-`feezal-selected` and the tree shows exactly one selected row.
-
-**Relates:** U87 (the layers tree), B35/B48 (per-view DragSelect lifecycle —
-why the class survives the switch), the deploy `_clean` step (which strips
-`feezal-selected` on serialize — the stale class never reached saved HTML,
-which is why this stayed invisible until the tree mirrored it).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
@@ -2430,44 +2393,6 @@ extends — same sorting, same undo semantics), U89 (equal-gap smart guides —
 the drag-time sibling; pack is the explicit-operation form of "no gap"),
 [U90](roadmap-archive/U90.md) ✅ (grid layout — the possible gap-source
 follow-up).
-
-
-### U94 — layout-app: themed thin drawer scrollbar (thumb currently invisible)
-
-**Reported (08/2026).** When the drawer navigation overflows, the scrollbar
-looks broken: scrolling WORKS, but the **thumb is invisible** (observed with
-the midnight-blue theme — the default thumb colour disappears against the
-themed drawer background), and on Chrome/Windows the bar is the full-width
-native one, far too heavy for a navigation drawer. Wanted: a **thin**
-scrollbar whose thumb has **rounded ends**.
-
-**Where:** the drawer nav in
-[feezal-element-layout-app.js](../www/packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js)
-(`.nav { overflow-y: auto }`) has NO scrollbar styling — shadow-DOM content
-gets the platform default, and nothing ties the thumb to the theme.
-
-**Fix sketch:**
-- `scrollbar-width: thin` + `scrollbar-color` (Firefox) and
-  `::-webkit-scrollbar { width: ~8px }` with
-  `::-webkit-scrollbar-thumb { border-radius }` (the rounded ends) +
-  transparent track on the nav.
-- Thumb colour from the theme per the variable discipline: a new
-  `--feezal-app-scrollbar-color` style knob defaulting to a canonical var
-  (`--secondary-text-color` reads on both light and dark drawer surfaces;
-  verify against midnight-blue, the reporting theme, plus a light theme).
-- Apply the same styling to the **content area** (`.content`, overflow: auto)
-  so the app shell's two scroll surfaces match.
-- Note: the EDITOR's thin-scrollbar machinery (`_syncScrollbarStyle`,
-  editor-only, deliberately reverts feezal-site content to native) does not
-  reach viewer shadow roots — this is element styling, not editor chrome.
-
-**Test:** browser test asserting the nav carries the scrollbar rules and the
-thumb colour resolves from the knob/canonical var; visual check per
-TESTING.md on Chrome/Windows with midnight-blue and a light theme.
-
-**Relates:** N36 (the --feezal-app-* style-var family this extends), U63
-(layout-app inset knobs — same styles block), theme-var discipline (canonical
-vars bare).
 
 
 ### U95 — View inspector: Conditions and MQTT tabs for views 💡

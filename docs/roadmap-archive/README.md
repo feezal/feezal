@@ -7,7 +7,7 @@ Each entry is filed under the section its **ID prefix** belongs to — `B` Bugs,
 Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastructure,
 `D` Documentation — and sorted by number within it, so a new entry has exactly one correct place.
 
-**376 items.**
+**378 items.**
 
 ## Bugs
 
@@ -113,6 +113,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B105 — Source formatting: line break inside closing tags, glued closing-tag runs ✅ fixed](B105.md)
 - [B107 — Source formatting: closing tag glued to the last attribute line ✅ fixed](B107.md)
 - [B108 — Stale viewers linger in the Clients list ✅ fixed](B108.md)
+- [B109 — Layers tree: previous view's selection stays marked after cross-view select ✅ fixed](B109.md)
 
 ## Near-term Improvements
 
@@ -372,6 +373,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U90 — Grid layout for views: `child-position: grid` ✅ done](U90.md)
 - [U92 — Source view: identifying attributes first + on the opening-tag line ✅ done](U92.md)
 - [U93 — Top-bar improvements: MQTT dot into the sidebar, labeled Generate/Source buttons, site switcher left ✅ done](U93.md)
+- [U94 — layout-app: themed thin drawer scrollbar ✅ done](U94.md)
 
 ## Architecture & Infrastructure
 

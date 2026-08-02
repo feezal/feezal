@@ -82,6 +82,8 @@ class FeezalElementLayoutApp extends FeezalElement {
                     help: 'Side gutter between the drawer edge and the entry rows — the space the hover/active highlight stops short of. Set "0" to let the highlight reach the drawer edge. Defaults to 8px with entry style "pill" and to 0 with "list". Applies to every drawer mode alike (full drawer, slim rail, expanded rail, overlay), so changing it never shifts the entries between modes.'},
                 {property: '--feezal-app-content-padding', type: 'string', default: '0', help: 'Breathing room between the app bar / drawer and the embedded view. Full CSS padding shorthand, so per-side insets need no extra knobs: "16px", "8px 16px", "0 16px 24px". The embedded view\'s own background paints under it.'},
                 {property: '--feezal-app-content-max-width', type: 'string', default: 'none', help: 'Caps the width of EVERY embedded view in one place and centres it — a phone/tablet column on a large monitor (e.g. "520px"). The content area\'s background fills the sides. Default none = full width.'},
+                {property: '--feezal-app-scrollbar-color', type: 'color', default: 'var(--secondary-text-color)',
+                    help: 'Thumb colour of the thin scrollbars on the drawer navigation and the content area. Defaults to the theme\'s secondary text colour, which reads on both light and dark drawer surfaces; set it explicitly if your drawer background needs more contrast.'},
             ],
             restrict: {move: false, resize: false, minWidth: 240, minHeight: 160},
             defaultStyle: {top: '0px', left: '0px', width: '100%', height: '100%'},
@@ -173,6 +175,31 @@ class FeezalElementLayoutApp extends FeezalElement {
             border-right: 1px solid var(--divider-color);
             padding: 8px var(--_pad-x); overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 2px;
         }
+        /* U94 — the app shell's two scroll surfaces (drawer + content).
+           Shadow-DOM content gets the platform scrollbar, which on
+           Chrome/Windows is the full-width native bar — far too heavy beside a
+           navigation drawer — and whose default thumb colour vanishes against a
+           themed drawer background (reported on midnight-blue: scrolling worked,
+           the thumb was simply invisible).
+
+           The thumb colour is a knob defaulting to a canonical theme variable,
+           so it tracks the theme instead of being a fixed grey that works on
+           exactly one background. The scrollbar-width / scrollbar-color pair covers
+           Firefox; the ::-webkit- rules cover Chromium/Safari and are what give
+           the thumb its rounded ends. */
+        .drawer, .content {
+            scrollbar-width: thin;
+            scrollbar-color: var(--feezal-app-scrollbar-color, var(--secondary-text-color)) transparent;
+        }
+        .drawer::-webkit-scrollbar, .content::-webkit-scrollbar { width: 8px; height: 8px; }
+        .drawer::-webkit-scrollbar-track, .content::-webkit-scrollbar-track { background: transparent; }
+        .drawer::-webkit-scrollbar-thumb, .content::-webkit-scrollbar-thumb {
+            background: var(--feezal-app-scrollbar-color, var(--secondary-text-color));
+            border-radius: 4px;
+        }
+        /* Chromium paints the corner where the two bars meet with its own
+           default, which shows as a pale square against a dark drawer. */
+        .drawer::-webkit-scrollbar-corner, .content::-webkit-scrollbar-corner { background: transparent; }
         .entry {
             display: flex; align-items: center; gap: 12px; padding: var(--_epad-y) var(--_epad-x);
             border: none; background: none; cursor: pointer;
