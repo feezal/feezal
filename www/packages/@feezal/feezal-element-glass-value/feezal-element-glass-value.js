@@ -2,7 +2,7 @@
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {applySizePreset, glassCardStyles, glassBadgeTray} from '@feezal/feezal-glass';
 import {readonlyClimateAxes, NUMERIC_SENSOR_ICONS} from '@feezal/feezal-element/feezal-discovery-fragments.js';
-import {formatNumber} from '@feezal/feezal-element/feezal-locale.js';
+import {formatValueDisplay} from '@feezal/feezal-element/feezal-locale.js';
 
 /**
  * feezal-element-glass-value (E58, E138)
@@ -162,18 +162,9 @@ class FeezalElementGlassValue extends FeezalElement {
     }
 
     get displayValue() {
-        const raw = this._value ?? this.value;
-        if (raw === null || raw === undefined || raw === '') {
-            // N38: the editor sample localizes too, so the canvas previews the site locale
-            return feezal.isEditor ? formatNumber(21.5, {digits: 1}) : '—';
-        }
-        const n = Number(raw);
-        if (this.decimals !== '' && this.decimals !== null && Number.isFinite(n)) {
-            return formatNumber(n, {digits: Math.max(0, Math.min(6, Number(this.decimals) || 0)), grouping: this.grouping});
-        }
-        if (typeof raw === 'object') return JSON.stringify(raw);
-        // N38: numeric payloads localize even without a decimals setting
-        return Number.isFinite(n) ? formatNumber(n, {grouping: this.grouping}) : String(raw);
+        // N41: one implementation for every value card (see feezal-locale.js).
+        return formatValueDisplay(this._value ?? this.value,
+            {decimals: this.decimals, grouping: this.grouping});
     }
 
     render() {

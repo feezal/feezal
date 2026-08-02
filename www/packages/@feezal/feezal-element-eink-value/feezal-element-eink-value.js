@@ -2,6 +2,7 @@
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {EinkBase, einkCardStyles} from '@feezal/feezal-eink';
 import {readonlyClimateAxes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
+import {formatValueDisplay} from '@feezal/feezal-element/feezal-locale.js';
 
 /**
  * feezal-element-eink-value (E57 / E148)
@@ -110,15 +111,9 @@ class FeezalElementEinkValue extends EinkBase {
     }
 
     get displayValue() {
-        const raw = this._value ?? this.value;
-        if (raw === null || raw === undefined || raw === '') {
-            return feezal.isEditor ? '21.5' : '—';
-        }
-        const n = Number(raw);
-        if (this.decimals !== '' && this.decimals !== null && Number.isFinite(n)) {
-            return n.toFixed(Math.max(0, Math.min(6, Number(this.decimals) || 0)));
-        }
-        return typeof raw === 'object' ? JSON.stringify(raw) : String(raw);
+        // N41: was a raw toFixed while glass localized (N38) — the same reading
+        // rendered 1234.5 here and 1.234,5 there. One implementation now.
+        return formatValueDisplay(this._value ?? this.value, {decimals: this.decimals});
     }
 
     /** E57 redraw dedup: only the ROUNDED string counts as a visible change. */
