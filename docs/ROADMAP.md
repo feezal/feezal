@@ -77,7 +77,7 @@ Work in progress — priorities and scope are not final.
 - [U85 — Toast/notification service: route the remaining call sites](#u85--toastnotification-service-route-the-remaining-call-sites--service-shipped) 🔨 *(service shipped)*
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
 - [U98 — Palette colors in editor light mode ⚠️ needs refinement](#u98--palette-colors-in-editor-light-mode-️-needs-refinement)
-- [U103 — layout-app: two-level navigation (groups, double drawer, tabs, breadcrumb) ⚠️ decided core, details open](#u103--layout-app-two-level-navigation-groups-double-drawer-tabs-breadcrumb-️-decided-core-details-open)
+- [U103 — layout-app: two-level navigation (groups, double drawer, tabs, breadcrumb) — implementation-ready](#u103--layout-app-two-level-navigation-groups-double-drawer-tabs-breadcrumb--implementation-ready)
 
 
 **Architecture & Infrastructure**
@@ -2613,52 +2613,117 @@ mirror), element-spec `palette.color` (docs note: color is authored against
 the dark editor; light mode derives), U45 (palette/picker — same tiles).
 
 
-### U103 — layout-app: two-level navigation (groups, double drawer, tabs, breadcrumb) ⚠️ decided core, details open
+### U103 — layout-app: two-level navigation (groups, double drawer, tabs, breadcrumb) — implementation-ready
 
-**Requested + decided (08/2026).** layout-app grows an optional SECOND
-navigation level — everything opt-in, existing single-level apps untouched.
-Decisions taken with the maintainer:
+**Requested + decided (08/2026), all open questions closed with the
+maintainer (08/2026).** layout-app grows an optional SECOND navigation
+level — everything opt-in, existing single-level apps untouched.
+
+**Core decisions:**
 
 - **Extends `layout-app`** (no new element): sub-items and modes are additive;
   one app shell keeps N30 routing, theming and the existing knob set together.
-- **All three presentations ship, behind one `nav-style` select:**
+- **All three presentations ship, behind one `nav-style` select**
+  (`groups` | `rail-panel` | `tabs`, default `groups`):
   1. `groups` — one drawer, items may carry children; groups expand/collapse
-     accordion-style (closest to today).
+     accordion-style (closest to today; a FLAT items list renders exactly as
+     the current drawer, which is why `groups` is a safe default).
   2. `rail-panel` — double drawer: slim icon rail = sections (level 1), a
      second panel lists the active section's entries (level 2) — the
      Discord/Teams shell.
-  3. `tabs` — drawer = sections (level 1), a tab row in/under the top bar
+  3. `tabs` — drawer = sections (level 1), a tab row under the top bar
      switches the section's sub-views (level 2).
   Level-2-less items keep working in every mode (a childless item is a plain
   entry — navigates directly, no second level shown for it).
-- **Breadcrumb in the TOP BAR** (opt-in knob): replaces/extends the current
-  active-view label as `Section / Page`, each segment tappable (section
-  segment opens that section's level-2 list in rail-panel/tabs modes).
-- **Deep links carry BOTH levels:** `#/<appview>/<section>/<page>` — the N30
-  route model gains one segment; back/forward and shared links restore
-  section + page; single-level items keep the existing two-segment form.
+- **Breadcrumb in the TOP BAR** (opt-in `breadcrumb` boolean knob, default
+  off): replaces the current active-view label as `Section / Page`, each
+  segment tappable — the section segment opens the level-1 surface (the
+  persistent panel/drawer already visible above the breakpoint; the overlay
+  below it); the page segment is the current page (no-op). Childless entries
+  render a single segment.
+- **Deep links carry BOTH levels:** `#/<appview>/<section>/<page>`.
+
+**Decisions from the final review round (08/2026):**
+
+1. **rail-panel below the breakpoint: merge into ONE accordion overlay.**
+   The rail + panel collapse into a single overlay drawer rendered in
+   `groups` style (sections expand/collapse). One responsive model for all
+   nav-styles, one overlay to build/test — no rail on phones.
+2. **tabs on narrow screens: scrollable tab row.** Horizontal
+   scroll/swipe, active tab auto-scrolled into view, edge-fade overflow
+   hint, no visible scrollbar (MD3 scrollable-tabs pattern). Applies above
+   the breakpoint too whenever the row overflows. Level 1 collapses to the
+   hamburger overlay as today.
+3. **`rail` knob and `nav-style: rail-panel` are MUTUALLY EXCLUSIVE.**
+   With `nav-style: rail-panel` the `rail`, `rail-breakpoint`,
+   `rail-expand` and `rail-menu-button` knobs are ignored — rail-panel IS a
+   rail presentation with its own panel. The N6 inspector hides those knobs
+   in that mode; their help text documents it. `groups`/`tabs` keep the
+   whole rail family working unchanged (incl. B84 derived rail-state).
+4. **Activating a section navigates immediately, to the section's
+   last-visited page** (per-session, in-memory `Map(section → page)`; falls
+   back to the section's first entry). Content always follows a level-1
+   click; hopping between sections keeps your place. Not persisted —
+   reload lands on the deep-linked or default page.
 
 **Data model:** `items` entries gain an optional `items` child array —
 `[{label, icon, view}]` stays valid; `{label, icon, items: [{label, icon,
-view}]}` declares a section. The layout-app inspector's entry manager grows
-add/indent for children (one nesting level only — deeper is out of scope).
+view}]}` declares a section (a section itself has no `view`). ONE nesting
+level only — deeper is invalid and flattened with a console warning. A
+section's route slug is its slugified label (stable across renames only if
+the label is; acceptable — links are cheap to re-copy). `_entries()` grows
+a companion `_tree()` accessor; `routableViews()` returns the flattened
+leaf views so the N30 contract is unchanged.
 
-**Still open (the ⚠ part):**
-1. Responsive behaviour per mode below the breakpoint — groups collapses
-   naturally; rail-panel on a phone (panel as overlay over the rail? rail
-   hidden?); tabs row on narrow screens (scrollable tabs?).
-2. Whether `rail: slim/auto` (the existing single-level rail) and
-   `nav-style: rail-panel` can compose or are mutually exclusive (likely
-   exclusive — document it).
-3. U58 App-mode integration: should the wizard optionally generate two-level
-   apps (rooms as sections, functions as pages — or vice versa)? Follow-up
-   item, not part of v1.
-4. Keyboard/D-pad navigation across two levels (the existing smart-TV
-   support must not regress).
+**Routing (N30):** the site keeps its two-part model — `#/<appview>/<rest>`
+— and passes `<rest>` to `routeToEmbedded()` verbatim; layout-app owns the
+`<rest>` format and parses `<section>/<page>` itself. Verify feezal-site
+does not truncate `<rest>` at the first `/` (today it forwards `raw` —
+keep it that way). Inbound back-compat: a legacy two-segment link to a
+nested page still resolves — the section is derivable from the page (each
+view appears once in the tree); outbound writes always emit the full
+three-segment form for nested pages, the existing two-segment form for
+childless entries. Back/forward restore section + page; `<publish>/view`
+publishes the nested path.
+
+**Keyboard / smart-TV D-pad** (the existing flat handler at
+`_onDrawerKeydown` becomes mode-aware; single-level apps keep today's
+behaviour exactly):
+- `groups`: Up/Down move over VISIBLE rows (section headers + expanded
+  children); Right/Enter on a collapsed section expands it, Left on a child
+  jumps to its section header, Left on an expanded header collapses
+  (WAI-ARIA tree pattern). Home/End over visible rows.
+- `rail-panel`: rail is a vertical group (Up/Down); Right moves focus into
+  the panel, Left returns to the rail; panel Up/Down over entries.
+- `tabs`: drawer keeps the flat handler; the tab row is its own horizontal
+  group (Left/Right, Home/End), reachable via Tab.
+Focus stays visible (`focus-visible` outline exists); roving tabindex per
+group so Tab crosses groups, arrows move within.
+
+**Editor/inspector:** the layout-app N6 items manager grows add-child +
+indent/outdent for ONE level (drag between levels out of scope); the
+`nav-style` + `breadcrumb` knobs join the inspector (B88 guard:
+`feezal-inspector-attribute-coverage.test.js` must see them); rail knobs
+hidden when `nav-style: rail-panel` (decision 3). The editor canvas
+preview renders the chosen nav-style statically (no routing in the
+editor, as today).
+
+**Tests (browser, extend `feezal-layout-app` suites):** nested items
+parsing + flatten-warning; each nav-style renders (sections, children,
+childless mixed); responsive fallbacks (rail-panel → accordion overlay,
+tabs → scrollable row); routing round-trips incl. legacy two-segment
+links to nested pages and `<publish>/view` nested path; section memory
+(switch away + back = same page, unvisited section = first entry);
+keyboard patterns per mode; rail-knob exclusivity; breadcrumb segments +
+taps. TESTING.md layout-app section grows the two-level recipe.
+
+**Out of scope (follow-up items):** U58 App-wizard generation of
+two-level apps (rooms as sections × functions as pages or vice versa);
+drawer drag-reorder between levels; persisted per-section memory.
 
 **Relates:** layout-app (N36 knob family, B84 drawer modes, U63 insets), N30
-(routing — the new segment), U97 (footer breadcrumb echo — maybe later),
-U58 (App wizard follow-up), basic-navigation (single-level sibling).
+(routing — the embedded-path format), U97 (footer breadcrumb echo — maybe
+later), U58 (App wizard follow-up), basic-navigation (single-level sibling).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
