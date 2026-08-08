@@ -2466,10 +2466,48 @@ layout figures it mixes with client rects).
    compensation at `inspector.js:2006` — still the budgeted risky spot).
    Cursor-centric `Ctrl+wheel`: adjust scroll so the cursor's canvas point
    stays fixed (`scroll' = (scroll + cursor)·z'/z − cursor`).
-5. **Fallback if the no-start resists:** an unscaled transparent interaction
-   overlay above the scaled canvas forwarding gestures (heavy — last
-   resort); longer-term, A38's hand-rolled direction shows drag/resize could
-   eventually follow the same interact-free route.
+5. ~~Fallback if the no-start resists~~ — obsolete: the no-start is solved
+   (point 3). Kept only as a pointer: A38's hand-rolled direction shows
+   drag/resize could eventually go interact-free, but nothing in U84 needs it.
+
+**Verdict (08/2026, measured): DOABLE.** The categorical fear — "interact.js
+does not support this at all" — is half-right and not fatal: interact has no
+transform awareness and never will, but drags inside scaled subtrees START
+and TRACK (offset ∝ scale, fixed by dividing); the one observed hard blocker
+was B122 wearing a zoom costume. What remains is breadth, not depth: an
+audit of every seam where client rects meet layout px — the multiplicative
+sibling of B114's additive scroll audit, with the same seam-and-revert-probe
+test pattern.
+
+**The seam catalogue** (~12, each individually trivial, each needing its own
+revert-provable test):
+drag onmove ÷z (two sites: initAbsolute + the flow-mode drag), resize onmove
+÷z (two sites — measured: one gesture at 0.5 writes the visual rect into
+layout and shrinks the element), `_snapSize` input assembly, `_dragRestriction`
+/ `_viewContentExtent` layout×z mixing, palette `_applySnappedPos` ÷z,
+align/distribute (rect-derived deltas written to styles), the U99 readouts
+(÷z so the label shows LAYOUT px, the number the style inspector shows), the
+grid overlay (background-size ×z + origin), cursor-centric wheel scroll math,
+and the drag-autoscroll compensation (`inspector.js:2006` — still the single
+budgeted risky spot).
+
+**Build order:** (1) B122 first — standalone user value, and it removes the
+"no-start" at every scale; (2) drag+resize ÷z with per-seam e2e; (3) the
+rest of the catalogue seam by seam; (4) gestures/UI last (Ctrl+wheel around
+the cursor, Ctrl+0 / Ctrl+Shift+0, space-drag pan, the U97 footer segment).
+Clamp zoom to ~0.25–2 and STEP it (no fractional wheel accumulation) —
+cleaner numbers, fewer sub-pixel-flaky snap tests. Sizing: comparable to the
+whole B112–B117+B114 guides arc — several focused sessions, not an afternoon.
+
+**Residual risks, named:** zoom×autoScroll during edge drags (mitigation:
+disable autoScroll while zoomed ≠ 1 if it misbehaves — pan exists, scoped
+degradation); ±1px snap assertions at deep zoom-out (mitigation: stepped
+zoom + tolerant assertions at non-1 scales only).
+
+**Cheaper alternative if the budget shrinks:** a read-only overview mode —
+fit + pan + zoom for orientation, editing gated to 100% — delivers most of
+the large-dashboard value at ~20% of the cost and zero risk to the drag
+stack. Full editing-under-zoom can follow it incrementally.
 
 The zoom indicator's home is settled: the [U97](roadmap-archive/U97.md) ✅
 footer, not a floating tray.
