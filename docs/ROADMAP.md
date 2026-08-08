@@ -78,7 +78,6 @@ Work in progress — priorities and scope are not final.
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
 - [U98 — Palette colors in editor light mode ⚠️ needs refinement](#u98--palette-colors-in-editor-light-mode-️-needs-refinement)
 - [U110 — layout-app: per-sub-view element search (E170 shape B)](#u110--layout-app-per-sub-view-element-search-e170-shape-b)
-- [U111 — *-link elements: comfortable view picking for internal link targets](#u111--link-elements-comfortable-view-picking-for-internal-link-targets)
 
 
 **Architecture & Infrastructure**
@@ -2802,41 +2801,6 @@ a popup; the third is a new element.
 backdrop-filter artifacts — the risk case for the page backdrop), E162
 (motion discipline), glass-dialog / glass-dialog-view (overlap check for
 part 3), N40 (embedded-view keep-warm), E50 (conditions).
-
-
-### U111 — *-link elements: comfortable view picking for internal link targets
-
-**Requested (08/2026).** The link family (E166: glass/metro/circle/eink
-`-link`) already routes `#/view` hrefs in place
-(`feezal-controller-link` — `href` is a plain `type: 'string'`
-attribute), but AUTHORING an internal link means hand-typing `#/viewname`
-into a text field. Offer a convenient view picker instead.
-
-**Direction (refine at implementation):** upgrade the shared `href`
-descriptor to a dedicated inspector control (new attribute `type:
-'linkTarget'` in the generic attributes panel, or a `viewPicker: true`
-flag on the string descriptor) rendering:
-- a **mode toggle URL / View** (derived from the current value — a
-  `#/…` href selects View mode);
-- View mode = a dropdown of the site's views (same source as the other
-  view pickers) writing `#/<view>` back into `href`; include layout-app
-  sub-view paths (`#/<appview>/<section>/<page>`, U103) — at least the
-  plain views, ideally the shell's routable paths;
-- URL mode = today's free text input.
-One control in the generic panel serves ALL four families at once (the
-link elements use the generic inspector — no per-family work). The
-declared attribute stays `href` with unchanged semantics — saved
-dashboards and the dynamic-href topic override are untouched.
-
-**Caveats:** B128 applies — view names with spaces must survive the
-picker (encode `sl-option` values or use the B128 shared helper once it
-lands); the picker must list views of the CURRENT site live (views
-created after the inspector rendered — refresh on open like the other
-pickers).
-
-**Relates:** E166 (link family + `#/view` routing), B128 (spaces in
-sl-select values), U103 (nested routable paths), U47 (create-view
-sentinel pattern, if "create new view" is wanted here too).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches

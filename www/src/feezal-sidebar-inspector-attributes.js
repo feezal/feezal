@@ -12,6 +12,7 @@ import {stampDiscovery, valueTemplateLeaf, discoveryLabel, discoveryAttributeSuf
     discoveryCandidates, acceptedComponents, DISCOVERY_ROW_SEP,
     applyFrigateLiveFeed, guessFrigateUrl, applyScryptedNvrSrc,
     multivalueMergeGroups, applyMultivalueFill} from './feezal-discovery-stamp.js';
+import {encodeOptionValue, decodeOptionValue} from '@feezal/feezal-element/feezal-option-value.js';   // B128/U111
 export {valueTemplateLeaf};
 
 import '@shoelace-style/shoelace/dist/components/input/input.js';
@@ -535,6 +536,19 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             transform: translate(-50%, calc(-100% - 8px));
         }
 
+        /* ── U111: link target (URL / View mode) ───────────────────── */
+        .linktarget-wrap { display: flex; flex-direction: column; gap: 3px; }
+        .linktarget-head { display: flex; align-items: center; justify-content: space-between; }
+        .linktarget-label { font-size: 12px; color: var(--sl-input-label-color, inherit); display: inline-flex; align-items: center; gap: 3px; }
+        .linktarget-modes { display: inline-flex; border: 1px solid var(--feezal-border, #ccc); border-radius: 4px; overflow: hidden; }
+        .lt-mode {
+            border: none; background: var(--feezal-bg, #fff); color: var(--feezal-color, #555);
+            font-size: 10px; padding: 2px 8px; cursor: pointer; line-height: 1.4;
+        }
+        .lt-mode + .lt-mode { border-left: 1px solid var(--feezal-border, #ccc); }
+        .lt-mode:hover { background: var(--feezal-btn-hover, rgba(2,132,199,0.08)); }
+        .lt-mode.active { background: var(--sl-color-primary-600, #0284c7); color: #fff; }
+
         /* ── MQTT topic autocomplete ───────────────────────────────── */
         .topic-wrap { position: relative; }
         .completions {
@@ -724,6 +738,9 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             this._rebuildItems();
             this._fetchDiscoveryEntities(); // refresh device list for the picker/banner
             this._discoveryFilter = ''; // reset filter when selection changes
+            // U111: manual URL/View mode overrides are per-item-index — a new
+            // selection has different indices, so they must not leak across.
+            this._linkModeOverride?.clear();
         }
         this._syncCustomInspector();
     }
@@ -1216,6 +1233,47 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             `;
         }
 
+        // U111: link target — a URL / View mode toggle. View mode is a picker
+        // over the site's views (incl. layout-app routable sub-paths, U103)
+        // writing `#/<view>` back into the attribute; URL mode is the plain
+        // text input. The mode derives from the value (a #/… href = View) and
+        // a manual toggle overrides it until the value settles the question.
+        if (elem.linkTarget) {
+            const raw = mixed ? '' : (value ?? '');
+            const isViewHref = raw.startsWith('#/');
+            const mode = this._linkModeOverride?.get(idx) ?? (isViewHref ? 'view' : 'url');
+            const setMode = m => {
+                (this._linkModeOverride ??= new Map()).set(idx, m);
+                this.requestUpdate();
+            };
+            const targets = this._linkTargets();
+            return html`
+                <div class="linktarget-wrap">
+                    <div class="linktarget-head">
+                        <span class="linktarget-label">${labelAttr}${elem.help ? html` <span class="help-icon" @mouseenter="${e => this._showHelp(e, elem.help)}" @mouseleave="${() => this._hideHelp()}">i</span>` : ''}</span>
+                        <span class="linktarget-modes">
+                            <button class="lt-mode ${mode === 'url' ? 'active' : ''}" @click="${() => setMode('url')}">URL</button>
+                            <button class="lt-mode ${mode === 'view' ? 'active' : ''}" @click="${() => setMode('view')}">View</button>
+                        </span>
+                    </div>
+                    ${mode === 'view' ? html`
+                        <sl-select size="small" hoist placeholder="pick a view…"
+                            value="${encodeOptionValue(isViewHref ? raw.slice(2) : '')}"
+                            @sl-change="${e => { const v = decodeOptionValue(e.target.value); if (v) this._change('#/' + v, idx, true); }}">
+                            ${targets.map(t => html`<sl-option value="${encodeOptionValue(t)}">${t}</sl-option>`)}
+                        </sl-select>`
+                    : html`
+                        <sl-input size="small" autocomplete="off" clearable
+                            .value="${mixed ? '' : (value ?? '')}"
+                            placeholder="${mixed ? '— varies —' : 'https://… or #/view'}"
+                            @sl-clear="${() => this._clearAttr(idx)}"
+                            @sl-input="${e => this._liveChange(e.target.value, idx)}"
+                            @sl-change="${e => this._flushChange(e.target.value, idx)}">
+                        </sl-input>`}
+                </div>
+            `;
+        }
+
         // Default: text / number input — an unset field shows the default as a
         // greyed placeholder so the effective value is visible. U44: × clears
         // back to that default (Shoelace shows it only while non-empty, which
@@ -1234,6 +1292,38 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                 ${labelSlot}
             </sl-input>
         `;
+    }
+
+    /** U111: the internal-link targets — every view name, plus each
+     * layout-app shell view's routable nested paths (`shell/leaf`, the N30
+     * `view/embedded` form). Read live from the site on every render, so
+     * views created after the panel mounted are offered too. */
+    _linkTargets() {
+        const site = window.feezal?.site;
+        if (!site) return [];
+        const out = [];
+        const views = [...site.querySelectorAll('feezal-view')];
+        for (const v of views) {
+            const name = v.getAttribute('name');
+            if (name) out.push(name);
+        }
+        for (const v of views) {
+            const shell = v.getAttribute('name');
+            if (!shell) continue;
+            for (const app of v.querySelectorAll('feezal-element-layout-app')) {
+                try {
+                    const items = JSON.parse(app.getAttribute('items') || '[]');
+                    for (const e of Array.isArray(items) ? items : []) {
+                        if (Array.isArray(e?.items)) {
+                            for (const k of e.items) if (k?.view) out.push(`${shell}/${k.view}`);
+                        } else if (e?.view) {
+                            out.push(`${shell}/${e.view}`);
+                        }
+                    }
+                } catch { /* unparseable items — plain views still listed */ }
+            }
+        }
+        return [...new Set(out)];
     }
 
     // Convert camelCase property names to kebab-case HTML attribute names.
@@ -1611,6 +1701,10 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             //    assets, optionally filtered by {accept:['json', …]} extensions.
             const isAsset = !isBool && !isColor && !isTopic && !isIcon && !options
                 && !attrSpec.textarea && !isList && attrSpec.type === 'asset';
+            // 6. U111: link target — URL / View mode control (View = a picker
+            //    over the site's views writing `#/<view>`).
+            const isLinkTarget = !isBool && !isColor && !isTopic && !isIcon && !isAsset
+                && !options && !attrSpec.textarea && !isList && attrSpec.type === 'linkTarget';
 
             // Read value from ALL selected elements and detect mixed state.
             const vals = this.selectedElems.map(e => {
@@ -1653,7 +1747,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                 // the attribute, exactly like the × clear.
                 emptyOption: attrSpec.emptyOption,
                 elem: {
-                    input: !options && !attrSpec.textarea && !isBool && !isList && !isColor && !isTopic && !isIcon && !isAsset,
+                    input: !options && !attrSpec.textarea && !isBool && !isList && !isColor && !isTopic && !isIcon && !isAsset && !isLinkTarget,
                     inputType,
                     dropdown: Boolean(options),
                     options,
@@ -1665,6 +1759,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                     mqttTopic: isTopic,
                     icon: isIcon,
                     asset: isAsset,
+                    linkTarget: isLinkTarget,
                     accept: attrSpec.accept || null,
                     list: isList,
                     // U35: per-item field spec; legacy {columns:['a','b']}

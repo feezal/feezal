@@ -32,8 +32,14 @@ export const LINK_OPEN_MODES = ['same-tab', 'new-tab', 'popup-iframe'];
  * `icon` / `label` stay per family (their conventions and defaults differ);
  * everything behavioural is here so it exists exactly once. */
 export const linkAttributes = [
-    {name: 'href', type: 'string',
-        help: 'Target URL. A #/view value navigates this app to that view in place (no reload).'},
+    // U111: `linkTarget` renders a URL / View mode control in the generic
+    // inspector — View mode is a picker over the site's views (incl.
+    // layout-app routable sub-paths) writing `#/<view>` back. The attribute
+    // stays `href` with unchanged semantics; saved dashboards and the
+    // dynamic-href topic override are untouched.
+    {name: 'href', type: 'linkTarget',
+        help: 'Target URL. A #/view value navigates this app to that view in place (no reload) — ' +
+            'use the View mode to pick one instead of typing.'},
     {name: 'subscribe', type: 'mqttTopic',
         help: 'Optional: a message on this topic REPLACES the target URL at runtime.'},
     {name: 'message-property', type: 'string', default: 'payload',

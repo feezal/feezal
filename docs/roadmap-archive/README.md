@@ -409,6 +409,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U107 — layout-app two-level follow-ups: drag-handle entries editor, two-row tab bar, chevron-only collapse ✅ done](U107.md)
 - [U108 — layout-app: optional search filter for the menu drawer ✅ done](U108.md)
 - [U109 — Views: copy/cut/paste + "copy to another site" ✅ done](U109.md)
+- [U111 — *-link elements: comfortable view picking for internal link targets ✅ done](U111.md)
 
 - [U103 — layout-app: two-level navigation (groups, double drawer, tabs, breadcrumb) ✅ done](U103.md)
 - [U104 — Generic list-of-objects attribute editor (fixes the multivalue UX) ✅ done](U104.md)
