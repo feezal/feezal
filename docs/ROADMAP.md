@@ -14,7 +14,6 @@ Work in progress — priorities and scope are not final.
 - [B125 — Asset manager: the New Folder dialog input renders light in a dark editor](#b125--asset-manager-the-new-folder-dialog-input-renders-light-in-a-dark-editor)
 - [B127 — Copy/paste of template elements loses the template content (B31 regression class)](#b127--copypaste-of-template-elements-loses-the-template-content-b31-regression-class)
 - [B128 — View names with spaces break the sl-select view pickers (layout-flex subview not shown) ⚠ needs sweep](#b128--view-names-with-spaces-break-the-sl-select-view-pickers-layout-flex-subview-not-shown--needs-sweep)
-- [B129 — layout-app narrow overlay drawer: scrolled area below the first screenful is TRANSPARENT (iOS PWA report)](#b129--layout-app-narrow-overlay-drawer-scrolled-area-below-the-first-screenful-is-transparent-ios-pwa-report)
 
 
 **Near-term Improvements**
@@ -538,49 +537,6 @@ with a spaced view name and assert the round-trip.
 **Relates:** B106 (space-separated `discovery-ids` — same
 space-as-delimiter bug class), B30 (hash encoding), U47 (create-view
 sentinel — the documented space constraint), U95 (view inspector).
-
-
-### B129 — layout-app narrow overlay drawer: scrolled area below the first screenful is TRANSPARENT (iOS PWA report)
-
-**Reported (08/2026, iOS PWA).** With an oversized drawer menu in the
-narrow overlay mode, scrolling down reveals entries over a TRANSPARENT
-background — the initially off-screen area has no drawer surface behind
-it. ("I thought we had that previously" — the earlier opaque-drawer
-fixes were U64/B90's slim-rail expansion and N36's overlay-bg; this is
-a leftover of the N36 overlay-OPACITY layer, see below.)
-
-**Root cause (diagnosed in code, platform-independent — iOS is just
-where drawers overflow):** ONLY the narrow overlay paints its
-background on a `::before` layer
-(`:host(.narrow) .drawer::before { position:absolute; inset:0; … }` in
-`feezal-element-layout-app.js`) — introduced so the
-`--feezal-app-drawer-overlay-opacity` knob can fade the surface without
-fading the text. An absolutely-positioned pseudo inside a SCROLLING
-element sizes to the padding box (ONE viewport of the drawer) and
-scrolls away with the content — everything below the first screenful
-has nothing behind it. The persistent drawer/rail/panel paint their
-background on the element itself, which covers the full scroll height —
-that is why only the overlay mode is affected.
-
-**Fix direction (preferred):** restructure the overlay drawer into a
-non-scrolling shell that carries the background layer + an inner
-scroller for the entries (`.drawer` = fixed overlay box + `::before`;
-new `.drawer-nav` = `overflow-y:auto` flex column). Constraints: B90's
-one-geometry-per-mode must not shift (the entry inset/padding move to
-the inner scroller), the U94 thin scrollbar styling moves with the
-scroller, and the U108 drawer-search field (when it lands) stays sticky
-in the shell above the scroller. Alternative considered: express the
-opacity via color-mix on the element background instead of a pseudo —
-messier with the two-layer opaque composite, keep as fallback.
-
-**Test:** browser — narrow overlay with enough entries to overflow;
-assert the background layer's rendered height covers the full
-scrollHeight (or that an element-level background is used), plus a
-scroll + screenshot case in the e2e/manual checklist for iOS.
-
-**Relates:** N36 (overlay bg + opacity knobs — the layer under
-suspicion), B90 (drawer geometry invariant), U94 (thin scrollbar),
-B120 (iOS PWA scroll behaviors), U108 (drawer search — sticky field).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*

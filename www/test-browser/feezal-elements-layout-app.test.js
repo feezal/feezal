@@ -955,3 +955,42 @@ describe('U103 keyboard (tree pattern + tab row)', () => {
         expect(el.shadowRoot.activeElement).toBe(tabs[tabs.length - 1]);
     });
 });
+
+describe('B129 narrow overlay drawer: surface behind the FULL scroll height', () => {
+    const MANY = JSON.stringify(Array.from({length: 40}, (_, i) => ({label: 'Page ' + i, view: 'p' + i})));
+
+    it('the background host (.drawer, carrying ::before) does not scroll - the inner nav does', async () => {
+        const el = await mount('feezal-element-layout-app', {items: MANY});
+        el.style.cssText = 'display:block;width:400px;height:300px;position:relative;';
+        el._narrow = true;
+        await el.updateComplete;
+        el._drawerOpen = true;
+        await el.updateComplete;
+
+        const drawer = el.shadowRoot.querySelector('.drawer');
+        const nav = el.shadowRoot.querySelector('.drawer-nav');
+        expect(nav).toBeTruthy();
+        // The entries genuinely overflow one drawer viewport.
+        expect(nav.scrollHeight).toBeGreaterThan(nav.clientHeight + 50);
+        // The element that carries the ::before background layer must NOT be
+        // the scroller: an absolutely-positioned pseudo inside a scrolling box
+        // sizes to ONE viewport and scrolls away with the content - that WAS
+        // the bug (transparent drawer below the first screenful).
+        expect(drawer.scrollHeight).toBeLessThanOrEqual(drawer.clientHeight + 1);
+        expect(getComputedStyle(drawer).overflowY).not.toBe('auto');
+        expect(getComputedStyle(nav).overflowY).toBe('auto');
+    });
+
+    it('B90 geometry: the entry inset moved to the scroller unchanged', async () => {
+        const el = await mount('feezal-element-layout-app', {items: ITEMS});
+        el.style.cssText = 'display:block;width:900px;height:400px;';
+        await el.updateComplete;
+        const nav = el.shadowRoot.querySelector('.drawer-nav');
+        const entry = el.shadowRoot.querySelector('.drawer .entry');
+        // Entry left = drawer left + the drawer padding (now on .drawer-nav).
+        const drawerBox = el.shadowRoot.querySelector('.drawer').getBoundingClientRect();
+        const navPad = parseFloat(getComputedStyle(nav).paddingLeft);
+        expect(navPad).toBeGreaterThan(0);
+        expect(Math.abs(entry.getBoundingClientRect().left - (drawerBox.left + navPad))).toBeLessThanOrEqual(1);
+    });
+});

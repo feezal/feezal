@@ -129,6 +129,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B123 — MQTT connect wizard appears although a connection is configured AND connected ✅ fixed](B123.md)
 - [B124 — White screen after tour/wizard app generation: viewer link opens an undeployed site ✅ fixed](B124.md)
 - [B126 — Duplicate view renders its copy stacked on the current view (looks like elements duplicated in place) ✅ fixed](B126.md)
+- [B129 — layout-app narrow overlay drawer: scrolled area below the first screenful is TRANSPARENT (iOS PWA report) ✅ fixed](B129.md)
 
 ## Near-term Improvements
 

@@ -195,7 +195,20 @@ class FeezalElementLayoutApp extends FeezalElement {
             background: var(--_drawer-surface);
             color: var(--feezal-app-drawer-color, var(--primary-text-color));
             border-right: 1px solid var(--divider-color);
-            padding: 8px var(--_pad-x); overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 2px;
+            display: flex; flex-direction: column;
+        }
+        /* B129: the drawer is a NON-scrolling shell; the entries scroll in this
+           inner column. Split because the narrow overlay paints its surface on
+           an absolutely-positioned ::before — inside a scrolling element that
+           pseudo sizes to ONE viewport of the drawer and scrolls away with the
+           content, so everything below the first screenful had no background.
+           The shell never scrolls → inset:0 covers everything visible. The
+           entry inset/padding move here unchanged (B90: same rendered
+           geometry), and the U94 thin scrollbar moves with the scroller. */
+        .drawer-nav {
+            flex: 1 1 auto; min-height: 0;
+            padding: 8px var(--_pad-x); overflow-y: auto; overflow-x: hidden;
+            display: flex; flex-direction: column; gap: 2px;
         }
         /* U94 — the app shell's two scroll surfaces (drawer + content).
            Shadow-DOM content gets the platform scrollbar, which on
@@ -209,19 +222,19 @@ class FeezalElementLayoutApp extends FeezalElement {
            exactly one background. The scrollbar-width / scrollbar-color pair covers
            Firefox; the ::-webkit- rules cover Chromium/Safari and are what give
            the thumb its rounded ends. */
-        .drawer, .content, .panel {
+        .drawer-nav, .content, .panel {
             scrollbar-width: thin;
             scrollbar-color: var(--feezal-app-scrollbar-color, var(--secondary-text-color)) transparent;
         }
-        .drawer::-webkit-scrollbar, .content::-webkit-scrollbar, .panel::-webkit-scrollbar { width: 8px; height: 8px; }
-        .drawer::-webkit-scrollbar-track, .content::-webkit-scrollbar-track, .panel::-webkit-scrollbar-track { background: transparent; }
-        .drawer::-webkit-scrollbar-thumb, .content::-webkit-scrollbar-thumb, .panel::-webkit-scrollbar-thumb {
+        .drawer-nav::-webkit-scrollbar, .content::-webkit-scrollbar, .panel::-webkit-scrollbar { width: 8px; height: 8px; }
+        .drawer-nav::-webkit-scrollbar-track, .content::-webkit-scrollbar-track, .panel::-webkit-scrollbar-track { background: transparent; }
+        .drawer-nav::-webkit-scrollbar-thumb, .content::-webkit-scrollbar-thumb, .panel::-webkit-scrollbar-thumb {
             background: var(--feezal-app-scrollbar-color, var(--secondary-text-color));
             border-radius: 4px;
         }
         /* Chromium paints the corner where the two bars meet with its own
            default, which shows as a pale square against a dark drawer. */
-        .drawer::-webkit-scrollbar-corner, .content::-webkit-scrollbar-corner, .panel::-webkit-scrollbar-corner { background: transparent; }
+        .drawer-nav::-webkit-scrollbar-corner, .content::-webkit-scrollbar-corner, .panel::-webkit-scrollbar-corner { background: transparent; }
         .entry {
             display: flex; align-items: center; gap: 12px; padding: var(--_epad-y) var(--_epad-x);
             border: none; background: none; cursor: pointer;
@@ -249,7 +262,7 @@ class FeezalElementLayoutApp extends FeezalElement {
            inset; hover/active highlight the full drawer width. The geometry
            itself lives in the :host block above (B90); only the row spacing is
            style-specific here. */
-        :host([entry-style="list"]) .drawer { gap: 0; }
+        :host([entry-style="list"]) .drawer-nav { gap: 0; }
 
         /* ── N36/B84: navigation rail (persistent mode only) ───────────────
            The presentation is derived to the rail-state host attribute by
@@ -260,7 +273,8 @@ class FeezalElementLayoutApp extends FeezalElement {
            keyboard focus (:has(:focus-visible) — a pointer must NOT expand it). */
         .drawer { transition: width 0.18s ease; }
         :host([rail-state="slim"]) .drawer { width: var(--_rail-w); }
-        :host([rail-state="edge"]) .drawer { width: 8px; padding-left: 0; padding-right: 0; }
+        :host([rail-state="edge"]) .drawer { width: 8px; }
+        :host([rail-state="edge"]) .drawer-nav { padding-left: 0; padding-right: 0; }
         /* rest: hide the labels (slim) / the whole entry (edge). The entry KEEPS
            its normal padding and stays left-aligned (B90) — centring it made the
            icon x depend on the rail width and on the entry style, so it landed
@@ -1270,9 +1284,11 @@ class FeezalElementLayoutApp extends FeezalElement {
                             @keydown="${e => this._onDrawerKeydown(e)}">
                             ${railPresented && this.railMenuButton && !this._drawerOpen ? html`
                                 <button class="rail-menu" title="Menu" @click="${() => { this._drawerOpen = true; }}"><span class="mi">menu</span></button>` : ''}
-                            ${entries.length === 0
-                                ? html`<div style="opacity:.6;padding:10px;font-size:12px">${feezal.isEditor ? 'Add drawer entries in the inspector →' : ''}</div>`
-                                : this._drawerRows(nav, drawerMode, activeSect)}
+                            <div class="drawer-nav">
+                                ${entries.length === 0
+                                    ? html`<div style="opacity:.6;padding:10px;font-size:12px">${feezal.isEditor ? 'Add drawer entries in the inspector →' : ''}</div>`
+                                    : this._drawerRows(nav, drawerMode, activeSect)}
+                            </div>
                         </div>`}
                     ${scrimShown ? html`<div class="scrim" @click="${() => { this._drawerOpen = false; }}"></div>` : ''}
                     <div class="content">
