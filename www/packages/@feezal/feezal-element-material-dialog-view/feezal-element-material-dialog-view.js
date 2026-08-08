@@ -1,4 +1,5 @@
 /* global feezal */
+import {encodeOptionValue, decodeOptionValue} from '@feezal/feezal-element/feezal-option-value.js';   // B128
 import {FeezalElement, feezalBaseStyles, feezalBoolean, dialogPlaceholderLabel, html, css} from '@feezal/feezal-element';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {render} from 'lit';
@@ -597,9 +598,9 @@ class FeezalElementMaterialDialogViewInspector extends FeezalElement {
                 <div class="section-title">Content</div>
                 <div class="row">
                     <sl-select label="view" size="small" hoist
-                        .value=${el.view || ''}
-                        @sl-change=${e => this._set('view', e.target.value)}>
-                        ${views.map(n => html`<sl-option value=${n}>${n}</sl-option>`)}
+                        .value=${encodeOptionValue(el.view || '')}
+                        @sl-change=${e => this._set('view', decodeOptionValue(e.target.value))}>
+                        ${views.map(n => html`<sl-option value=${encodeOptionValue(n)}>${n}</sl-option>`)}
                     </sl-select>
                 </div>
                 <div class="row">

@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {encodeOptionValue, decodeOptionValue} from '@feezal/feezal-element/feezal-option-value.js';   // B128
 import {LitElement} from 'lit';
 import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/select/select.js';
@@ -333,9 +334,9 @@ class FeezalElementLayoutFlexInspector extends LitElement {
             <div class="region">
                 <div class="region-head">
                     <span class="region-num">${i + 1}</span>
-                    <sl-select size="small" value="${cur}"
-                        @sl-change="${e => this._setRegionView(bv, e.target.value)}">
-                        ${views.map(v => html`<sl-option value="${v}">${v}</sl-option>`)}
+                    <sl-select size="small" value="${encodeOptionValue(cur)}"
+                        @sl-change="${e => this._setRegionView(bv, decodeOptionValue(e.target.value))}">
+                        ${views.map(v => html`<sl-option value="${encodeOptionValue(v)}">${v}</sl-option>`)}
                     </sl-select>
                     <button class="ib" title="Edit this region's view" @click="${() => this._editRegion(cur)}">&#9998;</button>
                     <button class="ib" title="Move up" ?disabled="${i === 0}" @click="${() => this._move(bv, -1)}">&#8593;</button>

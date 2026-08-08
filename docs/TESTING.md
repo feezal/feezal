@@ -375,6 +375,7 @@ scaling is asserted for the container-query and ResizeObserver mechanisms
 
 ### Layout (composite — also test embed & swap)
 - [ ] layout-flex · [ ] layout-responsive · [ ] layout-app · [ ] layout-repeater · [ ] layout-view
+  - **Spaced view names in pickers (B128)**: create a view named with a SPACE (e.g. `Living room`) → every view picker must offer it AND round-trip it — layout-flex region select (the reported case: the subview must actually render after picking), layout-responsive rule pickers, layout-app entry dropdowns + Initial view, the dialog-view inspectors (glass/eink/material), the clients sidebar's Switch view. The stored attribute/items value is the RAW name with the space. *(Helper round-trips + three picker drives are browser-tested in `test-browser/b128-view-picker-encoding.test.js`.)*
 
 ### System (pseudo-elements — placeholder in editor, behaviour in viewer)
 - [ ] system-pin · [ ] system-script · [ ] system-connection-status · [ ] system-splash

@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {encodeOptionValue, decodeOptionValue} from '@feezal/feezal-element/feezal-option-value.js';   // B128
 import {LitElement} from 'lit';
 import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/select/select.js';
@@ -337,9 +338,9 @@ class FeezalElementLayoutResponsiveInspector extends LitElement {
             <div class="rule">
                 <div class="rule-head">
                     <span class="rule-num">${i + 1}</span>
-                    <sl-select size="small" value="${r.view || ''}"
-                        @sl-change="${e => this._setField(i, 'view', e.target.value)}">
-                        ${views.map(v => html`<sl-option value="${v}">${v}</sl-option>`)}
+                    <sl-select size="small" value="${encodeOptionValue(r.view || '')}"
+                        @sl-change="${e => this._setField(i, 'view', decodeOptionValue(e.target.value))}">
+                        ${views.map(v => html`<sl-option value="${encodeOptionValue(v)}">${v}</sl-option>`)}
                     </sl-select>
                     <button class="ib" title="Edit this breakpoint's view" @click="${() => this._editView(r.view)}">&#9998;</button>
                     <button class="ib" title="Move up" ?disabled="${i === 0}" @click="${() => this._move(i, -1)}">&#8593;</button>

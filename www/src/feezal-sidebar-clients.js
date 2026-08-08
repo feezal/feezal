@@ -1,5 +1,6 @@
 /* global feezal */
 import {LitElement, html, css} from 'lit';
+import {encodeOptionValue, decodeOptionValue} from '@feezal/feezal-element/feezal-option-value.js';   // B128
 
 import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/select/select.js';
@@ -261,9 +262,9 @@ class FeezalSidebarClients extends LitElement {
                             <div class="row">
                                 <div class="field">
                                     <label>Switch view</label>
-                                    <sl-select size="small" hoist placeholder="view…" .value="${c.view || ''}" ?disabled="${!this._cmdBase}"
-                                        @sl-change="${e => { if (e.target.value && e.target.value !== c.view) this._pub(id, 'view', e.target.value); }}">
-                                        ${this._viewNames().map(v => html`<sl-option value="${v}">${v}</sl-option>`)}
+                                    <sl-select size="small" hoist placeholder="view…" .value="${encodeOptionValue(c.view || '')}" ?disabled="${!this._cmdBase}"
+                                        @sl-change="${e => { const v = decodeOptionValue(e.target.value); if (v && v !== c.view) this._pub(id, 'view', v); }}">
+                                        ${this._viewNames().map(v => html`<sl-option value="${encodeOptionValue(v)}">${v}</sl-option>`)}
                                     </sl-select>
                                 </div>
                                 <div class="field">

@@ -1,5 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, feezalBoolean, html, css} from '@feezal/feezal-element';
+import {encodeOptionValue, decodeOptionValue} from '@feezal/feezal-element/feezal-option-value.js';   // B128
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
 import '@shoelace-style/shoelace/dist/components/input/input.js';
@@ -1719,7 +1720,7 @@ class FeezalElementLayoutAppInspector extends LitElement {
 
     // ── U47: per-entry view change + "create new view" dialog ──────────────
     _onEntryViewChange(path, ev) {
-        const v = ev.target.value;
+        const v = decodeOptionValue(ev.target.value);   // B128: spaced view names
         if (v === CREATE_VIEW_SENTINEL) {
             // Never persist the sentinel — open the create dialog instead.
             // Create binds the real name; cancel restores the previous value.
@@ -1879,10 +1880,10 @@ class FeezalElementLayoutAppInspector extends LitElement {
                         Breadcrumb (Section / Page) instead of the plain label
                     </label>
                     <div class="field"><label>Initial view</label>
-                        <sl-select size="small" value="${this._attr('active-view') || ''}"
-                            @sl-change="${e => this._emit('active-view', e.target.value)}">
+                        <sl-select size="small" value="${encodeOptionValue(this._attr('active-view') || '')}"
+                            @sl-change="${e => this._emit('active-view', decodeOptionValue(e.target.value))}">
                             <sl-option value="">(first entry)</sl-option>
-                            ${views.map(v => html`<sl-option value="${v}">${v}</sl-option>`)}
+                            ${views.map(v => html`<sl-option value="${encodeOptionValue(v)}">${v}</sl-option>`)}
                         </sl-select></div>
                 </div>
             </div>
@@ -1921,9 +1922,9 @@ class FeezalElementLayoutAppInspector extends LitElement {
                                             <span class="handle" draggable="true" title="Drag to reorder; drop onto a row's middle to move it inside"
                                                 @dragstart="${ev => this._dragStart(ev, [i, j])}"
                                                 @dragend="${() => this._dragEnd()}">⠿</span>
-                                            <sl-select size="small" placeholder="pick a view…" value="${k.view || ''}"
+                                            <sl-select size="small" placeholder="pick a view…" value="${encodeOptionValue(k.view || '')}"
                                                 @sl-change="${ev => this._onEntryViewChange([i, j], ev)}">
-                                                ${views.map(v => html`<sl-option value="${v}">${v}</sl-option>`)}
+                                                ${views.map(v => html`<sl-option value="${encodeOptionValue(v)}">${v}</sl-option>`)}
                                                 <sl-divider></sl-divider>
                                                 <sl-option value="${CREATE_VIEW_SENTINEL}">＋ Create new view…</sl-option>
                                             </sl-select>
@@ -1950,9 +1951,9 @@ class FeezalElementLayoutAppInspector extends LitElement {
                                         @dragstart="${ev => this._dragStart(ev, [i])}"
                                         @dragend="${() => this._dragEnd()}">⠿</span>
                                     <span class="item-num">${i + 1}</span>
-                                    <sl-select size="small" placeholder="pick a view…" value="${e.view || ''}"
+                                    <sl-select size="small" placeholder="pick a view…" value="${encodeOptionValue(e.view || '')}"
                                         @sl-change="${ev => this._onEntryViewChange([i], ev)}">
-                                        ${views.map(v => html`<sl-option value="${v}">${v}</sl-option>`)}
+                                        ${views.map(v => html`<sl-option value="${encodeOptionValue(v)}">${v}</sl-option>`)}
                                         <sl-divider></sl-divider>
                                         <sl-option value="${CREATE_VIEW_SENTINEL}">＋ Create new view…</sl-option>
                                     </sl-select>
