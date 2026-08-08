@@ -80,7 +80,6 @@ Work in progress — priorities and scope are not final.
 - [U85 — Toast/notification service: route the remaining call sites](#u85--toastnotification-service-route-the-remaining-call-sites--service-shipped) 🔨 *(service shipped)*
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
 - [U98 — Palette colors in editor light mode ⚠️ needs refinement](#u98--palette-colors-in-editor-light-mode-️-needs-refinement)
-- [U108 — layout-app: optional search filter for the menu drawer](#u108--layout-app-optional-search-filter-for-the-menu-drawer)
 - [U109 — Views: copy/cut/paste + "copy to another site"](#u109--views-copycutpaste--copy-to-another-site)
 
 
@@ -2788,36 +2787,6 @@ whether matching later extends to element tag / current payload text
 not fight over display), U103 (layout-app two-level nav — the checkbox
 lives in the same entries manager), N40 (hidden clones stay warm —
 same principle: filter ≠ unsubscribe).
-
-
-### U108 — layout-app: optional search filter for the menu drawer
-
-**Requested (08/2026).** An opt-in search input at the top of the
-navigation drawer that live-filters the DRAWER ENTRIES (not the view's
-elements — that is E170) by label, debounced like E170.
-
-- **Opt-in knob** (e.g. `drawer-search`, boolean, default off) + inspector
-  switch in the Drawer section.
-- Filters across BOTH navigation levels (U103): matching pages stay, a
-  section stays while any of its children match (auto-expanded in groups
-  mode so the hits are visible); clearing restores the previous
-  open/collapse state. Works in every nav-style's level-1 surface —
-  full drawer, accordion overlay, rail-panel's entry panel, tabs' section
-  drawer (the slim icon rail itself gets no input — the overlay/panel
-  carries it).
-- Styling follows the drawer chrome (entry inset, drawer colors, N43-safe
-  in the editor preview); small × clear button in the field; Esc clears
-  first, then closes an overlay drawer (the existing Escape behavior).
-- Keyboard: the input participates in the drawer's D-pad flow — ArrowDown
-  from the field focuses the first visible entry; typing never steals
-  Enter/Space from a focused entry.
-- The narrow overlay keeps the field visible (sticky at the drawer top)
-  while the entry list scrolls.
-
-**Relates:** E170 (view-element search — shared debounce/matching
-helpers where sensible, but this filters nav entries), U103 (two-level
-drawer), U94 (drawer scrollbar — the field must not overlap the thin
-scrollbar).
 
 
 ### U109 — Views: copy/cut/paste + "copy to another site"

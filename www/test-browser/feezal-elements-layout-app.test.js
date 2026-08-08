@@ -5,7 +5,7 @@
  */
 import {describe, it, expect, beforeEach, vi} from 'vitest';
 import '../packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js';
-import {moveEntry} from '../packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js';
+import {moveEntry, filterNav} from '../packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js';
 import '../src/feezal-view.js';
 import {setupFeezal, mount, until} from './helpers.js';
 
@@ -992,5 +992,114 @@ describe('B129 narrow overlay drawer: surface behind the FULL scroll height', ()
         const navPad = parseFloat(getComputedStyle(nav).paddingLeft);
         expect(navPad).toBeGreaterThan(0);
         expect(Math.abs(entry.getBoundingClientRect().left - (drawerBox.left + navPad))).toBeLessThanOrEqual(1);
+    });
+});
+
+describe('U108 drawer search', () => {
+    it('filterNav: pages by label, sections narrowed to hits, section-label match keeps all pages', () => {
+        const tree = JSON.parse(NESTED).map((e, i) => e.items ? {...e, slug: 's' + i} : e);
+        const f = filterNav(tree, 'ligh');
+        expect(f.tree).toHaveLength(1);
+        expect(f.tree[0].items.map(k => k.view)).toEqual(['liv-lights']);
+        expect(f.open.has('s0')).toBe(true);
+
+        const bySection = filterNav(tree, 'living');
+        expect(bySection.tree[0].items.map(k => k.view)).toEqual(['liv-lights', 'liv-climate']);
+
+        const leaf = filterNav(tree, 'info');
+        expect(leaf.tree.map(n => n.view)).toEqual(['info']);
+
+        const none = filterNav(tree, 'zzz');
+        expect(none.tree).toHaveLength(0);
+
+        expect(filterNav(tree, '').tree).toBe(tree);
+    });
+
+    it('the field is opt-in and lives in the drawer SHELL, not the scroller', async () => {
+        const off = await wideNested();
+        expect(off.shadowRoot.querySelector('.drawer-search')).toBeNull();
+        off.remove();
+
+        const el = await wideNested({'drawer-search': ''});
+        const field = el.shadowRoot.querySelector('.drawer-search');
+        expect(field).toBeTruthy();
+        expect(field.parentElement.classList.contains('drawer')).toBe(true);
+        expect(field.closest('.drawer-nav')).toBeNull();
+    });
+
+    it('filtering narrows the rows, expands hit sections, and clearing restores the open set', async () => {
+        const el = await wideNested({'drawer-search': ''});
+        el._openSections = new Set();   // everything collapsed by the user
+        await el.updateComplete;
+
+        el._setFilter('irr');
+        await el.updateComplete;
+        const heads = [...el.shadowRoot.querySelectorAll('.ghead')];
+        expect(heads).toHaveLength(1);
+        expect(heads[0].textContent).toContain('Garden');
+        // hit section shows expanded, and the hit is visible
+        expect(el.shadowRoot.querySelector('.gkids .entry')).toBeTruthy();
+        // the USER set is untouched by the filter expansion
+        expect(el._openSections.size).toBe(0);
+
+        el._setFilter('');
+        await el.updateComplete;
+        expect([...el.shadowRoot.querySelectorAll('.ghead')]).toHaveLength(2);
+        expect(el._openSections.size).toBe(0);
+        expect(el.shadowRoot.querySelector('.gkids')).toBeNull();
+    });
+
+    it('typing debounces into the filter', async () => {
+        const el = await wideNested({'drawer-search': ''});
+        const input = el.shadowRoot.querySelector('.drawer-search input');
+        input.value = 'irr';
+        input.dispatchEvent(new Event('input', {bubbles: true}));
+        expect(el._drawerFilter).toBe('');   // not yet - debounced
+        await new Promise(r => setTimeout(r, 250));
+        expect(el._drawerFilter).toBe('irr');
+    });
+
+    it('ArrowDown moves focus from the field into the entry list', async () => {
+        const el = await wideNested({'drawer-search': ''});
+        const input = el.shadowRoot.querySelector('.drawer-search input');
+        input.focus();
+        input.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown', bubbles: true, composed: true}));
+        expect(el.shadowRoot.activeElement.classList.contains('entry')).toBe(true);
+    });
+
+    it('Escape clears first; a second Escape closes the narrow overlay', async () => {
+        const el = await mount('feezal-element-layout-app', {items: NESTED, 'drawer-search': ''});
+        el.style.width = '400px';
+        el._narrow = true;
+        await el.updateComplete;
+        el._drawerOpen = true;
+        el._setFilter('irr');
+        await el.updateComplete;
+
+        const input = el.shadowRoot.querySelector('.drawer-search input');
+        input.value = 'irr';
+        input.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true, composed: true}));
+        await el.updateComplete;
+        expect(el._drawerFilter).toBe('');
+        expect(el._drawerOpen).toBe(true);   // first Esc only clears
+
+        input.value = '';
+        input.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true, composed: true}));
+        await el.updateComplete;
+        expect(el._drawerOpen).toBe(false);  // second Esc closes the overlay
+    });
+
+    it('rail-panel: the entry panel carries the field and filters its items', async () => {
+        const el = await wideNested({'nav-style': 'rail-panel', 'drawer-search': ''});
+        const panel = el.shadowRoot.querySelector('.panel');
+        expect(panel.querySelector('.drawer-search')).toBeTruthy();
+        expect(panel.querySelectorAll('.entry').length).toBe(2);
+        el._setFilter('clim');
+        await el.updateComplete;
+        const entries = [...el.shadowRoot.querySelectorAll('.panel .entry')];
+        expect(entries).toHaveLength(1);
+        expect(entries[0].textContent).toContain('Climate');
+        // the icon RAIL itself is never filtered
+        expect(el.shadowRoot.querySelectorAll('.rail .rentry').length).toBe(3);
     });
 });

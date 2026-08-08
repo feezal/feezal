@@ -74,6 +74,12 @@ class FeezalElementLayoutApp extends FeezalElement {
                     help: 'Show a menu button at the top of the rail that opens the full drawer as an overlay — useful on touch, where hover cannot reveal the labels.'},
                 {name: 'entry-style', type: 'select', options: ['pill', 'list'], default: 'pill',
                     help: 'Drawer entry look: "pill" = MD3 rounded chips with side inset; "list" = flat edge-to-edge rows, hover/active highlight the full drawer width.'},
+                // U108 — opt-in drawer search.
+                {name: 'drawer-search', type: 'boolean', default: false,
+                    help: 'Show a search field at the top of the navigation drawer that live-filters the entries by label. ' +
+                        'A section stays while any of its pages match (opened so the hits are visible); clearing restores ' +
+                        'the previous open/collapsed state. Esc clears first, then closes an overlay drawer. ' +
+                        'The slim icon rail shows the field only while expanded; in rail+panel mode the entry panel carries it.'},
                 {name: 'actions', type: 'json', default: '[]', help: 'Top-bar action buttons [{icon, publish, payload}] (managed in the inspector).'},
                 'subscribe',
                 'publish',
@@ -124,6 +130,8 @@ class FeezalElementLayoutApp extends FeezalElement {
         slim:            {type: Boolean, reflect: true},
         autohide:        {type: Boolean, reflect: true},
         entryStyle:      {type: String,  reflect: true, attribute: 'entry-style'},
+        drawerSearch:    {type: Boolean, reflect: true, attribute: 'drawer-search'},
+        _drawerFilter:   {state: true},   // U108 — committed (debounced) filter text
         actions:         {type: String,  reflect: true},
         _active:         {state: true},
         _openSections:   {state: true},   // U103: expanded accordion sections (Set of slugs)
@@ -210,6 +218,32 @@ class FeezalElementLayoutApp extends FeezalElement {
             padding: 8px var(--_pad-x); overflow-y: auto; overflow-x: hidden;
             display: flex; flex-direction: column; gap: 2px;
         }
+        /* U108 — drawer search. Lives in the SHELL (above .drawer-nav), so it
+           stays put while the entries scroll (B129 left exactly this slot). */
+        .drawer-search {
+            flex: 0 0 auto; display: flex; align-items: center; gap: 6px;
+            margin: 8px var(--_pad-x) 0; padding: 4px 8px; box-sizing: border-box;
+            border: 1px solid var(--divider-color); border-radius: var(--_radius);
+            background: var(--secondary-background-color);
+            color: var(--feezal-app-drawer-color, var(--primary-text-color));
+        }
+        .drawer-search input {
+            flex: 1 1 auto; min-width: 0; width: 100%;
+            border: none; background: none; outline: none;
+            font: inherit; font-size: 13px; color: inherit; padding: 2px 0;
+        }
+        .drawer-search input::placeholder { color: var(--secondary-text-color); }
+        .drawer-search .ds-icon { font-size: 18px; opacity: 0.6; flex: 0 0 auto; }
+        .ds-clear {
+            flex: 0 0 auto; border: none; background: none; cursor: pointer;
+            color: inherit; padding: 0; display: flex; align-items: center;
+        }
+        .ds-clear .mi { font-size: 16px; opacity: 0.7; }
+        .ds-clear:hover .mi { opacity: 1; }
+        /* Slim/edge rail at rest has no room for a field — it appears with the
+           labels when the rail expands (hover / focus / rail-open). */
+        :host([rail-state]) .drawer:not(.rail-open):not(:hover):not(:has(:focus-visible)) .drawer-search { display: none; }
+        .panel .drawer-search { margin: 0 0 6px; }
         /* U94 — the app shell's two scroll surfaces (drawer + content).
            Shadow-DOM content gets the platform scrollbar, which on
            Chrome/Windows is the full-width native bar — far too heavy beside a
@@ -514,6 +548,10 @@ class FeezalElementLayoutApp extends FeezalElement {
         this.slim = false;
         this.autohide = false;
         this.entryStyle = 'pill';
+        this.drawerSearch = false;    // U108
+        this._drawerFilter = '';
+        this.__preFilterOpen = null;  // U108: open-set snapshot to restore on clear
+        this.__searchDebounce = null;
         this.actions = '[]';
         this._active = '';
         this._narrow = false;
@@ -1147,6 +1185,84 @@ class FeezalElementLayoutApp extends FeezalElement {
         return m === 'never' ? false : (m === 'small-only' ? this._narrow : true);
     }
 
+    // ── U108: drawer search ────────────────────────────────────────────────
+
+    /** The search field (drawer shell / rail-panel entry panel). */
+    _searchField() {
+        return html`
+            <div class="drawer-search">
+                <span class="mi ds-icon">search</span>
+                <input type="text" placeholder="Search" aria-label="Filter navigation"
+                    .value="${this._drawerFilter}"
+                    @input="${e => this._onSearchInput(e.target.value)}"
+                    @keydown="${e => this._onSearchKeydown(e)}">
+                ${this._drawerFilter ? html`
+                    <button class="ds-clear" title="Clear"
+                        @click="${() => this._setFilter('')}"><span class="mi">close</span></button>` : ''}
+            </div>`;
+    }
+
+    _onSearchInput(v) {
+        clearTimeout(this.__searchDebounce);
+        this.__searchDebounce = setTimeout(() => this._setFilter(v), 150);
+    }
+
+    /** Commit a filter. The FIRST non-empty filter snapshots the open set;
+     * clearing restores it — filtering auto-opens sections with hits, and
+     * that expansion must not stick. */
+    _setFilter(v) {
+        const next = String(v || '');
+        if (next && !this._drawerFilter) this.__preFilterOpen = new Set(this._openSections);
+        this._drawerFilter = next;
+        if (!next && this.__preFilterOpen) {
+            this._openSections = this.__preFilterOpen;
+            this.__preFilterOpen = null;
+        }
+    }
+
+    /** Field keys: ArrowDown enters the entry list; Esc clears FIRST and only
+     * an already-empty Esc bubbles on to the overlay-close handler. Everything
+     * else stays in the field (the drawer's D-pad handler must not move focus
+     * while the user is typing — Left/Right are the text cursor here). */
+    _onSearchKeydown(e) {
+        if (e.key === 'Escape') {
+            if (e.target.value || this._drawerFilter) {
+                e.stopPropagation();
+                e.preventDefault();
+                e.target.value = '';
+                clearTimeout(this.__searchDebounce);
+                this._setFilter('');
+            }
+            return;   // empty: bubble to _onDrawerKeydown (closes the overlay)
+        }
+        e.stopPropagation();
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            this.renderRoot.querySelector('.drawer-nav .entry, .panel .entry')?.focus();
+        }
+    }
+
+    /** The nav tree/open-set the drawer should SHOW — filtered while a query
+     * is active, untouched otherwise. Pure filtering lives in filterNav(). */
+    _shownNav(nav) {
+        if (!this.drawerSearch || !this._drawerFilter) {
+            return {nav, open: this._openSections};
+        }
+        const f = filterNav(nav.tree, this._drawerFilter);
+        return {
+            nav: {...nav, tree: f.tree, leaves: f.tree.flatMap(n => n.items ? n.items : [n])},
+            // Sections with hits show expanded; the user's own set is restored on clear.
+            open: new Set([...this._openSections, ...f.open]),
+        };
+    }
+
+    /** Rail-panel entry list under an active filter. */
+    _filteredItems(items) {
+        if (!this.drawerSearch || !this._drawerFilter) return items;
+        const q = this._drawerFilter.trim().toLowerCase();
+        return items.filter(e => String(e.label || e.view || '').toLowerCase().includes(q));
+    }
+
     /** One page entry button — shared by the flat drawer, the accordion
      * children and the rail-panel entry list. */
     _entryBtn(e) {
@@ -1160,19 +1276,21 @@ class FeezalElementLayoutApp extends FeezalElement {
             </button>`;
     }
 
-    /** U103: the drawer's inner rows for the current presentation. */
-    _drawerRows(nav, mode, activeSect) {
+    /** U103: the drawer's inner rows for the current presentation. `openSet`
+     * is the open-set to RENDER (U108 unions in filter hits; toggling still
+     * writes the user's real `_openSections`). */
+    _drawerRows(nav, mode, activeSect, openSet = this._openSections) {
         if (mode === 'accordion') {
             return nav.tree.map(node => node.items ? html`
-                <button class="entry ghead ${this._openSections.has(node.slug) ? 'open' : ''}"
+                <button class="entry ghead ${openSet.has(node.slug) ? 'open' : ''}"
                     data-slug="${node.slug}" title="${node.label || node.slug}"
-                    aria-expanded="${this._openSections.has(node.slug)}"
+                    aria-expanded="${openSet.has(node.slug)}"
                     @click="${() => this._sectionHead(node)}">
                     ${node.icon ? html`<feezal-icon class="mi" name="${node.icon}"></feezal-icon>` : ''}
                     <span class="label">${node.label || node.slug}</span>
                     <span class="mi chev" @click="${e => this._sectionChevron(e, node)}">chevron_right</span>
                 </button>
-                ${this._openSections.has(node.slug) ? html`
+                ${openSet.has(node.slug) ? html`
                     <div class="gkids">${node.items.map(k => this._entryBtn(k))}</div>` : ''}`
             : this._entryBtn(node));
         }
@@ -1200,6 +1318,9 @@ class FeezalElementLayoutApp extends FeezalElement {
         // preview shows a real label.
         const activeEntry = entries.find(e => e.view === this._active);
         const activeSect = nav.sectionOf.get(this._active) || null;
+        // U108: what the drawer SHOWS — filtered tree + hit-expanded sections
+        // while a search query is active, the plain nav otherwise.
+        const shown = this._shownNav(nav);
         const activeLabel = this.showActiveLabel && activeEntry ? (activeEntry.label || activeEntry.view) : '';
         const showHeader = this._showHeader;
         // U103: effective presentation. Below the breakpoint rail-panel merges
@@ -1277,17 +1398,19 @@ class FeezalElementLayoutApp extends FeezalElement {
                         ${activeSect ? html`
                             <div class="panel" role="navigation" @keydown="${e => this._onPanelKeydown(e)}">
                                 <div class="panel-title">${activeSect.label || activeSect.slug}</div>
-                                ${activeSect.items.map(k => this._entryBtn(k))}
+                                ${this.drawerSearch ? this._searchField() : ''}
+                                ${this._filteredItems(activeSect.items).map(k => this._entryBtn(k))}
                             </div>` : ''}`
                     : html`
                         <div class="drawer ${this._drawerOpen ? 'open' : ''} ${railOpen ? 'rail-open' : ''}" role="navigation"
                             @keydown="${e => this._onDrawerKeydown(e)}">
                             ${railPresented && this.railMenuButton && !this._drawerOpen ? html`
                                 <button class="rail-menu" title="Menu" @click="${() => { this._drawerOpen = true; }}"><span class="mi">menu</span></button>` : ''}
+                            ${this.drawerSearch && entries.length > 0 ? this._searchField() : ''}
                             <div class="drawer-nav">
                                 ${entries.length === 0
                                     ? html`<div style="opacity:.6;padding:10px;font-size:12px">${feezal.isEditor ? 'Add drawer entries in the inspector →' : ''}</div>`
-                                    : this._drawerRows(nav, drawerMode, activeSect)}
+                                    : this._drawerRows(shown.nav, drawerMode, activeSect, shown.open)}
                             </div>
                         </div>`}
                     ${scrimShown ? html`<div class="scrim" @click="${() => { this._drawerOpen = false; }}"></div>` : ''}
@@ -1311,6 +1434,33 @@ export {FeezalElementLayoutApp};
 // real view name can collide with it.
 const CREATE_VIEW_SENTINEL = '__feezal-create-new-view__';
 
+
+/**
+ * U108 — filter the nav tree by a label query. Pure: tree in, {tree, open}
+ * out. Matching pages stay; a section stays while any of its pages match
+ * (narrowed to the hits) — and a match on the SECTION label keeps all its
+ * pages. `open` names the sections that should render expanded so the hits
+ * are visible. An empty query returns the tree untouched.
+ */
+export function filterNav(tree, query) {
+    const q = String(query || '').trim().toLowerCase();
+    if (!q) return {tree, open: new Set()};
+    const match = e => String(e.label || e.view || e.slug || '').toLowerCase().includes(q);
+    const out = [];
+    const open = new Set();
+    for (const node of tree || []) {
+        if (node.items) {
+            const kids = match(node) ? node.items : node.items.filter(match);
+            if (kids.length) {
+                out.push(kids === node.items ? node : {...node, items: kids});
+                open.add(node.slug);
+            }
+        } else if (match(node)) {
+            out.push(node);
+        }
+    }
+    return {tree: out, open};
+}
 
 /**
  * U107 — one drag-and-drop move on the entries tree. Pure: list in, new list
@@ -1861,6 +2011,11 @@ class FeezalElementLayoutAppInspector extends LitElement {
                             <sl-option value="drawer">in the drawer</sl-option>
                             <sl-option value="row">as a first tab row (both levels in the bar)</sl-option>
                         </sl-select></div>` : ''}
+                    <label style="display:flex;align-items:center;gap:8px;font-size:11px">
+                        <sl-switch size="small" ?checked="${this.element.hasAttribute('drawer-search')}"
+                            @sl-change="${e => this._emit('drawer-search', e.target.checked)}"></sl-switch>
+                        Search field (live-filters the entries by label)
+                    </label>
                     <div class="field"><label>Overlay breakpoint (px)</label>
                         <input type="number" .value="${this._attr('breakpoint', '768')}" @change="${e => this._emit('breakpoint', e.target.value)}"></div>
                     <label style="display:flex;align-items:center;gap:8px;font-size:11px">
