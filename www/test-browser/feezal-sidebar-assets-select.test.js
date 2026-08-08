@@ -80,10 +80,85 @@ describe('selection semantics (file-manager rules)', () => {
         expect(selected()).toEqual(['a.png', 'b.png', 'c.png']);
     });
 
-    it('a modifier click reports itself as handled (suppresses the preview)', () => {
-        expect(click('a.png')).toBe(false);                // plain → preview may run
-        expect(click('b.png', {ctrlKey: true})).toBe(true);
-        expect(click('c.png', {shiftKey: true})).toBe(true);
+    // U106 — a plain click SELECTS ONLY; the preview moved to dblclick /
+    // context menu / Enter. Driven through the rendered tiles, because the
+    // regression this guards is the @click wiring, not _onFileClick.
+    it('a plain click on an image selects it and does NOT open the preview', async () => {
+        const tile = panel.renderRoot.querySelector('[data-file="a.png"]');
+        tile.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+        await panel.updateComplete;
+        expect(selected()).toEqual(['a.png']);
+        expect(panel._previewOpen).toBeFalsy();
+    });
+
+    it('a double-click opens the preview; with a modifier held it does not', async () => {
+        const tile = panel.renderRoot.querySelector('[data-file="a.png"]');
+        tile.dispatchEvent(new MouseEvent('dblclick', {bubbles: true, ctrlKey: true}));
+        await panel.updateComplete;
+        expect(panel._previewOpen).toBeFalsy();            // Ctrl-dblclick = two toggles
+
+        tile.dispatchEvent(new MouseEvent('dblclick', {bubbles: true}));
+        await panel.updateComplete;
+        expect(panel._previewOpen).toBe(true);
+        expect(panel._preview.name).toBe('a.png');
+    });
+
+    it('the context menu offers Preview for an image, not for a folder', async () => {
+        panel._ctxMenu = {x: 0, y: 0, file: 'a.png', isFolder: false};
+        await panel.updateComplete;
+        const items = [...panel.renderRoot.querySelectorAll('.ctx-item')].map(i => i.textContent.trim());
+        expect(items[0]).toContain('Preview');             // above the existing entries
+
+        panel.renderRoot.querySelector('.ctx-item').click();
+        await panel.updateComplete;
+        expect(panel._previewOpen).toBe(true);
+
+        panel._previewOpen = false;
+        panel._ctxMenu = {x: 0, y: 0, file: 'sub', isFolder: true};
+        await panel.updateComplete;
+        const folderItems = [...panel.renderRoot.querySelectorAll('.ctx-item')].map(i => i.textContent.trim());
+        expect(folderItems.some(t => t.includes('Preview'))).toBe(false);
+    });
+
+    it('Enter previews the single selected image — and never a multi-selection', async () => {
+        click('a.png');
+        await panel.updateComplete;
+        const zone = panel.renderRoot.querySelector('.drop-zone, .list-zone');
+        zone.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
+        await panel.updateComplete;
+        expect(panel._previewOpen).toBe(true);
+
+        panel._previewOpen = false;
+        click('b.png', {ctrlKey: true});
+        await panel.updateComplete;
+        zone.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
+        await panel.updateComplete;
+        expect(panel._previewOpen).toBeFalsy();
+    });
+
+    it('list/details selection is background-only; the thumb tile keeps its outline', async () => {
+        // The strong outline on text rows was the complaint; on an image tile
+        // a tint alone is invisible, so the outline stays there. All three
+        // modes checked explicitly — the default mode alone would leave the
+        // other branch untested.
+        click('a.png');
+        for (const [mode, selector, wantsOutline] of [
+            ['thumbs', '.tile.selected', true],
+            ['list', '.list-row.selected', false],
+            ['details', '.detail-row.selected', false],
+        ]) {
+            panel._viewMode = mode;
+            await panel.updateComplete;
+            const row = panel.renderRoot.querySelector(selector);
+            expect(row, `${mode}: no selected row`).not.toBeNull();
+            const cs = getComputedStyle(row);
+            if (wantsOutline) {
+                expect(cs.outlineStyle, mode).toBe('solid');
+            } else {
+                expect(cs.outlineStyle, mode).toBe('none');
+                expect(cs.backgroundColor, mode).not.toBe('rgba(0, 0, 0, 0)');
+            }
+        }
     });
 
     it('selected rows carry the selection class and the infobar counts', async () => {

@@ -395,6 +395,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U100 — Editor min-width instead of broken narrow layouts ✅ done](U100.md)
 - [U101 — Snap helper-line color configurable + alpha in the editor color pickers ✅ done](U101.md)
 - [U102 — Vertical guide-line label: flip 180°, right of the line, near the top ✅ done](U102.md)
+- [U106 — Asset manager: image preview on double-click + context menu, not single click ✅ done](U106.md)
 
 - [U103 — layout-app: two-level navigation (groups, double drawer, tabs, breadcrumb) ✅ done](U103.md)
 - [U104 — Generic list-of-objects attribute editor (fixes the multivalue UX) ✅ done](U104.md)

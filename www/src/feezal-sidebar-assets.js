@@ -223,13 +223,24 @@ class FeezalSidebarAssets extends LitElement {
         .ctx-submenu.left { left: auto; right: 100%; }
 
         /* ── U105: multi-selection ─────────────────────────────────────── */
-        .tile.selected, .list-row.selected, .detail-row.selected {
+        /* Thumbnails keep the outline — a tile is mostly IMAGE, and a tint
+           over a busy picture is invisible. The text rows drop it: there the
+           outline read as heavy chrome, and a background tint is the familiar
+           file-manager selection. Stronger tint than the tiles' wash, since
+           it carries the state alone. */
+        .tile.selected {
             outline: 2px solid rgba(var(--feezal-selection-rgb, 2, 132, 199), 0.9);
             outline-offset: -2px;
             background: rgba(var(--feezal-selection-rgb, 2, 132, 199), 0.10);
         }
-        .tile.selected:hover, .list-row.selected:hover, .detail-row.selected:hover {
+        .tile.selected:hover {
             background: rgba(var(--feezal-selection-rgb, 2, 132, 199), 0.16);
+        }
+        .list-row.selected, .detail-row.selected {
+            background: rgba(var(--feezal-selection-rgb, 2, 132, 199), 0.18);
+        }
+        .list-row.selected:hover, .detail-row.selected:hover {
+            background: rgba(var(--feezal-selection-rgb, 2, 132, 199), 0.26);
         }
         /* the zones take focus for Ctrl+A / Del / Esc — no visible ring */
         .drop-zone:focus, .list-zone:focus { outline: none; }
@@ -510,6 +521,16 @@ class FeezalSidebarAssets extends LitElement {
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
             e.preventDefault();
             this._selected = new Set(this._filteredList.map(f => f.path));
+            return;
+        }
+        // U106: Enter previews the single selected image — the file-manager
+        // feel. Several selected: ambiguous, do nothing.
+        if (e.key === 'Enter' && this._selected.size === 1) {
+            const [path] = this._selected;
+            if (isImage(path)) {
+                e.preventDefault();
+                this._openPreview({path});
+            }
             return;
         }
         if (e.key === 'Delete' && this._selected.size) {
@@ -1184,7 +1205,8 @@ class FeezalSidebarAssets extends LitElement {
                 data-file="${dragTag ? file.path : ''}"
                 data-elem="${dragTag || ''}"
                 @dragstart="${e => e.preventDefault()}"
-                @click="${e => { if (renaming) return; const mod = this._onFileClick(e, file); if (!mod && isImg) this._openPreview(file); }}"
+                @click="${e => { if (renaming) return; this._onFileClick(e, file); }}"
+                @dblclick="${e => { if (renaming || e.ctrlKey || e.metaKey || e.shiftKey) return; if (isImg) this._openPreview(file); }}"
                 @contextmenu="${e => this._openContextMenu(e, file.path)}">
                 <span class="material-icons">${isImg ? 'image' : fileIcon(file.path)}</span>
                 ${renaming ? html`
@@ -1217,7 +1239,8 @@ class FeezalSidebarAssets extends LitElement {
                 data-file="${dragTag ? file.path : ''}"
                 data-elem="${dragTag || ''}"
                 @dragstart="${e => e.preventDefault()}"
-                @click="${e => { if (renaming) return; const mod = this._onFileClick(e, file); if (!mod && isImg) this._openPreview(file); }}"
+                @click="${e => { if (renaming) return; this._onFileClick(e, file); }}"
+                @dblclick="${e => { if (renaming || e.ctrlKey || e.metaKey || e.shiftKey) return; if (isImg) this._openPreview(file); }}"
                 @contextmenu="${e => this._openContextMenu(e, file.path)}">
                 <div class="name-cell">
                     <span class="material-icons">${isImg ? 'image' : fileIcon(file.path)}</span>
@@ -1273,7 +1296,8 @@ class FeezalSidebarAssets extends LitElement {
                 data-elem="${dragTag || ''}"
                 title="${name} (${formatSize(file.size)})"
                 @dragstart="${e => e.preventDefault()}"
-                @click="${e => { if (renaming) return; const mod = this._onFileClick(e, file); if (!mod && isImg) this._openPreview(file); }}"
+                @click="${e => { if (renaming) return; this._onFileClick(e, file); }}"
+                @dblclick="${e => { if (renaming || e.ctrlKey || e.metaKey || e.shiftKey) return; if (isImg) this._openPreview(file); }}"
                 @contextmenu="${e => this._openContextMenu(e, file.path)}">
                 ${isImg
                     ? html`<img class="tile-thumb" src="${resolvedSrc}" alt="${name}" loading="lazy" draggable="false">`
@@ -1530,6 +1554,11 @@ class FeezalSidebarAssets extends LitElement {
             ${this._ctxMenu ? html`
                 <div class="ctx-backdrop" @click="${() => this._ctxMenu = null}"></div>
                 <div class="ctx-menu" style="left:${this._ctxMenu.x}px; top:${this._ctxMenu.y}px;">
+                    ${!this._ctxMenu.isFolder && isImage(this._ctxMenu.file) ? html`
+                        <div class="ctx-item" @click="${() => { const f = this._ctxMenu.file; this._ctxMenu = null; this._openPreview({path: f}); }}">
+                            <span class="material-icons">visibility</span>Preview
+                        </div>
+                    ` : ''}
                     <div class="ctx-item" @click="${() => { this._startRename(this._ctxMenu.file); this._ctxMenu = null; }}">
                         <span class="material-icons">edit</span>Rename
                     </div>

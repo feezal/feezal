@@ -77,7 +77,6 @@ Work in progress — priorities and scope are not final.
 - [U85 — Toast/notification service: route the remaining call sites](#u85--toastnotification-service-route-the-remaining-call-sites--service-shipped) 🔨 *(service shipped)*
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
 - [U98 — Palette colors in editor light mode ⚠️ needs refinement](#u98--palette-colors-in-editor-light-mode-️-needs-refinement)
-- [U106 — Asset manager: image preview on double-click + context menu, not single click](#u106--asset-manager-image-preview-on-double-click--context-menu-not-single-click)
 - [U107 — layout-app two-level follow-ups: drag-handle entries editor, two-row tab bar, chevron-only collapse](#u107--layout-app-two-level-follow-ups-drag-handle-entries-editor-two-row-tab-bar-chevron-only-collapse)
 
 
@@ -2612,38 +2611,6 @@ the tile labels).
 **Relates:** the editor dark-mode discipline (N43 — this is its light-mode
 mirror), element-spec `palette.color` (docs note: color is authored against
 the dark editor; light mode derives), U45 (palette/picker — same tiles).
-
-
-### U106 — Asset manager: image preview on double-click + context menu, not single click
-
-**Reported (08/2026).** A plain click on an image tile both selects the file
-AND opens the preview dialog (all three view modes wire
-`if (!mod && isImg) this._openPreview(file)` into the tile's `@click` —
-`www/src/feezal-sidebar-assets.js`). Since multi-select shipped, plain
-click's primary job is SELECTING, and the preview popping up on every
-selection click is annoying.
-
-**Change:**
-- **Single click = select only** (all files, images included) — the
-  existing selection semantics (plain replaces, Ctrl toggles, Shift
-  ranges) stay untouched; just drop the `_openPreview` call from `@click`.
-- **Double-click opens the preview** (`@dblclick` on the tile, images
-  only; non-image files keep no dblclick action for now). Guard: the
-  first click of a double-click still selects — that is fine and matches
-  file managers; dblclick must not toggle the selection twice with Ctrl
-  held (modifier double-clicks can just be ignored).
-- **Context menu gains a "Preview" item** (images only, above the
-  existing entries) so the action stays discoverable — same
-  `_openPreview` path.
-- Keyboard: while a single image is selected, **Enter** on the focused
-  zone opens the preview (cheap, matches the file-manager feel; skip
-  when several files are selected).
-
-Update the assets browser suite (a click test currently expecting the
-preview must flip to dblclick) and the asset-manager checklist rows.
-
-**Relates:** the multi-select item that made single-click selection the
-primary gesture (see the archived entry), asset manager context menu.
 
 
 ### U107 — layout-app two-level follow-ups: drag-handle entries editor, two-row tab bar, chevron-only collapse
