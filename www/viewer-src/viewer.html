@@ -8,7 +8,21 @@
 <style>
     html, body {
         width: 100%;
+        /* B120 — the VISIBLE height, not the initial containing block.
+           height:100% resolves against the ICB, which in an iOS standalone PWA
+           (viewport-fit=cover) can exceed the visual viewport: the document
+           itself became scrollable, revealing unpainted layers below the
+           content and carrying the layout-app bar away with it.
+           -webkit-fill-available first so 100dvh wins wherever both are
+           understood; the plain 100% stays as the floor for everything else. */
         height: 100%;
+        height: -webkit-fill-available;
+        height: 100dvh;
+        /* Structural rather than a matter of exact pixels. A view TALLER than
+           the screen still scrolls — inside feezal-site, which is where the
+           scrolling always belonged. */
+        overflow: hidden;
+        overscroll-behavior: none;
         padding: 0;
         margin: 0;
 

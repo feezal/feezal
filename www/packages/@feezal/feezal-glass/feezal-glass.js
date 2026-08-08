@@ -174,7 +174,14 @@ export const glassPopupStyles = css`
         display: flex; flex-direction: column; align-items: center; gap: 16px;
         border: 1px solid var(--feezal-glass-border, rgba(255,255,255,0.55));
         border-radius: var(--feezal-glass-radius, 24px);
-        background: var(--feezal-glass-tint, rgba(255,255,255,0.7));
+        /* B121 — the SAME fallback tint as .card (0.35), not 0.7.
+           Both read --feezal-glass-tint, so a theme that sets it has always
+           made card and popup agree — but with no theme the popup fell back to
+           twice the card's opacity, which is the reported "solid" look.
+           Measured over a striped background: the card transmits 65% of the
+           blurred page (sd 42), the popup at 0.7 only 30% (sd 22), so the frost
+           had almost nothing left to show. */
+        background: var(--feezal-glass-tint, rgba(255,255,255,0.35));
         -webkit-backdrop-filter: blur(var(--feezal-glass-blur, 20px));
         backdrop-filter: blur(var(--feezal-glass-blur, 20px));
         box-shadow: 0 16px 48px rgba(0,0,0,0.3);
@@ -183,8 +190,10 @@ export const glassPopupStyles = css`
         overflow: visible;
     }
     :host([degrade]) .details {
+        /* Same drift, same fix: the card degrades to 0.94, so this did not
+           match on the no-theme path either. */
         -webkit-backdrop-filter: none; backdrop-filter: none;
-        background: var(--feezal-glass-solid, rgba(245,245,247,0.97));
+        background: var(--feezal-glass-solid, rgba(245,245,247,0.94));
     }
     .details::backdrop { background: rgba(0, 0, 0, 0.35); }
     .details .title {

@@ -123,6 +123,8 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B115 — Context menus: Delete entries must ALL get the danger red hover ✅ fixed](B115.md)
 - [B116 — Gap-snap helper lines: show only the line being snapped to, not all four ✅ fixed](B116.md)
 - [B117 — Coinciding gap + edge snap draws the helper line twice ("fat" artifact); drop the label prefixes ✅ fixed](B117.md)
+- [B120 — iOS PWA: a view SHORTER than the screen scrolls, revealing grey/white bars; layout-app bar moves ✅ fixed](B120.md)
+- [B121 — Glass popups are not transparent — expected the cards' frost ✅ fixed](B121.md)
 
 ## Near-term Improvements
 
