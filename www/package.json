@@ -96,6 +96,7 @@
     "@feezal/feezal-element-eink-value": "*",
     "@feezal/feezal-element-eink-wled": "*",
     "@feezal/feezal-element-glass-button": "*",
+    "@feezal/feezal-element-glass-camera": "*",
     "@feezal/feezal-element-glass-climate": "*",
     "@feezal/feezal-element-glass-contact": "*",
     "@feezal/feezal-element-glass-countdown-dialog": "*",

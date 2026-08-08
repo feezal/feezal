@@ -64,7 +64,6 @@ Work in progress — priorities and scope are not final.
 - [E159 — Re-add a Paper-family app shell (`paper-app`) with full layout-app parity](#e159--re-add-a-paper-family-app-shell-paper-app-with-full-layout-app-parity)
 - [E162 — Fancy family, take two: actually fancy — ready-made Lottie art over generated geometry](#e162--fancy-family-take-two-actually-fancy--ready-made-lottie-art-over-generated-geometry)
 - [E164 — Fancy family: finish and re-enable the disabled cards](#e164--fancy-family-finish-and-re-enable-the-disabled-cards)
-- [E167 — `glass-camera`: basic-camera in the glass frame 💡](#e167--glass-camera-basic-camera-in-the-glass-frame-)
 - [E168 — basic-camera: Frigate event backfill (events from before the viewer opened)](#e168--basic-camera-frigate-event-backfill-events-from-before-the-viewer-opened-️-to-be-refined) ⚠️
 - [E170 — Search element family (*-search) / view-wise search in layout-app](#e170--search-element-family--search--view-wise-search-in-layout-app)
 
@@ -1578,35 +1577,6 @@ Also: the contact card's **door / garagedoor / generic** variants reworked to th
 **Re-enable mechanism** (the disable is deliberately shallow): restore the imports in feezal-elements-fancy/index.js, restore the manifest entries in its package.json, un-pin the contact type (drop the per-name options override and the discovery valueMap pin), run scripts/generate-elements.js, update TESTING.md §6 and bump the package.
 
 **Relates:** E139 ✅ (the family), E162 (motion hierarchy, packs, the quality bar), fancy-switch + the window in fancy-contact (reference implementations).
-
-### E167 — `glass-camera`: basic-camera in the glass frame 💡
-
-**Requested (08/2026).** A glass-family camera card that is deliberately
-minimal: **basic-camera plus the glass border style with rounded edges** —
-nothing more.
-
-**Design:** `feezal-element-glass-camera` **subclasses
-`FeezalElementBasicCamera`** (own package depending on
-`@feezal/feezal-element-basic-camera`, A32 rules) and overrides ONLY:
-- `palette` → category Glass (glass colours/icon);
-- `styles` → the frost card frame around the feed: the family's rounded
-  squircle corners + border, `--feezal-glass-tint` frame surface and the
-  usual glass style knobs; the FEED itself stays untouched (no blur over the
-  video — the frame is glass, the picture is the picture). `degrade`
-  inherits meaning for the frame only.
-Everything else — every attribute, mqtt-image, chips, events, popups,
-buttons, discovery (camera component + Frigate keys) — is inherited
-unchanged; zero behaviour duplication. E115 then pairs `camera` across
-basic ↔ glass for family switching automatically.
-
-**Ships with:** package + manifest regeneration, E115 pairing sanity check,
-a small browser test (renders the feed inside the glass frame; inherited
-mqtt-image path works through the subclass), TESTING.md §6 row, patch bump.
-
-**Relates:** E163 ✅ (basic-camera — the base class), the glass family
-chrome (`glassCardStyles`), E115 (family switch pairing), A32 (dependency
-declaration in the element package).
-
 
 ### E168 — basic-camera: Frigate event backfill (events from before the viewer opened) ⚠️ to be refined
 

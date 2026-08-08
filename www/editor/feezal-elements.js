@@ -61,6 +61,7 @@ import '@feezal/feezal-element-eink-switch';
 import '@feezal/feezal-element-eink-value';
 import '@feezal/feezal-element-eink-wled';
 import '@feezal/feezal-element-glass-button';
+import '@feezal/feezal-element-glass-camera';
 import '@feezal/feezal-element-glass-climate';
 import '@feezal/feezal-element-glass-contact';
 import '@feezal/feezal-element-glass-countdown-dialog';
@@ -235,6 +236,7 @@ window.feezal.elements = [
   "feezal-element-eink-value",
   "feezal-element-eink-wled",
   "feezal-element-glass-button",
+  "feezal-element-glass-camera",
   "feezal-element-glass-climate",
   "feezal-element-glass-contact",
   "feezal-element-glass-countdown-dialog",

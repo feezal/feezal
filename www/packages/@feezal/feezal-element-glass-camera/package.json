@@ -1,0 +1,9 @@
+{
+    "name": "@feezal/feezal-element-glass-camera",
+    "version": "3.0.0",
+    "main": "feezal-element-glass-camera.js",
+    "license": "MIT",
+    "dependencies": {
+        "@feezal/feezal-element-basic-camera": "*"
+    }
+}
