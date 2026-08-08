@@ -71,7 +71,12 @@ export function composeScryptedUrl(src, opts = {}) {
     else if (ids.length) params.set('ids', ids.join(','));
 
     if (live) params.set('live', 'true');
-    if (destination) params.set('destination', destination);
+    // Quality: with no explicit destination Scrypted's iframe picks the low
+    // bandwidth stream — visibly bad on a big single tile. Auto policy: full
+    // quality (`local`) for the single live view, `low-resolution` where many
+    // streams run at once (grid). The explicit attribute always wins.
+    const dest = destination || (kind === 'live' ? 'local' : (kind === 'grid' ? 'low-resolution' : ''));
+    if (dest) params.set('destination', dest);
     if (speaker) params.set('speaker', 'on');
     if (microphone) params.set('microphone', 'on');
 
@@ -86,16 +91,26 @@ class FeezalElementBasicScrypted extends FeezalElement {
         :host {
             position: relative;
         }
+        .stack {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+        }
         iframe {
             border: var(--feezal-basic-scrypted-border);
             border-radius: var(--feezal-basic-scrypted-radius);
             padding: 0;
             margin: 0;
             width: 100%;
-            height: 100%;
             box-sizing: border-box;
             display: block;
             background: transparent;
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+        iframe.events {
+            flex: 0 0 auto;
         }
         .hint {
             width: 100%;
@@ -141,9 +156,10 @@ class FeezalElementBasicScrypted extends FeezalElement {
                         'An https dashboard cannot embed an http Scrypted — serve Scrypted over https (its default) or the browser blocks the frame. ' +
                         'A full NVR view URL (…#/iframe/<id>) is accepted too and wins over camera-ids for the pasted camera.'},
                 {name: 'view', type: 'select', options: ['', 'live', 'grid', 'events'], default: '',
-                    help: 'Which NVR view to show: live = single camera stream, grid = multi-camera grid, ' +
-                        'events = scrollable reel of detected events. Empty keeps the view of the pasted URL. ' +
-                        'grid and events take the cameras from camera-ids (or the pasted URL).'},
+                    help: 'Which NVR view to show: live = single camera stream (the default with a plain server URL), ' +
+                        'grid = multi-camera grid, events = the event reel ONLY (no live stream — to keep the live ' +
+                        'view AND see events, leave view on live and turn on show-events instead). ' +
+                        'grid and events take the cameras from camera-ids.'},
                 {name: 'camera-ids', type: 'string', default: '',
                     help: 'The camera\'s device id(s), comma-separated. Find the id in the Scrypted console: open the camera ' +
                         'and read the number from the browser address bar (…/device/<id>). ' +
@@ -151,8 +167,15 @@ class FeezalElementBasicScrypted extends FeezalElement {
                 {name: 'live', type: 'boolean', default: true,
                     help: 'Start playing on load. Off = the view waits for a tap.'},
                 {name: 'destination', type: 'select', options: ['', 'low-resolution', 'local', 'remote'], default: '',
-                    help: 'Stream quality: low-resolution saves bandwidth (good for grids), local = full quality on the LAN, ' +
-                        'remote = the stream Scrypted picks for remote viewers. Empty = Scrypted\'s default.'},
+                    help: 'Stream quality: local = full quality, low-resolution saves bandwidth, remote = the stream ' +
+                        'Scrypted picks for remote viewers. Empty = automatic: full quality for the single live view, ' +
+                        'low-resolution for grids (many streams at once).'},
+                {name: 'show-events', type: 'boolean', default: false, section: 'Events',
+                    help: 'Show the NVR event reel below the live view — recent detections including those from before ' +
+                        'the page was opened. Tapping an event behaves as the NVR app defines inside the frame. ' +
+                        'Ignored when view is events (the reel is already the whole element then).'},
+                {name: 'events-size', type: 'number', default: 40, section: 'Events',
+                    help: 'Height of the event reel as percent of the element (with show-events on).'},
                 {name: 'speaker', type: 'boolean', default: false,
                     help: 'Play the camera\'s audio.'},
                 {name: 'microphone', type: 'boolean', default: false,
@@ -186,6 +209,8 @@ class FeezalElementBasicScrypted extends FeezalElement {
         destination:     {type: String,  reflect: true},
         speaker:         {type: Boolean, reflect: true},
         microphone:      {type: Boolean, reflect: true},
+        showEvents:      {type: Boolean, reflect: true, attribute: 'show-events'},
+        eventsSize:      {type: Number,  reflect: true, attribute: 'events-size'},
         pauseWhenHidden: {type: Boolean, reflect: true, attribute: 'pause-when-hidden'},
         _streamPaused:   {state: true},
     };
@@ -199,6 +224,8 @@ class FeezalElementBasicScrypted extends FeezalElement {
         this.destination     = '';
         this.speaker         = false;
         this.microphone      = false;
+        this.showEvents      = false;
+        this.eventsSize      = 40;
         this.pauseWhenHidden = false;
         this._streamPaused   = false;
         this.__io            = null;
@@ -276,7 +303,23 @@ class FeezalElementBasicScrypted extends FeezalElement {
         }
         if (this._streamPaused) return html``;
         const allow = 'autoplay; fullscreen' + (this.microphone ? '; microphone' : '');
-        return html`<iframe src="${url}" allow="${allow}" allowfullscreen></iframe>`;
+        // show-events: the reel is a SECOND NVR view stacked under the live
+        // one (view=events alone replaces the stream, which nobody expects).
+        // Only rendered when it actually derived an events fragment — a
+        // foreign URL or missing ids must not duplicate the main view.
+        let eventsFrame = '';
+        if (this.showEvents && this.view !== 'events') {
+            const eventsUrl = composeScryptedUrl(this.src,
+                {view: 'events', cameraIds: this.cameraIds, live: false});
+            if (eventsUrl.includes('#/iframeevents')) {
+                eventsFrame = html`<iframe class="events" src="${eventsUrl}"
+                    style="flex-basis: ${Math.min(90, Math.max(10, this.eventsSize || 40))}%"></iframe>`;
+            }
+        }
+        return html`<div class="stack">
+            <iframe src="${url}" allow="${allow}" allowfullscreen></iframe>
+            ${eventsFrame}
+        </div>`;
     }
 }
 

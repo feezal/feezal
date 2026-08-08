@@ -33,63 +33,63 @@ async function mount(attrs = {}) {
 }
 
 describe('composeScryptedUrl — view rewriting', () => {
-    it('single view passes through, live autoplay on by default', () => {
+    it('single view passes through, live autoplay + full quality by default', () => {
         expect(composeScryptedUrl(SINGLE, {}))
-            .toBe(BASE + '#/iframe/62?live=true');
+            .toBe(BASE + '#/iframe/62?live=true&destination=local');
     });
 
-    it('live=false drops the autoplay param', () => {
+    it('live=false drops the autoplay param (quality stays automatic)', () => {
         expect(composeScryptedUrl(SINGLE, {live: false}))
-            .toBe(BASE + '#/iframe/62');
+            .toBe(BASE + '#/iframe/62?destination=local');
     });
 
-    it('view=grid moves the path id into the ids param', () => {
+    it('view=grid moves the path id into the ids param — grids default to low-resolution', () => {
         expect(composeScryptedUrl(SINGLE, {view: 'grid'}))
-            .toBe(BASE + '#/iframegrid?ids=62&live=true');
+            .toBe(BASE + '#/iframegrid?ids=62&live=true&destination=low-resolution');
     });
 
-    it('view=events builds the event reel', () => {
+    it('view=events builds the event reel — no quality param there', () => {
         expect(composeScryptedUrl(SINGLE, {view: 'events', live: false}))
             .toBe(BASE + '#/iframeevents?ids=62');
     });
 
     it('camera-ids override the pasted id — commas stay literal', () => {
         expect(composeScryptedUrl(SINGLE, {view: 'grid', cameraIds: '7, 8,9', live: false}))
-            .toBe(BASE + '#/iframegrid?ids=7,8,9');
+            .toBe(BASE + '#/iframegrid?ids=7,8,9&destination=low-resolution');
     });
 
     it('view=live uses the FIRST of the camera-ids', () => {
         expect(composeScryptedUrl(SINGLE, {view: 'live', cameraIds: '7,8', live: false}))
-            .toBe(BASE + '#/iframe/7');
+            .toBe(BASE + '#/iframe/7?destination=local');
     });
 
     it('a pasted grid URL keeps its ids and shape without a view override', () => {
         expect(composeScryptedUrl(BASE + '#/iframegrid?ids=1,2', {live: false}))
-            .toBe(BASE + '#/iframegrid?ids=1,2');
+            .toBe(BASE + '#/iframegrid?ids=1,2&destination=low-resolution');
     });
 
     it('a pasted grid URL can be rewritten to a single live view', () => {
         expect(composeScryptedUrl(BASE + '#/iframegrid?ids=4,5', {view: 'live', live: false}))
-            .toBe(BASE + '#/iframe/4');
+            .toBe(BASE + '#/iframe/4?destination=local');
     });
 });
 
 describe('composeScryptedUrl — derivation from the server URL (the comfortable form)', () => {
     it('server URL + camera-ids derives the full NVR view URL', () => {
         expect(composeScryptedUrl('https://scrypted.local:10443', {cameraIds: '62'}))
-            .toBe('https://scrypted.local:10443/endpoint/@scrypted/nvr/public/#/iframe/62?live=true');
+            .toBe('https://scrypted.local:10443/endpoint/@scrypted/nvr/public/#/iframe/62?live=true&destination=local');
     });
 
     it('tolerates a trailing slash and an already-complete endpoint path', () => {
         expect(composeScryptedUrl('https://scrypted.local:10443/', {cameraIds: '62', live: false}))
-            .toBe('https://scrypted.local:10443/endpoint/@scrypted/nvr/public/#/iframe/62');
+            .toBe('https://scrypted.local:10443/endpoint/@scrypted/nvr/public/#/iframe/62?destination=local');
         expect(composeScryptedUrl('https://scrypted.local:10443/endpoint/@scrypted/nvr/public/', {cameraIds: '62', live: false}))
-            .toBe('https://scrypted.local:10443/endpoint/@scrypted/nvr/public/#/iframe/62');
+            .toBe('https://scrypted.local:10443/endpoint/@scrypted/nvr/public/#/iframe/62?destination=local');
     });
 
     it('derives grid and events views too', () => {
         expect(composeScryptedUrl('https://scrypted.local:10443', {cameraIds: '1,2', view: 'grid', live: false}))
-            .toBe('https://scrypted.local:10443/endpoint/@scrypted/nvr/public/#/iframegrid?ids=1,2');
+            .toBe('https://scrypted.local:10443/endpoint/@scrypted/nvr/public/#/iframegrid?ids=1,2&destination=low-resolution');
         expect(composeScryptedUrl('https://scrypted.local:10443', {cameraIds: '1', view: 'events', live: false}))
             .toBe('https://scrypted.local:10443/endpoint/@scrypted/nvr/public/#/iframeevents?ids=1');
     });
@@ -109,15 +109,16 @@ describe('composeScryptedUrl — parameter management', () => {
     });
 
     it('unmanaged pasted params survive, managed pasted params are owned by the element', () => {
-        const url = composeScryptedUrl(BASE + '#/iframe/62?imageClick=app&destination=local', {live: false});
+        const url = composeScryptedUrl(BASE + '#/iframe/62?imageClick=app&destination=remote', {live: false});
         // destination came only from the pasted URL, the attribute is empty →
-        // stripped; imageClick is not the element's business → kept.
-        expect(url).toBe(BASE + '#/iframe/62?imageClick=app');
+        // the AUTO policy owns it now; imageClick is not the element's
+        // business → kept.
+        expect(url).toBe(BASE + '#/iframe/62?imageClick=app&destination=local');
     });
 
     it('a pasted live=true does not stick when the attribute is off', () => {
         expect(composeScryptedUrl(BASE + '#/iframe/62?live=true', {live: false}))
-            .toBe(BASE + '#/iframe/62');
+            .toBe(BASE + '#/iframe/62?destination=local');
     });
 });
 
@@ -147,7 +148,7 @@ describe('basic-scrypted — render contract', () => {
         const el = await mount({src: SINGLE});
         const iframe = el.shadowRoot.querySelector('iframe');
         expect(iframe).toBeTruthy();
-        expect(iframe.getAttribute('src')).toBe(BASE + '#/iframe/62?live=true');
+        expect(iframe.getAttribute('src')).toBe(BASE + '#/iframe/62?live=true&destination=local');
     });
 
     it('attribute edits recompose the URL', async () => {
@@ -190,6 +191,32 @@ describe('basic-scrypted — render contract', () => {
         el._streamPaused = false;
         await el.updateComplete;
         expect(el.shadowRoot.querySelector('iframe')).toBeTruthy();
+    });
+
+    it('show-events stacks the event reel under the live view', async () => {
+        const el = await mount({'src': SINGLE, 'show-events': ''});
+        const frames = el.shadowRoot.querySelectorAll('iframe');
+        expect(frames).toHaveLength(2);
+        // live stream stays the main frame — the reported bug was view=events
+        // REPLACING it
+        expect(frames[0].getAttribute('src')).toContain('#/iframe/62');
+        expect(frames[1].getAttribute('src')).toBe(BASE + '#/iframeevents?ids=62');
+        expect(frames[1].style.flexBasis).toBe('40%');
+    });
+
+    it('events-size drives the reel height', async () => {
+        const el = await mount({'src': SINGLE, 'show-events': '', 'events-size': '25'});
+        expect(el.shadowRoot.querySelector('iframe.events').style.flexBasis).toBe('25%');
+    });
+
+    it('show-events is inert when the whole element IS the reel (view=events)', async () => {
+        const el = await mount({'src': SINGLE, 'show-events': '', view: 'events'});
+        expect(el.shadowRoot.querySelectorAll('iframe')).toHaveLength(1);
+    });
+
+    it('show-events never duplicates a foreign URL it cannot derive a reel from', async () => {
+        const el = await mount({'src': 'https://example.org/some/page', 'show-events': ''});
+        expect(el.shadowRoot.querySelectorAll('iframe')).toHaveLength(1);
     });
 
     it('the editor never pauses — no observer is installed there', async () => {
