@@ -518,11 +518,34 @@ describe('context menu', () => {
 
         rightClick(viewRows(panel)[0]);
         await until(() => Boolean(ctx(panel)));
-        expect(items(panel)).toEqual(['Open view', 'Rename…', 'Duplicate', 'Delete view']);
+        // U109 added the whole-view clipboard entries.
+        expect(items(panel)).toEqual(['Open view', 'Rename…', 'Duplicate',
+            'Copy view', 'Cut view', 'Paste view', 'Delete view']);
 
         [...panel.shadowRoot.querySelectorAll('.ctx-item')]
             .find(i => i.textContent.trim() === 'Duplicate').click();
         expect(feezal.app._duplicateView).toHaveBeenCalledWith('main');
+    });
+
+    it('U109: the view clipboard entries delegate to the editor shell', async () => {
+        addView('main');
+        const panel = await mountPanel('main');
+        feezal.app._copyView = vi.fn();
+        feezal.app._cutView = vi.fn();
+        feezal.app._pasteViewFromClipboard = vi.fn();
+
+        for (const [label, spy, arg] of [
+            ['Copy view', () => feezal.app._copyView, 'main'],
+            ['Cut view', () => feezal.app._cutView, 'main'],
+            ['Paste view', () => feezal.app._pasteViewFromClipboard, undefined],
+        ]) {
+            rightClick(viewRows(panel)[0]);
+            await until(() => Boolean(ctx(panel)));
+            [...panel.shadowRoot.querySelectorAll('.ctx-item')]
+                .find(i => i.textContent.trim() === label).click();
+            if (arg === undefined) expect(spy()).toHaveBeenCalled();
+            else expect(spy()).toHaveBeenCalledWith(arg);
+        }
     });
 });
 

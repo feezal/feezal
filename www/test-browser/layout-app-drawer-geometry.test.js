@@ -187,7 +187,9 @@ describe('drawer entry geometry is identical in every mode (B90)', () => {
  * Chrome/Windows bar this was reported against.
  */
 describe('U94 — themed thin scrollbars', () => {
-    const surfaces = el => ['.drawer', '.content']
+    // B129: the drawer's scroll surface is the inner .drawer-nav column — the
+    // .drawer shell no longer scrolls (it carries the overlay background).
+    const surfaces = el => ['.drawer-nav', '.content']
         .map(sel => [sel, el.shadowRoot.querySelector(sel)]);
 
     /** The element's own CSS, as the browser parsed it. */
@@ -211,7 +213,7 @@ describe('U94 — themed thin scrollbars', () => {
         // computed-value based below.
         const rule = ownRules(el).find(r =>
             r.selectorText && r.style?.scrollbarWidth &&
-            r.selectorText.includes('.drawer') && r.selectorText.includes('.content'));
+            r.selectorText.includes('.drawer-nav') && r.selectorText.includes('.content'));
         expect(rule, 'a rule covering both scroll surfaces').toBeTruthy();
         expect(rule.style.scrollbarWidth).toBe('thin');
     });

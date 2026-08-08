@@ -316,6 +316,68 @@ describe('duplicate view (B126)', () => {
     });
 });
 
+describe('view clipboard (U109)', () => {
+    const visibleViews = () => page.locator('feezal-site > feezal-view')
+        .evaluateAll(els => els.filter(v => getComputedStyle(v).display !== 'none')
+            .map(v => v.getAttribute('name')));
+
+    it('Copy + Paste via the tab menu creates a deduped copy and lands on it', async () => {
+        await page.locator('.ftab.view[data-view="main"]').click({button: 'right'});
+        await page.locator('.view-ctx-item', {hasText: /^\s*Copy\s*$/}).first().click();
+
+        await page.locator('.ftab.view[data-view="main"]').click({button: 'right'});
+        await page.locator('.view-ctx-item', {hasText: 'Paste view'}).first().click();
+
+        await page.locator('feezal-site > feezal-view[name="main-copy"]').waitFor({timeout: 10_000});
+        // B126 semantics: exactly one visible view, and it is the pasted one.
+        await expect.poll(visibleViews).toEqual(['main-copy']);
+        // The content travelled (deep clone — B31 mechanism).
+        expect(await page.locator('feezal-site > feezal-view[name="main-copy"] feezal-element-material-badge').count())
+            .toBeGreaterThan(0);
+    });
+
+    it('Cut removes the view; Paste brings it back under its own (now free) name', async () => {
+        await page.locator('.ftab.view[data-view="main-copy"]').click({button: 'right'});
+        await page.locator('.view-ctx-item', {hasText: /^\s*Cut\s*$/}).first().click();
+        await expect.poll(() => page.locator('feezal-site > feezal-view[name="main-copy"]').count())
+            .toBe(0);
+
+        await page.locator('.ftab.view[data-view="main"]').click({button: 'right'});
+        await page.locator('.view-ctx-item', {hasText: 'Paste view'}).first().click();
+        await page.locator('feezal-site > feezal-view[name="main-copy"]').waitFor({timeout: 10_000});
+        await expect.poll(visibleViews).toEqual(['main-copy']);
+
+        // Clean up: cut it away again and land on main for the tests that follow.
+        await page.locator('.ftab.view[data-view="main-copy"]').click({button: 'right'});
+        await page.locator('.view-ctx-item', {hasText: /^\s*Cut\s*$/}).first().click();
+        await expect.poll(() => page.locator('feezal-site > feezal-view[name="main-copy"]').count())
+            .toBe(0);
+        await page.locator('.ftab.view[data-view="main"]').click();
+        await expect.poll(visibleViews).toEqual(['main']);
+    });
+
+    it('Copy to site… inserts the view into the OTHER site\'s saved markup (deduped there)', async () => {
+        const create = await fetch(`${stack.baseUrl}/api/sites`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: 'flows2'}),
+        });
+        expect(create.status).toBe(201);
+
+        await page.locator('.ftab.view[data-view="main"]').click({button: 'right'});
+        // The site list is fetched when the menu opens — the flyout entry appears.
+        await page.locator('.view-ctx-item', {hasText: 'flows2'}).first().click();
+
+        await expect.poll(async () => {
+            const html = await readFile(join(stack.dataDir, 'sites', 'flows2', 'site.html'), 'utf8')
+                .catch(() => '');
+            return html.includes('name="main"') && html.includes('feezal-element-material-badge');
+        }, {timeout: 10_000}).toBe(true);
+        // The SOURCE site still owns its view — copy, not move.
+        expect(await page.locator('feezal-site > feezal-view[name="main"]').count()).toBe(1);
+    });
+});
+
 describe('copy-on-use of a global asset (B15)', () => {
     it('drag from the assets sidebar repoints src and refreshes the inspector', async () => {
         // Seed a global image via the assets API, then reload so the sidebar

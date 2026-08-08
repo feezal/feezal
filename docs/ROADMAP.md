@@ -80,7 +80,6 @@ Work in progress — priorities and scope are not final.
 - [U85 — Toast/notification service: route the remaining call sites](#u85--toastnotification-service-route-the-remaining-call-sites--service-shipped) 🔨 *(service shipped)*
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
 - [U98 — Palette colors in editor light mode ⚠️ needs refinement](#u98--palette-colors-in-editor-light-mode-️-needs-refinement)
-- [U109 — Views: copy/cut/paste + "copy to another site"](#u109--views-copycutpaste--copy-to-another-site)
 
 
 **Architecture & Infrastructure**
@@ -2787,34 +2786,6 @@ whether matching later extends to element tag / current payload text
 not fight over display), U103 (layout-app two-level nav — the checkbox
 lives in the same entries manager), N40 (hidden clones stay warm —
 same principle: filter ≠ unsubscribe).
-
-
-### U109 — Views: copy/cut/paste + "copy to another site"
-
-**Requested (08/2026).** Whole-view clipboard operations:
-
-1. **Copy / Cut / Paste for views** — via the view context menu (canvas +
-   layers tree + footer selector) and the standard shortcuts when a VIEW
-   is the selection target. Copy serializes the whole `<feezal-view>`
-   (elements, inline styles, name, theme, conditions attributes); paste
-   creates it as a NEW hidden view with a deduped name (`-copy`
-   numbering, as duplicate); cut = copy + delete (one undo step each).
-   Reuse the element clipboard's mechanism where it fits (B31 light-DOM
-   survival, component instances via their template reference) — paste of
-   a view whose component definitions do not exist on the target site
-   must carry the definitions along or warn.
-2. **"Copy to another site…" context-menu entry** — submenu/dialog
-   listing the other sites (from `/api/sites`); picking one serializes
-   the view and inserts it into that site's saved markup server-side
-   (deduped name there too). The target site gets the view on its next
-   editor load / deploy; component definitions and any referenced assets
-   are the open question — v1 may copy the view markup only and surface a
-   warning listing missing components/assets on the target. Cross-site
-   copy must NOT auto-deploy the target site.
-
-**Relates:** B126 (duplicate-view fix — same hidden-on-create + dedupe
-semantics), B31 (clipboard light-DOM), U32 (component definitions),
-sites API (`/api/sites`).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches

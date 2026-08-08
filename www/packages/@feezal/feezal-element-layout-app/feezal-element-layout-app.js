@@ -339,7 +339,7 @@ class FeezalElementLayoutApp extends FeezalElement {
         :host([rail-state="slim"][rail-expand="overlay"]) .drawer:has(:focus-visible),
         :host([rail-state="edge"][rail-expand="overlay"]) .drawer:hover,
         :host([rail-state="edge"][rail-expand="overlay"]) .drawer:has(:focus-visible) {
-            width: var(--feezal-app-drawer-width, 220px); padding: 8px var(--_pad-x);
+            width: var(--feezal-app-drawer-width, 220px);
             box-shadow: 2px 0 12px rgba(0,0,0,0.22);
         }
 
@@ -350,8 +350,19 @@ class FeezalElementLayoutApp extends FeezalElement {
         :host([rail-state="slim"][rail-expand="push"]) .drawer:has(:focus-visible),
         :host([rail-state="edge"][rail-expand="push"]) .drawer:hover,
         :host([rail-state="edge"][rail-expand="push"]) .drawer:has(:focus-visible) {
-            width: var(--feezal-app-drawer-width, 220px); padding: 8px var(--_pad-x);
+            width: var(--feezal-app-drawer-width, 220px);
             box-shadow: 2px 0 12px rgba(0,0,0,0.18);
+        }
+        /* B129: the padding lives on .drawer-nav now — the edge rail zeroes it
+           at rest, so expansion must give it back on the SAME layer (the
+           expanded .drawer rules above used to re-set it on the shell, which
+           after the split would have DOUBLED the inset instead). */
+        :host([rail-state="edge"][rail-expand="overlay"]) .drawer:hover .drawer-nav,
+        :host([rail-state="edge"][rail-expand="overlay"]) .drawer:has(:focus-visible) .drawer-nav,
+        :host([rail-state="edge"][rail-expand="push"]) .drawer:hover .drawer-nav,
+        :host([rail-state="edge"][rail-expand="push"]) .drawer:has(:focus-visible) .drawer-nav,
+        :host([rail-state="edge"]) .drawer.rail-open .drawer-nav {
+            padding-left: var(--_pad-x); padding-right: var(--_pad-x);
         }
         /* rail-expand="never": no :hover/:focus rule at all — the rail never
            grows; labels are reached only via the rail menu button (U64). */
@@ -371,7 +382,7 @@ class FeezalElementLayoutApp extends FeezalElement {
            full overlay regardless of the rest rail width. */
         :host([rail-state]) .drawer.rail-open {
             position: absolute; top: 0; bottom: 0; left: 0; z-index: 4;
-            width: var(--feezal-app-drawer-width, 220px); padding: 8px var(--_pad-x);
+            width: var(--feezal-app-drawer-width, 220px);
             box-shadow: 2px 0 12px rgba(0,0,0,0.25);
         }
         /* Entries/labels need no override here — the collapsed rules above
@@ -1404,10 +1415,10 @@ class FeezalElementLayoutApp extends FeezalElement {
                     : html`
                         <div class="drawer ${this._drawerOpen ? 'open' : ''} ${railOpen ? 'rail-open' : ''}" role="navigation"
                             @keydown="${e => this._onDrawerKeydown(e)}">
-                            ${railPresented && this.railMenuButton && !this._drawerOpen ? html`
-                                <button class="rail-menu" title="Menu" @click="${() => { this._drawerOpen = true; }}"><span class="mi">menu</span></button>` : ''}
                             ${this.drawerSearch && entries.length > 0 ? this._searchField() : ''}
                             <div class="drawer-nav">
+                                ${railPresented && this.railMenuButton && !this._drawerOpen ? html`
+                                    <button class="rail-menu" title="Menu" @click="${() => { this._drawerOpen = true; }}"><span class="mi">menu</span></button>` : ''}
                                 ${entries.length === 0
                                     ? html`<div style="opacity:.6;padding:10px;font-size:12px">${feezal.isEditor ? 'Add drawer entries in the inspector →' : ''}</div>`
                                     : this._drawerRows(shown.nav, drawerMode, activeSect, shown.open)}

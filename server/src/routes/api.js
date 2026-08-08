@@ -225,6 +225,60 @@ function createApiRouter(storage, wwwDir, logger, {getTopicCompletions = null, g
         }
     });
 
+    // U109: insert a copied <feezal-view> fragment into another site's SAVED
+    // markup. The view lands with a name deduped against the target
+    // (-copy numbering); the target site is NOT deployed by this — its saved
+    // markup changes and the editor/viewer pick that up on their next load.
+    // v1 copies the view markup only: the response lists component
+    // definitions the target lacks and site-asset references that were not
+    // copied, so the editor can warn instead of silently shipping broken
+    // instances.
+    router.post('/sites/:name/views', async (req, res) => {
+        const {html} = req.body || {};
+        if (typeof html !== 'string' || !/^\s*<feezal-view[\s>]/i.test(html)) {
+            return res.status(400).json({error: 'html must be a <feezal-view> fragment'});
+        }
+        try {
+            const site = await storage.getSite(req.params.name);
+            const siteHtml = site.html || '';
+
+            // Dedupe the view name against the target's views.
+            const taken = new Set([...siteHtml.matchAll(/<feezal-view\b[^>]*?\bname="([^"]*)"/gi)].map(m => m[1]));
+            const orig = (/^\s*<feezal-view\b[^>]*?\bname="([^"]*)"/i.exec(html) || [])[1] || 'view';
+            let name = orig;
+            for (let i = 0; taken.has(name); i++) name = orig + '-copy' + (i || '');
+
+            let fragment = html;
+            if (name !== orig && /^\s*<feezal-view\b[^>]*?\bname="/i.test(fragment)) {
+                fragment = fragment.replace(/^(\s*<feezal-view\b[^>]*?\bname=")[^"]*(")/i, `$1${name}$2`);
+            } else if (!/^\s*<feezal-view\b[^>]*?\bname="/i.test(fragment)) {
+                fragment = fragment.replace(/^(\s*<feezal-view)/i, `$1 name="${name}"`);
+            }
+
+            const idx = siteHtml.lastIndexOf('</feezal-site>');
+            const newHtml = idx === -1
+                ? `<feezal-site>\n${fragment}\n</feezal-site>`
+                : siteHtml.slice(0, idx) + fragment + '\n' + siteHtml.slice(idx);
+
+            // v1 warnings: component INSTANCES whose <template feezal-component>
+            // definition the target does not have, and references to another
+            // site's assets (global assets exist everywhere and are fine).
+            const instances = [...fragment.matchAll(/<feezal-component\b[^>]*?\bname="([^"]*)"/gi)].map(m => m[1]);
+            const defs = new Set([...siteHtml.matchAll(/<template\b[^>]*?\bfeezal-component="([^"]*)"/gi)].map(m => m[1]));
+            const missingComponents = [...new Set(instances.filter(i => !defs.has(i)))];
+            const assetRefs = [...new Set(
+                [...fragment.matchAll(/\/assets\/([^/"'\s)]+)\/[^"'\s)]*/g)]
+                    .filter(m => m[1] !== 'global' && m[1] !== req.params.name)
+                    .map(m => m[0]),
+            )];
+
+            await storage.saveSite(req.params.name, {html: newHtml, config: site.config});
+            res.json({name, missingComponents, assetRefs});
+        } catch (err) {
+            res.status(500).json({error: err.message});
+        }
+    });
+
     // Rename a site
     router.patch('/sites/:name', async (req, res) => {
         const {newName} = req.body;

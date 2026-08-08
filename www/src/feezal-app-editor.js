@@ -1623,6 +1623,27 @@ class FeezalAppEditor extends LitElement {
                                 @click="${() => { const n = this._viewCtx.name; this._viewCtx = null; this._duplicateView(n); }}">
                                 Duplicate
                             </div>
+                            <div class="view-ctx-sep"></div>
+                            <div class="view-ctx-item"
+                                @click="${() => { const n = this._viewCtx.name; this._viewCtx = null; this._copyView(n); }}">
+                                Copy
+                            </div>
+                            <div class="view-ctx-item"
+                                @click="${() => { const n = this._viewCtx.name; this._viewCtx = null; this._cutView(n); }}">
+                                Cut
+                            </div>
+                            <div class="view-ctx-item"
+                                @click="${() => { this._viewCtx = null; this._pasteViewFromClipboard(); }}">
+                                Paste view
+                            </div>
+                            ${this._viewCtx.sites?.length ? html`
+                                <div class="view-ctx-sep"></div>
+                                <div class="view-ctx-label">Copy to site</div>
+                                ${this._viewCtx.sites.map(s => html`
+                                    <div class="view-ctx-item"
+                                        @click="${() => { const n = this._viewCtx.name; this._viewCtx = null; this._copyViewToSite(n, s); }}">
+                                        <span class="material-icons ctx-icon">web</span> ${s}
+                                    </div>`)}` : ''}
                             ${(() => {
                                 const folders = this._collectFolders();
                                 const parent = this._findViewParent(this._viewCtx.name);
@@ -3343,6 +3364,13 @@ class FeezalAppEditor extends LitElement {
     }
 
     _pasteInternal() {
+        // U109: a copied VIEW in the internal clipboard pastes as a new view,
+        // never as a child of the current one.
+        const first = this._clipboardTpl.content.firstElementChild;
+        if (first?.tagName === 'FEEZAL-VIEW') {
+            this._pasteViewHtml(first.outerHTML);
+            return;
+        }
         const newSelection = [];
         this._clipboardTpl.content.childNodes.forEach(element => {
             element.style.left = (Number(element.style.left.replace('px', '')) + 25) + 'px';
@@ -3361,6 +3389,14 @@ class FeezalAppEditor extends LitElement {
 
     _paste(event) {
         const htmlData = (event.clipboardData || window.clipboardData).getData('text');
+        // U109: a serialized view pastes as a NEW view (deduped, hidden,
+        // navigated to) — also across editor instances via the system
+        // clipboard, since _copy writes text/plain.
+        if (/^\s*<feezal-view[\s>]/i.test(htmlData)) {
+            this._pasteViewHtml(htmlData);
+            event.preventDefault();
+            return;
+        }
         this._clipboardTpl.innerHTML = '';
         if (/^\s*<feezal-(element-|component)/.test(htmlData)) {
             this._clipboardTpl.innerHTML = htmlData;
@@ -3371,6 +3407,15 @@ class FeezalAppEditor extends LitElement {
     }
 
     _cut(event) {
+        // U109: cutting with the VIEW as the selection target cuts the view —
+        // copy (the _copy path serializes selectedElems, i.e. the view), then
+        // the dialog-free delete (one undo step).
+        const sel = feezal.editor?.selectedElems || [];
+        if (sel.length === 1 && sel[0].tagName === 'FEEZAL-VIEW') {
+            this._copy(event);
+            this._removeView(sel[0].getAttribute('name'));
+            return;
+        }
         this._copy(event);
         this._delete();
     }
@@ -3390,6 +3435,15 @@ class FeezalAppEditor extends LitElement {
 
     _showViewCtxMenu(x, y, name) {
         this._viewCtx = {x, y, kind: 'view', name};
+        // U109: the "Copy to site…" flyout needs the site list — fetched on
+        // open, patched in when it arrives (the menu renders without it until
+        // then; no sites = no flyout).
+        fetch('/api/sites').then(r => r.json()).then(d => {
+            const others = (d.sites || []).filter(s => s !== feezal.siteName);
+            if (this._viewCtx?.kind === 'view' && this._viewCtx.name === name) {
+                this._viewCtx = {...this._viewCtx, sites: others};
+            }
+        }).catch(() => { /* menu simply shows no cross-site entries */ });
         // Close on outside click
         if (this._viewCtxClose) {
             document.removeEventListener('mousedown', this._viewCtxClose, true);
@@ -3519,6 +3573,119 @@ class FeezalAppEditor extends LitElement {
         }
 
         return n;
+    }
+
+    // ── U109: whole-view clipboard ──────────────────────────────────────────
+
+    /** Serialize one view for the clipboard: deep clone (B31 light-DOM
+     * survival) + the same _clean pass the element clipboard uses. */
+    _serializeView(name) {
+        const view = feezal.site.querySelector(`feezal-view[name="${name}"]`);
+        if (!view) return '';
+        const holder = document.createElement('template');
+        holder.content.append(this._clone(view));
+        this._clean(holder.content);
+        // The clone of a VISIBLE view carries display:'' — a pasted view is
+        // landed hidden anyway, but keep the serialized form neutral.
+        holder.content.firstElementChild?.style?.removeProperty('display');
+        return holder.innerHTML.trim();
+    }
+
+    /** Copy a view (context menus). Lands in the internal clipboard AND the
+     * system clipboard, so a view can travel between editors/sites. */
+    async _copyView(name) {
+        const html = this._serializeView(name);
+        if (!html) return;
+        this._clipboardTpl.innerHTML = html;
+        try { await navigator.clipboard.writeText(html); } catch { /* insecure origin / denied */ }
+        this.toast(`View "${name}" copied`);
+    }
+
+    /** Cut = copy + delete, one undo step (the delete's change()). */
+    async _cutView(name) {
+        await this._copyView(name);
+        this._removeView(name);
+    }
+
+    /** Remove a view without the confirm dialog (cut / programmatic paths) —
+     * the _deleteViewConfirmed semantics: land on a neighbor, one snapshot. */
+    _removeView(name) {
+        const allNames = this.views.map(v => v.name);
+        const idx = allNames.indexOf(name);
+        const nextName = idx > 0 ? allNames[idx - 1] : allNames[idx + 1] ?? '';
+        feezal.site.querySelector(`feezal-view[name="${name}"]`)?.remove();
+        this.views = [...feezal.views];
+        feezal.app.views = [...feezal.views];
+        setTimeout(() => this._setView(nextName), 0);
+        this.change();
+    }
+
+    /** Paste a serialized <feezal-view> as a NEW view: deduped name (-copy
+     * numbering, as duplicate), landed hidden, then navigated to (B126
+     * semantics). Returns true when a view was created. */
+    _pasteViewHtml(html) {
+        const tpl = document.createElement('template');
+        tpl.innerHTML = html;
+        const view = tpl.content.querySelector('feezal-view');
+        if (!view) return false;
+        const base = view.getAttribute('name') || 'view';
+        const name = this.views.map(v => v.name).includes(base)
+            ? this._nextView(base + '-copy')
+            : base;
+        view.setAttribute('name', name);
+        view.style.display = 'none';
+        feezal.site.append(view);
+        this.views = [...feezal.views];
+        feezal.app.views = [...feezal.views];
+        this._setView(name);
+        // Bind interact.js on the pasted elements (the _applyAiNewView path).
+        this.shadowRoot.querySelector('feezal-sidebar-inspector')?.restoreViews();
+        this.change();
+        return true;
+    }
+
+    /** Paste a view from the system clipboard (context menus), falling back
+     * to the internal clipboard where reading is not permitted. */
+    async _pasteViewFromClipboard() {
+        let text = '';
+        try { text = await navigator.clipboard.readText(); } catch { /* denied */ }
+        if (!/^\s*<feezal-view[\s>]/i.test(text || '')) {
+            const internal = this._clipboardTpl.content.firstElementChild;
+            text = internal?.tagName === 'FEEZAL-VIEW' ? internal.outerHTML : '';
+        }
+        if (!text) {
+            this.toast('No copied view in the clipboard', {variant: 'warning'});
+            return;
+        }
+        this._pasteViewHtml(text);
+    }
+
+    /** U109 ②: copy a view into ANOTHER site's saved markup (server-side
+     * insert, deduped there; the target site is NOT deployed). v1 copies the
+     * view markup only — the server reports component definitions the target
+     * lacks and site-asset references, surfaced here as a warning. */
+    async _copyViewToSite(name, targetSite) {
+        const html = this._serializeView(name);
+        if (!html) return;
+        try {
+            const res = await fetch(`/api/sites/${encodeURIComponent(targetSite)}/views`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({html}),
+            });
+            const d = await res.json();
+            if (!res.ok) throw new Error(d.error || res.statusText);
+            const warnings = [];
+            if (d.missingComponents?.length) warnings.push(`missing component definition${d.missingComponents.length > 1 ? 's' : ''}: ${d.missingComponents.join(', ')}`);
+            if (d.assetRefs?.length) warnings.push(`${d.assetRefs.length} site-asset reference${d.assetRefs.length > 1 ? 's' : ''} not copied`);
+            if (warnings.length) {
+                this.toast(`View copied to "${targetSite}" as "${d.name}" — ${warnings.join('; ')}`, {variant: 'warning'});
+            } else {
+                this.toast(`View copied to "${targetSite}" as "${d.name}"`);
+            }
+        } catch (err) {
+            this.toast(`Copy to "${targetSite}" failed: ${err.message}`, {variant: 'danger'});
+        }
     }
 
     _addView() {

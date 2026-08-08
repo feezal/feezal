@@ -185,11 +185,13 @@ describe('layout-app inspector', () => {
         document.body.append(shell);
         await shell.updateComplete;
 
-        // default: MD3 pill with inset drawer padding
+        // default: MD3 pill with inset drawer padding (B129: the padding
+        // lives on the .drawer-nav scroller, the .drawer shell is unpadded)
         const entry = shell.shadowRoot.querySelector('.entry');
         const drawer = shell.shadowRoot.querySelector('.drawer');
+        const nav = shell.shadowRoot.querySelector('.drawer-nav');
         expect(getComputedStyle(entry).borderTopLeftRadius).toBe('24px');
-        expect(getComputedStyle(drawer).paddingLeft).toBe('8px');
+        expect(getComputedStyle(nav).paddingLeft).toBe('8px');
 
         const inspector = await mountInspector('feezal-element-layout-app-inspector', shell);
         const drawerSection = [...inspector.shadowRoot.querySelectorAll('.section')].at(-1);
@@ -201,7 +203,7 @@ describe('layout-app inspector', () => {
         await shell.updateComplete;
         // flat rows: no radius, hover/active rectangle spans the full drawer width
         expect(getComputedStyle(entry).borderTopLeftRadius).toBe('0px');
-        expect(getComputedStyle(drawer).paddingLeft).toBe('0px');
+        expect(getComputedStyle(nav).paddingLeft).toBe('0px');
         expect(entry.getBoundingClientRect().width).toBeCloseTo(drawer.clientWidth, 0);
     });
 });

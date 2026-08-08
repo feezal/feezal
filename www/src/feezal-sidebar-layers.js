@@ -510,6 +510,11 @@ class FeezalSidebarLayers extends LitElement {
         else if (action === 'duplicate') app?._duplicateView?.(name);
         else if (action === 'delete') app?._confirmDeleteView?.(name);
         else if (action === 'open') app?._setView?.(name);
+        // U109: whole-view clipboard — delegated to the editor shell, so the
+        // tab-bar menu and this one share one implementation.
+        else if (action === 'copy') app?._copyView?.(name);
+        else if (action === 'cut') app?._cutView?.(name);
+        else if (action === 'paste') app?._pasteViewFromClipboard?.();
     }
 
     // ── drag: restack within a view, move/copy across views ─────────────────
@@ -606,6 +611,10 @@ class FeezalSidebarLayers extends LitElement {
                     <div class="ctx-item" @click="${() => this._viewAction('open', m.viewName)}">Open view</div>
                     <div class="ctx-item" @click="${() => this._viewAction('rename', m.viewName)}">Rename…</div>
                     <div class="ctx-item" @click="${() => this._viewAction('duplicate', m.viewName)}">Duplicate</div>
+                    <div class="ctx-sep"></div>
+                    <div class="ctx-item" @click="${() => this._viewAction('copy', m.viewName)}">Copy view</div>
+                    <div class="ctx-item" @click="${() => this._viewAction('cut', m.viewName)}">Cut view</div>
+                    <div class="ctx-item" @click="${() => this._viewAction('paste', m.viewName)}">Paste view</div>
                     <div class="ctx-sep"></div>
                     <div class="ctx-item danger" @click="${() => this._viewAction('delete', m.viewName)}">Delete view</div>
                 </div>`;
