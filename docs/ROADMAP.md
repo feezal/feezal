@@ -77,6 +77,7 @@ Work in progress — priorities and scope are not final.
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
 - [U98 — Palette colors in editor light mode ⚠️ needs refinement](#u98--palette-colors-in-editor-light-mode-️-needs-refinement)
 - [U103 — layout-app: two-level navigation (groups, double drawer, tabs, breadcrumb) ⚠️ decided core, details open](#u103--layout-app-two-level-navigation-groups-double-drawer-tabs-breadcrumb-️-decided-core-details-open)
+- [U104 — Generic list-of-objects attribute editor (fixes the multivalue UX) — decided](#u104--generic-list-of-objects-attribute-editor-fixes-the-multivalue-ux--decided)
 
 
 **Architecture & Infrastructure**
@@ -2587,6 +2588,47 @@ add/indent for children (one nesting level only — deeper is out of scope).
 **Relates:** layout-app (N36 knob family, B84 drawer modes, U63 insets), N30
 (routing — the new segment), U97 (footer breadcrumb echo — maybe later),
 U58 (App wizard follow-up), basic-navigation (single-level sibling).
+
+
+### U104 — Generic list-of-objects attribute editor (fixes the multivalue UX) — decided
+
+**Reported + decided (08/2026).** The `*-multivalue` cards' attribute editor
+is unusable: the `values` JSON lands in cramped generic controls — a topic
+input showing a few letters. Decisions taken with the maintainer:
+
+- **Generic, schema-driven list editor — not a bespoke multivalue
+  inspector.** A new inspector control for array-of-objects attributes,
+  driven by descriptor metadata: an attribute declares
+  `type: 'list'` + `itemFields: [{name, type, help, …}]` (the same field
+  vocabulary as top-level attributes — string/number/boolean/select/
+  mqttTopic/icon). One control then serves EVERY such attribute: multivalue
+  `values`, basic-camera `chips`, layout-app top-bar `actions`, and future
+  lists — no more raw-JSON textareas for structured lists (the JSON tab/raw
+  fallback stays reachable for power users).
+- **Inline expandable rows:** each item renders as a row — collapsed: a
+  one-line summary (label + topic tail); expanded: the item's fields
+  full-width, stacked vertically (multiline per value), inside the
+  attributes tab. Multiple rows may be open.
+- **Reorder via drag handles** (grab-dot per row; list order = serialized
+  order).
+- **Row topic fields are the FULL `mqttTopic` control** — full width + the
+  live broker-topic autocomplete, identical to top-level topic attributes.
+- Add / remove per row (remove with the B115 danger red); a value row's
+  summary marks the E165 `role: primary` where the schema has one.
+
+**Implementation notes:** lives in the generic attributes panel
+([feezal-sidebar-inspector-attributes.js](../www/src/feezal-sidebar-inspector-attributes.js))
+as a new control type; serialization stays the existing JSON attribute
+(byte-stable ordering, no format change — saved dashboards unaffected);
+editor dark mode via the N43 chrome sheet from day one; migrate `values`
+(multivalue) and `chips` (basic-camera) descriptors to `itemFields` in the
+same change to prove the genericity; layout-app's custom items manager can
+adopt it later (own item — do not grow this one).
+
+**Relates:** E165 (multivalue — the trigger), basic-camera `chips` (second
+consumer), N6 (custom-inspector machinery), N43 (editor chrome ratchet),
+B115 (danger-red delete rows), U56 (topic-suffix labelling for the row
+summaries).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
