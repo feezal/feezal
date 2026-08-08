@@ -310,6 +310,9 @@ const FUNCTION_CANDIDATES = {
     // loadpoint control card (glass/metro/circle).
     'energy-flow': ['energy-flow'],
     'evcc-loadpoint': ['loadpoint'],
+    // E169: Scrypted NVR cameras (native recognizer over Scrypted's own
+    // homeassistant/* configs) — the embed element exists in `basic` only.
+    'scrypted-camera': ['scrypted'],
 };
 
 // binary_sensor is device_class-routed: a motion/occupancy sensor wants the
@@ -462,6 +465,7 @@ export function resolveElementTag(component, family, deviceClass, isRegistered =
 // glass/metro/…: the camera surface IS feezal-element-basic-camera.
 const CROSS_FAMILY_FALLBACK = {
     camera: ['feezal-element-basic-camera'],
+    'scrypted-camera': ['feezal-element-basic-scrypted'],
 };
 
 /**
@@ -488,6 +492,26 @@ export function applyFrigateLiveFeed(el, entity, baseUrl) {
     el.setAttribute('type', 'mjpeg');
     el.removeAttribute('subscribe');
     el.setAttribute('pause-when-hidden', '');
+    return true;
+}
+
+/**
+ * Scrypted NVR src (E169). MQTT cannot carry the NVR endpoint either — and
+ * here it also embeds a token, so unlike Frigate there is nothing to guess.
+ * The user pastes ANY camera's NVR card webpage URL once (the token is
+ * instance-wide); given that, every discovered Scrypted camera composes its
+ * own src by swapping the device id into the fragment:
+ *   src = <cardUrl up to '#'>#/iframe/<camera_id>
+ * The element's own `view`/`live`/… knobs keep working on top — they rewrite
+ * the fragment, never the base. Returns true when applied.
+ */
+export function applyScryptedNvrSrc(el, entity, cardUrl) {
+    const raw = String(cardUrl || '').trim();
+    if (!raw || entity?.source !== 'scrypted') return false;
+    const id = entity.config?.camera_id;
+    if (!id) return false;
+    const base = raw.split('#')[0];
+    el.setAttribute('src', `${base}#/iframe/${encodeURIComponent(id)}`);
     return true;
 }
 

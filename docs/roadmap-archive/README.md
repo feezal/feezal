@@ -299,6 +299,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [E163 — Camera element upgrade: `basic-camera` (hard rename), HA-card parity, Frigate/Scrypted events ✅ done](E163.md)
 - [E165 — Multi-value readout card (`(glass|metro|circle|eink)-multivalue`) ✅ done](E165.md)
 - [E166 — Link element for the device-card families (`glass/metro/circle/eink-link`) ✅ done](E166.md)
+- [E169 — `scrypted-camera`: embed Scrypted NVR live/events views ✅ done](E169.md)
 
 ## Editor UX
 

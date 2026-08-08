@@ -10,7 +10,7 @@ export const LIVE_APPLY_DEBOUNCE_MS = 250;
 // valueTemplateLeaf is re-exported here for back-compat with existing importers.
 import {stampDiscovery, valueTemplateLeaf, discoveryLabel, discoveryAttributeSuffix, elementAcceptsComponent,
     discoveryCandidates, acceptedComponents, DISCOVERY_ROW_SEP,
-    applyFrigateLiveFeed, guessFrigateUrl,
+    applyFrigateLiveFeed, guessFrigateUrl, applyScryptedNvrSrc,
     multivalueMergeGroups, applyMultivalueFill} from './feezal-discovery-stamp.js';
 export {valueTemplateLeaf};
 
@@ -2132,6 +2132,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         // inspector-specific redraw stays here.
         if (!stampDiscovery(el, entity, variant)) return;
         this._maybeFrigateLiveFeed(el, entity);   // async — refreshes again when applied
+        this._maybeScryptedNvrSrc(el, entity);
         this._rebuildItems();
         feezal.app.change();
         // Refresh a custom inspector (N6) so its fields show the applied values.
@@ -2152,6 +2153,17 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         feezal.app.change();
         // Refresh the panel only if the element is still the selection.
         if (el === this.selectedElems?.[0]) this._rebuildItems();
+    }
+
+    /** ⚡-picked Scrypted camera → NVR card src (E169). MQTT cannot carry the
+     * NVR endpoint (it embeds a token), so the only source is the URL the
+     * Generate wizard stored. Without one the pick still wires the device id
+     * and the element shows its paste hint — nothing to guess here. */
+    _maybeScryptedNvrSrc(el, entity) {
+        if (entity?.source !== 'scrypted') return;
+        const url = localStorage.getItem('feezal.scryptedUrl');
+        if (!url || !applyScryptedNvrSrc(el, entity, url)) return;
+        feezal.app.change();
     }
 }
 

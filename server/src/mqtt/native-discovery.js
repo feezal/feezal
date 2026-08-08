@@ -39,11 +39,14 @@ const hm = require('./recognizers/homematic');
 const {wledRecognizer} = require('./recognizers/wled');
 const {evccRecognizer} = require('./recognizers/evcc');
 const {frigateRecognizer} = require('./recognizers/frigate');
+const {scryptedRecognizer} = require('./recognizers/scrypted');
 
 // ── Framework ─────────────────────────────────────────────────────────────────
 // Registry order preserved exactly: climate, wled, contact, cover, light,
-// switch, sensor, lock, evcc, frigate (recognizer precedence is behavioural).
-const recognizers = [hm.hmRecognizers[0], wledRecognizer, ...hm.hmRecognizers.slice(1), evccRecognizer, frigateRecognizer];
+// switch, sensor, lock, evcc, frigate (recognizer precedence is behavioural);
+// scrypted appended (E169 — it matches only homeassistant/* config topics,
+// which no other recognizer touches).
+const recognizers = [hm.hmRecognizers[0], wledRecognizer, ...hm.hmRecognizers.slice(1), evccRecognizer, frigateRecognizer, scryptedRecognizer];
 
 /** @type {Map<string, object>} discovery_id → promoted native entity */
 const nativeEntities = new Map();

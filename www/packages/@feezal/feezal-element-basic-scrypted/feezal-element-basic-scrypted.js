@@ -109,6 +109,17 @@ class FeezalElementBasicScrypted extends FeezalElement {
                 {label: 'Scrypted', url: 'https://www.scrypted.app'},
                 {label: 'NVR card URL format (views and parameters)', url: 'https://docs.scrypted.app/home-assistant-legacy-cards.html'},
             ],
+            // E169: entities come from the server's Scrypted recognizer (it
+            // watches Scrypted's own homeassistant/* configs). The NVR card
+            // URL cannot travel over MQTT — the editor composes `src` from the
+            // once-entered card URL (applyScryptedNvrSrc), so the map only
+            // carries the device id.
+            discovery: {
+                component: 'scrypted-camera',
+                map: {
+                    camera_id: 'camera-ids',
+                },
+            },
             attributes: [
                 {name: 'src', type: 'string', default: '',
                     help: 'The Scrypted NVR card webpage URL — in Scrypted open the camera, Settings → Home Assistant, ' +

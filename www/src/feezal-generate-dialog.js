@@ -11,6 +11,7 @@ import '@shoelace-style/shoelace/dist/components/spinner/spinner.js';
 import {stampDiscovery, resolveElementTag, layoutGrid, knownComponents, discoveryLabel,
     groupForApp, functionBucket, slugifyViewName, UNKNOWN_ROOM,
     assignRoom, lexiconWordsForLabel, applyFrigateLiveFeed, guessFrigateUrl,
+    applyScryptedNvrSrc,
     multivalueMergeGroups, applyMultivalueFill, uniqueViewName} from './feezal-discovery-stamp.js';
 import {RangeSelect} from './feezal-range-select.js';
 import {isFlowLike} from './feezal-view.js';   // U90
@@ -113,6 +114,7 @@ class FeezalGenerateDialog extends LitElement {
         _newRoomFor: {state: true},// U70/U75: entity key(s) awaiting a new-room name, or null
         _newRoomName: {state: true},
         _frigateUrl: {state: true},// Frigate base URL → live MJPEG tiles (empty = MQTT snapshots)
+        _scryptedUrl: {state: true},// E169: Scrypted NVR card URL → embedded NVR views
         _demerged: {state: true},  // E165: device ids the user split out of the auto-merge
     };
 
@@ -404,6 +406,7 @@ class FeezalGenerateDialog extends LitElement {
         this._newRoomFor = null;
         this._newRoomName = '';
         this._frigateUrl = '';
+        this._scryptedUrl = '';
         this._demerged = new Set();
         this._bucketMeta = new Map();
         this.__devices = [];
@@ -713,6 +716,11 @@ class FeezalGenerateDialog extends LitElement {
             // generated with an empty src. Only ever FILL an empty field.
             if (!this._frigateUrl && guess) this._frigateUrl = guess;
         }
+        // E169: Scrypted cameras present → prefill the NVR card URL from the
+        // last-used value. No guess: the URL embeds a token, nothing derivable.
+        if (!this._scryptedUrl && this._hasScrypted()) {
+            this._scryptedUrl = localStorage.getItem('feezal.scryptedUrl') || '';
+        }
         this._loading = false;
         this.requestUpdate();
     }
@@ -736,6 +744,27 @@ class FeezalGenerateDialog extends LitElement {
             </div>`;
     }
 
+    _hasScrypted() {
+        return (this.__devices || []).some(e => e.source === 'scrypted');
+    }
+
+    /** E169: Scrypted NVR card URL row — shown when Scrypted cameras are among
+     * the discovered devices. Reuses the Frigate row's layout classes. Empty =
+     * the cameras generate with the device id wired but no src (the element
+     * shows its paste hint). */
+    _scryptedUrlRow() {
+        if (!this._hasScrypted()) return '';
+        return html`
+            <div class="frigate-row">
+                <span class="material-icons frigate-icon">video_camera_front</span>
+                <sl-input size="small" clearable placeholder="https://scrypted.local:10443/api/scrypted/…/#/iframe/1"
+                    value="${this._scryptedUrl}"
+                    @sl-input="${e => { this._scryptedUrl = e.target.value; }}"></sl-input>
+                <span class="frigate-hint">Scrypted NVR card URL — copy any camera's card webpage URL
+                    (camera → Settings → Home Assistant); every camera embeds its own NVR view from it.</span>
+            </div>`;
+    }
+
     // Friendly, distinguishable label — the shared ⚡ picker label, so a
     // multi-attribute z2m device shows one distinguishable row per attribute.
     _label(entity) {
@@ -749,11 +778,15 @@ class FeezalGenerateDialog extends LitElement {
         return resolveElementTag(entity.component, this._family, entity.config?.device_class);
     }
 
-    /** stampDiscovery + the Frigate live-feed rewrite (when a URL was given). */
+    /** stampDiscovery + the Frigate live-feed / Scrypted NVR-src rewrites
+     * (when their URL was given). */
     _stampEntity(el, entity) {
         stampDiscovery(el, entity);
         if (this._frigateUrl && applyFrigateLiveFeed(el, entity, this._frigateUrl)) {
             localStorage.setItem('feezal.frigateUrl', this._frigateUrl.trim());
+        }
+        if (this._scryptedUrl && applyScryptedNvrSrc(el, entity, this._scryptedUrl)) {
+            localStorage.setItem('feezal.scryptedUrl', this._scryptedUrl.trim());
         }
     }
 
@@ -1603,6 +1636,7 @@ class FeezalGenerateDialog extends LitElement {
                 <span class="dev-count">${count} selected</span>
             </div>
             ${this._frigateUrlRow()}
+            ${this._scryptedUrlRow()}
 
             <div class="dev-body">
                 ${this._loading ? html`<div class="loading"><sl-spinner></sl-spinner> Loading discovered devices…</div>`
@@ -1649,6 +1683,7 @@ class FeezalGenerateDialog extends LitElement {
                     </div>
                 </div>
                 ${this._frigateUrlRow()}
+            ${this._scryptedUrlRow()}
                 <div class="setup-note">
                     ${this._loading ? html`<sl-spinner style="font-size:14px"></sl-spinner> ${this._autoFlow
                             ? 'Connecting to your broker and discovering your devices — this can take a few seconds on a fresh site…'

@@ -16,6 +16,7 @@ import {
     slugifyViewName,
     UNKNOWN_ROOM,
     applyFrigateLiveFeed,
+    applyScryptedNvrSrc,
     multivalueMergeGroups,
     multivalueFromEntities,
     applyMultivalueFill,
@@ -588,6 +589,53 @@ describe('applyFrigateLiveFeed (live MJPEG tiles from the Frigate base URL)', ()
         expect(el.getAttribute('type')).toBe('mqtt-image');
         expect(el.getAttribute('subscribe')).toBe('frigate/front_door/person/snapshot');
         expect(el.hasAttribute('src')).toBe(false);
+    });
+});
+
+describe('applyScryptedNvrSrc (E169 - NVR card src from the once-entered card URL)', () => {
+    const CARD = 'https://nvr.local/api/scrypted/TOKEN/endpoint/@scrypted/nvr/public/#/iframe/1?live=true';
+    const scryptedEntity = (id = '62') => ({
+        source: 'scrypted', name: 'Hoftür',
+        config: {camera_id: id, name: 'Hoftür'},
+    });
+
+    it('swaps the device id into the pasted card URL fragment', () => {
+        const el = document.createElement('div');
+        expect(applyScryptedNvrSrc(el, scryptedEntity('62'), CARD)).toBe(true);
+        // the pasted URL's own fragment (some OTHER camera + params) is
+        // replaced wholesale - only the base up to '#' is reused
+        expect(el.getAttribute('src'))
+            .toBe('https://nvr.local/api/scrypted/TOKEN/endpoint/@scrypted/nvr/public/#/iframe/62');
+    });
+
+    it('accepts a base URL without any fragment', () => {
+        const el = document.createElement('div');
+        applyScryptedNvrSrc(el, scryptedEntity('9'),
+            'https://nvr.local/api/scrypted/TOKEN/endpoint/@scrypted/nvr/public/');
+        expect(el.getAttribute('src'))
+            .toBe('https://nvr.local/api/scrypted/TOKEN/endpoint/@scrypted/nvr/public/#/iframe/9');
+    });
+
+    it('does nothing without a URL, an id, or for a non-Scrypted entity', () => {
+        const el = document.createElement('div');
+        expect(applyScryptedNvrSrc(el, scryptedEntity(), '')).toBe(false);
+        expect(applyScryptedNvrSrc(el, {source: 'scrypted', config: {}}, CARD)).toBe(false);
+        expect(applyScryptedNvrSrc(el, {source: 'frigate', config: {camera_id: '1'}}, CARD)).toBe(false);
+        expect(el.hasAttribute('src')).toBe(false);
+    });
+});
+
+describe('resolveElementTag - scrypted-camera (E169)', () => {
+    it('resolves to basic-scrypted in EVERY family (cross-family fallback)', () => {
+        const onlyBasic = tag => tag === 'feezal-element-basic-scrypted';
+        expect(resolveElementTag('scrypted-camera', 'glass', undefined, onlyBasic))
+            .toBe('feezal-element-basic-scrypted');
+        expect(resolveElementTag('scrypted-camera', 'basic', undefined, onlyBasic))
+            .toBe('feezal-element-basic-scrypted');
+    });
+
+    it('is a known component (offered by the Generate wizard)', () => {
+        expect(knownComponents()).toContain('scrypted-camera');
     });
 });
 
