@@ -11,6 +11,7 @@ Work in progress — priorities and scope are not final.
 - [B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces](#b106--discovery-ids-is-space-separated-but-mqtt-topics-may-contain-spaces)
 - [B118 — Undo dead after deleting via the layers-tree context menu (until the canvas is clicked)](#b118--undo-dead-after-deleting-via-the-layers-tree-context-menu-until-the-canvas-is-clicked)
 - [B119 — Right-click menu dead after the tab was backgrounded (footer selector crash)](#b119--right-click-menu-dead-after-the-tab-was-backgrounded-footer-selector-crash)
+- [B125 — Asset manager: the New Folder dialog input renders light in a dark editor](#b125--asset-manager-the-new-folder-dialog-input-renders-light-in-a-dark-editor)
 
 
 **Near-term Improvements**
@@ -403,6 +404,32 @@ wildcard-selector trap, already documented there), B118 (another
 sidebar-interaction global breakage — the editor needs fault isolation
 between panels).
 
+
+### B125 — Asset manager: the New Folder dialog input renders light in a dark editor
+
+**Reported (08/2026).** Asset manager → New Folder (the `create_new_folder`
+button) → the prompt dialog's input field ignores the editor dark mode.
+
+**Diagnosis (from the code, unconfirmed on screen):** the N43 repeat
+offender, in its purest form. `feezal-sidebar-assets` is on the chrome
+ratchet's `LEGACY_UNMIGRATED` list — it hand-rolls its dialog styling
+(`sl-dialog sl-input { --sl-input-background-color: var(--feezal-bg-sub, #fff); … }`)
+and overrides only the RESTING state. Shoelace does not derive the hover
+and focus backgrounds from the resting one, the shell's `:host(.dark)`
+token block supplies no `--sl-input-background-color-hover/-focus` either
+(only `feezalDialogChrome` carries those), **and the dialog auto-focuses
+the input on open** (`sl-after-show` → `#prompt-input.focus()`) — so the
+field is in its focus state, i.e. light, from the first frame. The same
+gap sits under the rename prompt (same `_prompt()` helper/dialog) and
+plausibly the delete-confirm's controls.
+
+**Fix direction:** migrate `feezal-sidebar-assets` to `feezalDialogChrome`
+(compose the sheet, delete the hand-rolled `sl-dialog sl-input` overrides,
+remove its line from `LEGACY_UNMIGRATED` in
+`www/test/editor-chrome-adoption.test.js`) — the N43 sheet carries the
+hover/focus input backgrounds and is exactly what this ratchet exists for.
+Verify against the dark editor: open New Folder → the input must be dark
+while focused, while hovered, and at rest.
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
