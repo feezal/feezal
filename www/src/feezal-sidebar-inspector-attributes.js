@@ -2155,10 +2155,11 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         if (el === this.selectedElems?.[0]) this._rebuildItems();
     }
 
-    /** ⚡-picked Scrypted camera → NVR card src (E169). MQTT cannot carry the
-     * NVR endpoint (it embeds a token), so the only source is the URL the
-     * Generate wizard stored. Without one the pick still wires the device id
-     * and the element shows its paste hint — nothing to guess here. */
+    /** ⚡-picked Scrypted camera → server URL as src (E169; the element
+     * derives the NVR view from src + the stamped camera-ids). The only
+     * source is the URL the Generate wizard stored — the NVR port/scheme are
+     * install-specific, nothing to guess. Without one the pick still wires
+     * the device id and the element shows its hint. */
     _maybeScryptedNvrSrc(el, entity) {
         if (entity?.source !== 'scrypted') return;
         const url = localStorage.getItem('feezal.scryptedUrl');

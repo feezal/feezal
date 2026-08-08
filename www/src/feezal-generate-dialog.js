@@ -748,22 +748,20 @@ class FeezalGenerateDialog extends LitElement {
         return (this.__devices || []).some(e => e.source === 'scrypted');
     }
 
-    /** E169: Scrypted NVR card URL row — shown when Scrypted cameras are among
+    /** E169: Scrypted server URL row — shown when Scrypted cameras are among
      * the discovered devices. Reuses the Frigate row's layout classes. Empty =
      * the cameras generate with the device id wired but no src (the element
-     * shows its paste hint). */
+     * shows its hint). */
     _scryptedUrlRow() {
         if (!this._hasScrypted()) return '';
         return html`
             <div class="frigate-row">
                 <span class="material-icons frigate-icon">video_camera_front</span>
-                <sl-input size="small" clearable placeholder="https://scrypted.local:10443/api/scrypted/…/#/iframe/1"
+                <sl-input size="small" clearable placeholder="https://scrypted.local:10443"
                     value="${this._scryptedUrl}"
                     @sl-input="${e => { this._scryptedUrl = e.target.value; }}"></sl-input>
-                <span class="frigate-hint">Scrypted NVR URL — without Home Assistant paste
-                    https://&lt;scrypted-host&gt;:10443/endpoint/@scrypted/nvr/public/#/iframe/1
-                    (sign in once inside the frame); with HA, any camera's card webpage URL.
-                    Every camera embeds its own NVR view from it.</span>
+                <span class="frigate-hint">Scrypted server URL — every camera embeds its NVR live view
+                    from it (paid NVR plugin required; sign in once inside the frame).</span>
             </div>`;
     }
 

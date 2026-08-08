@@ -592,35 +592,24 @@ describe('applyFrigateLiveFeed (live MJPEG tiles from the Frigate base URL)', ()
     });
 });
 
-describe('applyScryptedNvrSrc (E169 - NVR card src from the once-entered card URL)', () => {
-    const CARD = 'https://nvr.local/api/scrypted/TOKEN/endpoint/@scrypted/nvr/public/#/iframe/1?live=true';
+describe('applyScryptedNvrSrc (E169 - server URL as src, camera-ids does the rest)', () => {
+    const SERVER = 'https://scrypted.local:10443';
     const scryptedEntity = (id = '62') => ({
         source: 'scrypted', name: 'Hoftür',
         config: {camera_id: id, name: 'Hoftür'},
     });
 
-    it('swaps the device id into the pasted card URL fragment', () => {
+    it('stamps the server URL verbatim - the element derives the view from camera-ids', () => {
         const el = document.createElement('div');
-        expect(applyScryptedNvrSrc(el, scryptedEntity('62'), CARD)).toBe(true);
-        // the pasted URL's own fragment (some OTHER camera + params) is
-        // replaced wholesale - only the base up to '#' is reused
-        expect(el.getAttribute('src'))
-            .toBe('https://nvr.local/api/scrypted/TOKEN/endpoint/@scrypted/nvr/public/#/iframe/62');
-    });
-
-    it('accepts a base URL without any fragment', () => {
-        const el = document.createElement('div');
-        applyScryptedNvrSrc(el, scryptedEntity('9'),
-            'https://nvr.local/api/scrypted/TOKEN/endpoint/@scrypted/nvr/public/');
-        expect(el.getAttribute('src'))
-            .toBe('https://nvr.local/api/scrypted/TOKEN/endpoint/@scrypted/nvr/public/#/iframe/9');
+        expect(applyScryptedNvrSrc(el, scryptedEntity('62'), '  ' + SERVER + '  ')).toBe(true);
+        expect(el.getAttribute('src')).toBe(SERVER);
     });
 
     it('does nothing without a URL, an id, or for a non-Scrypted entity', () => {
         const el = document.createElement('div');
         expect(applyScryptedNvrSrc(el, scryptedEntity(), '')).toBe(false);
-        expect(applyScryptedNvrSrc(el, {source: 'scrypted', config: {}}, CARD)).toBe(false);
-        expect(applyScryptedNvrSrc(el, {source: 'frigate', config: {camera_id: '1'}}, CARD)).toBe(false);
+        expect(applyScryptedNvrSrc(el, {source: 'scrypted', config: {}}, SERVER)).toBe(false);
+        expect(applyScryptedNvrSrc(el, {source: 'frigate', config: {camera_id: '1'}}, SERVER)).toBe(false);
         expect(el.hasAttribute('src')).toBe(false);
     });
 });

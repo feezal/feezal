@@ -496,22 +496,19 @@ export function applyFrigateLiveFeed(el, entity, baseUrl) {
 }
 
 /**
- * Scrypted NVR src (E169). MQTT cannot carry the NVR endpoint either — and
- * here it also embeds a token, so unlike Frigate there is nothing to guess.
- * The user pastes ANY camera's NVR card webpage URL once (the token is
- * instance-wide); given that, every discovered Scrypted camera composes its
- * own src by swapping the device id into the fragment:
- *   src = <cardUrl up to '#'>#/iframe/<camera_id>
- * The element's own `view`/`live`/… knobs keep working on top — they rewrite
- * the fragment, never the base. Returns true when applied.
+ * Scrypted NVR src (E169). MQTT cannot carry the Scrypted server URL either,
+ * so the wizard asks for it once (like the Frigate URL — but nothing to
+ * guess: the NVR port/scheme are install-specific). Every discovered camera
+ * gets the SAME src (the server URL); the per-camera part is `camera-ids`,
+ * which the discovery map already stamps — basic-scrypted derives the full
+ * NVR view URL (…/endpoint/@scrypted/nvr/public/#/iframe/<id>) from the
+ * pair. Returns true when applied.
  */
-export function applyScryptedNvrSrc(el, entity, cardUrl) {
-    const raw = String(cardUrl || '').trim();
+export function applyScryptedNvrSrc(el, entity, serverUrl) {
+    const raw = String(serverUrl || '').trim();
     if (!raw || entity?.source !== 'scrypted') return false;
-    const id = entity.config?.camera_id;
-    if (!id) return false;
-    const base = raw.split('#')[0];
-    el.setAttribute('src', `${base}#/iframe/${encodeURIComponent(id)}`);
+    if (!entity.config?.camera_id) return false;   // nothing to derive a view for
+    el.setAttribute('src', raw);
     return true;
 }
 

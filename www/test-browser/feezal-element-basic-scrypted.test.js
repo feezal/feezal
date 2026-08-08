@@ -74,6 +74,32 @@ describe('composeScryptedUrl — view rewriting', () => {
     });
 });
 
+describe('composeScryptedUrl — derivation from the server URL (the comfortable form)', () => {
+    it('server URL + camera-ids derives the full NVR view URL', () => {
+        expect(composeScryptedUrl('https://scrypted.local:10443', {cameraIds: '62'}))
+            .toBe('https://scrypted.local:10443/endpoint/@scrypted/nvr/public/#/iframe/62?live=true');
+    });
+
+    it('tolerates a trailing slash and an already-complete endpoint path', () => {
+        expect(composeScryptedUrl('https://scrypted.local:10443/', {cameraIds: '62', live: false}))
+            .toBe('https://scrypted.local:10443/endpoint/@scrypted/nvr/public/#/iframe/62');
+        expect(composeScryptedUrl('https://scrypted.local:10443/endpoint/@scrypted/nvr/public/', {cameraIds: '62', live: false}))
+            .toBe('https://scrypted.local:10443/endpoint/@scrypted/nvr/public/#/iframe/62');
+    });
+
+    it('derives grid and events views too', () => {
+        expect(composeScryptedUrl('https://scrypted.local:10443', {cameraIds: '1,2', view: 'grid', live: false}))
+            .toBe('https://scrypted.local:10443/endpoint/@scrypted/nvr/public/#/iframegrid?ids=1,2');
+        expect(composeScryptedUrl('https://scrypted.local:10443', {cameraIds: '1', view: 'events', live: false}))
+            .toBe('https://scrypted.local:10443/endpoint/@scrypted/nvr/public/#/iframeevents?ids=1');
+    });
+
+    it('a fragment-less URL without camera-ids embeds as pasted', () => {
+        expect(composeScryptedUrl('https://scrypted.local:10443', {}))
+            .toBe('https://scrypted.local:10443');
+    });
+});
+
 describe('composeScryptedUrl — parameter management', () => {
     it('destination / speaker / microphone map to their params', () => {
         const url = composeScryptedUrl(SINGLE, {

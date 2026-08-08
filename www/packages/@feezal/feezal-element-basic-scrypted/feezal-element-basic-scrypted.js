@@ -10,27 +10,40 @@ const MANAGED_PARAMS = ['live', 'destination', 'speaker', 'microphone'];
 const VIEW_PATHS = {live: '/iframe', grid: '/iframegrid', events: '/iframeevents'};
 
 /**
- * Compose the iframe URL from a pasted Scrypted NVR card webpage URL plus the
- * element's knobs. Pure so the rewrite rules are testable without a DOM.
+ * Compose the NVR iframe URL from the element's knobs. Pure so the rewrite
+ * rules are testable without a DOM.
  *
- * The pasted URL looks like
- *   https://host/api/scrypted/<token>/endpoint/@scrypted/nvr/public/#/iframe/62
- * with optional query params after the fragment path. Rules:
+ * The comfortable form: src is just the Scrypted SERVER URL
+ * (https://host:10443) and cameraIds names the device(s) — the NVR app path
+ * (/endpoint/@scrypted/nvr/public/#/iframe/<id>) is derived. A full NVR view
+ * URL (anything with a `#/iframe...` fragment) is accepted too. Rules:
  *   - `view` rewrites the fragment between the single view (`/iframe/<id>`),
  *     the grid (`/iframegrid?ids=...`) and the event reel (`/iframeevents`);
- *     empty keeps the pasted shape.
- *   - `cameraIds` overrides the id(s) parsed from the URL; empty keeps them.
+ *     empty keeps the pasted/derived shape.
+ *   - `cameraIds` overrides the id(s) parsed from a full URL; empty keeps them.
  *   - live/destination/speaker/microphone are (re)written as params; params
  *     this element does not manage survive as pasted.
- *   - A URL without a recognizable `#/iframe...` fragment is returned as-is:
- *     never break something the user pasted deliberately.
+ *   - A fragment-less URL with NO camera-ids, or a URL with an unrecognizable
+ *     fragment, is returned as-is: never break something pasted deliberately.
  */
 export function composeScryptedUrl(src, opts = {}) {
     if (!src) return '';
     const {view = '', cameraIds = '', live = true, destination = '', speaker = false, microphone = false} = opts;
 
     const hashIndex = src.indexOf('#');
-    if (hashIndex === -1) return src;
+    if (hashIndex === -1) {
+        // No fragment: treat src as the Scrypted server URL and derive the NVR
+        // app path — the comfortable form (server URL + camera-ids). Without an
+        // id there is nothing to derive, so the URL embeds as pasted (which
+        // also keeps deliberate foreign URLs untouched).
+        const ids = String(cameraIds || '').split(/[\s,]+/).filter(Boolean);
+        if (!ids.length) return src;
+        let serverBase = src.replace(/\/+$/, '');
+        if (!/\/endpoint\/@scrypted\/nvr\/public$/.test(serverBase)) {
+            serverBase += '/endpoint/@scrypted/nvr/public';
+        }
+        return composeScryptedUrl(serverBase + '/#/iframe/' + ids[0], opts);
+    }
     const base = src.slice(0, hashIndex);
     const fragment = src.slice(hashIndex + 1);
 
@@ -102,9 +115,9 @@ class FeezalElementBasicScrypted extends FeezalElement {
         return {
             palette: {category: 'Basic', name: 'Scrypted', color: '#4a6080'},
             description: 'Embeds a Scrypted NVR camera view: live stream (with optional two-way audio), ' +
-                'camera grid, or event reel. src takes the NVR app\'s iframe URL — directly from your ' +
-                'Scrypted server, or the tokenized card URL from the Home Assistant integration. Requires ' +
-                'the Scrypted NVR plugin; for cameras without NVR use the camera element with an RTSP gateway instead.',
+                'camera grid, or event reel. Point src at your Scrypted server and set camera-ids — the ' +
+                'element derives the NVR view URL. Only works with the paid Scrypted NVR plugin; for ' +
+                'cameras without NVR use the camera element with an RTSP gateway instead.',
             links: [
                 {label: 'Scrypted', url: 'https://www.scrypted.app'},
                 {label: 'NVR card URL format (views and parameters)', url: 'https://docs.scrypted.app/home-assistant-legacy-cards.html'},
@@ -122,22 +135,19 @@ class FeezalElementBasicScrypted extends FeezalElement {
             },
             attributes: [
                 {name: 'src', type: 'string', default: '',
-                    help: 'URL of a Scrypted NVR iframe view. WITHOUT Home Assistant use the NVR app on your Scrypted server directly: ' +
-                        'https://<scrypted-host>:10443/endpoint/@scrypted/nvr/public/#/iframe/<id> — the id is the camera\'s device id, ' +
-                        'visible in the address bar (…/device/<id>) when the camera is open in the Scrypted console. The frame shows Scrypted\'s ' +
-                        'login once; sign in there and the browser remembers it. ' +
-                        'WITH Home Assistant\'s Scrypted integration, copy the "Scrypted NVR Card Webpage URL" from the camera\'s settings ' +
-                        '(gear icon under the playback view, visible when Scrypted is opened from inside HA) — that tokenized URL ' +
-                        '(https://ha-host/api/scrypted/<token>/…) is proxied and served by Home Assistant, needs no login, and the token is a ' +
-                        'secret stored with the dashboard; HA tokens expire (90 days default) — a feed that turns black usually means: copy a fresh URL. ' +
-                        'Either way: an https dashboard cannot embed an http URL (mixed content), so serve Scrypted/HA over https.'},
+                    help: 'Your Scrypted server URL, e.g. https://scrypted.local:10443 — together with camera-ids the element ' +
+                        'derives the NVR view URL automatically. Only works with the paid Scrypted NVR plugin. ' +
+                        'On first load the frame shows Scrypted\'s login; sign in there once and the browser remembers it. ' +
+                        'An https dashboard cannot embed an http Scrypted — serve Scrypted over https (its default) or the browser blocks the frame. ' +
+                        'A full NVR view URL (…#/iframe/<id>) is accepted too and wins over camera-ids for the pasted camera.'},
                 {name: 'view', type: 'select', options: ['', 'live', 'grid', 'events'], default: '',
                     help: 'Which NVR view to show: live = single camera stream, grid = multi-camera grid, ' +
                         'events = scrollable reel of detected events. Empty keeps the view of the pasted URL. ' +
                         'grid and events take the cameras from camera-ids (or the pasted URL).'},
                 {name: 'camera-ids', type: 'string', default: '',
-                    help: 'Scrypted device id(s), comma-separated — overrides the id(s) in the pasted URL. ' +
-                        'live uses the first id; grid and events show all. Empty = ids from the URL.'},
+                    help: 'The camera\'s device id(s), comma-separated. Find the id in the Scrypted console: open the camera ' +
+                        'and read the number from the browser address bar (…/device/<id>). ' +
+                        'live uses the first id; grid and events show all.'},
                 {name: 'live', type: 'boolean', default: true,
                     help: 'Start playing on load. Off = the view waits for a tap.'},
                 {name: 'destination', type: 'select', options: ['', 'low-resolution', 'local', 'remote'], default: '',
@@ -261,7 +271,7 @@ class FeezalElementBasicScrypted extends FeezalElement {
         if (!url) {
             // Unconfigured: guide in the editor, stay blank in the viewer.
             return feezal.isEditor
-                ? html`<div class="hint">Scrypted NVR — paste the camera's NVR card webpage URL into src</div>`
+                ? html`<div class="hint">Scrypted NVR — set src to the Scrypted server URL and camera-ids to the camera's device id (paid NVR plugin required)</div>`
                 : html``;
         }
         if (this._streamPaused) return html``;
