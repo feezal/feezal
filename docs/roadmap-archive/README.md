@@ -396,6 +396,8 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U101 — Snap helper-line color configurable + alpha in the editor color pickers ✅ done](U101.md)
 - [U102 — Vertical guide-line label: flip 180°, right of the line, near the top ✅ done](U102.md)
 
+- [U105 — Asset Manager: multi-select + bulk move/delete ✅ done](U105.md)
+
 ## Architecture & Infrastructure
 - [A24 — Externalize the metro element family ❌ rejected — metro stays in feezal](A24.md)
 

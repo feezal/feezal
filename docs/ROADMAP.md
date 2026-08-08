@@ -79,7 +79,6 @@ Work in progress — priorities and scope are not final.
 - [U98 — Palette colors in editor light mode ⚠️ needs refinement](#u98--palette-colors-in-editor-light-mode-️-needs-refinement)
 - [U103 — layout-app: two-level navigation (groups, double drawer, tabs, breadcrumb) ⚠️ decided core, details open](#u103--layout-app-two-level-navigation-groups-double-drawer-tabs-breadcrumb-️-decided-core-details-open)
 - [U104 — Generic list-of-objects attribute editor (fixes the multivalue UX) — decided](#u104--generic-list-of-objects-attribute-editor-fixes-the-multivalue-ux--decided)
-- [U105 — Asset Manager: multi-select + bulk move/delete 💡](#u105--asset-manager-multi-select--bulk-movedelete-)
 
 
 **Architecture & Infrastructure**
@@ -2702,43 +2701,6 @@ adopt it later (own item — do not grow this one).
 consumer), N6 (custom-inspector machinery), N43 (editor chrome ratchet),
 B115 (danger-red delete rows), U56 (topic-suffix labelling for the row
 summaries).
-
-
-### U105 — Asset Manager: multi-select + bulk move/delete 💡
-
-**Requested (08/2026).** The Asset Manager is single-file only. Wanted:
-**multi-select** with the standard modifiers — **Ctrl+click** toggles a file
-in/out of the selection, **Shift+click** selects the range from the anchor —
-and bulk operations on the selection:
-
-- **Drag one selected tile → ALL selected files move** to the target folder
-  (the existing single-file drag-to-folder machinery, fed a list; the drag
-  ghost shows a count badge, e.g. "6 files").
-- **Delete removes all selected** (one confirm naming the count; B115
-  danger-red in any context-menu form).
-- Room for more bulk verbs later (download as zip, retag) — the selection
-  model is the point, verbs can grow.
-
-**Design notes:**
-- Selection state lives in the panel
-  ([feezal-sidebar-assets.js](../www/src/feezal-sidebar-assets.js)) as a
-  Set of paths; plain click = single-select (replaces), empty-area click
-  clears; the anchor for Shift ranges follows the last plain/Ctrl click —
-  file-manager semantics, in both grid (tiles) and list view, folder-scoped
-  (changing the folder clears the selection).
-- Folders are NOT range-selectable targets in v1 (files only; a folder in a
-  Ctrl-selection is skipped with a hint).
-- Server side: move/delete already exist per file — loop client-side,
-  aggregate errors into one toast (partial failure names the files);
-  a bulk endpoint is an optimization, not a v1 requirement.
-- Keyboard: Ctrl+A selects the current folder's files; Del deletes the
-  selection (with the confirm); Esc clears.
-- Visual: selected tiles/rows get the selection colour outline (the editor's
-  `--feezal-selection` family), count shown in the panel header.
-
-**Relates:** the Asset Manager panel (upload/folders/drag-to-canvas
-machinery), B115 (danger-red delete), U66-era asset workflows, the layers
-tree (Ctrl/Shift selection precedent in a sidebar panel).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches

@@ -62,6 +62,7 @@ class FeezalSidebarAssets extends LitElement {
         _sortDir:       {state: true},  // 'asc' | 'desc'
         _search:        {state: true},  // search string, '' = inactive
         _thumbSize:     {state: true},  // tile px size in thumbs mode
+        _selected:      {state: true},  // U105: Set<path> — multi-selection (files only)
     };
 
     static styles = css`
@@ -220,6 +221,18 @@ class FeezalSidebarAssets extends LitElement {
         }
         .ctx-item.has-sub:hover > .ctx-submenu { display: block; }
         .ctx-submenu.left { left: auto; right: 100%; }
+
+        /* ── U105: multi-selection ─────────────────────────────────────── */
+        .tile.selected, .list-row.selected, .detail-row.selected {
+            outline: 2px solid rgba(var(--feezal-selection-rgb, 2, 132, 199), 0.9);
+            outline-offset: -2px;
+            background: rgba(var(--feezal-selection-rgb, 2, 132, 199), 0.10);
+        }
+        .tile.selected:hover, .list-row.selected:hover, .detail-row.selected:hover {
+            background: rgba(var(--feezal-selection-rgb, 2, 132, 199), 0.16);
+        }
+        /* the zones take focus for Ctrl+A / Del / Esc — no visible ring */
+        .drop-zone:focus, .list-zone:focus { outline: none; }
 
         /* draggable image tiles (thumbs, list, and details modes) */
         .tile.image-tile { cursor: grab; touch-action: none; }
@@ -394,6 +407,8 @@ class FeezalSidebarAssets extends LitElement {
         this._sortDir      = 'asc';
         this._search       = '';
         this._thumbSize    = parseInt(localStorage.getItem('feezal-assets-thumbsize') || '80', 10);
+        this._selected     = new Set();   // U105 multi-selection (full paths, files only)
+        this._selAnchor    = null;        // Shift-range anchor (last plain/Ctrl click)
     }
 
     connectedCallback() {
@@ -422,6 +437,111 @@ class FeezalSidebarAssets extends LitElement {
             const res = await fetch(`/api/assets/${site}`);
             if (res.ok) this._assets = await res.json();
         } catch { /* network error */ }
+        // U105: prune selection entries that no longer exist (deleted/moved).
+        if (this._selected.size) {
+            const alive = new Set((this._assets[this._category] || []).map(f => f.path));
+            const next = new Set([...this._selected].filter(p => alive.has(p)));
+            if (next.size !== this._selected.size) this._selected = next;
+        }
+    }
+
+    /** U105: navigating (folder/category/search) clears the selection —
+     *  file-manager semantics; the guard keeps this from looping. */
+    updated(changed) {
+        super.updated(changed);
+        if ((changed.has('_folder') || changed.has('_category') || changed.has('_search')) &&
+            this._selected.size) {
+            this._clearSelection();
+        }
+    }
+
+    // ── U105: multi-selection ──────────────────────────────────────────────
+
+    _clearSelection() {
+        if (this._selected.size) this._selected = new Set();
+        this._selAnchor = null;
+    }
+
+    /**
+     * Selection gesture on a file (files only — folders never multi-select):
+     * Ctrl/Cmd toggles, Shift ranges from the anchor over the VISIBLE sorted
+     * order, plain click replaces. Returns true when the click was a modifier
+     * gesture (callers then suppress the preview).
+     */
+    _onFileClick(e, file) {
+        const path = file.path;
+        const order = this._filteredList.map(f => f.path);
+        if (e.shiftKey && this._selAnchor && order.includes(this._selAnchor)) {
+            const a = order.indexOf(this._selAnchor);
+            const b = order.indexOf(path);
+            const [lo, hi] = a < b ? [a, b] : [b, a];
+            const next = (e.ctrlKey || e.metaKey) ? new Set(this._selected) : new Set();
+            for (let i = lo; i <= hi; i++) next.add(order[i]);
+            this._selected = next;
+            this._focusZone();
+            return true;
+        }
+        if (e.ctrlKey || e.metaKey) {
+            const next = new Set(this._selected);
+            if (next.has(path)) next.delete(path); else next.add(path);
+            this._selected = next;
+            this._selAnchor = path;
+            this._focusZone();
+            return true;
+        }
+        this._selected = new Set([path]);
+        this._selAnchor = path;
+        this._focusZone();
+        return false;
+    }
+
+    /** Focus the scrolling zone so Ctrl+A / Del / Esc work after a click. */
+    _focusZone() {
+        this.renderRoot.querySelector('.drop-zone, .list-zone')?.focus?.();
+    }
+
+    _onZoneClick(e) {
+        // empty-area click clears (clicks on tiles/rows stop at the child)
+        if (e.target === e.currentTarget) this._clearSelection();
+    }
+
+    _onZoneKeydown(e) {
+        if (e.key === 'Escape') { this._clearSelection(); return; }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+            e.preventDefault();
+            this._selected = new Set(this._filteredList.map(f => f.path));
+            return;
+        }
+        if (e.key === 'Delete' && this._selected.size) {
+            e.preventDefault();
+            e.stopPropagation();   // never reach the canvas Del handler
+            this._deleteSelected();
+        }
+    }
+
+    /** Bulk delete over the per-file endpoint; partial failures aggregate
+     *  into one error bar naming the files. */
+    async _deleteSelected() {
+        const alive = new Set((this._assets[this._category] || []).map(f => f.path));
+        const paths = [...this._selected].filter(p => alive.has(p));
+        if (!paths.length) return;
+        const msg = paths.length === 1
+            ? `Delete "${basename(paths[0])}"?`
+            : `Delete ${paths.length} selected files?`;
+        if (!await this._confirm(msg)) return;
+        const site = feezal.siteName || 'default';
+        const failed = [];
+        for (const p of paths) {
+            try {
+                const res = await fetch(`/api/assets/${site}?category=${this._category}&path=${encodeURIComponent(p)}`, {method: 'DELETE'});
+                if (!res.ok) failed.push(basename(p));
+            } catch {
+                failed.push(basename(p));
+            }
+        }
+        this._clearSelection();
+        if (failed.length) this._error = `Delete failed for: ${failed.join(', ')}`;
+        await this._load();
     }
 
     // ── Computed helpers ───────────────────────────────────────────────────
@@ -491,10 +611,12 @@ class FeezalSidebarAssets extends LitElement {
     }
 
     async _delete(filePath) {
+        // filePath is the CATEGORY-RELATIVE full path (like everywhere else —
+        // _assetSrc/_moveFile/transfer). It used to be prefixed with _folder
+        // again here, which double-prefixed deletes from inside a folder.
         const site = feezal.siteName || 'default';
-        const fullPath = this._folder ? this._folder + '/' + filePath : filePath;
-        if (!await this._confirm(`Delete "${basename(fullPath)}"?`)) return;
-        await fetch(`/api/assets/${site}?category=${this._category}&path=${encodeURIComponent(fullPath)}`, {method: 'DELETE'});
+        if (!await this._confirm(`Delete "${basename(filePath)}"?`)) return;
+        await fetch(`/api/assets/${site}?category=${this._category}&path=${encodeURIComponent(filePath)}`, {method: 'DELETE'});
         await this._load();
     }
 
@@ -671,6 +793,14 @@ class FeezalSidebarAssets extends LitElement {
                     // never touches the canvas at all.
                     this._dragSrc  = event.target.dataset.src;
                     this._dragFile = event.target.dataset.file;
+                    // U105: dragging a selected tile drags the WHOLE selection;
+                    // an unselected tile replaces the selection (file-manager
+                    // semantics). Bulk drags target folders only.
+                    if (!this._selected.has(this._dragFile)) {
+                        this._selected = new Set([this._dragFile]);
+                        this._selAnchor = this._dragFile;
+                    }
+                    this._dragFiles = [...this._selected];
                     // Which element this asset creates on drop (image vs Lottie).
                     this._dragElemTag = event.target.dataset.elem || 'feezal-element-basic-image';
                     this._dragCategory = this._category;   // source tab (for copy-on-use of globals)
@@ -695,6 +825,15 @@ class FeezalSidebarAssets extends LitElement {
                         icon.textContent = 'animation';
                         icon.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:32px;color:#38bdf8;background:var(--feezal-bg,#fff);';
                         ghost.appendChild(icon);
+                    }
+                    // U105: bulk drags carry a count badge on the ghost.
+                    if (this._dragFiles.length > 1) {
+                        const badge = document.createElement('div');
+                        badge.textContent = String(this._dragFiles.length);
+                        badge.style.cssText = 'position:absolute;top:2px;right:2px;min-width:20px;height:20px;' +
+                            'border-radius:10px;background:#0284c7;color:#fff;font:600 12px sans-serif;' +
+                            'display:flex;align-items:center;justify-content:center;padding:0 4px;box-sizing:border-box;';
+                        ghost.appendChild(badge);
                     }
                     document.body.appendChild(ghost);
                     this._ghost = ghost;
@@ -735,6 +874,12 @@ class FeezalSidebarAssets extends LitElement {
 
                     if (!feezal.view) return;
                     if (overView) {
+                        // U105: a BULK drag targets folders only — over the canvas
+                        // the ghost stays and no element is created.
+                        if (this._dragFiles && this._dragFiles.length > 1) {
+                            this._clearFolderHighlight();
+                            return;
+                        }
                         // Entering the canvas — hide ghost, let the canvas element be the visual.
                         if (this._ghost) this._ghost.style.display = 'none';
                         this._clearFolderHighlight();
@@ -782,10 +927,12 @@ class FeezalSidebarAssets extends LitElement {
                         }
                         delete this._dragElem;
                     } else if (targetFolder != null) {
-                        this._moveFile(this._dragFile, targetFolder);
+                        // U105: the whole selection moves (single drag = list of one).
+                        this._moveFiles(this._dragFiles ?? [this._dragFile], targetFolder);
                     }
                     delete this._dragSrc;
                     delete this._dragFile;
+                    delete this._dragFiles;
                     delete this._dragElemTag;
                     delete this._dragCategory;
                 }
@@ -817,14 +964,29 @@ class FeezalSidebarAssets extends LitElement {
 
     async _moveFile(filePath, targetFolder) {
         if (!filePath) return;
-        const newPath = (targetFolder ? targetFolder + '/' : '') + basename(filePath);
-        if (filePath === newPath) return;
+        return this._moveFiles([filePath], targetFolder);
+    }
+
+    /** U105: move MANY files into a folder over the per-file endpoint;
+     *  partial failures aggregate into one error bar naming the files. */
+    async _moveFiles(paths, targetFolder) {
         const site = feezal.siteName || 'default';
-        await fetch(`/api/assets/${site}`, {
-            method: 'PATCH',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({category: this._category, oldPath: filePath, newPath})
-        });
+        const failed = [];
+        for (const p of paths || []) {
+            const newPath = (targetFolder ? targetFolder + '/' : '') + basename(p);
+            if (!p || p === newPath) continue;
+            try {
+                const res = await fetch(`/api/assets/${site}`, {
+                    method: 'PATCH',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({category: this._category, oldPath: p, newPath})
+                });
+                if (!res.ok) failed.push(basename(p));
+            } catch {
+                failed.push(basename(p));
+            }
+        }
+        if (failed.length) this._error = `Move failed for: ${failed.join(', ')}`;
         await this._load();
     }
 
@@ -1017,12 +1179,12 @@ class FeezalSidebarAssets extends LitElement {
         const dragTag = draggableAssetTag(file.path);
         const renaming = this._renaming === file.path;
         return html`
-            <div class="list-row ${dragTag ? 'image-tile' : ''}"
+            <div class="list-row ${dragTag ? 'image-tile' : ''} ${this._selected.has(file.path) ? 'selected' : ''}"
                 data-src="${dragTag ? src : ''}"
                 data-file="${dragTag ? file.path : ''}"
                 data-elem="${dragTag || ''}"
                 @dragstart="${e => e.preventDefault()}"
-                @click="${() => { if (isImg && !renaming) this._openPreview(file); }}"
+                @click="${e => { if (renaming) return; const mod = this._onFileClick(e, file); if (!mod && isImg) this._openPreview(file); }}"
                 @contextmenu="${e => this._openContextMenu(e, file.path)}">
                 <span class="material-icons">${isImg ? 'image' : fileIcon(file.path)}</span>
                 ${renaming ? html`
@@ -1050,12 +1212,12 @@ class FeezalSidebarAssets extends LitElement {
         const dragTag = draggableAssetTag(file.path);
         const renaming = this._renaming === file.path;
         return html`
-            <div class="detail-row ${dragTag ? 'image-tile' : ''}"
+            <div class="detail-row ${dragTag ? 'image-tile' : ''} ${this._selected.has(file.path) ? 'selected' : ''}"
                 data-src="${dragTag ? src : ''}"
                 data-file="${dragTag ? file.path : ''}"
                 data-elem="${dragTag || ''}"
                 @dragstart="${e => e.preventDefault()}"
-                @click="${() => { if (isImg && !renaming) this._openPreview(file); }}"
+                @click="${e => { if (renaming) return; const mod = this._onFileClick(e, file); if (!mod && isImg) this._openPreview(file); }}"
                 @contextmenu="${e => this._openContextMenu(e, file.path)}">
                 <div class="name-cell">
                     <span class="material-icons">${isImg ? 'image' : fileIcon(file.path)}</span>
@@ -1106,12 +1268,12 @@ class FeezalSidebarAssets extends LitElement {
         const renaming   = this._renaming === file.path;
 
         return html`
-            <div class="tile ${dragTag ? 'image-tile' : ''}"
+            <div class="tile ${dragTag ? 'image-tile' : ''} ${this._selected.has(file.path) ? 'selected' : ''}"
                 data-src="${dragTag ? src : ''}" data-file="${dragTag ? file.path : ''}"
                 data-elem="${dragTag || ''}"
                 title="${name} (${formatSize(file.size)})"
                 @dragstart="${e => e.preventDefault()}"
-                @click="${() => { if (isImg && !renaming) this._openPreview(file); }}"
+                @click="${e => { if (renaming) return; const mod = this._onFileClick(e, file); if (!mod && isImg) this._openPreview(file); }}"
                 @contextmenu="${e => this._openContextMenu(e, file.path)}">
                 ${isImg
                     ? html`<img class="tile-thumb" src="${resolvedSrc}" alt="${name}" loading="lazy" draggable="false">`
@@ -1242,11 +1404,13 @@ class FeezalSidebarAssets extends LitElement {
             ` : ''}
 
             ${this._viewMode === 'thumbs' ? html`
-                <div class="drop-zone"
+                <div class="drop-zone" tabindex="-1"
                     style="--thumb-size:${this._thumbSize}px"
                     @dragover="${this._onDropZoneDragOver}"
                     @dragleave="${this._onDropZoneDragLeave}"
-                    @drop="${this._onDropZoneDrop}">
+                    @drop="${this._onDropZoneDrop}"
+                    @click="${this._onZoneClick}"
+                    @keydown="${this._onZoneKeydown}">
 
                     ${this._uploading ? html`<div class="uploading-overlay">Uploading…</div>` : ''}
 
@@ -1259,7 +1423,8 @@ class FeezalSidebarAssets extends LitElement {
                     ` : ''}
                 </div>
             ` : this._viewMode === 'list' ? html`
-                <div class="list-zone">
+                <div class="list-zone" tabindex="-1"
+                    @click="${this._onZoneClick}" @keydown="${this._onZoneKeydown}">
                     ${!this._search && this._folder ? html`
                         <div class="list-row" style="cursor:pointer"
                             data-folder="${this._folder.includes('/') ? this._folder.slice(0, this._folder.lastIndexOf('/')) : ''}"
@@ -1292,7 +1457,8 @@ class FeezalSidebarAssets extends LitElement {
                     <span class="${this._sortKey === 'date'  ? 'sort-active' : ''}" @click="${() => this._setSort('date')}">Modified${this._sortKey === 'date' ? (this._sortDir === 'asc' ? ' ▲' : ' ▼') : ''}</span>
                     <span></span>
                 </div>
-                <div class="list-zone">
+                <div class="list-zone" tabindex="-1"
+                    @click="${this._onZoneClick}" @keydown="${this._onZoneKeydown}">
                     ${!this._search && this._folder ? html`
                         <div class="detail-row" style="cursor:pointer"
                             data-folder="${this._folder.includes('/') ? this._folder.slice(0, this._folder.lastIndexOf('/')) : ''}"
@@ -1323,7 +1489,7 @@ class FeezalSidebarAssets extends LitElement {
                 </div>
             `}
 
-            <div class="infobar">${count} item${count !== 1 ? 's' : ''}${this._category === 'global' ? ' · global' : ' · site'}${this._search ? ` · matching "${this._search}"` : ''}</div>
+            <div class="infobar">${count} item${count !== 1 ? 's' : ''}${this._selected.size ? ` · ${this._selected.size} selected` : ''}${this._category === 'global' ? ' · global' : ' · site'}${this._search ? ` · matching "${this._search}"` : ''}</div>
         `;
     }
 
@@ -1405,12 +1571,20 @@ class FeezalSidebarAssets extends LitElement {
                             <span class="material-icons">file_copy</span>Copy to global
                         </div>
                     ` : ''}
-                    <div class="ctx-item danger" @click="${() => {
-                        if (this._ctxMenu.isFolder) { const fn = this._ctxMenu.folderName; this._ctxMenu = null; this._deleteFolder(fn); }
-                        else { const f = this._ctxMenu.file; this._ctxMenu = null; this._delete(f); }
-                    }}">
-                        <span class="material-icons">delete</span>Delete
-                    </div>
+                    ${(() => {
+                        // U105: on a selected file with a multi-selection, delete
+                        // targets the WHOLE selection (labelled with the count).
+                        const multi = !this._ctxMenu.isFolder && this._selected.size > 1 &&
+                            this._selected.has(this._ctxMenu.file);
+                        return html`
+                            <div class="ctx-item danger" @click="${() => {
+                                if (this._ctxMenu.isFolder) { const fn = this._ctxMenu.folderName; this._ctxMenu = null; this._deleteFolder(fn); }
+                                else if (multi) { this._ctxMenu = null; this._deleteSelected(); }
+                                else { const f = this._ctxMenu.file; this._ctxMenu = null; this._delete(f); }
+                            }}">
+                                <span class="material-icons">delete</span>${multi ? `Delete ${this._selected.size} files` : 'Delete'}
+                            </div>`;
+                    })()}
                 </div>
             ` : ''}
 
