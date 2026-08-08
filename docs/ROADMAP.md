@@ -65,6 +65,7 @@ Work in progress — priorities and scope are not final.
 - [E164 — Fancy family: finish and re-enable the disabled cards](#e164--fancy-family-finish-and-re-enable-the-disabled-cards)
 - [E167 — `glass-camera`: basic-camera in the glass frame 💡](#e167--glass-camera-basic-camera-in-the-glass-frame-)
 - [E168 — basic-camera: Frigate event backfill (events from before the viewer opened)](#e168--basic-camera-frigate-event-backfill-events-from-before-the-viewer-opened-️-to-be-refined) ⚠️
+- [E169 — `scrypted-camera`: embed Scrypted NVR live/events views](#e169--scrypted-camera-embed-scrypted-nvr-liveevents-views-) 💡
 
 **Editor UX**
 
@@ -1604,6 +1605,84 @@ manual default.
 **Relates:** E163 ✅ (basic-camera + the events ring buffer), U74 (the
 Frigate base URL + live-feed precedent), B111 ✅ (the URL plumbing), the
 pure-MQTT principle (the decision this item exists to make).
+
+
+### E169 — `scrypted-camera`: embed Scrypted NVR live/events views 💡
+
+**Idea (08/2026), researched against how Home Assistant does it.** Scrypted
+(koush's camera hub — HomeKit/Arlo/Unifi/… bridges, hardware-accelerated
+streams, object detection) is the other big camera platform besides Frigate,
+and its HA integration architecture is the OPPOSITE of Frigate's — in
+feezal's favour.
+
+**How HA integrates Scrypted (researched 08/2026, sources below):**
+
+1. **HA never proxies the video.** The `ha_scrypted` custom component
+   manages Scrypted and registers card resources, but does NOT create
+   camera entities — [koush/ha_scrypted#8](https://github.com/koush/ha_scrypted/issues/8)
+   requesting exactly that has sat open, unanswered, since 2023. Video
+   reaches the dashboard as Scrypted-served web resources the BROWSER loads
+   directly with a tokenized URL:
+   - new cards: web components from
+     `/api/scrypted/<token>/endpoint/@scrypted/nvr/assets/web-components.js`;
+   - legacy cards: a plain HA *Webpage (iframe) card* pointed at
+     `/api/scrypted/<token>/endpoint/@scrypted/nvr/public/#/iframe/<id>`,
+     with `#/iframegrid?ids=<id1>,<id2>` (grid) and
+     `#/iframeevents?ids=…` (event reel) variants, and query knobs
+     `live=true`, `destination=low-resolution|remote|local`,
+     `speaker/microphone=on|off`, `imageClick/videoClick=ha|app|none`.
+   Contrast E168: Frigate's API forces a server-side proxy; Scrypted was
+   *designed* to be embedded cross-origin. A feezal element can consume the
+   SAME tokenized endpoints — no feezal-server transport, no CORS fight
+   (iframe/img embedding, not fetch). Pure-MQTT-principle-compatible by the
+   existing precedent (element-level HTTP, like the U74 MJPEG feed).
+2. **The NVR cards are part of the PAID Scrypted NVR plugin.** The iframe
+   endpoints above are `@scrypted/nvr` endpoints; without the subscription
+   there is no embeddable live view from Scrypted itself.
+3. **MQTT: Scrypted's MQTT plugin publishes standard HA discovery**
+   (verified in the plugin's `autodiscovery.ts`): configs at
+   `homeassistant/<component>/scrypted-<id>/<iface>/config`, components
+   switch / light / lock / binary_sensor (motion, door, window, occupancy,
+   flood, audio) / sensor, state at `scrypted/<id>/<property>`, commands at
+   `…/set`. **No camera/image publishing at all.** Consequence: feezal's
+   existing HA-discovery consumer (`server/src/mqtt/discovery.js`) should
+   already pick up Scrypted's non-camera devices AND camera motion sensors
+   with zero new code — verify, then no scrypted recognizer is needed for
+   sensors.
+4. **Free path without NVR:** the `@scrypted/webhook` plugin mints
+   tokenized HTTP URLs for camera snapshots (`…/takePicture`), device state
+   and control; the rebroadcast plugin exposes an RTSP restream
+   (`rtsp://<ip>:<port>/<stream-id>`) that go2rtc can gateway to
+   WebRTC/HLS/MJPEG — which lands exactly on `basic-camera`'s existing
+   `mjpeg`/`hls`/`webrtc`/`image` types. The free tier needs no new
+   element; the new element's value is the NVR views.
+
+**Element sketch (refine before building):** `feezal-element-basic-scrypted`
+wrapping the iframe endpoints. Attributes: `base-url`, `token`, `camera-id`
+(or `ids` for grid), `view` (`live | grid | events`), `destination`,
+`speaker`, `microphone`; `pause-when-hidden` with basic-camera's semantics
+(drop the iframe `src` off-screen). Motion/state chips come free via the
+MQTT discovery path (3). Reuse basic-camera's popup pattern for a
+full-screen NVR view.
+
+**Open questions:**
+- Paid-NVR gating: is an element that requires a subscription acceptable as
+  an official `basic-*`? Alternative: document webhook-snapshot + go2rtc as
+  the free recipe *on basic-camera* and scope this element to NVR owners.
+- Token lifetime: Scrypted granular tokens are limited to 90 days (with
+  2FA) — the element should surface an expired-token state rather than a
+  silently black iframe.
+- Iframe vs web components: the legacy iframe endpoints are documented as
+  deprecated-ish ("use the new cards"); the new web-components path means
+  loading Scrypted's JS into the viewer — check CSP/static-export
+  implications before choosing.
+- Mixed content: an https feezal viewer cannot embed an http Scrypted —
+  same constraint as U74, document it.
+
+**Relates:** E168 (the Frigate counterpart — proxy-shaped, unlike this),
+E163 ✅ / U74 (basic-camera and its feed types — the free-tier answer),
+E149 (HA discovery consumer this leans on), the pure-MQTT principle
+(satisfied here without a carve-out).
 
 
 ### Consequences
