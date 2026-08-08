@@ -1830,10 +1830,18 @@ class FeezalAppEditor extends LitElement {
      * OR the configured broker failed to connect — never when it is connected
      * (nor while it is still connecting, to avoid flashing the dialog). Decided
      * from the server↔broker bridge status (authoritative), not the sidebar's
-     * connection object which is populated asynchronously after getSite. */
+     * connection object which is populated asynchronously after getSite.
+     *
+     * B123: two holes closed. (1) An UNKNOWN status (fetch failed, server
+     * route briefly unavailable) used to count as "not configured" and nagged
+     * a perfectly connected setup — unknown now means "do not nag". (2) Any
+     * LIVE connection suppresses the wizard, including a direct browser↔broker
+     * connection that has no server bridge at all. */
     _shouldShowConnect(b) {
-        const configured = Boolean(b && b.uri);
-        const failed = Boolean(b && b.uri && !b.connected && b.lastError);
+        if (!b) return false;                                   // unknown ≠ unconfigured
+        if (window.feezal?.connection?.connected) return false; // live (bridge or direct)
+        const configured = Boolean(b.uri);
+        const failed = Boolean(b.uri && !b.connected && b.lastError);
         return !configured || failed;
     }
 
@@ -1883,8 +1891,16 @@ class FeezalAppEditor extends LitElement {
             b = await this._pollBridgeStatus();
         }
         if (this._shouldShowConnect(b)) {
-            this.shadowRoot.querySelector('feezal-connect-dialog')?.open();
-            return;   // the tour runs when the dialog closes
+            // B123: a would-show verdict gets ONE re-check after a beat — the
+            // status can briefly report no uri while the server is still
+            // applying the stored connection on startup. A confirmed
+            // unconfigured/failed state still shows after 1.6s; a race does not.
+            await new Promise(r => setTimeout(r, 1600));
+            b = await this._pollBridgeStatus();
+            if (this._shouldShowConnect(b)) {
+                this.shadowRoot.querySelector('feezal-connect-dialog')?.open();
+                return;   // the tour runs when the dialog closes
+            }
         }
         this._maybeAutoStartTour();
     }
@@ -2649,6 +2665,10 @@ class FeezalAppEditor extends LitElement {
     }
 
     _view() {
+        // B124: opening the viewer with undeployed changes shows a stale (or on
+        // a fresh install: empty) site — deploy first, then open. The deploy's
+        // own error toast + Retry applies; the viewer only opens on success.
+        if (this.changes) { this._deploy(() => this._view()); return; }
         // B39: keep a trailing slash on the site segment so the opened URL reads
         // /viewer/<Site>/#/<view>, not /viewer/<Site>#/<view> (the default site
         // already ends in a slash — match it for named sites too).

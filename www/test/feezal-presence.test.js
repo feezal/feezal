@@ -36,9 +36,13 @@ function makeSite({subscribe = 'home/cmnd', publish = 'home/stat', presence} = {
     if (subscribe) site.setAttribute('subscribe', subscribe);
     if (publish) site.setAttribute('publish', publish);
     if (presence) site.setAttribute('presence', presence);
-    const view = document.createElement('feezal-view');
-    view.setAttribute('name', 'Home');
-    site.append(view);
+    // Two real views: the per-client `view` command test switches to 'Energy',
+    // and since B124 the site ignores a command naming a view it doesn't have.
+    for (const name of ['Home', 'Energy']) {
+        const view = document.createElement('feezal-view');
+        view.setAttribute('name', name);
+        site.append(view);
+    }
     return site;
 }
 

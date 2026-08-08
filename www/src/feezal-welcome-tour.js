@@ -102,8 +102,8 @@ const STEPS = [
     // NOTE: the broker-connection steps (connect broker / connection status /
     // deploy-to-apply) were removed — the MQTT broker is now configured up front
     // by the first-run connect dialog (feezal-connect-dialog), which runs before
-    // this tour whenever no host is set. The explore path's `finish` and the auto
-    // path's `finale` still cover Deploy.
+    // this tour whenever no host is set. The explore path's `finish` still covers
+    // Deploy; the auto path auto-deploys inside the Generate flow (B124).
     {
         id: 'drop-template',
         title: 'Try it: your first live element',
@@ -168,18 +168,14 @@ const STEPS = [
         id: 'generate',
         title: 'Generate your app',
         // Suspended: the Generate dialog owns the screen — the tour renders no
-        // card/dim here (it would sit on top of the modal). Resumes at the
-        // finale once the dialog reaches its result stage.
+        // card/dim here (it would sit on top of the modal). B124: the tour ends
+        // here — the dialog runs the SAME new-site flow as the Generate button
+        // (site name → review → create → auto-deploy → viewer link), and its
+        // deferred-create site switch reloads the editor, so there is no
+        // after-the-dialog step to come back to.
         body: '',
         suspend: true,
         advance: 'generate',
-    },
-    {
-        id: 'finale',
-        title: 'Your app is ready',
-        body: 'Deploy to publish it, then the ▾ menu next to Deploy → View opens it in the viewer. To run it on a wall tablet or share it, use Deploy → Export for a self-contained bundle you can open straight from a file or host anywhere.\n\nReplay this tour anytime from Editor Settings.',
-        target: ed => ed.shadowRoot.querySelector('#btn-deploy-wrap'),
-        interactive: true,
     },
 ];
 
@@ -187,7 +183,7 @@ const STEPS = [
 // paths once a path is chosen; welcome/terminology/fork show always).
 const EXPLORE_ONLY = new Set(['palette', 'canvas', 'inspector', 'theme',
     'drop-template', 'wire-topic', 'template-content', 'finish']);
-const AUTO_ONLY = new Set(['discovery-wait', 'generate', 'finale']);
+const AUTO_ONLY = new Set(['discovery-wait', 'generate']);
 const ALWAYS = new Set(['welcome', 'terminology', 'fork']);
 
 const PAD = 6; // cutout padding around the target rect
@@ -566,25 +562,24 @@ class FeezalWelcomeTour extends LitElement {
         this._pollTimer = setInterval(poll, 2500);
     }
 
-    /** Open the Generate dialog at the App tile and hand the screen to it;
-     * resume at the finale once it reaches the result stage, or bail to the
-     * editor if the user closes it without generating. */
+    /** Open the Generate dialog and hand the screen to it — then END the tour.
+     *
+     * B124: this used to call `_chooseApp()` directly, generating into the
+     * CURRENT site without the new-site stage — so `_autoFlow` was never set,
+     * nothing was ever deployed, and the result screen's viewer link opened a
+     * stale (on a fresh install: empty) site as a white page (issue #4). Now
+     * it enters the SAME flow as the Generate button's App tile: site-name
+     * question, review, deferred create, auto-deploy, viewer link gated on
+     * the deploy. That flow switches sites (a full editor reload), which no
+     * tour step can survive — so the tour ends at the hand-off; stop() also
+     * marks it seen, exactly as skipping does, so the reload cannot re-open
+     * it over the resumed wizard. */
     _watchGenerate() {
         const gen = this._genDialog();
-        if (!gen) { this._next(); return; }   // no dialog (shouldn't happen) — skip to finale
+        if (!gen) { this.stop(); return; }   // no dialog (shouldn't happen) — land in the editor
         gen.open();
-        gen.updateComplete?.then(() => gen._chooseApp?.());
-        this._genResultSeen = false;
-        this._pollTimer = setInterval(() => {
-            const open = gen.shadowRoot?.querySelector('sl-dialog')?.open;
-            if (gen._stage === 'result') this._genResultSeen = true;
-            if (!open) {   // dialog closed
-                clearInterval(this._pollTimer);
-                this._pollTimer = null;
-                if (this._genResultSeen) this._next();   // app created → finale
-                else this.stop();                        // backed out → land in the editor
-            }
-        }, 300);
+        gen.updateComplete?.then(() => gen._chooseAppOnNewSite?.());
+        this.stop();
     }
 
     /** U73 — bail out of the discovery wait (no devices) into the editor. */

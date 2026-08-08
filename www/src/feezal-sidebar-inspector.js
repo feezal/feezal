@@ -2,7 +2,8 @@ import {LitElement, html, css} from 'lit';
 
 import {RubberBand} from './feezal-canvas-rubberband.js';   // A38
 import {isCanvasElement, stripCanvasZIndex, stackingSiblings, stackingState,
-    reorderElements, stashAbsoluteGeometry, restoreAbsoluteGeometry, hideSnapOverlays}
+    reorderElements, stashAbsoluteGeometry, restoreAbsoluteGeometry, hideSnapOverlays,
+    checkResizeAction}
     from './feezal-canvas-geometry.js';   // A37
 import interact from 'interactjs';
 
@@ -1024,6 +1025,12 @@ class FeezalSidebarInspector extends LitElement {
         // inspector) survives a drag instead of being wiped.
         const LIFT_PROPS = ['position', 'left', 'top', 'width', 'height', 'margin', 'z-index', 'pointer-events', 'opacity'];
         interact(element)
+            // B122: same small-element guard as initAbsolute — a centre press on a
+            // small flow tile must lift/reorder it, not resize it.
+            .actionChecker((pointer, event, action) =>
+                checkResizeAction(action,
+                    {x: event?.clientX ?? pointer?.clientX, y: event?.clientY ?? pointer?.clientY},
+                    element.getBoundingClientRect()))
             .draggable({
                 autoScroll: {enabled: true, container: feezal.site, speed: 300, margin: 40},
                 listeners: {
@@ -1883,8 +1890,10 @@ class FeezalSidebarInspector extends LitElement {
             const resizableGrip = absolute && element.localName !== 'feezal-component';
             glassStyle.textContent =
                 ':host(.feezal-editable)::after{content:"";position:absolute;inset:0;z-index:5;cursor:inherit;}' +
+                // B122: the grip shrinks with the element, matching the
+                // size-derived resize band (25% of a side, capped at 12px).
                 (resizableGrip ? '\n:host(.feezal-editable.feezal-selected:not([locked]):hover)::before{' +
-                    'content:"";position:absolute;right:0;bottom:0;width:12px;height:12px;z-index:6;' +
+                    'content:"";position:absolute;right:0;bottom:0;width:min(12px,25%);height:min(12px,25%);z-index:6;' +
                     'pointer-events:none;' +
                     'background:linear-gradient(135deg,transparent 50%,rgba(var(--feezal-selection-rgb, 2,132,199), calc(0.9 * var(--feezal-selection-alpha, 1))) 50%);' +
                     '}' : '');
@@ -2025,6 +2034,14 @@ class FeezalSidebarInspector extends LitElement {
         // gesture time, so there is no double-registration case to guard.
 
         interact(element)
+            // B122: interact's default 20px edge margin swallows small elements
+            // whole — a centre press on a 50×25 element started a resize. Re-check
+            // the flagged edges against the size-derived band; a press that is
+            // near no edge becomes a drag.
+            .actionChecker((pointer, event, action) =>
+                checkResizeAction(action,
+                    {x: event?.clientX ?? pointer?.clientX, y: event?.clientY ?? pointer?.clientY},
+                    element.getBoundingClientRect()))
             .draggable({
                 restrict: {
                     // Always recompute — feezal.view moves in the viewport as the

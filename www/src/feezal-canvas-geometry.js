@@ -172,3 +172,47 @@ export function restoreAbsoluteGeometry(element) {
     element.style.top = `${Math.round(r.top - vr.top)}px`;
     element.style.left = `${Math.round(r.left - vr.left)}px`;
 }
+
+/**
+ * B122 — resize hit-band for an element of the given rendered size.
+ *
+ * interact's default resize edge margin (20px) covers so much of a small
+ * element that a centre press lands in the right/bottom edge zones and the
+ * action checker picks resize over drag — a 50×25 element could not be
+ * dragged at all, it only grew. The band is derived from the rendered size
+ * (a quarter of the smaller dimension) and capped at 12px, matching the
+ * visible corner grip; the 4px floor keeps the band grabbable on tiny
+ * elements.
+ */
+export function resizeMargin(rect) {
+    return Math.max(4, Math.min(12, rect.width / 4, rect.height / 4));
+}
+
+/**
+ * B122 — validate a resize action against the element's OWN size-derived
+ * edge band. interact decided `action` using its default margin; this
+ * re-checks each flagged edge against resizeMargin(rect) and drops the ones
+ * the pointer is not actually near. If no edge survives, the gesture becomes
+ * a drag — a centre press on a small element moves it, never resizes.
+ *
+ * Pure: rect in the same coordinate space as the pointer (client), returns
+ * the action to use. Non-resize actions pass through untouched.
+ */
+export function checkResizeAction(action, pointer, rect) {
+    if (!action || action.name !== 'resize' || !action.edges) return action;
+    const m = resizeMargin(rect);
+    const near = {
+        top:    pointer.y <= rect.top + m,
+        left:   pointer.x <= rect.left + m,
+        right:  pointer.x >= rect.right - m,
+        bottom: pointer.y >= rect.bottom - m,
+    };
+    const edges = {};
+    let any = false;
+    for (const e of ['top', 'left', 'right', 'bottom']) {
+        edges[e] = Boolean(action.edges[e] && near[e]);
+        any = any || edges[e];
+    }
+    if (!any) return {name: 'drag'};
+    return {...action, edges};
+}

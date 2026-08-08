@@ -285,7 +285,7 @@ describe('welcome tour (U73) — fork + autogenerate branch', () => {
         expect(tour._path).toBe('auto');
         expect(tour._current().id).toBe('discovery-wait');   // no broker steps anymore
         const ids = tour._steps().map(s => s.id);
-        expect(ids).toEqual(['welcome', 'terminology', 'fork', 'discovery-wait', 'generate', 'finale']);
+        expect(ids).toEqual(['welcome', 'terminology', 'fork', 'discovery-wait', 'generate']);
         expect(ids).not.toContain('palette');
         expect(ids).not.toContain('drop-template');
         expect(ids).not.toContain('broker');
@@ -333,10 +333,13 @@ describe('welcome tour (U73) — fork + autogenerate branch', () => {
         expect(localStorage.getItem('feezalTourSeen')).toBe('1');
     });
 
-    it('the Generate step is suspended (renders nothing) and opens the dialog at the App tile', async () => {
-        let opened = false, choseApp = false;
+    it('the Generate step opens the dialog at the NEW-SITE App flow and ends the tour (B124)', async () => {
+        let opened = false, choseNewSite = false, choseApp = false;
         const gen = {
-            open() { opened = true; }, _chooseApp() { choseApp = true; }, _stage: 'app',
+            open() { opened = true; },
+            _chooseAppOnNewSite() { choseNewSite = true; },
+            _chooseApp() { choseApp = true; },
+            _stage: 'app',
             updateComplete: Promise.resolve(true),
             shadowRoot: {querySelector: () => ({open: true})},
         };
@@ -348,22 +351,20 @@ describe('welcome tour (U73) — fork + autogenerate branch', () => {
             await gen.updateComplete;
             await tour.updateComplete;
             expect(opened).toBe(true);
-            expect(choseApp).toBe(true);
-            // suspended: no card/overlay while the dialog owns the screen
+            // B124: the SAME flow as the Generate button's App tile — site-name
+            // question + deferred create + auto-deploy — never the generate-in-
+            // place path that left the site undeployed (white viewer, issue #4).
+            expect(choseNewSite).toBe(true);
+            expect(choseApp).toBe(false);
+            // The tour ends at the hand-off (the flow's site switch reloads the
+            // editor) and is marked seen so the reload cannot re-open it.
+            expect(tour.hasAttribute('data-active')).toBe(false);
+            expect(localStorage.getItem('feezalTourSeen')).toBe('1');
+            // Nothing rendered — the dialog owns the screen.
             expect(tour.shadowRoot.querySelector('.card')).toBeNull();
             expect(tour.shadowRoot.querySelector('.backdrop-full')).toBeNull();
         } finally {
             delete targets['feezal-generate-dialog'];
         }
-    });
-
-    it('the finale (auto path) points at Deploy for view + export', async () => {
-        tour.start();
-        tour._path = 'auto';
-        tour._goto(tour._steps().findIndex(s => s.id === 'finale'));
-        await tour.updateComplete;
-        expect(tour._current().id).toBe('finale');
-        expect(tour.shadowRoot.querySelector('.card p').textContent).toMatch(/export/i);
-        expect(tour.shadowRoot.querySelector('.spotlight')).not.toBeNull();   // spotlights deploy
     });
 });

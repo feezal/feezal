@@ -229,14 +229,27 @@ class FeezalSite extends LitElement {
         // its nav.view from the hash, so this is equivalent for both contexts
         // and works correctly in the viewer where feezal.app.nav doesn't exist.
         const {view: hashView, embedded} = viewPathFromHash();
-        if (hashView) {
+        // B124: a deep link naming a view this site does not have (stale
+        // deploy, renamed/deleted view, a viewer opened before the first
+        // deploy) used to set the nonexistent name — every view stayed hidden
+        // and the page rendered blank. Validate against the site's own views
+        // and fall back to the first view; only when children are present
+        // (a static export can upgrade this element during parsing, before
+        // its views exist — there the hash must be trusted as before).
+        const ownViews = [...this.querySelectorAll('feezal-view')];
+        const known = name => ownViews.some(v => v.getAttribute('name') === name);
+        if (hashView && (ownViews.length === 0 || known(hashView))) {
             // N30: a deep-link #/view/embedded stashes the embedded view; it is
             // routed into the layout-app once it registers (order-independent).
             this._pendingEmbedded = embedded;
             this.view = hashView;
         } else {
-            this.view = feezal.views[0].getAttribute('name');
-            location.hash = '/' + this.view;
+            this._pendingEmbedded = null;
+            const first = ownViews[0] || feezal.views?.[0];
+            if (first) {
+                this.view = first.getAttribute('name');
+                location.hash = '/' + this.view;
+            }
         }
 
         if (!feezal.isEditor && !feezal.visibility) {
@@ -455,6 +468,11 @@ class FeezalSite extends LitElement {
             return;
         }
         this._pendingEmbedded = null;
+        // B124: an unknown view name (stale hash after a redeploy, a typo on
+        // the control topic) must not blank the site — ignore it and stay on
+        // the current view.
+        const views = [...this.querySelectorAll('feezal-view')];
+        if (views.length && !views.some(v => v.getAttribute('name') === raw)) return;
         this.view = raw;
     }
 

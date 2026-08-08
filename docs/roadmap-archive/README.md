@@ -125,6 +125,9 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B117 — Coinciding gap + edge snap draws the helper line twice ("fat" artifact); drop the label prefixes ✅ fixed](B117.md)
 - [B120 — iOS PWA: a view SHORTER than the screen scrolls, revealing grey/white bars; layout-app bar moves ✅ fixed](B120.md)
 - [B121 — Glass popups are not transparent — expected the cards' frost ✅ fixed](B121.md)
+- [B122 — Small elements resize when you try to drag them (centre-press lands in the resize-edge zone) ✅ fixed](B122.md)
+- [B123 — MQTT connect wizard appears although a connection is configured AND connected ✅ fixed](B123.md)
+- [B124 — White screen after tour/wizard app generation: viewer link opens an undeployed site ✅ fixed](B124.md)
 
 ## Near-term Improvements
 

@@ -426,3 +426,49 @@ describe('site ↔ view-router delegation (N30)', () => {
         expect(location.hash).toBe('#/other');
     });
 });
+
+describe('unknown-view fallback (B124)', () => {
+    it('a deep link naming a view the site does not have falls back to the first view (stale deploy)', () => {
+        location.hash = '#/menu';   // e.g. a just-generated view, opened against the old deploy
+        const site = document.createElement('feezal-site');
+        site.append(...makeViews('view1', 'view2'));
+        feezal.views = [...site.querySelectorAll('feezal-view')];
+        document.body.append(site);
+        expect(site.view).toBe('view1');
+        expect(location.hash).toBe('#/view1');
+        site.remove();
+    });
+
+    it('a deep link naming an existing child view is still adopted', () => {
+        location.hash = '#/view2';
+        const site = document.createElement('feezal-site');
+        site.append(...makeViews('view1', 'view2'));
+        feezal.views = [...site.querySelectorAll('feezal-view')];
+        document.body.append(site);
+        expect(site.view).toBe('view2');
+        site.remove();
+    });
+
+    it('without children (static export upgrading during parse) the hash is trusted as before', () => {
+        feezal.views = makeViews('home', 'kitchen');   // known globally, NOT site children
+        location.hash = '#/kitchen';
+        const site = document.createElement('feezal-site');
+        document.body.append(site);
+        expect(site.view).toBe('kitchen');
+        site.remove();
+    });
+
+    it('an inbound view command naming an unknown view is ignored — the site stays on its view', () => {
+        location.hash = '';
+        const site = document.createElement('feezal-site');
+        site.append(...makeViews('view1', 'view2'));
+        feezal.views = [...site.querySelectorAll('feezal-view')];
+        document.body.append(site);
+        expect(site.view).toBe('view1');
+        site._applyViewCommand('nope');
+        expect(site.view).toBe('view1');
+        site._applyViewCommand('view2');
+        expect(site.view).toBe('view2');
+        site.remove();
+    });
+});

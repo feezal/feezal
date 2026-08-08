@@ -39,9 +39,13 @@ describe('first-run connect-dialog gating (_shouldShowConnect)', () => {
     it('does NOT show when the broker is configured and connected', () => {
         expect(show({connected: true, uri: 'mqtt://localhost:1883'})).toBe(false);
     });
-    it('shows when no broker is configured', () => {
-        expect(show(null)).toBe(true);
+    it('shows when no broker is CONFIRMED unconfigured (a status without uri)', () => {
         expect(show({uri: ''})).toBe(true);
+        expect(show({})).toBe(true);
+    });
+    it('an UNKNOWN status (fetch failed / route unavailable) never nags (B123)', () => {
+        expect(show(null)).toBe(false);
+        expect(show(undefined)).toBe(false);
     });
     it('shows when the configured broker failed to connect', () => {
         expect(show({connected: false, uri: 'mqtt://x:1883', lastError: {message: 'ECONNREFUSED'}})).toBe(true);

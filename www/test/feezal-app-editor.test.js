@@ -1,4 +1,4 @@
-import {describe, it, expect, beforeEach} from 'vitest';
+import {describe, it, expect, beforeEach, afterEach} from 'vitest';
 
 import '../src/feezal-app-editor.js';
 import {reorderIdentifyingAttributes} from '../src/feezal-app-editor.js';
@@ -495,5 +495,70 @@ describe('reorderIdentifyingAttributes (U92)', () => {
         reorderIdentifyingAttributes(f);
         expect(attrsOf(f, 'feezal-view')[0]).toBe('name');
         expect(attrsOf(f, 'feezal-element-basic-number')[0]).toBe('label');
+    });
+});
+
+describe('_shouldShowConnect() — B123 first-run wizard gate', () => {
+    const gate = b => FeezalAppEditor.prototype._shouldShowConnect.call({}, b);
+    afterEach(() => { feezal.connection = undefined; });
+
+    it('an UNKNOWN status (fetch failed / route unavailable) never nags', () => {
+        expect(gate(null)).toBe(false);
+        expect(gate(undefined)).toBe(false);
+    });
+
+    it('configured + connected → no dialog', () => {
+        expect(gate({uri: 'mqtt://broker', connected: true})).toBe(false);
+    });
+
+    it('configured + failed → dialog', () => {
+        expect(gate({uri: 'mqtt://broker', connected: false, lastError: {message: 'refused'}})).toBe(true);
+    });
+
+    it('configured + still connecting (no error yet) → no dialog', () => {
+        expect(gate({uri: 'mqtt://broker', connected: false})).toBe(false);
+    });
+
+    it('CONFIRMED unconfigured (a status without uri) → dialog', () => {
+        expect(gate({})).toBe(true);
+        expect(gate({uri: ''})).toBe(true);
+    });
+
+    it('a LIVE browser connection suppresses the dialog even when the bridge reports unconfigured (direct-MQTT setups)', () => {
+        feezal.connection = {connected: true};
+        expect(gate({})).toBe(false);
+        expect(gate({uri: 'mqtt://broker', connected: false, lastError: {message: 'x'}})).toBe(false);
+    });
+});
+
+describe('_view() — deploy-before-view (B124)', () => {
+    it('with undeployed changes, View deploys first and opens the viewer only via the success callback', () => {
+        feezal.siteName = 'default';
+        const orig = window.open;
+        let url;
+        window.open = u => { url = u; };
+        let deployed = false;
+        const self = {
+            changes: true,
+            _deploy(done) { deployed = true; this.changes = false; done(); },
+            _view: FeezalAppEditor.prototype._view,
+        };
+        try { self._view(); } finally { window.open = orig; }
+        expect(deployed).toBe(true);
+        expect(url).toContain('/viewer/');
+    });
+
+    it('a failed deploy never opens the viewer (done is not called)', () => {
+        feezal.siteName = 'default';
+        const orig = window.open;
+        let url;
+        window.open = u => { url = u; };
+        const self = {
+            changes: true,
+            _deploy() { /* error path: done never called */ },
+            _view: FeezalAppEditor.prototype._view,
+        };
+        try { self._view(); } finally { window.open = orig; }
+        expect(url).toBeUndefined();
     });
 });

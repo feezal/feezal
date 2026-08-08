@@ -7,13 +7,10 @@ Work in progress — priorities and scope are not final.
 ## Table of Contents
 
 **Bugs**
-- [B122 — Small elements resize when you try to drag them (centre-press lands in the resize-edge zone)](#b122--small-elements-resize-when-you-try-to-drag-them-centre-press-lands-in-the-resize-edge-zone)
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces](#b106--discovery-ids-is-space-separated-but-mqtt-topics-may-contain-spaces)
 - [B118 — Undo dead after deleting via the layers-tree context menu (until the canvas is clicked)](#b118--undo-dead-after-deleting-via-the-layers-tree-context-menu-until-the-canvas-is-clicked)
 - [B119 — Right-click menu dead after the tab was backgrounded (footer selector crash)](#b119--right-click-menu-dead-after-the-tab-was-backgrounded-footer-selector-crash)
-- [B123 — MQTT connect wizard appears although a connection is configured AND connected](#b123--mqtt-connect-wizard-appears-although-a-connection-is-configured-and-connected)
-- [B124 — White screen after tour/wizard app generation: viewer link opens an undeployed site — CONFIRMED, root cause found](#b124--white-screen-after-tourwizard-app-generation-viewer-link-opens-an-undeployed-site--confirmed-root-cause-found)
 
 
 **Near-term Improvements**
@@ -104,33 +101,6 @@ Work in progress — priorities and scope are not final.
 ---
 
 ## Bugs
-
-### B122 — Small elements resize when you try to drag them (centre-press lands in the resize-edge zone)
-
-**Found by the U84 bisect (08/2026), reproduced at 100% zoom — no transform
-involved.** A 100×50 element drags fine; a **50×25** element starts a
-**resize from its CENTRE**: interact's resizable edge margins (right +
-bottom, per `initAbsolute`) cover so much of a small element that the action
-checker picks resize over drag anywhere in the lower-right region — measured,
-a centre-press grew 50×25 to 50×65 instead of moving it. Anything roughly
-below ~2× the edge margin in a dimension is affected; the U84 attempt saw it
-as a phantom "drags do not start under zoom" because zooming out makes EVERY
-element visually small.
-
-**Fix direction:** set an explicit resize `margin` on the resizable —
-derived from the element's rendered size (e.g. `min(10, size/4)`), so a
-small element keeps a draggable interior and the resize grip shrinks with
-it; the E-corner grip visual (`.feezal-editable::before`) should match
-whatever margin is chosen. Verify drag-from-centre for sizes down to the
-editor's `restrict.minWidth/minHeight` (40×40 metro tiles are the common
-real case), and that resize still starts from the corner/edges.
-
-**Test:** browser case — 50×25 element, pointer-drag from the centre moves
-it (never resizes); drag from the bottom-right corner resizes.
-
-**Relates:** U84 (unblocked by this — the "no-start" was this bug seen
-through a zoom), interact.js resizable `margin`, the editor grip visual.
-
 
 ### B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)
 
@@ -432,101 +402,6 @@ unknown/hostile child and asserts the ctx menu still opens would pin it.
 wildcard-selector trap, already documented there), B118 (another
 sidebar-interaction global breakage — the editor needs fault isolation
 between panels).
-
-
-### B123 — MQTT connect wizard appears although a connection is configured AND connected
-
-**Reported (08/2026).** On editor load the first-run connection wizard
-(`feezal-connect-dialog`) pops up — while a broker is configured and the
-connection is live.
-
-**Where to look — the gate has holes:** `_maybeFirstRunSetup` /
-`_shouldShowConnect` ([feezal-app-editor.js](../www/src/feezal-app-editor.js))
-decides from `/api/bridge/status`: show when `!b.uri` OR
-configured-but-failed. Candidates, in likelihood order:
-
-1. **A failed/empty status poll counts as "not configured".** If
-   `_pollBridgeStatus()` returns null/unreachable at the 800ms mark (server
-   route briefly unavailable, slow start, auth hiccup), `b` is null →
-   `configured = false` → wizard. The connecting-grace loop only runs when
-   `b && b.uri` — a null status skips straight to showing. Fix: treat an
-   UNKNOWN status as "do not nag" (retry/skip), never as unconfigured.
-2. **Startup race:** the bridge process may briefly report no `uri` while
-   the server is still applying the stored connection — the 800ms delay +
-   6×800ms grace only covers the has-uri-but-connecting shape, not
-   no-uri-yet.
-3. **Direct-MQTT setups:** the predicate deliberately ignores the browser's
-   own connection object — a working DIRECT broker connection with no
-   server bridge would nag every load. If the reporter's setup is
-   bridge-based this is not the cause, but fix it in the same pass (any
-   live connection — bridge OR direct — suppresses the wizard).
-
-**Repro data to capture:** what `/api/bridge/status` returned at the moment
-(add a debug log or check the Network tab on a reload that shows the
-wizard).
-
-**Test:** unit/browser on the gate — null status → no dialog; uri+connected
-→ no dialog; uri+error → dialog; no uri (confirmed, not unknown) → dialog.
-
-**Relates:** the connect dialog (first-run flow), U37 (tour chaining —
-runs after the dialog closes, so a spurious dialog also delays the tour),
-U60/U97 (connection status surfaces — same status source).
-
-
-### B124 — White screen after tour/wizard app generation: viewer link opens an undeployed site — CONFIRMED, root cause found
-
-**User report (GitHub issue feezal/feezal#4, 08/2026, reporter boesec),
-REPRODUCED by the maintainer (08/2026)** with a fresh `.feezal` dataDir:
-run the welcome wizard's autogenerate path (mqtt:// broker configured),
-generation succeeds ("Added 290 elements across 18 new views … app shell
-created on Menu"), click the result screen's **"Open default in the
-viewer"** link → **white page at `#/view1`**.
-
-**Root cause (confirmed in code):**
-- The welcome tour's generate step (`_watchGenerate` in
-  `www/src/feezal-welcome-tour.js`) calls `gen.open()` +
-  `gen._chooseApp()` — jumping straight to the App setup **on the current
-  site** and bypassing the tiles → new-site stage. `_autoFlow` /
-  `_pendingNewSite` are therefore never set.
-- `_generateApp()` (`www/src/feezal-generate-dialog.js`) only deploys
-  when `_autoFlow` is true — so the tour path generates into the editor
-  **without ever deploying**.
-- The result screen renders the **enabled** viewer link regardless
-  (`working` is false because `_genPhase` was never entered), href
-  `/viewer/<site>/` with **no hash**.
-- On a fresh dataDir the deployed "default" site is the pristine
-  skeleton: a single **empty `view1`**. The viewer opens it, picks the
-  first view of the DEPLOYED site, writes `#/view1` → white page. The
-  `#/view1` in the reporter's URL bar is the smoking gun.
-
-**Also reported (same session): wizard flow diverges from the Generate
-button.** The Generate button goes tiles → **new-site stage (asks for the
-site name)** → deferred create → the 4-step progress checklist (New site
-created / Discovering / Generating / Publishing, all green) with the
-viewer link **disabled until the deploy lands**. The wizard path shows
-only the single result checkmark, never asks for a site name, never
-deploys. **Expected: the wizard behaves exactly like the Generate
-button.**
-
-**Fix (primary):** route the tour's generate step through the same
-new-site auto-flow as the Generate button — site-name question, deferred
-create, `_genPhase` progress checklist, auto-deploy, viewer link gated on
-the deploy. That fixes the white screen AND the divergence in one move.
-
-**Hardening (secondary, still worth doing):**
-1. Viewer: a hash naming a view that does not exist in the served site
-   must fall back to the first existing view, never a blank page
-   (`feezal-site` hash routing) — the editor top-bar View button has the
-   same stale-deploy exposure (`_view()` passes the EDITOR's current
-   hash).
-2. Editor View action: with undeployed changes, offer "Deploy & view"
-   (the Deploy button already tracks `has-changes`).
-3. Never-deployed site: serve a friendly "nothing deployed yet" page
-   instead of the empty skeleton.
-
-**Relates:** the welcome tour (autogenerate branch), the Generate
-dialog's new-site auto-flow, N30 (hash routing fallback), B39 (viewer
-URL shape).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
