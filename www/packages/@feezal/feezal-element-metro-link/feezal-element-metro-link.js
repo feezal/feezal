@@ -51,8 +51,24 @@ class FeezalElementMetroLink extends MetroTileBase {
            element with top and bottom set, auto height means the intrinsic
            ratio wins and bottom is IGNORED — measured, the image ran under
            the label exactly that way. */
-        .face-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
-        .tlabel { color: var(--feezal-metro-label-color, var(--feezal-metro-text, #fff)); }
+        .face-image {
+            position: absolute; top: 0; left: 0; width: 100%; object-fit: contain;
+            /* The family strip (18px) undershoots the label's real line box:
+               .tlabel sits at bottom 4px and its normal line-height is
+               font-metric-dependent (~14px Chromium, ~16px Firefox at 13px) —
+               so the face backs off the difference. The clearance is carved
+               out of the HEIGHT: with top + height set, an abspos bottom is
+               ignored (over-constraint), and height:auto would let the img's
+               intrinsic ratio win instead. Kept in sync with the pinned
+               .tlabel line-height below: 18 + (L − 11) = 4 + (L + 3). */
+            height: calc(100% - max(0px, var(--_metro-label-size) - 11px));
+        }
+        .tlabel {
+            color: var(--feezal-metro-label-color, var(--feezal-metro-text, #fff));
+            /* Pin the line box so the face clearance above is exact in every
+               browser (normal line-height differs per font engine). */
+            line-height: calc(var(--_metro-label-size) + 3px);
+        }
     `];
 
     constructor() {
