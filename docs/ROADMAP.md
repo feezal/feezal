@@ -13,6 +13,7 @@ Work in progress — priorities and scope are not final.
 - [B119 — Right-click menu dead after the tab was backgrounded (footer selector crash)](#b119--right-click-menu-dead-after-the-tab-was-backgrounded-footer-selector-crash)
 - [B125 — Asset manager: the New Folder dialog input renders light in a dark editor](#b125--asset-manager-the-new-folder-dialog-input-renders-light-in-a-dark-editor)
 - [B126 — Duplicate view renders its copy stacked on the current view (looks like elements duplicated in place)](#b126--duplicate-view-renders-its-copy-stacked-on-the-current-view-looks-like-elements-duplicated-in-place)
+- [B127 — Copy/paste of template elements loses the template content (B31 regression class)](#b127--copypaste-of-template-elements-loses-the-template-content-b31-regression-class)
 
 
 **Near-term Improvements**
@@ -464,6 +465,70 @@ duplicate again → `-copy1` (dedupe); Ctrl+Z removes it.
 
 **Relates:** B99 (view ops snapshot undo), U109 (view clipboard — same
 copy semantics).
+
+
+### B127 — Copy/paste of template elements loses the template content (B31 regression class)
+
+**Reported (08/2026).** Copy/pasting a `basic-template` element (and
+presumably anything storing content as a light-DOM `<template>` child —
+dialog bodies, repeater templates) pastes an element whose template is
+EMPTY. This was fixed once: **B31** made `_clone()` a deep
+`cloneNode(true)` precisely so light-DOM children survive copy/paste/
+duplicate — and the B31 unit test still passes.
+
+**Refinement from the reporter: INTERMITTENT — sometimes it works —
+and possibly tied to MULTISELECT.** That points at a specific suspect:
+in multi-select the attribute inspector merges values across every
+selected element and a change writes ONE value back to ALL of them —
+for the `template` descriptor that write is
+`template.innerHTML = newValue` on each element
+(`feezal-sidebar-inspector-attributes.js`), so a multi-selection
+containing template elements with DIFFERENT contents (or a mixed/empty
+merged textarea) can clobber the originals the moment a write fires;
+a later copy/paste of the already-wiped element then merely exposes it.
+Check whether the SOURCE element is empty too after the repro — if yes,
+the loss happens at multiselect-edit time, not at paste time.
+
+**Why it can regress anyway (diagnosed, not yet reproduced):** the B31
+test covers `_clone()` IN ISOLATION. The real pipeline is
+`_copy` → append into `_clipboardTpl.content` (a template content
+fragment — so the copied element's own `<template>` child becomes a
+template nested in template content) → `_pasteInternal` → `_clone` again
+→ append to the view → select → the N6 inspector's template textarea
+(reads `element.querySelector('template')?.innerHTML`, writes it back on
+change and rebuilds `_processTemplate`). The loss is somewhere in that
+chain or its surroundings, not in `cloneNode` itself.
+
+**Repro matrix to run first** (pin down WHICH path loses it):
+1. **MULTISELECT a template element together with others → copy →
+   paste; then the same but touch any inspector field while
+   multi-selected first.** Also: multiselect TWO template elements with
+   different contents, click into the template textarea, blur without
+   typing — did either source lose its content?
+2. Single-select Ctrl+C → Ctrl+V on the same view (in-memory
+   `_clipboardTpl` chain).
+3. Context-menu Duplicate (separate path).
+4. Copy on view A → switch view → paste on view B.
+5. Copy → paste → **undo → redo** (snapshot/restore round-trip).
+6. Paste → check content BEFORE selecting vs AFTER the inspector's
+   template editor rendered (does selection/editor clobber it?).
+7. Source mode round-trip after paste (the U92/B105 formatter must not
+   strip `<template>` bodies).
+
+**Suspects, in order:** the MULTISELECT merged-value write clobbering
+the template child across the selection (see refinement above); the
+inspector template editor writing an empty value on selection/re-render
+of the pasted element; the template-inside-template-content nesting
+through `_clipboardTpl`; the undo snapshot/restore; the source
+formatter. Fix wherever it lands, and add an END-TO-END test over the
+full `_copy` → `_pasteInternal` chain asserting the pasted element's
+`template` child content (the gap the B31 unit test left open), plus
+the duplicate path and a multiselect-edit case (mixed template
+contents must never be overwritten by a merged value).
+
+**Relates:** B31 (the original fix + its too-narrow test), U92/B105
+(source formatter — must preserve template bodies), N6 (template
+textarea editor), U109 (view clipboard — same serialization concerns).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
