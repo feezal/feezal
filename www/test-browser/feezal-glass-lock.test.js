@@ -6,7 +6,7 @@
 import {describe, it, expect, beforeEach} from 'vitest';
 import '../packages/@feezal/feezal-element-glass-lock/feezal-element-glass-lock.js';
 import '../src/feezal-icon.js';
-import {setupFeezal, mount} from './helpers.js';
+import {setupFeezal, mount, until} from './helpers.js';
 
 let feezal;
 beforeEach(() => { feezal = setupFeezal({isEditor: false}); });
@@ -47,7 +47,9 @@ describe('glass-lock — tap toggles, actions live in the popup', () => {
         expect(btns.map(b => b.textContent.trim())).toEqual(['Lock', 'Unlock', 'Open']);
         btns[2].click();   // Open
         expect(feezal.connection.published).toContainEqual({topic: 'lock/open', payload: 'OPEN'});
-        expect(el._details).toBe(false);
+        // E171: popup-animate defaults ON — the close morph holds the popover
+        // briefly before _details drops.
+        await until(() => el._details === false);
     });
 
     it('omits the Open action when the lock cannot open', async () => {

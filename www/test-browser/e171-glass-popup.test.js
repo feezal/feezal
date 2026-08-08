@@ -33,7 +33,7 @@ describe('E171 — the shared popup knobs are declared everywhere', () => {
     });
 });
 
-describe('E171 ① — frosted page backdrop (opt-in)', () => {
+describe('E171 ① — frosted page backdrop (DEFAULT ON)', () => {
     async function openLight(attrs = {}) {
         const el = await mount('feezal-element-glass-light', attrs);
         el.openDetails();
@@ -41,36 +41,30 @@ describe('E171 ① — frosted page backdrop (opt-in)', () => {
         return el.shadowRoot.querySelector('.details');
     }
 
-    it('default: the plain scrim, no blur (current behavior kept)', async () => {
+    it('default: the page behind gets the family frost', async () => {
         const popup = await openLight();
         expect(popup).toBeTruthy();
-        expect(getComputedStyle(popup, '::backdrop').backdropFilter).toBe('none');
-    });
-
-    it('popup-backdrop: the page behind gets the family frost', async () => {
-        const popup = await openLight({'popup-backdrop': ''});
         expect(getComputedStyle(popup, '::backdrop').backdropFilter).toContain('blur');
     });
 
-    it('degrade contract: solid translucent scrim, no live blur', async () => {
-        const popup = await openLight({'popup-backdrop': '', degrade: ''});
+    it('an explicit popup-backdrop="false" keeps the plain dim scrim', async () => {
+        const popup = await openLight({'popup-backdrop': 'false', 'popup-animate': 'false'});
         expect(getComputedStyle(popup, '::backdrop').backdropFilter).toBe('none');
+        expect(getComputedStyle(popup, '::backdrop').backgroundColor).toBe('rgba(0, 0, 0, 0.35)');
+    });
+
+    it('degrade contract: tint scrim without the live blur', async () => {
+        const popup = await openLight({degrade: ''});
+        expect(getComputedStyle(popup, '::backdrop').backdropFilter).toBe('none');
+        expect(getComputedStyle(popup, '::backdrop').backgroundColor).not.toBe('rgba(0, 0, 0, 0.35)');
     });
 });
 
-describe('E171 ② — open/close morph from the card outline (opt-in)', () => {
+describe('E171 ② — open/close morph from the card outline (DEFAULT ON)', () => {
     const frame = () => new Promise(r => requestAnimationFrame(() => r()));
 
-    it('open morphs the popup OUT OF the card rect — only with the knob on', async () => {
-        const plain = await mount('feezal-element-glass-light', {});
-        plain.style.cssText = 'position:absolute;left:20px;top:20px;width:172px;height:128px;';
-        plain.openDetails();
-        await plain.updateComplete;
-        await frame();
-        expect(plain.shadowRoot.querySelector('.details').getAnimations()).toHaveLength(0);
-        plain.remove();
-
-        const el = await mount('feezal-element-glass-light', {'popup-animate': ''});
+    it('default: open morphs the popup OUT OF the card rect', async () => {
+        const el = await mount('feezal-element-glass-light', {});
         el.style.cssText = 'position:absolute;left:20px;top:20px;width:172px;height:128px;';
         el.openDetails();
         await el.updateComplete;
@@ -84,8 +78,17 @@ describe('E171 ② — open/close morph from the card outline (opt-in)', () => {
         expect(kf.at(-1).transform).toBe('none');
     });
 
+    it('an explicit popup-animate="false" opens without any tween', async () => {
+        const el = await mount('feezal-element-glass-light', {'popup-animate': 'false'});
+        el.style.cssText = 'position:absolute;left:20px;top:20px;width:172px;height:128px;';
+        el.openDetails();
+        await el.updateComplete;
+        await frame();
+        expect(el.shadowRoot.querySelector('.details').getAnimations()).toHaveLength(0);
+    });
+
     it('close SHRINKS BACK into the card before removal — not a synchronous teardown', async () => {
-        const el = await mount('feezal-element-glass-light', {'popup-animate': ''});
+        const el = await mount('feezal-element-glass-light', {});
         el.style.cssText = 'position:absolute;left:20px;top:20px;width:172px;height:128px;';
         el.openDetails();
         await el.updateComplete;
@@ -100,8 +103,8 @@ describe('E171 ② — open/close morph from the card outline (opt-in)', () => {
         expect(el.shadowRoot.querySelector('.details')).toBeNull();
     });
 
-    it('without the knob the close is instant (the current behavior)', async () => {
-        const el = await mount('feezal-element-glass-light', {});
+    it('with popup-animate="false" the close is instant (the previous behavior)', async () => {
+        const el = await mount('feezal-element-glass-light', {'popup-animate': 'false'});
         el.openDetails();
         await el.updateComplete;
         el._closeDetails();
@@ -184,12 +187,12 @@ describe('E171 ③ — glass-popup container', () => {
         expect(body.innerHTML).toContain('v=42');
     });
 
-    it('Escape closes the popup', async () => {
+    it('Escape closes the popup (the default close morph is awaited)', async () => {
         const el = await mount('feezal-element-glass-popup', {});
         el.openDetails();
         await el.updateComplete;
         document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}));
-        await el.updateComplete;
-        expect(el._details).toBe(false);
+        await until(() => el._details === false);
+        expect(el.shadowRoot.querySelector('.details')).toBeNull();
     });
 });

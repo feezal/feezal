@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, css, html, batteryLowBadge} from '@feezal/feezal-element';
+import {FeezalElement, css, html, batteryLowBadge, feezalBoolean} from '@feezal/feezal-element';
 import {faultBadge, sabotageBadge} from '@feezal/feezal-element/feezal-hm-fault.js';
 
 /**
@@ -195,21 +195,27 @@ export const glassPopupStyles = css`
         -webkit-backdrop-filter: none; backdrop-filter: none;
         background: var(--feezal-glass-solid, rgba(245,245,247,0.94));
     }
-    .details::backdrop { background: rgba(0, 0, 0, 0.35); }
-    /* E171 ① — opt-in frosted page backdrop: while the popup is open the
-       whole page behind it gets the family frost (blur + tint scrim), the
-       view shimmers through. Off by default (B61: a full-page blur layer is
-       exactly the surface the Chrome/macOS invalidation bug bites). Follows
-       the same tint tokens as the cards (B121). */
-    :host([popup-backdrop]) .details::backdrop {
+    /* E171 ① — the frosted page backdrop is the DEFAULT (maintainer's call,
+       08/2026): while the popup is open the whole page behind it gets the
+       family frost (blur + tint scrim), the view shimmers through. Same tint
+       tokens as the cards (B121). The knob is a feezalBoolean — absent = on,
+       an explicit popup-backdrop="false" keeps the previous plain dim scrim.
+       The B61 caveat stands: on Chrome/macOS a full-page blur layer is the
+       invalidation-bug surface — the off switch is the escape hatch. */
+    .details::backdrop {
         background: var(--feezal-glass-tint, rgba(255,255,255,0.35));
         -webkit-backdrop-filter: blur(var(--feezal-glass-blur, 20px));
         backdrop-filter: blur(var(--feezal-glass-blur, 20px));
     }
-    /* degrade contract: solid translucent scrim, no live blur. */
-    :host([degrade][popup-backdrop]) .details::backdrop {
+    /* degrade contract: tint scrim without the live blur. */
+    :host([degrade]) .details::backdrop {
         -webkit-backdrop-filter: none; backdrop-filter: none;
-        background: var(--feezal-glass-tint, rgba(255,255,255,0.35));
+    }
+    /* explicit off — the plain dim scrim, whatever else is set (last wins). */
+    :host([popup-backdrop='false']) .details::backdrop,
+    :host([popup-backdrop='0']) .details::backdrop {
+        background: rgba(0, 0, 0, 0.35);
+        -webkit-backdrop-filter: none; backdrop-filter: none;
     }
     /* E171 ② — the open/close animation is a FLIP morph driven from JS
        (FeezalGlassCard._animatePopup): the popup grows out of the CARD's
@@ -253,29 +259,33 @@ export const glassPopupStyles = css`
  * the shared machinery: the attributes reflect, `glassPopupStyles` keys off
  * the host attributes, `_closeDetails` plays the out-tween. */
 export const glassPopupKnobs = [
-    {name: 'popup-backdrop', type: 'boolean', default: false, section: 'Popup',
+    {name: 'popup-backdrop', type: 'boolean', default: true, section: 'Popup',
         help: 'While the popup is open, frost the whole page behind it (family blur + tint scrim) — the view shimmers ' +
-            'through, the popup floats on glass. With degrade on, a solid translucent scrim replaces the live blur.'},
-    {name: 'popup-animate', type: 'boolean', default: false, section: 'Popup',
+            'through, the popup floats on glass. With degrade on, a solid translucent scrim replaces the live blur. ' +
+            'On by default — switch off for the plain dim scrim.'},
+    {name: 'popup-animate', type: 'boolean', default: true, section: 'Popup',
         help: 'Animate the popup: it grows out of the card\'s own outline on open and shrinks back into it on ' +
-            'close. Disabled automatically when the system asks for reduced motion.'},
+            'close. Disabled automatically when the system asks for reduced motion. On by default — switch off ' +
+            'for instant open/close.'},
 ];
 
 export class FeezalGlassCard extends FeezalElement {
     static properties = {
         _details: {state: true},   // details popover open
-        // E171: the shared popup knobs — reflected so glassPopupStyles can
-        // key off the host attributes.
-        popupBackdrop: {type: Boolean, reflect: true, attribute: 'popup-backdrop'},
-        popupAnimate:  {type: Boolean, reflect: true, attribute: 'popup-animate'},
+        // E171: the shared popup knobs — DEFAULT-TRUE booleans (maintainer's
+        // call, 08/2026), so they use the feezalBoolean converter: absent =
+        // on, the explicit "false" survives save/deploy. Reflected so
+        // glassPopupStyles can key the backdrop off the host attribute.
+        popupBackdrop: {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'popup-backdrop'},
+        popupAnimate:  {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'popup-animate'},
     };
 
     constructor() {
         super();
         this._details = false;
         this._suppressTap = false;
-        this.popupBackdrop = false;
-        this.popupAnimate = false;
+        this.popupBackdrop = true;
+        this.popupAnimate = true;
         this.__closing = false;    // E171 ②: out-tween in flight
         this.__outsideDown = e => {
             const path = e.composedPath();
