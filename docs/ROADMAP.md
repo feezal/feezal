@@ -12,6 +12,7 @@ Work in progress — priorities and scope are not final.
 - [B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces](#b106--discovery-ids-is-space-separated-but-mqtt-topics-may-contain-spaces)
 - [B118 — Undo dead after deleting via the layers-tree context menu (until the canvas is clicked)](#b118--undo-dead-after-deleting-via-the-layers-tree-context-menu-until-the-canvas-is-clicked)
 - [B119 — Right-click menu dead after the tab was backgrounded (footer selector crash)](#b119--right-click-menu-dead-after-the-tab-was-backgrounded-footer-selector-crash)
+- [B123 — MQTT connect wizard appears although a connection is configured AND connected](#b123--mqtt-connect-wizard-appears-although-a-connection-is-configured-and-connected)
 
 
 **Near-term Improvements**
@@ -432,6 +433,45 @@ unknown/hostile child and asserts the ctx menu still opens would pin it.
 wildcard-selector trap, already documented there), B118 (another
 sidebar-interaction global breakage — the editor needs fault isolation
 between panels).
+
+
+### B123 — MQTT connect wizard appears although a connection is configured AND connected
+
+**Reported (08/2026).** On editor load the first-run connection wizard
+(`feezal-connect-dialog`) pops up — while a broker is configured and the
+connection is live.
+
+**Where to look — the gate has holes:** `_maybeFirstRunSetup` /
+`_shouldShowConnect` ([feezal-app-editor.js](../www/src/feezal-app-editor.js))
+decides from `/api/bridge/status`: show when `!b.uri` OR
+configured-but-failed. Candidates, in likelihood order:
+
+1. **A failed/empty status poll counts as "not configured".** If
+   `_pollBridgeStatus()` returns null/unreachable at the 800ms mark (server
+   route briefly unavailable, slow start, auth hiccup), `b` is null →
+   `configured = false` → wizard. The connecting-grace loop only runs when
+   `b && b.uri` — a null status skips straight to showing. Fix: treat an
+   UNKNOWN status as "do not nag" (retry/skip), never as unconfigured.
+2. **Startup race:** the bridge process may briefly report no `uri` while
+   the server is still applying the stored connection — the 800ms delay +
+   6×800ms grace only covers the has-uri-but-connecting shape, not
+   no-uri-yet.
+3. **Direct-MQTT setups:** the predicate deliberately ignores the browser's
+   own connection object — a working DIRECT broker connection with no
+   server bridge would nag every load. If the reporter's setup is
+   bridge-based this is not the cause, but fix it in the same pass (any
+   live connection — bridge OR direct — suppresses the wizard).
+
+**Repro data to capture:** what `/api/bridge/status` returned at the moment
+(add a debug log or check the Network tab on a reload that shows the
+wizard).
+
+**Test:** unit/browser on the gate — null status → no dialog; uri+connected
+→ no dialog; uri+error → dialog; no uri (confirmed, not unknown) → dialog.
+
+**Relates:** the connect dialog (first-run flow), U37 (tour chaining —
+runs after the dialog closes, so a spurious dialog also delays the tour),
+U60/U97 (connection status surfaces — same status source).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
