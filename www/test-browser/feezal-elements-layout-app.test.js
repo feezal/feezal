@@ -5,6 +5,7 @@
  */
 import {describe, it, expect, beforeEach, vi} from 'vitest';
 import '../packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js';
+import {moveEntry} from '../packages/@feezal/feezal-element-layout-app/feezal-element-layout-app.js';
 import '../src/feezal-view.js';
 import {setupFeezal, mount, until} from './helpers.js';
 
@@ -630,8 +631,8 @@ describe('U103 groups (accordion)', () => {
         expect(el.shadowRoot.querySelectorAll('.gkids .entry').length).toBe(2);
     });
 
-    it('opening a section header navigates to its landing page; re-click just collapses', async () => {
-        const el = await wideNested();
+    it('opening a section header navigates to its landing page; re-click just collapses (section-toggle: header)', async () => {
+        const el = await wideNested({'section-toggle': 'header'});
         const garden = el.shadowRoot.querySelectorAll('.ghead')[1];
         garden.click();
         await el.updateComplete;
@@ -701,6 +702,173 @@ describe('U103 tabs', () => {
         await el.updateComplete;
         expect(el._active).toBe('garden-irr');
         expect(el.shadowRoot.querySelector('.tabrow')).toBeTruthy();
+    });
+});
+
+
+// ─── U107: two-level follow-ups ───────────────────────────────────────────
+
+describe('U107 chevron-only collapse (the new default)', () => {
+    it('a header click ALWAYS navigates and never collapses', async () => {
+        const el = await wideNested();
+        expect(el.sectionToggle).toBe('chevron');            // the flipped default
+        const garden = el.shadowRoot.querySelectorAll('.ghead')[1];
+        garden.click();                                       // closed → open + navigate
+        await el.updateComplete;
+        expect(el._active).toBe('garden-irr');
+        expect(el._openSections.has('garden')).toBe(true);
+
+        el._select('info', false);                            // move elsewhere…
+        await el.updateComplete;
+        el.shadowRoot.querySelectorAll('.ghead')[1].click();  // …header again: open section
+        await el.updateComplete;
+        expect(el._openSections.has('garden')).toBe(true);    // did NOT collapse
+        expect(el._active).toBe('garden-irr');                // navigated back
+    });
+
+    it('only the chevron collapses — and collapsing does not navigate', async () => {
+        const el = await wideNested();
+        el.shadowRoot.querySelectorAll('.ghead')[1].click();  // open garden
+        await el.updateComplete;
+        expect(el._active).toBe('garden-irr');
+
+        const chev = el.shadowRoot.querySelectorAll('.ghead')[1].querySelector('.chev');
+        chev.click();
+        await el.updateComplete;
+        expect(el._openSections.has('garden')).toBe(false);   // collapsed
+        expect(el._active).toBe('garden-irr');                // no navigation change
+
+        chev.click();                                          // chevron re-opens too
+        await el.updateComplete;
+        expect(el._openSections.has('garden')).toBe(true);
+        expect(el._active).toBe('garden-irr');                // still no navigation
+    });
+
+    it('in header mode the chevron is inert on its own (bubbles to the header)', async () => {
+        const el = await wideNested({'section-toggle': 'header'});
+        const head = el.shadowRoot.querySelectorAll('.ghead')[1];
+        head.querySelector('.chev').click();                  // behaves as a header click
+        await el.updateComplete;
+        expect(el._openSections.has('garden')).toBe(true);
+        expect(el._active).toBe('garden-irr');
+    });
+
+    it('keyboard Left/Right on a focused header works in both modes', async () => {
+        for (const mode of ['chevron', 'header']) {
+            const el = await wideNested({'section-toggle': mode});
+            const head = el.shadowRoot.querySelectorAll('.ghead')[1];
+            head.focus();
+            head.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}));
+            await el.updateComplete;
+            expect(el._openSections.has('garden'), mode).toBe(true);
+            head.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowLeft', bubbles: true}));
+            await el.updateComplete;
+            expect(el._openSections.has('garden'), mode).toBe(false);
+            el.remove();
+        }
+    });
+});
+
+describe('U107 two-row tab bar (tab-sections: row)', () => {
+    it('default keeps one row — sections stay in the drawer', async () => {
+        const el = await wideNested({'nav-style': 'tabs'});
+        expect(el.shadowRoot.querySelector('.tabrow.sects')).toBeFalsy();
+        expect(el.shadowRoot.querySelectorAll('.tabrow').length).toBe(1);
+    });
+
+    it('row mode renders sections as a first tab row, pages beneath', async () => {
+        const el = await wideNested({'nav-style': 'tabs', 'tab-sections': 'row'});
+        const rows = el.shadowRoot.querySelectorAll('.tabrow');
+        expect(rows.length).toBe(2);
+        expect(rows[0].classList.contains('sects')).toBe(true);
+        // sections + the childless entry, in tree order
+        const sectTabs = [...rows[0].querySelectorAll('.tab')].map(t => t.textContent.trim());
+        expect(sectTabs).toEqual(['Living', 'Garden', 'Info']);
+        // the pages row lists the active section's pages
+        const pageTabs = [...rows[1].querySelectorAll('.tab')].map(t => t.textContent.trim());
+        expect(pageTabs).toEqual(['Lights', 'Climate']);
+    });
+
+    it('a section tab switches the pages row; a childless tab navigates directly', async () => {
+        const el = await wideNested({'nav-style': 'tabs', 'tab-sections': 'row'});
+        const sectTab = (label) => [...el.shadowRoot.querySelectorAll('.tabrow.sects .tab')]
+            .find(t => t.textContent.trim() === label);
+        sectTab('Garden').click();
+        await el.updateComplete;
+        expect(el._active).toBe('garden-irr');
+        const pageTabs = [...el.shadowRoot.querySelectorAll('.tabrow:not(.sects) .tab')]
+            .map(t => t.textContent.trim());
+        expect(pageTabs).toEqual(['Irrigation']);
+
+        sectTab('Info').click();
+        await el.updateComplete;
+        expect(el._active).toBe('info');
+        // a childless entry has no pages row
+        expect(el.shadowRoot.querySelector('.tabrow:not(.sects)')).toBeFalsy();
+    });
+
+    it('arrow keys stay within one row — the rows are separate groups', async () => {
+        const el = await wideNested({'nav-style': 'tabs', 'tab-sections': 'row'});
+        const sectRow = el.shadowRoot.querySelector('.tabrow.sects');
+        const first = sectRow.querySelector('.tab');
+        first.focus();
+        sectRow.dispatchEvent(Object.assign(
+            new KeyboardEvent('keydown', {key: 'End', bubbles: true}), {}));
+        await el.updateComplete;
+        // End lands on the LAST tab of the sections row, not of the pages row.
+        expect(el.shadowRoot.activeElement.textContent.trim()).toBe('Info');
+    });
+});
+
+describe('U107 drag-handle move model (moveEntry)', () => {
+    const tree = () => ([
+        {label: 'Living', items: [
+            {label: 'Lights', view: 'liv-lights'},
+            {label: 'Climate', view: 'liv-climate'},
+        ]},
+        {label: 'Garden', items: [{label: 'Irrigation', view: 'garden-irr'}]},
+        {label: 'Info', icon: 'info', view: 'info'},
+    ]);
+    const views = l => l.map(n => n.items ? `[${n.items.map(k => k.view).join(',')}]` : n.view).join(' ');
+
+    it('reorders top-level rows (before / after)', () => {
+        expect(views(moveEntry(tree(), [2], [0], 'before')))
+            .toBe('info [liv-lights,liv-climate] [garden-irr]');
+        expect(views(moveEntry(tree(), [0], [1], 'after')))
+            .toBe('[garden-irr] [liv-lights,liv-climate] info');
+    });
+
+    it('reorders within a section', () => {
+        expect(views(moveEntry(tree(), [0, 1], [0, 0], 'before')))
+            .toBe('[liv-climate,liv-lights] [garden-irr] info');
+    });
+
+    it('re-homes a sub-entry into another section, and out to the top level', () => {
+        expect(views(moveEntry(tree(), [0, 0], [1], 'into')))
+            .toBe('[liv-climate] [garden-irr,liv-lights] info');
+        expect(views(moveEntry(tree(), [1, 0], [2], 'after')))
+            .toBe('[liv-lights,liv-climate] [] info garden-irr');
+    });
+
+    it('dropping onto a childless item converts it to a section (indent semantics)', () => {
+        const next = moveEntry(tree(), [0, 0], [2], 'into');
+        const info = next[2];
+        expect(info.view).toBeUndefined();                     // no longer a leaf
+        expect(info.items.map(k => k.view)).toEqual(['info', 'liv-lights']);
+        expect(info.items[0].label).toBe('Info');              // its old self, as first child
+        expect(info.icon).toBe('info');                        // section keeps the icon
+    });
+
+    it('sections only move at the top level — nesting stays one deep', () => {
+        expect(moveEntry(tree(), [0], [1], 'into')).toBeNull();      // section into section
+        expect(moveEntry(tree(), [0], [1, 0], 'before')).toBeNull(); // section beside a sub-row
+        expect(views(moveEntry(tree(), [1], [0], 'before')))         // plain reorder still fine
+            .toBe('[garden-irr] [liv-lights,liv-climate] info');
+    });
+
+    it('self-drops and re-homing into the own section are no-ops (null)', () => {
+        expect(moveEntry(tree(), [2], [2], 'before')).toBeNull();
+        expect(moveEntry(tree(), [0, 1], [0], 'into')).toBeNull();
     });
 });
 
@@ -777,11 +945,13 @@ describe('U103 keyboard (tree pattern + tab row)', () => {
 
     it('tab row: Left/Right/End move along the tabs', async () => {
         const el = await wideNested({'nav-style': 'tabs'});
-        const tabs = [...el.shadowRoot.querySelectorAll('.tabrow .tab')];
+        const row = el.shadowRoot.querySelector('.tabrow');
+        const tabs = [...row.querySelectorAll('.tab')];
         tabs[0].focus();
-        el._onTabKeydown({key: 'ArrowRight', preventDefault() {}});
+        // U107: the handler reads currentTarget — arrows are scoped to ONE row.
+        el._onTabKeydown({key: 'ArrowRight', preventDefault() {}, currentTarget: row});
         expect(el.shadowRoot.activeElement).toBe(tabs[1]);
-        el._onTabKeydown({key: 'End', preventDefault() {}});
+        el._onTabKeydown({key: 'End', preventDefault() {}, currentTarget: row});
         expect(el.shadowRoot.activeElement).toBe(tabs[tabs.length - 1]);
     });
 });

@@ -77,7 +77,6 @@ Work in progress — priorities and scope are not final.
 - [U85 — Toast/notification service: route the remaining call sites](#u85--toastnotification-service-route-the-remaining-call-sites--service-shipped) 🔨 *(service shipped)*
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
 - [U98 — Palette colors in editor light mode ⚠️ needs refinement](#u98--palette-colors-in-editor-light-mode-️-needs-refinement)
-- [U107 — layout-app two-level follow-ups: drag-handle entries editor, two-row tab bar, chevron-only collapse](#u107--layout-app-two-level-follow-ups-drag-handle-entries-editor-two-row-tab-bar-chevron-only-collapse)
 
 
 **Architecture & Infrastructure**
@@ -2611,45 +2610,6 @@ the tile labels).
 **Relates:** the editor dark-mode discipline (N43 — this is its light-mode
 mirror), element-spec `palette.color` (docs note: color is authored against
 the dark editor; light mode derives), U45 (palette/picker — same tiles).
-
-
-### U107 — layout-app two-level follow-ups: drag-handle entries editor, two-row tab bar, chevron-only collapse
-
-**Reported (08/2026)** after first use of the shipped two-level navigation.
-Everything below is opt-in / configurable, per the reporter.
-
-1. **Inspector: drag handles instead of arrow buttons.** The nested
-   entries manager's ↑/↓ + indent/outdent buttons are clunky. Adopt the
-   drag-handle pattern the generic list editor already uses (⠿ per row):
-   - reorder within a sibling list by dragging;
-   - **drag a sub-entry onto another entry/section** to re-home it —
-     between sections, out to top level, and onto a childless item
-     (converting it to a section, same semantics as indent);
-   - the arrow/indent buttons can then go — but keyboard accessibility
-     must not regress (keep the operations reachable without a pointer,
-     e.g. via the existing buttons in a compact overflow or key bindings
-     on the focused row).
-2. **Two-row tab-bar presentation.** Additionally offer showing BOTH
-   levels in the tab-bar area: sections as a first tab row, the active
-   section's pages as a second row beneath it. To be refined whether
-   this is a fourth `nav-style` value (e.g. `tabs-2row`) or an option on
-   `tabs` (e.g. `tab-sections: drawer | row`) — leaning to the latter so
-   the drawer/no-drawer choice stays orthogonal; on narrow screens both
-   rows scroll like the existing tab row.
-3. **Chevron-only collapse (groups).** A section header click currently
-   toggles the collapse state (open → collapse). Preferred: the header
-   row click always NAVIGATES (to the section's landing page, opening it
-   if needed) and only a click on the chevron/triangle toggles
-   expand/collapse. Make it a knob (e.g. `section-toggle:
-   header | chevron`); the reporter prefers `chevron` — decide the
-   default during implementation (flipping the default is acceptable
-   since the feature is days old, but document it either way). The
-   keyboard tree pattern (Left/Right on the focused header) stays
-   unchanged in both modes.
-
-**Relates:** U103 (the shipped two-level base — see its archive entry for
-the current click/collapse semantics), U104 (drag-handle list-editor
-pattern to mirror), B115 (danger-red delete stays).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches

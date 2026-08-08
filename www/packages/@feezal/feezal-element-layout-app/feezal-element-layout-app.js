@@ -39,6 +39,14 @@ class FeezalElementLayoutApp extends FeezalElement {
                 {name: 'items', type: 'json', default: '[]', help: 'Drawer entries [{label, icon, view}] (managed in the inspector). An entry may carry sub-entries in an "items" array of its own — it then acts as a SECTION (its pages are the sub-entries; one nesting level).'},
                 {name: 'nav-style', type: 'select', options: ['groups', 'rail-panel', 'tabs'], default: 'groups',
                     help: 'Presentation of two-level navigation, once an entry has sub-entries: groups = accordion sections in one drawer; rail-panel = slim icon rail for the sections with an entry panel beside it; tabs = sections in the drawer, the active section\'s pages as a tab row under the top bar. A flat entry list renders the classic single-level drawer in every style. Below the breakpoint, rail-panel merges into one accordion overlay; the tab row scrolls.'},
+                // U107: whether a section HEADER click toggles the accordion or
+                // always navigates (collapse then only via the chevron). Default
+                // chevron — decided with the reporter; the feature is days old,
+                // so flipping the default is deliberate and documented here.
+                {name: 'section-toggle', type: 'select', options: ['chevron', 'header'], default: 'chevron',
+                    help: 'Groups mode: what a section header click does. chevron = the header always navigates to the section\'s landing page and only the chevron expands/collapses; header = the whole header toggles the section (and navigates when opening). Keyboard Left/Right on a focused header works in both modes.'},
+                {name: 'tab-sections', type: 'select', options: ['drawer', 'row'], default: 'drawer',
+                    help: 'Tabs mode: where the sections (level 1) live. drawer = in the drawer as before; row = as a FIRST tab row above the pages row, so both levels sit in the tab-bar area (both rows scroll when narrow). The drawer keeps working either way.'},
                 {name: 'breadcrumb', type: 'boolean', default: false,
                     help: 'Show the current location in the top bar as "Section / Page" instead of the plain page label; tapping the section segment opens the navigation.'},
                 {name: 'title', type: 'string', default: '', help: 'Top-bar title.'},
@@ -98,6 +106,8 @@ class FeezalElementLayoutApp extends FeezalElement {
     static properties = {
         items:           {type: String,  reflect: true},
         navStyle:        {type: String,  reflect: true, attribute: 'nav-style'},
+        sectionToggle:   {type: String,  reflect: true, attribute: 'section-toggle'},   // U107
+        tabSections:     {type: String,  reflect: true, attribute: 'tab-sections'},     // U107
         breadcrumb:      {type: Boolean, reflect: true, converter: feezalBoolean},
         title:           {type: String,  reflect: true},
         header:          {type: String,  reflect: true},
@@ -387,6 +397,17 @@ class FeezalElementLayoutApp extends FeezalElement {
             text-transform: uppercase; letter-spacing: 0.05em;
             padding: 6px var(--_epad-x) 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+        /* U107 chevron mode: the chevron is its own control — give it a
+           real hit area and hover feedback so it reads as one. */
+        :host([section-toggle='chevron']) .ghead .chev,
+        :host(:not([section-toggle])) .ghead .chev {
+            padding: 6px; margin: -6px; border-radius: 6px; cursor: pointer;
+        }
+        :host([section-toggle='chevron']) .ghead .chev:hover,
+        :host(:not([section-toggle])) .ghead .chev:hover {
+            background: color-mix(in srgb, currentColor 14%, transparent);
+        }
+
         .tabrow {
             flex: 0 0 auto; display: flex; overflow-x: auto; scrollbar-width: none;
             background: var(--feezal-app-bar-bg, var(--primary-color));
@@ -394,6 +415,10 @@ class FeezalElementLayoutApp extends FeezalElement {
             z-index: 1;
         }
         .tabrow::-webkit-scrollbar { display: none; }
+        /* U107: the sections row sits above the pages row — a hairline keeps
+           the two rows readable as two levels of the same bar. */
+        .tabrow.sects { box-shadow: inset 0 -1px 0 color-mix(in srgb, currentColor 25%, transparent); }
+        .tabrow.sects .tab { font-weight: 600; }
         /* Edge-fade hint, toggled by _syncTabOverflow only while overflowing. */
         .tabrow.fade {
             -webkit-mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
@@ -455,6 +480,8 @@ class FeezalElementLayoutApp extends FeezalElement {
         this.navStyle = 'groups';
         this.breadcrumb = false;
         this._openSections = new Set();
+        this.sectionToggle = 'chevron';   // U107 — see the attribute comment
+        this.tabSections = 'drawer';
         // U103: per-session "last visited page per section" — activating a
         // section returns to where you were. Deliberately NOT persisted.
         this._sectionMemory = new Map();
@@ -745,10 +772,11 @@ class FeezalElementLayoutApp extends FeezalElement {
     /** U103 tabs: edge-fade hint only while the row actually overflows, and
      * keep the active tab scrolled into view when the page changes. */
     _syncTabOverflow(scrollActive) {
-        const row = this.renderRoot?.querySelector?.('.tabrow');
-        if (!row) return;
-        row.classList.toggle('fade', row.scrollWidth > row.clientWidth + 1);
-        if (scrollActive) row.querySelector('.tab.active')?.scrollIntoView?.({block: 'nearest', inline: 'nearest'});
+        // U107: with tab-sections=row there are TWO rows — treat each alike.
+        for (const row of this.renderRoot?.querySelectorAll?.('.tabrow') || []) {
+            row.classList.toggle('fade', row.scrollWidth > row.clientWidth + 1);
+            if (scrollActive) row.querySelector('.tab.active')?.scrollIntoView?.({block: 'nearest', inline: 'nearest'});
+        }
     }
 
     _select(view, closeDrawer = true) {
@@ -1025,7 +1053,9 @@ class FeezalElementLayoutApp extends FeezalElement {
 
     /** U103 tabs: Left/Right/Home/End move along the tab row. */
     _onTabKeydown(e) {
-        const btns = [...this.renderRoot.querySelectorAll('.tabrow .tab')];
+        // U107: scoped to the row the event came from — with tab-sections=row
+        // the two rows are separate arrow groups (Tab crosses them).
+        const btns = [...e.currentTarget.querySelectorAll('.tab')];
         if (!btns.length) return;
         if (e.key === 'Home') { e.preventDefault(); btns[0].focus(); return; }
         if (e.key === 'End') { e.preventDefault(); btns[btns.length - 1].focus(); return; }
@@ -1038,18 +1068,43 @@ class FeezalElementLayoutApp extends FeezalElement {
 
     // ── U103: level-1 activation handlers (decision: navigate immediately) ────
 
-    /** Accordion section header: closed → open + navigate to its landing page;
-     * open → just collapse (no navigation change). Keeps the drawer open so
-     * the children are visible. */
+    /** Accordion section header. U107: mode-aware —
+     * `header`: closed → open + navigate; open → just collapse (the U103
+     *           behaviour).
+     * `chevron` (default): the header ALWAYS navigates to the section's
+     *           landing page (opening it if needed) and never collapses —
+     *           collapsing is the chevron's job (_sectionChevron). */
     _sectionHead(sect) {
+        if (this.sectionToggle === 'header') {
+            if (this._openSections.has(sect.slug)) {
+                const s = new Set(this._openSections);
+                s.delete(sect.slug);
+                this._openSections = s;
+                return;
+            }
+            this._openSections = new Set([...this._openSections, sect.slug]);
+            this._select(this._sectionLanding(sect), false);
+            return;
+        }
+        if (!this._openSections.has(sect.slug)) {
+            this._openSections = new Set([...this._openSections, sect.slug]);
+        }
+        this._select(this._sectionLanding(sect), false);
+    }
+
+    /** U107 chevron mode: the chevron is the collapse control — a pure
+     * toggle, no navigation. In header mode it does nothing of its own and
+     * the click bubbles to the header. */
+    _sectionChevron(e, sect) {
+        if (this.sectionToggle === 'header') return;
+        e.stopPropagation();
         if (this._openSections.has(sect.slug)) {
             const s = new Set(this._openSections);
             s.delete(sect.slug);
             this._openSections = s;
-            return;
+        } else {
+            this._openSections = new Set([...this._openSections, sect.slug]);
         }
-        this._openSections = new Set([...this._openSections, sect.slug]);
-        this._select(this._sectionLanding(sect), false);
     }
 
     /** Rail / tabs-drawer section activation: navigate to the landing page. */
@@ -1101,7 +1156,7 @@ class FeezalElementLayoutApp extends FeezalElement {
                     @click="${() => this._sectionHead(node)}">
                     ${node.icon ? html`<feezal-icon class="mi" name="${node.icon}"></feezal-icon>` : ''}
                     <span class="label">${node.label || node.slug}</span>
-                    <span class="mi chev">chevron_right</span>
+                    <span class="mi chev" @click="${e => this._sectionChevron(e, node)}">chevron_right</span>
                 </button>
                 ${this._openSections.has(node.slug) ? html`
                     <div class="gkids">${node.items.map(k => this._entryBtn(k))}</div>` : ''}`
@@ -1169,6 +1224,17 @@ class FeezalElementLayoutApp extends FeezalElement {
                             ${this._actions().map(a => html`<button class="iconbtn" title="${a.icon}" @click="${() => this._doAction(a)}"><feezal-icon class="mi" name="${a.icon}"></feezal-icon></button>`)}
                         </div>
                     </div>` : ''}
+                ${tabs && this.tabSections === 'row' ? html`
+                    <div class="tabrow sects" role="navigation" @keydown="${e => this._onTabKeydown(e)}">
+                        ${nav.tree.map(node => node.items ? html`
+                            <button class="tab ${activeSect === node ? 'active' : ''}"
+                                aria-current="${activeSect === node ? 'true' : 'false'}"
+                                @click="${() => this._sectionPick(node, false)}">${node.label || node.slug}</button>`
+                        : html`
+                            <button class="tab ${node.view === this._active ? 'active' : ''}"
+                                aria-current="${node.view === this._active ? 'page' : 'false'}"
+                                @click="${() => this._select(node.view, false)}">${node.label || node.view}</button>`)}
+                    </div>` : ''}
                 ${tabs && activeSect ? html`
                     <div class="tabrow" role="navigation" @keydown="${e => this._onTabKeydown(e)}">
                         ${activeSect.items.map(k => html`
@@ -1229,6 +1295,70 @@ export {FeezalElementLayoutApp};
 // real view name can collide with it.
 const CREATE_VIEW_SENTINEL = '__feezal-create-new-view__';
 
+
+/**
+ * U107 — one drag-and-drop move on the entries tree. Pure: list in, new list
+ * out, or null for an invalid/no-op move (the caller then saves nothing).
+ *
+ * `from` and `target` are paths ([i] top level, [i, j] sub-entry); `mode` is
+ * 'before' | 'after' (reorder into the target's sibling list) or 'into'
+ * (re-home onto a top-level row: a section appends the entry; a childless
+ * item first CONVERTS to a section, exactly the _indent semantics — its own
+ * view becomes its first child).
+ *
+ * Sections themselves only ever move at the top level: one nesting level is
+ * the U103 data model, so a section into a section (or beside a sub-entry)
+ * is invalid, not clamped — a drop that would change meaning silently is
+ * worse than one that does nothing.
+ */
+export function moveEntry(list, from, target, mode) {
+    const l = structuredClone(list);
+    const at = (arr, path) => (path.length === 1 ? arr[path[0]] : arr[path[0]]?.items?.[path[1]]);
+    const node = at(l, from);
+    const dest = at(l, target);
+    if (!node || !dest || node === dest) return null;
+    const isSection = Array.isArray(node.items);
+    // a section dragged onto/next to anything nested → invalid
+    if (isSection && (mode === 'into' || target.length > 1)) return null;
+    // dragging a section onto its own child cannot happen (paths), but a
+    // childless 'into' its own section head is a no-op re-home:
+    if (mode === 'into' && from.length === 2 && target[0] === from[0]) return null;
+
+    // remove the source (by path — the clone made identities fresh)
+    if (from.length === 1) l.splice(from[0], 1);
+    else l[from[0]].items.splice(from[1], 1);
+
+    // re-locate the destination by identity after the removal
+    const findPath = () => {
+        for (let i = 0; i < l.length; i++) {
+            if (l[i] === dest) return [i];
+            const kids = l[i].items;
+            if (Array.isArray(kids)) {
+                const j = kids.indexOf(dest);
+                if (j !== -1) return [i, j];
+            }
+        }
+        return null;
+    };
+    const where = findPath();
+    if (!where) return null;
+
+    if (mode === 'into') {
+        if (where.length !== 1) return null;
+        if (!Array.isArray(dest.items)) {
+            // convert the childless target to a section (the indent semantics)
+            dest.items = dest.view ? [{view: dest.view, label: dest.label}] : [];
+            delete dest.view;
+        }
+        dest.items.push(node);
+        return l;
+    }
+    const sibs = where.length === 1 ? l : l[where[0]].items;
+    const idx = where[where.length - 1] + (mode === 'after' ? 1 : 0);
+    sibs.splice(idx, 0, node);
+    return l;
+}
+
 class FeezalElementLayoutAppInspector extends LitElement {
     static properties = {element: {attribute: false}, _tick: {state: true}, _createDlg: {state: true}};
 
@@ -1254,7 +1384,19 @@ class FeezalElementLayoutAppInspector extends LitElement {
         .item { border: 1px solid var(--feezal-border, #e0e0e0); border-radius: 6px; padding: 6px; }
         /* U103: sub-entry rows sit indented inside their section's item box. */
         .item.sub { margin: 6px 0 0 14px; }
-        .item-head { display: flex; align-items: center; gap: 4px; }
+        .item-head { display: flex; align-items: center; gap: 4px; position: relative; }
+        /* U107: the drag handle — the pointer path for reorder/re-home; the
+           arrow/indent buttons stay as the keyboard path. */
+        .handle { flex: 0 0 auto; cursor: grab; opacity: 0.45; font-size: 14px;
+            line-height: 1; padding: 2px 2px 2px 0; user-select: none; touch-action: none; }
+        .handle:hover { opacity: 0.9; }
+        .item-head.cue-before::before, .item-head.cue-after::after {
+            content: ''; position: absolute; left: 0; right: 0; height: 2px;
+            background: var(--primary-color); pointer-events: none;
+        }
+        .item-head.cue-before::before { top: -2px; }
+        .item-head.cue-after::after { bottom: -2px; }
+        .item-head.cue-into { outline: 2px solid var(--primary-color); outline-offset: -1px; border-radius: 4px; }
         .item-num { flex: 0 0 auto; width: 18px; height: 18px; border-radius: 50%; background: var(--primary-color);
             color: #fff; font-size: 11px; display: flex; align-items: center; justify-content: center; }
         .item-head sl-select { flex: 1; min-width: 0; }
@@ -1458,6 +1600,70 @@ class FeezalElementLayoutAppInspector extends LitElement {
     }
     _editView(v) { if (v && feezal.app) feezal.app._setView(v); }
 
+    // ── U107: drag-and-drop over the entry rows ─────────────────────────────
+    /** Which drop the pointer is proposing right now (visual cue + drop). */
+    _dropCue(path, mode) {
+        const key = path.join('.') + ':' + mode;
+        if (this.__cueKey === key) return;
+        this.__cueKey = key;
+        this._cue = {key: path.join('.'), mode};
+        this._tick++;
+    }
+
+    _clearCue() {
+        this.__cueKey = null;
+        this._cue = null;
+        this._tick++;
+    }
+
+    _dragStart(e, path) {
+        this._dragFrom = path;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', path.join('.'));
+    }
+
+    /** Zone by pointer height: edges reorder, the middle band re-homes —
+     *  but only rows that CAN take an 'into' offer one (top-level, and never
+     *  for a dragged section). */
+    _dragOver(e, path) {
+        if (!this._dragFrom) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const r = e.currentTarget.getBoundingClientRect();
+        const y = (e.clientY - r.top) / r.height;
+        const draggedSection = this._dragFrom.length === 1 &&
+            Array.isArray(this._entries()[this._dragFrom[0]]?.items);
+        const canInto = path.length === 1 && !draggedSection;
+        const mode = canInto
+            ? (y < 0.3 ? 'before' : y > 0.7 ? 'after' : 'into')
+            : (y < 0.5 ? 'before' : 'after');
+        this._dropCue(path, mode);
+    }
+
+    _drop(e, path) {
+        e.preventDefault();
+        e.stopPropagation();
+        const from = this._dragFrom;
+        const mode = this._cue?.mode || 'before';
+        this._dragFrom = null;
+        this._clearCue();
+        if (!from) return;
+        const next = moveEntry(this._entries(), from, path, mode);
+        if (next) this._saveEntries(next);
+    }
+
+    _dragEnd() {
+        this._dragFrom = null;
+        this._clearCue();
+    }
+
+    /** The per-row drag surface: handle + the head as a drop target. */
+    _dragProps(path) {
+        const key = path.join('.');
+        const cue = this._cue?.key === key ? `cue-${this._cue.mode}` : '';
+        return {key, cue};
+    }
+
     // ── actions ──
     _acts() { return this._json('actions').map(a => ({icon: a.icon, publish: a.publish, payload: a.payload})); }
     _saveActs(list) { this._emit('actions', list.map(a => ({icon: a.icon || '', publish: a.publish || '', payload: a.payload ?? ''}))); this._tick++; }
@@ -1508,10 +1714,15 @@ class FeezalElementLayoutAppInspector extends LitElement {
                 <div class="sec-head">Drawer entries <span class="spacer"></span><button class="btn" @click="${this._addEntry}">+ add</button></div>
                 <div class="sec-body">
                     ${entries.length === 0
-                        ? html`<div class="hint">No entries yet. “+ add” adds an entry — pick its view in the dropdown, or create a new view right there. “＋ sub” turns an entry into a section with sub-entries (two-level navigation).</div>`
+                        ? html`<div class="hint">No entries yet. “+ add” adds an entry — pick its view in the dropdown, or create a new view right there. “＋ sub” turns an entry into a section with sub-entries (two-level navigation). Drag the ⠿ handle to reorder; drop on a row's middle to move an entry into it.</div>`
                         : entries.map((e, i) => Array.isArray(e.items) ? html`
                             <div class="item">
-                                <div class="item-head">
+<div class="item-head ${this._dragProps([i]).cue}"
+                                    @dragover="${ev => this._dragOver(ev, [i])}"
+                                    @drop="${ev => this._drop(ev, [i])}">
+                                    <span class="handle" draggable="true" title="Drag to reorder; drop onto a row's middle to move it inside"
+                                        @dragstart="${ev => this._dragStart(ev, [i])}"
+                                        @dragend="${() => this._dragEnd()}">⠿</span>
                                     <span class="item-num">${i + 1}</span>
                                     <input style="flex:1;min-width:0" placeholder="Section label" .value="${e.label ?? ''}"
                                         @change="${ev => this._setEntry([i], 'label', ev.target.value)}">
@@ -1527,7 +1738,12 @@ class FeezalElementLayoutAppInspector extends LitElement {
                                 </div>
                                 ${e.items.map((k, j) => html`
                                     <div class="item sub">
-                                        <div class="item-head">
+<div class="item-head ${this._dragProps([i, j]).cue}"
+                                            @dragover="${ev => this._dragOver(ev, [i, j])}"
+                                            @drop="${ev => this._drop(ev, [i, j])}">
+                                            <span class="handle" draggable="true" title="Drag to reorder; drop onto a row's middle to move it inside"
+                                                @dragstart="${ev => this._dragStart(ev, [i, j])}"
+                                                @dragend="${() => this._dragEnd()}">⠿</span>
                                             <sl-select size="small" placeholder="pick a view…" value="${k.view || ''}"
                                                 @sl-change="${ev => this._onEntryViewChange([i, j], ev)}">
                                                 ${views.map(v => html`<sl-option value="${v}">${v}</sl-option>`)}
@@ -1550,7 +1766,12 @@ class FeezalElementLayoutAppInspector extends LitElement {
                                     </div>`)}
                             </div>` : html`
                             <div class="item">
-                                <div class="item-head">
+<div class="item-head ${this._dragProps([i]).cue}"
+                                    @dragover="${ev => this._dragOver(ev, [i])}"
+                                    @drop="${ev => this._drop(ev, [i])}">
+                                    <span class="handle" draggable="true" title="Drag to reorder; drop onto a row's middle to move it inside"
+                                        @dragstart="${ev => this._dragStart(ev, [i])}"
+                                        @dragend="${() => this._dragEnd()}">⠿</span>
                                     <span class="item-num">${i + 1}</span>
                                     <sl-select size="small" placeholder="pick a view…" value="${e.view || ''}"
                                         @sl-change="${ev => this._onEntryViewChange([i], ev)}">
@@ -1611,6 +1832,19 @@ class FeezalElementLayoutAppInspector extends LitElement {
                             <sl-option value="tabs">tabs — sections in the drawer, pages as tabs</sl-option>
                         </sl-select>
                         <div class="hint">Takes effect once an entry has sub-entries; a flat list renders the classic drawer.</div></div>
+                    <div class="field"><label>Section header click (groups)</label>
+                        <sl-select size="small" value="${this._attr('section-toggle', 'chevron') || 'chevron'}"
+                            @sl-change="${e => this._emit('section-toggle', e.target.value)}">
+                            <sl-option value="chevron">navigate — only the chevron collapses</sl-option>
+                            <sl-option value="header">toggle — the whole header expands/collapses</sl-option>
+                        </sl-select></div>
+                    ${this._attr('nav-style', 'groups') === 'tabs' ? html`
+                    <div class="field"><label>Sections (tabs mode)</label>
+                        <sl-select size="small" value="${this._attr('tab-sections', 'drawer') || 'drawer'}"
+                            @sl-change="${e => this._emit('tab-sections', e.target.value)}">
+                            <sl-option value="drawer">in the drawer</sl-option>
+                            <sl-option value="row">as a first tab row (both levels in the bar)</sl-option>
+                        </sl-select></div>` : ''}
                     <div class="field"><label>Overlay breakpoint (px)</label>
                         <input type="number" .value="${this._attr('breakpoint', '768')}" @change="${e => this._emit('breakpoint', e.target.value)}"></div>
                     <label style="display:flex;align-items:center;gap:8px;font-size:11px">
