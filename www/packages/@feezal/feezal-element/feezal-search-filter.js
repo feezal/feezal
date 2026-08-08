@@ -22,15 +22,22 @@ import {FeezalElement, feezalBoolean, html} from './feezal-element.js';
 
 export const SEARCH_HIDDEN_ATTR = 'feezal-search-hidden';
 
-/** Inject the (single, idempotent) document-level hiding rule. Views are
- * light DOM in both the viewer and layout-app's embedded clones, so one
- * document rule reaches every canvas element. */
-export function ensureSearchFilterStyle(doc = document) {
-    if (doc.getElementById('feezal-search-filter-style')) return;
-    const s = doc.createElement('style');
-    s.id = 'feezal-search-filter-style';
+/** Inject the (idempotent) hiding rule into a root. `root` may be the
+ * document OR a ShadowRoot: a top-level view is light DOM and the document
+ * rule reaches it — but layout-app (and glass-popup) embed view CLONES
+ * inside their shadow roots, where document styles do NOT apply (the same
+ * boundary B50 mirrors theme CSS across). The search base injects into its
+ * own root, so the rule always lives where the filtered elements live. */
+export function ensureSearchFilterStyle(root = document) {
+    const id = 'feezal-search-filter-style';
+    const existing = root.getElementById ? root.getElementById(id) : root.querySelector(`#${id}`);
+    if (existing) return;
+    const s = (root.ownerDocument || root).createElement('style');
+    s.id = id;
     s.textContent = `[${SEARCH_HIDDEN_ATTR}] { display: none !important; }`;
-    doc.head.append(s);
+    // ShadowRoot: append directly — a plain style node outside Lit's render
+    // markers persists (the feezal-view grid sheet fallback precedent).
+    (root.head || root).append(s);
 }
 
 /**
@@ -93,6 +100,11 @@ export class FeezalSearchBase extends FeezalElement {
     connectedCallback() {
         super.connectedCallback();
         ensureSearchFilterStyle();
+        // Inside a shadow-embedded view clone (layout-app sub-view,
+        // glass-popup view mode) the document rule cannot reach — the rule
+        // must live in the SAME root as the elements it hides.
+        const root = this.getRootNode();
+        if (root !== document && root.querySelector) ensureSearchFilterStyle(root);
     }
 
     disconnectedCallback() {
