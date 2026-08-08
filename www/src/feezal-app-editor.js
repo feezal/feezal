@@ -1834,12 +1834,16 @@ class FeezalAppEditor extends LitElement {
      *
      * B123: two holes closed. (1) An UNKNOWN status (fetch failed, server
      * route briefly unavailable) used to count as "not configured" and nagged
-     * a perfectly connected setup — unknown now means "do not nag". (2) Any
-     * LIVE connection suppresses the wizard, including a direct browser↔broker
-     * connection that has no server bridge at all. */
+     * a perfectly connected setup — unknown now means "do not nag". (2) A live
+     * DIRECT browser↔broker connection suppresses the wizard — there is no
+     * server bridge to report it. Only the direct element counts: on
+     * feezal-connection-feezal, `connected` means the socket.io link to the
+     * SERVER is up — true on every fresh install — and suppressing on that
+     * skipped the wizard entirely (regression caught 08/2026). */
     _shouldShowConnect(b) {
         if (!b) return false;                                   // unknown ≠ unconfigured
-        if (window.feezal?.connection?.connected) return false; // live (bridge or direct)
+        const conn = window.feezal?.connection;
+        if (conn?.connected && conn.localName === 'feezal-connection-mqtt') return false;
         const configured = Boolean(b.uri);
         const failed = Boolean(b.uri && !b.connected && b.lastError);
         return !configured || failed;

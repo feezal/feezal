@@ -524,10 +524,16 @@ describe('_shouldShowConnect() — B123 first-run wizard gate', () => {
         expect(gate({uri: ''})).toBe(true);
     });
 
-    it('a LIVE browser connection suppresses the dialog even when the bridge reports unconfigured (direct-MQTT setups)', () => {
-        feezal.connection = {connected: true};
+    it('a LIVE direct browser↔broker connection suppresses the dialog even when the bridge reports unconfigured', () => {
+        feezal.connection = {connected: true, localName: 'feezal-connection-mqtt'};
         expect(gate({})).toBe(false);
         expect(gate({uri: 'mqtt://broker', connected: false, lastError: {message: 'x'}})).toBe(false);
+    });
+
+    it('the BRIDGE connection element never suppresses — its `connected` means the socket to the SERVER, true on every fresh install (fresh-dataDir regression)', () => {
+        feezal.connection = {connected: true, localName: 'feezal-connection-feezal'};
+        expect(gate({})).toBe(true);                            // fresh install → wizard shows
+        expect(gate({uri: 'mqtt://broker', connected: true})).toBe(false);
     });
 });
 
