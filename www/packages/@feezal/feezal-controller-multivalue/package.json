@@ -1,6 +1,6 @@
 {
   "name": "@feezal/feezal-controller-multivalue",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "main": "feezal-controller-multivalue.js",
   "license": "MIT",
   "dependencies": {

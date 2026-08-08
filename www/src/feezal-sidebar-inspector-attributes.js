@@ -32,9 +32,21 @@ import MATERIAL_ICONS from './material-design-icons.js';
 import {iconSets} from './feezal-icon.js';
 
 /**
- * feezal-editable-list (U35) — the generic list editor behind the
- * `type: 'objectList'` attribute descriptor: one row per item with typed
- * per-field inputs, ＋ add, per-row ✕ delete, and drag-handle reordering.
+ * feezal-editable-list (U35, expandable rows + topic autocomplete U104) — the
+ * generic list editor behind the `type: 'objectList'` attribute descriptor:
+ * one row per item with typed per-field inputs, ＋ add, per-row ✕ delete, and
+ * drag-handle reordering.
+ *
+ * Two row layouts, picked automatically:
+ *  - INLINE (narrow specs, ≤3 fields, no topic fields): all fields side by
+ *    side in the row — the classic label/value pair editor.
+ *  - EXPANDABLE (U104 — wide specs like multivalue's 8 fields, or any
+ *    `mqttTopic` field): rows collapse to a one-line summary (label + topic
+ *    tail, `role: primary` badged) and expand to FULL-WIDTH stacked labeled
+ *    fields; several rows may be open; freshly added rows open themselves.
+ *
+ * `mqttTopic` fields autocomplete from the live broker
+ * (`/api/topics/completions`) through a shared datalist.
  *
  * The attribute stays the single source of truth: `value` is the raw JSON
  * attribute string; edits emit `value-changed` with the items ARRAY (the
@@ -43,7 +55,7 @@ import {iconSets} from './feezal-icon.js';
  * destroyed). A single field with an empty `key` switches to bare-string
  * items (e.g. `["eco","turbo"]`).
  *
- * Field spec: [{key, type?: 'string'|'number'|'color'|'select', options?, placeholder?}]
+ * Field spec: [{key, type?: 'string'|'number'|'color'|'select'|'mqttTopic', options?, placeholder?}]
  */
 class FeezalEditableList extends LitElement {
     static properties = {
@@ -51,6 +63,8 @@ class FeezalEditableList extends LitElement {
         fields: {type: Array},
         label:  {type: String},
         _dragIdx: {state: true},
+        _open:  {state: true},   // U104: Set<rowIdx> of expanded rows
+        _topicOptions: {state: true},   // U104: datalist completions
     };
 
     static styles = css`
@@ -64,6 +78,35 @@ class FeezalEditableList extends LitElement {
         li sl-color-picker { flex: 0 0 auto; }
         .del { background: none; border: none; cursor: pointer; color: #c62828; font-size: 16px; padding: 0 4px; }
         .drag { cursor: move; color: var(--feezal-color, #999); opacity: 0.6; padding: 0 2px; user-select: none; }
+
+        /* ── U104: expandable rows ─────────────────────────────────────── */
+        li.expandable { flex-direction: column; align-items: stretch; gap: 0; }
+        .row-head { display: flex; align-items: center; gap: 4px; cursor: pointer; min-height: 24px; }
+        .row-summary {
+            flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px;
+            overflow: hidden; font-size: 12px; color: var(--feezal-color, #333);
+        }
+        .row-summary .s-label { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .row-summary .s-tail {
+            flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            direction: rtl; text-align: left;   /* keep the topic TAIL visible */
+            font-size: 11px; color: var(--feezal-color, #888); opacity: 0.85;
+        }
+        .row-summary .s-primary {
+            flex: 0 0 auto; font-size: 9px; font-weight: 700; letter-spacing: 0.04em;
+            text-transform: uppercase; padding: 1px 5px; border-radius: 7px;
+            background: rgba(2, 132, 199, 0.15); color: var(--sl-color-primary-600, #0284c7);
+        }
+        .chev { flex: 0 0 auto; color: var(--feezal-color, #999); font-size: 11px;
+            transition: transform 0.12s; user-select: none; }
+        li.open .chev { transform: rotate(90deg); }
+        .row-fields { display: flex; flex-direction: column; gap: 4px; padding: 4px 0 6px 16px; }
+        .row-fields .frow { display: flex; flex-direction: column; gap: 1px; }
+        .row-fields .fkey { font-size: 10px; color: var(--feezal-color, #888); }
+        .row-fields input, .row-fields select { width: 100%; flex: none; padding: 4px;
+            background: var(--feezal-bg, white); color: var(--feezal-color, inherit);
+            border: 1px solid var(--feezal-border, #ccc); border-radius: 3px;
+            font-size: 12px; box-sizing: border-box; }
         .fallback-hint { font-size: 10px; color: #e65100; margin-top: 2px; }
         .raw { width: 100%; box-sizing: border-box; padding: 4px; font-size: 12px;
             background: var(--feezal-bg, white); color: var(--feezal-color, inherit);
@@ -76,11 +119,20 @@ class FeezalEditableList extends LitElement {
         this.fields = [{key: 'label'}, {key: 'value'}];
         this.label = 'items';
         this._dragIdx = null;
+        this._open = new Set();
+        this._topicOptions = [];
     }
 
     /** Bare mode: a single field with an empty key → items are plain strings. */
     get _bare() {
         return this.fields.length === 1 && !this.fields[0].key;
+    }
+
+    /** U104: wide specs (or any topic field) get the expandable stacked
+     *  layout; narrow label/value pairs stay inline. */
+    get _expandable() {
+        return !this._bare &&
+            (this.fields.length > 3 || this.fields.some(f => f.type === 'mqttTopic'));
     }
 
     /** Parse the raw attribute string. Returns {items} or {error} (unparseable). */
@@ -124,19 +176,86 @@ class FeezalEditableList extends LitElement {
             <span class="list-label">${this.label}</span>
             <button class="add" title="Add item" @click="${() => this._add(items)}">+</button>
             <ul>
-                ${items.map((item, rowIdx) => html`
-                    <li class="${this._dragIdx !== null && this._dragOver === rowIdx ? 'drop-target' : ''}"
-                        @dragover="${e => this._onDragOver(e, rowIdx)}"
-                        @drop="${e => this._onDrop(e, rowIdx, items)}">
-                        <span class="drag" title="Drag to reorder" draggable="true"
-                            @dragstart="${e => this._onDragStart(e, rowIdx)}"
-                            @dragend="${() => { this._dragIdx = null; this._dragOver = null; }}">⠿</span>
-                        ${this.fields.map(f => this._fieldInput(item, rowIdx, f, items))}
-                        <button class="del" title="Remove item" @click="${() => this._remove(rowIdx, items)}">✕</button>
-                    </li>
-                `)}
+                ${items.map((item, rowIdx) => this._expandable
+                    ? this._renderExpandableRow(item, rowIdx, items)
+                    : this._renderInlineRow(item, rowIdx, items))}
             </ul>
+            ${this._expandable && this.fields.some(f => f.type === 'mqttTopic') ? html`
+                <datalist id="topics-dl">
+                    ${this._topicOptions.map(t => html`<option value="${t}"></option>`)}
+                </datalist>` : ''}
         `;
+    }
+
+    _renderInlineRow(item, rowIdx, items) {
+        return html`
+            <li class="${this._dragIdx !== null && this._dragOver === rowIdx ? 'drop-target' : ''}"
+                @dragover="${e => this._onDragOver(e, rowIdx)}"
+                @drop="${e => this._onDrop(e, rowIdx, items)}">
+                <span class="drag" title="Drag to reorder" draggable="true"
+                    @dragstart="${e => this._onDragStart(e, rowIdx)}"
+                    @dragend="${() => { this._dragIdx = null; this._dragOver = null; }}">⠿</span>
+                ${this.fields.map(f => this._fieldInput(item, rowIdx, f, items))}
+                <button class="del" title="Remove item" @click="${() => this._remove(rowIdx, items)}">✕</button>
+            </li>
+        `;
+    }
+
+    /** U104: collapsed = one-line summary; expanded = stacked labeled fields. */
+    _renderExpandableRow(item, rowIdx, items) {
+        const open = this._open.has(rowIdx);
+        const first = this.fields[0]?.key;
+        const sLabel = (item?.label ?? '') || (first ? String(item?.[first] ?? '') : '') || `#${rowIdx + 1}`;
+        const tail = String(item?.topic ?? item?.subscribe ?? item?.property ?? '');
+        return html`
+            <li class="expandable ${open ? 'open' : ''} ${this._dragIdx !== null && this._dragOver === rowIdx ? 'drop-target' : ''}"
+                @dragover="${e => this._onDragOver(e, rowIdx)}"
+                @drop="${e => this._onDrop(e, rowIdx, items)}">
+                <div class="row-head" @click="${() => this._toggleOpen(rowIdx)}">
+                    <span class="drag" title="Drag to reorder" draggable="true"
+                        @click="${e => e.stopPropagation()}"
+                        @dragstart="${e => this._onDragStart(e, rowIdx)}"
+                        @dragend="${() => { this._dragIdx = null; this._dragOver = null; }}">⠿</span>
+                    <span class="chev">▶</span>
+                    <span class="row-summary">
+                        <span class="s-label">${sLabel}</span>
+                        ${item?.role === 'primary' ? html`<span class="s-primary">primary</span>` : ''}
+                        ${tail && tail !== sLabel ? html`<span class="s-tail">${tail}</span>` : ''}
+                    </span>
+                    <button class="del" title="Remove item"
+                        @click="${e => { e.stopPropagation(); this._remove(rowIdx, items); }}">✕</button>
+                </div>
+                ${open ? html`
+                    <div class="row-fields">
+                        ${this.fields.map(f => html`
+                            <div class="frow">
+                                <span class="fkey">${f.key}</span>
+                                ${this._fieldInput(item, rowIdx, f, items)}
+                            </div>
+                        `)}
+                    </div>` : ''}
+            </li>
+        `;
+    }
+
+    _toggleOpen(rowIdx) {
+        const next = new Set(this._open);
+        if (next.has(rowIdx)) next.delete(rowIdx); else next.add(rowIdx);
+        this._open = next;
+    }
+
+    // ── U104: broker-topic autocomplete for mqttTopic row fields ────────────
+
+    _onRowTopicInput(prefix) {
+        if (this.__topicTimer) clearTimeout(this.__topicTimer);
+        this.__topicTimer = setTimeout(async () => {
+            try {
+                const r = await fetch(`/api/topics/completions?prefix=${encodeURIComponent(prefix)}`);
+                this._topicOptions = r.ok ? ((await r.json()).completions || []) : [];
+            } catch {
+                this._topicOptions = [];
+            }
+        }, 150);
     }
 
     _fieldInput(item, rowIdx, field, items) {
@@ -160,6 +279,15 @@ class FeezalEditableList extends LitElement {
                     @sl-change="${e => set(normalizeHexa(e.target.value))}">
                 </sl-color-picker>`;
         }
+        if (field.type === 'mqttTopic') {
+            // U104: full-width topic input with live broker completions
+            // (shared datalist, fed from /api/topics/completions).
+            return html`
+                <input type="text" list="topics-dl"
+                    .value="${String(val)}" placeholder="${field.placeholder ?? field.key}" autocomplete="off"
+                    @input="${e => this._onRowTopicInput(e.target.value)}"
+                    @change="${e => set(e.target.value)}">`;
+        }
         return html`
             <input type="${field.type === 'number' ? 'number' : 'text'}"
                 .value="${String(val)}" placeholder="${field.placeholder ?? field.key}" autocomplete="off"
@@ -170,10 +298,18 @@ class FeezalEditableList extends LitElement {
 
     _add(items) {
         const row = this._bare ? '' : Object.fromEntries(this.fields.map(f => [f.key, '']));
+        // U104: a freshly added expandable row opens itself for editing.
+        if (this._expandable) this._open = new Set([...this._open, items.length]);
         this._emit([...items, row]);
     }
 
     _remove(idx, items) {
+        // U104: remap the open-row indices across the removal.
+        if (this._open.size) {
+            this._open = new Set([...this._open]
+                .filter(i => i !== idx)
+                .map(i => (i > idx ? i - 1 : i)));
+        }
         this._emit(items.filter((_, i) => i !== idx));
     }
 
@@ -212,6 +348,17 @@ class FeezalEditableList extends LitElement {
         const next = [...items];
         const [moved] = next.splice(from, 1);
         next.splice(idx, 0, moved);
+        // U104: remap the open-row indices across the reorder.
+        if (this._open.size) {
+            const remap = i => {
+                if (i === from) return idx;
+                let r = i;
+                if (i > from) r--;
+                if (r >= idx) r++;
+                return r;
+            };
+            this._open = new Set([...this._open].map(remap));
+        }
         this._emit(next);
     }
 }

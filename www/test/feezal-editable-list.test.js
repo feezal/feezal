@@ -149,6 +149,95 @@ describe('inspector _change keeps item.value as the attribute string (U35 regres
     });
 });
 
+// U104: wide specs (>3 fields, or any mqttTopic field) switch to expandable
+// rows — collapsed one-line summaries, stacked full-width fields when open.
+describe('feezal-editable-list expandable rows (U104)', () => {
+    const WIDE = [
+        {key: 'property', placeholder: 'payload.temperature'},
+        {key: 'label'},
+        {key: 'unit'},
+        {key: 'role', type: 'select', options: ['', 'primary', 'secondary']},
+        {key: 'topic', type: 'mqttTopic'},
+    ];
+    const VALUES = JSON.stringify([
+        {property: 'payload.temperature', label: 'Temp', unit: '°C', role: 'primary', topic: 'z/dev'},
+        {property: 'payload.humidity', label: 'Hum', unit: '%', role: ''},
+    ]);
+
+    it('narrow specs stay inline; wide or topic-carrying specs become expandable', async () => {
+        const narrow = await mountList({value: '[{"value":"a","label":"A"}]', fields: [{key: 'value'}, {key: 'label'}]});
+        expect(narrow._expandable).toBe(false);
+        const wide = await mountList({value: VALUES, fields: WIDE});
+        expect(wide._expandable).toBe(true);
+        const topicOnly = await mountList({value: '[]', fields: [{key: 'subscribe', type: 'mqttTopic'}, {key: 'label'}]});
+        expect(topicOnly._expandable).toBe(true);
+    });
+
+    it('rows collapse to a summary (label + topic tail, primary badged); no field inputs visible', async () => {
+        const el = await mountList({value: VALUES, fields: WIDE});
+        const rows = el.shadowRoot.querySelectorAll('li.expandable');
+        expect(rows).toHaveLength(2);
+        expect(rows[0].querySelector('.s-label').textContent).toBe('Temp');
+        expect(rows[0].querySelector('.s-tail').textContent).toBe('z/dev');
+        expect(rows[0].querySelector('.s-primary')).toBeTruthy();
+        expect(rows[1].querySelector('.s-primary')).toBeNull();
+        expect(rows[0].querySelector('.row-fields')).toBeNull();   // collapsed
+    });
+
+    it('clicking the head expands to stacked labeled full-width fields; edits commit', async () => {
+        const el = await mountList({value: VALUES, fields: WIDE});
+        el.shadowRoot.querySelectorAll('.row-head')[0].click();
+        await el.updateComplete;
+        const fields = el.shadowRoot.querySelector('.row-fields');
+        expect(fields).toBeTruthy();
+        expect([...fields.querySelectorAll('.fkey')].map(k => k.textContent))
+            .toEqual(['property', 'label', 'unit', 'role', 'topic']);
+        const emitted = vi.fn();
+        el.addEventListener('value-changed', emitted);
+        const unitInput = fields.querySelectorAll('input')[2];
+        unitInput.value = 'K';
+        unitInput.dispatchEvent(new Event('change'));
+        expect(lastEmit(emitted)[0].unit).toBe('K');
+        // several rows may be open at once
+        el.shadowRoot.querySelectorAll('.row-head')[1].click();
+        await el.updateComplete;
+        expect(el.shadowRoot.querySelectorAll('.row-fields')).toHaveLength(2);
+    });
+
+    it('a freshly added row opens itself', async () => {
+        const el = await mountList({value: VALUES, fields: WIDE});
+        el.shadowRoot.querySelector('button.add').click();
+        expect(el._open.has(2)).toBe(true);
+    });
+
+    it('removing a row remaps the open set', async () => {
+        const el = await mountList({value: VALUES, fields: WIDE});
+        el._open = new Set([1]);
+        el.shadowRoot.querySelectorAll('.del')[0].click();   // remove row 0
+        expect([...el._open]).toEqual([0]);                  // row 1 became row 0, still open
+    });
+
+    it('mqttTopic fields render with the completions datalist and fetch on input', async () => {
+        const realFetch = globalThis.fetch;
+        globalThis.fetch = vi.fn(async () => ({ok: true, json: async () => ({completions: ['z/dev/a', 'z/dev/b']})}));
+        try {
+            const el = await mountList({value: VALUES, fields: WIDE});
+            el.shadowRoot.querySelectorAll('.row-head')[0].click();
+            await el.updateComplete;
+            const topicInput = el.shadowRoot.querySelector('input[list="topics-dl"]');
+            expect(topicInput).toBeTruthy();
+            topicInput.value = 'z/';
+            topicInput.dispatchEvent(new Event('input'));
+            await new Promise(r => setTimeout(r, 200));   // debounce
+            await el.updateComplete;
+            expect(globalThis.fetch).toHaveBeenCalledWith('/api/topics/completions?prefix=z%2F');
+            expect(el.shadowRoot.querySelectorAll('#topics-dl option')).toHaveLength(2);
+        } finally {
+            globalThis.fetch = realFetch;
+        }
+    });
+});
+
 describe('paper-element adoption (dropdown &quot; escaping, tabs slash legacy)', () => {
     it('parses Polymer-reflected JSON with HTML-escaped quotes (paper-dropdown items)', async () => {
         const el = await mountList({

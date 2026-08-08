@@ -75,7 +75,8 @@ export const multivalueAttributes = [
         {key: 'role', type: 'select', options: ['', 'primary', 'secondary']},
         {key: 'row', placeholder: 'grid row'},
         {key: 'col', placeholder: 'grid col'},
-        {key: 'topic', placeholder: '(default topic)'},
+        // U104: full mqttTopic row field — broker autocomplete in the list editor.
+        {key: 'topic', type: 'mqttTopic', placeholder: '(default topic)'},
     ], help: 'One entry per value. property = dot-path into the message (default topic\'s payload); role marks the big value in stack layout (first entry when none is marked); row + col place the value in grid layout; topic overrides the element topic for this value.'},
     {name: 'grid-rows', type: 'string', default: '', section: 'Grid template',
         help: 'Template generator: comma-separated row tokens (e.g. power, voltage, current). With grid-cols and grid-pattern set and the values list EMPTY, the list is generated once from the template — then edit it freely.'},
