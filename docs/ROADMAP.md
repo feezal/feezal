@@ -75,6 +75,7 @@ Work in progress — priorities and scope are not final.
 - [U85 — Toast/notification service: route the remaining call sites](#u85--toastnotification-service-route-the-remaining-call-sites--service-shipped) 🔨 *(service shipped)*
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
 - [U98 — Palette colors in editor light mode ⚠️ needs refinement](#u98--palette-colors-in-editor-light-mode-️-needs-refinement)
+- [U103 — layout-app: two-level navigation (groups, double drawer, tabs, breadcrumb) ⚠️ decided core, details open](#u103--layout-app-two-level-navigation-groups-double-drawer-tabs-breadcrumb-️-decided-core-details-open)
 
 
 **Architecture & Infrastructure**
@@ -2508,6 +2509,54 @@ the tile labels).
 **Relates:** the editor dark-mode discipline (N43 — this is its light-mode
 mirror), element-spec `palette.color` (docs note: color is authored against
 the dark editor; light mode derives), U45 (palette/picker — same tiles).
+
+
+### U103 — layout-app: two-level navigation (groups, double drawer, tabs, breadcrumb) ⚠️ decided core, details open
+
+**Requested + decided (08/2026).** layout-app grows an optional SECOND
+navigation level — everything opt-in, existing single-level apps untouched.
+Decisions taken with the maintainer:
+
+- **Extends `layout-app`** (no new element): sub-items and modes are additive;
+  one app shell keeps N30 routing, theming and the existing knob set together.
+- **All three presentations ship, behind one `nav-style` select:**
+  1. `groups` — one drawer, items may carry children; groups expand/collapse
+     accordion-style (closest to today).
+  2. `rail-panel` — double drawer: slim icon rail = sections (level 1), a
+     second panel lists the active section's entries (level 2) — the
+     Discord/Teams shell.
+  3. `tabs` — drawer = sections (level 1), a tab row in/under the top bar
+     switches the section's sub-views (level 2).
+  Level-2-less items keep working in every mode (a childless item is a plain
+  entry — navigates directly, no second level shown for it).
+- **Breadcrumb in the TOP BAR** (opt-in knob): replaces/extends the current
+  active-view label as `Section / Page`, each segment tappable (section
+  segment opens that section's level-2 list in rail-panel/tabs modes).
+- **Deep links carry BOTH levels:** `#/<appview>/<section>/<page>` — the N30
+  route model gains one segment; back/forward and shared links restore
+  section + page; single-level items keep the existing two-segment form.
+
+**Data model:** `items` entries gain an optional `items` child array —
+`[{label, icon, view}]` stays valid; `{label, icon, items: [{label, icon,
+view}]}` declares a section. The layout-app inspector's entry manager grows
+add/indent for children (one nesting level only — deeper is out of scope).
+
+**Still open (the ⚠ part):**
+1. Responsive behaviour per mode below the breakpoint — groups collapses
+   naturally; rail-panel on a phone (panel as overlay over the rail? rail
+   hidden?); tabs row on narrow screens (scrollable tabs?).
+2. Whether `rail: slim/auto` (the existing single-level rail) and
+   `nav-style: rail-panel` can compose or are mutually exclusive (likely
+   exclusive — document it).
+3. U58 App-mode integration: should the wizard optionally generate two-level
+   apps (rooms as sections, functions as pages — or vice versa)? Follow-up
+   item, not part of v1.
+4. Keyboard/D-pad navigation across two levels (the existing smart-TV
+   support must not regress).
+
+**Relates:** layout-app (N36 knob family, B84 drawer modes, U63 insets), N30
+(routing — the new segment), U97 (footer breadcrumb echo — maybe later),
+U58 (App wizard follow-up), basic-navigation (single-level sibling).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
