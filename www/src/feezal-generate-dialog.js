@@ -760,8 +760,10 @@ class FeezalGenerateDialog extends LitElement {
                 <sl-input size="small" clearable placeholder="https://scrypted.local:10443/api/scrypted/…/#/iframe/1"
                     value="${this._scryptedUrl}"
                     @sl-input="${e => { this._scryptedUrl = e.target.value; }}"></sl-input>
-                <span class="frigate-hint">Scrypted NVR card URL — copy any camera's card webpage URL
-                    (camera → Settings → Home Assistant); every camera embeds its own NVR view from it.</span>
+                <span class="frigate-hint">Scrypted NVR URL — without Home Assistant paste
+                    https://&lt;scrypted-host&gt;:10443/endpoint/@scrypted/nvr/public/#/iframe/1
+                    (sign in once inside the frame); with HA, any camera's card webpage URL.
+                    Every camera embeds its own NVR view from it.</span>
             </div>`;
     }
 

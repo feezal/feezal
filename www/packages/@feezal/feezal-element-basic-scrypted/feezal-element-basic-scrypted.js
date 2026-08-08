@@ -102,9 +102,9 @@ class FeezalElementBasicScrypted extends FeezalElement {
         return {
             palette: {category: 'Basic', name: 'Scrypted', color: '#4a6080'},
             description: 'Embeds a Scrypted NVR camera view: live stream (with optional two-way audio), ' +
-                'camera grid, or event reel. Paste the NVR card webpage URL from the camera\'s ' +
-                'Home Assistant settings in Scrypted. Requires the Scrypted NVR plugin; for cameras ' +
-                'without NVR use the camera element with an RTSP gateway instead.',
+                'camera grid, or event reel. src takes the NVR app\'s iframe URL — directly from your ' +
+                'Scrypted server, or the tokenized card URL from the Home Assistant integration. Requires ' +
+                'the Scrypted NVR plugin; for cameras without NVR use the camera element with an RTSP gateway instead.',
             links: [
                 {label: 'Scrypted', url: 'https://www.scrypted.app'},
                 {label: 'NVR card URL format (views and parameters)', url: 'https://docs.scrypted.app/home-assistant-legacy-cards.html'},
@@ -122,11 +122,15 @@ class FeezalElementBasicScrypted extends FeezalElement {
             },
             attributes: [
                 {name: 'src', type: 'string', default: '',
-                    help: 'The Scrypted NVR card webpage URL — in Scrypted open the camera, Settings → Home Assistant, ' +
-                        'and copy the card URL (it looks like https://host/api/scrypted/<token>/endpoint/@scrypted/nvr/public/#/iframe/<id>). ' +
-                        'The embedded token grants access to the camera and is stored with the dashboard — treat the site file accordingly. ' +
-                        'Scrypted tokens expire (90 days by default); a feed that turns black usually means: copy a fresh URL. ' +
-                        'An https dashboard cannot embed an http Scrypted — serve Scrypted over https or the browser blocks the frame.'},
+                    help: 'URL of a Scrypted NVR iframe view. WITHOUT Home Assistant use the NVR app on your Scrypted server directly: ' +
+                        'https://<scrypted-host>:10443/endpoint/@scrypted/nvr/public/#/iframe/<id> — the id is the camera\'s device id, ' +
+                        'visible in the address bar (…/device/<id>) when the camera is open in the Scrypted console. The frame shows Scrypted\'s ' +
+                        'login once; sign in there and the browser remembers it. ' +
+                        'WITH Home Assistant\'s Scrypted integration, copy the "Scrypted NVR Card Webpage URL" from the camera\'s settings ' +
+                        '(gear icon under the playback view, visible when Scrypted is opened from inside HA) — that tokenized URL ' +
+                        '(https://ha-host/api/scrypted/<token>/…) is proxied and served by Home Assistant, needs no login, and the token is a ' +
+                        'secret stored with the dashboard; HA tokens expire (90 days default) — a feed that turns black usually means: copy a fresh URL. ' +
+                        'Either way: an https dashboard cannot embed an http URL (mixed content), so serve Scrypted/HA over https.'},
                 {name: 'view', type: 'select', options: ['', 'live', 'grid', 'events'], default: '',
                     help: 'Which NVR view to show: live = single camera stream, grid = multi-camera grid, ' +
                         'events = scrollable reel of detected events. Empty keeps the view of the pasted URL. ' +
