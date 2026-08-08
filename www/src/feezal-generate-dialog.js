@@ -1368,7 +1368,18 @@ class FeezalGenerateDialog extends LitElement {
                 // frosted cards — set as `background-image` (the exact property
                 // the Background style editor reads/writes) so it renders and the
                 // inspector reflects it without a re-edit.
-                if (this._family === 'glass') view.style.setProperty('background-image', GLASS_GRADIENT);
+                //
+                // …and the glass THEME per view (U51), which is a different
+                // knob from both of the others and deliberately so: the SITE
+                // theme stays midnight-blue (the app chrome — Menu, System and
+                // the layout-app shell keep that look), while each sub-view
+                // renders its cards against the glass palette. The gradient is
+                // unaffected either way; it is an inline background, not
+                // something the theme supplies.
+                if (this._family === 'glass') {
+                    view.style.setProperty('background-image', GLASS_GRADIENT);
+                    view.setAttribute('theme', 'glass');
+                }
                 site.append(view);
                 createdViews.push(slug);
             }

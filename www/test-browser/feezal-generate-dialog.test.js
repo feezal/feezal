@@ -897,6 +897,56 @@ describe('feezal-generate-dialog (U58 App mode)', () => {
         expect(bg).toContain('30, 41, 59');    // #1e293b
     });
 
+    /**
+     * Three separate knobs that are easy to conflate, so they are asserted
+     * together: the SITE keeps the midnight-blue chrome, each sub-view carries
+     * the glass THEME (U51, per-view), and the gradient stays an inline
+     * background rather than something a theme supplies.
+     */
+    it('glass family gives every sub-view the glass theme, site theme unchanged', async () => {
+        const dlg = await makeDialog();
+        dlg._family = 'glass';
+        dlg._axis = 'room';
+        // The shared fixture spans several rooms, so this covers every
+        // generated sub-view rather than a single one.
+        dlg.__devices = DEVICES();
+        dlg._checked = new Set(['d-wz', 'd-ku', 'd-x']);
+        dlg._toReview();
+        dlg._generateApp();
+
+        // The app scaffold's own views are capitalised (Menu / System); the
+        // room views are slugs. Only the latter are "sub-views".
+        const subViews = [...site.querySelectorAll('feezal-view')]
+            .filter(v => !['menu', 'system'].includes((v.getAttribute('name') || '').toLowerCase()));
+        expect(subViews.length).toBeGreaterThan(0);            // the premise
+        for (const view of subViews) {
+            expect(view.getAttribute('theme'), view.getAttribute('name')).toBe('glass');
+            // The gradient is independent of the theme and must survive it.
+            expect(view.style.getPropertyValue('background-image')).toContain('linear-gradient');
+        }
+        // The site chrome stays midnight-blue — Menu, System and the app shell.
+        expect(site.classList.contains('feezal-theme-midnight-blue')).toBe(true);
+        expect(site.classList.contains('feezal-theme-glass')).toBe(false);
+    });
+
+    it('leaves another family\'s sub-views without a per-view theme', async () => {
+        // The whole thing is scoped to the glass family: a metro app must not
+        // pick up a glass palette per view.
+        const dlg = await makeDialog();
+        dlg._family = 'metro';
+        dlg._axis = 'room';
+        dlg.__devices = DEVICES();
+        dlg._checked = new Set(['d-wz', 'd-ku', 'd-x']);
+        dlg._toReview();
+        dlg._generateApp();
+
+        // The app was generated (so this is not vacuously true)…
+        expect(site.querySelector('feezal-view[name="Menu"]')).not.toBeNull();
+        // …and nothing anywhere carries the glass theme.
+        expect(site.querySelector('feezal-view[theme="glass"]')).toBeNull();
+        expect(site.classList.contains('feezal-theme-glass')).toBe(false);
+    });
+
     it('U74: applies the theme through the themes sidebar (so it persists) when reachable', async () => {
         const dlg = await makeDialog();
         let selected = null;
