@@ -77,6 +77,7 @@ Work in progress — priorities and scope are not final.
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
 - [U98 — Palette colors in editor light mode ⚠️ needs refinement](#u98--palette-colors-in-editor-light-mode-️-needs-refinement)
 - [U110 — layout-app: per-sub-view element search (E170 shape B)](#u110--layout-app-per-sub-view-element-search-e170-shape-b)
+- [U112 — Element-family-wide settings (e.g. all glass transparency) ⚠ idea, needs refinement + decision](#u112--element-family-wide-settings-eg-all-glass-transparency--idea-needs-refinement--decision)
 
 
 **Architecture & Infrastructure**
@@ -2751,6 +2752,81 @@ search filters NAV ENTRIES; this filters the embedded view's ELEMENTS).
 
 **Relates:** E170 (shipped engine + elements), U108 (drawer-entry
 search), U103 (embedded clones), layout-app entries manager.
+
+
+### U112 — Element-family-wide settings (e.g. all glass transparency) ⚠ idea, needs refinement + decision
+
+**Requested (08/2026).** Set certain styles ONCE for a whole element
+family — the driving example: the transparency/blur of every `glass-*`
+backdrop — instead of per element. Reporter asks: can CSS vars carry
+this, and what UI concept (a new right-sidebar tab?) fits.
+
+**Can CSS vars handle it? YES, for the style class of settings — the
+plumbing already exists.** Every glass knob defaults through the family
+tokens (`--feezal-glass-tint/-blur/-radius/-border/-margin/…`), custom
+properties inherit through shadow boundaries, and the cascade already
+layers exactly right: element inline knob (style inspector) → wins over
+a family-scope value → wins over the theme's value → wins over the
+base default. Defining the tokens at SITE scope (inline `style` on
+`<feezal-site>`, or a rule in the U25 `feezal-classes` style block —
+both serialize with the site, so deploy/export/embedded layout-app
+clones all inherit them for free) is the whole runtime mechanism. What
+is missing is UI + a curated token list per family.
+
+**UI options (pick one at refinement):**
+1. **Family sections in the existing Theme tab.** The themes sidebar
+   already persists `themeOverrides` on top of the picked theme —
+   extend it with per-family sections (Glass / Metro / Eink / Circle …)
+   listing each family's curated tokens with the standard colour/value
+   knobs. + Reuses persistence and mental model ("theme, then my
+   overrides"); no new tab in an already dense sidebar (U93/U100).
+   − Conflates theme picking with family styling; long tab.
+2. **New right-sidebar "Families" tab.** One section per INSTALLED
+   family. + Dedicated, discoverable, scales to third-party families.
+   − New tab in a crowded sidebar; needs a family-manifest concept
+   (see caveats) before it can render anything.
+3. **"Apply to family" from the element style inspector.** A small
+   scope menu on family-token rows: "set for all glass elements" writes
+   the value to the site scope instead of the element. + Zero new
+   surface, discovered exactly where the need arises. − Scope confusion
+   unless the row clearly shows WHERE the effective value comes from
+   (element / family / theme) — which would itself be a nice addition
+   (an origin badge), but is real work.
+Hybrid 1+3 is plausible (the tab as the home, the row menu as the
+shortcut).
+
+**Caveats / downsides (why this needs a decision round):**
+- **Curated token lists per family:** dumping every element knob
+  family-wide is noise; each family needs a short curated list (blur,
+  tint, radius, label colours …). Where does it live? Suggestion: the
+  family chrome package exports it (`@feezal/feezal-glass` →
+  `familyStyleTokens`), falling back to intersecting the family
+  elements' style descriptors — defines the manifest for third-party
+  families too.
+- **Per-view themes win by proximity:** vars set on a view (per-view
+  theme, U51) shadow site-scope family values — layering must be
+  documented (site-level family override sits between site theme and
+  per-view theme, NOT above the view). Per-view family overrides are a
+  possible later extension.
+- **Attribute-type settings are NOT CSS-able:** family-wide `degrade`
+  (the obvious wall-tablet wish, also E171's popup knobs) toggles
+  rendering paths via host attributes — a var cannot express it. Bulk
+  attribute stamping is destructive (kills per-element opt-outs).
+  Direction if wanted: elements read a family DEFAULT from a site
+  attribute (e.g. `<feezal-site glass-degrade>`) with the element
+  attribute overriding — file separately once the style story ships;
+  v1 = CSS vars only.
+- **Perf framing:** the driving example (backdrop transparency/blur)
+  is exactly the GPU-cost family (B61, degrade) — a family-wide blur
+  reduction is likely to be used as a performance knob, worth saying so
+  in its help text.
+- Theme-var discipline applies unchanged (canonical vars bare, no new
+  fallback chains).
+
+**Relates:** themes sidebar (`themeOverrides` — the existing override
+layer), U25 (site style block), U51 (per-view themes / proximity),
+B61 + `degrade` (perf motivation), E171 (family-wide popup knobs would
+ride the same concept), theme-var discipline test.
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
