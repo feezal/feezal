@@ -35,6 +35,7 @@ class FeezalElementGlassLink extends FeezalElement {
                 {property: '--feezal-glass-tint', type: 'color', help: 'Frost tint (defaults from the theme).'},
                 {property: '--feezal-glass-icon-size', default: '28px', help: 'Icon font size.'},
                 {property: '--feezal-glass-font-size-label', default: '12px', help: 'Label font size.'},
+                {property: '--feezal-glass-label-color', type: 'color', default: 'var(--feezal-glass-muted, rgba(29,29,31,0.55))', help: 'Label colour (defaults to the frost muted colour).'},
             ],
             defaultStyle: {width: '172px', height: '128px'},
             restrict: {minWidth: 70, minHeight: 60},
@@ -59,15 +60,21 @@ class FeezalElementGlassLink extends FeezalElement {
             color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
         }
         .face-image {
-            width: 100%; flex: 1 1 auto; min-height: 0;
-            max-width: 100%; max-height: 100%;
+            width: 100%; min-height: 0;
+            /* flex-basis 0, not auto: the label is a flex sibling with its
+               intrinsic height, and a zero basis makes the image take exactly
+               the REMAINING space — the label's room is reserved before the
+               image grows. (basis auto + max-height:100% sized the image
+               against the whole card and squeezed the label out.) */
+            flex: 1 1 0;
             /* contain, not cover: an oversized image scales to fit the card
                rather than being cropped to fill it. */
             object-fit: contain; border-radius: calc(var(--feezal-glass-radius, 24px) - 10px);
         }
         .label {
+            flex: 0 0 auto;
             font-size: var(--feezal-glass-font-size-label, 12px); font-weight: 600; line-height: 1.2;
-            color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
+            color: var(--feezal-glass-label-color, var(--feezal-glass-muted, rgba(29,29,31,0.55)));
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
         /* E105 wide layout: icon left, label beside it. */

@@ -25,7 +25,10 @@ class FeezalElementMetroLink extends MetroTileBase {
                 ...linkAttributes,
                 ...availabilityAttributes(),
             ],
-            styles: [...MetroTileBase.tileStyles],
+            styles: [
+                ...MetroTileBase.tileStyles,
+                {property: '--feezal-metro-label-color', type: 'color', default: 'var(--feezal-metro-text, #ffffff)', help: 'Tile label colour (defaults to the tile text colour).'},
+            ],
             defaultStyle: {width: '150px', height: '150px'},
             restrict: {minWidth: 40, minHeight: 40},
         };
@@ -41,8 +44,15 @@ class FeezalElementMetroLink extends MetroTileBase {
         .front { cursor: pointer; }
         feezal-icon { font-size: min(var(--_metro-icon-size), 48cqh); line-height: 1; }
         /* contain, not cover: an oversized image scales to fit the tile
-           (letterboxed on the accent) rather than being cropped to fill it. */
+           (letterboxed on the accent) rather than being cropped to fill it.
+           Anchored inside .center, whose own bottom inset (18px) is the
+           family's reserved label strip — so the face clears the label by
+           construction. NOT height:auto + a bottom inset: for a replaced
+           element with top and bottom set, auto height means the intrinsic
+           ratio wins and bottom is IGNORED — measured, the image ran under
+           the label exactly that way. */
         .face-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+        .tlabel { color: var(--feezal-metro-label-color, var(--feezal-metro-text, #fff)); }
     `];
 
     constructor() {

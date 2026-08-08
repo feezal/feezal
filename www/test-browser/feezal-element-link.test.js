@@ -217,6 +217,68 @@ describe('E166 — every family activates through the one controller', () => {
         });
     }
 
+    it('a non-empty label KEEPS its space beside an oversized image', async () => {
+        // The report: the image took the whole card and the label lost its
+        // room. PORTRAIT on purpose: a flexed replaced element's content basis
+        // is the TRANSFERRED size (width × ratio), so landscape only nicks the
+        // label a few px while portrait (basis ≈ 2.7× the card width) squeezes
+        // a shrinkable label to nearly nothing — measured, 11px vs 3px.
+        // Per family: the label box must be fully visible inside the host,
+        // at its intrinsic height, free of the image/disc box.
+        const big = 'data:image/svg+xml,' + encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="1600">' +
+            '<rect width="600" height="1600" fill="#0a0"/></svg>');
+        const cases = [
+            {tag: 'feezal-element-glass-link', label: '.label', face: '.face-image'},
+            {tag: 'feezal-element-metro-link', label: '.tlabel', face: '.face-image'},
+            {tag: 'feezal-element-circle-link', label: '.label', face: '.disc'},
+        ];
+        for (const {tag, label, face} of cases) {
+            const el = document.createElement(tag);
+            el.setAttribute('href', 'x');
+            el.setAttribute('image', big);
+            el.setAttribute('label', 'Grafana');
+            el.style.cssText = 'position:absolute;left:0;top:0;width:172px;height:128px;';
+            document.body.append(el);
+            await el.updateComplete;
+            const img = el.shadowRoot.querySelector('.face-image');
+            await new Promise(resolve => {
+                if (img.complete) resolve();
+                else img.addEventListener('load', resolve, {once: true});
+            });
+            await el.updateComplete;
+
+            const host = el.getBoundingClientRect();
+            const labelBox = el.shadowRoot.querySelector(label).getBoundingClientRect();
+            const faceBox = el.shadowRoot.querySelector(face).getBoundingClientRect();
+            expect(labelBox.height, `${tag} label collapsed`).toBeGreaterThan(9);
+            expect(labelBox.bottom, `${tag} label below the card`).toBeLessThanOrEqual(host.bottom + 1);
+            // The face ends above the label line (metro overlays by family
+            // convention, so there the IMAGE strip is what must stay clear).
+            expect(faceBox.bottom, `${tag} face covers the label`)
+                .toBeLessThanOrEqual(labelBox.top + 1);
+            el.remove();
+        }
+    });
+
+    it('the label colour is an exposed style knob, per family', async () => {
+        const cases = [
+            {tag: 'feezal-element-glass-link', label: '.label', knob: '--feezal-glass-label-color'},
+            {tag: 'feezal-element-metro-link', label: '.tlabel', knob: '--feezal-metro-label-color'},
+            {tag: 'feezal-element-circle-link', label: '.label', knob: '--feezal-link-text-color'},
+        ];
+        for (const {tag, label, knob} of cases) {
+            const el = await mount(tag, {href: 'x', label: 'Grafana'});
+            el.style.setProperty(knob, 'rgb(1, 2, 3)');
+            await el.updateComplete;
+            expect(getComputedStyle(el.shadowRoot.querySelector(label)).color,
+                `${tag} ${knob}`).toBe('rgb(1, 2, 3)');
+            // …and it is DECLARED, so the style inspector offers it.
+            const styles = customElements.get(tag).feezal.styles;
+            expect(styles.some(s => s.property === knob), `${tag} declares ${knob}`).toBe(true);
+        }
+    });
+
     it('the image attribute is an ASSET field, so the inspector autocompletes it', async () => {
         // Regressing to type:'string' would silently lose the picker — the
         // element keeps working, only the UI degrades (the B88 failure shape).
