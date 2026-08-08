@@ -62,6 +62,7 @@ Work in progress — priorities and scope are not final.
 - [E162 — Fancy family, take two: actually fancy — ready-made Lottie art over generated geometry](#e162--fancy-family-take-two-actually-fancy--ready-made-lottie-art-over-generated-geometry)
 - [E164 — Fancy family: finish and re-enable the disabled cards](#e164--fancy-family-finish-and-re-enable-the-disabled-cards)
 - [E166 — Link element for the device-card families (`glass/metro/circle/eink-link`) 💡](#e166--link-element-for-the-device-card-families-glassmetrocircleeink-link-)
+- [E167 — `glass-camera`: basic-camera in the glass frame 💡](#e167--glass-camera-basic-camera-in-the-glass-frame-)
 
 **Editor UX**
 
@@ -1480,6 +1481,35 @@ palette category = each family's.
 **Relates:** E137 (shared-fragment discipline), basic-camera (popup + top
 layer + dynamic-src precedents), basic-navigation (internal view links —
 the `#/view` overlap), Asset Manager (the image face), U45 (palette).
+
+
+### E167 — `glass-camera`: basic-camera in the glass frame 💡
+
+**Requested (08/2026).** A glass-family camera card that is deliberately
+minimal: **basic-camera plus the glass border style with rounded edges** —
+nothing more.
+
+**Design:** `feezal-element-glass-camera` **subclasses
+`FeezalElementBasicCamera`** (own package depending on
+`@feezal/feezal-element-basic-camera`, A32 rules) and overrides ONLY:
+- `palette` → category Glass (glass colours/icon);
+- `styles` → the frost card frame around the feed: the family's rounded
+  squircle corners + border, `--feezal-glass-tint` frame surface and the
+  usual glass style knobs; the FEED itself stays untouched (no blur over the
+  video — the frame is glass, the picture is the picture). `degrade`
+  inherits meaning for the frame only.
+Everything else — every attribute, mqtt-image, chips, events, popups,
+buttons, discovery (camera component + Frigate keys) — is inherited
+unchanged; zero behaviour duplication. E115 then pairs `camera` across
+basic ↔ glass for family switching automatically.
+
+**Ships with:** package + manifest regeneration, E115 pairing sanity check,
+a small browser test (renders the feed inside the glass frame; inherited
+mqtt-image path works through the subclass), TESTING.md §6 row, patch bump.
+
+**Relates:** E163 ✅ (basic-camera — the base class), the glass family
+chrome (`glassCardStyles`), E115 (family switch pairing), A32 (dependency
+declaration in the element package).
 
 
 ### Consequences
