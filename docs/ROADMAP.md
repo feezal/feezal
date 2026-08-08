@@ -7,6 +7,7 @@ Work in progress — priorities and scope are not final.
 ## Table of Contents
 
 **Bugs**
+- [B122 — Small elements resize when you try to drag them (centre-press lands in the resize-edge zone)](#b122--small-elements-resize-when-you-try-to-drag-them-centre-press-lands-in-the-resize-edge-zone)
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces](#b106--discovery-ids-is-space-separated-but-mqtt-topics-may-contain-spaces)
 - [B118 — Undo dead after deleting via the layers-tree context menu (until the canvas is clicked)](#b118--undo-dead-after-deleting-via-the-layers-tree-context-menu-until-the-canvas-is-clicked)
@@ -103,6 +104,33 @@ Work in progress — priorities and scope are not final.
 ---
 
 ## Bugs
+
+### B122 — Small elements resize when you try to drag them (centre-press lands in the resize-edge zone)
+
+**Found by the U84 bisect (08/2026), reproduced at 100% zoom — no transform
+involved.** A 100×50 element drags fine; a **50×25** element starts a
+**resize from its CENTRE**: interact's resizable edge margins (right +
+bottom, per `initAbsolute`) cover so much of a small element that the action
+checker picks resize over drag anywhere in the lower-right region — measured,
+a centre-press grew 50×25 to 50×65 instead of moving it. Anything roughly
+below ~2× the edge margin in a dimension is affected; the U84 attempt saw it
+as a phantom "drags do not start under zoom" because zooming out makes EVERY
+element visually small.
+
+**Fix direction:** set an explicit resize `margin` on the resizable —
+derived from the element's rendered size (e.g. `min(10, size/4)`), so a
+small element keeps a draggable interior and the resize grip shrinks with
+it; the E-corner grip visual (`.feezal-editable::before`) should match
+whatever margin is chosen. Verify drag-from-centre for sizes down to the
+editor's `restrict.minWidth/minHeight` (40×40 metro tiles are the common
+real case), and that resize still starts from the corner/edges.
+
+**Test:** browser case — 50×25 element, pointer-drag from the centre moves
+it (never resizes); drag from the bottom-right corner resizes.
+
+**Relates:** U84 (unblocked by this — the "no-start" was this bug seen
+through a zoom), interact.js resizable `margin`, the editor grip visual.
+
 
 ### B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)
 
@@ -2408,21 +2436,24 @@ layout figures it mixes with client rects).
    feezal's snap `targets` callbacks already live in page space (client-rect
    derived), so the snap pass survives zoom by construction as long as its
    inputs stay screen-space.
-3. **The no-start mystery is feezal-specific — reframe the open question.**
-   Every upstream report describes drags that DO start but track wrongly
-   (offset/speed ∝ scale); nobody reports zero-start. So the earlier
-   measurement (pointerdown at visual centre → no interaction, zero snap
-   calls, in BOTH `zoom` and `transform: scale` probes) is almost certainly
-   caused by feezal's own stack. Prime suspects, in order: **(a) the legacy
-   `restrict` option** on the absolute-mode draggable
-   (`restriction: () => this._restrictionForInteract()`, page coords — B114
-   just reworked exactly this space; a restriction rect disagreeing with the
-   zoomed pointer coords can clamp the gesture into nothing), **(b)** the
-   per-element glass-overlay hit layers, **(c)** autoScroll
-   (`container: feezal.site`) geometry. **Diagnostic first step:** a minimal
-   repro OUTSIDE feezal (plain page, scaled wrapper, one interact draggable)
-   — expected to drag-with-offset; then bisect feezal's layers (disable
-   restrict → glass → autoScroll) at zoom ≠ 1 until the start comes back.
+3. **The no-start is SOLVED — bisected 08/2026, and it was never a start
+   problem.** A scale gradient (drag at 1 / 0.98 / 0.9 / 0.75 / 0.5) showed
+   drags work down to 0.9 and die below — a threshold, not a categorical
+   limit. At the broken scales `resizeElement` was set mid-gesture: interact
+   starts a **RESIZE, not nothing** — the resizable's edge margins eat the
+   small VISUAL element, so its centre falls inside the right/bottom edge
+   zones and the action checker picks resize. Dragging from the top-left
+   quadrant of the same element at 0.5 works perfectly. The clincher: a
+   50×25px element at **scale 1** behaves identically (centre-press starts a
+   resize) — the defect is size-dependent, not zoom-dependent, and exists
+   today (filed as B122). Consequences for U84: (a) drag inside scaled
+   subtrees starts and tracks exactly as upstream documents (offset ∝ scale,
+   fixed by dividing); (b) the resize onmove writes `event.rect.width` —
+   VISUAL px — into layout styles, which under zoom shrinks the element to
+   its visual size (measured: 100×50 → 50×65 after one gesture at 0.5), so
+   the resize path needs the same ÷zoom treatment as the drag path; (c) fix
+   B122 (explicit resize `margin`, or margin derived from the element's
+   visual size) and the "no-start" disappears at every scale.
 4. **Recommended architecture** (ecosystem consensus + feezal structure):
    one source of truth `feezal.editorZoom`; `transform: scale(zoom)` +
    `transform-origin: 0 0` on the view container; scroll extent via a sized
