@@ -12,6 +12,7 @@ import '@feezal/feezal-element-basic-lottie';
 import '@feezal/feezal-element-basic-navigation';
 import '@feezal/feezal-element-basic-number';
 import '@feezal/feezal-element-basic-qrcode';
+import '@feezal/feezal-element-basic-scrypted';
 import '@feezal/feezal-element-basic-svg';
 import '@feezal/feezal-element-basic-table';
 import '@feezal/feezal-element-basic-template';
@@ -185,6 +186,7 @@ window.feezal.elements = [
   "feezal-element-basic-navigation",
   "feezal-element-basic-number",
   "feezal-element-basic-qrcode",
+  "feezal-element-basic-scrypted",
   "feezal-element-basic-svg",
   "feezal-element-basic-table",
   "feezal-element-basic-template",

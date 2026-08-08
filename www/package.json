@@ -47,6 +47,7 @@
     "@feezal/feezal-element-basic-navigation": "*",
     "@feezal/feezal-element-basic-number": "*",
     "@feezal/feezal-element-basic-qrcode": "*",
+    "@feezal/feezal-element-basic-scrypted": "*",
     "@feezal/feezal-element-basic-svg": "*",
     "@feezal/feezal-element-basic-table": "*",
     "@feezal/feezal-element-basic-template": "*",
