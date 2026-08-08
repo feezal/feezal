@@ -64,6 +64,7 @@ Work in progress — priorities and scope are not final.
 - [E162 — Fancy family, take two: actually fancy — ready-made Lottie art over generated geometry](#e162--fancy-family-take-two-actually-fancy--ready-made-lottie-art-over-generated-geometry)
 - [E164 — Fancy family: finish and re-enable the disabled cards](#e164--fancy-family-finish-and-re-enable-the-disabled-cards)
 - [E167 — `glass-camera`: basic-camera in the glass frame 💡](#e167--glass-camera-basic-camera-in-the-glass-frame-)
+- [E168 — basic-camera: Frigate event backfill (events from before the viewer opened)](#e168--basic-camera-frigate-event-backfill-events-from-before-the-viewer-opened-️-to-be-refined) ⚠️
 
 **Editor UX**
 
@@ -1540,6 +1541,69 @@ mqtt-image path works through the subclass), TESTING.md §6 row, patch bump.
 **Relates:** E163 ✅ (basic-camera — the base class), the glass family
 chrome (`glassCardStyles`), E115 (family switch pairing), A32 (dependency
 declaration in the element package).
+
+
+### E168 — basic-camera: Frigate event backfill (events from before the viewer opened) ⚠️ to be refined
+
+**Reported (08/2026).** The camera's event list is a live ring buffer over
+`frigate/events` — it starts EMPTY on every page load and fills only while
+the viewer is open. Wanted: the recent events that happened before, via
+Frigate's HTTP API (`GET /api/events` exists and filters by
+camera/label/zone/limit; per-event `thumbnail.jpg` / `snapshot.jpg` /
+`clip.mp4` endpoints too).
+
+**Research (08/2026, verified against sources — not memory):**
+
+1. **Every HA Frigate card goes through a server-side proxy; none talks to
+   Frigate from the browser.** Read from the
+   [frigate-events-card source](https://github.com/saihgupr/frigate-events-card):
+   backfill is a Home Assistant WEBSOCKET command (`frigate/events/get` with
+   cameras/labels/zones/limit), live updates `frigate/events/subscribe`,
+   thumbnails/clips via HA-proxied paths
+   (`/api/frigate/<instance>/notifications/<event>/snapshot.jpg`, `clip.mp4`).
+   The HA Frigate integration forwards those server-side to Frigate's HTTP
+   API. Browser stays same-origin; auth is the HA session.
+2. **Why: Frigate's API sends NO CORS headers** — confirmed in
+   [frigate discussion #11856](https://github.com/blakeblackshear/frigate/discussions/11856),
+   where exactly the naive approach (browser `fetch` of `/api/events`) fails
+   with *CORS Missing Allow Origin*. Direct JSON fetch from a feezal viewer
+   origin is blocked on a stock Frigate, full stop.
+3. **Images dodge CORS**: `<img src="<frigate>/api/events/<id>/thumbnail.jpg">`
+   loads fine — the same loophole the U74 live-MJPEG feed already uses.
+
+**Options (decide during refinement — this is the principle call):**
+
+- **(a) feezal-server proxy route, the HA pattern** — e.g.
+  `/api/frigate/events` forwarding to the configured Frigate base URL
+  (events JSON; thumbnails can stay direct `<img>`). Works on stock Frigate,
+  auth-capable. AGAINST: it is exactly the "second transport for
+  integrations" the pure-MQTT principle forbids, and static exports have no
+  feezal server (backfill would skip there).
+- **(b) direct fetch, best-effort** — optional `events-api` attribute; works
+  ONLY behind a CORS-adding reverse proxy in front of Frigate; degrades to
+  live-only otherwise. Principle-compatible (element-level HTTP, like the
+  MJPEG feed) but silently does nothing on a default install — reads as
+  broken.
+- **(c) upstream** — file with Frigate: CORS headers on the API (a
+  one-liner for them) and/or a retained recent-events MQTT topic. The
+  principle-pure path, on their timeline. Worth filing REGARDLESS of a/b —
+  it lets any proxy shrink later.
+
+**Leaning (from the research): (a) scoped narrowly** — events list only,
+exports skip backfill — every HA card author reached the same conclusion
+and none solved it client-side; pair with (c) filed upstream. The
+pure-MQTT carve-out is the maintainer's call, hence ⚠️.
+
+**While in there (small, found 08/2026):** discovery stamps the FULL events
+wiring (`events-topic`/`events-camera`/`event-thumbs`/chips from the
+recognizer) but never `show-events`, which defaults to false — a picked
+Frigate camera is fully event-wired and shows nothing. One `alsoSet` on the
+camera's discovery map fixes it for discovered cameras without changing the
+manual default.
+
+**Relates:** E163 ✅ (basic-camera + the events ring buffer), U74 (the
+Frigate base URL + live-feed precedent), B111 ✅ (the URL plumbing), the
+pure-MQTT principle (the decision this item exists to make).
 
 
 ### Consequences
