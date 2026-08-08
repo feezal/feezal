@@ -12,6 +12,7 @@ Work in progress — priorities and scope are not final.
 - [B118 — Undo dead after deleting via the layers-tree context menu (until the canvas is clicked)](#b118--undo-dead-after-deleting-via-the-layers-tree-context-menu-until-the-canvas-is-clicked)
 - [B119 — Right-click menu dead after the tab was backgrounded (footer selector crash)](#b119--right-click-menu-dead-after-the-tab-was-backgrounded-footer-selector-crash)
 - [B125 — Asset manager: the New Folder dialog input renders light in a dark editor](#b125--asset-manager-the-new-folder-dialog-input-renders-light-in-a-dark-editor)
+- [B126 — Duplicate view renders its copy stacked on the current view (looks like elements duplicated in place)](#b126--duplicate-view-renders-its-copy-stacked-on-the-current-view-looks-like-elements-duplicated-in-place)
 
 
 **Near-term Improvements**
@@ -79,6 +80,7 @@ Work in progress — priorities and scope are not final.
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
 - [U98 — Palette colors in editor light mode ⚠️ needs refinement](#u98--palette-colors-in-editor-light-mode-️-needs-refinement)
 - [U108 — layout-app: optional search filter for the menu drawer](#u108--layout-app-optional-search-filter-for-the-menu-drawer)
+- [U109 — Views: copy/cut/paste + "copy to another site"](#u109--views-copycutpaste--copy-to-another-site)
 
 
 **Architecture & Infrastructure**
@@ -432,6 +434,37 @@ remove its line from `LEGACY_UNMIGRATED` in
 hover/focus input backgrounds and is exactly what this ratchet exists for.
 Verify against the dark editor: open New Folder → the input must be dark
 while focused, while hovered, and at rest.
+
+### B126 — Duplicate view renders its copy stacked on the current view (looks like elements duplicated in place)
+
+**Reported (08/2026).** Using **Duplicate** on a view, the elements appear
+duplicated ON THE SAME view instead of landing on a new one.
+
+**Root cause (diagnosed in code, unverified live):** `_duplicateView`
+(`www/src/feezal-app-editor.js`) clones the ACTIVE — i.e. visible — view
+and inserts the clone as-is: unlike `_createView` (the inspector's
+create-view path, which stamps `display: none` + `visible = false` on a
+new view), the clone keeps the source's visible state, and neither
+`updateVisibility()` nor a view switch runs afterwards. The copy renders
+STACKED on the current view — both views' elements are visible at once,
+which reads exactly as "duplicated to the same view". The duplicate DOES
+exist (check the view selector), it is just painted over the original.
+
+**Fix:** hide the clone on creation (`display: none` / `visible = false`
+like `_createView`), then either stay (the copy appears in the selector)
+or — nicer — `_setView()` to the duplicate so the user lands on what they
+just created. Verify undo (one Ctrl+Z removes the duplicate) and that the
+layers tree / footer selector pick the copy up. While in there, check
+`_nextView`'s dedupe reads the view NAME correctly (`v.name` vs
+`getAttribute('name')`) so the `-copy` suffix numbering actually dedupes.
+
+**Test:** browser — duplicate the active view → the original view shows
+ONLY its own elements; the copy exists, hidden, named `<name>-copy`;
+duplicate again → `-copy1` (dedupe); Ctrl+Z removes it.
+
+**Relates:** B99 (view ops snapshot undo), U109 (view clipboard — same
+copy semantics).
+
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
 
@@ -2712,6 +2745,34 @@ elements — that is E170) by label, debounced like E170.
 helpers where sensible, but this filters nav entries), U103 (two-level
 drawer), U94 (drawer scrollbar — the field must not overlap the thin
 scrollbar).
+
+
+### U109 — Views: copy/cut/paste + "copy to another site"
+
+**Requested (08/2026).** Whole-view clipboard operations:
+
+1. **Copy / Cut / Paste for views** — via the view context menu (canvas +
+   layers tree + footer selector) and the standard shortcuts when a VIEW
+   is the selection target. Copy serializes the whole `<feezal-view>`
+   (elements, inline styles, name, theme, conditions attributes); paste
+   creates it as a NEW hidden view with a deduped name (`-copy`
+   numbering, as duplicate); cut = copy + delete (one undo step each).
+   Reuse the element clipboard's mechanism where it fits (B31 light-DOM
+   survival, component instances via their template reference) — paste of
+   a view whose component definitions do not exist on the target site
+   must carry the definitions along or warn.
+2. **"Copy to another site…" context-menu entry** — submenu/dialog
+   listing the other sites (from `/api/sites`); picking one serializes
+   the view and inserts it into that site's saved markup server-side
+   (deduped name there too). The target site gets the view on its next
+   editor load / deploy; component definitions and any referenced assets
+   are the open question — v1 may copy the view markup only and surface a
+   warning listing missing components/assets on the target. Cross-site
+   copy must NOT auto-deploy the target site.
+
+**Relates:** B126 (duplicate-view fix — same hidden-on-create + dedupe
+semantics), B31 (clipboard light-DOM), U32 (component definitions),
+sites API (`/api/sites`).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
