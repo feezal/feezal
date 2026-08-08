@@ -95,6 +95,7 @@ Work in progress — priorities and scope are not final.
 - [A35 — Theme-var discipline, part 2: family design tokens still default to fixed colours](#a35--theme-var-discipline-part-2-family-design-tokens-still-default-to-fixed-colours)
 - [A36 — Server API layer: decompose the monolith, one error contract, bounded caches](#a36--server-api-layer-decompose-the-monolith-one-error-contract-bounded-caches)
 - [A37 — Editor front-end: extract the four buried subsystems](#a37--editor-front-end-extract-the-four-buried-subsystems)
+- [A39 — Docker-less install route: git clone + install script (system user, systemd service)](#a39--docker-less-install-route-git-clone--install-script-system-user-systemd-service)
 
 
 **Documentation**
@@ -2756,6 +2757,48 @@ whether matching later extends to element tag / current payload text
 not fight over display), U103 (layout-app two-level nav — the checkbox
 lives in the same entries manager), N40 (hidden clones stay warm —
 same principle: filter ≠ unsubscribe).
+
+
+### A39 — Docker-less install route: git clone + install script (system user, systemd service)
+
+**Requested (08/2026).** A first-class installation path WITHOUT Docker:
+`git clone` the repo and run an install script, modeled on
+[she](https://github.com/hobbyquaker/she)'s `she --install` (same
+maintainer): `sudo she --install` creates a dedicated system user,
+installs + enables a systemd unit, and keeps all persistent state in one
+data directory (`/var/lib/she/`, git-operated via `sudo -u she git -C …`).
+
+**What the feezal script should set up (mirror the she model):**
+- **System user** `feezal` (no login shell, home = the data dir).
+- **Data dir** `/var/lib/feezal/` owned by that user — sites, uploads,
+  editor prefs, discovery cache; the existing `--data-dir` flag just
+  points there.
+- **systemd unit** (`feezal.service`): runs `node server/bin/feezal.js`
+  as the `feezal` user, `WantedBy=multi-user.target`, restart-on-failure,
+  sane hardening defaults (`NoNewPrivileges`, `ProtectSystem=strict`
+  with the data dir writable, `PrivateTmp`); install + `enable --now`.
+- **Install steps:** check Node >= the supported major (fail with a
+  clear message, do NOT auto-install node); `npm ci --ignore-scripts`
+  per the A34 policy; build the www bundle or ship prebuilt (decide:
+  prebuilt release tarballs vs build-on-install — build needs devDeps
+  and takes minutes on a Pi; leaning to prebuilt `dist/` in release
+  artifacts, git-clone-of-a-release-tag).
+- **Update path:** documented `git pull` (or tag checkout) + re-run the
+  script idempotently (script must be safe to re-run: existing user/
+  unit/data untouched, deps refreshed, service restarted).
+- **Uninstall:** `--uninstall` removing unit + user, KEEPING the data
+  dir unless `--purge`.
+- Entry point style to decide: a `feezal --install` CLI flag (like she —
+  the bin already exists) vs a standalone `install.sh`; leaning to the
+  CLI flag for parity, with the README quick-start showing
+  `git clone … && sudo node server/bin/feezal.js --install`.
+
+**Docs:** README install section gains the route beside Docker;
+TESTING.md gets a fresh-VM checklist (install → service up → editor
+reachable → update run → uninstall keeps data).
+
+**Relates:** A34 (dependency policy — `npm ci --ignore-scripts` in the
+script), the Docker image (same data-dir contract), server `--data-dir`.
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
