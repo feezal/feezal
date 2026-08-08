@@ -40,8 +40,10 @@ export const linkAttributes = [
         help: 'Property path within the message payload (dot-notation). Blank = top-level payload.'},
     {name: 'open', type: 'select', options: LINK_OPEN_MODES, default: 'same-tab',
         help: 'How the target opens: this tab, a new tab, or embedded in a fullscreen popup (sites that forbid embedding show an error there — the popup header always offers "open in tab").'},
-    {name: 'image', type: 'string',
-        help: 'Image face (Asset Manager path or URL) — replaces the icon when set.'},
+    // type 'asset': the inspector autocompletes the site's assets (free URLs
+    // still typable — the picker only suggests), filtered to image files.
+    {name: 'image', type: 'asset', accept: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif'],
+        help: 'Image face (Asset Manager path or URL) — replaces the icon when set; oversized images are scaled to fit.'},
 ];
 
 /** Attribute names this controller consumes (parity-set derivation, E114). */

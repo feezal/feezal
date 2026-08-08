@@ -60,7 +60,10 @@ class FeezalElementGlassLink extends FeezalElement {
         }
         .face-image {
             width: 100%; flex: 1 1 auto; min-height: 0;
-            object-fit: cover; border-radius: calc(var(--feezal-glass-radius, 24px) - 10px);
+            max-width: 100%; max-height: 100%;
+            /* contain, not cover: an oversized image scales to fit the card
+               rather than being cropped to fill it. */
+            object-fit: contain; border-radius: calc(var(--feezal-glass-radius, 24px) - 10px);
         }
         .label {
             font-size: var(--feezal-glass-font-size-label, 12px); font-weight: 600; line-height: 1.2;

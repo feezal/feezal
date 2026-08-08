@@ -48,7 +48,9 @@ class FeezalElementEinkLink extends EinkBase {
     static styles = [feezalBaseStyles, einkCardStyles, linkPopupStyles, css`
         .card { gap: 2px; align-items: flex-start; cursor: pointer; }
         feezal-icon { font-size: var(--feezal-eink-icon-size, 28px); line-height: 1; }
-        .face-image { width: 100%; flex: 1 1 auto; min-height: 0; object-fit: cover; }
+        /* contain, not cover: an oversized image scales to fit the panel
+           rather than being cropped to fill it. */
+        .face-image { width: 100%; flex: 1 1 auto; min-height: 0; max-height: 100%; object-fit: contain; }
     `];
 
     constructor() {

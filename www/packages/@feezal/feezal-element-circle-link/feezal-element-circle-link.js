@@ -71,7 +71,9 @@ class FeezalElementCircleLink extends FeezalElement {
             font-size: min(56px, 38cqh); line-height: 1;
             color: var(--feezal-link-icon-color, var(--primary-background-color));
         }
-        .face-image { width: 100%; height: 100%; object-fit: cover; }
+        /* contain, not cover: an oversized image scales to fit inside the
+           disc rather than being cropped to fill it. */
+        .face-image { width: 100%; height: 100%; object-fit: contain; }
         .label {
             flex: 0 0 auto; font-size: 15px; font-weight: 600; text-align: center;
             color: var(--feezal-link-text-color, var(--primary-text-color));

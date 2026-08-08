@@ -40,7 +40,9 @@ class FeezalElementMetroLink extends MetroTileBase {
     static styles = [MetroTileBase.styles, linkPopupStyles, css`
         .front { cursor: pointer; }
         feezal-icon { font-size: min(var(--_metro-icon-size), 48cqh); line-height: 1; }
-        .face-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+        /* contain, not cover: an oversized image scales to fit the tile
+           (letterboxed on the accent) rather than being cropped to fill it. */
+        .face-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
     `];
 
     constructor() {

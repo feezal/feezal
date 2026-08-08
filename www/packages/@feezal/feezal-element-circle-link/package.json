@@ -1,6 +1,6 @@
 {
     "name": "@feezal/feezal-element-circle-link",
-    "version": "3.0.0",
+    "version": "3.0.1",
     "main": "feezal-element-circle-link.js",
     "license": "MIT"
 }

@@ -182,5 +182,48 @@ describe('E166 — every family activates through the one controller', () => {
             expect(el.shadowRoot.querySelector('.face-image')).not.toBeNull();
             expect(el.shadowRoot.querySelector('feezal-icon')).toBeNull();
         });
+
+        it(`${tag}: an OVERSIZED image scales to fit the element`, async () => {
+            // A real image with a huge intrinsic size (1600×1200): the whole
+            // point of `contain` — the face must letterbox inside the element,
+            // never crop to fill and never spill past its box.
+            const big = 'data:image/svg+xml,' + encodeURIComponent(
+                '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200">' +
+                '<rect width="1600" height="1200" fill="#c00"/></svg>');
+            const el = document.createElement(tag);
+            el.setAttribute('href', 'x');
+            el.setAttribute('image', big);
+            // The canvas positions elements absolutely (feezal-view's slotted
+            // rule); the card chrome anchors to that. A statically mounted host
+            // would let the absolute .card resolve against the page instead.
+            el.style.cssText = 'position:absolute;left:0;top:0;width:172px;height:128px;';
+            document.body.append(el);
+            await el.updateComplete;
+            const img = el.shadowRoot.querySelector('.face-image');
+            await new Promise(resolve => {
+                if (img.complete) resolve();
+                else img.addEventListener('load', resolve, {once: true});
+            });
+            await el.updateComplete;
+
+            expect(getComputedStyle(img).objectFit).toBe('contain');
+            const host = el.getBoundingClientRect();
+            const face = img.getBoundingClientRect();
+            // The img box stays inside the element (1px rounding tolerance).
+            expect(face.width).toBeLessThanOrEqual(host.width + 1);
+            expect(face.height).toBeLessThanOrEqual(host.height + 1);
+            expect(face.right).toBeLessThanOrEqual(host.right + 1);
+            expect(face.bottom).toBeLessThanOrEqual(host.bottom + 1);
+        });
     }
+
+    it('the image attribute is an ASSET field, so the inspector autocompletes it', async () => {
+        // Regressing to type:'string' would silently lose the picker — the
+        // element keeps working, only the UI degrades (the B88 failure shape).
+        const {linkAttributes} = await import('@feezal/feezal-controller-link');
+        const image = linkAttributes.find(a => a.name === 'image');
+        expect(image.type).toBe('asset');
+        expect(image.accept).toContain('png');
+        expect(image.accept).toContain('webp');
+    });
 });
