@@ -61,6 +61,7 @@ Work in progress — priorities and scope are not final.
 - [E159 — Re-add a Paper-family app shell (`paper-app`) with full layout-app parity](#e159--re-add-a-paper-family-app-shell-paper-app-with-full-layout-app-parity)
 - [E162 — Fancy family, take two: actually fancy — ready-made Lottie art over generated geometry](#e162--fancy-family-take-two-actually-fancy--ready-made-lottie-art-over-generated-geometry)
 - [E164 — Fancy family: finish and re-enable the disabled cards](#e164--fancy-family-finish-and-re-enable-the-disabled-cards)
+- [E166 — Link element for the device-card families (`glass/metro/circle/eink-link`) 💡](#e166--link-element-for-the-device-card-families-glassmetrocircleeink-link-)
 
 **Editor UX**
 
@@ -1443,6 +1444,42 @@ Also: the contact card's **door / garagedoor / generic** variants reworked to th
 **Re-enable mechanism** (the disable is deliberately shallow): restore the imports in feezal-elements-fancy/index.js, restore the manifest entries in its package.json, un-pin the contact type (drop the per-name options override and the discovery valueMap pin), run scripts/generate-elements.js, update TESTING.md §6 and bump the package.
 
 **Relates:** E139 ✅ (the family), E162 (motion hierarchy, packs, the quality bar), fancy-switch + the window in fancy-contact (reference implementations).
+
+### E166 — Link element for the device-card families (`glass/metro/circle/eink-link`) 💡
+
+**Requested (08/2026).** A link card in each of the four device-card families
+— `feezal-element-glass-link`, `metro-link`, `circle-link`, `eink-link` —
+one tap opens a URL. The families share one behaviour contract (E137-style:
+extract a tiny shared fragment or controller so the four cannot drift);
+chrome per family (frost card / metro tile / round button / e-ink panel).
+
+**Configurable:**
+- `href` — the target URL.
+- `subscribe` (+ `message-property`) — **dynamic href from a topic**: a
+  message replaces the target (the camera element's src-switch precedent).
+- `open` (select): `same-tab` · `new-tab` · `popup-iframe` — the popup embeds
+  the target in an **iframe inside the near-fullscreen top-layer popup**
+  (basic-camera popup pattern: ✕ button, Esc/tap-outside closes; note
+  `X-Frame-Options`/CSP will block some sites — show a friendly "cannot be
+  embedded, open in tab" fallback with a link). Room for later modes
+  (kiosk-window with features string) — keep the select extensible.
+- **Icon OR image face:** `icon` (Material/icon-set name, the family's icon
+  conventions) or `image` (an **Asset-Manager asset** or URL) — image wins
+  when both are set; plus `label` per family convention.
+- The usual: availability badge optional, click-through NOT needed (a link
+  IS the click), editor never navigates (feezal.isEditor guard — show a
+  selection-safe preview instead).
+
+**Notes:** viewer-only navigation guard (editor tap selects, never opens);
+`new-tab` uses `rel="noopener"`; N30 deep-link interplay — a link whose href
+is a `#/view` route should navigate the app in place (detect and route
+internally instead of reloading); TESTING.md §6 rows + per-family notes;
+palette category = each family's.
+
+**Relates:** E137 (shared-fragment discipline), basic-camera (popup + top
+layer + dynamic-src precedents), basic-navigation (internal view links —
+the `#/view` overlap), Asset Manager (the image face), U45 (palette).
+
 
 ### Consequences
 
