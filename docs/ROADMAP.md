@@ -13,6 +13,7 @@ Work in progress — priorities and scope are not final.
 - [B118 — Undo dead after deleting via the layers-tree context menu (until the canvas is clicked)](#b118--undo-dead-after-deleting-via-the-layers-tree-context-menu-until-the-canvas-is-clicked)
 - [B119 — Right-click menu dead after the tab was backgrounded (footer selector crash)](#b119--right-click-menu-dead-after-the-tab-was-backgrounded-footer-selector-crash)
 - [B123 — MQTT connect wizard appears although a connection is configured AND connected](#b123--mqtt-connect-wizard-appears-although-a-connection-is-configured-and-connected)
+- [B124 — White screen when View opens an undeployed site (tour finale / auto-generated app)](#b124--white-screen-when-view-opens-an-undeployed-site-tour-finale--auto-generated-app)
 
 
 **Near-term Improvements**
@@ -470,6 +471,54 @@ wizard).
 **Relates:** the connect dialog (first-run flow), U37 (tour chaining —
 runs after the dialog closes, so a spurious dialog also delays the tour),
 U60/U97 (connection status surfaces — same status source).
+
+
+### B124 — White screen when View opens an undeployed site (tour finale / auto-generated app)
+
+**User report (GitHub issue feezal/feezal#4, 08/2026, reporter boesec):**
+after completing the onboarding tour's autogenerate path and opening the
+dashboard, the viewer shows a **blank white screen**. Reporter: "The
+deployment step seems to be missing before the view is opened." Maintainer
+could not reproduce, but the reporter confirmed that **hitting Deploy
+manually and clicking View again fixed it** — which matches the code.
+
+**What the code actually does (diagnosed, unverified as THE cause):**
+- The tour's finale step (both paths) only *tells* the user "Hit Deploy,
+  then ▾ → View" (`www/src/feezal-welcome-tour.js`, `finish`/`finale`
+  steps) — nothing enforces the order. Clicking View first is one tap away.
+- `_view()` in `www/src/feezal-app-editor.js` opens
+  `/viewer/<site>/` + **the editor's current hash** and never deploys. Two
+  ways this goes white:
+  1. **Fresh install, never deployed** — the viewer has no site to serve.
+  2. **Stale deploy + new hash** — the auto-generated app just created new
+     views and the editor hash points at one (e.g. `#/menu`); the deployed
+     site doesn't contain that view, `feezal-site` sets `this.view` to the
+     nonexistent name, every view stays hidden → white page. This second
+     path can bite OUTSIDE the tour too (rename/delete a view, View before
+     deploy).
+
+**Fix directions (independent, all worth doing):**
+1. **Viewer robustness (the real bug):** when the hash names a view that
+   does not exist in the served site, fall back to the first view instead
+   of showing nothing (`feezal-site` connectedCallback / hash routing).
+   A deep link to a deleted view should never white-screen.
+2. **Editor UX:** the View action knows the dirty state (the Deploy
+   button's `has-changes`); with undeployed changes (or no deploy at all),
+   offer "Deploy & view" (toast/confirm or just do both) instead of
+   silently opening a stale/absent site.
+3. **Tour finale:** after the autogenerate branch, consider deploying as
+   part of the finale (the generated app is worthless undeployed), or at
+   least gate the tour's "done" on the first deploy like the generate step
+   gates on the dialog.
+4. **Server:** serving a never-deployed site should render a friendly
+   "nothing deployed yet — hit Deploy in the editor" page, not a blank
+   document.
+
+Repro attempt for (2)/(1): fresh dataDir → run the tour's auto path →
+click ▾ → View WITHOUT deploying.
+
+**Relates:** the welcome tour (autogenerate branch), N30 (hash routing —
+the unknown-view fallback), B39 (viewer URL shape), Deploy button state.
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
