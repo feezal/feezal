@@ -95,7 +95,7 @@ Work in progress — priorities and scope are not final.
 - [A35 — Theme-var discipline, part 2: family design tokens still default to fixed colours](#a35--theme-var-discipline-part-2-family-design-tokens-still-default-to-fixed-colours)
 - [A36 — Server API layer: decompose the monolith, one error contract, bounded caches](#a36--server-api-layer-decompose-the-monolith-one-error-contract-bounded-caches)
 - [A37 — Editor front-end: extract the four buried subsystems](#a37--editor-front-end-extract-the-four-buried-subsystems)
-- [A39 — Docker-less install route: git clone + install script (system user, systemd service)](#a39--docker-less-install-route-git-clone--install-script-system-user-systemd-service)
+- [A39 — Docker-less install route: install script (system user, systemd service) — acquisition compared](#a39--docker-less-install-route-install-script-system-user-systemd-service--acquisition-compared)
 
 
 **Documentation**
@@ -2759,46 +2759,93 @@ lives in the same entries manager), N40 (hidden clones stay warm —
 same principle: filter ≠ unsubscribe).
 
 
-### A39 — Docker-less install route: git clone + install script (system user, systemd service)
+### A39 — Docker-less install route: install script (system user, systemd service) — acquisition compared
 
-**Requested (08/2026).** A first-class installation path WITHOUT Docker:
-`git clone` the repo and run an install script, modeled on
-[she](https://github.com/hobbyquaker/she)'s `she --install` (same
-maintainer): `sudo she --install` creates a dedicated system user,
+**Requested (08/2026).** A first-class installation path WITHOUT Docker,
+modeled on [she](https://github.com/hobbyquaker/she)'s `she --install`
+(same maintainer): a script that creates a dedicated system user,
 installs + enables a systemd unit, and keeps all persistent state in one
-data directory (`/var/lib/she/`, git-operated via `sudo -u she git -C …`).
+data directory.
 
-**What the feezal script should set up (mirror the she model):**
+**What the script sets up (route-independent):**
 - **System user** `feezal` (no login shell, home = the data dir).
 - **Data dir** `/var/lib/feezal/` owned by that user — sites, uploads,
-  editor prefs, discovery cache; the existing `--data-dir` flag just
-  points there.
-- **systemd unit** (`feezal.service`): runs `node server/bin/feezal.js`
-  as the `feezal` user, `WantedBy=multi-user.target`, restart-on-failure,
-  sane hardening defaults (`NoNewPrivileges`, `ProtectSystem=strict`
-  with the data dir writable, `PrivateTmp`); install + `enable --now`.
-- **Install steps:** check Node >= the supported major (fail with a
-  clear message, do NOT auto-install node); `npm ci --ignore-scripts`
-  per the A34 policy; build the www bundle or ship prebuilt (decide:
-  prebuilt release tarballs vs build-on-install — build needs devDeps
-  and takes minutes on a Pi; leaning to prebuilt `dist/` in release
-  artifacts, git-clone-of-a-release-tag).
-- **Update path:** documented `git pull` (or tag checkout) + re-run the
-  script idempotently (script must be safe to re-run: existing user/
-  unit/data untouched, deps refreshed, service restarted).
-- **Uninstall:** `--uninstall` removing unit + user, KEEPING the data
-  dir unless `--purge`.
-- Entry point style to decide: a `feezal --install` CLI flag (like she —
-  the bin already exists) vs a standalone `install.sh`; leaning to the
-  CLI flag for parity, with the README quick-start showing
-  `git clone … && sudo node server/bin/feezal.js --install`.
+  editor prefs, discovery cache; the existing `--data-dir` flag points
+  there.
+- **systemd unit** (`feezal.service`): runs the server as the `feezal`
+  user, `WantedBy=multi-user.target`, restart-on-failure, hardening
+  defaults (`NoNewPrivileges`, `ProtectSystem=strict` with data dir —
+  AND the app dir, see below — writable, `PrivateTmp`); `enable --now`.
+  Resolve an ABSOLUTE node path into `ExecStart` at install time (nvm
+  paths change per version and break units).
+- **Idempotent re-run** = the update path (existing user/unit/data
+  untouched, deps refreshed, service restarted); `--uninstall` removes
+  unit + user, KEEPING the data dir unless `--purge`.
+- One `feezal --install` implementation shared by every acquisition
+  route (the `feezal` bin exists in `@feezal/feezal-server`).
+
+**Acquisition: `git clone` vs `npm install -g` — compared (08/2026):**
+
+The discriminating feezal-specific fact: the editor's **runtime package
+manager installs element/theme packages into the app's `wwwDir`**
+(`pkgManager.installPackage({wwwDir, …})`, `server/src/routes/api.js`) and
+the server discovers elements by scanning `www/node_modules/@feezal/` —
+so the app tree must be WRITABLE by the service user at runtime, and its
+node_modules layout must match what the scanner expects.
+
+- **git clone (or release tarball) into a service-owned dir** — e.g.
+  `/opt/feezal`, chowned to `feezal`:
+  - ✅ the runtime package manager and element discovery work UNCHANGED
+    (same workspace layout as dev/Docker);
+  - ✅ the committed `package-lock.json` governs installs —
+    `npm ci --ignore-scripts` per A34, exactly the CI/Docker posture;
+  - ✅ trivial for contributors (patch, branch, PR from the install);
+  - ⚠ needs git + a build, OR prebuilt assets: building `www/` needs
+    devDeps and minutes on a Pi. Mitigation: install from a **release
+    tag whose GitHub release asset carries the prebuilt `dist/`** (the
+    script downloads the tarball; plain `git clone` of main stays the
+    contributor route with build-on-install);
+  - ⚠ weaker supply-chain story than npm (https + tag signatures vs.
+    npm provenance/`npm audit signatures`) — acceptable given the
+    lockfile still pins every dependency.
+- **npm install -g @feezal/feezal-server (or npx)**:
+  - ✅ versioned, provenance-attested tarballs (trusted publishing is
+    already set up), no git/build on the target — `files` already ships
+    `bin/ src/ dist/`;
+  - ✅ rollback = `npm i -g @feezal/feezal-server@x.y.z`;
+  - ❌ **the global tree is root-owned** — the runtime package manager
+    cannot install into it; would need redirecting runtime installs to
+    a dataDir packages location + a SECOND element-discovery search
+    path (real engineering, touches server startup scanning, Vite
+    resolution for the editor bundle, and the export pipeline);
+  - ❌ **no lockfile applies to a global install** — npm resolves the
+    published ranges fresh, breaking A34's "the lockfile is the pin"
+    unless the package ships an `npm-shrinkwrap.json` (doable, adds a
+    publish step that must stay in sync);
+  - ⚠ hoisting: `@feezal/*` deps land as SIBLINGS of the server in the
+    global tree, not under a `www/node_modules/` — the discovery scan
+    and the editor's Vite-built import map assume the workspace layout.
+
+**Suggestion (decide before building):** ship **v1 as the git/tarball
+route** — it is what was requested, matches she, and requires ZERO
+changes to the runtime package manager or discovery. Concretely:
+`git clone` (contributors, build-on-install) OR the release-tarball
+download with prebuilt `dist/` (end users, no toolchain), both followed
+by `sudo node server/bin/feezal.js --install`. Treat the npm-global
+route as a **follow-up item** gated on redirecting runtime element
+installs to the data dir (which would ALSO benefit Docker: image stays
+immutable, installed packages survive image updates) — file that
+separately if wanted.
 
 **Docs:** README install section gains the route beside Docker;
 TESTING.md gets a fresh-VM checklist (install → service up → editor
-reachable → update run → uninstall keeps data).
+reachable → runtime element install works → update run → uninstall
+keeps data).
 
-**Relates:** A34 (dependency policy — `npm ci --ignore-scripts` in the
-script), the Docker image (same data-dir contract), server `--data-dir`.
+**Relates:** A34 (dependency policy — `npm ci --ignore-scripts`,
+lockfile-as-pin), the Docker image (same data-dir contract; would gain
+from dataDir-redirected runtime installs), the editor package manager
+(`/api/elements` install route), server `--data-dir`.
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
