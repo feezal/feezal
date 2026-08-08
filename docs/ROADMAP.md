@@ -12,7 +12,6 @@ Work in progress — priorities and scope are not final.
 - [B118 — Undo dead after deleting via the layers-tree context menu (until the canvas is clicked)](#b118--undo-dead-after-deleting-via-the-layers-tree-context-menu-until-the-canvas-is-clicked)
 - [B119 — Right-click menu dead after the tab was backgrounded (footer selector crash)](#b119--right-click-menu-dead-after-the-tab-was-backgrounded-footer-selector-crash)
 - [B125 — Asset manager: the New Folder dialog input renders light in a dark editor](#b125--asset-manager-the-new-folder-dialog-input-renders-light-in-a-dark-editor)
-- [B126 — Duplicate view renders its copy stacked on the current view (looks like elements duplicated in place)](#b126--duplicate-view-renders-its-copy-stacked-on-the-current-view-looks-like-elements-duplicated-in-place)
 - [B127 — Copy/paste of template elements loses the template content (B31 regression class)](#b127--copypaste-of-template-elements-loses-the-template-content-b31-regression-class)
 - [B128 — View names with spaces break the sl-select view pickers (layout-flex subview not shown) ⚠ needs sweep](#b128--view-names-with-spaces-break-the-sl-select-view-pickers-layout-flex-subview-not-shown--needs-sweep)
 - [B129 — layout-app narrow overlay drawer: scrolled area below the first screenful is TRANSPARENT (iOS PWA report)](#b129--layout-app-narrow-overlay-drawer-scrolled-area-below-the-first-screenful-is-transparent-ios-pwa-report)
@@ -437,37 +436,6 @@ remove its line from `LEGACY_UNMIGRATED` in
 hover/focus input backgrounds and is exactly what this ratchet exists for.
 Verify against the dark editor: open New Folder → the input must be dark
 while focused, while hovered, and at rest.
-
-### B126 — Duplicate view renders its copy stacked on the current view (looks like elements duplicated in place)
-
-**Reported (08/2026).** Using **Duplicate** on a view, the elements appear
-duplicated ON THE SAME view instead of landing on a new one.
-
-**Root cause (diagnosed in code, unverified live):** `_duplicateView`
-(`www/src/feezal-app-editor.js`) clones the ACTIVE — i.e. visible — view
-and inserts the clone as-is: unlike `_createView` (the inspector's
-create-view path, which stamps `display: none` + `visible = false` on a
-new view), the clone keeps the source's visible state, and neither
-`updateVisibility()` nor a view switch runs afterwards. The copy renders
-STACKED on the current view — both views' elements are visible at once,
-which reads exactly as "duplicated to the same view". The duplicate DOES
-exist (check the view selector), it is just painted over the original.
-
-**Fix:** hide the clone on creation (`display: none` / `visible = false`
-like `_createView`), then either stay (the copy appears in the selector)
-or — nicer — `_setView()` to the duplicate so the user lands on what they
-just created. Verify undo (one Ctrl+Z removes the duplicate) and that the
-layers tree / footer selector pick the copy up. While in there, check
-`_nextView`'s dedupe reads the view NAME correctly (`v.name` vs
-`getAttribute('name')`) so the `-copy` suffix numbering actually dedupes.
-
-**Test:** browser — duplicate the active view → the original view shows
-ONLY its own elements; the copy exists, hidden, named `<name>-copy`;
-duplicate again → `-copy1` (dedupe); Ctrl+Z removes it.
-
-**Relates:** B99 (view ops snapshot undo), U109 (view clipboard — same
-copy semantics).
-
 
 ### B127 — Copy/paste of template elements loses the template content (B31 regression class)
 

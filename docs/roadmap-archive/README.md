@@ -128,6 +128,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B122 — Small elements resize when you try to drag them (centre-press lands in the resize-edge zone) ✅ fixed](B122.md)
 - [B123 — MQTT connect wizard appears although a connection is configured AND connected ✅ fixed](B123.md)
 - [B124 — White screen after tour/wizard app generation: viewer link opens an undeployed site ✅ fixed](B124.md)
+- [B126 — Duplicate view renders its copy stacked on the current view (looks like elements duplicated in place) ✅ fixed](B126.md)
 
 ## Near-term Improvements
 

@@ -267,6 +267,55 @@ describe('view management', () => {
     });
 });
 
+describe('duplicate view (B126)', () => {
+    // Count the top-level views the user can actually SEE — the stacking bug
+    // was two of them at once.
+    const visibleViews = () => page.locator('feezal-site > feezal-view')
+        .evaluateAll(els => els.filter(v => getComputedStyle(v).display !== 'none')
+            .map(v => v.getAttribute('name')));
+
+    it('the copy does not stack on the original — the editor lands on it', async () => {
+        await page.locator('.ftab.view[data-view="main"]').click();
+        await page.locator('.ftab.view[data-view="main"]').click({button: 'right'});
+        await page.locator('.view-ctx-item', {hasText: 'Duplicate'}).first().click();
+
+        await page.locator('feezal-site > feezal-view[name="main-copy"]').waitFor({timeout: 10_000});
+        // Exactly ONE view visible, and it is the copy (the editor navigated).
+        await expect.poll(visibleViews).toEqual(['main-copy']);
+        // The copy carries the original's content (the badge from the
+        // source-mode test above — this suite is sequential).
+        expect(await page.locator('feezal-site > feezal-view[name="main-copy"] feezal-element-material-badge').count())
+            .toBeGreaterThan(0);
+    });
+
+    it('duplicating again dedupes the name (-copy1), and Ctrl+Z removes it', async () => {
+        await page.locator('.ftab.view[data-view="main"]').click({button: 'right'});
+        await page.locator('.view-ctx-item', {hasText: 'Duplicate'}).first().click();
+        await page.locator('feezal-site > feezal-view[name="main-copy1"]').waitFor({timeout: 10_000});
+        await expect.poll(visibleViews).toEqual(['main-copy1']);
+
+        // ONE undo removes the newest copy (canvas focus first — the undo
+        // handler listens on the site). Deliberately only one step: undoing
+        // further would hit snapshots owned by earlier tests in this
+        // sequential suite.
+        await page.locator('feezal-site').click({position: {x: 400, y: 300}});
+        await page.keyboard.press('Control+z');
+        await expect.poll(() => page.locator('feezal-site > feezal-view[name="main-copy1"]').count())
+            .toBe(0);
+
+        // Clean up the first copy via the context-menu Delete, and land back
+        // on a known view for the tests that follow.
+        await page.locator('.ftab.view[data-view="main-copy"]').click({button: 'right'});
+        await page.locator('.view-ctx-item.danger', {hasText: 'Delete'}).first().click();
+        // The copy is non-empty, so the confirm dialog appears.
+        await page.locator('#deletedialog sl-button[variant="danger"]').click();
+        await expect.poll(() => page.locator('feezal-site > feezal-view[name="main-copy"]').count())
+            .toBe(0);
+        await page.locator('.ftab.view[data-view="main"]').click();
+        await expect.poll(visibleViews).toEqual(['main']);
+    });
+});
+
 describe('copy-on-use of a global asset (B15)', () => {
     it('drag from the assets sidebar repoints src and refreshes the inspector', async () => {
         // Seed a global image via the assets API, then reload so the sidebar

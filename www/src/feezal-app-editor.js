@@ -3496,9 +3496,19 @@ class FeezalAppEditor extends LitElement {
         const src = feezal.site.querySelector(`feezal-view[name="${name}"]`);
         if (!src) return;
         const clone = src.cloneNode(true);
-        clone.setAttribute('name', this._nextView(name + '-copy'));
+        const cloneName = this._nextView(name + '-copy');
+        clone.setAttribute('name', cloneName);
+        // B126: the clone inherits the source's inline style — a VISIBLE view
+        // carries display:'' — and its `visible` property starts undefined, so
+        // no change ever ran _visibleChange: the copy painted STACKED over the
+        // original. Land it hidden (like _createView does), then navigate to
+        // it — updateVisibility shows exactly one view again.
+        clone.style.display = 'none';
+        clone.visible = false;
         src.after(clone);
         this.views = [...feezal.views];
+        feezal.app.views = [...feezal.views];
+        this._setView(cloneName);
         feezal.app.change();
     }
 
