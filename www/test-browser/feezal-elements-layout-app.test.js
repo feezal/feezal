@@ -564,3 +564,224 @@ describe('rail expansion overlays the content (U64)', () => {
         expect(el.shadowRoot.querySelector('.rail-menu')).toBeTruthy();
     });
 });
+
+// ─── U103: two-level navigation ────────────────────────────────────────────
+
+const NESTED = JSON.stringify([
+    {label: 'Living', icon: 'weekend', items: [
+        {label: 'Lights', icon: 'light', view: 'liv-lights'},
+        {label: 'Climate', view: 'liv-climate'},
+    ]},
+    {label: 'Garden', items: [
+        {label: 'Irrigation', view: 'garden-irr'},
+    ]},
+    {label: 'Info', icon: 'info', view: 'info'},
+]);
+
+async function wideNested(attrs = {}) {
+    const el = await mount('feezal-element-layout-app', {items: NESTED, ...attrs});
+    el.style.width = '1000px';
+    await until(() => el._narrow === false);
+    await el.updateComplete;
+    return el;
+}
+
+describe('U103 nav model (nested items parsing)', () => {
+    it('parses sections + childless leaves; leaves stay flat and ordered', async () => {
+        const el = await mount('feezal-element-layout-app', {items: NESTED});
+        const nav = el._nav();
+        expect(nav.hasSections).toBe(true);
+        expect(nav.tree.length).toBe(3);
+        expect(nav.tree[0].slug).toBe('living');
+        expect(nav.leaves.map(e => e.view)).toEqual(['liv-lights', 'liv-climate', 'garden-irr', 'info']);
+        expect(nav.sectionOf.get('garden-irr').slug).toBe('garden');
+        expect(nav.sectionOf.has('info')).toBe(false);
+    });
+
+    it('flattens deeper nesting into the section with one console warning', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const deep = JSON.stringify([{label: 'S', items: [
+            {label: 'Sub', items: [{label: 'Deep', view: 'deep1'}]},
+            {view: 'flat1'},
+        ]}]);
+        const el = await mount('feezal-element-layout-app', {items: deep});
+        expect(el._nav().leaves.map(e => e.view)).toEqual(['deep1', 'flat1']);
+        expect(warn).toHaveBeenCalledOnce();
+        warn.mockRestore();
+    });
+
+    it('a FLAT items list renders the classic drawer whatever nav-style says', async () => {
+        const el = await wideNested({items: ITEMS, 'nav-style': 'rail-panel'});
+        expect(el._navStyleEffective).toBe('flat');
+        expect(el.shadowRoot.querySelector('.rail')).toBeFalsy();
+        expect(el.shadowRoot.querySelectorAll('.drawer .entry').length).toBe(2);
+    });
+});
+
+describe('U103 groups (accordion)', () => {
+    it('renders section heads; the active section starts expanded, others collapsed', async () => {
+        const el = await wideNested();
+        expect(el._active).toBe('liv-lights');
+        const heads = [...el.shadowRoot.querySelectorAll('.ghead')];
+        expect(heads.length).toBe(2);
+        expect(heads[0].classList.contains('open')).toBe(true);
+        expect(heads[1].classList.contains('open')).toBe(false);
+        // children of the open section + the childless entry are visible
+        expect(el.shadowRoot.querySelectorAll('.gkids .entry').length).toBe(2);
+    });
+
+    it('opening a section header navigates to its landing page; re-click just collapses', async () => {
+        const el = await wideNested();
+        const garden = el.shadowRoot.querySelectorAll('.ghead')[1];
+        garden.click();
+        await el.updateComplete;
+        expect(el._active).toBe('garden-irr');
+        expect(el._openSections.has('garden')).toBe(true);
+        el.shadowRoot.querySelectorAll('.ghead')[1].click();   // collapse
+        await el.updateComplete;
+        expect(el._openSections.has('garden')).toBe(false);
+        expect(el._active).toBe('garden-irr');                 // no navigation change
+    });
+});
+
+describe('U103 rail-panel', () => {
+    it('wide: icon rail (sections + childless) + entry panel; section memory on re-activation', async () => {
+        const el = await wideNested({'nav-style': 'rail-panel'});
+        const rail = [...el.shadowRoot.querySelectorAll('.rail .rentry')];
+        expect(rail.length).toBe(3);
+        expect(el.shadowRoot.querySelectorAll('.panel .entry').length).toBe(2);
+        // visit the second Living page, hop to Garden, come back → remembered
+        [...el.shadowRoot.querySelectorAll('.panel .entry')][1].click();
+        await el.updateComplete;
+        expect(el._active).toBe('liv-climate');
+        rail[1].click();
+        await el.updateComplete;
+        expect(el._active).toBe('garden-irr');
+        [...el.shadowRoot.querySelectorAll('.rail .rentry')][0].click();
+        await el.updateComplete;
+        expect(el._active).toBe('liv-climate');
+    });
+
+    it('ignores the rail knob family (mutually exclusive) — no rail-state derived', async () => {
+        const el = await wideNested({'nav-style': 'rail-panel', rail: 'slim'});
+        expect(el.hasAttribute('rail-state')).toBe(false);
+        expect(el.shadowRoot.querySelector('.rail')).toBeTruthy();
+    });
+
+    it('narrow: merges into ONE accordion overlay drawer (no rail)', async () => {
+        const el = await wideNested({'nav-style': 'rail-panel'});
+        el.style.width = '400px';
+        await until(() => el._narrow === true);
+        await el.updateComplete;
+        expect(el.shadowRoot.querySelector('.rail')).toBeFalsy();
+        expect(el.shadowRoot.querySelector('.drawer .ghead')).toBeTruthy();
+    });
+});
+
+describe('U103 tabs', () => {
+    it("drawer lists sections; the active section's pages form the tab row; tab click navigates", async () => {
+        const el = await wideNested({'nav-style': 'tabs'});
+        expect(el.shadowRoot.querySelector('.ghead')).toBeFalsy();
+        const tabs = [...el.shadowRoot.querySelectorAll('.tabrow .tab')];
+        expect(tabs.map(t => t.textContent.trim())).toEqual(['Lights', 'Climate']);
+        tabs[1].click();
+        await el.updateComplete;
+        expect(el._active).toBe('liv-climate');
+        expect(el.shadowRoot.querySelector('.tabrow .tab.active').textContent.trim()).toBe('Climate');
+    });
+
+    it('a childless active entry shows no tab row; a section entry navigates to its landing page', async () => {
+        const el = await wideNested({'nav-style': 'tabs'});
+        const entries = [...el.shadowRoot.querySelectorAll('.drawer .entry')];
+        entries[2].click();   // Info (childless)
+        await el.updateComplete;
+        expect(el._active).toBe('info');
+        expect(el.shadowRoot.querySelector('.tabrow')).toBeFalsy();
+        [...el.shadowRoot.querySelectorAll('.drawer .entry')][1].click();   // Garden section
+        await el.updateComplete;
+        expect(el._active).toBe('garden-irr');
+        expect(el.shadowRoot.querySelector('.tabrow')).toBeTruthy();
+    });
+});
+
+describe('U103 routing (N30 embedded paths)', () => {
+    it('routableViews carries bare views AND section/view paths; activeEmbedded is the full path', async () => {
+        const el = await wideNested();
+        const r = el.routableViews();
+        expect(r).toContain('liv-lights');
+        expect(r).toContain('living/liv-lights');
+        expect(r).toContain('info');
+        expect(r).not.toContain('info/info');
+        expect(el.activeEmbedded()).toBe('living/liv-lights');
+    });
+
+    it('routeToEmbedded resolves three-segment paths AND legacy bare views (section derived)', async () => {
+        const el = await wideNested();
+        el.routeToEmbedded('garden/garden-irr');
+        expect(el._active).toBe('garden-irr');
+        expect(el._openSections.has('garden')).toBe(true);
+        el.routeToEmbedded('liv-climate');   // legacy two-segment deep link
+        expect(el._active).toBe('liv-climate');
+        expect(el._sectionMemory.get('living')).toBe('liv-climate');
+        el.routeToEmbedded('nope/unknown');
+        expect(el._active).toBe('liv-climate');
+    });
+});
+
+describe('U103 breadcrumb', () => {
+    it('renders Section / Page in the bar; the plain label is replaced', async () => {
+        const el = await wideNested({breadcrumb: ''});
+        expect(el.shadowRoot.querySelector('.crumb-sect').textContent.trim()).toBe('Living');
+        expect(el.shadowRoot.querySelector('.crumb-page').textContent.trim()).toBe('Lights');
+        expect(el.shadowRoot.querySelector('.active-label')).toBeFalsy();
+    });
+
+    it('a childless page renders a single segment', async () => {
+        const el = await wideNested({breadcrumb: ''});
+        el._select('info');
+        await el.updateComplete;
+        expect(el.shadowRoot.querySelector('.crumb-sect')).toBeFalsy();
+        expect(el.shadowRoot.querySelector('.crumb-page').textContent.trim()).toBe('Info');
+    });
+});
+
+describe('U103 keyboard (tree pattern + tab row)', () => {
+    it('Right opens a collapsed section head, Left closes it, Left on a child jumps to the head', async () => {
+        const el = await wideNested();
+        const garden = el.shadowRoot.querySelectorAll('.ghead')[1];
+        garden.focus();
+        el._onDrawerKeydown({key: 'ArrowRight', preventDefault() {}});
+        await el.updateComplete;
+        expect(el._openSections.has('garden')).toBe(true);
+        el.shadowRoot.querySelectorAll('.ghead')[1].focus();
+        el._onDrawerKeydown({key: 'ArrowLeft', preventDefault() {}});
+        await el.updateComplete;
+        expect(el._openSections.has('garden')).toBe(false);
+        const child = el.shadowRoot.querySelector('.gkids .entry');
+        child.focus();
+        el._onDrawerKeydown({key: 'ArrowLeft', preventDefault() {}});
+        expect(el.shadowRoot.activeElement.classList.contains('ghead')).toBe(true);
+    });
+
+    it('rail: Up/Down cycle, Right crosses into the panel, Left returns to the rail', async () => {
+        const el = await wideNested({'nav-style': 'rail-panel'});
+        const rail = [...el.shadowRoot.querySelectorAll('.rail .rentry')];
+        rail[0].focus();
+        el._onRailKeydown({key: 'ArrowDown', preventDefault() {}});
+        expect(el.shadowRoot.activeElement).toBe(rail[1]);
+        el._onRailKeydown({key: 'ArrowRight', preventDefault() {}});
+        expect(el.shadowRoot.activeElement.classList.contains('entry')).toBe(true);
+        el._onPanelKeydown({key: 'ArrowLeft', preventDefault() {}});
+        expect(el.shadowRoot.activeElement.classList.contains('rentry')).toBe(true);
+    });
+
+    it('tab row: Left/Right/End move along the tabs', async () => {
+        const el = await wideNested({'nav-style': 'tabs'});
+        const tabs = [...el.shadowRoot.querySelectorAll('.tabrow .tab')];
+        tabs[0].focus();
+        el._onTabKeydown({key: 'ArrowRight', preventDefault() {}});
+        expect(el.shadowRoot.activeElement).toBe(tabs[1]);
+        el._onTabKeydown({key: 'End', preventDefault() {}});
+        expect(el.shadowRoot.activeElement).toBe(tabs[tabs.length - 1]);
+    });
+});
