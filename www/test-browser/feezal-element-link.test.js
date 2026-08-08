@@ -1,0 +1,186 @@
+/**
+ * E166 — the link cards (glass/metro/circle/eink-link).
+ *
+ * All behaviour lives in @feezal/feezal-controller-link, so it is tested ONCE
+ * through one family and the others are covered by (a) the E137 parity suite
+ * (contract declared) and (b) a per-family activation smoke here — the four
+ * views may not drift in what a tap does.
+ */
+import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest';
+import {setupFeezal} from './helpers.js';
+
+import '../packages/@feezal/feezal-element-glass-link/feezal-element-glass-link.js';
+import '../packages/@feezal/feezal-element-metro-link/feezal-element-metro-link.js';
+import '../packages/@feezal/feezal-element-circle-link/feezal-element-circle-link.js';
+import '../packages/@feezal/feezal-element-eink-link/feezal-element-eink-link.js';
+
+const TAGS = [
+    'feezal-element-glass-link',
+    'feezal-element-metro-link',
+    'feezal-element-circle-link',
+    'feezal-element-eink-link',
+];
+
+let feezal;
+
+beforeEach(() => {
+    feezal = setupFeezal();
+    // window.open / location.assign are the observable ends of activate().
+    vi.spyOn(window, 'open').mockImplementation(() => null);
+});
+
+afterEach(() => {
+    vi.restoreAllMocks();
+    document.body.innerHTML = '';
+});
+
+async function mount(tag, attrs = {}) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    document.body.append(el);
+    await el.updateComplete;
+    return el;
+}
+
+describe('E166 — the shared link behaviour (via glass-link)', () => {
+    it('new-tab opens with noopener', async () => {
+        const el = await mount('feezal-element-glass-link',
+            {href: 'https://grafana.local/d/abc', open: 'new-tab'});
+        el.link.activate();
+        expect(window.open).toHaveBeenCalledWith(
+            'https://grafana.local/d/abc', '_blank', 'noopener,noreferrer');
+    });
+
+    it('does nothing without a target', async () => {
+        const el = await mount('feezal-element-glass-link', {open: 'new-tab'});
+        el.link.activate();
+        expect(window.open).not.toHaveBeenCalled();
+    });
+
+    it('the editor NEVER navigates — a tap there is a selection', async () => {
+        feezal.isEditor = true;
+        const el = await mount('feezal-element-glass-link',
+            {href: 'https://example.org', open: 'new-tab'});
+        el.link.activate();
+        expect(window.open).not.toHaveBeenCalled();
+        expect(el.link.popupOpen).toBe(false);
+    });
+
+    it('a message on `subscribe` replaces the target at runtime', async () => {
+        const el = await mount('feezal-element-glass-link',
+            {href: 'https://old.example', subscribe: 'home/link', open: 'new-tab'});
+        feezal.connection.deliver('home/link', 'https://new.example/live');
+        el.link.activate();
+        expect(window.open).toHaveBeenCalledWith(
+            'https://new.example/live', '_blank', 'noopener,noreferrer');
+    });
+
+    it('…honouring message-property for a JSON payload', async () => {
+        const el = await mount('feezal-element-glass-link',
+            {href: 'x', subscribe: 'home/link', 'message-property': 'payload.url', open: 'new-tab'});
+        feezal.connection.deliver('home/link', {url: 'https://nested.example'});
+        el.link.activate();
+        expect(window.open).toHaveBeenCalledWith(
+            'https://nested.example', '_blank', 'noopener,noreferrer');
+    });
+
+    it('re-wires when the topic changes on the live canvas', async () => {
+        const el = await mount('feezal-element-glass-link',
+            {href: 'x', subscribe: 'home/a', open: 'new-tab'});
+        el.setAttribute('subscribe', 'home/b');
+        await el.updateComplete;
+        feezal.connection.deliver('home/b', 'https://via-b.example');
+        el.link.activate();
+        expect(window.open).toHaveBeenCalledWith(
+            'https://via-b.example', '_blank', 'noopener,noreferrer');
+    });
+
+    it('a #/view href routes the app in place — no navigation, no popup', async () => {
+        // N30: whatever the open mode says, an internal route is an internal route.
+        const kitchen = document.createElement('feezal-view');
+        kitchen.setAttribute('name', 'kitchen');
+        feezal.getView = name => (name === 'kitchen' ? kitchen : null);
+        feezal.site = {view: ''};
+
+        const el = await mount('feezal-element-glass-link',
+            {href: '#/kitchen', open: 'popup-iframe'});
+        el.link.activate();
+        expect(feezal.site.view).toBe('kitchen');
+        expect(el.link.popupOpen).toBe(false);
+        expect(window.open).not.toHaveBeenCalled();
+    });
+
+    it('an unknown #hash is NOT swallowed by the router', async () => {
+        // A hash link to an anchor on some page must still navigate normally.
+        feezal.getView = () => null;
+        feezal.site = {view: ''};
+        const el = await mount('feezal-element-glass-link', {href: '#faq', open: 'new-tab'});
+        el.link.activate();
+        expect(feezal.site.view).toBe('');
+        expect(window.open).toHaveBeenCalled();
+    });
+
+    it('popup-iframe embeds the target and always offers "open in tab"', async () => {
+        const el = await mount('feezal-element-glass-link',
+            {href: 'https://embed.example/panel', open: 'popup-iframe', label: 'Panel'});
+        el.link.activate();
+        await el.updateComplete;
+
+        const popup = el.shadowRoot.querySelector('.link-popup');
+        expect(popup).not.toBeNull();
+        expect(popup.querySelector('iframe').getAttribute('src')).toBe('https://embed.example/panel');
+        // The friendly fallback for X-Frame-Options/CSP blocks: embedding
+        // failures are not detectable from here, so the affordance is permanent.
+        const out = popup.querySelector('.bar a');
+        expect(out.getAttribute('href')).toBe('https://embed.example/panel');
+        expect(out.getAttribute('rel')).toContain('noopener');
+        expect(popup.querySelector('.bar .title').textContent).toBe('Panel');
+    });
+
+    it('the popup closes on ✕ and on Escape', async () => {
+        const el = await mount('feezal-element-glass-link',
+            {href: 'https://embed.example', open: 'popup-iframe'});
+        el.link.activate();
+        await el.updateComplete;
+        el.shadowRoot.querySelector('.link-popup .close').click();
+        await el.updateComplete;
+        expect(el.shadowRoot.querySelector('.link-popup')).toBeNull();
+
+        el.link.activate();
+        await el.updateComplete;
+        document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}));
+        await el.updateComplete;
+        expect(el.shadowRoot.querySelector('.link-popup')).toBeNull();
+    });
+
+    it('detaching while the popup is open releases the Esc listener', async () => {
+        // The N42 leak class: a document listener must not outlive the element.
+        const el = await mount('feezal-element-glass-link',
+            {href: 'https://embed.example', open: 'popup-iframe'});
+        el.link.activate();
+        el.remove();
+        expect(el.link.popupOpen).toBe(false);
+        // A later Escape must find nothing to call (no throw, no re-open).
+        document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}));
+    });
+});
+
+describe('E166 — every family activates through the one controller', () => {
+    for (const tag of TAGS) {
+        it(`${tag}: a tap on the face opens the target`, async () => {
+            const el = await mount(tag, {href: 'https://tap.example', open: 'new-tab'});
+            // Each family's clickable face — the card, tile front, or disc.
+            const face = el.shadowRoot.querySelector('.card, .face.front, .disc');
+            expect(face, `${tag} has no clickable face`).not.toBeNull();
+            face.click();
+            expect(window.open).toHaveBeenCalledWith(
+                'https://tap.example', '_blank', 'noopener,noreferrer');
+        });
+
+        it(`${tag}: an image face replaces the icon`, async () => {
+            const el = await mount(tag, {href: 'x', image: '/assets/site/floorplan.png'});
+            expect(el.shadowRoot.querySelector('.face-image')).not.toBeNull();
+            expect(el.shadowRoot.querySelector('feezal-icon')).toBeNull();
+        });
+    }
+});

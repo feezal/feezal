@@ -19,6 +19,7 @@ import {
     SensorController,
 } from '@feezal/feezal-controller-sensor';
 import {CONTACT_CONSUMED_ATTRIBUTES, CONTACT_ACTIVE_COLOR_VAR, ContactController} from '@feezal/feezal-controller-contact';
+import {LINK_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-link';
 import {CLIMATE_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-climate';
 import {LIGHT_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-light';
 import {COVER_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-cover';
@@ -60,6 +61,11 @@ import '../packages/@feezal/feezal-element-glass-climate/feezal-element-glass-cl
 import '../packages/@feezal/feezal-element-metro-climate/feezal-element-metro-climate.js';
 import '../packages/@feezal/feezal-element-eink-sensor/feezal-element-eink-sensor.js';
 import '../packages/@feezal/feezal-element-eink-contact/feezal-element-eink-contact.js';
+// E166: the link cards adopt @feezal/feezal-controller-link.
+import '../packages/@feezal/feezal-element-circle-link/feezal-element-circle-link.js';
+import '../packages/@feezal/feezal-element-glass-link/feezal-element-glass-link.js';
+import '../packages/@feezal/feezal-element-metro-link/feezal-element-metro-link.js';
+import '../packages/@feezal/feezal-element-eink-link/feezal-element-eink-link.js';
 import '../packages/@feezal/feezal-element-eink-climate/feezal-element-eink-climate.js';
 import '../packages/@feezal/feezal-element-metro-cover/feezal-element-metro-cover.js';
 import '../packages/@feezal/feezal-element-glass-cover/feezal-element-glass-cover.js';
@@ -151,6 +157,11 @@ const CASES = [
     {tag: 'feezal-element-circle-loadpoint', consumed: EVCC_LOADPOINT_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-glass-loadpoint',  consumed: EVCC_LOADPOINT_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-metro-loadpoint',  consumed: EVCC_LOADPOINT_CONSUMED_ATTRIBUTES},
+    // E166: the link function, shared by four families.
+    {tag: 'feezal-element-circle-link', consumed: LINK_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-glass-link',  consumed: LINK_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-metro-link',  consumed: LINK_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-eink-link',   consumed: LINK_CONSUMED_ATTRIBUTES},
 ];
 
 describe('E137 — adopting elements declare the full controller contract', () => {
@@ -168,6 +179,7 @@ describe('E137 — adopting elements declare the full controller contract', () =
         expect(SENSOR_CONSUMED_ATTRIBUTES.length).toBeGreaterThan(4);
         expect(CONTACT_CONSUMED_ATTRIBUTES).toContain('subscribe-battery-low');
         expect(CLIMATE_CONSUMED_ATTRIBUTES).toContain('subscribe-boost-state');
+        expect(LINK_CONSUMED_ATTRIBUTES).toContain('href');
     });
 });
 

@@ -1,0 +1,6 @@
+{
+    "name": "@feezal/feezal-controller-link",
+    "version": "3.0.0",
+    "main": "feezal-controller-link.js",
+    "license": "MIT"
+}
