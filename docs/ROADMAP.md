@@ -64,6 +64,7 @@ Work in progress — priorities and scope are not final.
 - [E164 — Fancy family: finish and re-enable the disabled cards](#e164--fancy-family-finish-and-re-enable-the-disabled-cards)
 - [E167 — `glass-camera`: basic-camera in the glass frame 💡](#e167--glass-camera-basic-camera-in-the-glass-frame-)
 - [E168 — basic-camera: Frigate event backfill (events from before the viewer opened)](#e168--basic-camera-frigate-event-backfill-events-from-before-the-viewer-opened-️-to-be-refined) ⚠️
+- [E170 — Search element family (*-search) / view-wise search in layout-app](#e170--search-element-family--search--view-wise-search-in-layout-app)
 
 **Editor UX**
 
@@ -2633,6 +2634,53 @@ the tile labels).
 **Relates:** the editor dark-mode discipline (N43 — this is its light-mode
 mirror), element-spec `palette.color` (docs note: color is authored against
 the dark editor; light mode derives), U45 (palette/picker — same tiles).
+
+
+### E170 — Search element family (*-search) / view-wise search in layout-app
+
+**Requested (08/2026).** Filter the elements of a view live from a search
+bar — two shapes, possibly complementary (decide at implementation which
+ships first; they can share the matching engine):
+
+**A. `(glass/metro/…)-search` element:** puts a search input at the top of
+its view; typing **shows/hides the sibling elements of its sub-view** by
+matching their `label` attribute and — where the element has one — `href`
+(the E166 link family being the obvious target). Details:
+
+- **Debounced keyup** (~150–250ms) — no per-keystroke relayout.
+- Match = case-insensitive substring over `label` + `href`; an element
+  with neither attribute stays visible (a search bar must not blank
+  decorative/layout elements). Clearing restores everything.
+- Hiding must play nicely with the visibility machinery — prefer a
+  dedicated `search-hidden` state over touching `display` inline styles
+  that conditions (E50) and the editor also manipulate; hidden elements
+  keep their subscriptions (this is a view filter, not a teardown).
+- **Design-family fit:** each family styles the input as its own chrome
+  (glass = frosted pill, metro = flat tile-colored bar, eink = 1-bit
+  border); **× clear button inside the input** — omitted for
+  `basic-search` (keep basic minimal).
+- Editor canvas: the element renders the bar but must NOT filter on the
+  canvas (editing a view while half its elements are hidden is chaos) —
+  viewer-only behavior, like other pseudo-element behaviors.
+
+**B. layout-app integration (alternative or addition):** a per-sub-view
+**"search" checkbox in the entries manager** — enabled views render a
+search field in the app chrome (under the top bar / above the content)
+that filters the EMBEDDED view's elements the same way. One
+implementation serves every family through the shell; no element to
+place per view. If both ship, the layout-app field should reuse the
+element's matching/hiding engine (shared module, not a fork).
+
+**Open questions for refinement:** does hiding re-flow (flow views: yes
+naturally; absolute views: hide in place vs. compact?) — suggest
+hide-in-place for absolute, natural reflow on flow views; should
+matching extend to element tag / current payload text later (out of
+scope v1).
+
+**Relates:** E166 (link family — href matching), E50 (conditions — do
+not fight over display), U103 (layout-app two-level nav — the checkbox
+lives in the same entries manager), N40 (hidden clones stay warm —
+same principle: filter ≠ unsubscribe).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
