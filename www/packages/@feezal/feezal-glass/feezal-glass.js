@@ -211,25 +211,11 @@ export const glassPopupStyles = css`
         -webkit-backdrop-filter: none; backdrop-filter: none;
         background: var(--feezal-glass-tint, rgba(255,255,255,0.35));
     }
-    /* E171 ② — opt-in open/close animation: scale from 0.96 + fade in, the
-       reverse out (the machinery holds the popover through a closing state
-       so the out-tween actually plays before removal). */
-    :host([popup-animate]) .details {
-        animation: feezal-glass-pop-in 0.18s cubic-bezier(0.2, 0.7, 0.3, 1);
-    }
-    :host([popup-animate]) .details.closing {
-        animation: feezal-glass-pop-out 0.15s ease-in forwards;
-    }
-    @keyframes feezal-glass-pop-in {
-        from { opacity: 0; transform: scale(0.96); }
-    }
-    @keyframes feezal-glass-pop-out {
-        to { opacity: 0; transform: scale(0.96); }
-    }
-    @media (prefers-reduced-motion: reduce) {
-        :host([popup-animate]) .details,
-        :host([popup-animate]) .details.closing { animation: none; }
-    }
+    /* E171 ② — the open/close animation is a FLIP morph driven from JS
+       (FeezalGlassCard._animatePopup): the popup grows out of the CARD's
+       own on-screen outline and shrinks back into it on close — the
+       basic-camera popup-animation pattern, requested for glass too. No CSS
+       keyframes: the from-rect is the element's live geometry. */
     .details .title {
         font-size: 13px; font-weight: 700; align-self: stretch; text-align: center;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -271,8 +257,8 @@ export const glassPopupKnobs = [
         help: 'While the popup is open, frost the whole page behind it (family blur + tint scrim) — the view shimmers ' +
             'through, the popup floats on glass. With degrade on, a solid translucent scrim replaces the live blur.'},
     {name: 'popup-animate', type: 'boolean', default: false, section: 'Popup',
-        help: 'Animate the popup: scale + fade in on open, the reverse on close. Disabled automatically when the ' +
-            'system asks for reduced motion.'},
+        help: 'Animate the popup: it grows out of the card\'s own outline on open and shrinks back into it on ' +
+            'close. Disabled automatically when the system asks for reduced motion.'},
 ];
 
 export class FeezalGlassCard extends FeezalElement {
@@ -316,26 +302,64 @@ export class FeezalGlassCard extends FeezalElement {
 
     _closeDetails() {
         document.removeEventListener('pointerdown', this.__outsideDown);
-        // E171 ②: with the animation knob on, play the out-tween BEFORE the
-        // popover is torn down — removal on `_details = false` would cut it
-        // off. Reduced motion (and the no-knob default) closes instantly.
+        // E171 ②: with the animation knob on, the popup SHRINKS BACK INTO the
+        // card's outline before the popover is torn down — removal on
+        // `_details = false` would cut the tween off. Reduced motion (and the
+        // no-knob default) closes instantly.
         const popup = this.renderRoot?.querySelector('.details');
-        const reduced = typeof matchMedia === 'function'
-            && matchMedia('(prefers-reduced-motion: reduce)').matches;
-        if (this.popupAnimate && popup && !reduced) {
+        if (this.popupAnimate && popup?.animate && !this._reducedMotion()) {
             if (this.__closing) return;
             this.__closing = true;
-            popup.classList.add('closing');
             const done = () => {
                 if (!this.__closing) return;
                 this.__closing = false;
                 this._details = false;
             };
-            popup.addEventListener('animationend', done, {once: true});
-            setTimeout(done, 250);   // safety net if the animation never fires
+            const anim = this._animatePopup(popup, true);
+            anim.finished.then(done).catch(done);
+            setTimeout(done, 400);   // safety net if the animation never settles
             return;
         }
         this._details = false;
+    }
+
+    _reducedMotion() {
+        return typeof matchMedia === 'function'
+            && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    }
+
+    /**
+     * E171 ② — FLIP-style morph between the CARD's on-screen outline and the
+     * popup's final centred rect (the basic-camera popup-animation pattern):
+     * open grows the popup out of the element, close shrinks it back in.
+     */
+    _animatePopup(popup, reverse) {
+        const from = this.getBoundingClientRect();   // the card on the dashboard
+        const to   = popup.getBoundingClientRect();  // final popup rect
+        const grown = {transform: 'none', opacity: 1};
+        const shrunk = {
+            transform:
+                `translate(${(from.left + from.width / 2) - (to.left + to.width / 2)}px, ` +
+                `${(from.top + from.height / 2) - (to.top + to.height / 2)}px) ` +
+                `scale(${from.width / to.width || 0.5}, ${from.height / to.height || 0.5})`,
+            opacity: 0.4,
+        };
+        return popup.animate(
+            reverse ? [grown, shrunk] : [shrunk, grown],
+            {duration: 220, easing: reverse ? 'cubic-bezier(0.4, 0, 1, 1)' : 'cubic-bezier(0, 0, 0.2, 1)'},
+        );
+    }
+
+    /** Play the open morph once the popup is in the DOM (subclasses call
+     * super.updated, so this runs for every card without per-card wiring). */
+    updated(changed) {
+        super.updated?.(changed);
+        if (changed.has('_details') && this._details && this.popupAnimate && !this._reducedMotion()) {
+            requestAnimationFrame(() => {
+                const popup = this.renderRoot?.querySelector('.details');
+                if (this._details && popup?.animate) this._animatePopup(popup, false);
+            });
+        }
     }
 
 }

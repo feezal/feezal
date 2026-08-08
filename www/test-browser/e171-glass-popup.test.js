@@ -58,30 +58,44 @@ describe('E171 ① — frosted page backdrop (opt-in)', () => {
     });
 });
 
-describe('E171 ② — open/close animation (opt-in)', () => {
-    it('open plays the in-tween only with the knob on', async () => {
+describe('E171 ② — open/close morph from the card outline (opt-in)', () => {
+    const frame = () => new Promise(r => requestAnimationFrame(() => r()));
+
+    it('open morphs the popup OUT OF the card rect — only with the knob on', async () => {
         const plain = await mount('feezal-element-glass-light', {});
+        plain.style.cssText = 'position:absolute;left:20px;top:20px;width:172px;height:128px;';
         plain.openDetails();
         await plain.updateComplete;
-        expect(getComputedStyle(plain.shadowRoot.querySelector('.details')).animationName)
-            .toBe('none');
+        await frame();
+        expect(plain.shadowRoot.querySelector('.details').getAnimations()).toHaveLength(0);
         plain.remove();
 
         const el = await mount('feezal-element-glass-light', {'popup-animate': ''});
+        el.style.cssText = 'position:absolute;left:20px;top:20px;width:172px;height:128px;';
         el.openDetails();
         await el.updateComplete;
-        expect(getComputedStyle(el.shadowRoot.querySelector('.details')).animationName)
-            .toBe('feezal-glass-pop-in');
+        await frame();
+        const anims = el.shadowRoot.querySelector('.details').getAnimations();
+        expect(anims.length).toBeGreaterThan(0);
+        // the FLIP from-keyframe carries the card→popup translate+scale
+        const kf = anims[0].effect.getKeyframes();
+        expect(kf[0].transform).toContain('translate');
+        expect(kf[0].transform).toContain('scale');
+        expect(kf.at(-1).transform).toBe('none');
     });
 
-    it('close ANIMATES before removal — a closing state, not a synchronous teardown', async () => {
+    it('close SHRINKS BACK into the card before removal — not a synchronous teardown', async () => {
         const el = await mount('feezal-element-glass-light', {'popup-animate': ''});
+        el.style.cssText = 'position:absolute;left:20px;top:20px;width:172px;height:128px;';
         el.openDetails();
         await el.updateComplete;
+        await frame();
         el._closeDetails();
-        // still open, tweening out
+        // still open, tweening out toward the card rect
         expect(el._details).toBe(true);
-        expect(el.shadowRoot.querySelector('.details').classList.contains('closing')).toBe(true);
+        const anims = el.shadowRoot.querySelector('.details').getAnimations();
+        expect(anims.length).toBeGreaterThan(0);
+        expect(anims.at(-1).effect.getKeyframes().at(-1).transform).toContain('scale');
         await until(() => el._details === false);
         expect(el.shadowRoot.querySelector('.details')).toBeNull();
     });
