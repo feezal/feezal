@@ -2671,11 +2671,11 @@ implementation serves every family through the shell; no element to
 place per view. If both ship, the layout-app field should reuse the
 element's matching/hiding engine (shared module, not a fork).
 
-**Open questions for refinement:** does hiding re-flow (flow views: yes
-naturally; absolute views: hide in place vs. compact?) — suggest
-hide-in-place for absolute, natural reflow on flow views; should
-matching extend to element tag / current payload text later (out of
-scope v1).
+**Decided (08/2026):** hiding is **hide-in-place on absolute views**
+(no compaction — positions stay stable while filtering) and **natural
+reflow on flow/grid views** (remaining tiles close up). Still open:
+whether matching later extends to element tag / current payload text
+(out of scope for v1).
 
 **Relates:** E166 (link family — href matching), E50 (conditions — do
 not fight over display), U103 (layout-app two-level nav — the checkbox
