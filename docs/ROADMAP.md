@@ -14,6 +14,7 @@ Work in progress — priorities and scope are not final.
 - [B125 — Asset manager: the New Folder dialog input renders light in a dark editor](#b125--asset-manager-the-new-folder-dialog-input-renders-light-in-a-dark-editor)
 - [B126 — Duplicate view renders its copy stacked on the current view (looks like elements duplicated in place)](#b126--duplicate-view-renders-its-copy-stacked-on-the-current-view-looks-like-elements-duplicated-in-place)
 - [B127 — Copy/paste of template elements loses the template content (B31 regression class)](#b127--copypaste-of-template-elements-loses-the-template-content-b31-regression-class)
+- [B128 — View names with spaces break the sl-select view pickers (layout-flex subview not shown) ⚠ needs sweep](#b128--view-names-with-spaces-break-the-sl-select-view-pickers-layout-flex-subview-not-shown--needs-sweep)
 
 
 **Near-term Improvements**
@@ -529,6 +530,45 @@ contents must never be overwritten by a merged value).
 **Relates:** B31 (the original fix + its too-narrow test), U92/B105
 (source formatter — must preserve template bodies), N6 (template
 textarea editor), U109 (view clipboard — same serialization concerns).
+
+
+### B128 — View names with spaces break the sl-select view pickers (layout-flex subview not shown) ⚠ needs sweep
+
+**Reported (08/2026).** A view named with a SPACE was chosen as a
+layout-flex region's subview — the subview never rendered. Renaming the
+view to use a dash fixed it. Reporter suspects more places (layout-app,
+layout-view, layout-responsive …) — sweep pending, mark for refinement.
+
+**Root cause (class, diagnosed):** Shoelace `sl-select` option values
+are SPACE-DELIMITED — a multi-select's value is a space-separated token
+list, so an `sl-option` whose `value` contains a space can never match
+(the layout-app inspector already documents this on its create-view
+sentinel: "Shoelace option values must be space-free"). Every view
+picker built on `sl-select` therefore breaks for view names with
+spaces: the picked value tokenizes / never round-trips, and the
+consumer stores a broken name. The EMBED lookups themselves
+(`feezal-view[name="…"]`, quoted attribute selector) are space-safe —
+the corruption happens in the picker, before the name is stored.
+
+**Sweep list (check each, fix with ONE shared approach):** layout-flex
+region view picker; layout-view; layout-app entries manager + Initial
+view select (`active-view`); layout-responsive rule pickers; the U95
+view-inspector pickers; conditions (E50) view references; the U58/App
+wizard (generated names are slugified, likely safe); anywhere else
+`sl-option value=` is fed a view name (grep for view-name-fed
+`sl-select`s).
+
+**Fix direction:** encode the value, display the raw name — e.g.
+`value="${encodeURIComponent(name)}"` and decode in the change handler
+(one tiny helper pair used by every picker), so arbitrary view names
+keep working. Do NOT forbid spaces in view names ("Living room" is a
+legitimate name; B30 already made hash routing umlaut/space-safe via
+percent-encoding). A ratchet-style unit test can grep/mount the pickers
+with a spaced view name and assert the round-trip.
+
+**Relates:** B106 (space-separated `discovery-ids` — same
+space-as-delimiter bug class), B30 (hash encoding), U47 (create-view
+sentinel — the documented space constraint), U95 (view inspector).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
