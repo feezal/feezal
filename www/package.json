@@ -114,6 +114,7 @@
         "@feezal/feezal-element-glass-meter": "*",
         "@feezal/feezal-element-glass-motion": "*",
         "@feezal/feezal-element-glass-multivalue": "*",
+        "@feezal/feezal-element-glass-popup": "*",
         "@feezal/feezal-element-glass-search": "*",
         "@feezal/feezal-element-glass-sensor": "*",
         "@feezal/feezal-element-glass-switch": "*",

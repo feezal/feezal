@@ -79,6 +79,7 @@ import '@feezal/feezal-element-glass-lock';
 import '@feezal/feezal-element-glass-meter';
 import '@feezal/feezal-element-glass-motion';
 import '@feezal/feezal-element-glass-multivalue';
+import '@feezal/feezal-element-glass-popup';
 import '@feezal/feezal-element-glass-search';
 import '@feezal/feezal-element-glass-sensor';
 import '@feezal/feezal-element-glass-switch';
@@ -258,6 +259,7 @@ window.feezal.elements = [
   "feezal-element-glass-meter",
   "feezal-element-glass-motion",
   "feezal-element-glass-multivalue",
+  "feezal-element-glass-popup",
   "feezal-element-glass-search",
   "feezal-element-glass-sensor",
   "feezal-element-glass-switch",

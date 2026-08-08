@@ -1012,21 +1012,26 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             const EMPTY = '__feezal-empty__';
             const hasEmpty = item.emptyOption != null;
             const selValue = mixed ? '' : (value || (hasEmpty ? EMPTY : (item.default ?? '')));
+            // B128: option values ride the shared encoding so free-form
+            // options (dropdown:'views' — view names with spaces) round-trip;
+            // enum options and the EMPTY sentinel are space-free and pass
+            // through the encoding unchanged.
             return html`
-                <sl-select .label="${labelAttr}" size="small" .value="${selValue}"
+                <sl-select .label="${labelAttr}" size="small" .value="${encodeOptionValue(selValue)}"
                     ?clearable="${!mixed && value != null && value !== ''}"
                     @sl-clear="${() => this._clearAttr(idx)}"
                     @sl-change="${e => {
-                        if (hasEmpty && e.target.value === EMPTY) {
+                        const picked = decodeOptionValue(e.target.value);
+                        if (hasEmpty && picked === EMPTY) {
                             if (value != null && value !== '') this._clearAttr(idx);
                         } else {
-                            this._change(e.target.value, idx, true);
+                            this._change(picked, idx, true);
                         }
                     }}">
                     ${labelSlot}
                     ${hasEmpty ? html`<sl-option value="${EMPTY}">${item.emptyOption}</sl-option>` : ''}
                     ${(elem.options || []).map(opt => html`
-                        <sl-option value="${opt}">${opt}</sl-option>
+                        <sl-option value="${encodeOptionValue(opt)}">${opt}</sl-option>
                     `)}
                 </sl-select>
             `;

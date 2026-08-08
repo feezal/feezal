@@ -1,0 +1,10 @@
+{
+    "name": "@feezal/feezal-element-glass-popup",
+    "version": "3.0.0",
+    "main": "feezal-element-glass-popup.js",
+    "license": "MIT",
+    "dependencies": {
+        "@feezal/feezal-element-basic-template": "*",
+        "@feezal/feezal-glass": "*"
+    }
+}

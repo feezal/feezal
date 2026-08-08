@@ -153,4 +153,6 @@ class FeezalElementBasicTemplate extends FeezalElement {
 
 window.customElements.define('feezal-element-basic-template', FeezalElementBasicTemplate);
 
-export {FeezalElementBasicTemplate};
+// E171: glass-popup renders its light-DOM template with the same msg
+// semantics — the coercion helper is shared, not duplicated.
+export {FeezalElementBasicTemplate, withJsonStringCoercion};

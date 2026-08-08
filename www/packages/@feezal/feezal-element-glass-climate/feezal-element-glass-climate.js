@@ -5,7 +5,7 @@ import {feezalFaultStyles} from '@feezal/feezal-element/feezal-hm-fault.js';
 // E137: the thermostat behavior lives in the shared controller — this element
 // is a VIEW (glass chrome: frost card + Apple-Home details popup).
 import {ClimateController, climateAttributes, climateDiscoveryMap} from '@feezal/feezal-controller-climate';
-import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard, glassBadgeTray} from '@feezal/feezal-glass';
+import {applySizePreset, glassCardStyles, glassPopupStyles, glassPopupKnobs, FeezalGlassCard, glassBadgeTray} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-climate (E58, renamed from glass-thermostat)
@@ -98,6 +98,7 @@ class FeezalElementGlassClimate extends FeezalGlassCard {
                 {name: 'payload-available',   type: 'string', default: 'online',  section: 'Availability', help: 'Payload meaning available.'},
                 {name: 'payload-unavailable', type: 'string', default: 'offline', section: 'Availability', help: 'Payload meaning unavailable.'},
                 {name: 'message-property-availability', type: 'string', default: 'payload', section: 'Availability', advanced: true, help: 'Property path within availability messages. Defaults to message-property.'},
+                ...glassPopupKnobs,   // E171: popup-backdrop / popup-animate
             ],
             styles: [
                 'top', 'left', 'width', 'height',

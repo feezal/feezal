@@ -1,6 +1,6 @@
 /* global feezal */
 import {feezalBaseStyles, html, css} from '@feezal/feezal-element';
-import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard, glassBadgeTray} from '@feezal/feezal-glass';
+import {applySizePreset, glassCardStyles, glassPopupStyles, glassPopupKnobs, FeezalGlassCard, glassBadgeTray} from '@feezal/feezal-glass';
 import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
@@ -81,6 +81,7 @@ class FeezalElementGlassFan extends FeezalGlassCard {
                 {name: 'speed-range-max', type: 'number', default: 100, help: 'Raw speed maximum (from discovery speed_range_max). e.g. 9 for IKEA STARKVIND.'},
                 {name: 'degrade', type: 'boolean', default: false,
                     help: 'Replace the live backdrop blur with a semi-opaque solid card — no per-frame GPU cost (weak wall-tablet hardware).'},
+                ...glassPopupKnobs,   // E171: popup-backdrop / popup-animate
             ],
             styles: [
                 'top', 'left', 'width', 'height',

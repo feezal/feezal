@@ -196,6 +196,40 @@ export const glassPopupStyles = css`
         background: var(--feezal-glass-solid, rgba(245,245,247,0.94));
     }
     .details::backdrop { background: rgba(0, 0, 0, 0.35); }
+    /* E171 ① — opt-in frosted page backdrop: while the popup is open the
+       whole page behind it gets the family frost (blur + tint scrim), the
+       view shimmers through. Off by default (B61: a full-page blur layer is
+       exactly the surface the Chrome/macOS invalidation bug bites). Follows
+       the same tint tokens as the cards (B121). */
+    :host([popup-backdrop]) .details::backdrop {
+        background: var(--feezal-glass-tint, rgba(255,255,255,0.35));
+        -webkit-backdrop-filter: blur(var(--feezal-glass-blur, 20px));
+        backdrop-filter: blur(var(--feezal-glass-blur, 20px));
+    }
+    /* degrade contract: solid translucent scrim, no live blur. */
+    :host([degrade][popup-backdrop]) .details::backdrop {
+        -webkit-backdrop-filter: none; backdrop-filter: none;
+        background: var(--feezal-glass-tint, rgba(255,255,255,0.35));
+    }
+    /* E171 ② — opt-in open/close animation: scale from 0.96 + fade in, the
+       reverse out (the machinery holds the popover through a closing state
+       so the out-tween actually plays before removal). */
+    :host([popup-animate]) .details {
+        animation: feezal-glass-pop-in 0.18s cubic-bezier(0.2, 0.7, 0.3, 1);
+    }
+    :host([popup-animate]) .details.closing {
+        animation: feezal-glass-pop-out 0.15s ease-in forwards;
+    }
+    @keyframes feezal-glass-pop-in {
+        from { opacity: 0; transform: scale(0.96); }
+    }
+    @keyframes feezal-glass-pop-out {
+        to { opacity: 0; transform: scale(0.96); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        :host([popup-animate]) .details,
+        :host([popup-animate]) .details.closing { animation: none; }
+    }
     .details .title {
         font-size: 13px; font-weight: 700; align-self: stretch; text-align: center;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -228,15 +262,35 @@ export const glassPopupStyles = css`
  * method is gone rather than kept as a no-op — a card still calling it would
  * be a leftover worth surfacing as an error, not silently ignoring.
  */
+/** E171 — the two shared popup knobs, spread into every glass card that owns
+ * a details popover (and glass-popup). Both opt-in, both handled entirely by
+ * the shared machinery: the attributes reflect, `glassPopupStyles` keys off
+ * the host attributes, `_closeDetails` plays the out-tween. */
+export const glassPopupKnobs = [
+    {name: 'popup-backdrop', type: 'boolean', default: false, section: 'Popup',
+        help: 'While the popup is open, frost the whole page behind it (family blur + tint scrim) — the view shimmers ' +
+            'through, the popup floats on glass. With degrade on, a solid translucent scrim replaces the live blur.'},
+    {name: 'popup-animate', type: 'boolean', default: false, section: 'Popup',
+        help: 'Animate the popup: scale + fade in on open, the reverse on close. Disabled automatically when the ' +
+            'system asks for reduced motion.'},
+];
+
 export class FeezalGlassCard extends FeezalElement {
     static properties = {
         _details: {state: true},   // details popover open
+        // E171: the shared popup knobs — reflected so glassPopupStyles can
+        // key off the host attributes.
+        popupBackdrop: {type: Boolean, reflect: true, attribute: 'popup-backdrop'},
+        popupAnimate:  {type: Boolean, reflect: true, attribute: 'popup-animate'},
     };
 
     constructor() {
         super();
         this._details = false;
         this._suppressTap = false;
+        this.popupBackdrop = false;
+        this.popupAnimate = false;
+        this.__closing = false;    // E171 ②: out-tween in flight
         this.__outsideDown = e => {
             const path = e.composedPath();
             if (path.includes(this.renderRoot?.querySelector('.details'))) return;
@@ -248,6 +302,7 @@ export class FeezalGlassCard extends FeezalElement {
     disconnectedCallback() {
         super.disconnectedCallback();
         document.removeEventListener('pointerdown', this.__outsideDown);
+        this.__closing = false;
     }
 
     openDetails() {
@@ -260,8 +315,27 @@ export class FeezalGlassCard extends FeezalElement {
     }
 
     _closeDetails() {
-        this._details = false;
         document.removeEventListener('pointerdown', this.__outsideDown);
+        // E171 ②: with the animation knob on, play the out-tween BEFORE the
+        // popover is torn down — removal on `_details = false` would cut it
+        // off. Reduced motion (and the no-knob default) closes instantly.
+        const popup = this.renderRoot?.querySelector('.details');
+        const reduced = typeof matchMedia === 'function'
+            && matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (this.popupAnimate && popup && !reduced) {
+            if (this.__closing) return;
+            this.__closing = true;
+            popup.classList.add('closing');
+            const done = () => {
+                if (!this.__closing) return;
+                this.__closing = false;
+                this._details = false;
+            };
+            popup.addEventListener('animationend', done, {once: true});
+            setTimeout(done, 250);   // safety net if the animation never fires
+            return;
+        }
+        this._details = false;
     }
 
 }

@@ -6,7 +6,7 @@ import {feezalBaseStyles, html, css} from '@feezal/feezal-element';
 import {LightController, lightAttributes, lightDiscoveryMap, pctToRaw, hsvToRgb, rgbToHsv} from '@feezal/feezal-controller-light';
 import '@feezal/feezal-element/feezal-topic-input.js';
 import {LitElement} from 'lit';
-import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard, glassBadgeTray} from '@feezal/feezal-glass';
+import {applySizePreset, glassCardStyles, glassPopupStyles, glassPopupKnobs, FeezalGlassCard, glassBadgeTray} from '@feezal/feezal-glass';
 import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
@@ -58,6 +58,7 @@ class FeezalElementGlassLight extends FeezalGlassCard {
                 {name: 'icon',  type: 'string', default: 'lightbulb', help: 'Icon name.'},
                 {name: 'degrade', type: 'boolean', default: false,
                     help: 'Replace the live backdrop blur with a semi-opaque solid card — no per-frame GPU cost (weak wall-tablet hardware).'},
+                ...glassPopupKnobs,   // E171: popup-backdrop / popup-animate
             ],
             styles: [
                 'top', 'left', 'width', 'height',
@@ -799,6 +800,19 @@ class FeezalElementGlassLightInspector extends LitElement {
                         <sl-switch size="small" ?checked="${this.element.hasAttribute('degrade')}"
                             @sl-change="${e => this._emit('degrade', e.target.checked || null)}">
                             Degrade (no live blur — weak GPUs)
+                        </sl-switch>
+                    </div>
+                    <!-- E171: shared popup knobs (popup-backdrop / popup-animate) -->
+                    <div class="field">
+                        <sl-switch size="small" ?checked="${this.element.hasAttribute('popup-backdrop')}"
+                            @sl-change="${e => this._emit('popup-backdrop', e.target.checked || null)}">
+                            Frost the page behind the popup
+                        </sl-switch>
+                    </div>
+                    <div class="field">
+                        <sl-switch size="small" ?checked="${this.element.hasAttribute('popup-animate')}"
+                            @sl-change="${e => this._emit('popup-animate', e.target.checked || null)}">
+                            Animate popup open/close
                         </sl-switch>
                     </div>
                 </div>

@@ -4,7 +4,7 @@ import {feezalBaseStyles, feezalBoolean, html, css} from '@feezal/feezal-element
 // a VIEW (glass chrome: frost tile + details popup). The effect/palette
 // name tables are bundled once in the controller package.
 import {WledController, wledAttributes, wledDiscoveryMap, WLED_EFFECTS, WLED_PALETTES} from '@feezal/feezal-controller-wled';
-import {applySizePreset, glassCardStyles, glassPopupStyles, FeezalGlassCard, glassBadgeTray} from '@feezal/feezal-glass';
+import {applySizePreset, glassCardStyles, glassPopupStyles, glassPopupKnobs, FeezalGlassCard, glassBadgeTray} from '@feezal/feezal-glass';
 
 /**
  * feezal-element-glass-wled (E103 MVP)
@@ -68,6 +68,7 @@ class FeezalElementGlassWled extends FeezalGlassCard {
                     help: 'With multiple availability topics: all = every topic must report available; any = at least one.'},
                 {name: 'payload-available', type: 'string', default: 'online', help: 'Payload meaning the device is available.'},
                 {name: 'payload-unavailable', type: 'string', default: 'offline', help: 'Payload meaning the device is unavailable.'},
+                ...glassPopupKnobs,   // E171: popup-backdrop / popup-animate
             ],
             styles: [
                 'top', 'left', 'width', 'height',

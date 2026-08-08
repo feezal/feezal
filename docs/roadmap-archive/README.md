@@ -308,6 +308,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [E166 — Link element for the device-card families (`glass/metro/circle/eink-link`) ✅ done](E166.md)
 - [E167 — `glass-camera`: basic-camera in the glass frame ✅ done](E167.md)
 - [E169 — `scrypted-camera`: embed Scrypted NVR live/events views ✅ done](E169.md)
+- [E171 — Glass popups: frosted page backdrop, open/close animation, and a glass-popup container element ✅ done](E171.md)
 - [E170 — Search element family (*-search) / view-wise search in layout-app ✅ shipped (element family)](E170.md)
 
 ## Editor UX
