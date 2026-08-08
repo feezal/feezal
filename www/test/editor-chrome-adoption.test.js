@@ -31,7 +31,7 @@ const DIALOGS = [
 // backlog. Removing a name here (after adopting the shared chrome) is the
 // intended direction; adding one needs a reason.
 const LEGACY_UNMIGRATED = [
-    'feezal-sidebar-viewer.js', 'feezal-sidebar-themes.js', 'feezal-sidebar-assets.js',
+    'feezal-sidebar-viewer.js', 'feezal-sidebar-themes.js',
     'feezal-sidebar-editor.js', 'feezal-sidebar-color-ranges.js', 'feezal-pwa-icon-dialog.js',
     'feezal-icon-input.js', 'feezal-palette.js', 'feezal-sidebar-inspector-styles.js',
     'feezal-sidebar-inspector-attributes.js', 'feezal-app-editor.js', 'feezal-site-manager.js',

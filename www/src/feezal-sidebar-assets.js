@@ -10,6 +10,7 @@ import '@shoelace-style/shoelace/dist/components/tab/tab.js';
 import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
 
 import './feezal-pwa-icon-dialog.js';
+import {feezalDialogChrome, FEEZAL_Z} from './feezal-editor-chrome.js';   // N43/B125
 
 const IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'ico', 'bmp', 'avif']);
 const AUDIO_EXTS = new Set(['mp3', 'wav', 'ogg', 'flac', 'm4a']);
@@ -65,7 +66,7 @@ class FeezalSidebarAssets extends LitElement {
         _selected:      {state: true},  // U105: Set<path> — multi-selection (files only)
     };
 
-    static styles = css`
+    static styles = [feezalDialogChrome, css`
         :host {
             display: flex; flex-direction: column; height: 100%;
             background: var(--feezal-bg, #fff); box-sizing: border-box; overflow: hidden;
@@ -368,33 +369,15 @@ class FeezalSidebarAssets extends LitElement {
             color: #c00; font-size: 16px; line-height: 1; padding: 0 2px;
         }
 
-        /* ── Dialog theme (light + dark) ──────────────────────────────── */
-        /* Panel background/border follow --feezal-bg/--feezal-border so the
-           dialog is correct in both light and dark editor modes without a
-           class toggle. feezal-app-editor sets these vars in dark mode. */
-        sl-dialog {
-            --sl-panel-background-color: var(--feezal-bg, #fff);
-            --sl-panel-border-color: var(--feezal-border, #e0e0e0);
-            /* Canvas elements (e.g. live-element overlays) can have z-index > Shoelace's
-               default of 700. Force all dialogs in this component above them. */
-            --sl-z-index-dialog: 10000;
-        }
-        sl-dialog::part(panel) { color: var(--feezal-color, #333); }
-        /* Explicitly bind sl-input vars so the field adopts the theme even
-           when cascade from the shadow host is insufficient. */
-        sl-dialog sl-input {
-            --sl-input-background-color: var(--feezal-bg-sub, #fff);
-            --sl-input-border-color: var(--feezal-border, #d0d0d0);
-            --sl-input-color: var(--feezal-color, #333);
-            --sl-input-label-color: var(--feezal-color, #555);
-        }
-        /* Default (cancel) buttons */
-        sl-dialog sl-button[variant="default"]::part(base) {
-            background: var(--feezal-bg-sub, #f5f5f5);
-            border-color: var(--feezal-border, #d0d0d0);
-            color: var(--feezal-color, #333);
-        }
-    `;
+        /* ── Dialog chrome ────────────────────────────────────────────── */
+        /* B125: the shared N43 sheet (composed above) carries the panel,
+           input (incl. the hover/FOCUS backgrounds Shoelace does not derive —
+           the New Folder dialog auto-focuses its input, so it rendered light
+           in a dark editor from the first frame) and button theming. Only the
+           component-specific z-index stays here: canvas elements can exceed
+           Shoelace's default of 700. */
+        sl-dialog { --sl-z-index-dialog: ${FEEZAL_Z.dialog}; }
+    `];
 
     constructor() {
         super();
