@@ -136,12 +136,22 @@ export class FeezalSearchBase extends FeezalElement {
     /** The shared input markup — families style `.search`, `input` and `.sx`
      * (clear button; pass clearButton: false to omit it, as basic does). */
     renderSearchInput({clearButton = true} = {}) {
+        // The filter is viewer-only BY DESIGN — but a silent no-op on the
+        // editor canvas reads as broken (reported exactly so). Typing there
+        // shows an inline note instead of nothing. Inline-styled on purpose:
+        // one shared hint, no per-family CSS to keep in sync.
+        const editorNote = feezal.isEditor && this._q ? html`
+            <span class="search-editor-note"
+                style="flex:0 0 auto;font-size:10px;opacity:.6;white-space:nowrap;padding:0 6px;"
+                title="Filtering runs in the viewer — the editor canvas never hides elements.">filters in viewer</span>` : '';
         return html`
             <div class="search">
                 <input type="search" .value="${this._q}" placeholder="${this.placeholder || ''}"
                     aria-label="${this.placeholder || 'Search'}"
+                    title="${feezal.isEditor ? 'Filtering runs in the viewer — the editor canvas never hides elements.' : ''}"
                     @input="${e => this._onInput(e.target.value)}"
                     @keydown="${e => this._onKeydown(e)}">
+                ${editorNote}
                 ${clearButton && this._q ? html`
                     <button class="sx" title="Clear" @click="${() => this._clear()}">&times;</button>` : ''}
             </div>`;
