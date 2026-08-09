@@ -2858,8 +2858,9 @@ by. Decisions with the maintainer:
    line — extend the U92/U96 identifying-attribute serialization order
    (`feezal-id` before `label`/`subscribe`/`icon`/…), so a folded
    element leads with its identity.
-4. **Scoped lookup API:** `fzl.el(feezalId)` / `fzl.value(feezalId)` /
-   `fzl.on(feezalId, event, cb)` resolving the VISIBLE occurrence first
+4. **Scoped lookup API:** `fzl.el(feezalId)` / `fzl.val(feezalId)` /
+   `fzl.on(feezalId, event, cb)` — `val`, not `value`: short like `el`
+   and `on` (maintainer preference) — resolving the VISIBLE occurrence first
    (layout-app keeps warm clones of visited sub-views, N40, and U32
    component instances stamp copies — global uniqueness is a lie; the
    API defines resolution: visible first, then document order). The
