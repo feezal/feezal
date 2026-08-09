@@ -67,6 +67,7 @@ Work in progress — priorities and scope are not final.
 - [E176 — Theme: Material You / MD3 baseline (light + dark)](#e176-theme-material-you-md3-baseline-light-dark)
 - [E177 — Theme: Soft UI / neumorphism ⚠ needs a shadow token](#e177-theme-soft-ui-neumorphism-needs-a-shadow-token)
 - [E178 — system-form: a subview as a web form (decided core, script API to refine)](#e178--system-form-a-subview-as-a-web-form-decided-core-script-api-to-refine)
+- [E180 — Glass cards: Home.app interaction model (icon = main action, card = details)](#e180--glass-cards-homeapp-interaction-model-icon--main-action-card--details)
 
 **Editor UX**
 
@@ -2988,6 +2989,50 @@ publish; webhook fetch).
 system-script (`fzl`, Monaco), N40 (embedded clone), B128 (view
 picker), A28 (CSP for fetch), E50 (conditions on form members work
 unchanged).
+
+
+### E180 — Glass cards: Home.app interaction model (icon = main action, card = details)
+
+**Requested (08/2026).** Rework the glass family's interaction to match
+Apple's current Home.app:
+
+- The **icon sits in a circle** (visible ring, its own generous hit
+  area — 44px-class touch target) and **tapping the icon fires the main
+  function** (light/switch/wled: toggle; cover: its base action; lock:
+  toggle; …).
+- **Tapping anywhere ELSE on the card opens the details popup** — the
+  ⋯ details button disappears.
+
+**Today** (for contrast): tap anywhere = main action, long-press or the
+⋯ button = details.
+
+**Design notes:**
+- The icon circle doubles as the STATE surface (Home.app tints the
+  circle when active) — fits the existing active-tint styling; the ring
+  colour follows the family tokens.
+- **Long-press**: keep as a secondary path to details (matches Home.app
+  and preserves muscle memory from today's model) — decide during
+  implementation.
+- **Read-only cards** (sensor/contact/motion/value): no main action —
+  whole card opens details where one exists, unchanged.
+- Cards WITHOUT a details popup: icon tap still fires the action; the
+  rest of the card does nothing (no dead ⋯ to remove).
+- **This is a breaking UX change** for existing dashboards (tap-to-
+  toggle becomes tap-icon-to-toggle). Decide: new default with a
+  compatibility knob (suggestion: family-wide `interaction:
+  home-app | classic`, a natural first consumer of the U112
+  family-wide-settings concept), or per-element knob only. Leaning to
+  new-default + knob — the Home.app model is also SAFER (no more
+  accidental toggles when aiming for details).
+- Editor canvas unaffected (elements are inert there); the E115 family
+  switch must keep pairing.
+- Scope: the GLASS family first; metro/circle keep their own interaction
+  languages (metro has the flip-tile model, circle the ring gestures) —
+  do NOT blanket-apply.
+
+**Relates:** the glass popup machinery (E171 — backdrop/animation land
+in the same code), U112 (family-wide setting for the interaction knob),
+E115 (family switch), B121 (popup frost).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
