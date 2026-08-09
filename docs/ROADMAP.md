@@ -85,6 +85,7 @@ Work in progress — priorities and scope are not final.
 - [U110 — layout-app: per-sub-view element search (E170 shape B)](#u110--layout-app-per-sub-view-element-search-e170-shape-b)
 - [U112 — Element-family-wide settings (e.g. all glass transparency) ⚠ idea, needs refinement + decision](#u112--element-family-wide-settings-eg-all-glass-transparency--idea-needs-refinement--decision)
 - [U113 — Scripting ergonomics: `feezal-id`, scoped lookup, value/event contract — decided](#u113--scripting-ergonomics-feezal-id-scoped-lookup-valueevent-contract--decided)
+- [U114 — Component parameter UX: one-click expose, shared-segment templating, richer param specs — decided](#u114--component-parameter-ux-one-click-expose-shared-segment-templating-richer-param-specs--decided)
 
 
 **Architecture & Infrastructure**
@@ -3063,6 +3064,82 @@ grid / quick toggles.
 **Relates:** E180 (icon-circle interaction — mini is its logical
 extreme), `@feezal/feezal-glass` (GLASS_SIZES/applySizePreset,
 glassCardStyles), U112 (family-wide defaults).
+
+
+### U114 — Component parameter UX: one-click expose, shared-segment templating, richer param specs — decided
+
+**Requested + decided (08/2026).** Authoring a component parameter is
+tedious: you type a parameter name into a text field for every attribute
+row, and the dialog can only replace an attribute value WHOLE.
+
+**Key finding (verified in code):** the runtime already substitutes
+`${…}` placeholders ANYWHERE inside an attribute value — `_substitute()`
+in [feezal-component.js](../www/src/feezal-component.js) walks every
+attribute and replaces each occurrence, so
+`subscribe="echo/status/${device}/media"` **works today** and stamps
+correctly. Only the AUTHORING UI cannot produce it: both dialogs do a
+full-value replacement (`setAttribute(row.attr, '${' + param + '}')` in
+[feezal-app-editor.js](../www/src/feezal-app-editor.js)), so the
+templated form is reachable only by hand-editing in source mode. **This
+item is UI work on an engine that already supports the feature.**
+
+**Decisions taken with the maintainer:**
+
+1. **One-click expose, named after the attribute.** Every row gets an
+   expose button/checkbox instead of a bare name field: click, and the
+   parameter is created under the ATTRIBUTE name (`label`, `subscribe`,
+   …). On collision with an already-exposed name the second becomes
+   `label-2` (shown in the row, renameable). Typing a name stays
+   possible for custom naming, and typing an EXISTING name still merges
+   into that parameter (current reuse behaviour, kept).
+2. **Auto-detected shared segments + editable values.** On component
+   creation the dialog DIFFS the selected attribute values, finds the
+   common varying segment (the `Bad` in `echo/status/Bad/media`,
+   `echo/status/Bad/playerState`, `echo/cmnd/Bad/play`) and proposes ONE
+   parameter covering all of them — accept, name it (`device`), and every
+   affected attribute is rewritten to the embedded form
+   (`echo/status/${device}/media`) with the concrete value as the
+   parameter default. The **Value column also becomes editable**, with
+   `${…}` completion over the declared parameters, so anything the
+   detector misses can be typed directly. Detection is a PROPOSAL, never
+   an automatic rewrite.
+3. **Both existing dialogs share one upgraded table** — "Create
+   component…" and "Attribute mapping" get the same component (expose
+   buttons, editable values, detection banner, parameter list). No new
+   editor surface.
+4. **Richer parameter declarations:** `feezal-params` already carries an
+   inferred `type`. The UI additionally edits **label** and **help** per
+   parameter, so an instance inspector renders labeled fields with the
+   ℹ tooltip like a real element inspector. (Enum/select options were
+   considered and deferred — file separately if wanted.)
+
+**Implementation notes / caveats:**
+- **Detection algorithm:** split candidate values on `/` and compare
+  segment-wise across rows; a segment that is IDENTICAL in every
+  occurrence AND appears in at least two attributes is a candidate.
+  Never guess inside a single value (one topic alone is no evidence),
+  and prefer whole segments over arbitrary substrings — `Bad` in
+  `echo/status/Bad/media`, never `ad` inside `Bad`.
+- **Round-trip:** re-opening "Attribute mapping" on a template that
+  already uses embedded placeholders must SHOW them — parse them back
+  out of the value and mark the covered spans — instead of presenting
+  the raw string as unparameterized.
+- **Escaping:** a literal `${` in a value needs an escape story; at
+  minimum the current behaviour holds (a placeholder naming an
+  undeclared parameter stamps verbatim).
+- **Renaming** a parameter must rewrite every occurrence across the
+  template and update `feezal-params` — the same span-aware rewrite as
+  (2), which the current full-value dialog cannot do.
+- The name validator stays `^[a-z][a-z0-9-]*$`; auto-derived names must
+  be kebab-cased/sanitized first.
+- **Tests:** the detector is a pure function (values in → proposal out)
+  and should be unit-tested with the media-player case, a no-evidence
+  case (single value), and a near-miss (segment differs in one row);
+  the span-aware rewrite/round-trip belongs in the editor suite.
+
+**Relates:** U32 (the component system itself), the attribute inspector
+(where instance parameters render), U104 (dialog-table UX precedent),
+source mode (the only current route to embedded placeholders).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
