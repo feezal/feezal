@@ -68,6 +68,7 @@ Work in progress — priorities and scope are not final.
 - [E177 — Theme: Soft UI / neumorphism ⚠ needs a shadow token](#e177-theme-soft-ui-neumorphism-needs-a-shadow-token)
 - [E178 — system-form: a subview as a web form (decided core, script API to refine)](#e178--system-form-a-subview-as-a-web-form-decided-core-script-api-to-refine)
 - [E180 — Glass cards: Home.app interaction model (icon = main action, card = details)](#e180--glass-cards-homeapp-interaction-model-icon--main-action-card--details)
+- [E181 — Mini glass cards: circular icon-only size preset](#e181--mini-glass-cards-circular-icon-only-size-preset)
 
 **Editor UX**
 
@@ -3033,6 +3034,35 @@ Apple's current Home.app:
 **Relates:** the glass popup machinery (E171 — backdrop/animation land
 in the same code), U112 (family-wide setting for the interaction knob),
 E115 (family switch), B121 (popup frost).
+
+
+### E181 — Mini glass cards: circular icon-only size preset
+
+**Requested (08/2026).** An additional glass `size` preset — **mini**:
+the element IS a circle containing only the icon (no label, no value
+text; the frost pill shrinks to a round chip). Think Home.app's compact
+grid / quick toggles.
+
+- Extend the shared `GLASS_SIZES`/`applySizePreset` map
+  (`@feezal/feezal-glass`) with `mini` (suggestion: 64×64; the preset
+  writes equal width/height) and let the card chrome render the circular
+  variant when `size="mini"` (border-radius 50%, icon centred, label and
+  value/state text hidden — the icon tint carries the state).
+- Interaction follows E180: in the Home.app model the WHOLE mini chip is
+  the icon circle — tap = main action; details via long-press (there is
+  no "rest of the card"). In the classic model: tap = action as today.
+- Availability/badge tray (battery, unavailable): shrink to a single dot
+  on the chip edge, or suppress below a size threshold — decide at
+  implementation.
+- Applies to the actionable cards first (light, switch, lock, cover,
+  wled, button, link); read-only cards may follow (mini sensor = icon +
+  tint only) if it proves readable.
+- The editor's size select gains the option per element (shared
+  descriptor fragment — one change).
+
+**Relates:** E180 (icon-circle interaction — mini is its logical
+extreme), `@feezal/feezal-glass` (GLASS_SIZES/applySizePreset,
+glassCardStyles), U112 (family-wide defaults).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
