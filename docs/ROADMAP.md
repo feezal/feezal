@@ -70,6 +70,7 @@ Work in progress — priorities and scope are not final.
 - [E176 — Theme: Material You / MD3 baseline (light + dark)](#e176-theme-material-you-md3-baseline-light-dark)
 - [E177 — Theme: Soft UI / neumorphism ⚠ needs a shadow token](#e177-theme-soft-ui-neumorphism-needs-a-shadow-token)
 - [E178 — system-form: a subview as a web form (decided core, script API to refine)](#e178--system-form-a-subview-as-a-web-form-decided-core-script-api-to-refine)
+- [E179 — Theme: Industrial Copper (warm metallic dark)](#e179--theme-industrial-copper-warm-metallic-dark)
 
 **Editor UX**
 
@@ -3035,6 +3036,44 @@ publish; webhook fetch).
 system-script (`fzl`, Monaco), N40 (embedded clone), B128 (view
 picker), A28 (CSP for fetch), E50 (conditions on form members work
 unchanged).
+
+
+### E179 — Theme: Industrial Copper (warm metallic dark)
+
+**Requested (08/2026).** A luxury warm-metallic dark theme — copper and
+bronze on deep charcoal. Inspiration: the German HA community's
+`industrial_copper` theme
+([simon42 forum thread, post #7](https://community.simon42.com/t/luxus-home-assistant-dashboard-wie-auf-dem-bild-umsetzbar/89304/7)
+by user Mercator; credit the thread in the package README — the palette
+values themselves are not copyrightable, the CSS technique is
+re-implemented, not copied).
+
+**Palette (from the thread):** copper accents `#D4924A` / `#E8B86A`,
+warm gold text `#EDD8A8`, deep warm charcoal ground
+`rgba(38,32,24,0.97)`. Mapping: charcoal → backgrounds (secondary a
+step lighter/warmer), gold text → `--primary-text-color` (muted variant
+→ secondary), copper `#D4924A` → `--primary-color`, `#E8B86A` → accent;
+error/warning/success tuned WARM so they sit in the metal palette
+(brick red, amber, olive-gold green) rather than stock RGB.
+
+**The metallic signature (and its scope caveat):** the thread's luxury
+look is layered CSS on the cards — a warm dark gradient base,
+horizontal brushed-metal strokes via `repeating-linear-gradient`, and a
+multi-stage `box-shadow` bevel (bright gold hairline top, dark shadow
+line bottom) with a `1px solid rgba(210,155,65,0.65)` border. Like E177
+(Soft UI), that exceeds a var-only feezal theme: v1 ships the PALETTE
+(already distinctive — no warm-metal theme exists; dark-orange is the
+closest and is flat accent-led, not metallic). The bevel/brushed
+texture needs the E177/U112 family shadow-and-surface tokens — when
+those land, this theme is the second consumer (gradient card surface +
+bevel shadow + hairline border tokens). Decide then whether the glass
+family's tint token can carry the gradient stack or a dedicated
+`--feezal-*-card-surface` token is cleaner.
+
+**Relates:** E177 (Soft UI — same "the signature is beyond a palette"
+class, shared token need), U112 (family tokens), E172–E176 (theme
+survey siblings), dark-orange theme (nearest existing, for contrast in
+the docs).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
