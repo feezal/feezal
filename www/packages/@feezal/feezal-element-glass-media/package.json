@@ -1,0 +1,12 @@
+{
+    "name": "@feezal/feezal-element-glass-media",
+    "version": "3.0.0",
+    "description": "feezal glass media card — frosted now-playing card over @feezal/feezal-controller-media",
+    "main": "feezal-element-glass-media.js",
+    "license": "MIT",
+    "dependencies": {
+        "@feezal/feezal-controller-media": "*",
+        "@feezal/feezal-element": "*",
+        "@feezal/feezal-glass": "*"
+    }
+}

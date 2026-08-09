@@ -76,6 +76,7 @@ import '@feezal/feezal-element-glass-light';
 import '@feezal/feezal-element-glass-link';
 import '@feezal/feezal-element-glass-loadpoint';
 import '@feezal/feezal-element-glass-lock';
+import '@feezal/feezal-element-glass-media';
 import '@feezal/feezal-element-glass-meter';
 import '@feezal/feezal-element-glass-motion';
 import '@feezal/feezal-element-glass-multivalue';
@@ -262,6 +263,7 @@ window.feezal.elements = [
   "feezal-element-glass-link",
   "feezal-element-glass-loadpoint",
   "feezal-element-glass-lock",
+  "feezal-element-glass-media",
   "feezal-element-glass-meter",
   "feezal-element-glass-motion",
   "feezal-element-glass-multivalue",

@@ -314,6 +314,8 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [E173 — Theme: Nord (arctic palette, dark + light) ✅ shipped](E173.md)
 - [E174 — Theme: Graphite (calm neutral dark) ✅ shipped](E174.md)
 - [E179 — Theme: Industrial Copper (warm metallic dark) ✅ shipped](E179.md)
+- [E182 — echo2mqtt discovery + the media-element capability gaps (mute, provider, dedupe) ✅ shipped](E182.md)
+- [E183 — glass-media element ✅ shipped](E183.md)
 
 ## Editor UX
 

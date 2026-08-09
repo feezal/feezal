@@ -1,5 +1,7 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, feezalBoolean, html, css} from '@feezal/feezal-element';
+import {MediaController, mediaAttributes, mediaDiscoveryMap} from '@feezal/feezal-controller-media';
+import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 // Format seconds → "m:ss" (or "h:mm:ss" for long tracks). Returns "0:00" for
@@ -15,80 +17,42 @@ function fmtTime(sec) {
     return `${m}:${ss}`;
 }
 
-// Cycle order for the repeat toggle. off → all → one → off …
-const REPEAT_CYCLE = ['off', 'all', 'one'];
+// kebab attribute name → camelCase property name.
+const camel = n => n.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+
+// E182: the media contract is declared ONCE by the controller, so the ~40
+// topic/payload attributes become reflected properties programmatically —
+// hand-listing them drifts the moment the fragment grows. `subscribe` and
+// `message-property` are inherited from FeezalElement and must NOT be
+// redeclared here.
+const CONTROLLER_PROPS = Object.fromEntries(
+    mediaAttributes
+        .filter(a => a.name !== 'subscribe' && a.name !== 'message-property')
+        .map(a => [camel(a.name), {type: String, reflect: true, attribute: a.name}]));
 
 // ─── Element ──────────────────────────────────────────────────────────────────
 class FeezalElementCircleMedia extends FeezalElement {
     static get feezal() {
         return {
             palette: {name: 'Media', category: 'Circle', color: '#1565c0', icon: 'music_note'},
-            description: 'Compact media / music control card — album art, track metadata, a seek bar, transport controls (previous, rewind, play/pause, forward, next, stop, shuffle, repeat) and an optional volume slider. Playback state (play/pause/stop/idle) drives the play/pause toggle.',
+            description: 'Compact media / music control card — album art, track metadata, a seek bar, transport controls (previous, rewind, play/pause, forward, next, stop, shuffle, repeat), mute and an optional volume slider. Playback state (play/pause/stop/idle) drives the play/pause toggle.',
             // NOTE (future follow-up): this element uses the STANDARD flat-attribute
             // inspector. A dedicated N6 custom inspector (Topics + Config tabs,
             // capability-gated sections) would be a nice improvement given the
             // number of topic attributes — deferred for now.
+            discovery: {component: 'media', map: mediaDiscoveryMap},
             attributes: [
-                // ── Playback state (primary) ───────────────────────────────────
-                {name: 'subscribe', type: 'mqttTopic',
-                    help: 'Primary topic carrying the playback state (play / pause / stop / idle). Drives the play/pause toggle.'},
-                {name: 'message-property', type: 'string', default: 'payload',
-                    help: 'Dot-notation path to the value within the MQTT message. Default "payload" reads msg.payload directly. Also used as the fallback for every per-topic message-property.'},
-                // ── Transport command topic + payloads ─────────────────────────
-                {name: 'publish-command', type: 'mqttTopic',
-                    help: 'Topic that transport buttons (play/pause/stop/next/previous/forward/rewind) publish to.'},
-                {name: 'payload-play',     type: 'string', default: 'play',     help: 'Payload published to play. Default: play'},
-                {name: 'payload-pause',    type: 'string', default: 'pause',    help: 'Payload published to pause. Default: pause'},
-                {name: 'payload-stop',     type: 'string', default: 'stop',     help: 'Payload published to stop. Default: stop'},
-                {name: 'payload-next',     type: 'string', default: 'next',     help: 'Payload published for skip-next. Default: next'},
-                {name: 'payload-previous', type: 'string', default: 'previous', help: 'Payload published for skip-previous. Default: previous'},
-                {name: 'payload-forward',  type: 'string', default: 'forward',  help: 'Payload published for fast-forward. Default: forward'},
-                {name: 'payload-rewind',   type: 'string', default: 'rewind',   help: 'Payload published for fast-rewind. Default: rewind'},
-                // ── Metadata topics ────────────────────────────────────────────
-                {name: 'subscribe-title', type: 'mqttTopic', help: 'Topic for the current track title.'},
-                {name: 'message-property-title', type: 'string', default: 'payload',
-                    help: 'Dot-notation path within the title message. Default: payload'},
-                {name: 'subscribe-artist', type: 'mqttTopic', help: 'Topic for the current artist.'},
-                {name: 'message-property-artist', type: 'string', default: 'payload',
-                    help: 'Dot-notation path within the artist message. Default: payload'},
-                {name: 'subscribe-album', type: 'mqttTopic', help: 'Topic for the current album.'},
-                {name: 'message-property-album', type: 'string', default: 'payload',
-                    help: 'Dot-notation path within the album message. Default: payload'},
-                // ── Artwork ────────────────────────────────────────────────────
-                {name: 'subscribe-artwork-url', type: 'mqttTopic', help: 'Topic carrying the album-art image URL.'},
-                {name: 'message-property-artwork-url', type: 'string', default: 'payload',
-                    help: 'Dot-notation path within the artwork-url message. Default: payload'},
-                {name: 'artwork-url', type: 'string', default: '',
-                    help: 'Static album-art image URL. Used when no artwork-url topic message has arrived. Falls back to an album icon.'},
-                // ── Progress / seek ────────────────────────────────────────────
-                {name: 'subscribe-position', type: 'mqttTopic', help: 'Topic for the current playback position, in seconds.'},
-                {name: 'message-property-position', type: 'string', default: 'payload',
-                    help: 'Dot-notation path within the position message. Default: payload'},
-                {name: 'subscribe-duration', type: 'mqttTopic', help: 'Topic for the track duration, in seconds.'},
-                {name: 'message-property-duration', type: 'string', default: 'payload',
-                    help: 'Dot-notation path within the duration message. Default: payload'},
-                {name: 'publish-seek', type: 'mqttTopic', help: 'Topic that the target position (seconds) is published to when the seek bar is released.'},
-                // ── Volume ─────────────────────────────────────────────────────
-                {name: 'subscribe-volume', type: 'mqttTopic', help: 'Topic for the current volume (0–100).'},
-                {name: 'message-property-volume', type: 'string', default: 'payload',
-                    help: 'Dot-notation path within the volume message. Default: payload'},
-                {name: 'publish-volume', type: 'mqttTopic', help: 'Topic that a new volume (0–100) is published to.'},
-                // ── Shuffle ────────────────────────────────────────────────────
-                {name: 'subscribe-shuffle', type: 'mqttTopic', help: 'Topic for the shuffle state (on/off, true/false, 1/0).'},
-                {name: 'message-property-shuffle', type: 'string', default: 'payload',
-                    help: 'Dot-notation path within the shuffle message. Default: payload'},
-                {name: 'publish-shuffle', type: 'mqttTopic', help: 'Topic that the toggled shuffle state (true/false) is published to.'},
-                // ── Repeat ─────────────────────────────────────────────────────
-                {name: 'subscribe-repeat', type: 'mqttTopic', help: 'Topic for the repeat state (off / all / one).'},
-                {name: 'message-property-repeat', type: 'string', default: 'payload',
-                    help: 'Dot-notation path within the repeat message. Default: payload'},
-                {name: 'publish-repeat', type: 'mqttTopic', help: 'Topic that the cycled repeat state (off/all/one) is published to.'},
+                // E182: the whole media MQTT contract — one declaration, every family.
+                ...mediaAttributes,
+                ...availabilityAttributes(),
                 // ── Display toggles ────────────────────────────────────────────
                 {name: 'show-artwork',        type: 'boolean', default: true, help: 'Show the album-art column.'},
                 {name: 'show-album',          type: 'boolean', default: true, help: 'Show the album name (tertiary line).'},
+                {name: 'show-provider',       type: 'boolean', default: true, help: 'Show the playback source / provider. When it is identical to the album, only one of the two lines is rendered.'},
                 {name: 'show-seek',           type: 'boolean', default: true, help: 'Show the progress / seek bar with elapsed / total time.'},
                 {name: 'show-shuffle-repeat', type: 'boolean', default: true, help: 'Show the shuffle and repeat controls.'},
                 {name: 'show-volume',         type: 'boolean', default: true, help: 'Show the volume slider row.'},
+                {name: 'show-mute',           type: 'boolean', default: true, help: 'Show the mute button in the volume row.'},
             ],
             styles: [
                 'top', 'left', 'width', 'height', 'background', 'border-radius',
@@ -112,54 +76,17 @@ class FeezalElementCircleMedia extends FeezalElement {
 
     static properties = {
         // subscribe + messageProperty are inherited from FeezalElement.
-        publishCommand:   {type: String, reflect: true, attribute: 'publish-command'},
-        payloadPlay:      {type: String, reflect: true, attribute: 'payload-play'},
-        payloadPause:     {type: String, reflect: true, attribute: 'payload-pause'},
-        payloadStop:      {type: String, reflect: true, attribute: 'payload-stop'},
-        payloadNext:      {type: String, reflect: true, attribute: 'payload-next'},
-        payloadPrevious:  {type: String, reflect: true, attribute: 'payload-previous'},
-        payloadForward:   {type: String, reflect: true, attribute: 'payload-forward'},
-        payloadRewind:    {type: String, reflect: true, attribute: 'payload-rewind'},
-        subscribeTitle:      {type: String, reflect: true, attribute: 'subscribe-title'},
-        msgPropTitle:        {type: String, reflect: true, attribute: 'message-property-title'},
-        subscribeArtist:     {type: String, reflect: true, attribute: 'subscribe-artist'},
-        msgPropArtist:       {type: String, reflect: true, attribute: 'message-property-artist'},
-        subscribeAlbum:      {type: String, reflect: true, attribute: 'subscribe-album'},
-        msgPropAlbum:        {type: String, reflect: true, attribute: 'message-property-album'},
-        subscribeArtworkUrl: {type: String, reflect: true, attribute: 'subscribe-artwork-url'},
-        msgPropArtworkUrl:   {type: String, reflect: true, attribute: 'message-property-artwork-url'},
-        artworkUrl:          {type: String, reflect: true, attribute: 'artwork-url'},
-        subscribePosition:   {type: String, reflect: true, attribute: 'subscribe-position'},
-        msgPropPosition:     {type: String, reflect: true, attribute: 'message-property-position'},
-        subscribeDuration:   {type: String, reflect: true, attribute: 'subscribe-duration'},
-        msgPropDuration:     {type: String, reflect: true, attribute: 'message-property-duration'},
-        publishSeek:         {type: String, reflect: true, attribute: 'publish-seek'},
-        subscribeVolume:     {type: String, reflect: true, attribute: 'subscribe-volume'},
-        msgPropVolume:       {type: String, reflect: true, attribute: 'message-property-volume'},
-        publishVolume:       {type: String, reflect: true, attribute: 'publish-volume'},
-        subscribeShuffle:    {type: String, reflect: true, attribute: 'subscribe-shuffle'},
-        msgPropShuffle:      {type: String, reflect: true, attribute: 'message-property-shuffle'},
-        publishShuffle:      {type: String, reflect: true, attribute: 'publish-shuffle'},
-        subscribeRepeat:     {type: String, reflect: true, attribute: 'subscribe-repeat'},
-        msgPropRepeat:       {type: String, reflect: true, attribute: 'message-property-repeat'},
-        publishRepeat:       {type: String, reflect: true, attribute: 'publish-repeat'},
+        ...CONTROLLER_PROPS,
         showArtwork:       {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-artwork'},
         showAlbum:         {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-album'},
+        showProvider:      {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-provider'},
         showSeek:          {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-seek'},
         showShuffleRepeat: {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-shuffle-repeat'},
         showVolume:        {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-volume'},
-        // Internal state — never as class fields (Lit 3 rule)
-        _state:     {state: true},   // null | 'play' | 'pause' | 'stop' | 'idle'
-        _title:     {state: true},   // null | string
-        _artist:    {state: true},   // null | string
-        _album:     {state: true},   // null | string
-        _artwork:   {state: true},   // null | string (URL from topic)
-        _position:  {state: true},   // null | number (seconds)
-        _duration:  {state: true},   // null | number (seconds)
-        _volume:    {state: true},   // null | number (0–100)
-        _shuffle:   {state: true},   // boolean
-        _repeat:    {state: true},   // 'off' | 'all' | 'one'
-        _seekPos:   {state: true},   // null | number — live position during seek drag
+        showMute:          {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-mute'},
+        // Internal UI state — never as class fields (Lit 3 rule)
+        _seekPos:   {state: true},   // null | number — live position during a seek drag
+        _tick:      {state: true},   // bumped by the controller-driven re-render
     };
 
     static styles = [feezalBaseStyles, css`
@@ -308,201 +235,102 @@ class FeezalElementCircleMedia extends FeezalElement {
             cursor: pointer;
             margin: 0;
         }
+    `
+    , css`
+        /* E182: player name (label), provider line and the mute button. */
+        .player {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--feezal-media-muted-color);
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .provider { opacity: 0.85; }
+        .vol-row .tgl.mute {
+            display: flex; align-items: center; justify-content: center;
+            border: none; background: transparent; cursor: pointer;
+            padding: 2px; border-radius: 50%; line-height: 0;
+            color: var(--feezal-media-muted-color);
+        }
+        .vol-row .tgl.mute.active { color: var(--feezal-media-color); }
     `];
 
     constructor() {
         super();
-        this.publishCommand  = '';
-        this.payloadPlay     = 'play';
-        this.payloadPause    = 'pause';
-        this.payloadStop     = 'stop';
-        this.payloadNext     = 'next';
-        this.payloadPrevious = 'previous';
-        this.payloadForward  = 'forward';
-        this.payloadRewind   = 'rewind';
-        this.subscribeTitle      = '';
-        this.msgPropTitle        = '';
-        this.subscribeArtist     = '';
-        this.msgPropArtist       = '';
-        this.subscribeAlbum      = '';
-        this.msgPropAlbum        = '';
-        this.subscribeArtworkUrl = '';
-        this.msgPropArtworkUrl   = '';
-        this.artworkUrl          = '';
-        this.subscribePosition   = '';
-        this.msgPropPosition     = '';
-        this.subscribeDuration   = '';
-        this.msgPropDuration     = '';
-        this.publishSeek         = '';
-        this.subscribeVolume     = '';
-        this.msgPropVolume       = '';
-        this.publishVolume       = '';
-        this.subscribeShuffle    = '';
-        this.msgPropShuffle      = '';
-        this.publishShuffle      = '';
-        this.subscribeRepeat     = '';
-        this.msgPropRepeat       = '';
-        this.publishRepeat       = '';
+        // Attribute defaults come from the shared fragment, so a new knob in
+        // the controller cannot be forgotten here.
+        for (const a of mediaAttributes) {
+            if (a.name === 'subscribe' || a.name === 'message-property') continue;
+            this[camel(a.name)] = a.default !== undefined ? String(a.default) : '';
+        }
         this.showArtwork       = true;
         this.showAlbum         = true;
+        this.showProvider      = true;
         this.showSeek          = true;
         this.showShuffleRepeat = true;
         this.showVolume        = true;
-        this._state    = null;
-        this._title    = null;
-        this._artist   = null;
-        this._album    = null;
-        this._artwork  = null;
-        this._position = null;
-        this._duration = null;
-        this._volume   = null;
-        this._shuffle  = false;
-        this._repeat   = 'off';
-        this._seekPos  = null;
+        this.showMute          = true;
+        this._seekPos = null;
+        this._tick = 0;
+        // E182: the behaviour layer — wiring, state, transport publishing.
+        this.media = new MediaController(this);
     }
 
-    // The media player manages all subscriptions itself.
-    _subscribe() { /* intentionally empty — see connectedCallback */ }
+    // The controller owns every subscription (deduped per topic).
+    _subscribe() { /* intentionally empty — MediaController.wire() */ }
 
-    connectedCallback() {
-        super.connectedCallback();
-        const sub = (topic, cb) => { if (topic) this.addSubscription(topic, cb); };
-
-        // Primary: playback state (subscribe + message-property inherited)
-        sub(this.subscribe, msg => {
-            const v = this.getProperty(msg, this.messageProperty);
-            this._state = v === null || v === undefined ? null : String(v).toLowerCase();
-        });
-
-        sub(this.subscribeTitle, msg => {
-            this._title = this._str(this.getProperty(msg, this.msgPropTitle || this.messageProperty));
-        });
-        sub(this.subscribeArtist, msg => {
-            this._artist = this._str(this.getProperty(msg, this.msgPropArtist || this.messageProperty));
-        });
-        sub(this.subscribeAlbum, msg => {
-            this._album = this._str(this.getProperty(msg, this.msgPropAlbum || this.messageProperty));
-        });
-        sub(this.subscribeArtworkUrl, msg => {
-            this._artwork = this._str(this.getProperty(msg, this.msgPropArtworkUrl || this.messageProperty));
-        });
-        sub(this.subscribePosition, msg => {
-            const v = Number(this.getProperty(msg, this.msgPropPosition || this.messageProperty));
-            if (!isNaN(v)) this._position = Math.max(0, v);
-        });
-        sub(this.subscribeDuration, msg => {
-            const v = Number(this.getProperty(msg, this.msgPropDuration || this.messageProperty));
-            if (!isNaN(v)) this._duration = Math.max(0, v);
-        });
-        sub(this.subscribeVolume, msg => {
-            const v = Number(this.getProperty(msg, this.msgPropVolume || this.messageProperty));
-            if (!isNaN(v)) this._volume = Math.max(0, Math.min(100, v));
-        });
-        sub(this.subscribeShuffle, msg => {
-            this._shuffle = this._truthy(this.getProperty(msg, this.msgPropShuffle || this.messageProperty));
-        });
-        sub(this.subscribeRepeat, msg => {
-            const v = String(this.getProperty(msg, this.msgPropRepeat || this.messageProperty)).toLowerCase();
-            this._repeat = REPEAT_CYCLE.includes(v) ? v : (this._truthy(v) ? 'all' : 'off');
-        });
+    updated(changed) {
+        super.updated?.(changed);
+        this.media.rewireIfChanged();
     }
 
-    // ─── Value coercion helpers ────────────────────────────────────────────────
-    _str(v) {
-        if (v === null || v === undefined) return null;
-        const s = String(v);
-        return s === '' ? null : s;
-    }
-
-    _truthy(v) {
-        return v === true || v === 1 || v === 'true' || v === '1' || v === 'on' ||
-            String(v).toLowerCase() === 'true' || String(v).toLowerCase() === 'on';
-    }
-
-    // ─── Derived play state ────────────────────────────────────────────────────
-    get _isPlaying() {
-        return this._state === this.payloadPlay?.toLowerCase() || this._state === 'play' || this._state === 'playing';
-    }
-
-    // ─── Publish helpers (all guarded against editor mode) ──────────────────────
-    _command(payload) {
-        if (feezal.isEditor) return;
-        if (this.publishCommand) feezal.connection.pub(this.publishCommand, payload);
-    }
-
-    _togglePlay()  { this._command(this._isPlaying ? this.payloadPause : this.payloadPlay); }
-    _stop()        { this._command(this.payloadStop); }
-    _next()        { this._command(this.payloadNext); }
-    _previous()    { this._command(this.payloadPrevious); }
-    _forward()     { this._command(this.payloadForward); }
-    _rewind()      { this._command(this.payloadRewind); }
-
-    _toggleShuffle() {
-        if (feezal.isEditor) return;
-        this._shuffle = !this._shuffle;
-        if (this.publishShuffle) feezal.connection.pub(this.publishShuffle, String(this._shuffle));
-    }
-
-    _cycleRepeat() {
-        if (feezal.isEditor) return;
-        const idx = REPEAT_CYCLE.indexOf(this._repeat);
-        this._repeat = REPEAT_CYCLE[(idx + 1) % REPEAT_CYCLE.length];
-        if (this.publishRepeat) feezal.connection.pub(this.publishRepeat, this._repeat);
-    }
-
-    _onVolume(e) {
-        const v = Number(e.target.value);
-        this._volume = v;
-        if (feezal.isEditor) return;
-        if (this.publishVolume) feezal.connection.pub(this.publishVolume, String(v));
-    }
-
-    // ─── Seek interaction ──────────────────────────────────────────────────────
+    // ─── Seek drag ─────────────────────────────────────────────────────────────
     _seekFromEvent(e, barEl) {
         const rect = barEl.getBoundingClientRect();
-        const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-        const dur = this._duration ?? 0;
-        return frac * dur;
+        if (!rect.width || !this.media.duration) return null;
+        const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        return ratio * this.media.duration;
     }
 
     _onSeekPointerDown(e) {
-        if (feezal.isEditor) return;
-        if (!this._duration) return;   // nothing to seek within
+        if (feezal.isEditor || !this.media.duration) return;
         const barEl = e.currentTarget;
-        barEl.setPointerCapture(e.pointerId);
-
+        barEl.setPointerCapture?.(e.pointerId);
+        this._seekPos = this._seekFromEvent(e, barEl);
         const move = ev => { this._seekPos = this._seekFromEvent(ev, barEl); };
         const up = () => {
             barEl.removeEventListener('pointermove', move);
             barEl.removeEventListener('pointerup', up);
+            barEl.removeEventListener('pointercancel', up);
             if (this._seekPos !== null) {
-                const target = Math.round(this._seekPos);
-                this._position = target;
-                if (this.publishSeek) feezal.connection.pub(this.publishSeek, String(target));
+                this.media.seek(Math.round(this._seekPos));
                 this._seekPos = null;
             }
         };
-
         barEl.addEventListener('pointermove', move);
         barEl.addEventListener('pointerup', up);
-        move(e);   // immediate feedback
+        barEl.addEventListener('pointercancel', up);
     }
 
-    // ─── Render ────────────────────────────────────────────────────────────────
-    render() {
-        // Placeholder DATA when nothing has arrived yet (editor + unconfigured).
-        const title    = this._title  ?? (feezal.isEditor ? 'Song Title' : null);
-        const artist   = this._artist ?? (feezal.isEditor ? 'Artist' : null);
-        const album    = this._album  ?? null;
-        const artwork  = this._artwork || this.artworkUrl || null;
+    _onVolume(e) { this.media.setVolume(e.target.value); }
 
-        const duration = this._duration ?? (feezal.isEditor ? 200 : null);
-        const rawPos   = this._seekPos ?? this._position ??
+    render() {
+        const m = this.media;
+        // Placeholder DATA when nothing has arrived yet (editor + unconfigured).
+        const title    = m.title  ?? (feezal.isEditor ? 'Song Title' : null);
+        const artist   = m.artist ?? (feezal.isEditor ? 'Artist' : null);
+        // E182: album and provider collapse to ONE line when they carry the
+        // same text (the album wins as the more specific label).
+        const {album, provider} = m.lines({showAlbum: this.showAlbum, showProvider: this.showProvider});
+        const artwork  = m.artworkUrl || null;
+
+        const duration = m.duration ?? (feezal.isEditor ? 200 : null);
+        const rawPos   = this._seekPos ?? m.position ??
             (feezal.isEditor && duration ? duration * 0.4 : null);
         const position = rawPos ?? 0;
         const pct      = duration ? Math.max(0, Math.min(100, (position / duration) * 100)) : 0;
 
-        const volume   = this._volume ?? (feezal.isEditor ? 60 : 0);
+        const volume   = m.volume ?? (feezal.isEditor ? 60 : 0);
 
         return html`
             <div class="top">
@@ -515,10 +343,11 @@ class FeezalElementCircleMedia extends FeezalElement {
                     </div>
                 ` : ''}
                 <div class="meta">
+                    ${this.label ? html`<div class="player" title="${this.label}">${this.label}</div>` : ''}
                     <div class="title" title="${title ?? ''}">${title ?? ''}</div>
                     <div class="artist" title="${artist ?? ''}">${artist ?? ''}</div>
-                    ${this.showAlbum && album
-                        ? html`<div class="album" title="${album}">${album}</div>` : ''}
+                    ${album ? html`<div class="album" title="${album}">${album}</div>` : ''}
+                    ${provider ? html`<div class="album provider" title="${provider}">${provider}</div>` : ''}
                 </div>
             </div>
 
@@ -536,27 +365,32 @@ class FeezalElementCircleMedia extends FeezalElement {
             ` : ''}
 
             <div class="transport">
-                <button title="Previous" @click="${this._previous}"><span class="mi">skip_previous</span></button>
-                <button title="Rewind" @click="${this._rewind}"><span class="mi">fast_rewind</span></button>
-                <button class="play" title="Play/Pause" @click="${this._togglePlay}">
-                    <span class="mi">${this._isPlaying ? 'pause' : 'play_arrow'}</span>
+                <button title="Previous" @click="${() => m.previous()}"><span class="mi">skip_previous</span></button>
+                <button title="Rewind" @click="${() => m.rewind()}"><span class="mi">fast_rewind</span></button>
+                <button class="play" title="Play/Pause" @click="${() => m.togglePlay()}">
+                    <span class="mi">${m.isPlaying ? 'pause' : 'play_arrow'}</span>
                 </button>
-                <button title="Forward" @click="${this._forward}"><span class="mi">fast_forward</span></button>
-                <button title="Next" @click="${this._next}"><span class="mi">skip_next</span></button>
-                <button title="Stop" @click="${this._stop}"><span class="mi">stop</span></button>
+                <button title="Forward" @click="${() => m.forward()}"><span class="mi">fast_forward</span></button>
+                <button title="Next" @click="${() => m.next()}"><span class="mi">skip_next</span></button>
+                <button title="Stop" @click="${() => m.stop()}"><span class="mi">stop</span></button>
                 ${this.showShuffleRepeat ? html`
-                    <button class="tgl ${this._shuffle ? 'active' : ''}" title="Shuffle"
-                        @click="${this._toggleShuffle}"><span class="mi">shuffle</span></button>
-                    <button class="tgl ${this._repeat !== 'off' ? 'active' : ''}" title="Repeat: ${this._repeat}"
-                        @click="${this._cycleRepeat}">
-                        <span class="mi">${this._repeat === 'one' ? 'repeat_one' : 'repeat'}</span>
+                    <button class="tgl ${m.shuffle ? 'active' : ''}" title="Shuffle"
+                        @click="${() => m.toggleShuffle()}"><span class="mi">shuffle</span></button>
+                    <button class="tgl ${m.repeat !== 'off' ? 'active' : ''}" title="Repeat: ${m.repeat}"
+                        @click="${() => m.cycleRepeat()}">
+                        <span class="mi">${m.repeat === 'one' ? 'repeat_one' : 'repeat'}</span>
                     </button>
                 ` : ''}
             </div>
 
             ${this.showVolume ? html`
                 <div class="vol-row">
-                    <span class="mi">volume_up</span>
+                    ${this.showMute ? html`
+                        <button class="tgl mute ${m.muted ? 'active' : ''}" title="${m.muted ? 'Unmute' : 'Mute'}"
+                            @click="${() => m.toggleMute()}">
+                            <span class="mi">${m.muted ? 'volume_off' : 'volume_up'}</span>
+                        </button>
+                    ` : html`<span class="mi">volume_up</span>`}
                     <input type="range" min="0" max="100" step="1"
                         .value="${String(volume)}"
                         @input="${this._onVolume}">
