@@ -24,6 +24,9 @@
  */
 import {feezalBoolean} from '@feezal/feezal-element';
 
+/** Default message path for every per-field topic (the fragment default). */
+const DEFAULT_PATH = 'payload';
+
 /** Cycle order for the repeat control. off → all → one → off … */
 export const REPEAT_CYCLE = ['off', 'all', 'one'];
 
@@ -60,7 +63,7 @@ export const mediaAttributes = [
     {name: 'subscribe', type: 'mqttTopic',
         help: 'Primary topic carrying the playback state (play / pause / stop / idle). Drives the play/pause toggle.'},
     {name: 'message-property', type: 'string', default: 'payload',
-        help: 'Dot-notation path to the value within the MQTT message. Default "payload" reads msg.payload directly. Also used as the fallback for every per-topic message-property.'},
+        help: 'Dot-notation path to the value within the MQTT message. Default "payload" reads msg.payload directly. Each metadata topic below has its own path field.'},
     {name: 'label', type: 'string', default: '',
         help: 'Optional player / device name shown above the track (e.g. the Echo device). Empty hides the line.'},
     // ── Transport command topic + payloads ─────────────────────────────────
@@ -254,7 +257,14 @@ export class MediaController {
             if (!byTopic.has(topic)) byTopic.set(topic, []);
             byTopic.get(topic).push(handler);
         };
-        const path = attr => this._attr(attr, this._msgProp) || this._msgProp;
+        // Per-field message paths default to the fragment's own default
+        // ('payload'), NOT to the element-level message-property. That is the
+        // behaviour that shipped: every per-field attribute used to carry a
+        // reflected 'payload' default, so the element-level path never
+        // cascaded into the fields. Falling back to _msgProp here would
+        // silently redirect every unset field at whatever path the STATE
+        // topic uses (e.g. payload.state) and break configured dashboards.
+        const path = attr => this._attr(attr, DEFAULT_PATH);
         const num = (v, {min = 0, max = Infinity} = {}) => {
             const n = Number(v);
             return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : null;

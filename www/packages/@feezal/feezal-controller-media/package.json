@@ -1,6 +1,6 @@
 {
     "name": "@feezal/feezal-controller-media",
-    "version": "3.0.0",
+    "version": "3.0.1",
     "description": "feezal media-player behaviour controller (MQTT contract, state, transport publishing)",
     "main": "feezal-controller-media.js",
     "license": "MIT",

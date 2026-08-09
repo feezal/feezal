@@ -390,3 +390,92 @@ describe('metro-media discovery (E182 follow-up)', () => {
         expect(el._playing).toBe(true);
     });
 });
+
+// ─── No attribute junk on the canvas (the B119 trigger) ──────────────────────
+// Lit reflects constructor defaults on first update. With the whole ~40-knob
+// media contract declared as reflected properties, every media card stamped
+// payload-play="play", message-property-title="payload", … onto itself — junk
+// in every saved dashboard AND an attribute-mutation storm that the editor's
+// passive chrome observes (B119: one panel's throwing render took the context
+// menu down with it). The contract is attribute-driven, so the properties must
+// sync FROM attributes without reflecting back.
+
+describe.each([
+    'feezal-element-circle-media',
+    'feezal-element-glass-media',
+])('%s stamps no attribute junk', tag => {
+    // The show-* display toggles and the base class's own message-property
+    // stay reflected (pre-existing, and the boolean defaults rely on
+    // attribute presence). What must NEVER be stamped is the ~40-knob media
+    // CONTRACT: topics, payloads and message paths.
+    const CONTRACT_JUNK = /^(payload-|message-property-|subscribe|publish|command-mode|repeat-mode|time-unit|artwork-url|label)/;
+
+    it('stamps none of the contract attributes when mounted bare', async () => {
+        const el = await mount(tag, {});
+        await el.updateComplete;
+        await new Promise(r => requestAnimationFrame(r));
+        const stamped = [...el.attributes].map(a => a.name).filter(n => CONTRACT_JUNK.test(n));
+        expect(stamped).toEqual([]);
+    });
+
+    it('keeps exactly the authored contract attributes when configured', async () => {
+        const el = await mount(tag, {subscribe: 'p/state', 'publish-command': 'p/cmd'});
+        await el.updateComplete;
+        await new Promise(r => requestAnimationFrame(r));
+        const stamped = [...el.attributes].map(a => a.name).filter(n => CONTRACT_JUNK.test(n)).sort();
+        expect(stamped).toEqual(['publish-command', 'subscribe']);
+    });
+
+    it('still behaves with the fragment defaults although nothing is stamped', async () => {
+        const el = await mount(tag, {'publish-command': 'p/cmd'});
+        el.media.next();                       // payload-next defaults to "next"
+        expect(feezal.connection.published.at(-1)).toEqual({topic: 'p/cmd', payload: 'next'});
+        el.media.cycleRepeat();                // repeat-mode defaults to "cycle"
+        expect(el.media.repeat).toBe('all');
+    });
+
+    it('a live attribute edit still re-wires (attribute → property sync intact)', async () => {
+        const el = await mount(tag, {subscribe: 'a/state'});
+        expect(feezal.connection.subCount()).toBe(1);
+        el.setAttribute('subscribe-title', 'a/title');
+        await el.updateComplete;
+        feezal.connection.deliver('a/title', 'Rewired');
+        await until(() => el.media.title === 'Rewired');
+    });
+});
+
+// ─── metro-media album art ───────────────────────────────────────────────────
+
+describe('metro-media album art', () => {
+    it('renders the cover from the artwork topic, behind the track text', async () => {
+        const el = await mount('feezal-element-metro-media', {
+            'subscribe-artwork-url': 'echo/status/Bad/media',
+            'message-property-artwork-url': 'payload.imageUrl',
+        });
+        feezal.connection.deliver('echo/status/Bad/media', MEDIA_JSON);
+        await until(() => el._artwork === 'https://art/x.jpg');
+        await el.updateComplete;
+        const art = el.shadowRoot.querySelector('.art');
+        expect(art).toBeTruthy();
+        expect(art.style.backgroundImage).toContain('https://art/x.jpg');
+        // The text must sit ON the cover, not under it.
+        expect(getComputedStyle(el.shadowRoot.querySelector('.track')).zIndex).toBe('1');
+    });
+
+    it('falls back to the static artwork-url, and show-artwork off hides it', async () => {
+        const el = await mount('feezal-element-metro-media', {'artwork-url': 'https://static/cover.png'});
+        await el.updateComplete;
+        expect(el.shadowRoot.querySelector('.art').style.backgroundImage).toContain('static/cover.png');
+
+        const off = await mount('feezal-element-metro-media', {
+            'artwork-url': 'https://static/cover.png', 'show-artwork': 'false',
+        });
+        await off.updateComplete;
+        expect(off.shadowRoot.querySelector('.art')).toBeNull();
+    });
+
+    it('discovery stamps the artwork topic onto the tile', () => {
+        const map = customElements.get('feezal-element-metro-media').feezal.discovery.map;
+        expect(map.artwork_topic).toBe('subscribe-artwork-url');
+    });
+});

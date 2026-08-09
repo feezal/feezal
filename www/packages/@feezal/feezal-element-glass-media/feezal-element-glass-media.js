@@ -39,10 +39,19 @@ const camel = n => n.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
 // payload attributes become reflected properties programmatically so a new
 // knob in the fragment cannot be forgotten here (subscribe and
 // message-property are inherited from FeezalElement).
+// Deliberately NOT reflected, and deliberately WITHOUT constructor defaults —
+// the same trap the base class documents for the availability block: Lit
+// reflects constructor defaults on first update, which would stamp all ~40
+// media attributes (payload-play="play", message-property-title="payload", …)
+// onto EVERY media element and serialize that junk into every saved dashboard.
+// It also fires an attribute-mutation storm on the canvas, which the editor's
+// passive chrome observes (see B119). Attribute → property sync is all that is
+// needed: the controller reads its config from the attributes with the
+// fragment's own fallbacks.
 const CONTROLLER_PROPS = Object.fromEntries(
     mediaAttributes
         .filter(a => a.name !== 'subscribe' && a.name !== 'message-property')
-        .map(a => [camel(a.name), {type: String, reflect: true, attribute: a.name}]));
+        .map(a => [camel(a.name), {type: String, attribute: a.name}]));
 
 class FeezalElementGlassMedia extends FeezalElement {
     static get feezal() {
@@ -154,10 +163,9 @@ class FeezalElementGlassMedia extends FeezalElement {
 
     constructor() {
         super();
-        for (const a of mediaAttributes) {
-            if (a.name === 'subscribe' || a.name === 'message-property') continue;
-            this[camel(a.name)] = a.default !== undefined ? String(a.default) : '';
-        }
+        // No defaults assigned here on purpose — see CONTROLLER_PROPS: assigning
+        // them would reflect ~40 attributes onto the element. The controller
+        // applies the fragment's defaults when reading each attribute.
         this.size = '';
         this.showArtwork = true;
         this.showAlbum = true;

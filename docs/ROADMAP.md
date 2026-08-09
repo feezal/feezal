@@ -409,10 +409,38 @@ DOM-derived getters defensively, and a render error in one panel must degrade
 that panel only. A regression test that feeds the footer a view holding an
 unknown/hostile child and asserts the ctx menu still opens would pin it.
 
+**Re-reported (08/2026) — and one TRIGGER found and removed.** The
+reporter hit it again, now in a wider shape: the right-click menu died,
+came back by itself, and **element snapping stopped and resumed the same
+way** — two unrelated editor features failing intermittently together,
+exactly the coupling this entry predicts.
+
+One concrete trigger was found while investigating: the E182 media cards
+declared their whole ~40-knob contract as REFLECTED Lit properties with
+constructor defaults, so every media card on the canvas stamped ~40
+attributes onto itself on first update (`payload-play="play"`,
+`message-property-title="payload"`, …). That is a burst of attribute
+MUTATIONS on a canvas element — precisely what the footer's
+MutationObserver → `requestUpdate` path amplifies — plus junk serialized
+into every saved dashboard. The base class documents this exact trap for
+its availability block ("Lit reflects constructor defaults on first
+update … and it broke the U32 create-component attribute table"). Fixed:
+those properties are now attribute→property sync only, no reflection, no
+constructor defaults, with a browser regression test asserting a media
+card stamps NO contract attributes.
+
+**That removes A trigger, not the fragility.** The containment half below
+is unchanged and still the actual bug: a mutation storm (or any throwing
+render) must not be able to take unrelated editor features down. Worth
+auditing other elements for the same mass-reflection pattern while
+fixing it — grep for reflected properties whose constructor assigns a
+default.
+
 **Relates:** U97 ✅ (the footer), the earlier stamp-code lesson (same
 wildcard-selector trap, already documented there), B118 (another
 sidebar-interaction global breakage — the editor needs fault isolation
-between panels).
+between panels), E182 (the media contract whose reflection storm was one
+trigger).
 
 
 ### B127 — Copy/paste of template elements loses the template content (B31 regression class)
