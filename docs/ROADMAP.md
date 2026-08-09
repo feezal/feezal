@@ -78,6 +78,7 @@ Work in progress — priorities and scope are not final.
 - [U98 — Palette colors in editor light mode ⚠️ needs refinement](#u98--palette-colors-in-editor-light-mode-️-needs-refinement)
 - [U110 — layout-app: per-sub-view element search (E170 shape B)](#u110--layout-app-per-sub-view-element-search-e170-shape-b)
 - [U112 — Element-family-wide settings (e.g. all glass transparency) ⚠ idea, needs refinement + decision](#u112--element-family-wide-settings-eg-all-glass-transparency--idea-needs-refinement--decision)
+- [U113 — Scripting ergonomics for elements (the "simple web form" gap) ⚠ idea, needs refinement + decision](#u113--scripting-ergonomics-for-elements-the-simple-web-form-gap--idea-needs-refinement--decision)
 
 
 **Architecture & Infrastructure**
@@ -2827,6 +2828,80 @@ shortcut).
 layer), U25 (site style block), U51 (per-view themes / proximity),
 B61 + `degrade` (perf motivation), E171 (family-wide popup knobs would
 ride the same concept), theme-var discipline test.
+
+
+### U113 — Scripting ergonomics for elements (the "simple web form" gap) ⚠ idea, needs refinement + decision
+
+**Requested (08/2026).** Use case: two input elements + a button; pressing
+the button runs a script action — collect the values, `fetch()` a webhook
+or publish one JSON. Possible today via `system-script` (which already
+ships the `fzl` API: `fzl.sub/pub` page-local bus, `fzl.mqtt.pub`,
+`fzl.onViewChange`, Monaco completions) or a `<script>` in a template —
+but ACTUALLY reading an input's value means spelunking through nested
+shadow roots, and elements have no `id` to find them by in the first
+place.
+
+**Analysis — the gap is two-sided:**
+1. **Addressing:** no id/name knob exists; scripts fall back to
+   `document.querySelector('feezal-element-material-input')` + shadow
+   internals — fragile against any element refactor.
+2. **Surface:** even once found, elements expose no stable public
+   contract (`.value` may or may not exist per element; button presses
+   don't emit a composed event a script could listen for outside the
+   shadow root).
+
+**Similar use cases beyond the form:** read a sensor card's last value
+in a script; set/toggle UI state (classes) on specific elements; form
+validation before publishing; collecting several inputs into ONE JSON
+publish (the MQTT-native twin of the webhook — should be the FIRST
+cookbook example, per the pure-MQTT principle; the webhook fetch stays
+the documented escape hatch); wiring a hardware keyboard/timer to a
+specific element's action.
+
+**Suggestions (for discussion):**
+1. **An `id` (or `script-id`) knob on every element**, injected into the
+   generic attributes inspector like the existing `locked` checkbox (no
+   per-element descriptor work; custom-inspector elements get it the
+   same way). Serializes as a plain attribute — source-mode friendly.
+2. **Scoped lookup API instead of raw `getElementById`:**
+   `fzl.el(id)` / `fzl.value(id)` / `fzl.on(id, event, cb)` — scoped to
+   the ACTIVE (visible) view first, because plain HTML ids break in
+   feezal: layout-app keeps warm CLONES of visited sub-views (N40 — the
+   same id exists in the hidden source view and the clone) and U32
+   component instances stamp their template's children per instance.
+   `fzl.el` resolving "the visible one" hides that whole problem class.
+3. **A small public element contract**, rolled out to a curated list of
+   input-ish elements first (material/carbon input, select, slider,
+   checkbox, radio, switch; the *-button families): a `.value` getter
+   (and setter where sensible) plus composed, bubbling events
+   (`feezal-change`, `feezal-press`) that escape the shadow root — the
+   documented, refactor-stable surface `fzl.on` builds on. Document it
+   in the element spec; a parity-style test pins the contract.
+4. **Cookbook docs:** a short scripting section — form → one JSON
+   publish via `fzl.mqtt.pub`; form → webhook `fetch` (with the CSP
+   note); button-triggered view switch.
+
+**Caveats / downsides:**
+- **Id uniqueness is NOT enforceable globally** (clones + component
+  instances, above) — the API must define resolution (visible-first,
+  then document order) rather than pretend uniqueness; the inspector
+  can still warn on duplicates within one authored view.
+- **CSP:** a webhook `fetch` from the viewer needs `connect-src`
+  allowance — per-site CSP config (A28) already exists; the cookbook
+  must say so or the use case dies silently in the console.
+- **API contract = maintenance:** every element admitted to the `.value`
+  /events contract freezes a public surface (docs + parity test burden);
+  start with the curated input list, not all 170 elements.
+- Scripts remain the power-user escape hatch — no change to the
+  pure-MQTT integration doctrine; a possible NO-code `system-form`
+  element (collect child values → publish one JSON) would be its own
+  follow-up item if wanted.
+
+**Relates:** system-script (`fzl` API + Monaco completions), N40
+(layout-app clones — the id-duplication source), U32 (component
+instances — same), A28 (per-site CSP / connect-src), E50 (conditions —
+the no-code state-toggle alternative), docs/element-spec.md (where the
+contract would live).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
