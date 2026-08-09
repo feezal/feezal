@@ -69,6 +69,7 @@ Work in progress — priorities and scope are not final.
 - [E175 — Theme: LCARS (Star Trek bridge computer) ⚠ trade-dress check first](#e175-theme-lcars-star-trek-bridge-computer-trade-dress-check-first)
 - [E176 — Theme: Material You / MD3 baseline (light + dark)](#e176-theme-material-you-md3-baseline-light-dark)
 - [E177 — Theme: Soft UI / neumorphism ⚠ needs a shadow token](#e177-theme-soft-ui-neumorphism-needs-a-shadow-token)
+- [E178 — system-form: a subview as a web form (decided core, script API to refine)](#e178--system-form-a-subview-as-a-web-form-decided-core-script-api-to-refine)
 
 **Editor UX**
 
@@ -84,7 +85,7 @@ Work in progress — priorities and scope are not final.
 - [U98 — Palette colors in editor light mode ⚠️ needs refinement](#u98--palette-colors-in-editor-light-mode-️-needs-refinement)
 - [U110 — layout-app: per-sub-view element search (E170 shape B)](#u110--layout-app-per-sub-view-element-search-e170-shape-b)
 - [U112 — Element-family-wide settings (e.g. all glass transparency) ⚠ idea, needs refinement + decision](#u112--element-family-wide-settings-eg-all-glass-transparency--idea-needs-refinement--decision)
-- [U113 — Scripting ergonomics for elements (the "simple web form" gap) ⚠ idea, needs refinement + decision](#u113--scripting-ergonomics-for-elements-the-simple-web-form-gap--idea-needs-refinement--decision)
+- [U113 — Scripting ergonomics: `feezal-id`, scoped lookup, value/event contract — decided](#u113--scripting-ergonomics-feezal-id-scoped-lookup-valueevent-contract--decided)
 
 
 **Architecture & Infrastructure**
@@ -2836,78 +2837,51 @@ B61 + `degrade` (perf motivation), E171 (family-wide popup knobs would
 ride the same concept), theme-var discipline test.
 
 
-### U113 — Scripting ergonomics for elements (the "simple web form" gap) ⚠ idea, needs refinement + decision
+### U113 — Scripting ergonomics: `feezal-id`, scoped lookup, value/event contract — decided
 
-**Requested (08/2026).** Use case: two input elements + a button; pressing
-the button runs a script action — collect the values, `fetch()` a webhook
-or publish one JSON. Possible today via `system-script` (which already
-ships the `fzl` API: `fzl.sub/pub` page-local bus, `fzl.mqtt.pub`,
-`fzl.onViewChange`, Monaco completions) or a `<script>` in a template —
-but ACTUALLY reading an input's value means spelunking through nested
-shadow roots, and elements have no `id` to find them by in the first
-place.
+**Requested + decided (08/2026).** Use case: two input elements + a
+button; pressing the button runs a script action. Possible today via
+`system-script` (`fzl` API) or a template `<script>`, but reading an
+input means shadow-root spelunking and elements have nothing to be found
+by. Decisions with the maintainer:
 
-**Analysis — the gap is two-sided:**
-1. **Addressing:** no id/name knob exists; scripts fall back to
-   `document.querySelector('feezal-element-material-input')` + shadow
-   internals — fragile against any element refactor.
-2. **Surface:** even once found, elements expose no stable public
-   contract (`.value` may or may not exist per element; button presses
-   don't emit a composed event a script could listen for outside the
-   shadow root).
+1. **A dedicated `feezal-id` attribute** (NOT the HTML global `id` — no
+   `getElementById`/CSS-`#` collision semantics to explain), one identity
+   shared by scripting (`fzl.el()`), E178 system-form field keys,
+   and the UI. Injected into the generic attributes inspector for every
+   element, like the `locked` checkbox — zero per-element descriptor
+   work; serializes as a plain attribute.
+2. **Shown in the layers view** — the tree row displays the `feezal-id`
+   next to the element tag/label (helpful for plain editing, not just
+   scripts).
+3. **Source-view priority:** `feezal-id` sorts FIRST on the opening-tag
+   line — extend the U92/U96 identifying-attribute serialization order
+   (`feezal-id` before `label`/`subscribe`/`icon`/…), so a folded
+   element leads with its identity.
+4. **Scoped lookup API:** `fzl.el(feezalId)` / `fzl.value(feezalId)` /
+   `fzl.on(feezalId, event, cb)` resolving the VISIBLE occurrence first
+   (layout-app keeps warm clones of visited sub-views, N40, and U32
+   component instances stamp copies — global uniqueness is a lie; the
+   API defines resolution: visible first, then document order). The
+   inspector may warn on duplicates within one authored view.
+5. **Public element contract, curated list first** (material/carbon
+   input, select, slider, checkbox, radio, switch; the *-button
+   families): a `.value` getter (setter where sensible) + composed,
+   bubbling `feezal-change` / `feezal-press` events that escape the
+   shadow root. Documented in docs/element-spec.md; a parity-style test
+   pins the contract. This contract is a PREREQUISITE of E178.
+6. **Cookbook docs:** collect-and-publish-one-JSON via `fzl.mqtt.pub`
+   first (pure-MQTT doctrine), webhook `fetch` as the escape hatch with
+   the A28 `connect-src` note, button-triggered view switch.
 
-**Similar use cases beyond the form:** read a sensor card's last value
-in a script; set/toggle UI state (classes) on specific elements; form
-validation before publishing; collecting several inputs into ONE JSON
-publish (the MQTT-native twin of the webhook — should be the FIRST
-cookbook example, per the pure-MQTT principle; the webhook fetch stays
-the documented escape hatch); wiring a hardware keyboard/timer to a
-specific element's action.
+**Caveats (unchanged):** id resolution is semantics-by-definition, not
+uniqueness (clones/instances); CSP for webhook fetches (A28); every
+contract element freezes public surface — curate, don't blanket all
+~170.
 
-**Suggestions (for discussion):**
-1. **An `id` (or `script-id`) knob on every element**, injected into the
-   generic attributes inspector like the existing `locked` checkbox (no
-   per-element descriptor work; custom-inspector elements get it the
-   same way). Serializes as a plain attribute — source-mode friendly.
-2. **Scoped lookup API instead of raw `getElementById`:**
-   `fzl.el(id)` / `fzl.value(id)` / `fzl.on(id, event, cb)` — scoped to
-   the ACTIVE (visible) view first, because plain HTML ids break in
-   feezal: layout-app keeps warm CLONES of visited sub-views (N40 — the
-   same id exists in the hidden source view and the clone) and U32
-   component instances stamp their template's children per instance.
-   `fzl.el` resolving "the visible one" hides that whole problem class.
-3. **A small public element contract**, rolled out to a curated list of
-   input-ish elements first (material/carbon input, select, slider,
-   checkbox, radio, switch; the *-button families): a `.value` getter
-   (and setter where sensible) plus composed, bubbling events
-   (`feezal-change`, `feezal-press`) that escape the shadow root — the
-   documented, refactor-stable surface `fzl.on` builds on. Document it
-   in the element spec; a parity-style test pins the contract.
-4. **Cookbook docs:** a short scripting section — form → one JSON
-   publish via `fzl.mqtt.pub`; form → webhook `fetch` (with the CSP
-   note); button-triggered view switch.
-
-**Caveats / downsides:**
-- **Id uniqueness is NOT enforceable globally** (clones + component
-  instances, above) — the API must define resolution (visible-first,
-  then document order) rather than pretend uniqueness; the inspector
-  can still warn on duplicates within one authored view.
-- **CSP:** a webhook `fetch` from the viewer needs `connect-src`
-  allowance — per-site CSP config (A28) already exists; the cookbook
-  must say so or the use case dies silently in the console.
-- **API contract = maintenance:** every element admitted to the `.value`
-  /events contract freezes a public surface (docs + parity test burden);
-  start with the curated input list, not all 170 elements.
-- Scripts remain the power-user escape hatch — no change to the
-  pure-MQTT integration doctrine; a possible NO-code `system-form`
-  element (collect child values → publish one JSON) would be its own
-  follow-up item if wanted.
-
-**Relates:** system-script (`fzl` API + Monaco completions), N40
-(layout-app clones — the id-duplication source), U32 (component
-instances — same), A28 (per-site CSP / connect-src), E50 (conditions —
-the no-code state-toggle alternative), docs/element-spec.md (where the
-contract would live).
+**Relates:** E178 (system-form — consumes feezal-id + the
+contract), system-script (`fzl` API), N40/U32 (duplication sources),
+U92/U96 (source attribute order), A28 (CSP), docs/element-spec.md.
 
 
 ### E172 — Theme: Catppuccin (pastel, 4 flavors)
@@ -3000,6 +2974,60 @@ point), or (b) first add a `--feezal-*-shadow` token to the family card
 chromes (small, U112-adjacent change) so the theme can express the
 double soft shadow. Recommend (b) — decide together with U112's
 family-token manifest. Light + dark variants.
+
+
+### E178 — system-form: a subview as a web form (decided core, script API to refine)
+
+**Requested + core decided (08/2026).** A `system-form` element that
+embeds a SUBVIEW (the dialog-view/layout-view clone machinery, N40
+keep-warm semantics) and turns it into a form: every member element
+carrying a **`feezal-id`** and the U113 **`.value` contract**
+automatically becomes a field — the payload is
+`{<feezal-id>: <value>, …}`. Elements without a `feezal-id` are not
+part of the payload (explicit opt-in). U113 is the prerequisite.
+
+**Decisions taken:**
+- **Field keys = `feezal-id`** (one identity across scripting, forms,
+  layers view — see U113).
+- **Submit = BOTH:** a designated member button — suggestion: the form's
+  `submit-id` attribute names the trigger's `feezal-id`, default
+  `submit`, listening for its composed `feezal-press` (no per-family
+  button knob needed) — and when NO member matches, the form renders its
+  own plain submit button (label knob) under the embedded view.
+- **Always a script**, Monaco-edited like system-script, PREFILLED with
+  a small transparent default that collects all values and publishes one
+  JSON to the configured topic. Validation = edit the script (return
+  false / don't publish); webhook = replace the publish with fetch (A28
+  `connect-src` note in the help).
+- **Member publishing untouched:** the form only READS values; members
+  with their own `publish` topics keep publishing per change — leave a
+  member's publish topic empty to keep it quiet. No suppression magic.
+
+**Script context API (suggestions — refine before building):** the form
+script gets the `fzl` API plus a `form` object:
+- `form.values()` → `{feezalId: value}` over the embedded view;
+- `form.topic` → the form's `publish` attribute (the requested
+  `fzl.attr('topic')` shortcut, but typed: `form.attr(name)` exists as
+  the general accessor, `form.topic` is the sugar for the 90% case);
+- `form.publish(obj = form.values())` → one-liner JSON publish to
+  `form.topic`;
+- `form.reset()` → clear/restore member values (needs the contract's
+  setter side);
+- default script (the prefill):
+  `fzl.mqtt.pub(form.topic, form.values());`
+  — or even `form.publish();` — decide which reads better as the
+  learning template (leaning to the explicit `fzl.mqtt.pub` form: it
+  teaches the general API, and `form.publish()` stays the shortcut).
+
+**Editor:** placeholder like the other system pseudo-elements (never a
+live embed on canvas); view picker for the subview (B128 space-safety);
+Monaco script tab; TESTING.md recipe with the two cookbook flows (JSON
+publish; webhook fetch).
+
+**Relates:** U113 (prerequisite: feezal-id + value/event contract),
+system-script (`fzl`, Monaco), N40 (embedded clone), B128 (view
+picker), A28 (CSP for fetch), E50 (conditions on form members work
+unchanged).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
