@@ -24,7 +24,9 @@ import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fr
 
 // Media size presets. 4x2 (wide) is the natural now-playing shape — square
 // cover on the left, text and transport beside it — and matches defaultStyle.
-const MEDIA_SIZES = {'4x2': [354, 172], '2x2': [172, 172], '4x1': [354, 86]};
+// Widths follow the family grid (81px unit + 10px gutter): 2 -> 172,
+// 4 -> 354, 6 -> 536. 6x2 is the full-width now-playing bar for a wide view.
+const MEDIA_SIZES = {'4x2': [354, 172], '6x2': [536, 172], '2x2': [172, 172], '4x1': [354, 86]};
 
 const fmtTime = sec => {
     if (sec === null || sec === undefined || isNaN(+sec) || +sec < 0) return '0:00';
@@ -62,8 +64,8 @@ class FeezalElementGlassMedia extends FeezalElement {
                 'the same text. Autodiscovers Echo devices (echo2mqtt) and any bridge speaking the media contract.',
             discovery: {component: 'media', map: mediaDiscoveryMap},
             attributes: [
-                {name: 'size', type: 'select', options: ['', '4x2', '2x2', '4x1'], default: '',
-                    help: 'Preset size: 4x2 = wide (the default shape — square art beside the text), 2x2 = square, 4x1 = compact bar. Empty keeps the current/manual size.'},
+                {name: 'size', type: 'select', options: ['', '4x2', '6x2', '2x2', '4x1'], default: '',
+                    help: 'Preset size: 4x2 = wide (the default shape — square art beside the text), 6x2 = extra wide, 2x2 = square, 4x1 = compact bar. Empty keeps the current/manual size.'},
                 // E182: the whole media MQTT contract — one declaration, every family.
                 ...mediaAttributes,
                 ...availabilityAttributes(),

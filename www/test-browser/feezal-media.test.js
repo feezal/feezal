@@ -270,12 +270,17 @@ describe('glass-media (E183)', () => {
         expect(ds.height).toBe('172px');
     });
 
-    it('the size preset writes square-ish geometry (media needs more height than a tile)', async () => {
+    it('the size presets follow the family grid (81px unit + 10px gutter)', async () => {
         const el = await mount('feezal-element-glass-media', {});
         el.size = '4x2';
         await el.updateComplete;
-        expect(el.style.width).toBe('354px');
-        expect(el.style.height).toBe('172px');
+        expect([el.style.width, el.style.height]).toEqual(['354px', '172px']);
+        el.size = '6x2';                       // extra wide: 6*81 + 5*10
+        await el.updateComplete;
+        expect([el.style.width, el.style.height]).toEqual(['536px', '172px']);
+        el.size = '2x2';
+        await el.updateComplete;
+        expect([el.style.width, el.style.height]).toEqual(['172px', '172px']);
     });
 });
 
