@@ -63,6 +63,12 @@ Work in progress — priorities and scope are not final.
 - [E162 — Fancy family, take two: actually fancy — ready-made Lottie art over generated geometry](#e162--fancy-family-take-two-actually-fancy--ready-made-lottie-art-over-generated-geometry)
 - [E164 — Fancy family: finish and re-enable the disabled cards](#e164--fancy-family-finish-and-re-enable-the-disabled-cards)
 - [E168 — basic-camera: Frigate event backfill (events from before the viewer opened)](#e168--basic-camera-frigate-event-backfill-events-from-before-the-viewer-opened-️-to-be-refined) ⚠️
+- [E172 — Theme: Catppuccin (pastel, 4 flavors)](#e172-theme-catppuccin-pastel-4-flavors)
+- [E173 — Theme: Nord (arctic palette, dark + light)](#e173-theme-nord-arctic-palette-dark-light)
+- [E174 — Theme: Graphite (calm neutral dark)](#e174-theme-graphite-calm-neutral-dark)
+- [E175 — Theme: LCARS (Star Trek bridge computer) ⚠ trade-dress check first](#e175-theme-lcars-star-trek-bridge-computer-trade-dress-check-first)
+- [E176 — Theme: Material You / MD3 baseline (light + dark)](#e176-theme-material-you-md3-baseline-light-dark)
+- [E177 — Theme: Soft UI / neumorphism ⚠ needs a shadow token](#e177-theme-soft-ui-neumorphism-needs-a-shadow-token)
 
 **Editor UX**
 
@@ -2902,6 +2908,98 @@ specific element's action.
 instances — same), A28 (per-site CSP / connect-src), E50 (conditions —
 the no-code state-toggle alternative), docs/element-spec.md (where the
 contract would live).
+
+
+### E172 — Theme: Catppuccin (pastel, 4 flavors)
+**From the SmartHomeScene 2023 HA-theme survey (08/2026)** — the survey
+anchor: siblings E173 (Nord), E174 (Graphite), E175 (LCARS),
+E176 (Material You), E177 (Soft UI). Skipped as covered/derivative:
+visionOS (≈ `feezal-theme-glass`), Metrology (≈ `feezal-theme-metro` +
+family), iOS/macOS (glass overlap), Google theme (folded into E176),
+Caule/Waves/Slate/Your-Name (color-pack/derivative, no distinct design
+language).
+
+Port the **Catppuccin** pastel palette
+([catppuccin/home-assistant](https://github.com/catppuccin/home-assistant),
+**MIT**; the palette spec itself is catppuccin/catppuccin, MIT). Four
+flavors — Latte (light), Frappé, Macchiato, Mocha (dark). Ship **Latte +
+Mocha first** as `feezal-theme-catppuccin-latte` / `-mocha` (one package
+per theme, like solarized-light/-dark); Frappé/Macchiato later if wanted.
+Mapping: base/mantle → backgrounds, surface0/1 → secondary bg + divider,
+text/subtext → text colours, blue → `--primary-color`, mauve → accent,
+red/yellow/green/sky → error/warning/success/info; tune the glass tint
+tokens to the pastel mood. Attribute the palette in the package README.
+
+
+### E173 — Theme: Nord (arctic palette, dark + light)
+**From the E172 survey.** Port the **Nord** palette — the missing third
+of the classic developer-palette set beside the existing gruvbox and
+solarized pairs. Reference implementation:
+[coltondick/nordic-theme-main](https://github.com/coltondick/nordic-theme-main)
+(**Apache-2.0**); the palette itself is `nordtheme/nord` (**MIT**) — map
+from the palette spec directly, credit both. `feezal-theme-nord` (dark:
+polar-night nord0–3 backgrounds, snow-storm nord4–6 text, frost nord8 as
+`--primary-color`) + `feezal-theme-nord-light` (snow-storm ground,
+polar-night text); aurora nord11/13/14/8 → error/warning/success/info.
+
+
+### E174 — Theme: Graphite (calm neutral dark)
+**From the E172 survey.** Port **Graphite**
+([TilmanGriesel/graphite](https://github.com/TilmanGriesel/graphite),
+**MIT**) — a calm, LOW-SATURATION neutral-gray dark theme with muted
+accents. Distinct from every existing feezal dark: midnight-blue and
+blue-night are blue-tinted, dark-mint/dark-orange are accent-led;
+feezal has no neutral graphite dark. Upstream also carries a light
+variant — check it when porting and ship `feezal-theme-graphite`
+(+ `-light` if the upstream light holds up). Credit upstream.
+
+
+### E175 — Theme: LCARS (Star Trek bridge computer) ⚠ trade-dress check first
+**From the E172 survey.** An **LCARS** look
+([th3jesta/ha-lcars](https://github.com/th3jesta/ha-lcars), repo **MIT**,
+fonts/colours from thelcars.com) — black ground, orange/salmon/lavender
+pill shapes, the iconic elbow frames. Two blockers to resolve BEFORE
+building:
+1. **Trade dress / trademark:** the repo is MIT but the LCARS design
+   language and the term are associated with CBS/Paramount (trademark
+   registrations exist; fan use is widely tolerated but NOT licensed).
+   Decide: ship as a clearly fan-made homage under a non-infringing
+   package name, or drop. Legal-comfort call for the maintainer — the
+   MIT label on a fan repo does not settle it.
+2. **Scope:** LCARS lives on SHAPES (elbows, pill nav, segmented bars),
+   not just colours — a var-only feezal theme gets the palette +
+   typography but not the frames. v1 = palette/typography theme; the
+   full look would need theme CSS on the app-shell chrome or a
+   dedicated family (out of scope here; relates U112 family tokens).
+
+
+### E176 — Theme: Material You / MD3 baseline (light + dark)
+**From the E172 survey.** feezal ships a **Material element family**
+(MD3 controls) but NO matching theme — the palette gap shows (U98).
+Build `feezal-theme-material-light`/`-dark` from the **MD3 baseline**
+color roles. References:
+[Nerwyn/material-rounded-theme](https://github.com/Nerwyn/material-rounded-theme)
+(**Apache-2.0**) and JuanMTech/google-theme; the MD3 baseline tokens
+themselves are published by Google under Apache-2.0. Map the MD3 roles
+ONTO the canonical feezal set (surface/on-surface → backgrounds/text,
+primary → `--primary-color`, tertiary → accent, error → error) — the
+theme DEFINES canonical vars; the no-`--md-sys-color-*`-defaults rule
+for elements is untouched. Dynamic color (wallpaper-derived Material
+You) is explicitly out of scope — static baseline only.
+
+
+### E177 — Theme: Soft UI / neumorphism ⚠ needs a shadow token
+**From the E172 survey.** Port the **Soft UI** look
+([KTibow/lovelace-soft-theme](https://github.com/KTibow/lovelace-soft-theme),
+**MIT**) — near-monochrome ground where cards read as EXTRUDED via paired
+light/dark soft shadows (neumorphism). Caveat that makes this more than
+a palette: the signature is the SHADOW, and feezal themes can only set
+variables — the families' card shadows are currently hardcoded (glass:
+`box-shadow: 0 8px 24px …`). Either (a) ship palette-only (loses the
+point), or (b) first add a `--feezal-*-shadow` token to the family card
+chromes (small, U112-adjacent change) so the theme can express the
+double soft shadow. Recommend (b) — decide together with U112's
+family-token manifest. Light + dark variants.
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
