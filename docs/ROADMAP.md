@@ -65,6 +65,7 @@ Work in progress — priorities and scope are not final.
 - [E162 — Fancy family, take two: actually fancy — ready-made Lottie art over generated geometry](#e162--fancy-family-take-two-actually-fancy--ready-made-lottie-art-over-generated-geometry)
 - [E164 — Fancy family: finish and re-enable the disabled cards](#e164--fancy-family-finish-and-re-enable-the-disabled-cards)
 - [E168 — basic-camera: Frigate event backfill (events from before the viewer opened)](#e168--basic-camera-frigate-event-backfill-events-from-before-the-viewer-opened-️-to-be-refined) ⚠️
+- [E171 — Glass popups: frosted page backdrop, open/close animation, and a glass-popup container element](#e171--glass-popups-frosted-page-backdrop-openclose-animation-and-a-glass-popup-container-element)
 
 **Editor UX**
 
@@ -2818,6 +2819,55 @@ search filters NAV ENTRIES; this filters the embedded view's ELEMENTS).
 
 **Relates:** E170 (shipped engine + elements), U108 (drawer-entry
 search), U103 (embedded clones), layout-app entries manager.
+
+
+### E171 — Glass popups: frosted page backdrop, open/close animation, and a glass-popup container element
+
+**Requested (08/2026).** Three additions around the shared glass popup
+machinery (`glassPopupStyles` + the popup lifecycle in
+`@feezal/feezal-glass`, consumed by every `glass-*` card with a details
+popover). The first two are OPT-IN knobs on every glass element that has
+a popup; the third is a new element.
+
+1. **Frosted page backdrop (optional):** while a popup is open, overlay
+   the whole page behind it with the family frost (backdrop-filter blur +
+   tint scrim) instead of today's plain/absent scrim — the view shimmers
+   through, the popup floats on glass. One shared implementation in the
+   popup machinery; per-element boolean knob (naming suggestion:
+   `popup-backdrop`, default off to keep current behavior). Must respect
+   the `degrade` contract (degrade on → solid translucent scrim, no live
+   blur) and B121 (backdrop frost follows the same tint tokens as the
+   cards). Watch B61 (Chrome/macOS backdrop-filter invalidation) — a
+   full-page blur layer is exactly the kind of surface that bug bites;
+   test there before defaulting anything on.
+2. **Open/close animation (optional):** animate the popup in/out — scale
+   from ~0.96 + fade for open, the reverse for close (close must ANIMATE
+   before removal, i.e. the machinery needs a closing state instead of
+   tearing the popover down synchronously). Honour
+   `prefers-reduced-motion` (no tween, instant swap). Per-element boolean
+   (suggestion: `popup-animate`, default off — or on, decide with the
+   maintainer; E162 rest-discipline argues transitions-only motion is
+   fine by default). Shared keyframes in `glassPopupStyles`; the eink
+   family keeps its zero-animation rule untouched.
+3. **New `glass-popup` element:** a card-less popup CONTAINER — placing
+   it on a view gives a trigger (icon/label/invisible hotspot,
+   configurable) that opens the family popup chrome with EITHER an
+   embedded **view** (like dialog-view — reuse its clone/keep-warm
+   machinery, N40 semantics) OR a **template** (light-DOM `<template>`
+   child rendered with the msg context, like basic-template). So any
+   content gets the glass popup treatment without building a bespoke
+   card. Should share the same two knobs above, the E50 conditions
+   contract, and close on scrim tap/Escape like the existing popups.
+   Relation to glass-dialog / glass-dialog-view to be clarified during
+   implementation: those exist — if glass-dialog-view already covers the
+   view case, this may reduce to (a) adding the template mode there and
+   (b) the popup chrome/knob parity, rather than a third element —
+   decide with the code open, do not duplicate.
+
+**Relates:** B121 (popup frost = card frost), B61 (macOS
+backdrop-filter artifacts — the risk case for the page backdrop), E162
+(motion discipline), glass-dialog / glass-dialog-view (overlap check for
+part 3), N40 (embedded-view keep-warm), E50 (conditions).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
