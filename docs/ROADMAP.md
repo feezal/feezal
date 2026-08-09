@@ -2869,8 +2869,14 @@ by. Decisions with the maintainer:
    input, select, slider, checkbox, radio, switch; the *-button
    families): a `.value` getter (setter where sensible) + composed,
    bubbling `feezal-change` / `feezal-press` events that escape the
-   shadow root. Documented in docs/element-spec.md; a parity-style test
-   pins the contract. This contract is a PREREQUISITE of E178.
+   shadow root. Input elements additionally re-dispatch the low-level
+   editing events as composed `feezal-blur` / `feezal-keyup` /
+   `feezal-keydown` (detail carries key + value), so scripts can do
+   live validation, Enter-to-submit and typeahead without shadow-root
+   reach-ins — `fzl.on(id, 'keydown', cb)` maps the short event names
+   onto the prefixed ones. Documented in docs/element-spec.md; a
+   parity-style test pins the contract. This contract is a PREREQUISITE
+   of E178.
 6. **Cookbook docs:** collect-and-publish-one-JSON via `fzl.mqtt.pub`
    first (pure-MQTT doctrine), webhook `fetch` as the escape hatch with
    the A28 `connect-src` note, button-triggered view switch.
