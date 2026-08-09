@@ -243,7 +243,10 @@ class FeezalElementGlassMedia extends FeezalElement {
                             ` : html`<span class="mi" style="font-size:18px">volume_up</span>`}
                             <input type="range" min="0" max="100" step="1"
                                 .value="${String(m.volume ?? (feezal.isEditor ? 60 : 0))}"
-                                @input="${e => m.setVolume(e.target.value)}">
+                                @pointerdown="${() => m.beginVolumeDrag()}"
+                                @input="${e => m.setVolume(e.target.value)}"
+                                @change="${e => m.setVolume(e.target.value, {commit: true})}"
+                                @pointerup="${e => m.setVolume(e.target.value, {commit: true})}">
                         </div>
                     ` : ''}
                 </div>

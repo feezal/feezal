@@ -1,6 +1,7 @@
 /* global feezal */
 import {feezalBoolean, html, css} from '@feezal/feezal-element';
 import {MetroTileBase} from '@feezal/feezal-metro';
+import {VolumeGate} from '@feezal/feezal-controller-media';
 
 /**
  * feezal-element-metro-media (E55)
@@ -49,13 +50,13 @@ class FeezalElementMetroMedia extends MetroTileBase {
                 {name: 'subscribe-artist', type: 'mqttTopic', help: 'Artist topic.'},
                 {name: 'message-property-artist', type: 'string', default: 'payload',
                     help: 'Dot-notation path within artist messages. Default: payload'},
-                {name: 'subscribe-artwork-url', type: 'mqttTopic', help: 'Topic carrying the album-art image URL. The cover fills the tile behind the track text (Metro live-tile style).'},
+                {name: 'subscribe-artwork-url', type: 'mqttTopic', help: 'Topic carrying the album-art image URL. The cover renders square on the left of the tile with the track text beside it.'},
                 {name: 'message-property-artwork-url', type: 'string', default: 'payload',
                     help: 'Dot-notation path within artwork messages. Default: payload'},
                 {name: 'artwork-url', type: 'string', default: '',
                     help: 'Static album-art image URL, used until an artwork message arrives.'},
                 {name: 'show-artwork', type: 'boolean', default: true,
-                    help: 'Show the album art as the tile background (the text sits on a scrim over it).'},
+                    help: 'Show the square album cover on the left of the tile. Off (or without a cover) the tile keeps the classic centred Metro layout.'},
                 {name: 'subscribe-state', type: 'mqttTopic', help: 'Playback state topic (payload-playing marks the playing state).'},
                 {name: 'message-property-state', type: 'string', default: 'payload',
                     help: 'Dot-notation path within state messages. Default: payload'},
@@ -68,6 +69,10 @@ class FeezalElementMetroMedia extends MetroTileBase {
                 {name: 'payload-pause', type: 'string', default: '', help: 'Optional separate pause payload. See payload-play.'},
                 {name: 'payload-next', type: 'string', default: 'next', help: 'Payload for next track.'},
                 {name: 'payload-prev', type: 'string', default: 'previous', help: 'Payload for previous track.'},
+                {name: 'volume-live', type: 'boolean', default: true,
+                    help: 'Publish volume WHILE dragging (throttled to one message every 150 ms, plus the final value on release). Turn off to publish only when you let go. Either way the knob follows your finger and device echoes are ignored until you release.'},
+                {name: 'volume-settle', type: 'number', default: 1500,
+                    help: 'How long (ms) incoming volume messages are ignored after you moved the slider — bridges echo a status per command and can deliver them out of order. 0 disables the hold.'},
                 {name: 'subscribe-volume', type: 'mqttTopic', help: 'Volume state topic (0–100).'},
                 {name: 'message-property-volume', type: 'string', default: 'payload',
                     help: 'Dot-notation path within volume messages. Default: payload'},
@@ -96,6 +101,8 @@ class FeezalElementMetroMedia extends MetroTileBase {
         payloadPause:     {type: String, reflect: true, attribute: 'payload-pause'},
         payloadNext:      {type: String, reflect: true, attribute: 'payload-next'},
         payloadPrev:      {type: String, reflect: true, attribute: 'payload-prev'},
+        volumeLive:    {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'volume-live'},
+        volumeSettle:  {type: Number,  reflect: true, attribute: 'volume-settle'},
         subVolume:     {type: String, reflect: true, attribute: 'subscribe-volume'},
         msgPropVolume: {type: String, reflect: true, attribute: 'message-property-volume'},
         pubVolume:     {type: String, reflect: true, attribute: 'publish-volume'},
@@ -107,22 +114,26 @@ class FeezalElementMetroMedia extends MetroTileBase {
     };
 
     static styles = [MetroTileBase.styles, css`
-        /* Album art as the live-tile background — the Metro way: full-bleed
-           cover with a scrim so the accent-coloured text stays readable.
-           The art renders inside the .center box, which stops 18px above the
-           tile bottom to leave the label strip free — the negative bottom
-           inset stretches the cover back over the whole face. Its siblings
-           are static, which would paint UNDER a positioned box, so they are
-           lifted onto their own layer. */
+        /* Album art: a SQUARE cover on the left with the text beside it, the
+           same shape glass-media uses. Only when a cover exists — an artless
+           tile keeps the classic centred Metro layout, hence :has(). Metro
+           corners stay sharp (no radius). */
+        .center:has(.art) {
+            flex-direction: row; align-items: center; justify-content: flex-start;
+            gap: 10px; padding: 0 12px; box-sizing: border-box;
+        }
         .art {
-            position: absolute; inset: 0 0 -18px 0; z-index: 0;
+            flex: 0 0 auto; height: 72%; aspect-ratio: 1;
             background-size: cover; background-position: center;
+            background-color: rgba(0, 0, 0, 0.18);
         }
-        .art::after {
-            content: ''; position: absolute; inset: 0;
-            background: linear-gradient(transparent 30%, rgba(0, 0, 0, 0.55));
+        .meta {
+            min-width: 0; display: flex; flex-direction: column;
+            align-items: flex-start; gap: 2px; text-align: left;
         }
-        .center > :not(.art) { position: relative; z-index: 1; }
+        .meta .track, .meta .artist { max-width: 100%; text-align: left; }
+        .titleline { display: flex; align-items: center; gap: 6px; max-width: 100%; }
+        .center:has(.art) feezal-icon { font-size: min(var(--_metro-icon-size), 22cqh); }
         .track { font-size: 16px; font-weight: 600; max-width: 92%; text-align: center;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .artist { font-size: var(--_metro-unit-size); opacity: 0.85; max-width: 92%;   /* E129 */
@@ -150,6 +161,8 @@ class FeezalElementMetroMedia extends MetroTileBase {
         this.payloadPause = '';
         this.payloadNext = 'next';
         this.payloadPrev = 'previous';
+        this.volumeLive = true;
+        this.volumeSettle = 1500;
         this.subVolume = '';
         this.msgPropVolume = '';
         this.pubVolume = '';
@@ -157,6 +170,16 @@ class FeezalElementMetroMedia extends MetroTileBase {
         this._artist = '';
         this._playing = false;
         this._volume = null;
+        // E185: shared slider gate — throttles the drag and ignores the
+        // bridge's echoes until the knob is released (see VolumeGate).
+        this._gate = new VolumeGate({
+            publish: n => { if (!feezal.isEditor && this.pubVolume) feezal.connection.pub(this.pubVolume, String(n)); },
+        });
+    }
+
+    disconnectedCallback() {
+        this._gate.dispose();
+        super.disconnectedCallback();
     }
 
     connectedCallback() {
@@ -181,7 +204,8 @@ class FeezalElementMetroMedia extends MetroTileBase {
         });
         sub(this.subVolume, msg => {
             const v = Number(this.getProperty(msg, this.msgPropVolume || this.messageProperty));
-            if (!isNaN(v)) this._volume = v;
+            // E185: ignore our own (possibly reordered) echoes while dragging.
+            if (!isNaN(v) && this._gate.accepts()) this._volume = v;
         });
     }
 
@@ -210,10 +234,30 @@ class FeezalElementMetroMedia extends MetroTileBase {
         this._transport(this.payloadPlayPause);
     }
 
+    /** Press: hold the bridge echoes off until the knob is released (E185). */
+    _onVolumeDown() {
+        this._gate.settleMs = Math.max(0, Number(this.volumeSettle) || 0);
+        this._gate.beginDrag();
+    }
+
+    _clampVol(v) { return Math.max(0, Math.min(100, Math.round(Number(v) || 0))); }
+
+    /** Drag: the knob always follows the finger; publishing is throttled when
+     * volume-live is on, and deferred to the release when it is off. */
+    _onVolumeInput(v) {
+        this._volume = this._clampVol(v);
+        if (feezal.isEditor || !this.volumeLive) return;
+        this._gate.settleMs = Math.max(0, Number(this.volumeSettle) || 0);
+        this._gate.input(this._volume);
+    }
+
+    /** Release: always publishes the final value. */
     _setVolume(v) {
+        this._volume = this._clampVol(v);
         if (feezal.isEditor) return;
-        this._volume = Number(v);
-        if (this.pubVolume) feezal.connection.pub(this.pubVolume, String(v));
+        this._gate.settleMs = Math.max(0, Number(this.volumeSettle) || 0);
+        this._gate.commit(this._volume);
+        this._gate.endDrag();
     }
 
     baseAction() {
@@ -227,10 +271,20 @@ class FeezalElementMetroMedia extends MetroTileBase {
 
     renderFront() {
         const art = this._cover;
+        const track = this._title || (feezal.isEditor && !this.subscribe ? 'Track title' : '');
+        const icon = html`<feezal-icon name="${this._playing ? 'pause_circle' : 'play_circle'}"></feezal-icon>`;
+        // With a cover the tile becomes a row: square art left, metadata right.
+        if (art) {
+            return html`
+                <div class="art" style="background-image:url('${art}')"></div>
+                <div class="meta">
+                    <div class="titleline">${icon}<div class="track">${track}</div></div>
+                    ${this._artist ? html`<div class="artist">${this._artist}</div>` : ''}
+                </div>`;
+        }
         return html`
-            ${art ? html`<div class="art" style="background-image:url('${art}')"></div>` : ''}
-            <feezal-icon name="${this._playing ? 'pause_circle' : 'play_circle'}"></feezal-icon>
-            <div class="track">${this._title || (feezal.isEditor && !this.subscribe ? 'Track title' : '')}</div>
+            ${icon}
+            <div class="track">${track}</div>
             ${this._artist ? html`<div class="artist">${this._artist}</div>` : ''}`;
     }
 
@@ -246,7 +300,10 @@ class FeezalElementMetroMedia extends MetroTileBase {
                     <feezal-icon name="volume_up"></feezal-icon>
                     <input type="range" min="0" max="100" step="1"
                         .value="${String(this._volume ?? 50)}"
-                        @change="${e => this._setVolume(e.target.value)}">
+                        @pointerdown="${() => this._onVolumeDown()}"
+                        @input="${e => this._onVolumeInput(e.target.value)}"
+                        @change="${e => this._setVolume(e.target.value)}"
+                        @pointerup="${e => this._setVolume(e.target.value)}">
                 </div>` : ''}`;
     }
 }

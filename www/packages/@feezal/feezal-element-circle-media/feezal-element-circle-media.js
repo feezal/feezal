@@ -380,7 +380,11 @@ class FeezalElementCircleMedia extends FeezalElement {
         barEl.addEventListener('pointercancel', up);
     }
 
-    _onVolume(e) { this.media.setVolume(e.target.value); }
+    // E185: press → hold device echoes off, drag → throttled publishes,
+    // release (change / pointerup) → the final value and the settle tail.
+    _onVolumeDown()   { this.media.beginVolumeDrag(); }
+    _onVolume(e)      { this.media.setVolume(e.target.value); }
+    _onVolumeCommit(e) { this.media.setVolume(e.target.value, {commit: true}); }
 
     render() {
         const m = this.media;
@@ -467,7 +471,10 @@ class FeezalElementCircleMedia extends FeezalElement {
                     ` : html`<span class="mi">volume_up</span>`}
                     <input type="range" min="0" max="100" step="1"
                         .value="${String(volume)}"
-                        @input="${this._onVolume}">
+                        @pointerdown="${this._onVolumeDown}"
+                        @input="${this._onVolume}"
+                        @change="${this._onVolumeCommit}"
+                        @pointerup="${this._onVolumeCommit}">
                 </div>
             ` : ''}
         `;

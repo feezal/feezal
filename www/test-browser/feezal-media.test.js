@@ -447,7 +447,7 @@ describe.each([
 // ─── metro-media album art ───────────────────────────────────────────────────
 
 describe('metro-media album art', () => {
-    it('renders the cover from the artwork topic, behind the track text', async () => {
+    it('renders the cover from the artwork topic, square and left of the text', async () => {
         const el = await mount('feezal-element-metro-media', {
             'subscribe-artwork-url': 'echo/status/Bad/media',
             'message-property-artwork-url': 'payload.imageUrl',
@@ -458,8 +458,9 @@ describe('metro-media album art', () => {
         const art = el.shadowRoot.querySelector('.art');
         expect(art).toBeTruthy();
         expect(art.style.backgroundImage).toContain('https://art/x.jpg');
-        // The text must sit ON the cover, not under it.
-        expect(getComputedStyle(el.shadowRoot.querySelector('.track')).zIndex).toBe('1');
+        // Side-by-side layout: square cover, metadata beside it.
+        expect(getComputedStyle(art).aspectRatio.replace(/\s/g, '')).toBe('1/1');
+        expect(el.shadowRoot.querySelector('.meta .track')).toBeTruthy();
     });
 
     it('falls back to the static artwork-url, and show-artwork off hides it', async () => {
@@ -477,5 +478,100 @@ describe('metro-media album art', () => {
     it('discovery stamps the artwork topic onto the tile', () => {
         const map = customElements.get('feezal-element-metro-media').feezal.discovery.map;
         expect(map.artwork_topic).toBe('subscribe-artwork-url');
+    });
+});
+
+// ─── E185: slider behaviour on the real elements ─────────────────────────────
+
+const drag = async (el, values, {commit = true} = {}) => {
+    const slider = el.shadowRoot.querySelector('input[type="range"]');
+    slider.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true}));
+    for (const v of values) {
+        slider.value = String(v);
+        slider.dispatchEvent(new Event('input', {bubbles: true}));
+    }
+    if (commit) slider.dispatchEvent(new Event('change', {bubbles: true}));
+    await el.updateComplete;
+    return slider;
+};
+
+describe.each([
+    'feezal-element-circle-media',
+    'feezal-element-glass-media',
+    'feezal-element-metro-media',
+])('%s volume slider (E185)', tag => {
+    const conf = t => (t === 'feezal-element-metro-media'
+        ? {'publish-volume': 'echo/set/Bad/volume', 'subscribe-volume': 'echo/status/Bad/volume'}
+        : {'publish-volume': 'echo/set/Bad/volume', 'subscribe-volume': 'echo/status/Bad/volume'});
+
+    it('a fast drag does NOT publish one message per input event', async () => {
+        const el = await mount(tag, conf(tag));
+        await drag(el, [17, 16, 15, 14, 13, 12, 11]);
+        const vols = feezal.connection.published.filter(p => p.topic.endsWith('/volume'));
+        // The reported bug published all seven; now it is the throttled
+        // leading value plus the committed final one.
+        expect(vols.length).toBeLessThanOrEqual(3);
+        expect(vols.at(-1).payload).toBe('11');           // never loses the end value
+    });
+
+    it('ignores the device echo while the knob is held, and follows it again afterwards', async () => {
+        const el = await mount(tag, {...conf(tag), 'volume-settle': '0'});
+        const slider = el.shadowRoot.querySelector('input[type="range"]');
+        slider.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true}));
+        slider.value = '11';
+        slider.dispatchEvent(new Event('input', {bubbles: true}));
+
+        // A stale, out-of-order echo lands mid-drag (the reported …13, 11, 12).
+        feezal.connection.deliver('echo/status/Bad/volume', '12');
+        await el.updateComplete;
+        const held = tag === 'feezal-element-metro-media' ? el._volume : el.media.volume;
+        expect(held).toBe(11);                            // the knob stayed put
+
+        slider.dispatchEvent(new Event('change', {bubbles: true}));   // release
+        feezal.connection.deliver('echo/status/Bad/volume', '30');    // the device's own value
+        await el.updateComplete;
+        const after = tag === 'feezal-element-metro-media' ? el._volume : el.media.volume;
+        expect(after).toBe(30);
+    });
+
+    it('volume-live off publishes only on release, but the knob still follows the finger', async () => {
+        const el = await mount(tag, {...conf(tag), 'volume-live': 'false'});
+        const slider = el.shadowRoot.querySelector('input[type="range"]');
+        slider.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true}));
+        for (const v of [40, 41, 42]) {
+            slider.value = String(v);
+            slider.dispatchEvent(new Event('input', {bubbles: true}));
+        }
+        await el.updateComplete;
+        expect(feezal.connection.published.filter(p => p.topic.endsWith('/volume'))).toHaveLength(0);
+        const live = tag === 'feezal-element-metro-media' ? el._volume : el.media.volume;
+        expect(live).toBe(42);                            // local value moved anyway
+
+        slider.dispatchEvent(new Event('change', {bubbles: true}));
+        const vols = feezal.connection.published.filter(p => p.topic.endsWith('/volume'));
+        expect(vols).toHaveLength(1);
+        expect(vols[0].payload).toBe('42');
+    });
+});
+
+describe('metro-media cover layout (matches glass)', () => {
+    it('puts a SQUARE cover left of the metadata when artwork exists', async () => {
+        const el = await mount('feezal-element-metro-media', {'artwork-url': 'https://static/cover.png'});
+        await el.updateComplete;
+        const art = el.shadowRoot.querySelector('.art');
+        const meta = el.shadowRoot.querySelector('.meta');
+        expect(art).toBeTruthy();
+        expect(meta).toBeTruthy();
+        expect(getComputedStyle(art).aspectRatio.replace(/\s/g, '')).toBe('1/1');
+        // art comes first in the row, the text beside it
+        expect(art.compareDocumentPosition(meta) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(getComputedStyle(el.shadowRoot.querySelector('.center')).flexDirection).toBe('row');
+    });
+
+    it('keeps the classic centred stack when there is no cover', async () => {
+        const el = await mount('feezal-element-metro-media', {});
+        await el.updateComplete;
+        expect(el.shadowRoot.querySelector('.art')).toBeNull();
+        expect(getComputedStyle(el.shadowRoot.querySelector('.center')).flexDirection).toBe('column');
     });
 });

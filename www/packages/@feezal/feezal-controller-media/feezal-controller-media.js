@@ -27,6 +27,95 @@ import {feezalBoolean} from '@feezal/feezal-element';
 /** Default message path for every per-field topic (the fragment default). */
 const DEFAULT_PATH = 'payload';
 
+/** Publish at most this often while a slider is being dragged (ms). */
+export const VOLUME_THROTTLE_MS = 150;
+/** Default window in which incoming volume echoes are ignored after a local
+ * change (ms). Overridable per element via the `volume-settle` attribute. */
+export const VOLUME_SETTLE_MS = 1500;
+
+/**
+ * E185 — slider gate: throttle what a drag publishes, and ignore what comes
+ * back while the user is still turning the knob.
+ *
+ * A range input fires one `input` event per pixel of travel, so a single drag
+ * published a command per intermediate value; the bridge then echoed a status
+ * per command, and those echoes can arrive OUT OF ORDER (observed on
+ * echo2mqtt: … 14, 13, 11, 12). Applying a late, stale echo yanks the knob
+ * back under the user's finger.
+ *
+ * The gate answers both halves:
+ *   • `input(v)` publishes at most every `throttleMs`, and never loses the
+ *     last value — a trailing publish flushes it.
+ *   • `accepts()` is false while a local change is in flight (the settle
+ *     window), so stale/reordered echoes are dropped; the moment the window
+ *     closes, the device's own value takes over again.
+ *
+ * Pure timer logic, no DOM — unit-testable, and shared by every family
+ * (metro's tile has its own slider and uses the same gate).
+ */
+export class VolumeGate {
+    constructor({publish, throttleMs = VOLUME_THROTTLE_MS, settleMs = VOLUME_SETTLE_MS} = {}) {
+        this._publish = publish;
+        this.throttleMs = throttleMs;
+        this.settleMs = settleMs;
+        this._last = 0;         // ts of the last publish
+        this._pending = null;   // value awaiting the trailing publish
+        this._timer = null;
+        this._until = 0;        // settle window end
+        this._dragging = false; // explicit drag lock (pointerdown → release)
+    }
+
+    /** The slider is under the finger — suppress device updates for as long as
+     * that lasts, however long the user holds it (not merely for a timeout). */
+    beginDrag() { this._dragging = true; }
+
+    /** Released: flush is the caller's job (commit), then the settle tail runs. */
+    endDrag(now = Date.now()) {
+        this._dragging = false;
+        this._until = Math.max(this._until, now + this.settleMs);
+    }
+
+    /** Incoming device updates are applied only when no drag is in flight and
+     * the settle window has closed. */
+    accepts(now = Date.now()) { return !this._dragging && now >= this._until; }
+
+    _send(v, now) {
+        this._last = now;
+        this._until = now + this.settleMs;
+        this._publish?.(v);
+    }
+
+    /** Drag: publish now if the throttle allows, else schedule the trailing one. */
+    input(v, now = Date.now()) {
+        // Hold the echo gate shut for the whole drag, not just around sends.
+        this._until = Math.max(this._until, now + this.settleMs);
+        if (now - this._last >= this.throttleMs) {
+            this._pending = null;
+            this._send(v, now);
+            return;
+        }
+        this._pending = v;
+        if (this._timer) return;
+        this._timer = setTimeout(() => {
+            this._timer = null;
+            if (this._pending === null) return;
+            const val = this._pending;
+            this._pending = null;
+            this._send(val, Date.now());
+        }, this.throttleMs - (now - this._last));
+    }
+
+    /** Release / explicit set: always publishes, and cancels a pending drag value. */
+    commit(v, now = Date.now()) {
+        clearTimeout(this._timer);
+        this._timer = null;
+        this._pending = null;
+        this._send(v, now);
+    }
+
+    dispose() { clearTimeout(this._timer); this._timer = null; this._dragging = false; }
+}
+
 /** Cycle order for the repeat control. off → all → one → off … */
 export const REPEAT_CYCLE = ['off', 'all', 'one'];
 
@@ -112,7 +201,11 @@ export const mediaAttributes = [
     {name: 'subscribe-volume', type: 'mqttTopic', help: 'Topic for the current volume (0–100).'},
     {name: 'message-property-volume', type: 'string', default: 'payload',
         help: 'Dot-notation path within the volume message. Default: payload'},
-    {name: 'publish-volume', type: 'mqttTopic', help: 'Topic that a new volume (0–100) is published to.'},
+    {name: 'publish-volume', type: 'mqttTopic', help: 'Topic that a new volume (0–100) is published to. Dragging publishes at most every 150 ms plus the final value on release.'},
+    {name: 'volume-live', type: 'boolean', default: true,
+        help: 'Publish volume WHILE dragging (throttled to one message every 150 ms, plus the final value on release). Turn off for bridges that choke on a stream of commands — the slider then publishes only when you let go. Either way the knob follows your finger and device echoes are ignored until you release.'},
+    {name: 'volume-settle', type: 'number', default: 1500,
+        help: 'How long (ms) incoming volume messages are ignored after you moved the slider. Bridges echo a status per command and can deliver them out of order, which would yank the knob back mid-drag; the device value takes over again once the window closes. 0 disables the hold.'},
     // ── Mute (E182) ────────────────────────────────────────────────────────
     {name: 'subscribe-mute', type: 'mqttTopic', help: 'Topic for the mute state (on/off, true/false, 1/0).'},
     {name: 'message-property-mute', type: 'string', default: 'payload',
@@ -191,6 +284,8 @@ export class MediaController {
         this.host = host;
         host.addController?.(this);
         this._reset();
+        // E185: one gate per card — throttles drags, ignores their echoes.
+        this._gate = new VolumeGate({publish: n => this._pub(this._attr('publish-volume'), String(n))});
     }
 
     _reset() {
@@ -243,6 +338,8 @@ export class MediaController {
 
     hostConnected() { this.wire(); }
 
+    hostDisconnected() { this._gate.dispose(); }
+
     /**
      * Wire every configured topic. Subscriptions are DEDUPED by topic: a
      * bridge publishing one combined JSON (state + title + artist + …) opens
@@ -294,7 +391,9 @@ export class MediaController {
         });
         on('subscribe-volume', msg => {
             const v = num(this.host.getProperty(msg, path('message-property-volume')), {max: 100});
-            if (v !== null) this.volume = v;
+            // E185: drop echoes of our own drag (and any reordered stragglers)
+            // while the slider is still settling — see VolumeGate.
+            if (v !== null && this._gate.accepts()) this.volume = v;
         });
         on('subscribe-mute', msg => {
             this.muted = mediaTruthy(this.host.getProperty(msg, path('message-property-mute')));
@@ -354,10 +453,33 @@ export class MediaController {
     forward()    { this.command('forward'); }
     rewind()     { this.command('rewind'); }
 
-    setVolume(v) {
+    /**
+     * E185 — `commit: false` (a drag) publishes throttled; `commit: true`
+     * (release, or a programmatic set) always publishes. The local value
+     * updates immediately either way, so the knob follows the finger.
+     */
+    setVolume(v, {commit = false} = {}) {
         const n = Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
         this.volume = n;
-        this._pub(this._attr('publish-volume'), String(n));
+        this._gate.settleMs = Math.max(0, Number(this._attr('volume-settle', VOLUME_SETTLE_MS)) || 0);
+        if (commit) {
+            this._gate.commit(n);
+            this._gate.endDrag();
+        } else if (this.volumeLive) {
+            this._gate.input(n);
+        }
+        // volume-live off: the local value already moved (the knob follows the
+        // finger); the publish waits for the release.
+        this.host.requestUpdate?.();
+    }
+
+    /** Whether a drag publishes continuously (default) or only on release. */
+    get volumeLive() { return this._attr('volume-live', 'true') !== 'false'; }
+
+    /** Slider pressed: hold device updates off until the release (E185). */
+    beginVolumeDrag() {
+        this._gate.settleMs = Math.max(0, Number(this._attr('volume-settle', VOLUME_SETTLE_MS)) || 0);
+        this._gate.beginDrag();
     }
 
     toggleMute() {
