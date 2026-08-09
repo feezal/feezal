@@ -70,6 +70,9 @@ Work in progress — priorities and scope are not final.
 - [E180 — Glass cards: Home.app interaction model (icon = main action, card = details)](#e180--glass-cards-homeapp-interaction-model-icon--main-action-card--details)
 - [E181 — Mini glass cards: circular icon-only size preset](#e181--mini-glass-cards-circular-icon-only-size-preset)
 - [E184 — Standard card surfaces: static / interactive-off / active / alarm (glass, then metro)](#e184-standard-card-surfaces-static-interactive-off-active-alarm-glass-then-metro)
+- [E186 — wiim2mqtt: media autodiscovery (and the source/preset gap it exposes)](#e186-wiim2mqtt-media-autodiscovery-and-the-source-preset-gap-it-exposes)
+- [E187 — New elements: glass/metro/circle-remote (webOS TV remote for lgtv2mqtt)](#e187-new-elements-glass-metro-circle-remote-webos-tv-remote-for-lgtv2mqtt)
+- [E188 — LG soundbar (lgsb2mqtt): media card + a separate audio/EQ element — analysis](#e188-lg-soundbar-lgsb2mqtt-media-card-a-separate-audio-eq-element-analysis)
 
 **Editor UX**
 
@@ -3240,6 +3243,170 @@ surfaces, and inversion already means "active").
 E180 (Home.app interaction model — same question of what reads as
 interactive), B121 (popup frost = card frost), E124 (battery/sabotage
 plumbing the alarm state can reuse), E138 (what "active" means per card).
+
+
+### E186 — wiim2mqtt: media autodiscovery (and the source/preset gap it exposes)
+
+**Requested (08/2026).** The `*-media` cards should autodiscover WiiM
+streamers via [wiim2mqtt](https://github.com/hobbyquaker/wiim2mqtt).
+
+**The contract (read from its README):** one instance per device, topic
+prefix = `--name` (default `wiim`, configurable), mqtt-smarthome shaped:
+
+- `<p>/status/<item>` retained, payload `{"val":…,"ts":…,"lc":…}` by
+  default (`--no-json-payloads` publishes plain values) — so the media
+  message paths are **`payload.val`**, not `payload`.
+- Items that map straight onto the E182 media contract: `play_state`
+  (`playing`/`paused`/`stopped`/`loading`), `volume` (0-100), `mute`,
+  `title`, `artist`, `album`, `album_art` (URL), `duration` (s),
+  `position` (s, not retained), `repeat` (**`off`/`one`/`all` — the
+  tri-state our `repeat-mode: cycle` already speaks natively**),
+  `shuffle`.
+- `<p>/set/<item>`: `volume`, `mute`, `play`, `pause`, `stop`, `next`,
+  `prev`, `toggle`, `play_state`, `seek`/`position`, `repeat`,
+  `shuffle` → **`command-mode: topic`**, exactly like the Alexa bridge.
+  Note the transport verb is `prev`, not `previous`.
+- `<p>/connected` = `0`/`1`/`2` → availability (available on `2`).
+
+**Recognizer:** same shape as `recognizers/alexa.js`. There is no device
+roster (one instance per device), so the prefix cannot be learned from
+one — fingerprint on the distinctive item name instead:
+`<p>/status/play_state` (plus `<p>/status/source_list`), which is
+specific enough not to collide. `wiim` is the default prefix; a custom
+`--name` must still be picked up. HA discovery exists but, as the README
+itself notes, **HA has no MQTT media player platform** — the same reason
+the Alexa path needs a native recognizer.
+
+**The gap this exposes (decide with it, not after):** WiiM publishes
+`source` + `source_list` (wifi/airplay/spotify/bluetooth/line_in/…) and
+`preset_list` + `preset_max`, and the media contract has nowhere to put
+either. Both are the SAME shape as LG's `input`/`input_list` (E188) and the
+TV's sound `output` — so the honest move is one shared capability on the
+media contract, e.g. `subscribe-source` + `subscribe-source-list` +
+`publish-source` rendering a select (and a preset row when a preset list
+exists), rather than three bespoke solutions. Everything else WiiM
+reports (quality/sample_rate/bit_depth/bitrate, queue index, multiroom
+`group_role`/`group_master`/`group_slaves`, device info) is out of scope
+for the card; multiroom deserves its own item if wanted.
+
+**Nice-to-have:** `--album-art-data` publishes the cover BYTES on
+`status/album_art_data` — that is the mqtt-image path basic-camera
+already implements, so a card could show the cover without any HTTP
+fetch (useful when the device is not reachable from the browser). Opt-in
+on the bridge side, so treat it as a bonus branch of the artwork wiring.
+
+**Relates:** E182 (the media contract + the Alexa recognizer this
+mirrors), E188 (LG soundbar — same source/input select need), E187 (LG TV
+remote — sound output select), E165 (multivalue, for the quality
+readouts if wanted).
+
+
+### E187 — New elements: glass/metro/circle-remote (webOS TV remote for lgtv2mqtt)
+
+**Requested (08/2026).** A remote-control element family for LG webOS
+TVs via [lgtv2mqtt](https://github.com/hobbyquaker/lgtv2mqtt), in a
+**compact** and a **large** look, with the button set configurable.
+
+**The contract (read from its source — the repo has no README):** prefix
+= `--name` (default `lgtv`).
+- `<p>/set/button` — payload is the key NAME, uppercased:
+  `HOME`, `BACK`, `MENU`, `EXIT`, `UP`/`DOWN`/`LEFT`/`RIGHT`, `ENTER`,
+  `RED`/`GREEN`/`YELLOW`/`BLUE`, `MUTE`, `VOLUMEUP`/`VOLUMEDOWN`,
+  `CHANNELUP`/`CHANNELDOWN`, `CC`, `DASH`, `0`-`9`.
+- `<p>/set/launch` — an app id (this is how Netflix & co. are started);
+  `<p>/set/youtube` takes a contentId.
+- `<p>/set/volume` (0-100), `<p>/set/mute`, `<p>/set/output` (sound
+  output), `<p>/set/toast` (on-screen message), pointer
+  `move`/`drag`/`scroll`/`click`, and a catch-all that forwards any other
+  `set/<ssap path>` to the TV.
+- `<p>/status/`: `volume`, `mute`, `output`, `foregroundApp`,
+  `currentChannel` (JSON). `<p>/connected` = `0`/`1`/`2`.
+
+**Element sketch:**
+- `layout: compact | large` — compact = D-pad + back/home/exit + volume
+  and channel rockers; large adds the **number keys**, colour keys, and
+  the app/input/output rows.
+- **Configurable button set**: one list editor (the U104 objectList
+  control) of rows `{kind, label, icon|image, payload}` where `kind` is
+  `button` (→ `set/button`), `app` (→ `set/launch`), `input`,
+  `output` (→ `set/output`) or `raw` (→ any `set/<path>`). That covers
+  "extensive config options for the user to choose which buttons his
+  remote should offer" without a bespoke schema per button type, and a
+  sensible default set ships out of the box.
+- **App shortcut buttons** for Netflix / Disney+ / HBO Max / Prime Video
+  / waipu.tv: **two honest caveats.** (a) The app IDs are per-TV and
+  lgtv2mqtt does not publish an app list — only `foregroundApp` — so
+  either the user configures the id (with a documented list of the
+  common ones), or the bridge gains a launch-point list
+  (`ssap://com.webos.applicationManager/listLaunchPoints`) published to
+  a status topic; that bridge-side addition is the nicer fix and worth
+  raising there. (b) Those are **trademarked logos** — feezal must not
+  bundle them. Ship neutral glyphs plus an `image` field per row so the
+  user points at their own asset (the asset manager already exists), and
+  say so in the help text.
+- `foregroundApp` highlights the active app row; `output` and `volume`
+  reflect current state so the remote is not write-only.
+
+**Relates:** U104 (the list editor this configures itself with), E188 (LG
+soundbar — the output/input select overlaps), E182 (media contract, for
+the volume/mute half), the asset manager (user-supplied app logos).
+
+
+### E188 — LG soundbar (lgsb2mqtt): media card + a separate audio/EQ element — analysis
+
+**Asked (08/2026):** should [lgsb2mqtt](https://github.com/hobbyquaker/lgsb2mqtt)
+be supported by `*-media`, by `*-remote`, or both?
+
+**What the bridge exposes (read from its README):** mqtt-smarthome,
+prefix = `--name` (default `soundbar`), `{"val":…}` payloads by default.
+- **Media-ish:** `volume` (+`volume/min`,`volume/max`), `mute`,
+  `play/state`, `play/position`, `play/duration`, `play/title`,
+  `play/artist`, `play/album`, `audio_source`.
+- **Audio processor:** `eq` + `eq_list` (AI Sound Pro, Standard, Cinema,
+  Music, Game …), `bass`, `treble`, and the per-channel levels `woofer`,
+  `rear_level`, `top_level`, `center_level`, `side_level`,
+  `dialog_level` — each with its own `<item>/min` and `<item>/max`
+  topics — plus the flags `night_mode`, `auto_volume`, `drc`,
+  `auto_power`, `tv_remote`, `neuralx`, `rear` and `av_sync` (ms).
+- **Routing:** `input` + `input_list` (E-ARC, HDMI, Bluetooth, Wifi,
+  Optical …).
+- `power` (read-only; the bar is unreachable while off — availability
+  comes from `connected`).
+
+**Answer — media YES, remote NO, plus one new element.**
+1. **`*-media` covers the media half** and should autodiscover it: a
+   card with volume/mute, the play metadata while streaming, and the
+   `input` select (the shared source/input capability E186 also needs).
+   Caveat to respect: the soundbar has **no transport set topics** —
+   `play/state` is read-only — so the recognizer must NOT stamp a
+   command topic; the card renders without transport buttons (a media
+   card that is a renderer, not a player). That is a good test of the
+   contract: transport must degrade gracefully when unwired.
+2. **`*-remote` is the wrong home.** A remote is button-driven and
+   stateless; a soundbar is state-driven (levels, modes, ranges). Do not
+   force it in.
+3. **New `*-audio` element (working name) for the processor half:** the
+   EQ/sound-mode select from `eq_list`, bass/treble and the per-channel
+   level sliders — each honouring its `<item>/min`/`max` topics, which
+   differ per model — and the boolean flags as toggles, with `av_sync`
+   as a millisecond slider. **Everything must be capability-driven**:
+   render only the channels/modes the device actually reports, because
+   the item set depends on the model (verified on a DS90QY; others lack
+   some). An alternative worth weighing at implementation: make it the
+   media card's "audio settings" popup instead of a separate element
+   (E171 popup machinery) — that keeps one card per device, at the cost
+   of a very busy popup. Leaning to a separate element that can also
+   stand alone next to a TV card.
+
+**Shared conclusion across all three bridges:** WiiM `source`, soundbar
+`input` and TV `output` are the same pattern — a current value plus a
+list topic plus a set topic. Add it ONCE to the media contract
+(`subscribe-source` / `subscribe-source-list` / `publish-source`) rather
+than three times.
+
+**Relates:** E186 (WiiM — same source/list pattern, same mqtt-smarthome
+payload shape), E187 (LG TV remote — sound output), E182 (media contract),
+E171 (popup, if the audio settings live there), U104 (list editor).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
