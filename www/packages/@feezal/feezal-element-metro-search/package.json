@@ -1,0 +1,10 @@
+{
+    "name": "@feezal/feezal-element-metro-search",
+    "version": "3.0.0",
+    "description": "feezal metro search element — flat accent search bar that live-filters the view",
+    "main": "feezal-element-metro-search.js",
+    "license": "AGPL-3.0-only",
+    "dependencies": {
+        "@feezal/feezal-element": "*"
+    }
+}

@@ -1,0 +1,11 @@
+{
+    "name": "@feezal/feezal-element-glass-search",
+    "version": "3.0.0",
+    "description": "feezal glass search element — frosted search pill that live-filters the view",
+    "main": "feezal-element-glass-search.js",
+    "license": "AGPL-3.0-only",
+    "dependencies": {
+        "@feezal/feezal-element": "*",
+        "@feezal/feezal-glass": "*"
+    }
+}

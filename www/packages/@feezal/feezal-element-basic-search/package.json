@@ -1,0 +1,10 @@
+{
+    "name": "@feezal/feezal-element-basic-search",
+    "version": "3.0.0",
+    "description": "feezal search element — live-filters the view's elements by label/href",
+    "main": "feezal-element-basic-search.js",
+    "license": "AGPL-3.0-only",
+    "dependencies": {
+        "@feezal/feezal-element": "*"
+    }
+}

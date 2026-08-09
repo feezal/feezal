@@ -65,7 +65,6 @@ Work in progress — priorities and scope are not final.
 - [E162 — Fancy family, take two: actually fancy — ready-made Lottie art over generated geometry](#e162--fancy-family-take-two-actually-fancy--ready-made-lottie-art-over-generated-geometry)
 - [E164 — Fancy family: finish and re-enable the disabled cards](#e164--fancy-family-finish-and-re-enable-the-disabled-cards)
 - [E168 — basic-camera: Frigate event backfill (events from before the viewer opened)](#e168--basic-camera-frigate-event-backfill-events-from-before-the-viewer-opened-️-to-be-refined) ⚠️
-- [E170 — Search element family (*-search) / view-wise search in layout-app](#e170--search-element-family--search--view-wise-search-in-layout-app)
 
 **Editor UX**
 
@@ -79,6 +78,7 @@ Work in progress — priorities and scope are not final.
 - [U85 — Toast/notification service: route the remaining call sites](#u85--toastnotification-service-route-the-remaining-call-sites--service-shipped) 🔨 *(service shipped)*
 - [U86 — Inspector: a real `json` attribute control + validation feedback + stable section state](#u86--inspector-a-real-json-attribute-control--validation-feedback--stable-section-state)
 - [U98 — Palette colors in editor light mode ⚠️ needs refinement](#u98--palette-colors-in-editor-light-mode-️-needs-refinement)
+- [U110 — layout-app: per-sub-view element search (E170 shape B)](#u110--layout-app-per-sub-view-element-search-e170-shape-b)
 
 
 **Architecture & Infrastructure**
@@ -2712,53 +2712,6 @@ mirror), element-spec `palette.color` (docs note: color is authored against
 the dark editor; light mode derives), U45 (palette/picker — same tiles).
 
 
-### E170 — Search element family (*-search) / view-wise search in layout-app
-
-**Requested (08/2026).** Filter the elements of a view live from a search
-bar — two shapes, possibly complementary (decide at implementation which
-ships first; they can share the matching engine):
-
-**A. `(glass/metro/…)-search` element:** puts a search input at the top of
-its view; typing **shows/hides the sibling elements of its sub-view** by
-matching their `label` attribute and — where the element has one — `href`
-(the E166 link family being the obvious target). Details:
-
-- **Debounced keyup** (~150–250ms) — no per-keystroke relayout.
-- Match = case-insensitive substring over `label` + `href`; an element
-  with neither attribute stays visible (a search bar must not blank
-  decorative/layout elements). Clearing restores everything.
-- Hiding must play nicely with the visibility machinery — prefer a
-  dedicated `search-hidden` state over touching `display` inline styles
-  that conditions (E50) and the editor also manipulate; hidden elements
-  keep their subscriptions (this is a view filter, not a teardown).
-- **Design-family fit:** each family styles the input as its own chrome
-  (glass = frosted pill, metro = flat tile-colored bar, eink = 1-bit
-  border); **× clear button inside the input** — omitted for
-  `basic-search` (keep basic minimal).
-- Editor canvas: the element renders the bar but must NOT filter on the
-  canvas (editing a view while half its elements are hidden is chaos) —
-  viewer-only behavior, like other pseudo-element behaviors.
-
-**B. layout-app integration (alternative or addition):** a per-sub-view
-**"search" checkbox in the entries manager** — enabled views render a
-search field in the app chrome (under the top bar / above the content)
-that filters the EMBEDDED view's elements the same way. One
-implementation serves every family through the shell; no element to
-place per view. If both ship, the layout-app field should reuse the
-element's matching/hiding engine (shared module, not a fork).
-
-**Decided (08/2026):** hiding is **hide-in-place on absolute views**
-(no compaction — positions stay stable while filtering) and **natural
-reflow on flow/grid views** (remaining tiles close up). Still open:
-whether matching later extends to element tag / current payload text
-(out of scope for v1).
-
-**Relates:** E166 (link family — href matching), E50 (conditions — do
-not fight over display), U103 (layout-app two-level nav — the checkbox
-lives in the same entries manager), N40 (hidden clones stay warm —
-same principle: filter ≠ unsubscribe).
-
-
 ### A39 — Docker-less install route: install script (system user, systemd service) — acquisition compared
 
 **Requested (08/2026).** A first-class installation path WITHOUT Docker,
@@ -2846,6 +2799,25 @@ keeps data).
 lockfile-as-pin), the Docker image (same data-dir contract; would gain
 from dataDir-redirected runtime installs), the editor package manager
 (`/api/elements` install route), server `--data-dir`.
+
+
+### U110 — layout-app: per-sub-view element search (E170 shape B)
+
+**Split from E170 (08/2026)** when shape A (the `*-search` element
+family) shipped. A per-sub-view **"search" checkbox in the layout-app
+entries manager**: enabled views render a search field in the app chrome
+(under the top bar / above the content) that filters the EMBEDDED view's
+elements. MUST reuse the shipped engine
+(`@feezal/feezal-element/feezal-search-filter.js` —
+`applySearchFilter`/`FeezalSearchBase` semantics: label+href matching,
+`feezal-search-hidden` attribute, warm subscriptions, viewer-only), not
+fork it. Field styling follows the app chrome (bar colours); × + Escape
+clear; the U103 embedded clone is the filter target
+(`#content`'s active `feezal-view` clone). Distinct from U108 (drawer
+search filters NAV ENTRIES; this filters the embedded view's ELEMENTS).
+
+**Relates:** E170 (shipped engine + elements), U108 (drawer-entry
+search), U103 (embedded clones), layout-app entries manager.
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches

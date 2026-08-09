@@ -1,0 +1,10 @@
+{
+    "name": "@feezal/feezal-element-eink-search",
+    "version": "3.0.0",
+    "description": "feezal e-ink search element — 1-bit bordered search field that live-filters the view",
+    "main": "feezal-element-eink-search.js",
+    "license": "AGPL-3.0-only",
+    "dependencies": {
+        "@feezal/feezal-element": "*"
+    }
+}
