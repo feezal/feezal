@@ -68,9 +68,11 @@ class FeezalElementCircleMedia extends FeezalElement {
                 {property: '--feezal-media-surface-color', type: 'color',
                     default: 'var(--secondary-background-color)',
                     help: 'Album-art placeholder and progress-track background.'},
+                {property: '--feezal-media-track-width', default: '7',
+                    help: 'Progress-ring width around the album disc — unitless, in % of the circle viewBox (default 7). Same scale as the other Circle cards.'},
             ],
-            restrict:     {minWidth: 220, minHeight: 120},
-            defaultStyle: {width: '320px', height: '180px'},
+            restrict:     {minWidth: 120, minHeight: 170},
+            defaultStyle: {width: '180px', height: '260px'},
         };
     }
 
@@ -237,6 +239,51 @@ class FeezalElementCircleMedia extends FeezalElement {
         }
     `
     , css`
+        /* ── E184: the Circle-family look ────────────────────────────────
+           Album art becomes the family DISC with the progress as a ring
+           around it (the same 0..100 viewBox + cqi scale every other Circle
+           card uses), the metadata sits centred under the disc, and the
+           transport row closes the card. The old side-by-side art/meta row
+           and the linear seek bar are gone. */
+        :host { align-items: center; container-type: inline-size; }
+        .disc-wrap {
+            position: relative;
+            width: 100%; max-width: 100cqi; aspect-ratio: 1; flex: 0 1 auto;
+            min-height: 0;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .disc-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+        .ring-track { fill: none; stroke: var(--feezal-media-surface-color);
+            stroke-width: var(--feezal-media-track-width, 7); }
+        .ring-fill {
+            fill: none; stroke: var(--feezal-media-color);
+            stroke-width: var(--feezal-media-track-width, 7);
+            stroke-linecap: round;
+            transform: rotate(-90deg); transform-origin: 50% 50%;
+        }
+        /* The art disc sits inside the ring — 84% leaves the stroke visible. */
+        .disc {
+            position: relative;
+            width: 84%; aspect-ratio: 1; border-radius: 50%; overflow: hidden;
+            background: var(--feezal-media-surface-color);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .disc img { width: 100%; height: 100%; object-fit: cover; }
+        .disc .mi { font-size: 26cqi; color: var(--feezal-media-muted-color); }
+        /* Play/pause overlays the disc centre — the card's main action. */
+        .disc-play {
+            position: absolute; inset: 0; margin: auto;
+            width: 30%; height: 30%;
+            display: flex; align-items: center; justify-content: center;
+            border: none; border-radius: 50%; cursor: pointer;
+            background: color-mix(in srgb, var(--feezal-media-surface-color) 70%, transparent);
+            color: var(--feezal-media-text-color);
+            backdrop-filter: blur(2px);
+        }
+        .disc-play .mi { font-size: 14cqi; color: inherit; }
+        .meta.centred { align-items: center; text-align: center; width: 100%; }
+        .times.ring { justify-content: center; gap: 6px; }
+
         /* E182: player name (label), provider line and the mute button. */
         .player {
             font-size: 10px;
@@ -284,16 +331,31 @@ class FeezalElementCircleMedia extends FeezalElement {
         this.media.rewireIfChanged();
     }
 
-    // ─── Seek drag ─────────────────────────────────────────────────────────────
-    _seekFromEvent(e, barEl) {
-        const rect = barEl.getBoundingClientRect();
+    /**
+     * The progress ring only exists when a position/duration source is
+     * actually configured — an unconfigured card shows a plain art disc
+     * instead of an eternally empty ring (requested 08/2026). The editor
+     * preview still draws it so the knob is discoverable.
+     */
+    get _hasProgress() {
+        return Boolean(this.subscribePosition || this.subscribeDuration || feezal.isEditor);
+    }
+
+    // ─── Seek on the ring ──────────────────────────────────────────────────────
+    // Angle → fraction of the track, clockwise from 12 o'clock — the gesture
+    // model every other Circle card uses (0..100 viewBox centred at 50,50).
+    _seekFromEvent(e, ringEl) {
+        const rect = ringEl.getBoundingClientRect();
         if (!rect.width || !this.media.duration) return null;
-        const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-        return ratio * this.media.duration;
+        const dx = e.clientX - (rect.left + rect.width / 2);
+        const dy = e.clientY - (rect.top + rect.height / 2);
+        let deg = (Math.atan2(dx, -dy) * 180) / Math.PI;   // 0 = up, clockwise
+        if (deg < 0) deg += 360;
+        return (deg / 360) * this.media.duration;
     }
 
     _onSeekPointerDown(e) {
-        if (feezal.isEditor || !this.media.duration) return;
+        if (feezal.isEditor || !this.media.duration || !this.publishSeek) return;
         const barEl = e.currentTarget;
         barEl.setPointerCapture?.(e.pointerId);
         this._seekPos = this._seekFromEvent(e, barEl);
@@ -332,44 +394,50 @@ class FeezalElementCircleMedia extends FeezalElement {
 
         const volume   = m.volume ?? (feezal.isEditor ? 60 : 0);
 
+        // E184: the Circle look — art disc, progress as the ring around it.
+        const showRing = this.showSeek && this._hasProgress;
+        const R = 46;                                  // ring radius in the 0..100 viewBox
+        const CIRC = 2 * Math.PI * R;
+        const dash = `${(CIRC * pct) / 100} ${CIRC}`;
+
         return html`
-            <div class="top">
-                ${this.showArtwork ? html`
-                    <div class="art">
+            ${this.showArtwork ? html`
+                <div class="disc-wrap" @pointerdown="${showRing ? this._onSeekPointerDown : null}">
+                    ${showRing ? html`
+                        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                            <circle class="ring-track" cx="50" cy="50" r="${R}"></circle>
+                            <circle class="ring-fill" cx="50" cy="50" r="${R}" stroke-dasharray="${dash}"></circle>
+                        </svg>
+                    ` : ''}
+                    <div class="disc">
                         ${artwork
                             ? html`<img src="${artwork}" alt="album art"
                                    @error="${e => { e.target.style.display = 'none'; }}">`
                             : html`<span class="mi">album</span>`}
                     </div>
-                ` : ''}
-                <div class="meta">
-                    ${this.label ? html`<div class="player" title="${this.label}">${this.label}</div>` : ''}
-                    <div class="title" title="${title ?? ''}">${title ?? ''}</div>
-                    <div class="artist" title="${artist ?? ''}">${artist ?? ''}</div>
-                    ${album ? html`<div class="album" title="${album}">${album}</div>` : ''}
-                    ${provider ? html`<div class="album provider" title="${provider}">${provider}</div>` : ''}
+                    <button class="disc-play" title="Play/Pause" @click="${() => m.togglePlay()}">
+                        <span class="mi">${m.isPlaying ? 'pause' : 'play_arrow'}</span>
+                    </button>
                 </div>
+            ` : ''}
+
+            <div class="meta centred">
+                ${this.label ? html`<div class="player" title="${this.label}">${this.label}</div>` : ''}
+                <div class="title" title="${title ?? ''}">${title ?? ''}</div>
+                <div class="artist" title="${artist ?? ''}">${artist ?? ''}</div>
+                ${album ? html`<div class="album" title="${album}">${album}</div>` : ''}
+                ${provider ? html`<div class="album provider" title="${provider}">${provider}</div>` : ''}
             </div>
 
-            ${this.showSeek ? html`
-                <div class="seek-row">
-                    <div class="bar" @pointerdown="${this._onSeekPointerDown}">
-                        <div class="bar-fill" style="width:${pct}%"></div>
-                        <div class="bar-knob" style="left:${pct}%"></div>
-                    </div>
-                    <div class="times">
-                        <span>${fmtTime(position)}</span>
-                        <span>${fmtTime(duration)}</span>
-                    </div>
+            ${showRing ? html`
+                <div class="times ring">
+                    <span>${fmtTime(position)}</span><span>/</span><span>${fmtTime(duration)}</span>
                 </div>
             ` : ''}
 
             <div class="transport">
                 <button title="Previous" @click="${() => m.previous()}"><span class="mi">skip_previous</span></button>
                 <button title="Rewind" @click="${() => m.rewind()}"><span class="mi">fast_rewind</span></button>
-                <button class="play" title="Play/Pause" @click="${() => m.togglePlay()}">
-                    <span class="mi">${m.isPlaying ? 'pause' : 'play_arrow'}</span>
-                </button>
                 <button title="Forward" @click="${() => m.forward()}"><span class="mi">fast_forward</span></button>
                 <button title="Next" @click="${() => m.next()}"><span class="mi">skip_next</span></button>
                 <button title="Stop" @click="${() => m.stop()}"><span class="mi">stop</span></button>

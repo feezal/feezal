@@ -6,6 +6,7 @@
 import {describe, it, expect, beforeEach} from 'vitest';
 import '../packages/@feezal/feezal-element-circle-media/feezal-element-circle-media.js';
 import '../packages/@feezal/feezal-element-glass-media/feezal-element-glass-media.js';
+import '../packages/@feezal/feezal-element-metro-media/feezal-element-metro-media.js';
 import {setupFeezal, mount, until} from './helpers.js';
 
 let feezal;
@@ -244,12 +245,29 @@ describe('glass-media (E183)', () => {
         expect(feezal.connection.published.at(-1)).toEqual({topic: 'echo/set/Bad/isMuted', payload: 'ON'});
     });
 
-    it('falls back to the album placeholder without artwork, and degrade reflects', async () => {
+    it('shows a SQUARE cover slot on the left, placeholder when there is no art', async () => {
         const el = await mount('feezal-element-glass-media', {degrade: ''});
         await el.updateComplete;
-        expect(el.shadowRoot.querySelector('.placeholder')).toBeTruthy();
-        expect(el.shadowRoot.querySelector('.art')).toBeNull();
+        // The cover slot always exists (square, left) - without art it carries
+        // the album glyph rather than a background image.
+        const art = el.shadowRoot.querySelector('.art');
+        expect(art).toBeTruthy();
+        expect(art.classList.contains('placeholder')).toBe(true);
+        expect(art.style.backgroundImage).toBe('');
+        expect(getComputedStyle(art).aspectRatio.replace(/\s/g, '')).toBe('1/1');
         expect(el.hasAttribute('degrade')).toBe(true);
+    });
+
+    it('show-artwork off drops the cover slot entirely', async () => {
+        const el = await mount('feezal-element-glass-media', {'show-artwork': 'false'});
+        await el.updateComplete;
+        expect(el.shadowRoot.querySelector('.art')).toBeNull();
+    });
+
+    it('defaults to a card twice as wide as it is tall', () => {
+        const ds = customElements.get('feezal-element-glass-media').feezal.defaultStyle;
+        expect(ds.width).toBe('354px');
+        expect(ds.height).toBe('172px');
     });
 
     it('the size preset writes square-ish geometry (media needs more height than a tile)', async () => {
@@ -258,5 +276,117 @@ describe('glass-media (E183)', () => {
         await el.updateComplete;
         expect(el.style.width).toBe('354px');
         expect(el.style.height).toBe('172px');
+    });
+});
+
+// ─── circle-media: the Circle-family look + progress gating ──────────────────
+
+describe('circle-media look (E184)', () => {
+    it('renders the family DISC with the album art inside it', async () => {
+        const el = await mount('feezal-element-circle-media', echoAttrs());
+        feezal.connection.deliver('echo/status/Bad/media', MEDIA_JSON);
+        await until(() => el.media.artworkUrl);
+        await el.updateComplete;
+        const disc = el.shadowRoot.querySelector('.disc-wrap .disc');
+        expect(disc).toBeTruthy();
+        expect(getComputedStyle(disc).borderRadius).toBe('50%');
+        expect(disc.querySelector('img').getAttribute('src')).toBe('https://art/x.jpg');
+    });
+
+    it('play/pause sits ON the disc (the card main action) and is not duplicated in the transport row', async () => {
+        const el = await mount('feezal-element-circle-media', echoAttrs());
+        await el.updateComplete;
+        expect(el.shadowRoot.querySelector('.disc-play')).toBeTruthy();
+        expect(el.shadowRoot.querySelector('.transport .play')).toBeNull();
+        el.shadowRoot.querySelector('.disc-play').click();
+        expect(feezal.connection.published.at(-1).topic).toBe('echo/set/Bad/play');
+    });
+
+    it('NO progress ring while no position/duration topic is configured (the requested rule)', async () => {
+        const el = await mount('feezal-element-circle-media', echoAttrs());
+        await el.updateComplete;
+        expect(el.shadowRoot.querySelector('.ring-fill')).toBeNull();
+        expect(el.shadowRoot.querySelector('.times')).toBeNull();
+        // …and the old linear seek bar is gone for good.
+        expect(el.shadowRoot.querySelector('.bar')).toBeNull();
+    });
+
+    it('the ring appears as soon as a progress topic IS configured', async () => {
+        const el = await mount('feezal-element-circle-media', {
+            ...echoAttrs(), 'subscribe-position': 'p/pos', 'subscribe-duration': 'p/dur',
+        });
+        await el.updateComplete;
+        expect(el.shadowRoot.querySelector('.ring-track')).toBeTruthy();
+        feezal.connection.deliver('p/dur', '200');
+        feezal.connection.deliver('p/pos', '50');
+        await until(() => el.media.position === 50);
+        await el.updateComplete;
+        // A quarter played → a quarter of the circumference is stroked.
+        const dash = el.shadowRoot.querySelector('.ring-fill').getAttribute('stroke-dasharray');
+        const [drawn, total] = dash.split(' ').map(Number);
+        expect(drawn / total).toBeCloseTo(0.25, 2);
+        expect(el.shadowRoot.querySelector('.times').textContent).toContain('0:50');
+    });
+
+    it('show-seek off hides the ring even when topics are configured', async () => {
+        const el = await mount('feezal-element-circle-media', {
+            'subscribe-position': 'p/pos', 'subscribe-duration': 'p/dur', 'show-seek': 'false',
+        });
+        await el.updateComplete;
+        expect(el.shadowRoot.querySelector('.ring-track')).toBeNull();
+    });
+});
+
+// ─── metro-media: autodiscovery on its own thinner contract ──────────────────
+
+describe('metro-media discovery (E182 follow-up)', () => {
+    it('declares the media discovery component, mapped onto ITS attribute names', () => {
+        const d = customElements.get('feezal-element-metro-media').feezal.discovery;
+        expect(d.component).toBe('media');
+        // The tile calls the title topic `subscribe` and the previous-track
+        // payload `payload-prev` — the map bridges those names.
+        expect(d.map.title_topic.attr ?? d.map.title_topic).toBe('subscribe');
+        expect(d.map.state_topic).toBe('subscribe-state');
+        expect(d.map.command_topic).toBe('publish');
+        expect(d.map.payload_previous).toBe('payload-prev');
+        expect(d.map.volume_command_topic).toBe('publish-volume');
+    });
+
+    it('every discovery target is a declared attribute of the tile', () => {
+        const feez = customElements.get('feezal-element-metro-media').feezal;
+        const names = new Set(feez.attributes.filter(a => typeof a === 'object').map(a => a.name));
+        for (const [key, target] of Object.entries(feez.discovery.map)) {
+            const attr = typeof target === 'string' ? target : target.attr;
+            expect(names.has(attr), `${key} → ${attr}`).toBe(true);
+        }
+    });
+
+    it('publishes transport in topic mode (echo2mqtt), payload mode otherwise', async () => {
+        const el = await mount('feezal-element-metro-media', {
+            publish: 'echo/set/Bad', 'command-mode': 'topic',
+            'payload-play': 'play', 'payload-pause': 'pause', 'payload-next': 'next',
+        });
+        el._transport('next');
+        expect(feezal.connection.published.at(-1).topic).toBe('echo/set/Bad/next');
+        el._playPause();                                   // not playing → play
+        expect(feezal.connection.published.at(-1).topic).toBe('echo/set/Bad/play');
+        el._playing = true;
+        el._playPause();                                   // playing → pause
+        expect(feezal.connection.published.at(-1).topic).toBe('echo/set/Bad/pause');
+    });
+
+    it('keeps the classic single-topic toggle when no separate payloads are set', async () => {
+        const el = await mount('feezal-element-metro-media', {publish: 'player/cmd'});
+        el._playPause();
+        expect(feezal.connection.published.at(-1)).toEqual({topic: 'player/cmd', payload: 'play_pause'});
+    });
+
+    it('matches the playing state case-insensitively (Echo says PLAYING)', async () => {
+        const el = await mount('feezal-element-metro-media', {
+            'subscribe-state': 'echo/status/Bad/audioPlayerState', 'payload-playing': 'playing',
+        });
+        feezal.connection.deliver('echo/status/Bad/audioPlayerState', 'PLAYING');
+        await until(() => el._playing === true);
+        expect(el._playing).toBe(true);
     });
 });

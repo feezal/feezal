@@ -13,7 +13,32 @@ class FeezalElementMetroMedia extends MetroTileBase {
     static get feezal() {
         return {
             palette: {name: 'Media', category: 'Metro', color: '#1ba1e2', icon: 'play_circle'},
-            description: 'Metro media tile: track/artist front (tap = play/pause), transport + volume on the back.',
+            description: 'Metro media tile: track/artist front (tap = play/pause), transport + volume on the back. ' +
+                'Autodiscovers Echo devices (echo2mqtt) and any bridge speaking the media contract.',
+            // E182: the media discovery contract. The tile keeps its own thinner
+            // attribute set (no album/provider/artwork surface), so it carries its
+            // OWN map instead of the controller fragment — the recognizer config
+            // keys are identical, only the targets differ.
+            discovery: {
+                component: 'media',
+                map: {
+                    name:                 'label',
+                    title_topic:          {attr: 'subscribe'},
+                    title_value_template: {attr: 'message-property', transform: 'valueTemplateToPath'},
+                    artist_topic:          'subscribe-artist',
+                    artist_value_template: {attr: 'message-property-artist', transform: 'valueTemplateToPath'},
+                    state_topic:           'subscribe-state',
+                    state_value_template:  {attr: 'message-property-state', transform: 'valueTemplateToPath'},
+                    command_topic:         'publish',
+                    command_mode:          'command-mode',
+                    payload_play:          'payload-play',
+                    payload_pause:         'payload-pause',
+                    payload_next:          'payload-next',
+                    payload_previous:      'payload-prev',
+                    volume_topic:          'subscribe-volume',
+                    volume_command_topic:  'publish-volume',
+                },
+            },
             attributes: [
                 ...MetroTileBase.tileAttributes,
                 {name: 'subscribe', type: 'mqttTopic', help: 'Track title topic.'},
@@ -26,8 +51,12 @@ class FeezalElementMetroMedia extends MetroTileBase {
                 {name: 'message-property-state', type: 'string', default: 'payload',
                     help: 'Dot-notation path within state messages. Default: payload'},
                 {name: 'payload-playing', type: 'string', default: 'playing', help: 'State payload meaning "playing".'},
-                {name: 'publish', type: 'mqttTopic', help: 'Transport command topic.'},
-                {name: 'payload-play-pause', type: 'string', default: 'play_pause', help: 'Payload for play/pause (front tap + back ⏯).'},
+                {name: 'publish', type: 'mqttTopic', help: 'Transport command topic. With command mode "topic" this is the BASE topic and the action name is appended as the last segment.'},
+                {name: 'command-mode', type: 'select', options: ['payload', 'topic'], default: 'payload',
+                    help: 'How transport commands are sent. payload = one topic, the action payload below (default). topic = the action name is appended to the command topic (e.g. echo/set/Kitchen + /play), which is what bridges with one topic per command expect.'},
+                {name: 'payload-play-pause', type: 'string', default: 'play_pause', help: 'Payload for play/pause (front tap + back ⏯). Ignored when separate play/pause payloads are set.'},
+                {name: 'payload-play', type: 'string', default: '', help: 'Optional separate play payload. Set (together with payload-pause) for bridges that have no combined toggle — the tile then sends play or pause depending on the current state.'},
+                {name: 'payload-pause', type: 'string', default: '', help: 'Optional separate pause payload. See payload-play.'},
                 {name: 'payload-next', type: 'string', default: 'next', help: 'Payload for next track.'},
                 {name: 'payload-prev', type: 'string', default: 'previous', help: 'Payload for previous track.'},
                 {name: 'subscribe-volume', type: 'mqttTopic', help: 'Volume state topic (0–100).'},
@@ -48,7 +77,10 @@ class FeezalElementMetroMedia extends MetroTileBase {
         msgPropState:  {type: String, reflect: true, attribute: 'message-property-state'},
         payloadPlaying: {type: String, reflect: true, attribute: 'payload-playing'},
         publish:        {type: String, reflect: true},
+        commandMode:      {type: String, reflect: true, attribute: 'command-mode'},
         payloadPlayPause: {type: String, reflect: true, attribute: 'payload-play-pause'},
+        payloadPlay:      {type: String, reflect: true, attribute: 'payload-play'},
+        payloadPause:     {type: String, reflect: true, attribute: 'payload-pause'},
         payloadNext:      {type: String, reflect: true, attribute: 'payload-next'},
         payloadPrev:      {type: String, reflect: true, attribute: 'payload-prev'},
         subVolume:     {type: String, reflect: true, attribute: 'subscribe-volume'},
@@ -77,7 +109,10 @@ class FeezalElementMetroMedia extends MetroTileBase {
         this.msgPropState = '';
         this.payloadPlaying = 'playing';
         this.publish = '';
+        this.commandMode = 'payload';
         this.payloadPlayPause = 'play_pause';
+        this.payloadPlay = '';
+        this.payloadPause = '';
         this.payloadNext = 'next';
         this.payloadPrev = 'previous';
         this.subVolume = '';
@@ -102,7 +137,8 @@ class FeezalElementMetroMedia extends MetroTileBase {
         });
         sub(this.subState, msg => {
             const v = this.getProperty(msg, this.msgPropState || this.messageProperty);
-            this._playing = String(v) === this.payloadPlaying;
+            // Case-insensitive: bridges differ (PLAYING / playing / Playing).
+            this._playing = String(v ?? '').toLowerCase() === String(this.payloadPlaying ?? '').toLowerCase();
         });
         sub(this.subVolume, msg => {
             const v = Number(this.getProperty(msg, this.msgPropVolume || this.messageProperty));
@@ -110,9 +146,29 @@ class FeezalElementMetroMedia extends MetroTileBase {
         });
     }
 
+    /**
+     * Publish one transport action. In `payload` mode the payload goes to the
+     * command topic; in `topic` mode it becomes the last topic segment — the
+     * shape one-topic-per-command bridges (echo2mqtt) expect.
+     */
     _transport(payload) {
-        if (feezal.isEditor) return;
-        if (this.publish) feezal.connection.pub(this.publish, payload);
+        if (feezal.isEditor || !this.publish || !payload) return;
+        if (this.commandMode === 'topic') {
+            feezal.connection.pub(`${this.publish}/${payload}`, payload);
+        } else {
+            feezal.connection.pub(this.publish, payload);
+        }
+    }
+
+    /** Front tap / ⏯: the combined toggle payload, or the separate play/pause
+     * pair when the bridge has no toggle (then the current state decides). */
+    _playPause() {
+        if (this.payloadPlay || this.payloadPause) {
+            this._transport(this._playing ? (this.payloadPause || this.payloadPlay)
+                : (this.payloadPlay || this.payloadPause));
+            return;
+        }
+        this._transport(this.payloadPlayPause);
     }
 
     _setVolume(v) {
@@ -122,7 +178,7 @@ class FeezalElementMetroMedia extends MetroTileBase {
     }
 
     baseAction() {
-        this._transport(this.payloadPlayPause);
+        this._playPause();
     }
 
     renderFront() {
@@ -136,7 +192,7 @@ class FeezalElementMetroMedia extends MetroTileBase {
         return html`
             <div class="transport">
                 <button class="mbtn" title="Previous" @click="${() => this._transport(this.payloadPrev)}">⏮</button>
-                <button class="mbtn" title="Play/pause" @click="${() => this._transport(this.payloadPlayPause)}">${this._playing ? '⏸' : '⏵'}</button>
+                <button class="mbtn" title="Play/pause" @click="${() => this._playPause()}">${this._playing ? '⏸' : '⏵'}</button>
                 <button class="mbtn" title="Next" @click="${() => this._transport(this.payloadNext)}">⏭</button>
             </div>
             ${this.pubVolume || this.subVolume ? html`

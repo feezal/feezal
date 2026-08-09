@@ -10,10 +10,11 @@ import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fr
  * Frosted-glass now-playing card. All behaviour (subscription wiring incl.
  * per-topic dedupe, value coercion, the album/provider dedupe rule, transport
  * publishing, mute, the two command shapes) lives in
- * @feezal/feezal-controller-media — this is the glass VIEW: the album art
- * fills the card, the metadata block sits over a scrim, and the transport row
- * uses the family icon style. `degrade` swaps the live blur for the solid card
- * as everywhere else in the family.
+ * @feezal/feezal-controller-media — this is the glass VIEW: a small SQUARE
+ * album cover on the left with the metadata and transport beside it (the
+ * classic now-playing row, which is why the card defaults to twice its
+ * height in width). `degrade` swaps the live blur for the solid card as
+ * everywhere else in the family.
  *
  * The E180 Home.app interaction model (icon = main action, card = details
  * popup) is not implemented family-wide yet; when it lands, the secondary
@@ -21,9 +22,9 @@ import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fr
  * play/pause.
  */
 
-// Album-art size presets — squarer than the standard glass tiles: a media card
-// needs room for two text lines plus the transport row.
-const MEDIA_SIZES = {'2x2': [172, 172], '4x2': [354, 172], '4x1': [354, 86]};
+// Media size presets. 4x2 (wide) is the natural now-playing shape — square
+// cover on the left, text and transport beside it — and matches defaultStyle.
+const MEDIA_SIZES = {'4x2': [354, 172], '2x2': [172, 172], '4x1': [354, 86]};
 
 const fmtTime = sec => {
     if (sec === null || sec === undefined || isNaN(+sec) || +sec < 0) return '0:00';
@@ -52,12 +53,12 @@ class FeezalElementGlassMedia extends FeezalElement {
                 'the same text. Autodiscovers Echo devices (echo2mqtt) and any bridge speaking the media contract.',
             discovery: {component: 'media', map: mediaDiscoveryMap},
             attributes: [
-                {name: 'size', type: 'select', options: ['', '2x2', '4x2', '4x1'], default: '',
-                    help: 'Preset size: 2x2 = square, 4x2 = wide, 4x1 = compact bar. Empty keeps the current/manual size.'},
+                {name: 'size', type: 'select', options: ['', '4x2', '2x2', '4x1'], default: '',
+                    help: 'Preset size: 4x2 = wide (the default shape — square art beside the text), 2x2 = square, 4x1 = compact bar. Empty keeps the current/manual size.'},
                 // E182: the whole media MQTT contract — one declaration, every family.
                 ...mediaAttributes,
                 ...availabilityAttributes(),
-                {name: 'show-artwork',  type: 'boolean', default: true, help: 'Show the album art as the card background.'},
+                {name: 'show-artwork',  type: 'boolean', default: true, help: 'Show the square album cover on the left.'},
                 {name: 'show-album',    type: 'boolean', default: true, help: 'Show the album name.'},
                 {name: 'show-provider', type: 'boolean', default: true, help: 'Show the playback source / provider. When it is identical to the album, only one of the two lines is rendered.'},
                 {name: 'show-seek',     type: 'boolean', default: false, help: 'Show the progress bar with elapsed / total time.'},
@@ -70,12 +71,12 @@ class FeezalElementGlassMedia extends FeezalElement {
             styles: [
                 'top', 'left', 'width', 'height',
                 {property: '--feezal-glass-tint', type: 'color', help: 'Frost tint (defaults from the theme).'},
-                {property: '--feezal-glass-media-scrim', type: 'color', default: 'rgba(0,0,0,0.35)',
-                    help: 'Scrim painted over the album art so the text stays readable on bright covers.'},
+                {property: '--feezal-glass-media-art-size', default: '45%',
+                    help: 'Maximum width of the square album cover on the left, as a share of the card (default 45%).'},
                 {property: '--feezal-glass-font-size-title', default: '14px', help: 'Track title font size.'},
                 {property: '--feezal-glass-font-size-label', default: '12px', help: 'Artist / album / source font size.'},
             ],
-            defaultStyle: {width: '172px', height: '172px'},
+            defaultStyle: {width: '354px', height: '172px'},
             restrict: {minWidth: 120, minHeight: 96},
         };
     }
@@ -94,27 +95,30 @@ class FeezalElementGlassMedia extends FeezalElement {
     };
 
     static styles = [feezalBaseStyles, glassCardStyles, css`
-        .card { padding: 0; overflow: hidden; justify-content: flex-end; }
+        /* Requested layout (08/2026): a SMALL SQUARE album cover on the left,
+           the metadata and controls beside it — the classic now-playing row,
+           and the reason the default card is twice as wide as it is tall. */
+        .card { padding: 10px; overflow: hidden; flex-direction: row; align-items: stretch; gap: 10px; }
         :host([degrade]) .card {
             -webkit-backdrop-filter: none; backdrop-filter: none;
             background: var(--feezal-glass-solid, rgba(255,255,255,0.82));
         }
-        /* Album art fills the card; the scrim keeps the text readable on any
-           cover. Both sit BEHIND the content (z-index), never over it. */
         .art {
-            position: absolute; inset: 0; z-index: 0;
+            flex: 0 0 auto; align-self: center;
+            height: 100%; aspect-ratio: 1; max-width: var(--feezal-glass-media-art-size, 45%);
+            border-radius: calc(var(--feezal-glass-radius, 24px) - 12px);
             background-size: cover; background-position: center;
+            background-color: color-mix(in srgb, var(--feezal-glass-muted, rgba(29,29,31,0.55)) 18%, transparent);
         }
-        .scrim {
-            position: absolute; inset: 0; z-index: 1;
-            background: linear-gradient(transparent 25%, var(--feezal-glass-media-scrim, rgba(0,0,0,0.35)));
+        .art.placeholder {
+            display: flex; align-items: center; justify-content: center;
+            color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
         }
+        .art.placeholder .mi { font-size: 32px; }
         .content {
-            position: relative; z-index: 2;
-            display: flex; flex-direction: column; gap: 2px;
-            padding: 10px 12px 8px;
+            flex: 1 1 auto; min-width: 0;
+            display: flex; flex-direction: column; justify-content: center; gap: 1px;
         }
-        .art-on { color: #fff; }
         .player {
             font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;
             opacity: 0.75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -127,12 +131,6 @@ class FeezalElementGlassMedia extends FeezalElement {
             font-size: var(--feezal-glass-font-size-label, 12px); line-height: 1.25;
             opacity: 0.8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
-        .placeholder {
-            position: absolute; inset: 0; z-index: 0;
-            display: flex; align-items: center; justify-content: center;
-            color: var(--feezal-glass-muted, rgba(29,29,31,0.55));
-        }
-        .placeholder .mi { font-size: 44px; }
         .mi { font-family: 'Material Icons'; font-style: normal; font-weight: normal; line-height: 1; }
         .transport { display: flex; align-items: center; gap: 2px; margin-top: 4px; }
         .transport button {
@@ -194,10 +192,10 @@ class FeezalElementGlassMedia extends FeezalElement {
 
         return html`
             <div class="card">
-                ${art
-                    ? html`<div class="art" style="background-image:url('${art}')"></div><div class="scrim"></div>`
-                    : html`<div class="placeholder"><span class="mi">album</span></div>`}
-                <div class="content ${art ? 'art-on' : ''}">
+                ${this.showArtwork ? (art
+                    ? html`<div class="art" style="background-image:url('${art}')"></div>`
+                    : html`<div class="art placeholder"><span class="mi">album</span></div>`) : ''}
+                <div class="content">
                     ${this.label ? html`<div class="player" title="${this.label}">${this.label}</div>` : ''}
                     <div class="title" title="${title ?? ''}">${title ?? ''}</div>
                     ${artist ? html`<div class="sub" title="${artist}">${artist}</div>` : ''}
