@@ -69,6 +69,7 @@ Work in progress — priorities and scope are not final.
 - [E178 — system-form: a subview as a web form (decided core, script API to refine)](#e178--system-form-a-subview-as-a-web-form-decided-core-script-api-to-refine)
 - [E180 — Glass cards: Home.app interaction model (icon = main action, card = details)](#e180--glass-cards-homeapp-interaction-model-icon--main-action-card--details)
 - [E181 — Mini glass cards: circular icon-only size preset](#e181--mini-glass-cards-circular-icon-only-size-preset)
+- [E184 — Standard card surfaces: static / interactive-off / active / alarm (glass, then metro)](#e184-standard-card-surfaces-static-interactive-off-active-alarm-glass-then-metro)
 
 **Editor UX**
 
@@ -3168,6 +3169,77 @@ item is UI work on an engine that already supports the feature.**
 **Relates:** U32 (the component system itself), the attribute inspector
 (where instance parameters render), U104 (dialog-table UX precedent),
 source mode (the only current route to embedded placeholders).
+
+
+### E184 — Standard card surfaces: static / interactive-off / active / alarm (glass, then metro)
+
+**Requested (08/2026).** A card should say what it IS before you read it:
+an element you cannot interact with should not look like a button, and a
+device that is ON should not look like one that is OFF. Four standard
+backgrounds, defined once per family:
+
+1. **static** — display-only cards (value, sensor readout, motion, a
+   contact you only observe): calm, recessive; explicitly NOT
+   button-like.
+2. **interactive, off/idle** — a control whose device is off/closed/idle
+   (light off, switch off, window closed, no smoke).
+3. **active/on** — the device is on/open/running.
+4. **alarm** — a genuine alarm condition (smoke, water leak, sabotage,
+   an alarm panel in triggered state). Deliberately loud, and NOT the
+   same as "active": a smoke sensor reporting smoke is not merely "on".
+
+**Where it stands today (checked in code):** the glass family has only
+TWO surfaces — `--feezal-glass-tint` (resting) and
+`--feezal-glass-on-tint`, applied by cards that carry an on-state
+(`.card.on` in glass-switch et al). Nothing distinguishes a display-only
+card from a control, and there is no alarm surface at all; alarm cards
+signal purely through icon/label colour.
+
+**Design sketch (refine at implementation):**
+- Tokens on the family package: keep `--feezal-glass-tint` as the
+  INTERACTIVE-OFF surface (so existing themes keep their look), and add
+  `--feezal-glass-tint-static` and `--feezal-glass-alarm-tint`, both
+  defaulting to the existing tint so nothing changes visually until a
+  theme opts in. `--feezal-glass-on-tint` stays as-is.
+- **How a card knows which it is:** the cleanest signal is the element
+  itself, not a per-dashboard setting — a static class member (e.g.
+  `static get surfaceKind() { return 'static' | 'interactive'; }`, with
+  the shared card chrome picking the token) so the whole family is
+  consistent by construction and a new card cannot forget. The
+  alternative — deriving it from "does this element declare a publish
+  topic" — is tempting but wrong: an unconfigured switch is still a
+  control, and a template with a publish topic is not.
+- **Alarm:** the cards that can raise one (sensor/smoke/leak, alarm
+  panel, sabotage on any E124 device) set an `alarm` state class; the
+  surface follows. Needs a documented rule for what counts, ideally
+  reusing the existing fault/sabotage plumbing rather than a new
+  attribute.
+- **Per-element override** stays possible (the tokens are style knobs);
+  the point is a sane DEFAULT, not a lock.
+
+**Metro:** worth doing, with its own vocabulary — the Metro identity is
+the solid accent tile, so the four surfaces are accent SHADES (recessive
+tint for static, full accent for active, a red/amber alarm tile) rather
+than frost tints. Do it as a second step once the glass taxonomy is
+settled, so both families share the naming even though the values
+differ. **Eink is explicitly out of scope** (1-bit: it has exactly two
+surfaces, and inversion already means "active").
+
+**Caveats:**
+- "Active" is per-function and already defined per card (E138 semantics:
+  contact open, motion detected, light on) — this item must not
+  re-litigate those, only map them onto a surface.
+- Themes carry the values, so every bundled theme needs the two new
+  tokens chosen deliberately (a default-to-existing fallback keeps
+  un-updated themes correct meanwhile).
+- Popups must follow the same surface as their card (B121 parity).
+- A family-wide way to set these is exactly what U112 describes — this
+  item defines the tokens, U112 would expose them in the UI.
+
+**Relates:** U112 (family-wide settings — the natural UI for these),
+E180 (Home.app interaction model — same question of what reads as
+interactive), B121 (popup frost = card frost), E124 (battery/sabotage
+plumbing the alarm state can reuse), E138 (what "active" means per card).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
