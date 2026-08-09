@@ -63,6 +63,15 @@ Feezal stands on the shoulders of some excellent open-source work:
 - [lottie-web](https://github.com/airbnb/lottie-web) — plays the vector animations behind the Fancy element family and the Lottie element
 - [Monaco Editor](https://microsoft.github.io/monaco-editor/) — the editor's source view
 
+Bundled themes built on community palettes:
+
+- [Catppuccin](https://github.com/catppuccin/catppuccin) (MIT) — the Latte and Mocha pastel themes
+- [Nord](https://github.com/nordtheme/nord) (MIT) — the Nord and Nord Light arctic themes
+- [Graphite](https://github.com/TilmanGriesel/graphite) by Tilman Griesel (MIT) — the calm neutral dark theme
+- The Industrial Copper theme is inspired by the German Home Assistant community's
+  `industrial_copper` look ([simon42 forum](https://community.simon42.com/t/luxus-home-assistant-dashboard-wie-auf-dem-bild-umsetzbar/89304/7))
+- [Gruvbox](https://github.com/morhetz/gruvbox) and [Solarized](https://ethanschoonover.com/solarized/) — the palettes behind their namesake themes
+
 Bundled icon sets that require attribution:
 
 - [Font Awesome Free](https://fontawesome.com) icons by Fonticons, Inc. —

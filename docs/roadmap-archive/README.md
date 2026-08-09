@@ -310,6 +310,10 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [E169 — `scrypted-camera`: embed Scrypted NVR live/events views ✅ done](E169.md)
 - [E171 — Glass popups: frosted page backdrop, open/close animation, and a glass-popup container element ✅ done](E171.md)
 - [E170 — Search element family (*-search) / view-wise search in layout-app ✅ shipped (element family)](E170.md)
+- [E172 — Theme: Catppuccin (pastel, 4 flavors) ✅ shipped](E172.md)
+- [E173 — Theme: Nord (arctic palette, dark + light) ✅ shipped](E173.md)
+- [E174 — Theme: Graphite (calm neutral dark) ✅ shipped](E174.md)
+- [E179 — Theme: Industrial Copper (warm metallic dark) ✅ shipped](E179.md)
 
 ## Editor UX
 

@@ -1,0 +1,31 @@
+// E174 - Graphite (calm neutral dark). Palette from TilmanGriesel/graphite (MIT).
+const styleElement = document.createElement('style');
+styleElement.innerHTML = `.feezal-theme-graphite {
+    --primary-background-color: #101215;
+    --secondary-background-color: #1c1d21;
+    --card-background-color: #23242b;
+    --primary-text-color: #e4e4e7;
+    --secondary-text-color: #8a8c99;
+    --disabled-text-color: rgba(255, 255, 255, 0.5);
+    --divider-color: #26282e;
+    --primary-color: #e08a00;
+    --accent-color: #27d1f6;
+    --error-color: #ea7287;
+    --warning-color: #ffdb75;
+    --success-color: #207e47;
+    --info-color: #27d1f6;
+    --paper-listbox-background-color: var(--secondary-background-color);
+    --paper-input-container-color: var(--secondary-text-color);
+    --paper-input-container-focus-color: var(--primary-color);
+    --paper-input-container-input-color: var(--primary-text-color);
+    --paper-slider-active-color: var(--primary-color);
+    --paper-slider-secondary-color: var(--primary-color);
+    --paper-toggle-button-checked-bar-color: var(--primary-color);
+    --paper-toggle-button-checked-button-color: var(--primary-color);
+    --paper-toggle-button-checked-ink-color: var(--primary-color);
+    --paper-checkbox-checked-color: var(--primary-color);
+    --paper-checkbox-checked-ink-color: var(--primary-color);
+    --paper-tabs-selection-bar-color: var(--primary-color);
+    --paper-tab-ink: var(--primary-color);
+}`;
+document.head.appendChild(styleElement);

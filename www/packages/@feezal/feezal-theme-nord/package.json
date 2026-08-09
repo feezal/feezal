@@ -1,0 +1,9 @@
+{
+    "name": "@feezal/feezal-theme-nord",
+    "version": "3.0.0",
+    "license": "MIT",
+    "main": "feezal-theme-nord.js",
+    "feezal": {
+        "type": "theme"
+    }
+}

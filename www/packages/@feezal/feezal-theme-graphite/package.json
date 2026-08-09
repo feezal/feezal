@@ -1,0 +1,9 @@
+{
+    "name": "@feezal/feezal-theme-graphite",
+    "version": "3.0.0",
+    "license": "MIT",
+    "main": "feezal-theme-graphite.js",
+    "feezal": {
+        "type": "theme"
+    }
+}

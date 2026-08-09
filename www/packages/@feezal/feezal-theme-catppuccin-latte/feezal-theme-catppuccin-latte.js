@@ -1,0 +1,31 @@
+// E172 - Catppuccin Latte (light). Palette: catppuccin/catppuccin (MIT).
+const styleElement = document.createElement('style');
+styleElement.innerHTML = `.feezal-theme-catppuccin-latte {
+    --primary-background-color: #e6e9ef;
+    --secondary-background-color: #eff1f5;
+    --card-background-color: #eff1f5;
+    --primary-text-color: #4c4f69;
+    --secondary-text-color: #5c5f77;
+    --disabled-text-color: #9ca0b0;
+    --divider-color: #ccd0da;
+    --primary-color: #1e66f5;
+    --accent-color: #8839ef;
+    --error-color: #d20f39;
+    --warning-color: #df8e1d;
+    --success-color: #40a02b;
+    --info-color: #04a5e5;
+    --paper-listbox-background-color: var(--secondary-background-color);
+    --paper-input-container-color: var(--secondary-text-color);
+    --paper-input-container-focus-color: var(--primary-color);
+    --paper-input-container-input-color: var(--primary-text-color);
+    --paper-slider-active-color: var(--primary-color);
+    --paper-slider-secondary-color: var(--primary-color);
+    --paper-toggle-button-checked-bar-color: var(--primary-color);
+    --paper-toggle-button-checked-button-color: var(--primary-color);
+    --paper-toggle-button-checked-ink-color: var(--primary-color);
+    --paper-checkbox-checked-color: var(--primary-color);
+    --paper-checkbox-checked-ink-color: var(--primary-color);
+    --paper-tabs-selection-bar-color: var(--primary-color);
+    --paper-tab-ink: var(--primary-color);
+}`;
+document.head.appendChild(styleElement);

@@ -164,15 +164,21 @@ import '@feezal/feezal-element-tui-sparkline';
 import '@feezal/feezal-element-tui-value';
 import '@feezal/feezal-elements-fancy';
 import '@feezal/feezal-theme-blue-night';
+import '@feezal/feezal-theme-catppuccin-latte';
+import '@feezal/feezal-theme-catppuccin-mocha';
 import '@feezal/feezal-theme-dark-mint';
 import '@feezal/feezal-theme-dark-orange';
 import '@feezal/feezal-theme-eink';
 import '@feezal/feezal-theme-glass';
+import '@feezal/feezal-theme-graphite';
 import '@feezal/feezal-theme-gruvbox-dark';
 import '@feezal/feezal-theme-gruvbox-light';
+import '@feezal/feezal-theme-industrial-copper';
 import '@feezal/feezal-theme-light-orange';
 import '@feezal/feezal-theme-metro';
 import '@feezal/feezal-theme-midnight-blue';
+import '@feezal/feezal-theme-nord';
+import '@feezal/feezal-theme-nord-light';
 import '@feezal/feezal-theme-solarized-dark';
 import '@feezal/feezal-theme-solarized-light';
 import '@feezal/feezal-theme-tui';
@@ -349,15 +355,21 @@ window.feezal.elements = [
 
 window.feezal.themes = [
   "@feezal/feezal-theme-blue-night",
+  "@feezal/feezal-theme-catppuccin-latte",
+  "@feezal/feezal-theme-catppuccin-mocha",
   "@feezal/feezal-theme-dark-mint",
   "@feezal/feezal-theme-dark-orange",
   "@feezal/feezal-theme-eink",
   "@feezal/feezal-theme-glass",
+  "@feezal/feezal-theme-graphite",
   "@feezal/feezal-theme-gruvbox-dark",
   "@feezal/feezal-theme-gruvbox-light",
+  "@feezal/feezal-theme-industrial-copper",
   "@feezal/feezal-theme-light-orange",
   "@feezal/feezal-theme-metro",
   "@feezal/feezal-theme-midnight-blue",
+  "@feezal/feezal-theme-nord",
+  "@feezal/feezal-theme-nord-light",
   "@feezal/feezal-theme-solarized-dark",
   "@feezal/feezal-theme-solarized-light",
   "@feezal/feezal-theme-tui"

@@ -1,0 +1,31 @@
+// E172 - Catppuccin Mocha (dark). Palette: catppuccin/catppuccin (MIT).
+const styleElement = document.createElement('style');
+styleElement.innerHTML = `.feezal-theme-catppuccin-mocha {
+    --primary-background-color: #181825;
+    --secondary-background-color: #1e1e2e;
+    --card-background-color: #1e1e2e;
+    --primary-text-color: #cdd6f4;
+    --secondary-text-color: #bac2de;
+    --disabled-text-color: #6c7086;
+    --divider-color: #313244;
+    --primary-color: #89b4fa;
+    --accent-color: #cba6f7;
+    --error-color: #f38ba8;
+    --warning-color: #f9e2af;
+    --success-color: #a6e3a1;
+    --info-color: #89dceb;
+    --paper-listbox-background-color: var(--secondary-background-color);
+    --paper-input-container-color: var(--secondary-text-color);
+    --paper-input-container-focus-color: var(--primary-color);
+    --paper-input-container-input-color: var(--primary-text-color);
+    --paper-slider-active-color: var(--primary-color);
+    --paper-slider-secondary-color: var(--primary-color);
+    --paper-toggle-button-checked-bar-color: var(--primary-color);
+    --paper-toggle-button-checked-button-color: var(--primary-color);
+    --paper-toggle-button-checked-ink-color: var(--primary-color);
+    --paper-checkbox-checked-color: var(--primary-color);
+    --paper-checkbox-checked-ink-color: var(--primary-color);
+    --paper-tabs-selection-bar-color: var(--primary-color);
+    --paper-tab-ink: var(--primary-color);
+}`;
+document.head.appendChild(styleElement);

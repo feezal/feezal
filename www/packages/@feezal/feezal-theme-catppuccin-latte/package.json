@@ -1,0 +1,9 @@
+{
+    "name": "@feezal/feezal-theme-catppuccin-latte",
+    "version": "3.0.0",
+    "license": "MIT",
+    "main": "feezal-theme-catppuccin-latte.js",
+    "feezal": {
+        "type": "theme"
+    }
+}

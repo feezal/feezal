@@ -1,0 +1,31 @@
+// E173 - Nord (dark). Palette: nordtheme/nord (MIT) - polar night ground, snow storm text, frost primary, aurora states.
+const styleElement = document.createElement('style');
+styleElement.innerHTML = `.feezal-theme-nord {
+    --primary-background-color: #2e3440;
+    --secondary-background-color: #3b4252;
+    --card-background-color: #3b4252;
+    --primary-text-color: #eceff4;
+    --secondary-text-color: #d8dee9;
+    --disabled-text-color: #4c566a;
+    --divider-color: #434c5e;
+    --primary-color: #88c0d0;
+    --accent-color: #b48ead;
+    --error-color: #bf616a;
+    --warning-color: #ebcb8b;
+    --success-color: #a3be8c;
+    --info-color: #81a1c1;
+    --paper-listbox-background-color: var(--secondary-background-color);
+    --paper-input-container-color: var(--secondary-text-color);
+    --paper-input-container-focus-color: var(--primary-color);
+    --paper-input-container-input-color: var(--primary-text-color);
+    --paper-slider-active-color: var(--primary-color);
+    --paper-slider-secondary-color: var(--primary-color);
+    --paper-toggle-button-checked-bar-color: var(--primary-color);
+    --paper-toggle-button-checked-button-color: var(--primary-color);
+    --paper-toggle-button-checked-ink-color: var(--primary-color);
+    --paper-checkbox-checked-color: var(--primary-color);
+    --paper-checkbox-checked-ink-color: var(--primary-color);
+    --paper-tabs-selection-bar-color: var(--primary-color);
+    --paper-tab-ink: var(--primary-color);
+}`;
+document.head.appendChild(styleElement);
