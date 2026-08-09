@@ -236,7 +236,7 @@ export const MEDIA_CONSUMED_ATTRIBUTES = mediaAttributes.map(a => a.name);
 
 /**
  * Shared discovery.map fragment. Keys are the recognizer's config keys
- * (see server/src/mqtt/recognizers/echo.js) — HA has no `media_player`
+ * (see server/src/mqtt/recognizers/alexa.js) — HA has no `media_player`
  * MQTT component, so this contract is feezal-native.
  */
 export const mediaDiscoveryMap = {
