@@ -1,0 +1,10 @@
+{
+    "name": "@feezal/feezal-element-system-form",
+    "version": "3.0.0",
+    "main": "feezal-element-system-form.js",
+    "license": "MIT",
+    "dependencies": {
+        "@feezal/feezal-element": "*",
+        "@feezal/feezal-element-system-script": "*"
+    }
+}

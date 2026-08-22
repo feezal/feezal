@@ -186,6 +186,7 @@
         "@feezal/feezal-element-paper-switch": "*",
         "@feezal/feezal-element-paper-tabs": "*",
         "@feezal/feezal-element-system-connection-status": "*",
+        "@feezal/feezal-element-system-form": "*",
         "@feezal/feezal-element-system-notification": "*",
         "@feezal/feezal-element-system-pin": "*",
         "@feezal/feezal-element-system-script": "*",

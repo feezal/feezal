@@ -150,6 +150,7 @@ import '@feezal/feezal-element-paper-slider';
 import '@feezal/feezal-element-paper-switch';
 import '@feezal/feezal-element-paper-tabs';
 import '@feezal/feezal-element-system-connection-status';
+import '@feezal/feezal-element-system-form';
 import '@feezal/feezal-element-system-notification';
 import '@feezal/feezal-element-system-pin';
 import '@feezal/feezal-element-system-script';
@@ -337,6 +338,7 @@ window.feezal.elements = [
   "feezal-element-paper-switch",
   "feezal-element-paper-tabs",
   "feezal-element-system-connection-status",
+  "feezal-element-system-form",
   "feezal-element-system-notification",
   "feezal-element-system-pin",
   "feezal-element-system-script",
