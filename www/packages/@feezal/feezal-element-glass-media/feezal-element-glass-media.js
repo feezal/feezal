@@ -132,9 +132,14 @@ class FeezalElementGlassMedia extends FeezalGlassCard {
            wide card and a two-row layout on a tall one. */
         .card {
             padding: 10px; overflow: hidden; gap: 6px 10px;
-            display: grid; grid-template: 'art meta' auto 'art ctrl' 1fr / auto minmax(0, 1fr);
+            /* The cover's edge is a GRID TRACK, not a percentage on the cell: a
+               percentage width inside an auto-sized column resolves to auto and
+               an empty div collapses to nothing (the no-artwork regression). */
+            --_art: min(var(--feezal-glass-media-art-size, 45%), var(--feezal-glass-media-art-max, 140px), 100cqh - 20px);
+            display: grid; grid-template: 'art meta' auto 'art ctrl' 1fr / var(--_art) minmax(0, 1fr);
             align-items: start; align-content: center; text-align: left;
         }
+        .card.no-art { grid-template: 'meta' auto 'ctrl' 1fr / minmax(0, 1fr); }
         :host([degrade]) .card {
             -webkit-backdrop-filter: none; backdrop-filter: none;
             background: var(--feezal-glass-solid, rgba(255,255,255,0.82));
@@ -143,8 +148,7 @@ class FeezalElementGlassMedia extends FeezalGlassCard {
            scales with the card height (a tall card used to grow a huge square). */
         .art {
             grid-area: art; align-self: center;
-            width: min(var(--feezal-glass-media-art-size, 45%), var(--feezal-glass-media-art-max, 140px), 100cqh - 20px);
-            aspect-ratio: 1; max-width: 100%;
+            width: 100%; aspect-ratio: 1;
             border-radius: calc(var(--feezal-glass-radius, 24px) - 12px);
             background-size: cover; background-position: center;
             background-color: color-mix(in srgb, var(--feezal-glass-muted, rgba(29,29,31,0.55)) 18%, transparent);
@@ -171,7 +175,8 @@ class FeezalElementGlassMedia extends FeezalGlassCard {
         /* E189: tall card — two rows (cover + text above, controls across the
            full width below), the title may wrap to two lines. */
         @container (min-height: 230px) {
-            .card { grid-template: 'art meta' auto 'ctrl ctrl' 1fr / auto minmax(0, 1fr); align-content: start; }
+            .card { grid-template: 'art meta' auto 'ctrl ctrl' 1fr / var(--_art) minmax(0, 1fr); align-content: start; }
+            .card.no-art { grid-template: 'meta' auto 'ctrl' 1fr / minmax(0, 1fr); }
             .ctrl { align-self: start; gap: 4px; }
             .title { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
         }
@@ -407,7 +412,7 @@ class FeezalElementGlassMedia extends FeezalGlassCard {
             : '';
 
         return html`
-            <div class="card">
+            <div class="card ${this.showArtwork ? '' : 'no-art'}">
                 ${this.showArtwork ? this._artTpl(art) : ''}
                 ${this._metaTpl(info)}
                 ${this._ctrlTpl(this._face)}

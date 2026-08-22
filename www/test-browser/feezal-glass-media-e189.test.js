@@ -40,7 +40,23 @@ describe('E189 — sizes and the cover cap', () => {
         const art = q(el, '.art');
         await until(() => art.getBoundingClientRect().width > 0);
         expect(art.getBoundingClientRect().width).toBeLessThanOrEqual(140);
+        expect(art.getBoundingClientRect().width, 'the cover must actually have a size').toBeGreaterThan(100);
         expect(art.getBoundingClientRect().height).toBeLessThanOrEqual(140);
+    });
+
+    it('the cover has a real size on the default wide card and shows the image', async () => {
+        const el = await mount('feezal-element-glass-media', {size: '4x2', 'subscribe-artwork-url': 'w/art'});
+        await until(() => el.offsetWidth === 354);
+        feezal.connection.deliver('w/art', 'https://art.example/c.jpg');
+        await until(() => q(el, '.art:not(.placeholder)'));
+        const r = q(el, '.art').getBoundingClientRect();
+        expect(r.width).toBeGreaterThan(100);
+        expect(Math.abs(r.width - r.height)).toBeLessThan(2);
+        expect(q(el, '.art').style.backgroundImage).toContain('c.jpg');
+        const off = await mount('feezal-element-glass-media', {size: '4x2', 'show-artwork': 'false'});
+        await until(() => off.offsetWidth === 354);
+        expect(q(off, '.art')).toBeNull();
+        expect(q(off, '.meta').getBoundingClientRect().left).toBeLessThan(30);
     });
 
     it('a tall card lays the controls out across the full width (two-row grid)', async () => {
