@@ -122,6 +122,15 @@ class FeezalSidebarLayers extends LitElement {
         .ico feezal-icon { font-size: 16px; line-height: 1; }
         .ico .fallback { opacity: 0.45; font-size: 13px; line-height: 1; }
         .label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        /* U113: the feezal-id chip — identity for scripts/forms, reads like a
+           code token so it is not mistaken for the label. */
+        .fid {
+            flex: 0 1 auto; max-width: 35%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px;
+            padding: 0 4px; border-radius: 3px;
+            background: color-mix(in srgb, var(--feezal-color, #333) 10%, transparent);
+            opacity: 0.85;
+        }
         .topic {
             flex: 0 1 auto; max-width: 40%; opacity: 0.55; font-size: 11px;
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl;
@@ -218,7 +227,7 @@ class FeezalSidebarLayers extends LitElement {
                 childList: true, subtree: true, attributes: true,
                 // `class` carries the canvas selection (feezal-selected), so the
                 // panel mirrors selection changes without any plumbing.
-                attributeFilter: ['class', 'locked', 'label', 'name', 'subscribe', 'publish'],
+                attributeFilter: ['class', 'locked', 'label', 'name', 'subscribe', 'publish', 'feezal-id'],
             });
             this._revision++;            // render now that there IS a site
             return;
@@ -267,13 +276,18 @@ class FeezalSidebarLayers extends LitElement {
             el.getAttribute?.('subscribe-state') || '';
     }
 
+    /** U113 — the element's scripting/form identity, shown beside the label. */
+    _feezalId(el) {
+        return el.getAttribute?.('feezal-id') || '';
+    }
+
     _icon(el) {
         return window.customElements.get(el.localName)?.feezal?.palette?.icon || '';
     }
 
     _score(el) {
         return fuzzyScoreAny(this._filter.trim(), [
-            this._type(el), this._label(el),
+            this._type(el), this._label(el), this._feezalId(el),
             el.getAttribute?.('subscribe') || '', el.getAttribute?.('publish') || '',
         ]);
     }
@@ -668,6 +682,7 @@ class FeezalSidebarLayers extends LitElement {
         const locked = el.hasAttribute('locked');
         const icon = this._icon(el);
         const topic = this._topic(el);
+        const feezalId = this._feezalId(el);
         const type = this._type(el);
         const dropping = this._dropEl === el && this._dragEl && this._dragEl !== el;
         const before = dropping && node.elements.indexOf(this._dragEl) > node.elements.indexOf(el);
@@ -688,6 +703,7 @@ class FeezalSidebarLayers extends LitElement {
                            : html`<span class="fallback">▢</span>`}
                 </span>
                 <span class="label" title="${type}">${this._label(el)}</span>
+                ${feezalId ? html`<span class="fid" title="feezal-id: ${feezalId}">#${feezalId}</span>` : ''}
                 ${topic ? html`<span class="topic" title="${topic}">${topic}</span>` : ''}
                 <button class="lock ${locked ? 'on' : ''}" title="${locked ? 'Unlock' : 'Lock'}"
                     @click="${e => this._toggleLock(e, el)}">${locked ? '🔒' : '🔓'}</button>
@@ -703,7 +719,7 @@ class FeezalSidebarLayers extends LitElement {
                 <sl-tab slot="nav" panel="elements">Elements</sl-tab>
                 <sl-tab-panel name="elements">
                     <div class="search">
-                        <input type="search" placeholder="Filter elements — name, label or topic"
+                        <input type="search" placeholder="Filter elements — name, label, feezal-id or topic"
                             .value="${this._filter}"
                             @input="${e => { this._filter = e.target.value; }}"
                             @keydown="${e => { if (e.key === 'Escape') { this._filter = ''; e.stopPropagation(); } }}">

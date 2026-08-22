@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, feezalEmit} from '@feezal/feezal-element';
 import '@material/web/textfield/outlined-text-field.js';
 
 class FeezalElementMaterialInput extends FeezalElement {
@@ -101,6 +101,13 @@ class FeezalElementMaterialInput extends FeezalElement {
         }
     }
 
+    // ── U113 public contract: .value + composed feezal-change ──────────────
+    // Scripts (fzl.val / fzl.on) and system-form read the value and listen
+    // here instead of reaching into the shadow root. feezal-change fires for
+    // USER edits only — MQTT-driven updates are state, not input.
+    get value() { return this._value; }
+    set value(v) { this._value = String(v ?? ''); }
+
     _pub() {
         if (this.publish) {
             feezal.connection.pub(this.publish, this._value);
@@ -110,14 +117,21 @@ class FeezalElementMaterialInput extends FeezalElement {
     _onInput(e) {
         this._value = e.target.value;
         if (this.publishOnInput) this._pub();
+        feezalEmit(this, 'change');
     }
 
     _onKeydown(e) {
         if (e.key === 'Enter') this._pub();
+        feezalEmit(this, 'keydown', {key: e.key});
+    }
+
+    _onKeyup(e) {
+        feezalEmit(this, 'keyup', {key: e.key});
     }
 
     _onBlur() {
         this._pub();
+        feezalEmit(this, 'blur');
     }
 
     render() {
@@ -131,6 +145,7 @@ class FeezalElementMaterialInput extends FeezalElement {
                 ?disabled="${this.disabled}"
                 @input="${this._onInput}"
                 @keydown="${this._onKeydown}"
+                @keyup="${this._onKeyup}"
                 @blur="${this._onBlur}">
             </md-outlined-text-field>`;
     }

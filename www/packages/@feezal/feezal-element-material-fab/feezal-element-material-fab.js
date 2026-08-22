@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css, publishLocalAttribute} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, feezalEmit, publishLocalAttribute} from '@feezal/feezal-element';
 import '@material/web/fab/fab.js';
 
 class FeezalElementMaterialFab extends FeezalElement {
@@ -89,8 +89,10 @@ class FeezalElementMaterialFab extends FeezalElement {
     }
 
     _onClick() {
-        if (!this.publish) return;
-        feezal.connection.pub(this.publish, this.payload, {local: this.publishLocal});
+        if (this.disabled) return;
+        if (this.publish) feezal.connection.pub(this.publish, this.payload, {local: this.publishLocal});
+        // U113 public contract: composed feezal-press, with or without a topic.
+        feezalEmit(this, 'press', {payload: this.payload});
     }
 
     render() {

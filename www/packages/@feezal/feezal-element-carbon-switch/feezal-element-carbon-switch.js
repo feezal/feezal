@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, feezalEmit} from '@feezal/feezal-element';
 import '@carbon/web-components/es/components/toggle/toggle.js';
 
 import {switchAcceptsLight} from '@feezal/feezal-element/feezal-discovery-fragments.js';
@@ -124,11 +124,19 @@ class FeezalElementCarbonSwitch extends FeezalElement {
         });
     }
 
+    // ── U113 public contract: .value + composed feezal-change ──────────────
+    // Scripts (fzl.val / fzl.on) and system-form read the value and listen
+    // here instead of reaching into the shadow root. feezal-change fires for
+    // USER edits only — MQTT-driven updates are state, not input.
+    get value() { return this._on; }
+    set value(v) { this._on = v === true || v === 1 || v === '1' || v === 'true' || v === this.payloadOn; }
+
     _toggle(e) {
         this._on = e.detail.toggled;
         if (this.publish) {
             feezal.connection.pub(this.publish, this._on ? this.payloadOn : this.payloadOff);
         }
+        feezalEmit(this, 'change');
     }
 
     render() {

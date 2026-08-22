@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, feezalEmit} from '@feezal/feezal-element';
 import '@material/web/radio/radio.js';
 
 let _uid = 0;
@@ -114,10 +114,18 @@ class FeezalElementMaterialRadio extends FeezalElement {
         }
     }
 
+    // ── U113 public contract: .value + composed feezal-change ──────────────
+    // Scripts (fzl.val / fzl.on) and system-form read the value and listen
+    // here instead of reaching into the shadow root. feezal-change fires for
+    // USER edits only — MQTT-driven updates are state, not input.
+    get value() { return this._value; }
+    set value(v) { this._value = String(v ?? ''); }
+
     _onChange(e) {
         if (!e.target.checked) return;
         this._value = e.target.value;
         if (this.publish) feezal.connection.pub(this.publish, this._value);
+        feezalEmit(this, 'change');
     }
 
     render() {

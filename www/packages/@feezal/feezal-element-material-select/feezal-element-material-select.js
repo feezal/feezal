@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, feezalEmit} from '@feezal/feezal-element';
 import '@material/web/select/outlined-select.js';
 import '@material/web/select/select-option.js';
 
@@ -155,11 +155,20 @@ class FeezalElementMaterialSelect extends FeezalElement {
         this._ro.observe(this);
     }
 
+    // ── U113 public contract: .value + composed feezal-change ──────────────
+    // Scripts (fzl.val / fzl.on) and system-form read the value and listen
+    // here instead of reaching into the shadow root. feezal-change fires for
+    // USER edits only — MQTT-driven updates are state, not input.
+    get value() { return this._value; }
+    set value(v) { this._value = String(v ?? ''); }
+
     _onChange(e) {
-        if (!this.publish) return;
         const val = e.target.value;
+        // State first — a select without a publish topic (a form field) must
+        // still track what the user picked.
         this._value = val;
-        feezal.connection.pub(this.publish, val);
+        if (this.publish) feezal.connection.pub(this.publish, val);
+        feezalEmit(this, 'change');
     }
 
     render() {

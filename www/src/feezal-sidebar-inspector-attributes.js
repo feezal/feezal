@@ -452,6 +452,11 @@ export function iconPickerGroups({materialNames, sets, activeSet, query, cap = 9
 /**
  * feezal-sidebar-inspector-attributes — attribute editor for selected elements.
  */
+/** U113 — feezal-id grammar: a safe token for attribute selectors, JSON keys and JS identifiers-ish use. */
+export const FEEZAL_ID_RE = /^[A-Za-z_][A-Za-z0-9_-]*$/;
+export const FEEZAL_ID_HELP = 'Identity for scripts and forms: fzl.el("id") / fzl.val("id") find this element, ' +
+    'a Form uses it as the field key, and the Layers tree shows it. Letters, digits, - and _ only.';
+
 class FeezalSidebarInspectorAttributes extends LitElement {
     static properties = {
         selectedElems:      {type: Array},
@@ -526,6 +531,9 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             opacity: 0.75; cursor: default; user-select: none; flex-shrink: 0;
         }
         .help-icon:hover { opacity: 1; }
+        /* U113: the feezal-id field above a custom inspector (N6) */
+        .feezal-id-field { padding: 12px 12px 0; }
+        .feezal-id-field sl-input { width: 100%; }
         .help-tip {
             position: fixed; z-index: 9999;
             background: #333; color: #fff;
@@ -816,6 +824,7 @@ class FeezalSidebarInspectorAttributes extends LitElement {
         if (customInspector && this.selectedElems?.length === 1) {
             return html`
                 ${this._renderDiscoveryPicker()}
+                ${this._renderFeezalIdField(el)}
                 <div id="custom-inspector-host"
                     @feezal-attribute-changed="${this._onCustomAttrChanged}">
                 </div>
@@ -1516,7 +1525,10 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             }
 
             const attrOptions = elementClass.feezal.attributes.find(a => (typeof a === 'string' ? a : a.name) === attr);
-            if (attrOptions && attrOptions.validator && !attrOptions.validator(newValue)) {
+            // U113: injected items (feezal-id) carry their validator on the item
+            // itself — there is no descriptor to look it up from.
+            const validator = attrOptions?.validator || item.elem?.validator;
+            if (validator && !validator(newValue)) {
                 invalid = true;
                 return;
             }
@@ -1784,6 +1796,13 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             };
         }).filter(Boolean);   // drop null entries (custom items under multi-select)
 
+        // U113: feezal-id — one identity for scripting (fzl.el), forms and the
+        // layers view. Single selection only: writing ONE id to several
+        // elements would manufacture duplicates.
+        if (tagName !== 'feezal-view' && this.selectedElems.length === 1) {
+            this.items = [...this.items, this._makeFeezalIdItem(el)];
+        }
+
         // Inject locked checkbox for all non-view elements
         if (tagName !== 'feezal-view') {
             const lockedVals = this.selectedElems.map(e => e.hasAttribute('locked'));
@@ -1935,6 +1954,11 @@ class FeezalSidebarInspectorAttributes extends LitElement {
             };
         });
 
+        // U113: feezal-id — same as for regular elements (single selection).
+        if (this.selectedElems.length === 1) {
+            this.items = [...this.items, this._makeFeezalIdItem(el)];
+        }
+
         // Locked checkbox — same as for regular elements.
         const lockedVals = this.selectedElems.map(e => e.hasAttribute('locked'));
         const lockedMixed = this.selectedElems.length > 1 && lockedVals.some(v => v !== lockedVals[0]);
@@ -1953,6 +1977,48 @@ class FeezalSidebarInspectorAttributes extends LitElement {
                 template: false, validator: undefined, min: undefined, max: undefined, step: undefined
             }
         }];
+    }
+
+    /**
+     * U113 — the generic `feezal-id` item, injected for every element like
+     * `locked`: a dedicated attribute (NOT the HTML global `id` — no
+     * getElementById / CSS-# semantics to explain) that scripts resolve via
+     * fzl.el()/val()/on(), system-form uses as the field key, and the layers
+     * view shows. Serializes as a plain attribute.
+     */
+    _makeFeezalIdItem(el) {
+        const item = this._makeTextItem(el, 'feezal-id');
+        item.elem.help = FEEZAL_ID_HELP;
+        item.elem.validator = v => !v || FEEZAL_ID_RE.test(v);
+        item.invalid = Boolean(item.value) && !FEEZAL_ID_RE.test(item.value);
+        return item;
+    }
+
+    /**
+     * U113 — the same field for elements with a custom inspector (N6), which
+     * REPLACES the generic panel: without this the id would be unreachable
+     * on exactly the elements (dialogs, scripts, forms) that need it most.
+     */
+    _renderFeezalIdField(el) {
+        if (!el || el.name) return '';   // views carry no feezal-id
+        const value = el.getAttribute('feezal-id') || '';
+        const write = v => {
+            const next = (v || '').trim();
+            if (next && !FEEZAL_ID_RE.test(next)) return;
+            if (next) el.setAttribute('feezal-id', next);
+            else el.removeAttribute('feezal-id');
+            feezal.app.change();
+            this.requestUpdate();
+        };
+        return html`
+            <div class="feezal-id-field">
+                <sl-input size="small" autocomplete="off" clearable
+                    .value="${value}"
+                    @sl-clear="${() => write('')}"
+                    @sl-change="${e => write(e.target.value)}">
+                    ${this._labelTpl('feezal-id', FEEZAL_ID_HELP)}
+                </sl-input>
+            </div>`;
     }
 
     _makeTextItem(el, attrName) {

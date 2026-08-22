@@ -1074,3 +1074,73 @@ describe('E124 — _applyDiscovery stamps battery_low_normalized for declaring e
         expect(el.hasAttribute('subscribe-battery-low')).toBe(false);
     });
 });
+
+// ---------------------------------------------------------------------------
+// U113 — the generic `feezal-id` item, injected for every element like `locked`
+
+import {FEEZAL_ID_RE} from '../src/feezal-sidebar-inspector-attributes.js';
+
+describe('feezal-id injection (U113)', () => {
+    function panelFor(targets) {
+        const panel = document.createElement('feezal-sidebar-inspector-attributes');
+        feezal.app = {change: vi.fn()};
+        feezal.editor = {selectedElems: targets};
+        feezal.views = [];
+        panel.selectedElems = targets;
+        panel._rebuildItems();
+        return panel;
+    }
+    const names = panel => panel.items.map(it => it.attrName);
+
+    it('appears for a single selected element, before locked, with the current value', () => {
+        const target = makeTarget();
+        target.setAttribute('feezal-id', 'kitchen-temp');
+        const panel = panelFor([target]);
+        const idx = names(panel).indexOf('feezal-id');
+        expect(idx).toBeGreaterThan(-1);
+        expect(names(panel).indexOf('locked')).toBe(idx + 1);
+        expect(panel.items[idx].value).toBe('kitchen-temp');
+        expect(panel.items[idx].elem.input).toBe(true);
+    });
+
+    it('is NOT offered under multi-select — one id written to several elements would manufacture duplicates', () => {
+        const panel = panelFor([makeTarget(), makeTarget()]);
+        expect(names(panel)).not.toContain('feezal-id');
+        expect(names(panel)).toContain('locked');   // locked still merges across the selection
+    });
+
+    it('the grammar accepts identifiers and rejects spaces / leading digits', () => {
+        for (const ok of ['a', 'name', 'kitchen-temp', 'field_2', '_x']) expect(FEEZAL_ID_RE.test(ok), ok).toBe(true);
+        for (const bad of ['2fast', 'has space', 'a.b', 'ä', '']) expect(FEEZAL_ID_RE.test(bad), bad).toBe(false);
+    });
+
+    it('_change writes a valid id and flags an invalid one through the item-level validator', () => {
+        const target = makeTarget();
+        const panel = panelFor([target]);
+        const idx = names(panel).indexOf('feezal-id');
+
+        panel._change('sensor-1', idx, true);
+        expect(target.getAttribute('feezal-id')).toBe('sensor-1');
+        expect(panel.items[idx].invalid).toBe(false);
+        expect(feezal.app.change).toHaveBeenCalled();
+
+        panel._change('not valid', idx, true);
+        expect(target.getAttribute('feezal-id')).toBe('sensor-1');   // untouched
+        expect(panel.items[idx].invalid).toBe(true);
+    });
+
+    it('renders the field above a custom inspector, where the generic panel is replaced', () => {
+        const target = makeTarget();
+        target.setAttribute('feezal-id', 'dlg');
+        const panel = panelFor([target]);
+        const tpl = panel._renderFeezalIdField(target);
+        const host = document.createElement('div');
+        // lit template → DOM
+        import('lit').then(({render}) => render(tpl, host));
+        return new Promise(r => setTimeout(r, 0)).then(() => {
+            const input = host.querySelector('.feezal-id-field sl-input');
+            expect(input).not.toBeNull();
+            expect(input.value).toBe('dlg');
+        });
+    });
+});

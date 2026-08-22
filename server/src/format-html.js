@@ -93,7 +93,10 @@ const IDENTIFYING = {
     'feezal-element-paper-dialog-view': ['view', 'subscribe'],
 }
 const IDENTIFYING_DEFAULT = ['label', 'subscribe']
-const MAX_JOINED = 2
+// U113: feezal-id leads every element (before the per-tag list); the join
+// budget grows by one so `feezal-id label subscribe` still fits the tag line.
+const IDENTIFYING_FIRST = ['feezal-id']
+const MAX_JOINED = 3
 
 const OPEN_TAG_ALONE = /^(\s*)<([a-zA-Z][\w-]*)$/
 const ATTRIBUTE_LINE = /^\s*([a-zA-Z_:][\w:.-]*)=/
@@ -119,7 +122,7 @@ function joinIdentifyingAttributes(lines) {
             out.push(lines[i])
             continue
         }
-        const wanted = IDENTIFYING[open[2]] || IDENTIFYING_DEFAULT
+        const wanted = [...IDENTIFYING_FIRST, ...(IDENTIFYING[open[2]] || IDENTIFYING_DEFAULT)]
         let joined = lines[i]
         let count = 0
         while (count < MAX_JOINED && i + 1 < lines.length) {
@@ -198,4 +201,4 @@ async function formatHtml(html) {
     }
 }
 
-module.exports = {formatHtml, FORMAT_OPTIONS, IDENTIFYING, IDENTIFYING_DEFAULT}
+module.exports = {formatHtml, FORMAT_OPTIONS, IDENTIFYING, IDENTIFYING_DEFAULT, IDENTIFYING_FIRST}

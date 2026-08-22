@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css, publishLocalAttribute} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, feezalEmit, publishLocalAttribute} from '@feezal/feezal-element';
 import '@carbon/web-components/es/components/button/button.js';
 
 class FeezalElementCarbonButton extends FeezalElement {
@@ -137,6 +137,8 @@ class FeezalElementCarbonButton extends FeezalElement {
         if (this.publish) {
             feezal.connection.pub(this.publish, this.payload, {local: this.publishLocal});
         }
+        // U113 public contract: composed feezal-press, with or without a topic.
+        feezalEmit(this, 'press', {payload: this.payload});
     }
 
     render() {

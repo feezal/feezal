@@ -90,6 +90,9 @@ export const IDENTIFYING_ATTRS = {
     'feezal-element-paper-dialog-view': ['view', 'subscribe'],
 };
 export const IDENTIFYING_DEFAULT = ['label', 'subscribe'];
+// U113: the element's identity for scripts/forms leads EVERY element, before
+// the per-tag list — a folded element opens with what a script calls it by.
+export const IDENTIFYING_FIRST = ['feezal-id'];
 
 /**
  * Move each element's identifying attributes to the front, in place.
@@ -100,7 +103,7 @@ export const IDENTIFYING_DEFAULT = ['label', 'subscribe'];
  */
 export function reorderIdentifyingAttributes(root) {
     for (const el of root.querySelectorAll('*')) {
-        const wanted = IDENTIFYING_ATTRS[el.localName] || IDENTIFYING_DEFAULT;
+        const wanted = [...IDENTIFYING_FIRST, ...(IDENTIFYING_ATTRS[el.localName] || IDENTIFYING_DEFAULT)];
         const names = [...el.attributes].map(a => a.name);
         const lead = wanted.filter(n => names.includes(n));
         if (!lead.length) continue;

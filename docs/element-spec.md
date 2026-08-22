@@ -510,6 +510,62 @@ _onClick() {
 }
 ```
 
+### 4.2b Public value/event contract — `.value` + composed `feezal-*` events (U113)
+
+Scripts (`fzl.val` / `fzl.on`) and the **Form** element (`system-form`) read an
+element's value and react to user input **without reaching into its shadow
+root**. An element that takes user input should implement the contract:
+
+- **`.value` getter** (and a setter where sensible) exposing the current
+  value in its natural type — string for inputs/selects/radios, number for
+  sliders, boolean for checkboxes/switches.
+- **`feezal-change`** — a composed, bubbling `CustomEvent` dispatched on the
+  **host** when the **user** edits the value (not on MQTT-driven updates —
+  those are state, not input). `detail.value` carries the new value.
+- **`feezal-press`** — the same for buttons/FABs/icon-buttons, with
+  `detail.payload` = what the press publishes. Fires **with or without** a
+  publish topic (a form's submit button usually has none) — and never while
+  `disabled`.
+- Text inputs additionally re-dispatch `feezal-blur` / `feezal-keyup` /
+  `feezal-keydown` (`detail.key`) so scripts can do live validation,
+  Enter-to-submit and typeahead.
+- **State before publish:** update the internal value first, then publish if
+  a topic is set. Two elements used to `return` early without a topic and
+  therefore never tracked the user's edit — a form field has no topic.
+
+Use the shared helper so the event shape never drifts:
+
+```js
+import {feezalEmit} from '@feezal/feezal-element';
+
+_onInput(e) {
+    this._value = e.target.value;
+    if (this.publish) feezal.connection.pub(this.publish, this._value);
+    feezalEmit(this, 'change');             // detail.value = this.value
+}
+_click() {
+    if (this.disabled) return;
+    if (this.publish) feezal.connection.pub(this.publish, this.payload);
+    feezalEmit(this, 'press', {payload: this.payload});
+}
+```
+
+The curated list (pinned by `test-browser/feezal-value-contract.test.js`):
+material/carbon **input, select, slider, checkbox, switch**, material
+**radio, icon-button** (toggle mode has a boolean `.value`), and the
+material/carbon **button**, material **fab**, material **icon-button**
+presses. Every element on the list freezes public surface — extend the list
+deliberately (add the element to the test), don't blanket all families.
+
+**`feezal-id`** — every element gets this attribute for free (the generic
+inspector injects the field like `locked`; custom inspectors get it above
+their panel). It is NOT the HTML global `id`: no `getElementById` / CSS-`#`
+semantics, and **no uniqueness** — embedded clones and component instances
+copy it. `resolveFeezalId(id)` (same package) defines the resolution: the
+visible occurrence first, then document order. Elements never need to declare
+it; serialization leads every tag with it (`feezal-id` sorts before
+`label`/`subscribe`) and the Layers panel shows it as a chip.
+
 ### 4.3 `message-property` — single-topic elements
 
 Every element that subscribes to a topic must include the `message-property` attribute. It lets users extract a value from a nested JSON payload using dot-notation. The `FeezalElement` base class exposes this as `this.messageProperty` (default: `'payload'`).

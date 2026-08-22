@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css, numericPublishPayload, publishJsonKeyAttribute} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, feezalEmit, numericPublishPayload, publishJsonKeyAttribute} from '@feezal/feezal-element';
 import '@material/web/slider/slider.js';
 
 import {sliderDiscovery} from '@feezal/feezal-element/feezal-discovery-fragments.js';
@@ -133,11 +133,19 @@ class FeezalElementMaterialSlider extends FeezalElement {
         }
     }
 
+    // ── U113 public contract: .value + composed feezal-change ──────────────
+    // Scripts (fzl.val / fzl.on) and system-form read the value and listen
+    // here instead of reaching into the shadow root. feezal-change fires for
+    // USER edits only — MQTT-driven updates are state, not input.
+    get value() { return Number(this._value); }
+    set value(v) { const n = Number(v); if (!isNaN(n)) this._value = n; }
+
     _change(e) {
         this._value = e.target.value;
         if (this.publish) {
             feezal.connection.pub(this.publish, numericPublishPayload(this._value, this.publishJsonKey));
         }
+        feezalEmit(this, 'change');
     }
 
     render() {

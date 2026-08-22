@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, feezalEmit} from '@feezal/feezal-element';
 import '@material/web/checkbox/checkbox.js';
 
 import {switchAcceptsLight} from '@feezal/feezal-element/feezal-discovery-fragments.js';
@@ -133,10 +133,19 @@ class FeezalElementMaterialCheckbox extends FeezalElement {
         }
     }
 
+    // ── U113 public contract: .value + composed feezal-change ──────────────
+    // Scripts (fzl.val / fzl.on) and system-form read the value and listen
+    // here instead of reaching into the shadow root. feezal-change fires for
+    // USER edits only — MQTT-driven updates are state, not input.
+    get value() { return this._checked; }
+    set value(v) { this._checked = v === true || v === 1 || v === '1' || v === 'true' || v === this.payloadOn; }
+
     _onChange(e) {
-        if (!this.publish) return;
+        // State first — a checkbox without a publish topic (a form field)
+        // must still track what the user toggled.
         this._checked = e.target.checked;
-        feezal.connection.pub(this.publish, this._checked ? this.payloadOn : this.payloadOff);
+        if (this.publish) feezal.connection.pub(this.publish, this._checked ? this.payloadOn : this.payloadOff);
+        feezalEmit(this, 'change');
     }
 
     render() {

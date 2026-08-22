@@ -13,7 +13,7 @@
  */
 import {describe, it, expect} from 'vitest';
 import {createRequire} from 'module';
-import {IDENTIFYING_ATTRS, IDENTIFYING_DEFAULT} from '../src/feezal-app-editor.js';
+import {IDENTIFYING_ATTRS, IDENTIFYING_DEFAULT, IDENTIFYING_FIRST} from '../src/feezal-app-editor.js';
 
 const require = createRequire(import.meta.url);
 const server = require('../../server/src/format-html.js');
@@ -39,6 +39,11 @@ describe('identifying attributes: client ↔ server parity (U96)', () => {
         expect(Object.keys(IDENTIFYING_ATTRS).length).toBeGreaterThan(5);
         expect(IDENTIFYING_ATTRS['feezal-element-basic-icon']).toEqual(['icon', 'subscribe']);
         expect(IDENTIFYING_ATTRS['feezal-view']).toEqual(['name']);
+    });
+
+    it('U113: feezal-id leads EVERY element on both sides', () => {
+        expect(IDENTIFYING_FIRST).toEqual(['feezal-id']);
+        expect(server.IDENTIFYING_FIRST).toEqual(IDENTIFYING_FIRST);
     });
 
     it('no entry leads with `label` — that is what the default is for', () => {

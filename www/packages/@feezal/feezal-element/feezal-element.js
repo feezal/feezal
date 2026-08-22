@@ -753,5 +753,65 @@ export const feezalBoolean = {
     toAttribute:   v => (v ? 'true' : 'false')
 };
 
+// ── U113: public element contract — `.value` + composed feezal-* events ───
+
+/**
+ * U113 — dispatch a public, composed, bubbling `feezal-<type>` event from an
+ * element so scripts (fzl.on) and forms (system-form) can listen WITHOUT
+ * reaching into the shadow root. The detail always carries the element's
+ * current `value` (when it has one) so a listener never has to re-read it.
+ *
+ * Contract events:
+ *   feezal-change  — the value changed by USER interaction (inputs, selects,
+ *                    sliders, checkboxes, radios, switches). Not fired for
+ *                    MQTT-driven updates — those are state, not input.
+ *   feezal-press   — a button/FAB/icon-button was activated. detail.payload
+ *                    carries what the element would publish.
+ *   feezal-blur / feezal-keyup / feezal-keydown — text inputs re-dispatch the
+ *                    low-level editing events; detail.key carries the key.
+ */
+export function feezalEmit(el, type, detail = {}) {
+    const value = 'value' in el ? el.value : undefined;
+    el.dispatchEvent(new CustomEvent(`feezal-${type}`, {
+        bubbles: true, composed: true,
+        detail: {value, ...detail},
+    }));
+}
+
+/**
+ * U113 — every element (and shadow-embedded clone) carrying a `feezal-id`,
+ * in document order. Layout/dialog embeds stamp view clones into THEIR shadow
+ * roots, so a plain document.querySelectorAll would miss them — descend into
+ * the shadow root of every feezal element as well.
+ */
+export function feezalIdElements(root = document, id = null) {
+    const out = [];
+    const selector = id === null ? '[feezal-id]' : `[feezal-id="${String(id).replace(/"/g, '\\"')}"]`;
+    const walk = node => {
+        if (!node?.querySelectorAll) return;
+        for (const el of node.querySelectorAll(selector)) out.push(el);
+        for (const host of node.querySelectorAll('*')) {
+            if (host.shadowRoot && host.localName?.startsWith('feezal-')) walk(host.shadowRoot);
+        }
+    };
+    walk(root);
+    return out;
+}
+
+/**
+ * U113 — resolve ONE element by feezal-id: the VISIBLE occurrence first, then
+ * document order. Uniqueness is a lie on a feezal page (layout-app keeps warm
+ * clones of visited views, component instances stamp copies), so the lookup
+ * DEFINES the resolution instead of pretending ids are unique.
+ */
+export function resolveFeezalId(id, root = document) {
+    const all = feezalIdElements(root, id);
+    if (!all.length) return null;
+    const shown = all.filter(el => {
+        try { return el.checkVisibility ? el.checkVisibility() : true; } catch { return true; }
+    });
+    return shown[0] || all[0];
+}
+
 // Re-export so element files can do a single import.
 export {html, css};

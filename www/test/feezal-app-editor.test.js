@@ -489,6 +489,17 @@ describe('reorderIdentifyingAttributes (U92)', () => {
         expect(f.querySelector('feezal-element-basic-camera').outerHTML).toBe(before);
     });
 
+    it('U113: feezal-id leads, before label/subscribe and before a per-tag identity', () => {
+        const f = frag('<feezal-element-basic-camera class="c" subscribe="a/b" label="Hof" feezal-id="cam1">' +
+            '</feezal-element-basic-camera>' +
+            '<feezal-element-basic-icon style="s" icon="home" feezal-id="ico"></feezal-element-basic-icon>');
+        reorderIdentifyingAttributes(f);
+        expect(attrsOf(f, 'feezal-element-basic-camera'))
+            .toEqual(['feezal-id', 'label', 'subscribe', 'class']);
+        expect(attrsOf(f, 'feezal-element-basic-icon'))
+            .toEqual(['feezal-id', 'icon', 'style']);
+    });
+
     it('walks the whole tree, not just the top level', () => {
         const f = frag('<feezal-view style="s" name="v"><feezal-element-basic-number style="x" label="a">' +
             '</feezal-element-basic-number></feezal-view>');

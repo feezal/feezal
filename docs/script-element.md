@@ -41,6 +41,10 @@ function update() {
 | `fzl.mqtt.pub(topic, value, {retain})` | Publish to the **broker**. |
 | `fzl.onViewChange(view => {})` | Fires with the current view name immediately on registration and on every view switch (nav element, swipe, hash, MQTT). |
 | `fzl.log(...)` | `console.log` prefixed with the element's `name`. |
+| `fzl.el(feezalId)` | The element carrying that **`feezal-id`** (set in any element's inspector). Resolution: the **visible** occurrence first, then document order — embedded views and component instances hold copies, so ids are a lookup rule, not a uniqueness promise. `null` when missing. |
+| `fzl.val(feezalId)` / `fzl.val(feezalId, value)` | Read / set the element's public `.value` (inputs, selects, sliders, checkboxes, radios, switches). |
+| `fzl.on(feezalId, event, (detail, e) => {})` | Listen to the element's public events by feezal-id. Short names map to the contract events: `'change'` → `feezal-change` (`detail.value`), `'press'` → `feezal-press` (`detail.payload`), `'blur'` / `'keyup'` / `'keydown'` (`detail.key`). Also catches copies stamped later. Returns an **unsubscribe function**. |
+| `fzl.view()` / `fzl.view(name)` | Read the active view name / switch to a view. |
 
 Plain `setTimeout` / `setInterval`, `fetch`, `document`, `window` and the
 `feezal.*` globals are all simply available — the element isolates nothing.
@@ -50,6 +54,46 @@ payload starting with `{` or `[` arrives parsed (raw string if unparseable);
 numbers, booleans and bare strings arrive as **strings** — deliberately
 avoiding the `"1.5"` vs `1.5` ambiguity. Publishing mirrors this:
 objects/arrays are stringified, everything else passes through `String()`.
+
+## Cookbook — inputs + a button
+
+Two inputs and a button on the canvas; give them feezal-ids in the inspector
+(`name`, `email`, `send`). The elements need **no** publish topics — the
+script collects and publishes.
+
+**Collect and publish one JSON** (pure MQTT — the feezal way):
+
+```js
+fzl.on('send', 'press', () => {
+    fzl.mqtt.pub('forms/contact', {name: fzl.val('name'), email: fzl.val('email')});
+});
+```
+
+**Live validation + Enter-to-submit:**
+
+```js
+const ok = v => /@/.test(v || '');
+fzl.on('email', 'change', d => fzl.el('email').style.outline = ok(d.value) ? '' : '2px solid red');
+fzl.on('email', 'keydown', d => { if (d.key === 'Enter' && ok(d.value)) fzl.el('send').click(); });
+```
+
+**Webhook (escape hatch):** a plain `fetch` works, but the site's CSP must
+allow the host — add it to **`connect-src`** in Site Settings → Security,
+or the browser blocks the request.
+
+```js
+fzl.on('send', 'press', async () => {
+    await fetch('https://hooks.example.org/contact', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name: fzl.val('name'), email: fzl.val('email')}),
+    });
+    fzl.view('thanks');   // button-triggered view switch
+});
+```
+
+For a whole view as a form — fields by feezal-id, one JSON on submit, no
+script needed for the default case — use the **Form** element instead
+([form-element.md](form-element.md)).
 
 ## Execution model
 

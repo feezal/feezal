@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css, publishLocalAttribute} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, feezalEmit, publishLocalAttribute} from '@feezal/feezal-element';
 import '@material/web/iconbutton/icon-button.js';
 
 class FeezalElementMaterialIconButton extends FeezalElement {
@@ -97,14 +97,23 @@ class FeezalElementMaterialIconButton extends FeezalElement {
         }
     }
 
+    // ── U113 public contract ──
+    // toggle mode: .value is the on/off state and feezal-change fires on a
+    // tap; both modes fire feezal-press with the payload the tap publishes.
+    get value() { return this.toggle ? this._on : undefined; }
+    set value(v) { if (this.toggle) this._on = v === true || v === 1 || v === '1' || v === 'true' || v === this.payloadOn; }
+
     _onClick() {
-        if (!this.publish) return;
+        if (this.disabled) return;
+        let payload = this.payload;
         if (this.toggle) {
+            // State first — the toggle tracks its state with or without a topic.
             this._on = !this._on;
-            feezal.connection.pub(this.publish, this._on ? this.payloadOn : this.payloadOff, {local: this.publishLocal});
-        } else {
-            feezal.connection.pub(this.publish, this.payload, {local: this.publishLocal});
+            payload = this._on ? this.payloadOn : this.payloadOff;
         }
+        if (this.publish) feezal.connection.pub(this.publish, payload, {local: this.publishLocal});
+        feezalEmit(this, 'press', {payload});
+        if (this.toggle) feezalEmit(this, 'change');
     }
 
     render() {

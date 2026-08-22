@@ -1,6 +1,7 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 
-import {FeezalElementSystemScript, FZL_DTS} from '../packages/@feezal/feezal-element-system-script/feezal-element-system-script.js';
+import {FeezalElementSystemScript, FZL_DTS, FZL_EVENT_NAMES} from '../packages/@feezal/feezal-element-system-script/feezal-element-system-script.js';
+import {feezalEmit, resolveFeezalId} from '../packages/@feezal/feezal-element/feezal-element.js';
 
 const {deliverPayload, serializePayload} = FeezalElementSystemScript;
 
@@ -191,9 +192,99 @@ describe('source storage', () => {
     });
 });
 
+// U113 — scoped lookup by feezal-id, the public value/event contract.
+describe('fzl.el / fzl.val / fzl.on / fzl.view (U113)', () => {
+    /** A stand-in contract element: .value + composed feezal-change. */
+    class FakeField extends HTMLElement {
+        constructor() { super(); this._v = ''; }
+        get value() { return this._v; }
+        set value(v) { this._v = v; }
+    }
+    if (!customElements.get('x-fake-field')) customElements.define('x-fake-field', FakeField);
+
+    const field = (id, value = '') => {
+        const el = document.createElement('x-fake-field');
+        el.setAttribute('feezal-id', id);
+        el.value = value;
+        document.body.append(el);
+        return el;
+    };
+
+    it('fzl.el resolves by feezal-id, fzl.val reads and writes the public value', async () => {
+        const name = field('name', 'Ada');
+        await mount(`
+            fzl.pub('found', fzl.el('name') === document.querySelector('[feezal-id="name"]'));
+            fzl.pub('read', fzl.val('name'));
+            fzl.val('name', 'Grace');
+            fzl.pub('missing', String(fzl.el('nope')) + '/' + String(fzl.val('nope')));
+        `);
+        const by = topic => published.find(p => p.topic === topic)?.payload;
+        expect(by('found')).toBe('true');
+        expect(by('read')).toBe('Ada');
+        expect(name.value).toBe('Grace');
+        expect(by('missing')).toBe('null/undefined');
+    });
+
+    it('resolution prefers the VISIBLE occurrence, then document order', () => {
+        const hidden = field('dup', 'hidden');
+        hidden.style.display = 'none';
+        const shown = field('dup', 'shown');
+        expect(resolveFeezalId('dup')).toBe(shown);
+        shown.style.display = 'none';
+        expect(resolveFeezalId('dup')).toBe(hidden);   // none visible → first in document order
+    });
+
+    it('fzl.on maps short names onto the composed contract events and unsubscribes', async () => {
+        const name = field('name', 'x');
+        await mount(`
+            const off = fzl.on('name', 'change', d => fzl.pub('changed', d.value));
+            fzl.on('name', 'keydown', d => { if (d.key === 'Enter') fzl.pub('enter', d.value); });
+            fzl.sub('stop', () => off());
+        `);
+        name.value = 'Linus';
+        feezalEmit(name, 'change');
+        expect(published.find(p => p.topic === 'changed')?.payload).toBe('Linus');
+        feezalEmit(name, 'keydown', {key: 'Enter'});
+        expect(published.find(p => p.topic === 'enter')?.payload).toBe('Linus');
+
+        deliver('stop', '1');
+        const before = published.length;
+        feezalEmit(name, 'change');
+        expect(published.length).toBe(before);
+    });
+
+    it('fzl.on also sees a copy of the element stamped AFTER the script ran', async () => {
+        await mount(`fzl.on('late', 'press', d => fzl.pub('pressed', d.payload));`);
+        const late = field('late');
+        feezalEmit(late, 'press', {payload: 'go'});
+        expect(published.find(p => p.topic === 'pressed')?.payload).toBe('go');
+    });
+
+    it('FZL_EVENT_NAMES covers the five contract events', () => {
+        expect(FZL_EVENT_NAMES).toEqual({
+            change: 'feezal-change', press: 'feezal-press',
+            blur: 'feezal-blur', keyup: 'feezal-keyup', keydown: 'feezal-keydown',
+        });
+    });
+
+    it('fzl.view reads and switches the active view through feezal.site', async () => {
+        const site = {view: 'home'};
+        feezal.site = site;
+        await mount(`
+            fzl.pub('before', fzl.view());
+            fzl.view('kitchen');
+            fzl.pub('after', fzl.view());
+        `);
+        expect(published.find(p => p.topic === 'before')?.payload).toBe('home');
+        expect(site.view).toBe('kitchen');
+        expect(published.find(p => p.topic === 'after')?.payload).toBe('kitchen');
+        delete feezal.site;
+    });
+});
+
 describe('typedefs export', () => {
     it('FZL_DTS declares the full fzl API for Monaco completions', () => {
-        for (const member of ['sub(', 'pub(', 'mqtt', 'onViewChange(', 'log(']) {
+        for (const member of ['sub(', 'pub(', 'mqtt', 'onViewChange(', 'log(', 'el(', 'val(', 'on(', 'view(']) {
             expect(FZL_DTS).toContain(member);
         }
     });

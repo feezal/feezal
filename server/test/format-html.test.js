@@ -249,6 +249,15 @@ describe('formatHtml — identifying attributes lead the tag line (U92)', () => 
         expect(line).not.toContain('publish="c/d"');
     });
 
+    it('U113: joins feezal-id, label AND subscribe — three, when the id leads', async () => {
+        const out = await fmt(wrap(`<feezal-element-basic-camera feezal-id="cam" label="Hof" subscribe="a/b" publish="c/d" ${bulk}></feezal-element-basic-camera>`));
+        const line = tagLine(out, 'feezal-element-basic-camera');
+        expect(line).toContain('feezal-id="cam"');
+        expect(line).toContain('label="Hof"');
+        expect(line).toContain('subscribe="a/b"');
+        expect(line).not.toContain('publish="c/d"');
+    });
+
     it('is a fixed point — a joined line is recognised as already done', async () => {
         const once = await fmt(wrap(`<feezal-element-basic-camera label="Hof" subscribe="frigate/hof" ${bulk}></feezal-element-basic-camera>`));
         expect(await fmt(once)).toBe(once);

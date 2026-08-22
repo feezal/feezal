@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, resolveFeezalId} from '@feezal/feezal-element';
 import {LitElement} from 'lit';
 
 /**
@@ -68,8 +68,117 @@ declare const fzl: {
     onViewChange(callback: (viewName: string) => void): void;
     /** console.log prefixed with this script element's name. */
     log(...args: any[]): void;
+    /**
+     * The element carrying this feezal-id (set in the inspector). Resolution:
+     * the VISIBLE occurrence first, then document order — embedded/cloned
+     * views may hold copies. null when none exists.
+     */
+    el(feezalId: string): HTMLElement | null;
+    /**
+     * Read (one argument) or set (two arguments) the public .value of the
+     * element with this feezal-id — inputs, selects, sliders, checkboxes,
+     * radios, switches. undefined when the element is missing.
+     */
+    val(feezalId: string, value?: any): any;
+    /**
+     * Listen to an element's public events by feezal-id. Short names map to
+     * the contract events: 'change' → feezal-change, 'press' → feezal-press,
+     * 'blur' / 'keyup' / 'keydown' → feezal-blur / -keyup / -keydown. The
+     * callback gets (detail, event); detail.value is the current value,
+     * detail.key the key for keyboard events. Works for copies stamped later.
+     * @returns a function that removes the listener
+     */
+    on(feezalId: string, event: 'change' | 'press' | 'blur' | 'keyup' | 'keydown' | string,
+       callback: (detail: any, event: CustomEvent) => void): () => void;
+    /** Read the active view name (no argument) or switch to a view (name). */
+    view(name?: string): string;
 };
 `;
+
+/** fzl.on short names → the composed contract events (prefixed names pass through). */
+export const FZL_EVENT_NAMES = {
+    change: 'feezal-change', press: 'feezal-press',
+    blur: 'feezal-blur', keyup: 'feezal-keyup', keydown: 'feezal-keydown',
+};
+
+/**
+ * The `fzl` API object, shared by every script host (system-script, E178
+ * system-form). `prefix` names the host in console output; `onViewChange`
+ * is the host's view-change hook (a form host may omit it).
+ */
+export function createFzl({prefix = '[feezal-script]', onViewChange = null} = {}) {
+    const deliver = FeezalElementSystemScript.deliverPayload;
+    const serialize = FeezalElementSystemScript.serializePayload;
+
+    return {
+        sub: (topic, callback) => {
+            // Registers directly with the connection — not gated by
+            // dynamic-subscriptions; scripts run independent of views.
+            const sub = feezal.connection.sub(topic, msg => {
+                try {
+                    callback(deliver(msg.payload), msg.topic);
+                } catch (err) {
+                    console.error(prefix, 'uncaught error in sub callback:', err);
+                }
+            });
+            return () => feezal.connection.unsubscribe(sub);
+        },
+
+        pub: (topic, value) => {
+            // Page-local, no retain — nothing replays it (decided).
+            feezal.connection.pub(topic, serialize(value), {local: true});
+        },
+
+        mqtt: {
+            pub: (topic, value, options = {}) => {
+                feezal.connection.pub(topic, serialize(value), {retain: options.retain === true});
+            },
+        },
+
+        onViewChange: callback => onViewChange?.(callback),
+
+        log: (...args) => console.log(prefix, ...args),
+
+        // ── U113: scoped lookup by feezal-id ──
+        el: feezalId => resolveFeezalId(feezalId),
+
+        val: (feezalId, ...rest) => {
+            const el = resolveFeezalId(feezalId);
+            if (!el) return undefined;
+            if (rest.length) {
+                el.value = rest[0];
+                return rest[0];
+            }
+            return el.value;
+        },
+
+        on: (feezalId, event, callback) => {
+            const type = FZL_EVENT_NAMES[event] || event;
+            // Listen at the document: the contract events are composed and
+            // bubble, and a document-level listener also covers copies of
+            // the element stamped AFTER the script ran (N40 clones, U32
+            // component instances) — the filter is the id, not the node.
+            const handler = e => {
+                const host = e.composedPath?.().find(n => n?.getAttribute?.('feezal-id') === feezalId)
+                    ?? (e.target?.getAttribute?.('feezal-id') === feezalId ? e.target : null);
+                if (!host) return;
+                try {
+                    callback(e.detail ?? {}, e);
+                } catch (err) {
+                    console.error(prefix, 'uncaught error in on() callback:', err);
+                }
+            };
+            document.addEventListener(type, handler);
+            return () => document.removeEventListener(type, handler);
+        },
+
+        view: (...rest) => {
+            const site = feezal.site || document.querySelector('feezal-site');
+            if (rest.length && site) site.view = rest[0];
+            return site?.view ?? site?.getAttribute?.('view') ?? '';
+        },
+    };
+}
 
 class FeezalElementSystemScript extends FeezalElement {
     static get feezal() {
@@ -199,39 +308,7 @@ class FeezalElementSystemScript extends FeezalElement {
 
     /** Build the per-script fzl API object. */
     makeFzl() {
-        const prefix = this.logPrefix;
-        const deliver = FeezalElementSystemScript.deliverPayload;
-        const serialize = FeezalElementSystemScript.serializePayload;
-
-        return {
-            sub: (topic, callback) => {
-                // Registers directly with the connection — not gated by
-                // dynamic-subscriptions; scripts run independent of views.
-                const sub = feezal.connection.sub(topic, msg => {
-                    try {
-                        callback(deliver(msg.payload), msg.topic);
-                    } catch (err) {
-                        console.error(prefix, 'uncaught error in sub callback:', err);
-                    }
-                });
-                return () => feezal.connection.unsubscribe(sub);
-            },
-
-            pub: (topic, value) => {
-                // Page-local, no retain — nothing replays it (decided).
-                feezal.connection.pub(topic, serialize(value), {local: true});
-            },
-
-            mqtt: {
-                pub: (topic, value, options = {}) => {
-                    feezal.connection.pub(topic, serialize(value), {retain: options.retain === true});
-                },
-            },
-
-            onViewChange: callback => this._onViewChange(callback),
-
-            log: (...args) => console.log(prefix, ...args),
-        };
+        return createFzl({prefix: this.logPrefix, onViewChange: cb => this._onViewChange(cb)});
     }
 
     _onViewChange(callback) {
@@ -348,8 +425,10 @@ class FeezalElementSystemScriptInspector extends LitElement {
                 the viewer (or publish to <code>&lt;site&gt;/reload</code>) to apply edits.
                 API: <code>fzl.sub(topic, cb)</code> · <code>fzl.pub(topic, value)</code> (page-local)
                 · <code>fzl.mqtt.pub(topic, value, {retain})</code> · <code>fzl.onViewChange(cb)</code>
-                · <code>fzl.log(…)</code>. Full DOM access; broker publishes fire once per
-                connected viewer.
+                · <code>fzl.log(…)</code> · <code>fzl.el(id)</code> / <code>fzl.val(id)</code> /
+                <code>fzl.on(id, 'change' | 'press', cb)</code> — elements by their
+                <code>feezal-id</code> (set in the inspector) · <code>fzl.view(name)</code>.
+                Full DOM access; broker publishes fire once per connected viewer.
             </div>
         `;
     }

@@ -1,5 +1,5 @@
 /* global feezal */
-import {FeezalElement, feezalBaseStyles, html, css, publishLocalAttribute} from '@feezal/feezal-element';
+import {FeezalElement, feezalBaseStyles, html, css, feezalEmit, publishLocalAttribute} from '@feezal/feezal-element';
 import '@material/web/button/filled-button.js';
 import '@material/web/button/outlined-button.js';
 import '@material/web/button/text-button.js';
@@ -146,6 +146,10 @@ class FeezalElementMaterialButton extends FeezalElement {
         if (this.publish) {
             feezal.connection.pub(this.publish, this.payload, {local: this.publishLocal});
         }
+        // U113 public contract: a composed feezal-press for scripts/forms —
+        // fires with or without a publish topic (a form's submit button
+        // usually has none).
+        feezalEmit(this, 'press', {payload: this.payload});
     }
 
     _iconSlot() {
