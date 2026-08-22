@@ -1,0 +1,11 @@
+{
+    "name": "@feezal/feezal-element-glass-audio",
+    "version": "3.0.0",
+    "main": "feezal-element-glass-audio.js",
+    "license": "MIT",
+    "dependencies": {
+        "@feezal/feezal-element": "*",
+        "@feezal/feezal-glass": "*",
+        "@feezal/feezal-controller-audio": "*"
+    }
+}

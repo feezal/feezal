@@ -320,6 +320,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [E178 — system-form: a subview as a web form (decided core, script API to refine) ✅ shipped](E178.md)
 - [E186 — wiim2mqtt: media autodiscovery (and the source/preset gap it exposes) ✅ shipped](E186.md)
 - [E187 — New elements: glass/metro/circle-remote (webOS TV remote for lgtv2mqtt) ✅ shipped](E187.md)
+- [E188 — LG soundbar (lgsb2mqtt): media card + a separate audio/EQ element — analysis ✅ shipped](E188.md)
 
 ## Editor UX
 

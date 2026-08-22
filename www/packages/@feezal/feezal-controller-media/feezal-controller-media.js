@@ -376,6 +376,14 @@ export class MediaController {
         this.presetMax  = null;  // number of preset slots
     }
 
+    /**
+     * E188: transport degrades when unwired — a soundbar reports play state
+     * and metadata but has NO transport set topics, so its card is a
+     * renderer, not a player. Views hide the transport buttons (the editor
+     * keeps showing them as a placeholder).
+     */
+    get hasTransport() { return Boolean(this._attr('publish-command')) || Boolean(feezal?.isEditor); }
+
     /** E186: the source select is meaningful once a source or list topic is wired. */
     get hasSource() { return Boolean(this._attr('subscribe-source') || this._attr('subscribe-source-list')); }
 

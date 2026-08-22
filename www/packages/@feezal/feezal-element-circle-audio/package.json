@@ -1,0 +1,10 @@
+{
+    "name": "@feezal/feezal-element-circle-audio",
+    "version": "3.0.0",
+    "main": "feezal-element-circle-audio.js",
+    "license": "MIT",
+    "dependencies": {
+        "@feezal/feezal-element": "*",
+        "@feezal/feezal-controller-audio": "*"
+    }
+}

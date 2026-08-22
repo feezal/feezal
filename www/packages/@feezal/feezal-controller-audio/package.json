@@ -1,0 +1,6 @@
+{
+    "name": "@feezal/feezal-controller-audio",
+    "version": "3.0.0",
+    "main": "feezal-controller-audio.js",
+    "license": "MIT"
+}

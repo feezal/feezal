@@ -442,9 +442,10 @@ class FeezalElementCircleMedia extends FeezalElement {
                                    @error="${e => { e.target.style.display = 'none'; }}">`
                             : html`<span class="mi">album</span>`}
                     </div>
+                    ${m.hasTransport ? html`
                     <button class="disc-play" title="Play/Pause" @click="${() => m.togglePlay()}">
                         <span class="mi">${m.isPlaying ? 'pause' : 'play_arrow'}</span>
-                    </button>
+                    </button>` : ''}
                 </div>
             ` : ''}
 
@@ -462,6 +463,7 @@ class FeezalElementCircleMedia extends FeezalElement {
                 </div>
             ` : ''}
 
+            ${m.hasTransport ? html`
             <div class="transport">
                 <button title="Previous" @click="${() => m.previous()}"><span class="mi">skip_previous</span></button>
                 <button title="Rewind" @click="${() => m.rewind()}"><span class="mi">fast_rewind</span></button>
@@ -477,6 +479,7 @@ class FeezalElementCircleMedia extends FeezalElement {
                     </button>
                 ` : ''}
             </div>
+            ` : ''}
 
             ${this.showSource && m.hasSource ? html`
                 <div class="src-row">

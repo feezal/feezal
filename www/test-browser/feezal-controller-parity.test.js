@@ -90,6 +90,11 @@ import '../packages/@feezal/feezal-element-glass-remote/feezal-element-glass-rem
 import '../packages/@feezal/feezal-element-metro-remote/feezal-element-metro-remote.js';
 import '../packages/@feezal/feezal-element-circle-remote/feezal-element-circle-remote.js';
 import {REMOTE_CONSUMED_ATTRIBUTES} from '../packages/@feezal/feezal-controller-remote/feezal-controller-remote.js';
+// E188: the audio family over the audio controller.
+import '../packages/@feezal/feezal-element-glass-audio/feezal-element-glass-audio.js';
+import '../packages/@feezal/feezal-element-metro-audio/feezal-element-metro-audio.js';
+import '../packages/@feezal/feezal-element-circle-audio/feezal-element-circle-audio.js';
+import {AUDIO_CONSUMED_ATTRIBUTES} from '../packages/@feezal/feezal-controller-audio/feezal-controller-audio.js';
 import '../packages/@feezal/feezal-element-metro-value/feezal-element-metro-value.js';
 // E139: the Fancy family adopts five controllers + lock — all six register.
 import '../packages/@feezal/feezal-elements-fancy/index.js';
@@ -171,6 +176,11 @@ const CASES = [
     {tag: 'feezal-element-glass-remote',  consumed: REMOTE_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-metro-remote',  consumed: REMOTE_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-circle-remote', consumed: REMOTE_CONSUMED_ATTRIBUTES},
+    // E188: the audio processor, shared by three families (metro takes
+    // `label` from MetroTileBase.tileAttributes, not the fragment).
+    {tag: 'feezal-element-glass-audio',  consumed: AUDIO_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-metro-audio',  consumed: AUDIO_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-circle-audio', consumed: AUDIO_CONSUMED_ATTRIBUTES},
 ];
 
 describe('E137 — adopting elements declare the full controller contract', () => {

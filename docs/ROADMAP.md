@@ -68,7 +68,6 @@ Work in progress — priorities and scope are not final.
 - [E180 — Glass cards: Home.app interaction model (icon = main action, card = details)](#e180--glass-cards-homeapp-interaction-model-icon--main-action-card--details)
 - [E181 — Mini glass cards: circular icon-only size preset](#e181--mini-glass-cards-circular-icon-only-size-preset)
 - [E184 — Standard card surfaces: static / interactive-off / active / alarm (glass, then metro)](#e184-standard-card-surfaces-static-interactive-off-active-alarm-glass-then-metro)
-- [E188 — LG soundbar (lgsb2mqtt): media card + a separate audio/EQ element — analysis](#e188-lg-soundbar-lgsb2mqtt-media-card-a-separate-audio-eq-element-analysis)
 
 **Editor UX**
 
@@ -3046,63 +3045,6 @@ surfaces, and inversion already means "active").
 E180 (Home.app interaction model — same question of what reads as
 interactive), B121 (popup frost = card frost), E124 (battery/sabotage
 plumbing the alarm state can reuse), E138 (what "active" means per card).
-
-
-### E188 — LG soundbar (lgsb2mqtt): media card + a separate audio/EQ element — analysis
-
-**Asked (08/2026):** should [lgsb2mqtt](https://github.com/hobbyquaker/lgsb2mqtt)
-be supported by `*-media`, by `*-remote`, or both?
-
-**What the bridge exposes (read from its README):** mqtt-smarthome,
-prefix = `--name` (default `soundbar`), `{"val":…}` payloads by default.
-- **Media-ish:** `volume` (+`volume/min`,`volume/max`), `mute`,
-  `play/state`, `play/position`, `play/duration`, `play/title`,
-  `play/artist`, `play/album`, `audio_source`.
-- **Audio processor:** `eq` + `eq_list` (AI Sound Pro, Standard, Cinema,
-  Music, Game …), `bass`, `treble`, and the per-channel levels `woofer`,
-  `rear_level`, `top_level`, `center_level`, `side_level`,
-  `dialog_level` — each with its own `<item>/min` and `<item>/max`
-  topics — plus the flags `night_mode`, `auto_volume`, `drc`,
-  `auto_power`, `tv_remote`, `neuralx`, `rear` and `av_sync` (ms).
-- **Routing:** `input` + `input_list` (E-ARC, HDMI, Bluetooth, Wifi,
-  Optical …).
-- `power` (read-only; the bar is unreachable while off — availability
-  comes from `connected`).
-
-**Answer — media YES, remote NO, plus one new element.**
-1. **`*-media` covers the media half** and should autodiscover it: a
-   card with volume/mute, the play metadata while streaming, and the
-   `input` select (the shared source/input capability E186 also needs).
-   Caveat to respect: the soundbar has **no transport set topics** —
-   `play/state` is read-only — so the recognizer must NOT stamp a
-   command topic; the card renders without transport buttons (a media
-   card that is a renderer, not a player). That is a good test of the
-   contract: transport must degrade gracefully when unwired.
-2. **`*-remote` is the wrong home.** A remote is button-driven and
-   stateless; a soundbar is state-driven (levels, modes, ranges). Do not
-   force it in.
-3. **New `*-audio` element (working name) for the processor half:** the
-   EQ/sound-mode select from `eq_list`, bass/treble and the per-channel
-   level sliders — each honouring its `<item>/min`/`max` topics, which
-   differ per model — and the boolean flags as toggles, with `av_sync`
-   as a millisecond slider. **Everything must be capability-driven**:
-   render only the channels/modes the device actually reports, because
-   the item set depends on the model (verified on a DS90QY; others lack
-   some). An alternative worth weighing at implementation: make it the
-   media card's "audio settings" popup instead of a separate element
-   (E171 popup machinery) — that keeps one card per device, at the cost
-   of a very busy popup. Leaning to a separate element that can also
-   stand alone next to a TV card.
-
-**Shared conclusion across all three bridges:** WiiM `source`, soundbar
-`input` and TV `output` are the same pattern — a current value plus a
-list topic plus a set topic. Add it ONCE to the media contract
-(`subscribe-source` / `subscribe-source-list` / `publish-source`) rather
-than three times.
-
-**Relates:** E186 (WiiM — same source/list pattern, same mqtt-smarthome
-payload shape), E187 (LG TV remote — sound output), E182 (media contract),
-E171 (popup, if the audio settings live there), U104 (list editor).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches

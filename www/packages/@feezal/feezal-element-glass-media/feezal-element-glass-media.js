@@ -234,6 +234,7 @@ class FeezalElementGlassMedia extends FeezalElement {
                         <div class="times"><span>${fmtTime(m.position ?? 0)}</span><span>${fmtTime(duration)}</span></div>
                     ` : ''}
 
+                    ${m.hasTransport ? html`
                     <div class="transport">
                         <button title="Previous" @click="${() => m.previous()}"><span class="mi">skip_previous</span></button>
                         <button class="play" title="Play/Pause" @click="${() => m.togglePlay()}">
@@ -250,6 +251,7 @@ class FeezalElementGlassMedia extends FeezalElement {
                             </button>
                         ` : ''}
                     </div>
+                    ` : ''}
 
                     ${this.showSource && m.hasSource ? html`
                         <div class="src-row">

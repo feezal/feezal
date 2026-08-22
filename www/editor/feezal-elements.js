@@ -25,6 +25,7 @@ import '@feezal/feezal-element-carbon-select';
 import '@feezal/feezal-element-carbon-slider';
 import '@feezal/feezal-element-carbon-switch';
 import '@feezal/feezal-element-circle-alarm';
+import '@feezal/feezal-element-circle-audio';
 import '@feezal/feezal-element-circle-climate';
 import '@feezal/feezal-element-circle-contact';
 import '@feezal/feezal-element-circle-cover';
@@ -63,6 +64,7 @@ import '@feezal/feezal-element-eink-sensor';
 import '@feezal/feezal-element-eink-switch';
 import '@feezal/feezal-element-eink-value';
 import '@feezal/feezal-element-eink-wled';
+import '@feezal/feezal-element-glass-audio';
 import '@feezal/feezal-element-glass-button';
 import '@feezal/feezal-element-glass-camera';
 import '@feezal/feezal-element-glass-climate';
@@ -117,6 +119,7 @@ import '@feezal/feezal-element-material-slider';
 import '@feezal/feezal-element-material-switch';
 import '@feezal/feezal-element-material-tank';
 import '@feezal/feezal-element-material-time-picker';
+import '@feezal/feezal-element-metro-audio';
 import '@feezal/feezal-element-metro-button';
 import '@feezal/feezal-element-metro-climate';
 import '@feezal/feezal-element-metro-contact';
@@ -216,6 +219,7 @@ window.feezal.elements = [
   "feezal-element-carbon-slider",
   "feezal-element-carbon-switch",
   "feezal-element-circle-alarm",
+  "feezal-element-circle-audio",
   "feezal-element-circle-climate",
   "feezal-element-circle-contact",
   "feezal-element-circle-cover",
@@ -254,6 +258,7 @@ window.feezal.elements = [
   "feezal-element-eink-switch",
   "feezal-element-eink-value",
   "feezal-element-eink-wled",
+  "feezal-element-glass-audio",
   "feezal-element-glass-button",
   "feezal-element-glass-camera",
   "feezal-element-glass-climate",
@@ -308,6 +313,7 @@ window.feezal.elements = [
   "feezal-element-material-switch",
   "feezal-element-material-tank",
   "feezal-element-material-time-picker",
+  "feezal-element-metro-audio",
   "feezal-element-metro-button",
   "feezal-element-metro-climate",
   "feezal-element-metro-contact",
