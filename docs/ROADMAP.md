@@ -11,6 +11,7 @@ Work in progress — priorities and scope are not final.
 - [B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces](#b106--discovery-ids-is-space-separated-but-mqtt-topics-may-contain-spaces)
 - [B118 — Undo dead after deleting via the layers-tree context menu (until the canvas is clicked)](#b118--undo-dead-after-deleting-via-the-layers-tree-context-menu-until-the-canvas-is-clicked)
 - [B127 — Copy/paste of template elements loses the template content (B31 regression class)](#b127--copypaste-of-template-elements-loses-the-template-content-b31-regression-class)
+- [B130 — *-remote does not autodiscover an lgtv2mqtt television](#b130-remote-does-not-autodiscover-an-lgtv2mqtt-television)
 
 
 **Near-term Improvements**
@@ -68,6 +69,8 @@ Work in progress — priorities and scope are not final.
 - [E180 — Glass cards: Home.app interaction model (icon = main action, card = details)](#e180--glass-cards-homeapp-interaction-model-icon--main-action-card--details)
 - [E181 — Mini glass cards: circular icon-only size preset](#e181--mini-glass-cards-circular-icon-only-size-preset)
 - [E184 — Standard card surfaces: static / interactive-off / active / alarm (glass, then metro)](#e184-standard-card-surfaces-static-interactive-off-active-alarm-glass-then-metro)
+- [E189 — glass-media: tall sizes, proportional art, and a details popup (minimal front)](#e189-glass-media-tall-sizes-proportional-art-and-a-details-popup-minimal-front)
+- [E190 — *-remote: reorder the controls when the card is wider than tall](#e190-remote-reorder-the-controls-when-the-card-is-wider-than-tall)
 
 **Editor UX**
 
@@ -419,6 +422,54 @@ contents must never be overwritten by a merged value).
 **Relates:** B31 (the original fix + its too-narrow test), U92/B105
 (source formatter — must preserve template bodies), N6 (template
 textarea editor), U109 (view clipboard — same serialization concerns).
+
+
+### B130 — *-remote does not autodiscover an lgtv2mqtt television
+
+**Reported (08/2026).** The shipped `glass/metro/circle-remote` cards do
+not appear in / are not offered by autodiscovery for a running
+lgtv2mqtt.
+
+**Diagnosis (verified in the tree, not guessed):** discovery for the TV
+was never built — this is a gap, not a regression.
+1. **No recognizer exists.** `server/src/mqtt/recognizers/` holds
+   alexa, wiim, lgsb, wled, evcc, frigate, scrypted, homematic — there
+   is no `lgtv.js`, and nothing is registered for it in
+   `native-discovery.js`.
+2. **The remote elements declare no `discovery` descriptor at all** —
+   neither the family views nor `@feezal/feezal-controller-remote`
+   carry one, so even a recognizer would have nothing to stamp into.
+   The E187 archive entry never mentions discovery either: the family
+   shipped as manually-wired elements.
+
+**What it needs (both halves):**
+- **`recognizers/lgtv.js`** synthesizing one `remote` entity per TV.
+  Prefix = the bridge's `--name` (default `lgtv`), configurable — so
+  learn it rather than hardcoding, the way the alexa recognizer does.
+  Fingerprint: lgtv2mqtt publishes very few status topics
+  (`<p>/status/volume`, `/mute`, `/output`, `/foregroundApp`,
+  `/currentChannel`) plus `<p>/connected` = 0/1/2 — `foregroundApp` is
+  the distinctive one and makes a safe anchor (paired with `connected`
+  to avoid matching a foreign `x/status/volume` tree).
+- **A `remoteDiscoveryMap`** on the controller mapping the config keys
+  onto the remote contract: the button command topic
+  (`<p>/set/button`), launch (`<p>/set/launch`), volume/mute
+  (`<p>/set/volume`, `<p>/set/mute` + their status topics), sound
+  output (`<p>/set/output`, `<p>/status/output`), `foregroundApp` as
+  the active-app state, and `<p>/connected` as availability.
+- Since the TV also carries volume/mute, decide whether the pick offers
+  ONLY a remote or also a media card (the same device answering two
+  components) — the picker already handles multiple candidate
+  components elsewhere; document which is the default.
+
+**Test:** a server recognizer suite like the alexa one (default prefix,
+learned custom prefix, no false positives on a similar tree) plus a
+contract test that every discovery target is a declared remote
+attribute.
+
+**Relates:** E187 (the remote family this completes), E182 (the media
+recognizer pattern to copy), E186/E188 (wiim + lgsb recognizers, both
+shipped with discovery — the TV is the odd one out).
 
 
 ### N12 — Export bundle: strip mqtt.js for feezal-bridge users *(partial)*
@@ -3045,6 +3096,83 @@ surfaces, and inversion already means "active").
 E180 (Home.app interaction model — same question of what reads as
 interactive), B121 (popup frost = card frost), E124 (battery/sabotage
 plumbing the alarm state can reuse), E138 (what "active" means per card).
+
+
+### E189 — glass-media: tall sizes, proportional art, and a details popup (minimal front)
+
+**Requested (08/2026)** after living with the card:
+
+- **New size presets `4x3`, `4x4`, `6x3`** beside the existing 4x2 / 6x2
+  / 2x2 / 4x1. Family grid is 81px unit + 10px gutter, so widths stay
+  354 / 536 and the new heights are 3 -> 263 and 4 -> 354 (same
+  formula), i.e. `4x3` = 354x263, `4x4` = 354x354, `6x3` = 536x263.
+- **The album cover must not scale with the card.** Today it is
+  `height: 100%` capped at `--feezal-glass-media-art-size` (45%), which
+  on a tall card produces an enormous square. It should grow only to a
+  sensible maximum and then stop, leaving the extra height to the
+  content — the taller the card, the MORE room metadata and controls
+  get, not the cover.
+- **Better use of the space that frees up**: on tall cards the layout
+  can go two-row (cover + metadata on top, controls below), show the
+  seek bar, and let long titles wrap to two lines instead of
+  ellipsizing.
+- **A details popup** (the family machinery already exists — E171
+  shipped `glassPopupStyles` / `glassPopupKnobs` / the backdrop and
+  morph animation, and every other glass card uses it) holding the FULL
+  control set: seek, volume + mute, shuffle/repeat, source select and
+  the preset/playlist row.
+- **Minimal front, per the WiiM use case:** ideally the card face shows
+  only **prev / play-pause / next** (plus optionally the playlist/preset
+  buttons), with everything else living in the popup. So the existing
+  `show-*` toggles need a companion notion of "front vs popup" rather
+  than just on/off — suggestion: a `controls` select
+  (`minimal | standard | full`) that presets which controls sit on the
+  face, with the individual `show-*` knobs still able to override, and
+  everything not on the face reachable in the popup.
+
+**Caveats:** the popup must follow the card surface (B121 parity) and,
+once E180 lands, its opening gesture is the card body while the icon
+keeps the main action — this item should not invent a competing
+interaction. Keep `4x1` honest: at 86px height a popup is the ONLY place
+the secondary controls can live. Metro/circle are not in scope here,
+though the same "front vs popup/back" split maps onto metro's flip tile.
+
+**Relates:** E183 (the card itself), E171 (popup machinery incl. the
+backdrop + morph), E180 (interaction model), B121 (popup frost parity),
+E186 (source/preset capability whose UI needs somewhere to live).
+
+
+### E190 — *-remote: reorder the controls when the card is wider than tall
+
+**Requested (08/2026).** A remote card is designed portrait — D-pad
+stack, transport, number grid. Dragged WIDE it should not merely
+stretch: the control groups should re-flow into a landscape
+arrangement.
+
+**Direction (refine at implementation):**
+- Detect the aspect from the ELEMENT, not the viewport — a card can be
+  any size inside any view. `container-type: inline-size` plus a
+  container query, or the ResizeObserver pattern layout-app already
+  uses for its rail zones.
+- **Landscape arrangement:** the groups sit side by side instead of
+  stacked — e.g. D-pad left, transport and volume centre, app shortcuts
+  and the number pad right — so the D-pad stays thumb-reachable on a
+  wall tablet instead of the whole remote becoming a thin strip.
+- **A re-flow, not a different remote:** `compact` / `large` stays
+  independent, and landscape rearranges only the groups the user
+  actually enabled. A card configured with just a D-pad must not sprout
+  new groups because it got wide.
+- Group ORDER stays configurable (the list editor defines what exists);
+  landscape decides the arrangement, the configuration decides the
+  content.
+- Square-ish cards keep the portrait arrangement: one threshold, no
+  in-between mode, and no flicker at the boundary — give it hysteresis
+  the way the layout-app rail breakpoints do.
+
+**Relates:** E187 (the remote family), U104 (the list editor defining
+the button set), layout-app rail breakpoints (the element-width
+detection and no-flicker pattern to copy), B130 (the TV discovery gap —
+same family).
 
 
 ### A36 — Server API layer: decompose the monolith, one error contract, bounded caches
