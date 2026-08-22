@@ -165,3 +165,51 @@ describe('state reflection', () => {
         expect([...el.subs.keys()]).toEqual(['b/volume']);
     });
 });
+
+
+// ---------------------------------------------------------------------------
+// B130 — discovery map; E190 — landscape hysteresis
+
+import {remoteDiscoveryMap, nextLandscape, ASPECT_WIDE, ASPECT_TALL} from '../packages/@feezal/feezal-controller-remote/feezal-controller-remote.js';
+
+describe('discovery map (B130)', () => {
+    it('every discovery target is a declared remote attribute, and the lgtv keys are all covered', () => {
+        const names = new Set(remoteAttributes.map(a => a.name));
+        for (const [key, target] of Object.entries(remoteDiscoveryMap)) {
+            if (key === 'name') continue;   // label is declared by each VIEW (metro takes it from the tile rows)
+            expect(names.has(typeof target === 'string' ? target : target.attr), key).toBe(true);
+        }
+        expect(remoteDiscoveryMap.command_base_topic).toBe('publish');
+        expect(remoteDiscoveryMap.app_topic).toBe('subscribe-app');
+        expect(remoteDiscoveryMap.output_topic).toBe('subscribe-output');
+        expect(remoteDiscoveryMap.volume_topic).toBe('subscribe-volume');
+        expect(remoteDiscoveryMap.mute_topic).toBe('subscribe-mute');
+    });
+});
+
+describe('landscape hysteresis (E190)', () => {
+    it('goes landscape above the wide threshold and back only below the tall one', () => {
+        expect(ASPECT_WIDE).toBeGreaterThan(ASPECT_TALL);
+        expect(nextLandscape(false, 300, 300)).toBe(false);
+        expect(nextLandscape(false, 300 * 1.3, 300)).toBe(false);    // not yet
+        expect(nextLandscape(false, 300 * 1.4, 300)).toBe(true);
+        expect(nextLandscape(true, 300 * 1.2, 300)).toBe(true);      // stays — hysteresis
+        expect(nextLandscape(true, 300 * 1.1, 300)).toBe(false);
+        expect(nextLandscape(true, 0, 0)).toBe(true);                // no box → unchanged
+    });
+
+    it('setAspect flips the controller state and asks the host to render', () => {
+        let updates = 0;
+        const el = host({});
+        el.requestUpdate = () => updates++;
+        const r = new RemoteController(el);
+        r.setAspect(400, 200);
+        expect(r.landscape).toBe(true);
+        expect(updates).toBe(1);
+        r.setAspect(390, 200);     // still landscape
+        expect(updates).toBe(1);
+        r.setAspect(200, 200);
+        expect(r.landscape).toBe(false);
+        expect(updates).toBe(2);
+    });
+});

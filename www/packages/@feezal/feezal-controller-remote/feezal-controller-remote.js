@@ -102,6 +102,35 @@ export const remoteAttributes = [
 /** Attribute names this controller consumes (parity-set derivation, E114). */
 export const REMOTE_CONSUMED_ATTRIBUTES = remoteAttributes.map(a => a.name);
 
+/**
+ * B130 — shared discovery.map fragment. Keys are the recognizer's config keys
+ * (server/src/mqtt/recognizers/lgtv.js): the set BASE plus the four status
+ * topics. Availability is stamped by the generic machinery.
+ */
+export const remoteDiscoveryMap = {
+    name:               'label',
+    command_base_topic: 'publish',
+    volume_topic:       'subscribe-volume',
+    mute_topic:         'subscribe-mute',
+    output_topic:       'subscribe-output',
+    app_topic:          'subscribe-app',
+};
+
+/**
+ * E190 — landscape detection with hysteresis (the layout-app rail pattern):
+ * a card goes landscape above ASPECT_WIDE and back to portrait only below
+ * ASPECT_TALL, so a drag-resize hovering on the boundary never flickers.
+ * Measured on the ELEMENT, not the viewport.
+ */
+export const ASPECT_WIDE = 1.35;
+export const ASPECT_TALL = 1.15;
+export function nextLandscape(landscape, width, height) {
+    if (!width || !height) return landscape;
+    const ratio = width / height;
+    if (landscape) return ratio >= ASPECT_TALL;
+    return ratio >= ASPECT_WIDE;
+}
+
 /** Loose truthiness over the payload dialects bridges use. */
 function truthy(v) {
     if (v === true || v === 1) return true;
@@ -143,6 +172,7 @@ export class RemoteController {
         this.muted = false;
         this.output = null;   // sound output id
         this.app = null;      // foreground app id
+        this.landscape = false;   // E190: wider than tall → groups side by side
     }
 
     _attr(name, fallback = '') {
@@ -169,7 +199,34 @@ export class RemoteController {
             .map(a => this._attr(a)).join('|');
     }
 
-    hostConnected() { this.wire(); }
+    hostConnected() {
+        this.wire();
+        this._observeAspect();
+    }
+
+    hostDisconnected() {
+        this._ro?.disconnect();
+        this._ro = null;
+    }
+
+    /** E190: watch the element's own box; flip the arrangement with hysteresis. */
+    _observeAspect() {
+        if (typeof ResizeObserver === 'undefined' || this._ro) return;
+        this._ro = new ResizeObserver(entries => {
+            const box = entries[0]?.contentRect;
+            this.setAspect(box?.width, box?.height);
+        });
+        this._ro.observe(this.host);
+    }
+
+    /** E190: apply a measured size (also the test seam). */
+    setAspect(width, height) {
+        const next = nextLandscape(this.landscape, width, height);
+        if (next !== this.landscape) {
+            this.landscape = next;
+            this.host.requestUpdate?.();
+        }
+    }
 
     wire() {
         this.__sig = this.signature();
@@ -294,6 +351,17 @@ export const remotePadStyles = css`
     .vol-row { display: flex; align-items: center; gap: 6px; }
     .vol-row input[type="range"] { flex: 1; min-width: 0; accent-color: var(--_remote-key-active-bg, var(--primary-color)); }
     .apps .key { height: 36px; }
+    /* E190 — portrait: the groups stack (the columns are transparent).
+       Landscape (wider than tall, with hysteresis): the same groups sit side
+       by side — D-pad left, rockers + number pad centre, shortcuts + volume
+       right — so the D-pad stays thumb-reachable instead of the remote
+       becoming a thin strip. A re-flow, never new groups. */
+    .col { display: contents; }
+    .pad.landscape { flex-direction: row; align-items: flex-start; justify-content: space-evenly; gap: 12px; }
+    .pad.landscape .col { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 0 1 auto; }
+    .pad.landscape .col:empty { display: none; }
+    .pad.landscape .col.right { flex: 1 1 0; max-width: 40%; }
+    .pad.landscape .apps { justify-content: flex-start; }
 `;
 
 /**
@@ -307,7 +375,8 @@ export function remotePad(r, {layout = r.layout, showVolume = r.showVolume, show
     const mi = n => html`<span class="mi">${n}</span>`;
     const D = PAD_KEYS.dpad, V = PAD_KEYS.volume, C = PAD_KEYS.channel;
     return html`
-        <div class="pad ${layout}">
+        <div class="pad ${layout} ${r.landscape ? 'landscape' : ''}">
+            <div class="col left">
             <div class="row nav">
                 ${key(PAD_KEYS.nav[0], mi('arrow_back'))}
                 ${key(PAD_KEYS.nav[1], mi('home'))}
@@ -321,6 +390,8 @@ export function remotePad(r, {layout = r.layout, showVolume = r.showVolume, show
                 ${key(D.right, mi('keyboard_arrow_right'), 'right')}
                 ${key(D.down, mi('keyboard_arrow_down'), 'down')}
             </div>
+            </div>
+            <div class="col mid">
             <div class="rockers">
                 <div class="rocker"><span class="cap">Vol</span>
                     ${key(V.up, mi('add'))}
@@ -336,6 +407,8 @@ export function remotePad(r, {layout = r.layout, showVolume = r.showVolume, show
                 <div class="digits">${PAD_KEYS.digits.map(d => key(d, d))}</div>
                 <div class="row colours">${PAD_KEYS.colours.map(c => key(c, ''))}</div>
             ` : ''}
+            </div>
+            <div class="col right">
             ${showButtons && r.buttons.length ? html`
                 <div class="row apps">
                     ${r.buttons.map(b => html`
@@ -358,5 +431,6 @@ export function remotePad(r, {layout = r.layout, showVolume = r.showVolume, show
                     <span class="cap">${r.volume ?? ''}</span>
                 </div>
             ` : ''}
+            </div>
         </div>`;
 }

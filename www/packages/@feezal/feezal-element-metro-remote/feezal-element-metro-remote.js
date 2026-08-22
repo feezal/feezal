@@ -1,7 +1,7 @@
 /* global feezal */
 import {html, css, feezalBoolean} from '@feezal/feezal-element';
 import {MetroTileBase} from '@feezal/feezal-metro';
-import {RemoteController, remoteAttributes, remotePad, remotePadStyles} from '@feezal/feezal-controller-remote';
+import {RemoteController, remoteAttributes, remoteDiscoveryMap, remotePad, remotePadStyles} from '@feezal/feezal-controller-remote';
 import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
@@ -21,6 +21,8 @@ class FeezalElementMetroRemote extends MetroTileBase {
             description: 'Metro tile TV remote (webOS via lgtv2mqtt, or any one-topic-per-key bridge): ' +
                 'D-pad, navigation, volume/channel rockers; the large layout adds number and colour keys ' +
                 'and the configurable app / input / output rows. Reflects volume, mute, sound output and the foreground app.',
+            // B130: one pick from the lgtv2mqtt recognizer wires the whole remote.
+            discovery: {component: 'remote', map: remoteDiscoveryMap},
             attributes: [
                 // size / label / icon — the family's shared tile rows (icon unused on the pad face).
                 ...MetroTileBase.tileAttributes.filter(a => a.name !== 'icon'),

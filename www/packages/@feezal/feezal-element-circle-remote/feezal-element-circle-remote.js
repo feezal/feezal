@@ -1,6 +1,6 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, feezalBoolean, html, css} from '@feezal/feezal-element';
-import {RemoteController, remoteAttributes, remotePad, remotePadStyles} from '@feezal/feezal-controller-remote';
+import {RemoteController, remoteAttributes, remoteDiscoveryMap, remotePad, remotePadStyles} from '@feezal/feezal-controller-remote';
 import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
@@ -19,6 +19,8 @@ class FeezalElementCircleRemote extends FeezalElement {
             description: 'Round-pad TV remote (webOS via lgtv2mqtt, or any one-topic-per-key bridge): ' +
                 'D-pad disc, navigation, volume/channel rockers; the large layout adds number and colour keys ' +
                 'and the configurable app / input / output rows. Reflects volume, mute, sound output and the foreground app.',
+            // B130: one pick from the lgtv2mqtt recognizer wires the whole remote.
+            discovery: {component: 'remote', map: remoteDiscoveryMap},
             attributes: [
                 {name: 'label', type: 'string', default: '', help: 'Optional label shown below the pad.'},
                 // E187: the whole remote contract — one declaration, every family.

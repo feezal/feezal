@@ -102,3 +102,43 @@ describe('remote family (E187)', () => {
         expect(new Set(names).size).toBe(1);
     });
 });
+
+
+// E190 — landscape re-flow; B130 — discovery descriptor on every family.
+describe('landscape re-flow (E190) + discovery (B130)', () => {
+    for (const tag of TAGS) {
+        it(`${tag}: a wide card puts the groups side by side; a square one stacks them — same keys either way`, async () => {
+            const el = await mount(tag, {publish: 'lgtv/set', layout: 'large'});
+            el.style.width = '600px'; el.style.height = '260px';
+            await until(() => el.shadowRoot.querySelector('.pad.landscape'));
+            const pad = el.shadowRoot.querySelector('.pad');
+            const dpad = pad.querySelector('.dpad').getBoundingClientRect();
+            const digits = pad.querySelector('.digits').getBoundingClientRect();
+            expect(digits.left, 'number pad to the right of the D-pad').toBeGreaterThan(dpad.right - 1);
+            const keys = [...pad.querySelectorAll('.key[title]')].map(b => b.title).sort().join(',');
+
+            el.style.width = '300px'; el.style.height = '420px';
+            await until(() => !el.shadowRoot.querySelector('.pad.landscape'));
+            const pad2 = el.shadowRoot.querySelector('.pad');
+            expect(pad2.querySelector('.digits').getBoundingClientRect().top)
+                .toBeGreaterThan(pad2.querySelector('.dpad').getBoundingClientRect().bottom - 1);
+            expect([...pad2.querySelectorAll('.key[title]')].map(b => b.title).sort().join(',')).toBe(keys);   // a re-flow, not a different remote
+        });
+
+        it(`${tag}: declares the remote discovery descriptor`, () => {
+            const d = customElements.get(tag).feezal.discovery;
+            expect(d.component).toBe('remote');
+            expect(d.map.command_base_topic).toBe('publish');
+        });
+    }
+
+    it('a compact card with nothing but the pad does not sprout groups when it goes wide', async () => {
+        const el = await mount('feezal-element-glass-remote', {publish: 'lgtv/set', 'show-volume': 'false'});
+        el.style.width = '600px'; el.style.height = '260px';
+        await until(() => el.shadowRoot.querySelector('.pad.landscape'));
+        const pad = el.shadowRoot.querySelector('.pad');
+        expect(pad.querySelector('.digits')).toBeNull();
+        expect(pad.querySelector('.apps')).toBeNull();
+        expect(pad.querySelector('.vol-row')).toBeNull();
+    });
+});

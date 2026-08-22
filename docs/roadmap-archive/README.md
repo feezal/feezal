@@ -133,6 +133,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B128 — View names with spaces break the sl-select view pickers (layout-flex subview not shown) ✅ fixed](B128.md)
 - [B129 — layout-app narrow overlay drawer: scrolled area below the first screenful is TRANSPARENT (iOS PWA report) ✅ fixed](B129.md)
 - [B119 — Right-click menu dead after the tab was backgrounded (footer selector crash) ✅ fixed](B119.md)
+- [B130 — *-remote does not autodiscover an lgtv2mqtt television ✅ fixed](B130.md)
 
 ## Near-term Improvements
 
@@ -321,6 +322,8 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [E186 — wiim2mqtt: media autodiscovery (and the source/preset gap it exposes) ✅ shipped](E186.md)
 - [E187 — New elements: glass/metro/circle-remote (webOS TV remote for lgtv2mqtt) ✅ shipped](E187.md)
 - [E188 — LG soundbar (lgsb2mqtt): media card + a separate audio/EQ element — analysis ✅ shipped](E188.md)
+- [E189 — glass-media: tall sizes, proportional art, and a details popup (minimal front) ✅ shipped](E189.md)
+- [E190 — *-remote: reorder the controls when the card is wider than tall ✅ shipped](E190.md)
 
 ## Editor UX
 

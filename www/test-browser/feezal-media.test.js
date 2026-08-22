@@ -585,6 +585,7 @@ describe('metro-media cover layout (matches glass)', () => {
 // E186 — the shared source select + preset row (glass + circle).
 describe('source select and presets (E186)', () => {
     const wiimAttrs = {
+        controls: 'full',   // E189: on glass the source select lives on the face only with controls=full
         'subscribe-source': 'wiim/status/source', 'message-property-source': 'payload.val',
         'subscribe-source-list': 'wiim/status/source_list', 'message-property-source-list': 'payload.val',
         'publish-source': 'wiim/set/source',

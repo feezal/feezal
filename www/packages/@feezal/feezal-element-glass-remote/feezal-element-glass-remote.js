@@ -1,7 +1,7 @@
 /* global feezal */
 import {FeezalElement, feezalBaseStyles, feezalBoolean, html, css} from '@feezal/feezal-element';
 import {applySizePreset, glassCardStyles, glassBadgeTray} from '@feezal/feezal-glass';
-import {RemoteController, remoteAttributes, remotePad, remotePadStyles} from '@feezal/feezal-controller-remote';
+import {RemoteController, remoteAttributes, remoteDiscoveryMap, remotePad, remotePadStyles} from '@feezal/feezal-controller-remote';
 import {availabilityAttributes} from '@feezal/feezal-element/feezal-discovery-fragments.js';
 
 /**
@@ -22,6 +22,8 @@ class FeezalElementGlassRemote extends FeezalElement {
             description: 'Frosted-glass TV remote (webOS via lgtv2mqtt, or any one-topic-per-key bridge): ' +
                 'D-pad, navigation, volume/channel rockers; the large layout adds number and colour keys ' +
                 'and the configurable app / input / output rows. Reflects volume, mute, sound output and the foreground app.',
+            // B130: one pick from the lgtv2mqtt recognizer wires the whole remote.
+            discovery: {component: 'remote', map: remoteDiscoveryMap},
             attributes: [
                 {name: 'size', type: 'select', options: ['', '4x4', '4x6', '2x4'], default: '',
                     help: 'Preset size: 4x4 = compact square, 4x6 = tall (large layout), 2x4 = narrow column. Empty keeps the current/manual size.'},
