@@ -580,3 +580,44 @@ describe('metro-media cover layout (matches glass)', () => {
         expect(getComputedStyle(el.shadowRoot.querySelector('.center')).flexDirection).toBe('column');
     });
 });
+
+
+// E186 — the shared source select + preset row (glass + circle).
+describe('source select and presets (E186)', () => {
+    const wiimAttrs = {
+        'subscribe-source': 'wiim/status/source', 'message-property-source': 'payload.val',
+        'subscribe-source-list': 'wiim/status/source_list', 'message-property-source-list': 'payload.val',
+        'publish-source': 'wiim/set/source',
+        'subscribe-preset-list': 'wiim/status/preset_list', 'message-property-preset-list': 'payload.val',
+        'publish-preset': 'wiim/set/preset',
+    };
+
+    for (const tag of ['feezal-element-glass-media', 'feezal-element-circle-media']) {
+        it(`${tag}: renders the select from the list, the active source, and publishes a pick`, async () => {
+            const el = await mount(tag, wiimAttrs);
+            feezal.connection.deliver('wiim/status/source_list', {val: ['wifi', 'airplay', 'bluetooth']});
+            feezal.connection.deliver('wiim/status/source', {val: 'airplay'});
+            await until(() => el.shadowRoot.querySelector('.src-row select option[value="bluetooth"]'));
+            await el.updateComplete;
+            const select = el.shadowRoot.querySelector('.src-row select');
+            expect([...select.options].map(o => o.value)).toEqual(['wifi', 'airplay', 'bluetooth']);
+            expect(select.value).toBe('airplay');
+
+            select.value = 'bluetooth';
+            select.dispatchEvent(new Event('change', {bubbles: true}));
+            expect(feezal.connection.published.at(-1)).toMatchObject({topic: 'wiim/set/source', payload: 'bluetooth'});
+        });
+
+        it(`${tag}: preset chips publish the 1-based number; nothing renders without source/preset topics`, async () => {
+            const el = await mount(tag, wiimAttrs);
+            feezal.connection.deliver('wiim/status/preset_list', {val: [{name: 'SWR3', number: 1}, {name: 'Jazz', number: 2}]});
+            await until(() => el.shadowRoot.querySelectorAll('.presets button').length === 2);
+            el.shadowRoot.querySelectorAll('.presets button')[1].click();
+            expect(feezal.connection.published.at(-1)).toMatchObject({topic: 'wiim/set/preset', payload: '2'});
+
+            const bare = await mount(tag, {});
+            expect(bare.shadowRoot.querySelector('.src-row')).toBeNull();
+            expect(bare.shadowRoot.querySelector('.presets')).toBeNull();
+        });
+    }
+});

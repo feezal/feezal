@@ -96,3 +96,93 @@ describe('the shared contract', () => {
         expect(REPEAT_CYCLE).toEqual(['off', 'all', 'one']);
     });
 });
+
+
+// ---------------------------------------------------------------------------
+// E186 — the shared source / preset capability (WiiM source_list, soundbar
+// input_list, TV sound output) and the list-payload dialects.
+
+import {mediaList, MediaController} from '../packages/@feezal/feezal-controller-media/feezal-controller-media.js';
+
+describe('mediaList() — list payload dialects (E186)', () => {
+    it('accepts a parsed array, a JSON-array string and a comma-separated string', () => {
+        expect(mediaList(['wifi', 'airplay'])).toEqual([{label: 'wifi', value: 'wifi'}, {label: 'airplay', value: 'airplay'}]);
+        expect(mediaList('["wifi","bluetooth"]')).toEqual([{label: 'wifi', value: 'wifi'}, {label: 'bluetooth', value: 'bluetooth'}]);
+        expect(mediaList('HDMI, Optical ,Bluetooth')).toEqual([
+            {label: 'HDMI', value: 'HDMI'}, {label: 'Optical', value: 'Optical'}, {label: 'Bluetooth', value: 'Bluetooth'}]);
+    });
+
+    it('normalises object entries to {label, value} and drops empties', () => {
+        expect(mediaList([{name: 'Radio SWR3', number: 1}, {name: '', number: 2}, null, 'x']))
+            .toEqual([{label: 'Radio SWR3', value: 1}, {label: 'x', value: 'x'}]);
+        expect(mediaList('')).toEqual([]);
+        expect(mediaList(undefined)).toEqual([]);
+        expect(mediaList({not: 'a list'})).toEqual([]);
+    });
+});
+
+describe('the source / preset contract (E186)', () => {
+    it('declares the shared source/preset attributes and maps the recognizer keys onto them', () => {
+        const names = mediaAttributes.map(a => a.name);
+        for (const n of ['subscribe-source', 'message-property-source', 'subscribe-source-list',
+            'message-property-source-list', 'publish-source', 'subscribe-preset-list',
+            'message-property-preset-list', 'subscribe-preset-max', 'message-property-preset-max', 'publish-preset']) {
+            expect(names, n).toContain(n);
+        }
+        expect(mediaDiscoveryMap.source_topic).toBe('subscribe-source');
+        expect(mediaDiscoveryMap.source_list_topic).toBe('subscribe-source-list');
+        expect(mediaDiscoveryMap.source_command_topic).toBe('publish-source');
+        expect(mediaDiscoveryMap.preset_command_topic).toBe('publish-preset');
+        expect(mediaDiscoveryMap.source_list_value_template).toEqual({attr: 'message-property-source-list', transform: 'valueTemplateToPath'});
+        // The keys a WiiM pick needs that were missing from the map before.
+        expect(mediaDiscoveryMap.position_topic).toBe('subscribe-position');
+        expect(mediaDiscoveryMap.duration_topic).toBe('subscribe-duration');
+        expect(mediaDiscoveryMap.seek_command_topic).toBe('publish-seek');
+        expect(mediaDiscoveryMap.payload_stop).toBe('payload-stop');
+    });
+
+    /** A minimal host: attributes + the subscription sink the controller wires into. */
+    function host(attrs) {
+        const el = document.createElement('div');
+        for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+        el.subs = new Map();
+        el.addSubscription = (topic, cb) => el.subs.set(topic, cb);
+        el._unsubscribe = () => el.subs.clear();
+        el.getProperty = (msg, path) => path.split('.').reduce((o, k) => o?.[k], msg);
+        el.requestUpdate = () => {};
+        return el;
+    }
+
+    it('reads source, list, presets and preset-max through their message paths', () => {
+        const el = host({
+            'subscribe-source': 'w/status/source', 'message-property-source': 'payload.val',
+            'subscribe-source-list': 'w/status/source_list', 'message-property-source-list': 'payload.val',
+            'subscribe-preset-max': 'w/status/preset_max', 'message-property-preset-max': 'payload.val',
+        });
+        const m = new MediaController(el);
+        m.wire();
+        expect(m.hasSource).toBe(true);
+        el.subs.get('w/status/source_list')({payload: {val: ['wifi', 'spotify']}});
+        el.subs.get('w/status/source')({payload: {val: 'line_in'}});
+        el.subs.get('w/status/preset_max')({payload: {val: 3}});
+        // the active source is offered even when the list does not carry it
+        expect(m.sourceOptions.map(o => o.value)).toEqual(['line_in', 'wifi', 'spotify']);
+        expect(m.presets).toEqual([{label: '1', value: 1}, {label: '2', value: 2}, {label: '3', value: 3}]);
+    });
+
+    it('setSource publishes the name, playPreset the 1-based number; both are editor-guarded', () => {
+        const published = [];
+        window.feezal = {isEditor: false, connection: {pub: (t, p) => published.push([t, p])}};
+        const m = new MediaController(host({'publish-source': 'w/set/source', 'publish-preset': 'w/set/preset'}));
+        m.setSource('bluetooth');
+        m.playPreset(2);
+        m.playPreset('nope');
+        expect(m.source).toBe('bluetooth');
+        expect(published).toEqual([['w/set/source', 'bluetooth'], ['w/set/preset', '2']]);
+
+        window.feezal.isEditor = true;
+        m.setSource('wifi');
+        expect(published).toHaveLength(2);
+        expect(new MediaController(host({})).hasSource).toBe(false);
+    });
+});

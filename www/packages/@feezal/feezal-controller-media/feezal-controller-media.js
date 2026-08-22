@@ -229,6 +229,23 @@ export const mediaAttributes = [
         help: 'cycle = three states off → all → one (published as those words). toggle = two states for bridges that only know repeat on/off; the payloads below are used.'},
     {name: 'payload-repeat-on',  type: 'string', default: 'on',  help: 'Repeat mode "toggle": payload published to enable repeat. Default: on'},
     {name: 'payload-repeat-off', type: 'string', default: 'off', help: 'Repeat mode "toggle": payload published to disable repeat. Default: off'},
+    // E186: source / input selection + presets — one shared capability for
+    // streamers (WiiM source_list), soundbars (input_list) and TVs (sound
+    // output), instead of three bespoke selects.
+    {name: 'subscribe-source', type: 'mqttTopic', help: 'Topic for the active source / input (e.g. wifi, airplay, spotify, bluetooth, HDMI). Shown as a select when a source list is known.'},
+    {name: 'message-property-source', type: 'string', default: 'payload',
+        help: 'Dot-notation path to the source within the message. Default: payload'},
+    {name: 'subscribe-source-list', type: 'mqttTopic', help: 'Topic carrying the selectable sources — a JSON array or a comma-separated string.'},
+    {name: 'message-property-source-list', type: 'string', default: 'payload',
+        help: 'Dot-notation path to the source list within the message. Default: payload'},
+    {name: 'publish-source', type: 'mqttTopic', help: 'Topic the chosen source is published to (the source name as payload).'},
+    {name: 'subscribe-preset-list', type: 'mqttTopic', help: 'Topic carrying the device presets — a JSON array of names or of {name, number} objects, or a comma-separated string. Renders a preset row.'},
+    {name: 'message-property-preset-list', type: 'string', default: 'payload',
+        help: 'Dot-notation path to the preset list within the message. Default: payload'},
+    {name: 'subscribe-preset-max', type: 'mqttTopic', help: 'Topic carrying the number of preset slots; without a list, renders numbered preset buttons 1…n.'},
+    {name: 'message-property-preset-max', type: 'string', default: 'payload',
+        help: 'Dot-notation path to the preset count within the message. Default: payload'},
+    {name: 'publish-preset', type: 'mqttTopic', help: 'Topic the chosen preset NUMBER (1-based) is published to.'},
 ];
 
 /** Attribute names this controller consumes (parity-set derivation, E114). */
@@ -267,8 +284,19 @@ export const mediaDiscoveryMap = {
     payload_repeat_off:    'payload-repeat-off',
     payload_play:          'payload-play',
     payload_pause:         'payload-pause',
+    payload_stop:          'payload-stop',
     payload_next:          'payload-next',
     payload_previous:      'payload-previous',
+    position_topic:        'subscribe-position',
+    duration_topic:        'subscribe-duration',
+    seek_command_topic:    'publish-seek',
+    // E186: source / preset capability.
+    source_topic:          'subscribe-source',
+    source_list_topic:     'subscribe-source-list',
+    source_command_topic:  'publish-source',
+    preset_list_topic:     'subscribe-preset-list',
+    preset_max_topic:      'subscribe-preset-max',
+    preset_command_topic:  'publish-preset',
     // Per-field message paths (a bridge publishing ONE combined JSON stamps
     // the same topic everywhere and distinguishes the fields by path).
     title_value_template:    {attr: 'message-property-title',    transform: 'valueTemplateToPath'},
@@ -276,7 +304,47 @@ export const mediaDiscoveryMap = {
     album_value_template:    {attr: 'message-property-album',    transform: 'valueTemplateToPath'},
     provider_value_template: {attr: 'message-property-provider', transform: 'valueTemplateToPath'},
     artwork_value_template:  {attr: 'message-property-artwork-url', transform: 'valueTemplateToPath'},
+    position_value_template: {attr: 'message-property-position', transform: 'valueTemplateToPath'},
+    duration_value_template: {attr: 'message-property-duration', transform: 'valueTemplateToPath'},
+    volume_value_template:   {attr: 'message-property-volume',   transform: 'valueTemplateToPath'},
+    mute_value_template:     {attr: 'message-property-mute',     transform: 'valueTemplateToPath'},
+    shuffle_value_template:  {attr: 'message-property-shuffle',  transform: 'valueTemplateToPath'},
+    repeat_value_template:   {attr: 'message-property-repeat',   transform: 'valueTemplateToPath'},
+    source_value_template:      {attr: 'message-property-source',      transform: 'valueTemplateToPath'},
+    source_list_value_template: {attr: 'message-property-source-list', transform: 'valueTemplateToPath'},
+    preset_list_value_template: {attr: 'message-property-preset-list', transform: 'valueTemplateToPath'},
+    preset_max_value_template:  {attr: 'message-property-preset-max',  transform: 'valueTemplateToPath'},
 };
+
+/**
+ * E186 — a list payload in the dialects bridges send: a JSON array (already
+ * parsed by the connection, or as text), or a comma-separated string. Items
+ * may be strings or {name|label, value|id|number} objects → normalised to
+ * {label, value} pairs. Empty → [].
+ */
+export function mediaList(v) {
+    if (v === null || v === undefined) return [];
+    let list = v;
+    if (typeof v === 'string') {
+        const t = v.trim();
+        if (!t) return [];
+        if (t.startsWith('[')) {
+            try { list = JSON.parse(t); } catch { list = t.split(','); }
+        } else {
+            list = t.split(',');
+        }
+    }
+    if (!Array.isArray(list)) return [];
+    return list.map((item, i) => {
+        if (item && typeof item === 'object') {
+            const label = mediaStr(item.name ?? item.label ?? item.title ?? item.value ?? item.id ?? item.number);
+            const value = item.value ?? item.id ?? item.number ?? item.name ?? item.label ?? (i + 1);
+            return label === null ? null : {label, value};
+        }
+        const s = mediaStr(item);
+        return s === null ? null : {label: s, value: s};
+    }).filter(Boolean);
+}
 
 export class MediaController {
     /** @param {import('lit').ReactiveControllerHost & HTMLElement} host */
@@ -301,6 +369,31 @@ export class MediaController {
         this.muted    = false;
         this.shuffle  = false;
         this.repeat   = 'off';   // 'off' | 'all' | 'one'
+        // E186: source / presets
+        this.source     = null;  // active source name
+        this.sourceList = [];    // [{label, value}]
+        this.presetList = [];    // [{label, value}] — value = 1-based number when known
+        this.presetMax  = null;  // number of preset slots
+    }
+
+    /** E186: the source select is meaningful once a source or list topic is wired. */
+    get hasSource() { return Boolean(this._attr('subscribe-source') || this._attr('subscribe-source-list')); }
+
+    /** E186: presets to render — the list, else 1…preset-max numbered slots. */
+    get presets() {
+        if (this.presetList.length) return this.presetList;
+        const n = Number(this.presetMax);
+        if (!Number.isFinite(n) || n <= 0) return [];
+        return Array.from({length: Math.min(n, 24)}, (_, i) => ({label: String(i + 1), value: i + 1}));
+    }
+
+    /** E186: the options for the select — the list, plus the active source if it is not listed. */
+    get sourceOptions() {
+        const opts = [...this.sourceList];
+        if (this.source && !opts.some(o => String(o.value) === String(this.source))) {
+            opts.unshift({label: this.source, value: this.source});
+        }
+        return opts;
     }
 
     /** Host attribute reader — attributes are the saved-markup source of truth. */
@@ -332,7 +425,8 @@ export class MediaController {
         return ['subscribe', 'subscribe-title', 'subscribe-artist', 'subscribe-album',
             'subscribe-provider', 'subscribe-artwork-url', 'subscribe-position',
             'subscribe-duration', 'subscribe-volume', 'subscribe-mute',
-            'subscribe-shuffle', 'subscribe-repeat', 'message-property']
+            'subscribe-shuffle', 'subscribe-repeat', 'subscribe-source', 'subscribe-source-list',
+            'subscribe-preset-list', 'subscribe-preset-max', 'message-property']
             .map(a => this._attr(a)).join('|');
     }
 
@@ -404,6 +498,14 @@ export class MediaController {
         on('subscribe-repeat', msg => {
             const v = String(this.host.getProperty(msg, path('message-property-repeat')) ?? '').toLowerCase();
             this.repeat = REPEAT_CYCLE.includes(v) ? v : (mediaTruthy(v) ? 'all' : 'off');
+        });
+        // E186: source / presets
+        on('subscribe-source', msg => { this.source = mediaStr(this.host.getProperty(msg, path('message-property-source'))); });
+        on('subscribe-source-list', msg => { this.sourceList = mediaList(this.host.getProperty(msg, path('message-property-source-list'))); });
+        on('subscribe-preset-list', msg => { this.presetList = mediaList(this.host.getProperty(msg, path('message-property-preset-list'))); });
+        on('subscribe-preset-max', msg => {
+            const v = num(this.host.getProperty(msg, path('message-property-preset-max')));
+            if (v !== null) this.presetMax = v;
         });
 
         for (const [topic, handlers] of byTopic) {
@@ -509,6 +611,22 @@ export class MediaController {
         const next = REPEAT_CYCLE[(REPEAT_CYCLE.indexOf(this.repeat) + 1) % REPEAT_CYCLE.length];
         this.repeat = next;
         this._pub(this._attr('publish-repeat'), next);
+    }
+
+    /** E186: pick a source — the local value updates at once; the device confirms via subscribe-source. */
+    setSource(value) {
+        const v = mediaStr(value);
+        if (v === null) return;
+        this.source = v;
+        this._pub(this._attr('publish-source'), v);
+        this.host.requestUpdate?.();
+    }
+
+    /** E186: play a preset by its 1-based number (a list entry's value, or the button index). */
+    playPreset(number) {
+        const n = Number(number);
+        if (!Number.isFinite(n) || n < 1) return;
+        this._pub(this._attr('publish-preset'), String(Math.round(n)));
     }
 
     seek(seconds) {

@@ -318,6 +318,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [E182 — echo2mqtt discovery + the media-element capability gaps (mute, provider, dedupe) ✅ shipped](E182.md)
 - [E183 — glass-media element ✅ shipped](E183.md)
 - [E178 — system-form: a subview as a web form (decided core, script API to refine) ✅ shipped](E178.md)
+- [E186 — wiim2mqtt: media autodiscovery (and the source/preset gap it exposes) ✅ shipped](E186.md)
 
 ## Editor UX
 

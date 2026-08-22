@@ -60,6 +60,7 @@ class FeezalElementCircleMedia extends FeezalElement {
                 {name: 'show-provider',       type: 'boolean', default: true, help: 'Show the playback source / provider. When it is identical to the album, only one of the two lines is rendered.'},
                 {name: 'show-seek',           type: 'boolean', default: true, help: 'Show the progress / seek bar with elapsed / total time.'},
                 {name: 'show-shuffle-repeat', type: 'boolean', default: true, help: 'Show the shuffle and repeat controls.'},
+                {name: 'show-source', type: 'boolean', default: true, help: 'Show the source / input select and the preset row (only rendered when a source or preset topic is wired).'},
                 {name: 'show-volume',         type: 'boolean', default: true, help: 'Show the volume slider row.'},
                 {name: 'show-mute',           type: 'boolean', default: true, help: 'Show the mute button in the volume row.'},
             ],
@@ -93,6 +94,7 @@ class FeezalElementCircleMedia extends FeezalElement {
         showProvider:      {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-provider'},
         showSeek:          {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-seek'},
         showShuffleRepeat: {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-shuffle-repeat'},
+        showSource:        {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-source'},
         showVolume:        {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-volume'},
         showMute:          {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-mute'},
         // Internal UI state — never as class fields (Lit 3 rule)
@@ -240,6 +242,20 @@ class FeezalElementCircleMedia extends FeezalElement {
             gap: 8px;
         }
         .vol-row .mi { font-size: 18px; color: var(--feezal-media-muted-color); }
+        /* E186: source select + preset chips */
+        .src-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+        .src-row .mi { font-size: 16px; color: var(--feezal-media-muted-color); }
+        .src-row select {
+            flex: 1; min-width: 0; font: inherit; font-size: 12px; color: inherit;
+            background: transparent; border: 1px solid var(--feezal-media-muted-color); border-radius: 6px; padding: 2px 6px;
+        }
+        .presets { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
+        .presets button {
+            border: 1px solid var(--feezal-media-muted-color); cursor: pointer; color: inherit; background: transparent;
+            font: inherit; font-size: 10px; line-height: 1; padding: 3px 7px; border-radius: 999px;
+            max-width: 9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .presets button:hover { border-color: var(--feezal-media-color); color: var(--feezal-media-color); }
         input[type="range"] {
             flex: 1;
             accent-color: var(--feezal-media-color);
@@ -321,6 +337,7 @@ class FeezalElementCircleMedia extends FeezalElement {
         this.showProvider      = true;
         this.showSeek          = true;
         this.showShuffleRepeat = true;
+        this.showSource = true;
         this.showVolume        = true;
         this.showMute          = true;
         this._seekPos = null;
@@ -460,6 +477,22 @@ class FeezalElementCircleMedia extends FeezalElement {
                     </button>
                 ` : ''}
             </div>
+
+            ${this.showSource && m.hasSource ? html`
+                <div class="src-row">
+                    <span class="mi">input</span>
+                    <select title="Source" .value="${m.source ?? ''}"
+                        @change="${e => m.setSource(e.target.value)}">
+                        ${m.source ? '' : html`<option value="" disabled selected>Source…</option>`}
+                        ${m.sourceOptions.map(o => html`<option value="${o.value}" ?selected="${String(o.value) === String(m.source)}">${o.label}</option>`)}
+                    </select>
+                </div>
+            ` : ''}
+            ${this.showSource && m.presets.length ? html`
+                <div class="presets">
+                    ${m.presets.map(p => html`<button title="Preset ${p.value}" @click="${() => m.playPreset(p.value)}">${p.label}</button>`)}
+                </div>
+            ` : ''}
 
             ${this.showVolume ? html`
                 <div class="vol-row">

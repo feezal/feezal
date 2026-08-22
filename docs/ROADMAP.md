@@ -68,7 +68,6 @@ Work in progress — priorities and scope are not final.
 - [E180 — Glass cards: Home.app interaction model (icon = main action, card = details)](#e180--glass-cards-homeapp-interaction-model-icon--main-action-card--details)
 - [E181 — Mini glass cards: circular icon-only size preset](#e181--mini-glass-cards-circular-icon-only-size-preset)
 - [E184 — Standard card surfaces: static / interactive-off / active / alarm (glass, then metro)](#e184-standard-card-surfaces-static-interactive-off-active-alarm-glass-then-metro)
-- [E186 — wiim2mqtt: media autodiscovery (and the source/preset gap it exposes)](#e186-wiim2mqtt-media-autodiscovery-and-the-source-preset-gap-it-exposes)
 - [E187 — New elements: glass/metro/circle-remote (webOS TV remote for lgtv2mqtt)](#e187-new-elements-glass-metro-circle-remote-webos-tv-remote-for-lgtv2mqtt)
 - [E188 — LG soundbar (lgsb2mqtt): media card + a separate audio/EQ element — analysis](#e188-lg-soundbar-lgsb2mqtt-media-card-a-separate-audio-eq-element-analysis)
 
@@ -3048,62 +3047,6 @@ surfaces, and inversion already means "active").
 E180 (Home.app interaction model — same question of what reads as
 interactive), B121 (popup frost = card frost), E124 (battery/sabotage
 plumbing the alarm state can reuse), E138 (what "active" means per card).
-
-
-### E186 — wiim2mqtt: media autodiscovery (and the source/preset gap it exposes)
-
-**Requested (08/2026).** The `*-media` cards should autodiscover WiiM
-streamers via [wiim2mqtt](https://github.com/hobbyquaker/wiim2mqtt).
-
-**The contract (read from its README):** one instance per device, topic
-prefix = `--name` (default `wiim`, configurable), mqtt-smarthome shaped:
-
-- `<p>/status/<item>` retained, payload `{"val":…,"ts":…,"lc":…}` by
-  default (`--no-json-payloads` publishes plain values) — so the media
-  message paths are **`payload.val`**, not `payload`.
-- Items that map straight onto the E182 media contract: `play_state`
-  (`playing`/`paused`/`stopped`/`loading`), `volume` (0-100), `mute`,
-  `title`, `artist`, `album`, `album_art` (URL), `duration` (s),
-  `position` (s, not retained), `repeat` (**`off`/`one`/`all` — the
-  tri-state our `repeat-mode: cycle` already speaks natively**),
-  `shuffle`.
-- `<p>/set/<item>`: `volume`, `mute`, `play`, `pause`, `stop`, `next`,
-  `prev`, `toggle`, `play_state`, `seek`/`position`, `repeat`,
-  `shuffle` → **`command-mode: topic`**, exactly like the Alexa bridge.
-  Note the transport verb is `prev`, not `previous`.
-- `<p>/connected` = `0`/`1`/`2` → availability (available on `2`).
-
-**Recognizer:** same shape as `recognizers/alexa.js`. There is no device
-roster (one instance per device), so the prefix cannot be learned from
-one — fingerprint on the distinctive item name instead:
-`<p>/status/play_state` (plus `<p>/status/source_list`), which is
-specific enough not to collide. `wiim` is the default prefix; a custom
-`--name` must still be picked up. HA discovery exists but, as the README
-itself notes, **HA has no MQTT media player platform** — the same reason
-the Alexa path needs a native recognizer.
-
-**The gap this exposes (decide with it, not after):** WiiM publishes
-`source` + `source_list` (wifi/airplay/spotify/bluetooth/line_in/…) and
-`preset_list` + `preset_max`, and the media contract has nowhere to put
-either. Both are the SAME shape as LG's `input`/`input_list` (E188) and the
-TV's sound `output` — so the honest move is one shared capability on the
-media contract, e.g. `subscribe-source` + `subscribe-source-list` +
-`publish-source` rendering a select (and a preset row when a preset list
-exists), rather than three bespoke solutions. Everything else WiiM
-reports (quality/sample_rate/bit_depth/bitrate, queue index, multiroom
-`group_role`/`group_master`/`group_slaves`, device info) is out of scope
-for the card; multiroom deserves its own item if wanted.
-
-**Nice-to-have:** `--album-art-data` publishes the cover BYTES on
-`status/album_art_data` — that is the mqtt-image path basic-camera
-already implements, so a card could show the cover without any HTTP
-fetch (useful when the device is not reachable from the browser). Opt-in
-on the bridge side, so treat it as a bonus branch of the artwork wiring.
-
-**Relates:** E182 (the media contract + the Alexa recognizer this
-mirrors), E188 (LG soundbar — same source/input select need), E187 (LG TV
-remote — sound output select), E165 (multivalue, for the quality
-readouts if wanted).
 
 
 ### E187 — New elements: glass/metro/circle-remote (webOS TV remote for lgtv2mqtt)

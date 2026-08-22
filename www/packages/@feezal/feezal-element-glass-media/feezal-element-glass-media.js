@@ -76,6 +76,7 @@ class FeezalElementGlassMedia extends FeezalElement {
                 {name: 'show-shuffle-repeat', type: 'boolean', default: false, help: 'Show the shuffle and repeat controls.'},
                 {name: 'show-volume',   type: 'boolean', default: true, help: 'Show the volume slider row.'},
                 {name: 'show-mute',     type: 'boolean', default: true, help: 'Show the mute button in the volume row.'},
+                {name: 'show-source',   type: 'boolean', default: true, help: 'Show the source / input select and the preset row (only rendered when a source or preset topic is wired).'},
                 {name: 'degrade', type: 'boolean', default: false,
                     help: 'Replace the live backdrop blur with a semi-opaque solid card — no per-frame GPU cost (weak wall-tablet hardware).'},
             ],
@@ -102,6 +103,7 @@ class FeezalElementGlassMedia extends FeezalElement {
         showShuffleRepeat: {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-shuffle-repeat'},
         showVolume:    {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-volume'},
         showMute:      {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-mute'},
+        showSource:    {type: Boolean, reflect: true, converter: feezalBoolean, attribute: 'show-source'},
         degrade:       {type: Boolean, reflect: true, converter: feezalBoolean},
     };
 
@@ -156,6 +158,20 @@ class FeezalElementGlassMedia extends FeezalElement {
         .transport .spacer { flex: 1; }
         .vol-row { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
         .vol-row input[type="range"] { flex: 1; min-width: 0; accent-color: var(--feezal-glass-accent, var(--primary-color)); }
+        /* E186: source select + preset chips */
+        .src-row { display: flex; align-items: center; gap: 6px; margin-top: 2px; min-width: 0; }
+        .src-row .mi { font-size: 16px; opacity: 0.75; }
+        .src-row select {
+            flex: 1; min-width: 0; font: inherit; font-size: var(--feezal-glass-font-size-label, 12px);
+            color: inherit; background: rgba(128,128,128,0.18); border: none; border-radius: 8px; padding: 2px 6px;
+        }
+        .presets { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+        .presets button {
+            border: none; cursor: pointer; color: inherit; font: inherit; font-size: 10px; line-height: 1;
+            padding: 3px 7px; border-radius: 999px; background: rgba(128,128,128,0.18);
+            max-width: 9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .presets button:hover { background: rgba(128,128,128,0.3); }
         .times { display: flex; justify-content: space-between; font-size: 10px; opacity: 0.75;
             font-variant-numeric: tabular-nums; }
         .bar { position: relative; height: 4px; border-radius: 2px; background: rgba(128,128,128,0.35); margin-top: 4px; }
@@ -176,6 +192,7 @@ class FeezalElementGlassMedia extends FeezalElement {
         this.showShuffleRepeat = false;
         this.showVolume = true;
         this.showMute = true;
+        this.showSource = true;
         this.degrade = false;
         // E182: the behaviour layer — wiring, state, transport publishing.
         this.media = new MediaController(this);
@@ -233,6 +250,22 @@ class FeezalElementGlassMedia extends FeezalElement {
                             </button>
                         ` : ''}
                     </div>
+
+                    ${this.showSource && m.hasSource ? html`
+                        <div class="src-row">
+                            <span class="mi">input</span>
+                            <select title="Source" .value="${m.source ?? ''}"
+                                @change="${e => m.setSource(e.target.value)}">
+                                ${m.source ? '' : html`<option value="" disabled selected>Source…</option>`}
+                                ${m.sourceOptions.map(o => html`<option value="${o.value}" ?selected="${String(o.value) === String(m.source)}">${o.label}</option>`)}
+                            </select>
+                        </div>
+                    ` : ''}
+                    ${this.showSource && m.presets.length ? html`
+                        <div class="presets">
+                            ${m.presets.map(p => html`<button title="Preset ${p.value}" @click="${() => m.playPreset(p.value)}">${p.label}</button>`)}
+                        </div>
+                    ` : ''}
 
                     ${this.showVolume ? html`
                         <div class="vol-row">
