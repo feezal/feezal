@@ -68,7 +68,6 @@ Work in progress — priorities and scope are not final.
 - [E180 — Glass cards: Home.app interaction model (icon = main action, card = details)](#e180--glass-cards-homeapp-interaction-model-icon--main-action-card--details)
 - [E181 — Mini glass cards: circular icon-only size preset](#e181--mini-glass-cards-circular-icon-only-size-preset)
 - [E184 — Standard card surfaces: static / interactive-off / active / alarm (glass, then metro)](#e184-standard-card-surfaces-static-interactive-off-active-alarm-glass-then-metro)
-- [E187 — New elements: glass/metro/circle-remote (webOS TV remote for lgtv2mqtt)](#e187-new-elements-glass-metro-circle-remote-webos-tv-remote-for-lgtv2mqtt)
 - [E188 — LG soundbar (lgsb2mqtt): media card + a separate audio/EQ element — analysis](#e188-lg-soundbar-lgsb2mqtt-media-card-a-separate-audio-eq-element-analysis)
 
 **Editor UX**
@@ -3047,57 +3046,6 @@ surfaces, and inversion already means "active").
 E180 (Home.app interaction model — same question of what reads as
 interactive), B121 (popup frost = card frost), E124 (battery/sabotage
 plumbing the alarm state can reuse), E138 (what "active" means per card).
-
-
-### E187 — New elements: glass/metro/circle-remote (webOS TV remote for lgtv2mqtt)
-
-**Requested (08/2026).** A remote-control element family for LG webOS
-TVs via [lgtv2mqtt](https://github.com/hobbyquaker/lgtv2mqtt), in a
-**compact** and a **large** look, with the button set configurable.
-
-**The contract (read from its source — the repo has no README):** prefix
-= `--name` (default `lgtv`).
-- `<p>/set/button` — payload is the key NAME, uppercased:
-  `HOME`, `BACK`, `MENU`, `EXIT`, `UP`/`DOWN`/`LEFT`/`RIGHT`, `ENTER`,
-  `RED`/`GREEN`/`YELLOW`/`BLUE`, `MUTE`, `VOLUMEUP`/`VOLUMEDOWN`,
-  `CHANNELUP`/`CHANNELDOWN`, `CC`, `DASH`, `0`-`9`.
-- `<p>/set/launch` — an app id (this is how Netflix & co. are started);
-  `<p>/set/youtube` takes a contentId.
-- `<p>/set/volume` (0-100), `<p>/set/mute`, `<p>/set/output` (sound
-  output), `<p>/set/toast` (on-screen message), pointer
-  `move`/`drag`/`scroll`/`click`, and a catch-all that forwards any other
-  `set/<ssap path>` to the TV.
-- `<p>/status/`: `volume`, `mute`, `output`, `foregroundApp`,
-  `currentChannel` (JSON). `<p>/connected` = `0`/`1`/`2`.
-
-**Element sketch:**
-- `layout: compact | large` — compact = D-pad + back/home/exit + volume
-  and channel rockers; large adds the **number keys**, colour keys, and
-  the app/input/output rows.
-- **Configurable button set**: one list editor (the U104 objectList
-  control) of rows `{kind, label, icon|image, payload}` where `kind` is
-  `button` (→ `set/button`), `app` (→ `set/launch`), `input`,
-  `output` (→ `set/output`) or `raw` (→ any `set/<path>`). That covers
-  "extensive config options for the user to choose which buttons his
-  remote should offer" without a bespoke schema per button type, and a
-  sensible default set ships out of the box.
-- **App shortcut buttons** for Netflix / Disney+ / HBO Max / Prime Video
-  / waipu.tv: **two honest caveats.** (a) The app IDs are per-TV and
-  lgtv2mqtt does not publish an app list — only `foregroundApp` — so
-  either the user configures the id (with a documented list of the
-  common ones), or the bridge gains a launch-point list
-  (`ssap://com.webos.applicationManager/listLaunchPoints`) published to
-  a status topic; that bridge-side addition is the nicer fix and worth
-  raising there. (b) Those are **trademarked logos** — feezal must not
-  bundle them. Ship neutral glyphs plus an `image` field per row so the
-  user points at their own asset (the asset manager already exists), and
-  say so in the help text.
-- `foregroundApp` highlights the active app row; `output` and `volume`
-  reflect current state so the remote is not write-only.
-
-**Relates:** U104 (the list editor this configures itself with), E188 (LG
-soundbar — the output/input select overlaps), E182 (media contract, for
-the volume/mute half), the asset manager (user-supplied app logos).
 
 
 ### E188 — LG soundbar (lgsb2mqtt): media card + a separate audio/EQ element — analysis

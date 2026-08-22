@@ -40,6 +40,7 @@ import '@feezal/feezal-element-circle-meter';
 import '@feezal/feezal-element-circle-motion';
 import '@feezal/feezal-element-circle-multivalue';
 import '@feezal/feezal-element-circle-plant';
+import '@feezal/feezal-element-circle-remote';
 import '@feezal/feezal-element-circle-sensor';
 import '@feezal/feezal-element-circle-switch';
 import '@feezal/feezal-element-circle-vacuum';
@@ -81,6 +82,7 @@ import '@feezal/feezal-element-glass-meter';
 import '@feezal/feezal-element-glass-motion';
 import '@feezal/feezal-element-glass-multivalue';
 import '@feezal/feezal-element-glass-popup';
+import '@feezal/feezal-element-glass-remote';
 import '@feezal/feezal-element-glass-search';
 import '@feezal/feezal-element-glass-sensor';
 import '@feezal/feezal-element-glass-switch';
@@ -128,6 +130,7 @@ import '@feezal/feezal-element-metro-media';
 import '@feezal/feezal-element-metro-meter';
 import '@feezal/feezal-element-metro-motion';
 import '@feezal/feezal-element-metro-multivalue';
+import '@feezal/feezal-element-metro-remote';
 import '@feezal/feezal-element-metro-search';
 import '@feezal/feezal-element-metro-sensor';
 import '@feezal/feezal-element-metro-switch';
@@ -228,6 +231,7 @@ window.feezal.elements = [
   "feezal-element-circle-motion",
   "feezal-element-circle-multivalue",
   "feezal-element-circle-plant",
+  "feezal-element-circle-remote",
   "feezal-element-circle-sensor",
   "feezal-element-circle-switch",
   "feezal-element-circle-vacuum",
@@ -269,6 +273,7 @@ window.feezal.elements = [
   "feezal-element-glass-motion",
   "feezal-element-glass-multivalue",
   "feezal-element-glass-popup",
+  "feezal-element-glass-remote",
   "feezal-element-glass-search",
   "feezal-element-glass-sensor",
   "feezal-element-glass-switch",
@@ -316,6 +321,7 @@ window.feezal.elements = [
   "feezal-element-metro-meter",
   "feezal-element-metro-motion",
   "feezal-element-metro-multivalue",
+  "feezal-element-metro-remote",
   "feezal-element-metro-search",
   "feezal-element-metro-sensor",
   "feezal-element-metro-switch",

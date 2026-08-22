@@ -85,6 +85,11 @@ import '../packages/@feezal/feezal-element-glass-multivalue/feezal-element-glass
 import '../packages/@feezal/feezal-element-metro-multivalue/feezal-element-metro-multivalue.js';
 import '../packages/@feezal/feezal-element-eink-multivalue/feezal-element-eink-multivalue.js';
 import '../packages/@feezal/feezal-element-glass-value/feezal-element-glass-value.js';
+// E187: the remote family over the remote controller.
+import '../packages/@feezal/feezal-element-glass-remote/feezal-element-glass-remote.js';
+import '../packages/@feezal/feezal-element-metro-remote/feezal-element-metro-remote.js';
+import '../packages/@feezal/feezal-element-circle-remote/feezal-element-circle-remote.js';
+import {REMOTE_CONSUMED_ATTRIBUTES} from '../packages/@feezal/feezal-controller-remote/feezal-controller-remote.js';
 import '../packages/@feezal/feezal-element-metro-value/feezal-element-metro-value.js';
 // E139: the Fancy family adopts five controllers + lock — all six register.
 import '../packages/@feezal/feezal-elements-fancy/index.js';
@@ -162,6 +167,10 @@ const CASES = [
     {tag: 'feezal-element-glass-link',  consumed: LINK_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-metro-link',  consumed: LINK_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-eink-link',   consumed: LINK_CONSUMED_ATTRIBUTES},
+    // E187: the TV remote, shared by three families.
+    {tag: 'feezal-element-glass-remote',  consumed: REMOTE_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-metro-remote',  consumed: REMOTE_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-circle-remote', consumed: REMOTE_CONSUMED_ATTRIBUTES},
 ];
 
 describe('E137 — adopting elements declare the full controller contract', () => {

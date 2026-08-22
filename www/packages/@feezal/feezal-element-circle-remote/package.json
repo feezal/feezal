@@ -1,0 +1,10 @@
+{
+    "name": "@feezal/feezal-element-circle-remote",
+    "version": "3.0.0",
+    "main": "feezal-element-circle-remote.js",
+    "license": "MIT",
+    "dependencies": {
+        "@feezal/feezal-element": "*",
+        "@feezal/feezal-controller-remote": "*"
+    }
+}

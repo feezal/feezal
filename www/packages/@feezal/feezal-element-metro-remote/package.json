@@ -1,0 +1,11 @@
+{
+    "name": "@feezal/feezal-element-metro-remote",
+    "version": "3.0.0",
+    "main": "feezal-element-metro-remote.js",
+    "license": "MIT",
+    "dependencies": {
+        "@feezal/feezal-element": "*",
+        "@feezal/feezal-metro": "*",
+        "@feezal/feezal-controller-remote": "*"
+    }
+}
