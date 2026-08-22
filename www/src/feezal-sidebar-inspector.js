@@ -207,30 +207,51 @@ class FeezalSidebarInspector extends LitElement {
         return (el.localName || '').replace('feezal-element-', '');
     }
 
+    /**
+     * B119 — one derived value, guarded. Every input to render() is a cheap
+     * read of DOM the inspector does not own (the selection, the view, the
+     * clipboard, other elements' descriptors). Any of them throwing used to
+     * abort the WHOLE render: no .ctx-menu (right-click "dead"), no
+     * <feezal-sidebar-inspector-styles> child (the drag onmove dereferenced it
+     * unguarded → element snapping "dead"), and both came back together once
+     * the cause cleared — exactly the reported pairing. A bad value now costs
+     * its own menu entry / badge, never the panel.
+     */
+    _safe(label, fn, fallback) {
+        try {
+            return fn();
+        } catch (error) {
+            console.warn(`feezal-sidebar-inspector: ${label} failed — degraded render`, error);
+            return fallback;
+        }
+    }
+
     render() {
         const cm = this._ctxMenu;
-        const hasClip = Boolean(feezal.app?._clipboardTpl?.content?.childNodes?.length);
-        const otherViews = cm.visible ? this._otherViews() : [];
-        const selLabel = this._selectionLabel();
-        const isLocked = !this.viewSelected && this.selectedElems.length > 0 &&
-            Boolean(this.selectedElems[0].hasAttribute?.('locked'));
+        const safe = (label, fn, fallback) => this._safe(label, fn, fallback);
+        const hasClip = safe('clipboard', () => Boolean(feezal.app?._clipboardTpl?.content?.childNodes?.length), false);
+        const otherViews = cm.visible ? safe('other views', () => this._otherViews(), []) : [];
+        const selLabel = safe('selection label', () => this._selectionLabel(), '');
+        const isLocked = safe('locked', () => !this.viewSelected && this.selectedElems.length > 0 &&
+            Boolean(this.selectedElems[0].hasAttribute?.('locked')), false);
         // U32: component context-menu entries. "Create component…" needs a
         // selection of plain elements (no nesting of instances); the component
         // actions need the selection to be instances only.
-        const selNonView = this.viewSelected ? [] : this.selectedElems.filter(el => el.tagName !== 'FEEZAL-VIEW');
+        const selNonView = safe('selection', () => this.viewSelected ? [] : this.selectedElems.filter(el => el.tagName !== 'FEEZAL-VIEW'), []);
         const canCreateComponent = selNonView.length > 0 &&
             !selNonView.some(el => el.localName === 'feezal-component');
         const isComponentSel = selNonView.length > 0 &&
             selNonView.every(el => el.localName === 'feezal-component');
         // U33: stacking-order menu state (DOM order = paint order).
+        const noStacking = {canFront: false, canBack: false, canForward: false, canBackward: false};
         const stacking = cm.visible && cm.onElem && feezal.view
-            ? stackingState(feezal.view, selNonView)
-            : {canFront: false, canBack: false, canForward: false, canBackward: false};
+            ? safe('stacking state', () => stackingState(feezal.view, selNonView), noStacking)
+            : noStacking;
         // U83: align/distribute needs ≥2 unlocked absolutely-positioned
         // elements (a flow view lays its children out itself, so moving them
         // by inline offsets would do nothing).
-        const alignable = cm.visible && cm.onElem && !isFlowLike(feezal.view)
-            ? selNonView.filter(el => !el.hasAttribute('locked'))
+        const alignable = cm.visible && cm.onElem
+            ? safe('align targets', () => isFlowLike(feezal.view) ? [] : selNonView.filter(el => !el.hasAttribute('locked')), [])
             : [];
         const alignCount = alignable.length;
         const canAlign = alignCount > 1;
@@ -241,12 +262,12 @@ class FeezalSidebarInspector extends LitElement {
         // U95 widened both to a single selected VIEW, which now runs the
         // conditions engine and can carry a subscribe-theme topic. Component
         // instances are still out (a later iteration; see the E50 archive).
-        const canConditions = this._wiringTarget;
-        const condCount = canConditions ? this._conditionCount(this.selectedElems[0]) : 0;
-        const canDebug = this._wiringTarget;
+        const canConditions = safe('wiring target', () => this._wiringTarget, false);
+        const condCount = canConditions ? safe('condition count', () => this._conditionCount(this.selectedElems[0]), 0) : 0;
+        const canDebug = canConditions;
         // E115: families the current selection can be switched to (union of each
         // element's twins in other installed families).
-        const switchTargets = cm.visible && cm.onElem ? this._switchFamilyTargets() : [];
+        const switchTargets = cm.visible && cm.onElem ? safe('switch-family targets', () => this._switchFamilyTargets(), []) : [];
         return html`
             <sl-tab-group @sl-tab-show="${e => { this._activeTab = e.detail.name; }}">
                 <sl-tab slot="nav" panel="attributes">Attributes</sl-tab>
@@ -951,7 +972,6 @@ class FeezalSidebarInspector extends LitElement {
      */
     _attachCanvasSelection(view) {
         if (view._feezalSelectionWired) return;
-        view._feezalSelectionWired = true;
 
         view.addEventListener('click', e => {
             // Ignore the synthetic click after a rubber-band / drag / reorder
@@ -994,6 +1014,10 @@ class FeezalSidebarInspector extends LitElement {
             e.stopPropagation();
             feezal.app._openComponentEdit(elem.getAttribute('name'));
         }, true);
+
+        // B119: latch only once every listener is attached — a view must never
+        // claim to be wired while the ctx-menu listener is missing.
+        view._feezalSelectionWired = true;
     }
 
     /**
@@ -1096,7 +1120,7 @@ class FeezalSidebarInspector extends LitElement {
                     move: event => {
                         if (event.rect.width > 10) element.style.width = `${Math.round(event.rect.width)}px`;
                         if (event.rect.height > 10) element.style.height = `${Math.round(event.rect.height)}px`;
-                        this.shadowRoot.querySelector('feezal-sidebar-inspector-styles').setStyle(element, ['width', 'height']);
+                        this.shadowRoot.querySelector('feezal-sidebar-inspector-styles')?.setStyle(element, ['width', 'height']);
                     },
                     end: () => { this.resizeElement = null; feezal.app.change(); }
                 }
@@ -1173,6 +1197,11 @@ class FeezalSidebarInspector extends LitElement {
         // retargeted below — there is no longer a set of per-view instances
         // competing for the same pointer events to stop one by one.
 
+        // B119: three independent features, each contained. A throw in the
+        // rubber band must not leave the view without click/ctx-menu wiring,
+        // and a single element refusing initElem must not leave its siblings
+        // un-draggable (the "menu AND snapping died together" report).
+        const safe = (label, fn) => this._safe(label, fn, undefined);
         switch (view.childPosition) {
             case 'static':   // U41 — legacy alias, treated as flow
             case 'flow':
@@ -1180,21 +1209,21 @@ class FeezalSidebarInspector extends LitElement {
                              // container's placement algorithm differs.
                 // Flow reorder is per-element interact.js (initFlow) — the view
                 // only needs the shared click-selection / context menu.
-                this._rubberBand?.stop();
-                this._attachCanvasSelection(view);
+                safe('rubber band stop', () => this._rubberBand?.stop());
                 break;
             default:
-                this._initRubberBand();
+                safe('rubber band init', () => this._initRubberBand());
         }
+        safe('canvas selection wiring', () => this._attachCanvasSelection(view));
 
         this.currentView = [view];
         [...view.children].forEach(element => {
             if (isCanvasElement(element) && !element.feezalEditable) {
-                this.initElem(element);
+                safe(`initElem <${element.localName}>`, () => this.initElem(element));
             }
         });
 
-        this.selectElement();
+        safe('select element', () => this.selectElement());
         this._observeChildPosition(view);
     }
 
@@ -2092,7 +2121,8 @@ class FeezalSidebarInspector extends LitElement {
                             el.style.left = Math.round(el._startLeft) + 'px';
                             el.style.top = Math.round(el._startTop) + 'px';
                         });
-                    this.shadowRoot.querySelector('feezal-sidebar-inspector-styles').setStyle(element, ['left', 'top']);
+                    // B119: the styles panel is a sibling render product — never a precondition for moving.
+                    this.shadowRoot.querySelector('feezal-sidebar-inspector-styles')?.setStyle(element, ['left', 'top']);
                 },
                 onend: () => {
                     this.dragElement = null;

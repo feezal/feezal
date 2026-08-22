@@ -10,7 +10,6 @@ Work in progress — priorities and scope are not final.
 - [B61 — Glass backdrop-filter: drawer-hover repaint bleeds artifacts into the view (Chrome/macOS only)](#b61--glass-backdrop-filter-drawer-hover-repaint-bleeds-artifacts-into-the-view-chromemacos-only)
 - [B106 — `discovery-ids` is space-separated, but MQTT topics may contain spaces](#b106--discovery-ids-is-space-separated-but-mqtt-topics-may-contain-spaces)
 - [B118 — Undo dead after deleting via the layers-tree context menu (until the canvas is clicked)](#b118--undo-dead-after-deleting-via-the-layers-tree-context-menu-until-the-canvas-is-clicked)
-- [B119 — Right-click menu dead after the tab was backgrounded (footer selector crash)](#b119--right-click-menu-dead-after-the-tab-was-backgrounded-footer-selector-crash)
 - [B127 — Copy/paste of template elements loses the template content (B31 regression class)](#b127--copypaste-of-template-elements-loses-the-template-content-b31-regression-class)
 
 
@@ -66,7 +65,6 @@ Work in progress — priorities and scope are not final.
 - [E175 — Theme: LCARS (Star Trek bridge computer) ⚠ trade-dress check first](#e175-theme-lcars-star-trek-bridge-computer-trade-dress-check-first)
 - [E176 — Theme: Material You / MD3 baseline (light + dark)](#e176-theme-material-you-md3-baseline-light-dark)
 - [E177 — Theme: Soft UI / neumorphism ⚠ needs a shadow token](#e177-theme-soft-ui-neumorphism-needs-a-shadow-token)
-- [E178 — system-form: a subview as a web form (decided core, script API to refine)](#e178--system-form-a-subview-as-a-web-form-decided-core-script-api-to-refine)
 - [E180 — Glass cards: Home.app interaction model (icon = main action, card = details)](#e180--glass-cards-homeapp-interaction-model-icon--main-action-card--details)
 - [E181 — Mini glass cards: circular icon-only size preset](#e181--mini-glass-cards-circular-icon-only-size-preset)
 - [E184 — Standard card surfaces: static / interactive-off / active / alarm (glass, then metro)](#e184-standard-card-surfaces-static-interactive-off-active-alarm-glass-then-metro)
@@ -88,7 +86,6 @@ Work in progress — priorities and scope are not final.
 - [U98 — Palette colors in editor light mode ⚠️ needs refinement](#u98--palette-colors-in-editor-light-mode-️-needs-refinement)
 - [U110 — layout-app: per-sub-view element search (E170 shape B)](#u110--layout-app-per-sub-view-element-search-e170-shape-b)
 - [U112 — Element-family-wide settings (e.g. all glass transparency) ⚠ idea, needs refinement + decision](#u112--element-family-wide-settings-eg-all-glass-transparency--idea-needs-refinement--decision)
-- [U113 — Scripting ergonomics: `feezal-id`, scoped lookup, value/event contract — decided](#u113--scripting-ergonomics-feezal-id-scoped-lookup-valueevent-contract--decided)
 - [U114 — Component parameter UX: one-click expose, shared-segment templating, richer param specs — decided](#u114--component-parameter-ux-one-click-expose-shared-segment-templating-richer-param-specs--decided)
 
 
@@ -361,90 +358,6 @@ for redo).
 
 **Relates:** the layers tree (U87 family), the `_keyHandler` focus guard,
 B108 (layers/selection interplay — same neighbourhood).
-
-
-### B119 — Right-click menu dead after the tab was backgrounded (footer selector crash)
-
-**Reported (08/2026).** After the browser tab sat in the background for a
-while, the editor's right-click menu stopped working. Console:
-
-```
-Uncaught (in promise) SyntaxError: Failed to execute 'querySelectorAll' on
-'Element': 'feezal-element-*, feezal-component' is not a valid selector.
-    at get _elements (editor-…)  at render …  at Ss._observer (attributes)
-```
-
-**Diagnosis:** the crash is the U97 **footer**'s `_elements` getter using a
-wildcard TAG selector — which is not valid CSS and throws. The current source
-([feezal-footer.js](../www/src/feezal-footer.js)) already replaced it with the
-`isCanvasElement` predicate (with a comment naming exactly this trap), so the
-reported session was running the earlier build — **first step: confirm a
-rebuild/redeploy makes the SyntaxError disappear**, then close that half.
-
-**Refined (08/2026) — a plain reload does NOT fix it.** The menu stays dead
-after reloading, while at the same time (a) `www/dist` is freshly rebuilt and
-**no longer contains** the invalid selector, and (b) the context-menu wiring
-and its browser suites are green in current source (ctx-submenu,
-switch-family, cross-view-select). Two branches to distinguish when picking
-this up:
-
-1. **Stale bundle survives the reload.** The crashing trace named
-   `editor-C498CFC_.js` — that hash fingerprints the broken build. Check
-   whether the browser still loads that hash after a HARD reload (service
-   worker / PWA cache reviving the old bundle?) and whether the running
-   server process serves a pre-fix dist (needs restart). If stale delivery is
-   the cause, the actionable bug becomes: **editor bundle caching must not
-   survive a rebuild** (cache-busting / SW update flow for the editor route)
-   — that is a real defect on its own, reload-should-mean-current.
-2. **A second, genuinely new breakage** — if the menu is dead on a
-   confirmed-new bundle hash, capture the fresh console output; the
-   fault-isolation half below is then the active lead (the suites do not
-   exercise the live constellation).
-
-**What must still be fixed — the resilience half:** one component throwing in
-`render()` must not take the editor's right-click down with it. The footer's
-attribute MutationObserver → `requestUpdate` → throwing render left an
-unhandled rejection storm (re-triggered per mutation — plausibly why the
-backgrounded tab, replaying batched mutations on resume, surfaced it), and the
-breakage escaped the footer: the context menu died. Investigate the coupling
-(shared render scheduling? the selectElement path in the stack?) and add a
-containment rule: the footer (and similar passive chrome) wraps its cheap
-DOM-derived getters defensively, and a render error in one panel must degrade
-that panel only. A regression test that feeds the footer a view holding an
-unknown/hostile child and asserts the ctx menu still opens would pin it.
-
-**Re-reported (08/2026) — and one TRIGGER found and removed.** The
-reporter hit it again, now in a wider shape: the right-click menu died,
-came back by itself, and **element snapping stopped and resumed the same
-way** — two unrelated editor features failing intermittently together,
-exactly the coupling this entry predicts.
-
-One concrete trigger was found while investigating: the E182 media cards
-declared their whole ~40-knob contract as REFLECTED Lit properties with
-constructor defaults, so every media card on the canvas stamped ~40
-attributes onto itself on first update (`payload-play="play"`,
-`message-property-title="payload"`, …). That is a burst of attribute
-MUTATIONS on a canvas element — precisely what the footer's
-MutationObserver → `requestUpdate` path amplifies — plus junk serialized
-into every saved dashboard. The base class documents this exact trap for
-its availability block ("Lit reflects constructor defaults on first
-update … and it broke the U32 create-component attribute table"). Fixed:
-those properties are now attribute→property sync only, no reflection, no
-constructor defaults, with a browser regression test asserting a media
-card stamps NO contract attributes.
-
-**That removes A trigger, not the fragility.** The containment half below
-is unchanged and still the actual bug: a mutation storm (or any throwing
-render) must not be able to take unrelated editor features down. Worth
-auditing other elements for the same mass-reflection pattern while
-fixing it — grep for reflected properties whose constructor assigns a
-default.
-
-**Relates:** U97 ✅ (the footer), the earlier stamp-code lesson (same
-wildcard-selector trap, already documented there), B118 (another
-sidebar-interaction global breakage — the editor needs fault isolation
-between panels), E182 (the media contract whose reflection storm was one
-trigger).
 
 
 ### B127 — Copy/paste of template elements loses the template content (B31 regression class)
@@ -2869,60 +2782,6 @@ B61 + `degrade` (perf motivation), E171 (family-wide popup knobs would
 ride the same concept), theme-var discipline test.
 
 
-### U113 — Scripting ergonomics: `feezal-id`, scoped lookup, value/event contract — decided
-
-**Requested + decided (08/2026).** Use case: two input elements + a
-button; pressing the button runs a script action. Possible today via
-`system-script` (`fzl` API) or a template `<script>`, but reading an
-input means shadow-root spelunking and elements have nothing to be found
-by. Decisions with the maintainer:
-
-1. **A dedicated `feezal-id` attribute** (NOT the HTML global `id` — no
-   `getElementById`/CSS-`#` collision semantics to explain), one identity
-   shared by scripting (`fzl.el()`), E178 system-form field keys,
-   and the UI. Injected into the generic attributes inspector for every
-   element, like the `locked` checkbox — zero per-element descriptor
-   work; serializes as a plain attribute.
-2. **Shown in the layers view** — the tree row displays the `feezal-id`
-   next to the element tag/label (helpful for plain editing, not just
-   scripts).
-3. **Source-view priority:** `feezal-id` sorts FIRST on the opening-tag
-   line — extend the U92/U96 identifying-attribute serialization order
-   (`feezal-id` before `label`/`subscribe`/`icon`/…), so a folded
-   element leads with its identity.
-4. **Scoped lookup API:** `fzl.el(feezalId)` / `fzl.val(feezalId)` /
-   `fzl.on(feezalId, event, cb)` — `val`, not `value`: short like `el`
-   and `on` (maintainer preference) — resolving the VISIBLE occurrence first
-   (layout-app keeps warm clones of visited sub-views, N40, and U32
-   component instances stamp copies — global uniqueness is a lie; the
-   API defines resolution: visible first, then document order). The
-   inspector may warn on duplicates within one authored view.
-5. **Public element contract, curated list first** (material/carbon
-   input, select, slider, checkbox, radio, switch; the *-button
-   families): a `.value` getter (setter where sensible) + composed,
-   bubbling `feezal-change` / `feezal-press` events that escape the
-   shadow root. Input elements additionally re-dispatch the low-level
-   editing events as composed `feezal-blur` / `feezal-keyup` /
-   `feezal-keydown` (detail carries key + value), so scripts can do
-   live validation, Enter-to-submit and typeahead without shadow-root
-   reach-ins — `fzl.on(id, 'keydown', cb)` maps the short event names
-   onto the prefixed ones. Documented in docs/element-spec.md; a
-   parity-style test pins the contract. This contract is a PREREQUISITE
-   of E178.
-6. **Cookbook docs:** collect-and-publish-one-JSON via `fzl.mqtt.pub`
-   first (pure-MQTT doctrine), webhook `fetch` as the escape hatch with
-   the A28 `connect-src` note, button-triggered view switch.
-
-**Caveats (unchanged):** id resolution is semantics-by-definition, not
-uniqueness (clones/instances); CSP for webhook fetches (A28); every
-contract element freezes public surface — curate, don't blanket all
-~170.
-
-**Relates:** E178 (system-form — consumes feezal-id + the
-contract), system-script (`fzl` API), N40/U32 (duplication sources),
-U92/U96 (source attribute order), A28 (CSP), docs/element-spec.md.
-
-
 ### E175 — Theme: LCARS (Star Trek bridge computer) ⚠ trade-dress check first
 **From the E172 survey.** An **LCARS** look
 ([th3jesta/ha-lcars](https://github.com/th3jesta/ha-lcars), repo **MIT**,
@@ -2969,60 +2828,6 @@ point), or (b) first add a `--feezal-*-shadow` token to the family card
 chromes (small, U112-adjacent change) so the theme can express the
 double soft shadow. Recommend (b) — decide together with U112's
 family-token manifest. Light + dark variants.
-
-
-### E178 — system-form: a subview as a web form (decided core, script API to refine)
-
-**Requested + core decided (08/2026).** A `system-form` element that
-embeds a SUBVIEW (the dialog-view/layout-view clone machinery, N40
-keep-warm semantics) and turns it into a form: every member element
-carrying a **`feezal-id`** and the U113 **`.value` contract**
-automatically becomes a field — the payload is
-`{<feezal-id>: <value>, …}`. Elements without a `feezal-id` are not
-part of the payload (explicit opt-in). U113 is the prerequisite.
-
-**Decisions taken:**
-- **Field keys = `feezal-id`** (one identity across scripting, forms,
-  layers view — see U113).
-- **Submit = BOTH:** a designated member button — suggestion: the form's
-  `submit-id` attribute names the trigger's `feezal-id`, default
-  `submit`, listening for its composed `feezal-press` (no per-family
-  button knob needed) — and when NO member matches, the form renders its
-  own plain submit button (label knob) under the embedded view.
-- **Always a script**, Monaco-edited like system-script, PREFILLED with
-  a small transparent default that collects all values and publishes one
-  JSON to the configured topic. Validation = edit the script (return
-  false / don't publish); webhook = replace the publish with fetch (A28
-  `connect-src` note in the help).
-- **Member publishing untouched:** the form only READS values; members
-  with their own `publish` topics keep publishing per change — leave a
-  member's publish topic empty to keep it quiet. No suppression magic.
-
-**Script context API (suggestions — refine before building):** the form
-script gets the `fzl` API plus a `form` object:
-- `form.values()` → `{feezalId: value}` over the embedded view;
-- `form.topic` → the form's `publish` attribute (the requested
-  `fzl.attr('topic')` shortcut, but typed: `form.attr(name)` exists as
-  the general accessor, `form.topic` is the sugar for the 90% case);
-- `form.publish(obj = form.values())` → one-liner JSON publish to
-  `form.topic`;
-- `form.reset()` → clear/restore member values (needs the contract's
-  setter side);
-- default script (the prefill):
-  `fzl.mqtt.pub(form.topic, form.values());`
-  — or even `form.publish();` — decide which reads better as the
-  learning template (leaning to the explicit `fzl.mqtt.pub` form: it
-  teaches the general API, and `form.publish()` stays the shortcut).
-
-**Editor:** placeholder like the other system pseudo-elements (never a
-live embed on canvas); view picker for the subview (B128 space-safety);
-Monaco script tab; TESTING.md recipe with the two cookbook flows (JSON
-publish; webhook fetch).
-
-**Relates:** U113 (prerequisite: feezal-id + value/event contract),
-system-script (`fzl`, Monaco), N40 (embedded clone), B128 (view
-picker), A28 (CSP for fetch), E50 (conditions on form members work
-unchanged).
 
 
 ### E180 — Glass cards: Home.app interaction model (icon = main action, card = details)

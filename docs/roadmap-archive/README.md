@@ -132,6 +132,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [B126 — Duplicate view renders its copy stacked on the current view (looks like elements duplicated in place) ✅ fixed](B126.md)
 - [B128 — View names with spaces break the sl-select view pickers (layout-flex subview not shown) ✅ fixed](B128.md)
 - [B129 — layout-app narrow overlay drawer: scrolled area below the first screenful is TRANSPARENT (iOS PWA report) ✅ fixed](B129.md)
+- [B119 — Right-click menu dead after the tab was backgrounded (footer selector crash) ✅ fixed](B119.md)
 
 ## Near-term Improvements
 
@@ -316,6 +317,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [E179 — Theme: Industrial Copper (warm metallic dark) ✅ shipped](E179.md)
 - [E182 — echo2mqtt discovery + the media-element capability gaps (mute, provider, dedupe) ✅ shipped](E182.md)
 - [E183 — glass-media element ✅ shipped](E183.md)
+- [E178 — system-form: a subview as a web form (decided core, script API to refine) ✅ shipped](E178.md)
 
 ## Editor UX
 
@@ -421,6 +423,7 @@ Improvements, `E` Element Ecosystem, `U` Editor UX, `A` Architecture & Infrastru
 - [U103 — layout-app: two-level navigation (groups, double drawer, tabs, breadcrumb) ✅ done](U103.md)
 - [U104 — Generic list-of-objects attribute editor (fixes the multivalue UX) ✅ done](U104.md)
 - [U105 — Asset Manager: multi-select + bulk move/delete ✅ done](U105.md)
+- [U113 — Scripting ergonomics: `feezal-id`, scoped lookup, value/event contract — decided ✅ done](U113.md)
 
 ## Architecture & Infrastructure
 - [A24 — Externalize the metro element family ❌ rejected — metro stays in feezal](A24.md)
