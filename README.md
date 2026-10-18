@@ -44,8 +44,6 @@ Then open [http://localhost:3000/editor/](http://localhost:3000/editor/) and fol
 - [Element Authoring Spec](docs/element-spec.md) — how to build and publish custom palette elements
 - [Theme Authoring Spec](docs/theme-spec.md) — how to build and publish theme packages
 - [Icon-Set Authoring Spec](docs/icons-spec.md) — how to build and publish icon-set packages
-- [Roadmap](docs/ROADMAP.md) — planned features and design specs
-- [Roadmap Archive](docs/roadmap-archive/README.md) — completed items, one file per item
 
 ---
 
