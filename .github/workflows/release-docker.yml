@@ -143,27 +143,16 @@ jobs:
           # still covers them.
           # A26: each line is "subject<TAB>shorthash" — the grouping greps
           # still match the subject (line start); render() appends the commit
-          # link and links word-bounded roadmap IDs (B12, E120, …) to their
-          # docs/roadmap-archive file when it exists at this tag (reused-ID
-          # files carry an <ID>-<slug>.md name — glob fallback). Open items
-          # (not archived yet) stay plain text rather than 404 links.
+          # link. (The roadmap is no longer kept in this repository, so IDs in
+          # subjects stay plain text.)
           SUBJECTS=$(git log "${RANGE}" --pretty=format:"%s%x09%h" --no-merges \
             | grep -Ev "^chore\(release\)" || true)
 
           render() {
-            local subject hash out id f
+            local subject hash out
             while IFS="$(printf '\t')" read -r subject hash; do
               [ -z "${subject}" ] && continue
               out="${subject}"
-              for id in $(printf '%s' "${subject}" | grep -oE '\b[BENUA][0-9]+\b' | sort -u); do
-                f="docs/roadmap-archive/${id}.md"
-                if [ ! -f "${f}" ]; then
-                  f=$(ls "docs/roadmap-archive/${id}-"*.md 2>/dev/null | head -1 || true)
-                fi
-                if [ -n "${f}" ] && [ -f "${f}" ]; then
-                  out=$(printf '%s' "${out}" | sed -E "s|\b${id}\b|[${id}](https://github.com/${REPO}/blob/${TAG}/${f})|g")
-                fi
-              done
               if [ -n "${hash}" ]; then
                 out="${out} ([\`${hash}\`](https://github.com/${REPO}/commit/${hash}))"
               fi
