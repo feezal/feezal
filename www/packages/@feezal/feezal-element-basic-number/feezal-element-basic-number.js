@@ -18,6 +18,8 @@ class FeezalElementBasicNumber extends FeezalElement {
                     help: 'Explicit override. Empty = the site locale decides (Site Settings, default: browser language).'},
                 {name: 'grouping', type: 'boolean', default: false,
                     help: 'Format the value with thousands separators per the site locale (1.234 / 1,234). Off by default. Ignored when an explicit decimal separator is set.'},
+                {name: 'placeholder', type: 'string', default: '-',
+                    help: 'Shown in place of the number until the first usable value arrives (also for a payload that is not a number). Prefix and suffix are hidden while it shows. Empty = show nothing.'},
                 'prefix',
                 'suffix',
                 {name: 'click-through', type: 'boolean', default: false,
@@ -47,6 +49,9 @@ class FeezalElementBasicNumber extends FeezalElement {
         // hasAttribute useless as the authored-override signal (N38).
         decimalSeparator: {type: String, attribute: 'decimal-separator'},
         digits:           {type: Number, reflect: true},
+        // E119: NOT reflected — the default "-" must not be baked into every
+        // saved dashboard (N38); an explicit placeholder="" stays authored.
+        placeholder:      {type: String},
         prefix:           {type: String, reflect: true},
         suffix:           {type: String, reflect: true},
         clickThrough:     {type: Boolean, reflect: true, attribute: 'click-through'},
@@ -66,6 +71,7 @@ class FeezalElementBasicNumber extends FeezalElement {
         super();
         this.decimalSeparator = '.';
         this.digits           = undefined;
+        this.placeholder      = '-';
         this.prefix           = '';
         this.suffix           = '';
         this.clickThrough     = false;
@@ -73,7 +79,22 @@ class FeezalElementBasicNumber extends FeezalElement {
         this._formatedValue   = '';
     }
 
+    /** E119: a usable value exists — not before the first message, not for a
+     *  null or unparsable payload (the Number converter turns those into NaN). */
+    _hasValue() {
+        return this.value != null && this.value !== '' && !Number.isNaN(Number(this.value));
+    }
+
     render() {
+        // E119: until a usable value exists the placeholder stands alone —
+        // "-°C" would read like a measurement, a bare "°C" like a broken widget.
+        if (!this._hasValue()) {
+            return html`
+                <div>
+                    <span id="value" class="placeholder">${this.placeholder ?? ''}</span>
+                </div>
+            `;
+        }
         return html`
             <div>
                 <span id="prefix">${this.prefix}</span><span id="value">${this._formatedValue}</span><span id="suffix">${this.suffix}</span>
@@ -95,7 +116,8 @@ class FeezalElementBasicNumber extends FeezalElement {
     }
 
     _valueChanged() {
-        if (this.value == null) {
+        if (!this._hasValue()) {
+            this._formatedValue = '';
             return;
         }
         // N38: the site locale formats the number; an EXPLICIT
