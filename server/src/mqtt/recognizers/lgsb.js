@@ -17,6 +17,10 @@
  *   <prefix>/set/<item>                                                  writes
  *   <prefix>/connected  0 | 1 | 2
  *
+ * Home Assistant discovery: the bridge announces its settings as single
+ * numbers, switches and selects. The two entities promoted here are composites
+ * and claim nothing, so those stay on offer next to them (E192).
+ *
  * It promotes TWO entities per bridge:
  *   - a `media` card for the media half — volume/mute, the play metadata
  *     while streaming, the `input` select through the shared source

@@ -356,6 +356,16 @@ describe('detectRoom (U58 App mode)', () => {
         expect(detectRoom(e).label).toBe('Wintergarten');
     });
 
+    it('E192: a native entity that took over an announced device block is placed by its area, and keeps its native label', () => {
+        // the shape the server hands out for a Homematic dimmer that hm2mqtt 3 also announces
+        const e = {component: 'light', source: 'homematic', sourceLabel: 'hm', name: 'Stehlampe Küche:1',
+            config: {brightness_state_topic: 'hm/status/Stehlampe Küche:1/LEVEL',
+                device: {identifiers: ['hm2mqtt_hm_X1'], name: 'Stehlampe Küche', suggested_area: 'Wohnzimmer'}}};
+        // the CCU room is trusted over the room word in the name
+        expect(detectRoom(e)).toMatchObject({label: 'Wohnzimmer', source: 'area'});
+        expect(discoveryLabel(e)).toBe('hm: Stehlampe Küche:1');
+    });
+
     it('matches z2m friendly-name tokens (wohnzimmer_lampe)', () => {
         expect(detectRoom(ent('wohnzimmer_lampe')).label).toBe('Living room');
         expect(detectRoom(ent('kueche_licht')).label).toBe('Kitchen');

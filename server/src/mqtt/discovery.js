@@ -15,6 +15,8 @@
  */
 
 const native = require('./native-discovery.js');
+const {mergeDiscovery} = require('./discovery-merge.js');
+const {templateToProperty} = require('./template-property.js');
 
 // ── Abbreviation expansion table ──────────────────────────────────────────
 // Maps the short keys used in discovery payloads to their full equivalents.
@@ -252,12 +254,7 @@ function normalizePayload(raw) {
 // message-property path ("payload.X"); payload overrides are taken from the
 // scalar form or the first array entry (feezal applies them globally).
 // Simple "{{ value_json.X }}" templates → feezal message-property path
-// ("payload.X"). E124: z2m emits the BRACKET form for some entities
-// ({{ value_json["battery_low"] }}) — both forms are accepted.
-function templateToProperty(tpl) {
-    const m = /\{\{\s*value_json(?:\.(\w+)|\[\s*["'](\w+)["']\s*\])\s*\}\}/.exec(String(tpl || ''));
-    return m ? 'payload.' + (m[1] || m[2]) : undefined;
-}
+// ("payload.X") — templateToProperty, in template-property.js.
 
 function normalizeAvailability(config, base) {
     const entryAbbrevs = {t: 'topic', pl_avail: 'payload_available', pl_not_avail: 'payload_not_available', val_tpl: 'value_template'};
@@ -394,9 +391,10 @@ function handleMessage(topic, payloadBuf, prefix) {
         handleHaMessage(topic, payloadBuf, p);
     }
 
-    // E108: native recognizers run for EVERY message (Homematic / WLED etc. never
-    // publish HA config topics). Isolated so a bad native parse can never break
-    // the HA discovery path above.
+    // E108: native recognizers run for EVERY message — they read a source's own
+    // topics, not the HA config topics. Isolated so a bad native parse can never
+    // break the HA discovery path above. A source that does both (hm2mqtt 3) is
+    // in both registries; merged() below offers it once (E192).
     try { native.handleNativeMessage(topic, payloadBuf); } catch { /* ignore */ }
 }
 
@@ -416,7 +414,6 @@ function handleHaMessage(topic, payloadBuf, p) {
     }
 }
 
-/** Return all currently known entities as an array (HA + native recognizers). */
 /**
  * E124/E132 — canonical low-battery record for HA/z2m entities, computed at
  * READ time (a battery sibling may be discovered after the state entity, so
@@ -457,15 +454,39 @@ function decorateBatteryLow(entity) {
     return entity;
 }
 
-function getDiscoveredEntities() {
-    return [...[...entities.values()].map(decorateBatteryLow), ...native.getNativeEntities()];
+/**
+ * E192 — both registries as ONE list in which every device is offered once:
+ * an announced entity whose state or command topic a native entity already
+ * covers is left out, and the native entity takes over the announced device
+ * block (the room). The rule itself is discovery-merge.js; everything that
+ * lists devices (the REST routes, the device groups, the AI tools) reads
+ * through here, so they all see the same list.
+ */
+function merged() {
+    return mergeDiscovery(
+        [...entities.values()].map(decorateBatteryLow),
+        native.getNativeEntities(),
+        {announceable: SUPPORTED_COMPONENTS},
+    );
 }
 
-/** Return a single entity by discovery_id, or null if not found. */
+/** Return all currently known entities as an array (HA + native recognizers, every device once). */
+function getDiscoveredEntities() {
+    return merged().entities;
+}
+
+/**
+ * Return a single entity by discovery_id, or null if not found. An announced
+ * entity that the list leaves out (E192) still resolves — a dashboard saved
+ * before may hold its id; a native entity comes back as the list shows it,
+ * with the device block it took over.
+ */
 function getDiscoveredEntity(id) {
     const e = entities.get(id);
     if (e) return decorateBatteryLow(e);
-    return native.getNativeEntity(id) ?? null;
+    const n = native.getNativeEntity(id);
+    if (!n) return null;
+    return merged().entities.find(x => x.discovery_id === id) ?? n;
 }
 
 /** Clear all entities (call on broker disconnect / reconnect to different broker). */
@@ -476,13 +497,15 @@ function clearEntities() {
 
 /**
  * Group all known entities by device (device.identifiers[0]).
- * Entities without device info are excluded.
+ * Entities without device info are excluded. The groups are built from the
+ * same list getDiscoveredEntities() returns (E192): a native entity that took
+ * over an announced device block is in that device's group, with its room.
  * Each group carries an `elementHint` ("plant" when a moisture sensor is present).
  */
 function getDeviceGroups() {
     const groups = new Map();
 
-    for (const entity of entities.values()) {
+    for (const entity of merged().entities) {
         const devId = entity.config?.device?.identifiers?.[0];
         if (!devId) continue;
 

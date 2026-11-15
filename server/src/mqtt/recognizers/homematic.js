@@ -11,6 +11,15 @@
  * resolve availability/battery at read time (indexMaintenance / resolveMaintSeg
  * / applyHmAvailability) and the B64 stale-run-leader filter (isStaleHmGroup).
  *
+ * Home Assistant discovery: hm2mqtt 3 ALSO announces every device (device-based
+ * discovery, on by default) on exactly the topics read here; RedMatic and
+ * node-red-contrib-ccu do not. Every entity promoted here is of a component
+ * discovery can announce, so it claims its topics: the announced copy of a
+ * function is left out of the device list and its room (`suggested_area`, the
+ * CCU room) and device block are taken over (E192, discovery-merge.js). What
+ * the recognizers do not read — energy meters, weather values, a switch
+ * channel the name gate rejects — stays on offer from the discovery.
+ *
  * These cohere: they consume one payload model and share the grouping logic.
  * The file is SELF-CONTAINED — it owns the hm prefix + climate-staleness config
  * and its own `hmRecognizers` array (so isStaleHmGroup can search it), and needs

@@ -7,6 +7,11 @@
  * tree; this recognizer synthesizes the normalized entity shape the framework
  * consumes. Self-contained — it builds its config inline and needs none of the
  * shared HM helpers. See native-discovery.js for the recognizer contract.
+ *
+ * Home Assistant discovery: only where a WLED build has such an option and it
+ * is switched on (not read here which versions do). The `wled` entity is a
+ * composite and claims nothing, so whatever is announced stays on offer next
+ * to it (E192).
  */
 
 const wledRecognizer = {

@@ -23,6 +23,10 @@
  * NOT a second `media` candidate: the TV carries volume/mute but no
  * metadata/transport, so a media card would be a near-empty volume slider —
  * the remote already has that row.
+ *
+ * Home Assistant discovery: the bridge announces single functions (volume,
+ * mute, inputs, sensors). The `remote` entity is a composite and claims
+ * nothing, so those stay on offer next to it (E192).
  */
 
 const DEFAULT_PREFIXES = ['lgtv'];

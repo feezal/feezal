@@ -4,11 +4,23 @@
  * Native device self-discovery (E108).
  *
  * A generic "recognizer" framework layered onto the same MQTT firehose the
- * bridge already feeds through discovery.js. Where a device ecosystem does NOT
- * emit Home-Assistant discovery configs (Homematic via hm2mqtt / RedMatic, and
- * WLED with its HA-sync interface disabled), these recognizers watch the native
- * topic patterns and synthesize the exact same normalized entity shape the HA
- * discovery path produces ({discovery_id, component, config, availability_normalized}).
+ * bridge already feeds through discovery.js. These recognizers watch a source's
+ * own topic patterns and synthesize the exact same normalized entity shape the
+ * HA discovery path produces ({discovery_id, component, config,
+ * availability_normalized}) — for sources that emit no Home-Assistant discovery
+ * (RedMatic, evcc, Frigate), and for sources whose discovery says less than
+ * their own topics do (hm2mqtt, the media bridges).
+ *
+ * A source may therefore be in BOTH registries. discovery-merge.js makes one
+ * list of them in which every device is offered once (E192): a native entity
+ * of a component HA discovery can announce (light, climate, cover, …) claims
+ * its `*_topic`s, and an announced entity on a claimed topic is left out; a
+ * composite (media, remote, …) claims nothing, so the single functions its
+ * bridge announces stay on offer. A recognizer whose source puts several
+ * functions on ONE topic sets `entity.claims = [{topic, property?, component?}]`
+ * itself — see discovery-merge.js. **A new recognizer says in its header
+ * whether its source also announces Home Assistant discovery**, and what then
+ * happens to the announced entities.
  *
  * A recognizer is:
  *   {
@@ -19,6 +31,8 @@
  *         // `payload` is the full parsed JSON-Extended object (or null) so a
  *         // recognizer can read the CCU metadata in payload.hm.
  *     promote(channelState)   → entity | null   // null until signature complete
+ *         // entity: {discovery_id, component, source, sourceLabel, name, config,
+ *         //          claims?} — `claims` only when the default (above) is wrong
  *     reset()                                    // clear accumulator
  *   }
  *
