@@ -12,7 +12,7 @@ import {stampDiscovery, resolveElementTag, layoutGrid, knownComponents, discover
     groupForApp, functionBucket, slugifyViewName, UNKNOWN_ROOM,
     assignRoom, lexiconWordsForLabel, applyFrigateLiveFeed, guessFrigateUrl,
     applyScryptedNvrSrc,
-    multivalueMergeGroups, applyMultivalueFill, uniqueViewName} from './feezal-discovery-stamp.js';
+    multivalueMergeGroups, applyMultivalueFill, uniqueViewName, parseDiscoveryIds} from './feezal-discovery-stamp.js';
 import {RangeSelect} from './feezal-range-select.js';
 import {isFlowLike} from './feezal-view.js';   // U90
 import './feezal-icon-input.js';   // U78: the shared icon picker for the room list
@@ -862,9 +862,9 @@ class FeezalGenerateDialog extends LitElement {
         const out = [];
         const id = el.getAttribute?.('discovery-id');
         if (id) out.push(id);
-        for (const m of (el.getAttribute?.('discovery-ids') || '').split(/\s+/)) {
-            if (m) out.push(m);
-        }
+        // B106: JSON array (ids may contain spaces); the legacy
+        // space-separated form is still read.
+        out.push(...parseDiscoveryIds(el.getAttribute?.('discovery-ids')));
         return out;
     }
 
