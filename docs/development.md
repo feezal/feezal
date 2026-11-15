@@ -77,7 +77,7 @@ The `www/package.json` declares `"workspaces": ["packages/@feezal/*"]`. After `n
 
 | Tool | Version | Notes |
 |---|---|---|
-| Node.js | ≥ 18 (22 recommended) | Matches Docker base image |
+| Node.js | 20.19+, 22.12+ or 24+ (22 recommended) | 22 matches the Docker base image. The server loads `mqtt-ha-entities` (an ES module) with `require()`, which Node supports from these versions on |
 | Docker | any recent | Only needed for Docker workflow |
 
 ### First-time setup

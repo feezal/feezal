@@ -3,153 +3,34 @@
 /**
  * MQTT Auto-Discovery registry (N12).
  *
- * Parses retained config-topic messages that follow the widely-adopted
- * Home Assistant / zigbee2mqtt discovery convention and maintains an
- * in-memory entity registry.
+ * Keeps the entities announced with the Home Assistant / zigbee2mqtt discovery
+ * convention (retained config topics under `homeassistant/`) in the shape the
+ * front-end reads: {discovery_id, component, node_id, object_id, name,
+ * unique_id, config} with Home Assistant's long key names in `config`.
+ *
+ * READING the convention is mqtt-ha-entities' job (A40): its DiscoveryStore
+ * knows both forms (a config per entity, and the device-based form with
+ * `cmps`), Home Assistant's abbreviation tables, the `~` base topic, and that a
+ * topic's new payload REPLACES what the topic announced before (an empty one
+ * removes it). feezal keeps what is its own, on top of the store's entities:
+ * which components it offers (SUPPORTED_COMPONENTS), the `discovery_id` saved
+ * dashboards hold, `availability_normalized`, the battery correlation, and the
+ * one list with the native recognizers (discovery-merge.js).
  *
  * Call handleMessage() from the MQTT bridge's message handler for every
- * incoming message. The registry updates itself whenever a retained config
- * topic arrives or is cleared (empty payload = delete).
- *
- * REST consumers call getDiscoveredEntities() / getDiscoveredEntity(id).
+ * incoming message. REST consumers call getDiscoveredEntities() /
+ * getDiscoveredEntity(id).
  */
 
+// mqtt-ha-entities is an ES module; Node loads it with require() in every
+// version its `engines` allows (^20.19 || ^22.12 || >=24) — no dynamic import,
+// so the registry is ready for the first retained message.
+const {DiscoveryStore, parseDiscoveryTopic} = require('mqtt-ha-entities');
 const native = require('./native-discovery.js');
 const {mergeDiscovery} = require('./discovery-merge.js');
 const {templateToProperty} = require('./template-property.js');
 
-// ── Abbreviation expansion table ──────────────────────────────────────────
-// Maps the short keys used in discovery payloads to their full equivalents.
-const ABBREVS = {
-    // Common
-    '~':             '~',
-    name:            'name',
-    uniq_id:         'unique_id',
-    stat_t:          'state_topic',
-    cmd_t:           'command_topic',
-    stat_val_tpl:    'state_value_template',
-    cmd_tpl:         'command_template',
-    avty:            'availability',
-    avty_t:          'availability_topic',
-    avty_mode:       'availability_mode',
-    pl_avail:        'payload_available',
-    pl_not_avail:    'payload_not_available',
-    qos:             'qos',
-    ret:             'retain',
-    ic:              'icon',
-    dev_cla:         'device_class',
-    pl_on:           'payload_on',
-    pl_off:          'payload_off',
-    stat_on:         'state_on',
-    stat_off:        'state_off',
-    optimistic:      'optimistic',
-    dev:             'device',
-    val_tpl:         'value_template',
-    unit_of_meas:    'unit_of_measurement',
-    ent_cat:         'entity_category',
-    // Light
-    bri_cmd_t:       'brightness_command_topic',
-    bri_stat_t:      'brightness_state_topic',
-    bri_scl:         'brightness_scale',
-    bri_val_tpl:     'brightness_value_template',
-    clr_temp_cmd_t:  'color_temp_command_topic',
-    clr_temp_stat_t: 'color_temp_state_topic',
-    clr_temp_val_tpl:'color_temp_value_template',
-    max_mirs:        'max_mireds',
-    min_mirs:        'min_mireds',
-    rgb_cmd_t:       'rgb_command_topic',
-    rgb_stat_t:      'rgb_state_topic',
-    xy_cmd_t:        'xy_command_topic',
-    xy_stat_t:       'xy_state_topic',
-    hs_cmd_t:        'hs_command_topic',
-    hs_stat_t:       'hs_state_topic',
-    sup_clr_modes:   'supported_color_modes',
-    whit_val_cmd_t:  'white_value_command_topic',
-    whit_val_stat_t: 'white_value_state_topic',
-    schema:          'schema',
-    bri:             'brightness',
-    color_mode:      'color_mode',
-    // Climate
-    curr_temp_t:     'current_temperature_topic',
-    curr_temp_tpl:   'current_temperature_template',
-    fan_mode_cmd_t:  'fan_mode_command_topic',
-    fan_mode_stat_t: 'fan_mode_state_topic',
-    fan_modes:       'fan_modes',
-    hold_cmd_t:      'hold_command_topic',
-    hold_stat_t:     'hold_state_topic',
-    hold_modes:      'hold_modes',
-    mode_cmd_t:      'mode_command_topic',
-    mode_stat_t:     'mode_state_topic',
-    mode_stat_tpl:   'mode_state_template',
-    modes:           'modes',
-    max_temp:        'max_temp',
-    min_temp:        'min_temp',
-    temp_step:       'temp_step',
-    temp_cmd_t:      'temperature_command_topic',
-    temp_stat_t:     'temperature_state_topic',
-    temp_stat_tpl:   'temperature_state_template',
-    temp_unit:       'temperature_unit',
-    act_t:           'action_topic',
-    act_tpl:         'action_template',
-    swing_mode_cmd_t:'swing_mode_command_topic',
-    swing_mode_stat_t:'swing_mode_state_topic',
-    swing_modes:     'swing_modes',
-    preset_mode_cmd_t:  'preset_mode_command_topic',
-    preset_mode_stat_t: 'preset_mode_state_topic',
-    preset_modes:    'preset_modes',
-    // Cover
-    pos_t:           'position_topic',
-    set_pos_t:       'set_position_topic',
-    tilt_cmd_t:      'tilt_command_topic',
-    tilt_stat_t:     'tilt_status_topic',
-    tilt_min:        'tilt_min',
-    tilt_max:        'tilt_max',
-    tilt_clsd_val:   'tilt_closed_value',
-    tilt_opnd_val:   'tilt_opened_value',
-    pl_open:         'payload_open',
-    pl_cls:          'payload_close',
-    pl_stop:         'payload_stop',
-    pos_open:        'position_open',
-    pos_clsd:        'position_closed',
-    // Fan
-    pct_cmd_t:       'percentage_command_topic',
-    pct_stat_t:      'percentage_state_topic',
-    pr_mode_cmd_t:   'preset_mode_command_topic',
-    pr_mode_stat_t:  'preset_mode_state_topic',
-    pr_modes:        'preset_modes',
-    spd_rng_min:     'speed_range_min',
-    spd_rng_max:     'speed_range_max',
-    // Lock
-    pl_lock:         'payload_lock',
-    pl_unlk:         'payload_unlock',
-    stat_locked:     'state_locked',
-    stat_unlocked:   'state_unlocked',
-    stat_jammed:     'state_jammed',
-    // Select
-    ops:             'options',
-    // E149: Button / Scene
-    pl_prs:          'payload_press',
-    // E149: Number / Text (min/max/step/mode/pattern arrive unabbreviated)
-    // E149: Camera — `t` is the image topic (matches the cmps entryAbbrevs form)
-    t:               'topic',
-    // E149: Image — `url_t` carries the image URL over MQTT
-    url_t:           'url_topic',
-    // Sensor / binary_sensor
-    expire_after:    'expire_after',
-    force_update:    'force_update',
-    // Device info
-    ids:             'identifiers',
-    cns:             'connections',
-    mf:              'manufacturer',
-    mdl:             'model',
-    sw:              'sw_version',
-    hw:              'hw_version',
-    sa:              'suggested_area',
-    // Device discovery
-    cmps:            'components',
-    // Shorthand used inside cmps entries
-    p:               'platform',
-};
+const DEFAULT_PREFIX = 'homeassistant';
 
 const SUPPORTED_COMPONENTS = new Set([
     'light', 'climate', 'cover', 'switch', 'fan', 'humidifier',
@@ -163,59 +44,19 @@ const SUPPORTED_COMPONENTS = new Set([
 ]);
 
 // ── Entity registry ────────────────────────────────────────────────────────
-/** @type {Map<string, object>} discovery_id → normalised entity */
-const entities = new Map();
-
-// ── Helpers ────────────────────────────────────────────────────────────────
+/** @type {Map<string, DiscoveryStore>} discovery prefix → what is announced under it */
+const stores = new Map();
 
 /**
- * Expand abbreviated keys to full key names, RECURSIVELY (B89).
- *
- * HA discovery abbreviates keys at every level, not just the top: ESPHome's
- * default payload nests `dev:{ids,mdl,mf,cns,sw,sa,…}`, availability is an array
- * of `{t,pl_avail,val_tpl}` entries, and a device config's `cmps` holds one
- * abbreviated component config per object_id. A top-level-only expansion left
- * `device.ids` (not `device.identifiers`), so device grouping / metadata / area
- * were lost. Only KEYS are mapped; VALUES pass through and are recursed when
- * they are objects or arrays (a value that happens to look like an abbreviation
- * is never rewritten — connection tuples like `[["mac","…"]]` stay intact).
+ * discovery_id → normalised entity, derived from the stores. Rebuilt on the
+ * first read after a config message (a retained burst is thousands of
+ * messages and no read), so the objects are stable between two changes.
+ * @type {Map<string, object>}
  */
-function expandAbbrevs(obj) {
-    if (Array.isArray(obj)) return obj.map(expandAbbrevs);
-    if (!obj || typeof obj !== 'object') return obj;
-    const out = {};
-    for (const [k, v] of Object.entries(obj)) {
-        const key = ABBREVS[k] ?? k;
-        if (key === 'components' && v && typeof v === 'object' && !Array.isArray(v)) {
-            // The `cmps` map is keyed by user-chosen object_ids (e.g. `sw`, which
-            // is ALSO an abbreviation for `sw_version`). Preserve those keys and
-            // only expand each component config's own keys.
-            const comps = {};
-            for (const [objId, comp] of Object.entries(v)) comps[objId] = expandAbbrevs(comp);
-            out[key] = comps;
-        } else {
-            out[key] = expandAbbrevs(v);
-        }
-    }
-    return out;
-}
+let entities = new Map();
+let stale = false;
 
-/** Replace all `~` occurrences in string values with the base topic, recursively
- * (nested topics inside `availability` entries / `cmps` component configs also
- * use the `~` shorthand). Only the top-level `~` declaration key is dropped. */
-function resolveBase(obj, base) {
-    if (!base) return obj;
-    if (Array.isArray(obj)) return obj.map(v => resolveBase(v, base));
-    if (obj && typeof obj === 'object') {
-        const out = {};
-        for (const [k, v] of Object.entries(obj)) {
-            if (k === '~') continue;
-            out[k] = resolveBase(v, base);
-        }
-        return out;
-    }
-    return typeof obj === 'string' ? obj.replaceAll('~', base) : obj;
-}
+// ── Helpers ────────────────────────────────────────────────────────────────
 
 /**
  * B89: HA allows the device `identifiers` as a scalar OR a list — ESPHome sends
@@ -228,16 +69,6 @@ function normalizeDevice(config) {
     if (dev && typeof dev === 'object' && typeof dev.identifiers === 'string') {
         dev.identifiers = [dev.identifiers];
     }
-    return config;
-}
-
-/** Expand abbreviations and resolve the `~` base topic shorthand. */
-function normalizePayload(raw) {
-    const expanded = expandAbbrevs(raw);
-    const base = expanded['~'] || '';
-    const config = resolveBase(expanded, base);
-    normalizeDevice(config);
-    normalizeAvailability(config, base);
     return config;
 }
 
@@ -256,23 +87,17 @@ function normalizePayload(raw) {
 // Simple "{{ value_json.X }}" templates → feezal message-property path
 // ("payload.X") — templateToProperty, in template-property.js.
 
-function normalizeAvailability(config, base) {
-    const entryAbbrevs = {t: 'topic', pl_avail: 'payload_available', pl_not_avail: 'payload_not_available', val_tpl: 'value_template'};
-
+function normalizeAvailability(config) {
     const entries = [];
     let payloadAvailable;
     let payloadUnavailable;
 
-    const rawList = config.availability;
-    if (Array.isArray(rawList)) {
-        for (const rawEntry of rawList) {
-            if (!rawEntry || typeof rawEntry !== 'object') continue;
-            const e = {};
-            for (const [k, v] of Object.entries(rawEntry)) e[entryAbbrevs[k] ?? k] = v;
-            let topic = e.topic;
-            if (typeof topic !== 'string' || !topic) continue;
-            if (base) topic = topic.replaceAll('~', base);
-            const entry = {topic};
+    // The store hands out `availability` as a list of entries with long key
+    // names and `~` resolved (a single object too).
+    if (Array.isArray(config.availability)) {
+        for (const e of config.availability) {
+            if (!e || typeof e.topic !== 'string' || !e.topic) continue;
+            const entry = {topic: e.topic};
             const property = templateToProperty(e.value_template);
             if (property) entry.property = property;
             entries.push(entry);
@@ -301,79 +126,82 @@ function makeId(component, nodeId, objectId) {
     return nodeId ? `${component}/${nodeId}/${objectId}` : `${component}/${objectId}`;
 }
 
-// ── Component discovery ────────────────────────────────────────────────────
+/**
+ * A store entity → the entity the front-end reads, or null when feezal does
+ * not offer its component.
+ *
+ * `discovery_id` is what saved dashboards hold and must not change:
+ *   <component>/<object_id>             homeassistant/<component>/<object_id>/config
+ *   <component>/<node_id>/<object_id>   homeassistant/<component>/<node_id>/<object_id>/config
+ *   <platform>/<object_id>/<key>        homeassistant/device/<object_id>/config, component <key>
+ * (the device form's topic object id sits where the node id sits, as it always
+ * did here; with a node id of its own it is <platform>/<node_id>/<object_id>/<key>).
+ */
+function toFeezalEntity(e, prefix) {
+    if (!SUPPORTED_COMPONENTS.has(e.component)) return null;
 
-function handleComponentDiscovery(component, nodeId, objectId, payloadBuf) {
-    if (!SUPPORTED_COMPONENTS.has(component)) return;
-    const id = makeId(component, nodeId, objectId);
-    const payloadStr = payloadBuf ? payloadBuf.toString() : '';
-
-    // Empty payload = delete entity (standard "clear discovery" convention)
-    if (!payloadStr) {
-        entities.delete(id);
-        return;
+    let nodeId = e.nodeId ?? null;
+    if (e.id !== e.topic) {
+        // a component of a device-based config: the node is the topic's own id
+        const t = parseDiscoveryTopic(prefix, e.topic);
+        nodeId = t.nodeId === undefined ? t.objectId : `${t.nodeId}/${t.objectId}`;
     }
+    const objectId = e.objectId;
+    const id = makeId(e.component, nodeId, objectId);
 
-    let raw;
-    try { raw = JSON.parse(payloadStr); } catch { return; }
+    // The store's config is its own; feezal adds to a copy.
+    const config = {...e.config};
+    if (config.device && typeof config.device === 'object') config.device = {...config.device};
+    normalizeDevice(config);
+    normalizeAvailability(config);
 
-    const config = normalizePayload(raw);
-    entities.set(id, {
+    return {
         discovery_id: id,
-        component,
-        node_id:    nodeId,
-        object_id:  objectId,
-        name:       config.name || objectId,
-        unique_id:  config.unique_id || id,
+        component: e.component,
+        node_id:   nodeId,
+        object_id: objectId,
+        name:      config.name || objectId,
+        unique_id: config.unique_id || id,
         config,
-    });
+    };
 }
 
-// ── Device discovery ───────────────────────────────────────────────────────
-// homeassistant/device/<node_id>/config — one payload, many components via "cmps"
+/**
+ * feezal's own leniency for the device-based form: a `~` at the ROOT of the
+ * payload also applies to the components that set none. Home Assistant hands
+ * the base topic down to nobody (each component has to carry its own `~`), so
+ * a publisher that relies on this is wrong there — but feezal has always read
+ * it that way, and reading it costs nothing. Returns the payload to hand to
+ * the store: the parsed object with the base handed down, or the payload as it
+ * came when there is nothing to do (the store then parses and judges it).
+ */
+function withDeviceBase(payloadBuf) {
+    const text = payloadBuf == null ? '' : payloadBuf.toString();
+    if (!text.includes('"~"')) return payloadBuf;
+    const raw = JSON.parse(text);       // not JSON: throws, like the store would
+    const components = raw && typeof raw === 'object' ? (raw.cmps ?? raw.components) : null;
+    if (typeof raw?.['~'] !== 'string' || !components || typeof components !== 'object') return raw;
+    for (const comp of Object.values(components)) {
+        if (!comp || typeof comp !== 'object' || Array.isArray(comp) || '~' in comp) continue;
+        // a component reduced to its platform is a removal — it must stay that
+        if (Object.keys(comp).every(k => k === 'p' || k === 'platform')) continue;
+        comp['~'] = raw['~'];
+    }
+    return raw;
+}
 
-function handleDeviceDiscovery(nodeId, payloadBuf) {
-    const payloadStr = payloadBuf ? payloadBuf.toString() : '';
-
-    if (!payloadStr) {
-        // Remove all entities registered under this node_id
-        for (const [id] of entities) {
-            if (id.includes(`/${nodeId}/`)) entities.delete(id);
+/** The registry, rebuilt from the stores when a config message came since the last read. */
+function registry() {
+    if (!stale) return entities;
+    entities = new Map();
+    for (const [prefix, store] of stores) {
+        for (const e of store.entities.values()) {
+            const entity = toFeezalEntity(e, prefix);
+            if (entity) entities.set(entity.discovery_id, entity);
         }
-        return;
     }
-
-    let raw;
-    try { raw = JSON.parse(payloadStr); } catch { return; }
-
-    const expanded = expandAbbrevs(raw);
-    const base = expanded['~'] || '';
-    const components = expanded.components || {};
-
-    for (const [objectId, compRaw] of Object.entries(components)) {
-        if (!compRaw || typeof compRaw !== 'object') continue;
-        const compExpanded = expandAbbrevs(compRaw);
-        const component = compExpanded.platform || compExpanded.p || '';
-        if (!SUPPORTED_COMPONENTS.has(component)) continue;
-
-        // Merge device-level keys with component-level keys; component wins on conflict
-        const merged = { ...expanded, ...compExpanded };
-        const config = normalizeDevice(resolveBase(expandAbbrevs(merged), base));
-        // Device-level availability (shared across components) needs the same
-        // canonical normalisation the per-component path gets via normalizePayload.
-        normalizeAvailability(config, base);
-
-        const id = makeId(component, nodeId, objectId);
-        entities.set(id, {
-            discovery_id: id,
-            component,
-            node_id:   nodeId,
-            object_id: objectId,
-            name:      config.name || objectId,
-            unique_id: config.unique_id || id,
-            config,
-        });
-    }
+    stale = false;
+    return entities;
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────
@@ -386,9 +214,16 @@ function handleDeviceDiscovery(nodeId, payloadBuf) {
  * @param {string} [prefix='homeassistant']  Discovery topic prefix.
  */
 function handleMessage(topic, payloadBuf, prefix) {
-    const p = prefix || 'homeassistant';
+    const p = prefix || DEFAULT_PREFIX;
     if (topic.startsWith(p + '/') && topic.endsWith('/config')) {
-        handleHaMessage(topic, payloadBuf, p);
+        let store = stores.get(p);
+        if (!store) stores.set(p, store = new DiscoveryStore({prefix: p}));
+        try {
+            // A payload that is not a JSON object throws and leaves what the
+            // topic announced before in place.
+            const payload = topic.startsWith(p + '/device/') ? withDeviceBase(payloadBuf) : payloadBuf;
+            if (store.handle(topic, payload ?? '') !== undefined) stale = true;
+        } catch { /* ignore */ }
     }
 
     // E108: native recognizers run for EVERY message — they read a source's own
@@ -396,22 +231,6 @@ function handleMessage(topic, payloadBuf, prefix) {
     // break the HA discovery path above. A source that does both (hm2mqtt 3) is
     // in both registries; merged() below offers it once (E192).
     try { native.handleNativeMessage(topic, payloadBuf); } catch { /* ignore */ }
-}
-
-/** HA / zigbee2mqtt discovery-config topic handling. */
-function handleHaMessage(topic, payloadBuf, p) {
-    const inner = topic.slice(p.length + 1, -'/config'.length); // strip prefix/ and /config
-    const parts = inner.split('/');
-
-    if (parts[0] === 'device' && parts.length === 2) {
-        handleDeviceDiscovery(parts[1], payloadBuf);
-    } else if (parts.length === 2) {
-        // <component>/<object_id>
-        handleComponentDiscovery(parts[0], null, parts[1], payloadBuf);
-    } else if (parts.length === 3) {
-        // <component>/<node_id>/<object_id>
-        handleComponentDiscovery(parts[0], parts[1], parts[2], payloadBuf);
-    }
 }
 
 /**
@@ -436,7 +255,7 @@ function decorateBatteryLow(entity) {
 
     let bool = null;
     let pct = null;
-    for (const e of entities.values()) {
+    for (const e of registry().values()) {
         if (e === entity) continue;
         if (e.config?.device?.identifiers?.[0] !== devId) continue;
         if (e.config?.device_class !== 'battery') continue;
@@ -464,7 +283,7 @@ function decorateBatteryLow(entity) {
  */
 function merged() {
     return mergeDiscovery(
-        [...entities.values()].map(decorateBatteryLow),
+        [...registry().values()].map(decorateBatteryLow),
         native.getNativeEntities(),
         {announceable: SUPPORTED_COMPONENTS},
     );
@@ -482,7 +301,7 @@ function getDiscoveredEntities() {
  * with the device block it took over.
  */
 function getDiscoveredEntity(id) {
-    const e = entities.get(id);
+    const e = registry().get(id);
     if (e) return decorateBatteryLow(e);
     const n = native.getNativeEntity(id);
     if (!n) return null;
@@ -491,7 +310,9 @@ function getDiscoveredEntity(id) {
 
 /** Clear all entities (call on broker disconnect / reconnect to different broker). */
 function clearEntities() {
-    entities.clear();
+    stores.clear();
+    entities = new Map();
+    stale = false;
     native.clearNativeEntities();
 }
 

@@ -18,6 +18,9 @@
     },
     "author": "Sebastian Raff <hobbyquaker@gmail.com>",
     "license": "AGPL-3.0-only",
+    "engines": {
+        "node": "^20.19 || ^22.12 || >=24"
+    },
     "dependencies": {
         "archiver": "^8.0.0",
         "bcryptjs": "^2.4.3",
@@ -26,6 +29,7 @@
         "express": "^4.19.2",
         "express-session": "^1.18.0",
         "mqtt": "^5.15.1",
+        "mqtt-ha-entities": "^0.1.0",
         "prettier": "^3.9.6",
         "socket.io": "^4.7.5",
         "tar-stream": "^3.2.0",
