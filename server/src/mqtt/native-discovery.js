@@ -31,6 +31,9 @@
  *         // `payload` is the full parsed JSON-Extended object (or null) so a
  *         // recognizer can read the CCU metadata in payload.hm.
  *     promote(channelState)   → entity | null   // null until signature complete
+ *         // or an array of entities. A channelState with `replacePrefix`
+ *         // says the array is the whole roster under that id prefix: what
+ *         // was promoted under it before and is missing now is removed.
  *         // entity: {discovery_id, component, source, sourceLabel, name, config,
  *         //          claims?} — `claims` only when the default (above) is wrong
  *     reset()                                    // clear accumulator
@@ -58,6 +61,7 @@ const {alexaRecognizer} = require('./recognizers/alexa');
 const {wiimRecognizer} = require('./recognizers/wiim');
 const {lgsbRecognizer} = require('./recognizers/lgsb');
 const {lgtvRecognizer} = require('./recognizers/lgtv');
+const {zigbee2mqttRecognizer} = require('./recognizers/zigbee2mqtt');
 const {untisRecognizer} = require('./recognizers/untis');
 
 // ── Framework ─────────────────────────────────────────────────────────────────
@@ -65,7 +69,7 @@ const {untisRecognizer} = require('./recognizers/untis');
 // switch, sensor, lock, evcc, frigate (recognizer precedence is behavioural);
 // scrypted appended (E169 — it matches only homeassistant/* config topics,
 // which no other recognizer touches).
-const recognizers = [hm.hmRecognizers[0], wledRecognizer, ...hm.hmRecognizers.slice(1), evccRecognizer, frigateRecognizer, scryptedRecognizer, alexaRecognizer, wiimRecognizer, lgsbRecognizer, lgtvRecognizer, untisRecognizer];
+const recognizers = [hm.hmRecognizers[0], wledRecognizer, ...hm.hmRecognizers.slice(1), evccRecognizer, frigateRecognizer, scryptedRecognizer, alexaRecognizer, wiimRecognizer, lgsbRecognizer, lgtvRecognizer, untisRecognizer, zigbee2mqttRecognizer];
 
 /** @type {Map<string, object>} discovery_id → promoted native entity */
 const nativeEntities = new Map();
@@ -148,7 +152,20 @@ function handleNativeMessage(topic, payloadOrBuf) {
         try { entity = rec.promote(channelState); } catch { continue; }
         // promote() may return one entity or an array (a Frigate stats payload
         // names EVERY camera at once) — same handling either way.
-        for (const ent of Array.isArray(entity) ? entity : [entity]) {
+        const promoted = Array.isArray(entity) ? entity : [entity];
+        // A source that publishes its whole roster in one message (zigbee2mqtt's
+        // bridge/devices) names the id prefix the roster REPLACES: what was
+        // promoted under it before and is not in the new list is gone.
+        if (typeof channelState.replacePrefix === 'string' && channelState.replacePrefix) {
+            const keep = new Set(promoted.map(e => e && e.discovery_id));
+            for (const id of nativeEntities.keys()) {
+                if (id.startsWith(channelState.replacePrefix) && !keep.has(id)) {
+                    nativeEntities.delete(id);
+                    nativeEntityTs.delete(id);
+                }
+            }
+        }
+        for (const ent of promoted) {
             if (!ent || !ent.discovery_id) continue;
             nativeEntities.set(ent.discovery_id, ent);
             // Stamp the device's newest ts for the read-time staleness filter.

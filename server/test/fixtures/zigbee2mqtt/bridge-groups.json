@@ -1,0 +1,12 @@
+[
+  {"friendly_name":"At home","id":1,"members":[],"scenes":[]},
+  {"friendly_name":"Is dark","id":2,"members":[],"scenes":[]},
+  {"friendly_name":"Is night","id":3,"members":[],"scenes":[]},
+  {"friendly_name":"Sleeping","id":4,"members":[],"scenes":[]},
+  {"friendly_name":"Guests","id":5,"members":[],"scenes":[]},
+  {"friendly_name":"Master motion","id":6,"members":[],"scenes":[]},
+  {"friendly_name":"Lights","id":7,"members":[{"endpoint":1,"ieee_address":"0x00124b0000000115"},{"endpoint":11,"ieee_address":"0x00124b000000010e"},{"endpoint":1,"ieee_address":"0x00124b0000000114"},{"endpoint":1,"ieee_address":"0x00124b0000000113"},{"endpoint":1,"ieee_address":"0x00124b0000000122"},{"endpoint":1,"ieee_address":"0x00124b0000000121"}],"scenes":[]},
+  {"friendly_name":"Switches","id":8,"members":[{"endpoint":1,"ieee_address":"0x00124b0000000107"},{"endpoint":1,"ieee_address":"0x00124b0000000108"},{"endpoint":2,"ieee_address":"0x00124b0000000108"},{"endpoint":2,"ieee_address":"0x00124b000000010c"},{"endpoint":1,"ieee_address":"0x00124b000000010c"}],"scenes":[]},
+  {"friendly_name":"Covers","id":9,"members":[{"endpoint":1,"ieee_address":"0x00124b0000000109"}],"scenes":[]},
+  {"friendly_name":"Thermostats","id":10,"members":[{"endpoint":1,"ieee_address":"0x00124b000000010b"}],"scenes":[{"id":0,"name":"Heat 37"}]}
+]
