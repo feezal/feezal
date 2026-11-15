@@ -116,6 +116,7 @@ class FeezalTemplateEditor extends LitElement {
         this._debounceTimer = null;
         this._resizeObserver = null;
         this._providerDispose = null;
+        this._syncing = false;         // B127: true while setValue() runs for an outside sync
     }
 
     disconnectedCallback() {
@@ -128,17 +129,23 @@ class FeezalTemplateEditor extends LitElement {
     }
 
     updated(changed) {
-        // Sync value from outside into the editor (avoid cursor jump if same content)
-        if (changed.has('value') && this._editor) {
-            const current = this._editor.getValue();
-            if (current !== this.value) {
-                this._editor.setValue(this.value ?? '');
+        // Sync value from outside into the editor (avoid cursor jump if same content).
+        // B127: an outside sync is NOT an edit. Monaco's setValue() fires
+        // onDidChangeModelContent, which used to come back 300 ms later as a
+        // feezal-change — the inspector then wrote the synced value into every
+        // selected element. Selecting template elements with different
+        // contents together (merged value '') wiped all of them. A debounce
+        // still pending from typing belongs to the PREVIOUS value/selection
+        // and is dropped for the same reason (the inspector's U36 rule).
+        if (changed.has('value')) {
+            const next = this.value ?? '';
+            if (this._editor && this._editor.getValue() !== next) {
+                clearTimeout(this._debounceTimer);
+                this._setQuietly(this._editor, next);
             }
-        }
-        if (changed.has('value') && this._overlayEditor) {
-            const current = this._overlayEditor.getValue();
-            if (current !== this.value) {
-                this._overlayEditor.setValue(this.value ?? '');
+            if (this._overlayEditor && this._overlayEditor.getValue() !== next) {
+                clearTimeout(this._debounceTimer);
+                this._setQuietly(this._overlayEditor, next);
             }
         }
         if (changed.has('darkMode')) {
@@ -146,6 +153,16 @@ class FeezalTemplateEditor extends LitElement {
             this._editor?.updateOptions({theme});
             this._overlayEditor?.updateOptions({theme});
             syncMonacoStyles(this.shadowRoot);
+        }
+    }
+
+    /** B127: set editor content without it counting as a user edit. */
+    _setQuietly(editor, value) {
+        this._syncing = true;
+        try {
+            editor.setValue(value);
+        } finally {
+            this._syncing = false;
         }
     }
 
@@ -207,6 +224,7 @@ class FeezalTemplateEditor extends LitElement {
         });
 
         this._editor.onDidChangeModelContent(() => {
+            if (this._syncing) return;   // B127: programmatic, not an edit
             clearTimeout(this._debounceTimer);
             this._debounceTimer = setTimeout(() => {
                 this.dispatchEvent(new CustomEvent('feezal-change', {
@@ -225,11 +243,17 @@ class FeezalTemplateEditor extends LitElement {
             // Sync back from overlay to inline before destroying
             if (this._overlayEditor) {
                 const v = this._overlayEditor.getValue();
-                this._editor?.setValue(v);
-                this.dispatchEvent(new CustomEvent('feezal-change', {
-                    detail: {value: v},
-                    bubbles: true, composed: true
-                }));
+                if (this._editor) this._setQuietly(this._editor, v);
+                // B127: closing the overlay is not an edit — only an unsaved
+                // difference is flushed (opening and closing it on a mixed
+                // multi-selection used to write '' into every element).
+                if (v !== (this.value ?? '')) {
+                    clearTimeout(this._debounceTimer);
+                    this.dispatchEvent(new CustomEvent('feezal-change', {
+                        detail: {value: v},
+                        bubbles: true, composed: true
+                    }));
+                }
                 this._overlayEditor.dispose();
                 this._overlayEditor = null;
             }
@@ -258,10 +282,11 @@ class FeezalTemplateEditor extends LitElement {
         });
 
         this._overlayEditor.onDidChangeModelContent(() => {
+            if (this._syncing) return;   // B127: programmatic, not an edit
             clearTimeout(this._debounceTimer);
             this._debounceTimer = setTimeout(() => {
                 const v = this._overlayEditor.getValue();
-                this._editor?.setValue(v);
+                if (this._editor) this._setQuietly(this._editor, v);
                 this.dispatchEvent(new CustomEvent('feezal-change', {
                     detail: {value: v},
                     bubbles: true, composed: true
