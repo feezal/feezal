@@ -16,7 +16,9 @@ vi.mock('../src/feezal-monaco-loader.js', () => {
             opts,
             _contentCb: null,
             getValue: () => value,
-            setValue(v) { value = v; },
+            // Like real Monaco: setValue() fires the content-change listener
+            // too (B127 — the editor must tell that apart from typing).
+            setValue(v) { value = v; this._contentCb?.(); },
             /** Test helper: what Monaco does when the user types. */
             type(v) { value = v; this._contentCb?.(); },
             onDidChangeModelContent(cb) { this._contentCb = cb; },
@@ -105,6 +107,55 @@ describe('feezal-change (debounced 300 ms)', () => {
         expect(events).toEqual([]);
         vi.advanceTimersByTime(2);
         expect(events).toEqual(['xy']);
+    });
+});
+
+describe('B127 — outside syncs are not edits', () => {
+    it('a value synced in from outside never comes back as feezal-change', async () => {
+        const el = await mount({value: 'a'});
+        vi.useFakeTimers();
+        const events = [];
+        el.addEventListener('feezal-change', e => events.push(e.detail.value));
+        el.value = '';                       // e.g. a mixed multi-selection
+        await el.updateComplete;
+        el.value = 'other element';
+        await el.updateComplete;
+        vi.advanceTimersByTime(1000);
+        expect(events).toEqual([]);
+    });
+
+    it('a typing debounce still pending is dropped when the value changes from outside', async () => {
+        const el = await mount({value: 'a'});
+        vi.useFakeTimers();
+        const events = [];
+        el.addEventListener('feezal-change', e => events.push(e.detail.value));
+        monacoState.created[0].ed.type('ab');
+        el.value = 'selection changed';
+        await el.updateComplete;
+        vi.advanceTimersByTime(1000);
+        expect(events).toEqual([]);
+    });
+
+    it('opening and closing the overlay without an edit writes nothing', async () => {
+        const el = await mount({value: ''});
+        const events = [];
+        el.addEventListener('feezal-change', e => events.push(e.detail.value));
+        await el._toggleExpand();            // open
+        expect(monacoState.created).toHaveLength(2);
+        await el._toggleExpand();            // close
+        expect(events).toEqual([]);
+    });
+
+    it('closing the overlay flushes an unsaved overlay edit once', async () => {
+        const el = await mount({value: 'a'});
+        const events = [];
+        el.addEventListener('feezal-change', e => events.push(e.detail.value));
+        await el._toggleExpand();
+        monacoState.created[1].ed.type('typed in overlay');
+        await el._toggleExpand();            // before the 300 ms debounce
+        await new Promise(r => setTimeout(r, 350));
+        expect(events).toEqual(['typed in overlay']);
+        expect(monacoState.created[0].ed.getValue()).toBe('typed in overlay');
     });
 });
 
