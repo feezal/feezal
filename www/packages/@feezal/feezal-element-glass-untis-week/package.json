@@ -1,0 +1,11 @@
+{
+    "name": "@feezal/feezal-element-glass-untis-week",
+    "version": "3.0.0",
+    "main": "feezal-element-glass-untis-week.js",
+    "license": "MIT",
+    "dependencies": {
+        "@feezal/feezal-element": "*",
+        "@feezal/feezal-glass": "*",
+        "@feezal/feezal-controller-untis": "*"
+    }
+}

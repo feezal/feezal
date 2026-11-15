@@ -88,6 +88,11 @@ import '@feezal/feezal-element-glass-remote';
 import '@feezal/feezal-element-glass-search';
 import '@feezal/feezal-element-glass-sensor';
 import '@feezal/feezal-element-glass-switch';
+import '@feezal/feezal-element-glass-untis-day';
+import '@feezal/feezal-element-glass-untis-hours';
+import '@feezal/feezal-element-glass-untis-list';
+import '@feezal/feezal-element-glass-untis-now';
+import '@feezal/feezal-element-glass-untis-week';
 import '@feezal/feezal-element-glass-value';
 import '@feezal/feezal-element-glass-wled';
 import '@feezal/feezal-element-layout-app';
@@ -282,6 +287,11 @@ window.feezal.elements = [
   "feezal-element-glass-search",
   "feezal-element-glass-sensor",
   "feezal-element-glass-switch",
+  "feezal-element-glass-untis-day",
+  "feezal-element-glass-untis-hours",
+  "feezal-element-glass-untis-list",
+  "feezal-element-glass-untis-now",
+  "feezal-element-glass-untis-week",
   "feezal-element-glass-value",
   "feezal-element-glass-wled",
   "feezal-element-layout-app",

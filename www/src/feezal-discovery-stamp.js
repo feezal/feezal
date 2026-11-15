@@ -313,6 +313,9 @@ const FUNCTION_CANDIDATES = {
     // E169: Scrypted NVR cameras (native recognizer over Scrypted's own
     // homeassistant/* configs) — the embed element exists in `basic` only.
     'scrypted-camera': ['scrypted'],
+    // E191: an untis2mqtt child → its day card (week/list/now/hours take the
+    // same entity through the picker). Glass only; eink may follow.
+    untis: ['untis-day'],
 };
 
 // binary_sensor is device_class-routed: a motion/occupancy sensor wants the

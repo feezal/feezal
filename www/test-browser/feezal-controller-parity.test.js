@@ -28,6 +28,12 @@ import {LOCK_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-lock';
 import {AIEDGE_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-aiedge';
 import {MULTIVALUE_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-multivalue';
 import {EVCC_LOADPOINT_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-evcc-loadpoint';
+import {UNTIS_CONSUMED_ATTRIBUTES} from '@feezal/feezal-controller-untis';
+import '../packages/@feezal/feezal-element-glass-untis-day/feezal-element-glass-untis-day.js';
+import '../packages/@feezal/feezal-element-glass-untis-week/feezal-element-glass-untis-week.js';
+import '../packages/@feezal/feezal-element-glass-untis-list/feezal-element-glass-untis-list.js';
+import '../packages/@feezal/feezal-element-glass-untis-now/feezal-element-glass-untis-now.js';
+import '../packages/@feezal/feezal-element-glass-untis-hours/feezal-element-glass-untis-hours.js';
 import '../packages/@feezal/feezal-element-circle-lock/feezal-element-circle-lock.js';
 import '../packages/@feezal/feezal-element-glass-lock/feezal-element-glass-lock.js';
 import '../packages/@feezal/feezal-element-metro-lock/feezal-element-metro-lock.js';
@@ -181,6 +187,12 @@ const CASES = [
     {tag: 'feezal-element-glass-audio',  consumed: AUDIO_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-metro-audio',  consumed: AUDIO_CONSUMED_ATTRIBUTES},
     {tag: 'feezal-element-circle-audio', consumed: AUDIO_CONSUMED_ATTRIBUTES},
+    // E191: the untis elements — five glass views over one controller.
+    {tag: 'feezal-element-glass-untis-day', consumed: UNTIS_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-glass-untis-week', consumed: UNTIS_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-glass-untis-list', consumed: UNTIS_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-glass-untis-now', consumed: UNTIS_CONSUMED_ATTRIBUTES},
+    {tag: 'feezal-element-glass-untis-hours', consumed: UNTIS_CONSUMED_ATTRIBUTES},
 ];
 
 describe('E137 — adopting elements declare the full controller contract', () => {

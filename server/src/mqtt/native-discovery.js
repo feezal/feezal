@@ -58,13 +58,14 @@ const {alexaRecognizer} = require('./recognizers/alexa');
 const {wiimRecognizer} = require('./recognizers/wiim');
 const {lgsbRecognizer} = require('./recognizers/lgsb');
 const {lgtvRecognizer} = require('./recognizers/lgtv');
+const {untisRecognizer} = require('./recognizers/untis');
 
 // ── Framework ─────────────────────────────────────────────────────────────────
 // Registry order preserved exactly: climate, wled, contact, cover, light,
 // switch, sensor, lock, evcc, frigate (recognizer precedence is behavioural);
 // scrypted appended (E169 — it matches only homeassistant/* config topics,
 // which no other recognizer touches).
-const recognizers = [hm.hmRecognizers[0], wledRecognizer, ...hm.hmRecognizers.slice(1), evccRecognizer, frigateRecognizer, scryptedRecognizer, alexaRecognizer, wiimRecognizer, lgsbRecognizer, lgtvRecognizer];
+const recognizers = [hm.hmRecognizers[0], wledRecognizer, ...hm.hmRecognizers.slice(1), evccRecognizer, frigateRecognizer, scryptedRecognizer, alexaRecognizer, wiimRecognizer, lgsbRecognizer, lgtvRecognizer, untisRecognizer];
 
 /** @type {Map<string, object>} discovery_id → promoted native entity */
 const nativeEntities = new Map();

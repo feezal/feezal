@@ -1,0 +1,9 @@
+{
+    "name": "@feezal/feezal-controller-untis",
+    "version": "3.0.0",
+    "main": "feezal-controller-untis.js",
+    "license": "MIT",
+    "dependencies": {
+        "@feezal/feezal-element": "*"
+    }
+}
