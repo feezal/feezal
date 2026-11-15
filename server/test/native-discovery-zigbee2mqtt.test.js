@@ -3,7 +3,7 @@
  * `…/info`) as a discovery source: the devices appear without Home Assistant
  * discovery, and with it every function is offered once.
  *
- * The fixture is a pair (fixtures/zigbee2mqtt/README.md): a device list of 35
+ * The fixture is a pair (fixtures/zigbee2mqtt/README.md): a device list of 36
  * devices and 10 groups, and the discovery zigbee2mqtt 2.14.3's own code
  * publishes for exactly these — generated, not written by hand.
  */
@@ -33,12 +33,12 @@ beforeEach(() => discovery.clearEntities());
 describe('E193 — the devices appear without Home Assistant discovery', () => {
     beforeEach(() => bridge());
 
-    it('promotes every function of the 35 devices and the 4 groups with members', () => {
+    it('promotes every function of the 36 devices and the 4 groups with members', () => {
         const count = {};
         for (const e of natives()) count[e.component] = (count[e.component] || 0) + 1;
         expect(count).toEqual({
-            light: 12, switch: 32, cover: 2, climate: 1, fan: 1, lock: 2,
-            binary_sensor: 13, sensor: 132, number: 28, select: 35, button: 1, scene: 3,
+            light: 12, switch: 32, cover: 2, climate: 1, fan: 1, lock: 3,
+            binary_sensor: 14, sensor: 135, number: 29, select: 36, button: 1, scene: 3,
         });
         // the coordinator is no device, an empty group nothing to switch
         expect(natives().some(e => e.discovery_id.includes('0x00124b0000000100'))).toBe(false);
@@ -101,6 +101,7 @@ describe('E193 — the devices appear without Home Assistant discovery', () => {
         expect(strip(get('0x00124b000000010b:lock'))).toEqual({
             state_topic: 'zigbee2mqtt/Moes thermo', command_topic: 'zigbee2mqtt/Moes thermo/set',
             value_template: '{{ value_json.child_lock }}', state_locked: 'LOCK', state_unlocked: 'UNLOCK',
+            payload_lock: 'LOCK', payload_unlock: 'UNLOCK',
         });
         expect(strip(get('0x00124b0000000123:fan'))).toEqual({
             state_topic: 'zigbee2mqtt/Air purifier', state_value_template: '{{ value_json.fan_state }}',
@@ -111,6 +112,31 @@ describe('E193 — the devices appear without Home Assistant discovery', () => {
             percentage_state_topic: 'zigbee2mqtt/Air purifier', percentage_value_template: '{{ value_json.fan_mode }}',
             percentage_command_topic: 'zigbee2mqtt/Air purifier/set/fan_mode', speed_range_min: 1, speed_range_max: 9,
         });
+    });
+
+    it('a door lock (E144): the lock, its battery, and its settings as settings', () => {
+        // Yale YRD426NRSC as zigbee2mqtt's own device definition describes it
+        const e = get('0x00124b0000000124:lock');
+        expect(e).toMatchObject({component: 'lock', name: 'Front door lock'});
+        expect(strip(e)).toEqual({
+            state_topic: 'zigbee2mqtt/Front door lock', value_template: '{{ value_json.state }}',
+            state_locked: 'LOCK', state_unlocked: 'UNLOCK',
+            // zigbee2mqtt reads the plain words LOCK / UNLOCK on …/set as the state
+            command_topic: 'zigbee2mqtt/Front door lock/set', payload_lock: 'LOCK', payload_unlock: 'UNLOCK',
+            // a lock runs on batteries: the low-battery flag of the device
+            battery_low_normalized: {topic: 'zigbee2mqtt/Front door lock', property: 'payload.battery_low', payloadLow: true},
+        });
+        // no OPEN action on a zigbee lock
+        expect(e.config.payload_open).toBeUndefined();
+        // the relock time and the sound volume are settings: the Generate wizard offers the lock, not these
+        expect(get('0x00124b0000000124:auto_relock_time').config.entity_category).toBe('config');
+        expect(get('0x00124b0000000124:sound_volume').config.entity_category).toBe('config');
+        const offered = natives().filter(x => x.discovery_id.includes('0x00124b0000000124')
+            && !x.config.entity_category && x.config.enabled_by_default !== false).map(x => x.discovery_id.split(':').pop()).sort();
+        expect(offered).toEqual(['action_source_name', 'action_user', 'lock']);
+        // who operated the lock is a value; the pin codes (a composite) and the `action` event are not offered
+        expect(get('0x00124b0000000124:pin_code')).toBeNull();
+        expect(get('0x00124b0000000124:action')).toBeNull();
     });
 
     it('the generic exposes: read-only becomes a sensor, settable a switch / number / select, a lone command a button', () => {
@@ -133,6 +159,8 @@ describe('E193 — the devices appear without Home Assistant discovery', () => {
         expect(strip(get('0x00124b0000000103:detection_period'))).toEqual({
             state_topic: 'zigbee2mqtt/Light sensor', value_template: '{{ value_json.detection_period }}',
             command_topic: 'zigbee2mqtt/Light sensor/set/detection_period', min: 1, max: 59, unit_of_measurement: 's',
+            // what can be set on a generic expose is a setting of the device
+            entity_category: 'config',
         });
         expect(get('0x00124b0000000106:motion_sensitivity')).toMatchObject({component: 'select'});
         expect(strip(get('0x00124b0000000106:motion_sensitivity')).options).toEqual(['low', 'medium', 'high']);
@@ -189,8 +217,8 @@ describe('E193 — the instance is recognised by its device list, not by a setti
     it('takes any base topic, also one with levels, and several instances side by side', () => {
         bridge('home/zigbee');
         bridge('z2m-attic');
-        expect(natives().filter(e => e.discovery_id.startsWith('z2m:home/zigbee:'))).toHaveLength(262);
-        expect(natives().filter(e => e.discovery_id.startsWith('z2m:z2m-attic:'))).toHaveLength(262);
+        expect(natives().filter(e => e.discovery_id.startsWith('z2m:home/zigbee:'))).toHaveLength(269);
+        expect(natives().filter(e => e.discovery_id.startsWith('z2m:z2m-attic:'))).toHaveLength(269);
         expect(get('home/zigbee:0x00124b0000000107:switch').config.command_topic).toBe('home/zigbee/Aqara switch T1/set');
     });
 
@@ -198,7 +226,7 @@ describe('E193 — the instance is recognised by its device list, not by a setti
         discovery.handleMessage('zigbee2mqtt/bridge/info', buf({version: '2.14.3', config: {availability: {enabled: true}}}));
         discovery.handleMessage('zigbee2mqtt/bridge/devices', buf(devices));
         discovery.handleMessage('zigbee2mqtt/bridge/groups', buf(groups));
-        expect(natives()).toHaveLength(262);
+        expect(natives()).toHaveLength(269);
         expect(get('0x00124b0000000107:switch').config.availability_normalized.entries).toHaveLength(2);
     });
 
@@ -261,13 +289,16 @@ describe('E193 — the instance is recognised by its device list, not by a setti
 });
 
 describe('E193 — with the discovery on, every function is offered once', () => {
-    it('zigbee2mqtt 2.14.3: of 266 announced entities feezal offers, one is left — a composite the device list has no function for', () => {
+    it('zigbee2mqtt 2.14.3: of 274 announced entities feezal offers, two are left — composites the device list has no single function for', () => {
         announce();
         const before = all().filter(e => !e.source);
-        expect(before).toHaveLength(266);
+        expect(before).toHaveLength(274);
         bridge();
-        expect(all().filter(e => !e.source).map(e => e.discovery_id)).toEqual(['sensor/0x00124b000000010b/program']);
-        expect(natives()).toHaveLength(262);
+        expect(all().filter(e => !e.source).map(e => e.discovery_id)).toEqual([
+            'sensor/0x00124b000000010b/program',        // a thermostat's weekly program
+            'sensor/0x00124b0000000124/pin_code',       // a door lock's pin code record
+        ]);
+        expect(natives()).toHaveLength(269);
     });
 
     it('by topic + property: an announced entity is left out only for the native entity of the same function', () => {

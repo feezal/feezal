@@ -1287,10 +1287,30 @@ const hmSensorRecognizer = {
 //   ⚠ VERIFY on a real Keymatic: the STATE boolean polarity (below assumes
 //     true = unlocked, false = locked). The card's payload-locked/unlocked make
 //     it a one-attribute fix if reversed.
-//   HmIP-DLD (DOOR_LOCK_TRANSCEIVER; LOCK_STATE / LOCK_TARGET_LEVEL enums) is NOT
-//     wired yet — its enum values aren't in OpenCCU-Base's config and need real-
-//     device confirmation before mapping (tracked in E144).
+//
+// HmIP door lock drives: HmIP-DLD (channel :1, channelType
+// DOOR_LOCK_STATE_TRANSMITTER) and HmIP-DLP (channel :12, DOOR_LOCK_TRANSCEIVER).
+// Both have the same three datapoints on the lock channel:
+//   LOCK_STATE         read   enum  0 UNKNOWN / 1 LOCKED / 2 UNLOCKED (DLP also 3 INVALID)
+//   LOCK_TARGET_LEVEL  write  enum  0 LOCKED / 1 UNLOCKED / 2 OPEN (DLP has teach-in values after these)
+//   ACTIVITY_STATE     read   enum  0 UNKNOWN / 1 UP / 2 DOWN / 3 STABLE — the motor
+// and a boolean ERROR_JAMMED (DLD: on the :0 maintenance channel; DLP: on the
+// lock channel, next to ERROR_LOAD_TOO_LOW and ERROR_NO_END_STOP_LOCK/UNLOCK).
+// Sources: the CCU's own control for these channels (OpenCCU-Base
+// www/rega/esp/controls/door_opener.fn: LOCK_STATE 1 → the "locked" picture,
+// 2 → "unlocked"; the buttons write LOCK_TARGET_LEVEL 0 / 1 / 2 as Lock /
+// Unlock / Open) and the VALUES descriptions of both devices as pydevccu
+// records them (the VALUE_LISTs above). The interface publishes an enum as its
+// index, so the card compares and sends the numbers.
+//   ⚠ NOT YET SEEN on a real HmIP-DLD / -DLP through hm2mqtt: that the status
+//     payload carries the index (not the name), and which ACTIVITY_STATE
+//     direction is "locking" (mounting-specific, as for the Keymatic).
+//   HmIP-DLS (DOOR_LOCK_STATE_TRANSCEIVER) only reports a lock's state and
+//     takes no command — it is not a lock to operate and is not promoted here.
 const LOCK_CHANNEL_TYPES = new Set(['KEYMATIC']);
+const LOCK_HMIP_CHANNEL_TYPES = new Set(['DOOR_LOCK_STATE_TRANSMITTER', 'DOOR_LOCK_TRANSCEIVER']);
+// what the recognizer watches: the Keymatic's datapoints, and the HmIP ones
+const LOCK_DPS = new Set(['STATE', 'ERROR', 'DIRECTION', 'LOCK_STATE', 'ACTIVITY_STATE', 'ERROR_JAMMED']);
 
 const hmLockRecognizer = {
     id: 'homematic-lock',
@@ -1305,8 +1325,7 @@ const hmLockRecognizer = {
         // STATE (lock state), ERROR (fault), plus the :0 battery presence check.
         // E154: DIRECTION is additionally OBSERVED — never promoted on its own,
         // but its presence wires the movement indicator (no blind guessing).
-        if (parts[3] !== 'STATE' && parts[3] !== 'ERROR' && parts[3] !== 'DIRECTION'
-            && !HM_BATTERY_DPS.has(parts[3])) return null;
+        if (!LOCK_DPS.has(parts[3]) && !HM_BATTERY_DPS.has(parts[3])) return null;
         return {seg: parts[2], datapoint: parts[3]};
     },
 
@@ -1332,8 +1351,10 @@ const hmLockRecognizer = {
         if (HM_BATTERY_DPS.has(parsed.datapoint) && /:0$/.test(parsed.seg)) {
             dev.batteryDp = parsed.datapoint;
         }
-        if (parsed.datapoint !== 'STATE' && parsed.datapoint !== 'ERROR'
-            && parsed.datapoint !== 'DIRECTION') return dev;
+        // HmIP-DLD reports ERROR_JAMMED on the :0 channel, HmIP-DLP on the lock
+        // channel: remember where it was SEEN rather than assume.
+        if (parsed.datapoint === 'ERROR_JAMMED') { dev.jammedSeg = parsed.seg; return dev; }
+        if (!LOCK_DPS.has(parsed.datapoint)) return dev;
 
         let chan = dev.channels.get(parsed.seg);
         if (!chan) {
@@ -1347,12 +1368,18 @@ const hmLockRecognizer = {
         }
         if (parsed.datapoint === 'ERROR') chan.hasError = true;
         if (parsed.datapoint === 'DIRECTION') chan.hasDirection = true;   // E154
+        if (parsed.datapoint === 'LOCK_STATE') chan.hasLockState = true;
+        if (parsed.datapoint === 'ACTIVITY_STATE') chan.hasActivity = true;
         return dev;
     },
 
     promote(dev) {
         const channels = [...dev.channels.values()];
-        const lock = channels.find(c => c.channelType && LOCK_CHANNEL_TYPES.has(c.channelType));
+        const keymatic = channels.find(c => c.channelType && LOCK_CHANNEL_TYPES.has(c.channelType));
+        // an HmIP lock channel counts once its LOCK_STATE was seen
+        const hmip = keymatic ? null
+            : channels.find(c => c.channelType && LOCK_HMIP_CHANNEL_TYPES.has(c.channelType) && c.hasLockState);
+        const lock = keymatic || hmip;
         if (!lock) return null;
 
         const p = hmPrefix;
@@ -1362,7 +1389,19 @@ const hmLockRecognizer = {
         const name = dev.deviceName
             || (dev.deviceType ? dev.deviceType + ' ' + deviceId : deviceId);
 
-        const config = {
+        const config = hmip ? {
+            name,
+            state_topic:    hmStatus(p, seg, 'LOCK_STATE'),
+            // LOCK_TARGET_LEVEL is write-only: it never shows as a status topic
+            command_topic:  hmSet(p, writeSeg, 'LOCK_TARGET_LEVEL'),
+            value_template: '{{ value_json.val }}',
+            state_locked:   '1',
+            state_unlocked: '2',
+            payload_lock:   '0',
+            payload_unlock: '1',
+            // OPEN is a third value of the same datapoint (releases the latch)
+            payload_open:   '2',
+        } : {
             name,
             state_topic:    hmStatus(p, seg, 'STATE'),
             command_topic:  hmSet(p, writeSeg, 'STATE'),
@@ -1377,6 +1416,18 @@ const hmLockRecognizer = {
             payload_open:   'true',
         };
         // E135: the ERROR enum topic (only when observed) → fault badge/text.
+        // HmIP: the boolean ERROR_JAMMED, where it was seen; the card names a
+        // plain `true` after the flag ("jammed").
+        if (hmip && dev.jammedSeg !== undefined) {
+            config.error_topic = hmStatus(p, dev.jammedSeg, 'ERROR_JAMMED');
+            config.message_property_error = 'payload.val';
+        }
+        // HmIP: ACTIVITY_STATE (UNKNOWN / UP / DOWN / STABLE) is the motor signal —
+        // the same indexes for UP and DOWN as the Keymatic's DIRECTION.
+        if (hmip && lock.hasActivity) {
+            config.direction_topic = hmStatus(p, seg, 'ACTIVITY_STATE');
+            config.message_property_direction = 'payload.val';
+        }
         if (lock.hasError) {
             config.error_topic = hmStatus(p, seg, 'ERROR');
             config.message_property_error = 'payload.val';

@@ -38,6 +38,19 @@ export {batteryLowFromValue};
 // Everything else is treated as an active error and surfaced as text.
 const ERROR_OK = new Set(['', '0', 'false', 'no error', 'no_error', 'noerror', 'none', 'ok', 'null', 'undefined']);
 
+/**
+ * The text of an active fault. An error ENUM says what is wrong itself
+ * (Keymatic ERROR: CLUTCH_FAILURE). A boolean fault FLAG only says `true` —
+ * then the flag's name, the last level of its topic, is the text:
+ * `…/ERROR_JAMMED` → "jammed" (HmIP door lock drives).
+ */
+export function faultText(value, topic) {
+    if (String(value).toLowerCase() !== 'true') return value;
+    const leaf = String(topic || '').split('/').filter(Boolean).pop() || '';
+    const name = leaf.replace(/^ERROR_/i, '').replace(/_/g, ' ').trim().toLowerCase();
+    return name || value;
+}
+
 /** Shared attribute descriptors — spread into every family's `feezal.attributes`. */
 export const lockAttributes = [
     {name: 'subscribe',        type: 'mqttTopic', help: 'Topic receiving the lock state.'},
@@ -57,7 +70,7 @@ export const lockAttributes = [
     {name: 'payload-jammed',   type: 'string', default: 'JAMMED',   help: 'State payload meaning jammed.'},
     // E135: optional device fault signal — Keymatic ERROR (clutch/motor) or
     // HmIP-DLD fault flags. Any non-OK value is shown as an error badge + text.
-    {name: 'subscribe-error',        type: 'mqttTopic', help: 'Optional device error/fault topic. Non-OK values show a fault badge with the text.'},
+    {name: 'subscribe-error',        type: 'mqttTopic', help: 'Optional device error/fault topic. Non-OK values show a fault badge with the text; a boolean flag that is true shows the flag\'s name (…/ERROR_JAMMED → "jammed").'},
     {name: 'message-property-error', type: 'string', help: 'Property path within error messages. Defaults to message-property.'},
     // E154: optional movement signal — the motor is turning. Keymatic publishes
     // DIRECTION (NONE / UP / DOWN / UNDEFINED); other locks may publish a plain
@@ -227,7 +240,7 @@ export class LockController {
             this.host.addSubscription(error, msg => {
                 const v = this._prop(msg, 'message-property-error');
                 const raw = (v === null || v === undefined) ? '' : String(v).trim();
-                this.error = ERROR_OK.has(raw.toLowerCase()) ? '' : raw;
+                this.error = ERROR_OK.has(raw.toLowerCase()) ? '' : faultText(raw, error);
                 this.host.requestUpdate();
             });
         }

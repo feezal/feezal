@@ -102,8 +102,8 @@ describe('E193 — stamped from the device list = stamped from the discovery', (
         const count = {};
         for (const p of pairs) count[p.copy.component] = (count[p.copy.component] || 0) + 1;
         expect(count).toEqual({
-            light: 12, switch: 32, cover: 2, climate: 1, fan: 1, lock: 2,
-            binary_sensor: 13, sensor: 134, number: 28, select: 35, button: 1, scene: 3,
+            light: 12, switch: 32, cover: 2, climate: 1, fan: 1, lock: 3,
+            binary_sensor: 14, sensor: 137, number: 29, select: 36, button: 1, scene: 3,
         });
         expect(pairs.filter(p => !p.tag).map(p => p.copy.component)).toEqual([]);
     });
@@ -150,6 +150,25 @@ describe('E193 — stamped from the device list = stamped from the discovery', (
         const sw = of('switch/0x00124b0000000106/switch_trigger_indicator');
         expect(stamp(sw.tag, sw.copy)['message-property']).toBeUndefined();
         expect(stamp(sw.tag, sw.native)['message-property']).toBe('payload.trigger_indicator');
+    });
+
+    it('a door lock stamped from the device list is a working lock card (E144)', () => {
+        const lock = pairs.find(p => p.copy.discovery_id === 'lock/0x00124b0000000124/lock');
+        expect(lock.tag).toBe('feezal-element-glass-lock');
+        const a = stamp(lock.tag, lock.native);
+        expect(a).toMatchObject({
+            subscribe: 'zigbee2mqtt/Front door lock', 'message-property': 'payload.state',
+            'payload-locked': 'LOCK', 'payload-unlocked': 'UNLOCK',
+            publish: 'zigbee2mqtt/Front door lock/set', 'payload-lock': 'LOCK', 'payload-unlock': 'UNLOCK',
+            'subscribe-battery-low': 'zigbee2mqtt/Front door lock', 'message-property-battery-low': 'payload.battery_low',
+            'payload-battery-low': 'true',
+            'subscribe-availability': JSON.stringify([{topic: 'zigbee2mqtt/bridge/state', property: 'payload.state'}]),
+            label: 'Front Door Lock',
+        });
+        // no Open button: a zigbee lock has no latch release
+        expect(a['payload-open']).toBeUndefined();
+        // the copy says less: no battery (zigbee2mqtt's discovery does not link it to the lock)
+        expect(stamp(lock.tag, lock.copy)['subscribe-battery-low']).toBeUndefined();
     });
 
     it('labels every row with its device and function, under the Zigbee2MQTT source', () => {

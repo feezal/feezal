@@ -7,7 +7,7 @@
  */
 import {describe, it, expect, beforeEach, vi} from 'vitest';
 import {
-    LockController, lockAttributes, LOCK_CONSUMED_ATTRIBUTES,
+    LockController, lockAttributes, LOCK_CONSUMED_ATTRIBUTES, faultText,
 } from '../packages/@feezal/feezal-controller-lock/feezal-controller-lock.js';
 
 function makeHost(attrs = {}) {
@@ -150,6 +150,40 @@ describe('E135 fault + E124 battery', () => {
             err(ok);
             expect(lock.error, `"${ok}" should read as no fault`).toBe('');
         }
+    });
+
+    it('E144: a boolean fault flag that is true is named after its topic (HmIP ERROR_JAMMED → "jammed")', () => {
+        const {host, lock} = mount({'subscribe-error': 'hm/status/Haustür:0/ERROR_JAMMED', 'message-property-error': 'payload.val'});
+        const feed = val => host.subs.get('hm/status/Haustür:0/ERROR_JAMMED')({payload: {val}});
+        feed(true);
+        expect(lock.error).toBe('jammed');
+        expect(lock.faulted).toBe(true);
+        feed(false);
+        expect(lock.error).toBe('');
+        // other flags of the same family read the same way; an enum keeps its own word
+        expect(faultText('true', 'hm/status/x:12/ERROR_LOAD_TOO_LOW')).toBe('load too low');
+        expect(faultText('CLUTCH_FAILURE', 'hm/status/x:1/ERROR')).toBe('CLUTCH_FAILURE');
+        expect(faultText('true', '')).toBe('true');
+    });
+
+    it('E144: an HmIP door lock drive — the enum indexes as state and as the three commands', () => {
+        // as the Homematic recognizer stamps an HmIP-DLD
+        const {host, lock} = mount({
+            subscribe: 'hm/status/Haustür:1/LOCK_STATE', 'message-property': 'payload.val',
+            'payload-locked': '1', 'payload-unlocked': '2',
+            publish: 'hm/set/Haustür:1/LOCK_TARGET_LEVEL', 'payload-lock': '0', 'payload-unlock': '1', 'payload-open': '2',
+        });
+        const feed = val => host.subs.get('hm/status/Haustür:1/LOCK_STATE')({payload: {val}});
+        feed(1); expect(lock.state).toBe('locked');
+        feed(2); expect(lock.state).toBe('unlocked');
+        feed(0); expect(lock.state).toBe(null);          // UNKNOWN
+        expect(lock.canOpen).toBe(true);
+        lock.lock(); lock.unlock(); lock.open();
+        expect(published).toEqual([
+            ['hm/set/Haustür:1/LOCK_TARGET_LEVEL', '0'],
+            ['hm/set/Haustür:1/LOCK_TARGET_LEVEL', '1'],
+            ['hm/set/Haustür:1/LOCK_TARGET_LEVEL', '2'],
+        ]);
     });
 
     it('battery-low: boolean payload and numeric threshold forms', () => {

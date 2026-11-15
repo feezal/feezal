@@ -1069,6 +1069,96 @@ describe('homematic lock recognizer (E144)', () => {
     });
 });
 
+// ── E144: HmIP door lock drives (HmIP-DLD, HmIP-DLP) ─────────────────────────
+// Channel types, datapoints and enum values as the CCU's own control and the
+// devices' VALUES descriptions give them — see the recognizer's header.
+describe('homematic lock recognizer — HmIP door lock drives (E144)', () => {
+    const meta = (dev, type, name, channelType, index, dp) => ({
+        device: dev, deviceName: name, deviceType: type, iface: 'HmIP-RF',
+        channel: `${dev}:${index}`, channelName: `${name}:${index}`, channelType, channelIndex: index, datapoint: dp,
+    });
+    const lock = dev => nat.getNativeEntity('hm-lock:' + dev);
+
+    it('HmIP-DLD: LOCK_STATE on :1 (DOOR_LOCK_STATE_TRANSMITTER) → a lock that locks, unlocks and opens with LOCK_TARGET_LEVEL', () => {
+        const dev = '0026AAAA000001';
+        const m = (i, ct, dp) => meta(dev, 'HmIP-DLD', 'Haustür', ct, i, dp);
+        nat.handleNativeMessage('hm/status/Haustür:0/UNREACH', je(false, m(0, 'MAINTENANCE', 'UNREACH')));
+        nat.handleNativeMessage('hm/status/Haustür:0/LOW_BAT', je(false, m(0, 'MAINTENANCE', 'LOW_BAT')));
+        nat.handleNativeMessage('hm/status/Haustür:1/LOCK_STATE', je(1, m(1, 'DOOR_LOCK_STATE_TRANSMITTER', 'LOCK_STATE')));
+
+        const e = lock(dev);
+        expect(e).toMatchObject({component: 'lock', source: 'homematic', name: 'Haustür'});
+        const {availability_normalized, battery_low_normalized, ...config} = e.config;
+        expect(config).toEqual({
+            name: 'Haustür',
+            state_topic: 'hm/status/Haustür:1/LOCK_STATE',
+            command_topic: 'hm/set/Haustür:1/LOCK_TARGET_LEVEL',
+            value_template: '{{ value_json.val }}',
+            // LOCK_STATE: 0 UNKNOWN / 1 LOCKED / 2 UNLOCKED
+            state_locked: '1', state_unlocked: '2',
+            // LOCK_TARGET_LEVEL: 0 LOCKED / 1 UNLOCKED / 2 OPEN
+            payload_lock: '0', payload_unlock: '1', payload_open: '2',
+        });
+        // OPEN goes to the same datapoint — no separate topic as on the Keymatic
+        expect(config.open_command_topic).toBeUndefined();
+        expect(availability_normalized.entries).toEqual([{topic: 'hm/status/Haustür:0/UNREACH', property: 'payload.val'}]);
+        expect(battery_low_normalized).toMatchObject({topic: 'hm/status/Haustür:0/LOW_BAT'});
+        expect(nat.getNativeEntities().filter(x => x.component === 'lock')).toHaveLength(1);
+    });
+
+    it('HmIP-DLD: the motor (ACTIVITY_STATE) and the jam flag are wired where they were seen — the flag on :0', () => {
+        const dev = '0026AAAA000002';
+        const m = (i, ct, dp) => meta(dev, 'HmIP-DLD', 'Keller', ct, i, dp);
+        nat.handleNativeMessage('hm/status/Keller:1/LOCK_STATE', je(2, m(1, 'DOOR_LOCK_STATE_TRANSMITTER', 'LOCK_STATE')));
+        expect(lock(dev).config.direction_topic).toBeUndefined();
+        expect(lock(dev).config.error_topic).toBeUndefined();
+
+        nat.handleNativeMessage('hm/status/Keller:1/ACTIVITY_STATE', je(3, m(1, 'DOOR_LOCK_STATE_TRANSMITTER', 'ACTIVITY_STATE')));
+        nat.handleNativeMessage('hm/status/Keller:0/ERROR_JAMMED', je(false, m(0, 'MAINTENANCE', 'ERROR_JAMMED')));
+        // promoted again by the next lock-channel message
+        nat.handleNativeMessage('hm/status/Keller:1/LOCK_STATE', je(2, m(1, 'DOOR_LOCK_STATE_TRANSMITTER', 'LOCK_STATE')));
+        expect(lock(dev).config).toMatchObject({
+            direction_topic: 'hm/status/Keller:1/ACTIVITY_STATE', message_property_direction: 'payload.val',
+            error_topic: 'hm/status/Keller:0/ERROR_JAMMED', message_property_error: 'payload.val',
+        });
+    });
+
+    it('HmIP-DLP: the lock channel is :12 (DOOR_LOCK_TRANSCEIVER), the jam flag sits on it', () => {
+        const dev = '0030AAAA000003';
+        const m = (i, ct, dp) => meta(dev, 'HmIP-DLP', 'Wohnungstür', ct, i, dp);
+        nat.handleNativeMessage('hm/status/Wohnungstür:12/ERROR_JAMMED', je(false, m(12, 'DOOR_LOCK_TRANSCEIVER', 'ERROR_JAMMED')));
+        // the door contact of the same device is no lock
+        nat.handleNativeMessage('hm/status/Wohnungstür:3/STATE', je(0, m(3, 'DOOR_STATE_TRANSCEIVER', 'STATE')));
+        expect(lock(dev)).toBeNull();
+        nat.handleNativeMessage('hm/status/Wohnungstür:12/LOCK_STATE', je(1, m(12, 'DOOR_LOCK_TRANSCEIVER', 'LOCK_STATE')));
+        expect(lock(dev).config).toMatchObject({
+            state_topic: 'hm/status/Wohnungstür:12/LOCK_STATE',
+            command_topic: 'hm/set/Wohnungstür:12/LOCK_TARGET_LEVEL',
+            state_locked: '1', state_unlocked: '2', payload_lock: '0', payload_unlock: '1', payload_open: '2',
+            error_topic: 'hm/status/Wohnungstür:12/ERROR_JAMMED',
+        });
+    });
+
+    it('promotes nothing for a lock-state SENSOR (HmIP-DLS) or a LOCK_STATE without channel metadata', () => {
+        nat.handleNativeMessage('hm/status/Sensor:1/LOCK_STATE',
+            je(1, meta('0031AAAA000004', 'HmIP-DLS', 'Sensor', 'DOOR_LOCK_STATE_TRANSCEIVER', 1, 'LOCK_STATE')));
+        nat.handleNativeMessage('hm/status/Bare:1/LOCK_STATE', je(1));
+        expect(nat.getNativeEntities().filter(x => x.component === 'lock')).toHaveLength(0);
+    });
+
+    it('a Keymatic is still read as before', () => {
+        const dev = 'TEQ0000144';
+        nat.handleNativeMessage('hm/status/Tor:1/STATE', je(false, {
+            device: dev, deviceName: 'Tor', deviceType: 'HM-Sec-Key', channel: dev + ':1', channelName: 'Tor:1',
+            channelType: 'KEYMATIC', channelIndex: 1, datapoint: 'STATE',
+        }));
+        expect(lock(dev).config).toMatchObject({
+            state_topic: 'hm/status/Tor:1/STATE', state_locked: 'false', payload_open: 'true',
+            open_command_topic: 'hm/set/Tor:1/OPEN',
+        });
+    });
+});
+
 // ── E131/E132: Homematic boolean-sensor recognizer (motion + hazard classes) ─
 
 describe('homematic sensor recognizer (E131 motion, E132 hazard table)', () => {

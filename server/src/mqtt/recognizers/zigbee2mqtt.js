@@ -228,6 +228,9 @@ function buildEntities(inst) {
                             value_template: tpl(state.property),
                             state_locked: state.value_on ?? 'LOCK',
                             state_unlocked: state.value_off ?? 'UNLOCK',
+                            // zigbee2mqtt takes the plain words on …/set as the state
+                            payload_lock: state.value_on ?? 'LOCK',
+                            payload_unlock: state.value_off ?? 'UNLOCK',
                             ...(batteryRecord ? {battery_low_normalized: batteryRecord} : {}),
                         },
                         claims: [{topic: stateTopic, property: path(state.property)}, {topic: stateTopic, component: 'lock'}]});
@@ -528,9 +531,15 @@ function genericEntity(expose, stateTopic) {
     // an expose of an endpoint is set under that endpoint, as zigbee2mqtt announces it
     const ep = typeof expose.endpoint === 'string' && expose.endpoint ? `/${expose.endpoint}` : '';
     const setTopic = `${stateTopic}${ep}/set/${property}`;
+    // A generic expose that can be SET is a setting of the device (a relock
+    // time, a threshold, an indicator) — its functions are the specific
+    // exposes. zigbee2mqtt's discovery marks the ones in its own table as
+    // `config`; the exposes carry a category only sometimes.
+    const category = expose.category === 'config' || expose.category === 'diagnostic'
+        ? expose.category : (settable ? 'config' : null);
     const base = {
         ...(readable ? {state_topic: stateTopic, value_template: tpl(property)} : {}),
-        ...(expose.category === 'config' || expose.category === 'diagnostic' ? {entity_category: expose.category} : {}),
+        ...(category ? {entity_category: category} : {}),
         ...(DISABLED_BY_DEFAULT.has(name) ? {enabled_by_default: false} : {}),
         ...(expose.description ? {description: expose.description} : {}),
     };
