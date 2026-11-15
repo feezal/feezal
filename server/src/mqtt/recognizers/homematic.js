@@ -31,6 +31,7 @@
 // Homematic bridge prefix (hm2mqtt / RedMatic default). Configurable.
 let hmPrefix = 'hm';
 function setHomematicPrefix(p) { hmPrefix = String(p || 'hm').replace(/\/+$/, ''); }
+function getHomematicPrefix() { return hmPrefix; }
 
 // Staleness ("grace period") filter for CLIMATE ONLY. Premise: a live thermostat
 // publishes ACTUAL_TEMPERATURE periodically, so a heating device whose newest
@@ -1510,6 +1511,7 @@ module.exports = {
     hmRecognizers,
     buildHmModes,
     setHomematicPrefix,
+    getHomematicPrefix,
     setHomematicClimateStaleMs,
     setHomematicClimateStale,
     getClimateStaleMs,
