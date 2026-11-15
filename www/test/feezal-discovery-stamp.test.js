@@ -20,8 +20,11 @@ import {
     multivalueMergeGroups,
     multivalueFromEntities,
     applyMultivalueFill,
-    uniqueViewName
+    uniqueViewName,
+    parseDiscoveryIds,
+    serializeDiscoveryIds
 } from '../src/feezal-discovery-stamp.js';
+import '../src/feezal-generate-dialog.js';
 
 // U62: a fixture that routes the entity `name` → `label` (like every E137
 // controller) and declares the `label` attribute, to exercise label
@@ -684,11 +687,48 @@ describe('E165 - multivalue device-fill (merge groups, grid derivation, stamping
         expect(applyMultivalueFill(el, ents, {deviceId: 'meter', deviceName: 'METER'})).toBe(true);
         expect(el.getAttribute('subscribe')).toBe('zigbee2mqtt/meter');
         expect(el.getAttribute('discovery-id')).toBe('mv:meter');
-        expect(el.getAttribute('discovery-ids')).toBe('sensor/meter/power_a sensor/meter/power_b');
+        expect(el.getAttribute('discovery-ids')).toBe('["sensor/meter/power_a","sensor/meter/power_b"]');
         expect(el.getAttribute('label')).toBe('METER');
         const values = JSON.parse(el.getAttribute('values'));
         expect(values).toHaveLength(2);
         expect(values[0].label).toBe('Power A');
+    });
+
+    // B106: member ids embed topic segments, and MQTT topics may contain
+    // spaces (hm2mqtt builds them from Homematic channel names) — a
+    // space-joined list could not be split back.
+    it('B106: member ids containing spaces round-trip through stamp → parse → dupe-guard', () => {
+        const el = document.createElement('div');
+        const ents = [
+            {...sensor('hm', 'a'), discovery_id: 'hm-switch:Licht Terrasse'},
+            {...sensor('hm', 'b'), discovery_id: 'sensor/hm/Temperatur Bad'},
+        ];
+        applyMultivalueFill(el, ents, {deviceId: 'hm dev'});
+        expect(parseDiscoveryIds(el.getAttribute('discovery-ids')))
+            .toEqual(['hm-switch:Licht Terrasse', 'sensor/hm/Temperatur Bad']);
+        const Dialog = customElements.get('feezal-generate-dialog');
+        expect(Dialog._elementIds(el))
+            .toEqual(['mv:hm dev', 'hm-switch:Licht Terrasse', 'sensor/hm/Temperatur Bad']);
+    });
+
+    it('B106: the legacy space-separated form saved dashboards hold is still read', () => {
+        expect(parseDiscoveryIds('sensor/meter/power_a sensor/meter/power_b'))
+            .toEqual(['sensor/meter/power_a', 'sensor/meter/power_b']);
+        expect(parseDiscoveryIds('  a\tb\n c ')).toEqual(['a', 'b', 'c']);
+        const el = document.createElement('div');
+        el.setAttribute('discovery-id', 'mv:meter');
+        el.setAttribute('discovery-ids', 'sensor/meter/power_a sensor/meter/power_b');
+        expect(customElements.get('feezal-generate-dialog')._elementIds(el))
+            .toEqual(['mv:meter', 'sensor/meter/power_a', 'sensor/meter/power_b']);
+    });
+
+    it('B106: parse is total — empty, null and malformed JSON never throw', () => {
+        expect(parseDiscoveryIds(null)).toEqual([]);
+        expect(parseDiscoveryIds('')).toEqual([]);
+        expect(parseDiscoveryIds('[]')).toEqual([]);
+        expect(parseDiscoveryIds('["a", 3, "", "b c"]')).toEqual(['a', 'b c']);
+        expect(parseDiscoveryIds('[broken')).toEqual(['[broken']);   // legacy split fallback
+        expect(serializeDiscoveryIds(['a b', 'c'])).toBe('["a b","c"]');
     });
 
     it('one device = one availability: the first member record is stamped on the card', () => {

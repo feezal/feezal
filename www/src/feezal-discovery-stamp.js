@@ -618,6 +618,34 @@ export function multivalueFromEntities(entities) {
 }
 
 /**
+ * B106: `discovery-ids` is a JSON array. The member ids embed topic-derived
+ * segments, and MQTT topics may contain spaces (hm2mqtt builds them from
+ * Homematic channel names, "Licht Terrasse") — a space-joined list could not
+ * be split back. Same convention as the multi-entry `subscribe-availability`.
+ */
+export function serializeDiscoveryIds(ids) {
+    return JSON.stringify(ids);
+}
+
+/**
+ * Read a `discovery-ids` value. A value starting with `[` is the JSON array;
+ * anything else is the space-separated form dashboards saved before B106
+ * hold (the next re-stamp upgrades them). Never throws; every consumer of
+ * the attribute reads it through here.
+ */
+export function parseDiscoveryIds(value) {
+    const v = String(value ?? '').trim();
+    if (!v) return [];
+    if (v.startsWith('[')) {
+        try {
+            const list = JSON.parse(v);
+            if (Array.isArray(list)) return list.filter(id => typeof id === 'string' && id);
+        } catch { /* not JSON after all — read it as the legacy list */ }
+    }
+    return v.split(/\s+/).filter(Boolean);
+}
+
+/**
  * Stamp a multivalue element from a device's sensor entities (the ⚡ picker
  * device row / wizard merge path). Dupe-guard: the card carries the synthetic
  * `mv:<deviceId>` discovery-id PLUS the member ids in `discovery-ids`, so
@@ -636,7 +664,7 @@ export function applyMultivalueFill(el, entities, {deviceId = '', deviceName = '
     if (withAvail) stampAvailability(el, withAvail.config.availability_normalized);
     if (deviceId) el.setAttribute('discovery-id', 'mv:' + deviceId);
     const memberIds = entities.map(e => e.discovery_id).filter(Boolean);
-    if (memberIds.length) el.setAttribute('discovery-ids', memberIds.join(' '));
+    if (memberIds.length) el.setAttribute('discovery-ids', serializeDiscoveryIds(memberIds));
     return true;
 }
 
