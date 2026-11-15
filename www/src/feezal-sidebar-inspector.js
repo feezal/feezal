@@ -34,6 +34,21 @@ const FN_ALIAS = {};
 const FAMILY_LABELS = {eink: 'E-ink', tui: 'TUI', wled: 'WLED'};
 const familyLabel = f => FAMILY_LABELS[f] || (f ? f.charAt(0).toUpperCase() + f.slice(1) : f);
 
+/**
+ * B118: is the key event aimed at a text field? Read from the DEEP target
+ * (composedPath()[0]) so a field inside nested shadow roots — the Layers
+ * filter, Monaco's textarea inside the editor shell — is recognised, not just
+ * one shadow level below document.activeElement.
+ */
+function isTextEntryTarget(event) {
+    const t = event.composedPath?.()[0];
+    if (!t || !t.tagName) return false;
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName)) return true;
+    if (t.isContentEditable) return true;
+    const inner = t.shadowRoot?.activeElement;
+    return Boolean(inner && ['INPUT', 'TEXTAREA'].includes(inner.tagName));
+}
+
 class FeezalSidebarInspector extends LitElement {
     static properties = {
         viewSelected:   {type: Boolean, notify: true},
@@ -1280,6 +1295,27 @@ class FeezalSidebarInspector extends LitElement {
             // Deleting a view stays an explicit act: the tab context menu.
             if (event.key === 'Delete' && this.viewSelected) return;
 
+            // B118: undo/redo are EDITOR-level and must not depend on which
+            // panel holds focus. They used to sit behind the canvas-focus gate
+            // below, so after a Layers context-menu delete (the menu click
+            // takes focus off feezal-site) Ctrl+Z did nothing until the canvas
+            // was clicked. Only a text field being edited keeps the keystroke
+            // for its own undo.
+            if ((event.metaKey || event.ctrlKey) && !event.altKey) {
+                const k = event.key.toLowerCase();
+                if (k === 'z' || k === 'y') {
+                    // A modal dialog owns the keyboard — never change the
+                    // canvas behind it.
+                    if (isTextEntryTarget(event)
+                        || event.composedPath().some(n => n.tagName === 'SL-DIALOG' && n.open)) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (k === 'y' || event.shiftKey) feezal.app._redoStep();
+                    else feezal.app._undo();
+                    return;
+                }
+            }
+
             // Arrow-key movement: only when feezal-site itself is document.activeElement.
             if (['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
                 if (!this.viewSelected && document.activeElement.tagName === 'FEEZAL-SITE') {
@@ -1309,28 +1345,8 @@ class FeezalSidebarInspector extends LitElement {
                         }
 
                         break;
-                    case 'z':
-                        // U82: undo/redo are EDITOR-level actions, not element
-                        // actions — this used to require an element selection
-                        // (`!this.viewSelected`), so undo was dead in exactly
-                        // the state the destructive operations leave behind:
-                        // deleting an element (or pressing Escape) selects the
-                        // view, and the deletion could then not be undone.
-                        if (event.metaKey || event.ctrlKey) {
-                            event.preventDefault();
-                            if (event.shiftKey) feezal.app._redoStep();
-                            else feezal.app._undo();
-                        }
-
-                        break;
-                    case 'y':
-                        // U82: the Windows redo idiom, same canvas-focus gate.
-                        if (event.metaKey || event.ctrlKey) {
-                            event.preventDefault();
-                            feezal.app._redoStep();
-                        }
-
-                        break;
+                    // U82/B118: Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y are handled
+                    // above this canvas-focus gate — they act from any panel.
                     case 'a':
                         if (event.metaKey || event.ctrlKey) {
                             event.preventDefault();
